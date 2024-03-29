@@ -1,0 +1,1481 @@
+use std::collections::HashMap;
+use std::ops::DerefMut;
+
+use futures_util::{StreamExt, TryStreamExt};
+use sqlparser::ast::{ColumnOption, Expr, Statement};
+use sqlparser::tokenizer::Token;
+use sqlx::pool::PoolConnection;
+use sqlx::sqlite::SqliteRow;
+use sqlx::{Column, Row, TypeInfo};
+
+use crate::completion::{
+    AutoCompletionTrait, CompletionItem, CompletionKind, LexerCompletionBackend,
+};
+use crate::datasource::DBConfig;
+use crate::db::{
+    is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError,
+    ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq,
+    TableListResp,
+};
+use crate::pool::{NexusPool, PoolManager};
+
+#[derive(Clone)]
+pub struct SqliteDB {
+    pool: PoolManager,
+    path: String,
+}
+
+impl SqliteDB {
+    async fn create_table_or_view_sql(
+        &self, table_name: &str, kind: &str,
+    ) -> anyhow::Result<String> {
+        let mut conn = self.get_conn().await?;
+        let sql = format!(
+            "SELECT sql FROM sqlite_master WHERE type = '{kind}' AND name = '{table_name}';"
+        );
+        let row = sqlx::query(sql.as_str())
+            .fetch_one(conn.deref_mut())
+            .await?;
+        let sql: String = row.try_get(0)?;
+        anyhow::Ok(sql)
+    }
+
+    async fn get_table_indexes_sql(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
+        let mut conn = self.get_conn().await?;
+        let sql = format!(
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = '{table_name}';"
+        );
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let sql: String = r.try_get(0)?;
+            ret.push(sql);
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn export_table_as_sql(
+        &self, table_name: &str, include_table_schema: bool,
+        sender: tokio::sync::mpsc::Sender<String>,
+    ) -> anyhow::Result<()> {
+        if include_table_schema {
+            let ss = DBTrait::create_table_sql(self, table_name).await?;
+            sender.send(ss.create_table.clone()).await?;
+            sender.send("\n".to_string()).await?;
+
+            for index in ss.indexes.into_iter() {
+                sender.send(index).await?;
+                sender.send("\n".to_string()).await?;
+            }
+        }
+        let mut conn = self.get_conn().await?;
+        let cols = DBTrait::show_columns(self, table_name).await?;
+        let sql = format!("select * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str())
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+
+            let data = encode_rows(&rows)?;
+            for d in data.into_iter() {
+                let mut m = HashMap::new();
+                for (d, f) in d.into_iter().zip(cols.iter()) {
+                    m.insert(f.name.clone(), d);
+                }
+
+                let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
+                sender.send(insert_sql).await?;
+                sender.send("\n".to_string()).await?;
+            }
+        }
+        anyhow::Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl DBTrait for SqliteDB {
+    async fn create_table_sql(&self, table_name: &str) -> anyhow::Result<CreateTableAndIndexSql> {
+        let table = self.create_table_or_view_sql(table_name, "table").await?;
+        let indexes = self.get_table_indexes_sql(table_name).await?;
+
+        anyhow::Ok(CreateTableAndIndexSql {
+            create_table: table,
+            indexes,
+        })
+    }
+
+    async fn export_table(
+        &self, table_name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<String>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => anyhow::bail!("not impl"),
+            ExportKind::Json { pretty } => anyhow::bail!("not impl"),
+            ExportKind::Sql {
+                include_table_schema,
+            } => {
+                self.export_table_as_sql(table_name, include_table_schema, sender)
+                    .await
+            }
+        }
+    }
+
+    async fn create_view_sql(&self, view_name: &str) -> anyhow::Result<String> {
+        self.create_table_or_view_sql(view_name, "view").await
+    }
+
+    fn clone(&self) -> Box<dyn DBTrait> {
+        Box::new(Clone::clone(self))
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(
+            r#"
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'view';
+        "#,
+        )
+        .fetch_all(conn.deref_mut())
+        .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(name);
+        }
+
+        anyhow::Ok(ret.into_iter().map(ListView::from).collect())
+    }
+
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+        let s = format!("DROP VIEW {view_name}");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+        let s = format!("DROP TABLE {table}");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn delete(
+        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet> {
+        let fields = self.show_columns(table_name).await?;
+        let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
+        let mut conn = self.get_conn().await?;
+        let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(SqlExecuteRet {
+            sql,
+            changes: r.rows_affected(),
+            last_insert_row_id: None,
+            last_insert_id_string: None,
+        })
+    }
+
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+        let s = format!(
+            r#"
+            DELETE FROM {table_name};
+            DELETE FROM sqlite_sequence WHERE name = '{table_name}';
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
+    fn put_value_in_sql(&self, f: &Field, value: Option<&str>) -> anyhow::Result<String> {
+        let v = if f.typ == "TEXT" {
+            // escape '
+            format!(
+                "'{}'",
+                value
+                    .map(|x| x.replace("'", "''"))
+                    .unwrap_or("null".to_string())
+            )
+        } else {
+            let mut x = value.unwrap_or("null").to_string();
+            // debug_assert!(!x.is_empty(), "{:?} value:{:?}", f, value);
+            if x.is_empty() {
+                // todo null return "" string sometimes??
+                x = "null".to_string();
+            }
+            x
+        };
+
+        anyhow::Ok(v)
+    }
+
+    async fn update(
+        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet> {
+        let fields = self.show_columns(table_name).await?;
+
+        let mut conn = self.get_conn().await?;
+        let s =
+            (self as &dyn crate::db::DBTrait).update_sql(table_name, &fields, &values, &wheres)?;
+
+        let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(SqlExecuteRet {
+            sql: s,
+            changes: r.rows_affected(),
+            last_insert_row_id: None,
+            last_insert_id_string: None,
+        })
+    }
+
+    async fn insert(
+        &self, table_name: &str, values: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet> {
+        let fields = self.show_columns(table_name).await?;
+        let sql = (self as &dyn crate::db::DBTrait).insert_sql(table_name, &fields, &values)?;
+        let mut conn = self.get_conn().await?;
+        let r = sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(SqlExecuteRet {
+            sql,
+            last_insert_row_id: Some(r.last_insert_rowid()),
+            changes: r.rows_affected(),
+            last_insert_id_string: None,
+        })
+    }
+
+    async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table';")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let table_name: String = r.get(0);
+            ret.push(table_name);
+        }
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+    }
+
+    async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+        let increment_key = self.query_auto_increment_key(table_name).await?;
+        let increment_key = increment_key.as_ref().map(|x| x.as_str());
+
+        let s = format!("pragma table_info({table_name})");
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        // cid name type     notnull  delt_value pk
+        // 0	id	INTEGER	 0		  null      1
+        for r in rows.iter() {
+            let name: String = r.get(1);
+            let ty: String = r.get(2);
+            let not_null: i64 = r.get(3);
+            let delt_value: Option<String> = r.get(4);
+            let pk: Option<i64> = r.get(5);
+            let is_auto_increment = Some(name.as_str()) == increment_key;
+
+            ret.push(Field::new(
+                name,
+                ty,
+                not_null == 0,
+                delt_value,
+                pk.map(|x| x == 1).unwrap_or_default(),
+                is_auto_increment,
+            ));
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    async fn show_table(
+        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+        page_size: usize,
+    ) -> anyhow::Result<TableListResp> {
+        let total = self.query_count(table_name, where_str.clone()).await?;
+        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
+        log::trace!("show table sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+
+        let data = encode_rows(&row)?;
+        let fields = self.show_columns(table_name).await?;
+        anyhow::Ok(TableListResp::new(fields, total, data, sql))
+    }
+
+    async fn show_view(
+        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+        page_size: usize,
+    ) -> anyhow::Result<TableListResp> {
+        let mut conn = self.get_conn().await?;
+        let total = self.query_count(table_name, where_str.clone()).await?;
+        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
+        log::trace!("show table sql:{}", sql);
+        let row = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let data = encode_rows(&row)?;
+        let fields = get_rows_types(&row);
+
+        anyhow::Ok(TableListResp::new(fields, total, data, sql))
+    }
+
+    async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
+        let s = format!("PRAGMA index_list({table_name})");
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
+        // seq name unique origin partial
+        // 0   xxx  1      c      0
+
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for r in rows.iter() {
+            let name: String = r.get(1);
+            let unique: i64 = r.get(2);
+            // query create index sql
+            let s = format!(
+                "select sql from sqlite_master where type='index' and name='{name}' and tbl_name='{table_name}'; "
+            );
+            let row = sqlx::query(s.as_str()).fetch_one(conn.deref_mut()).await?;
+            let create_index_sql: String = row.get(0);
+
+            let indexs = extract_index(&create_index_sql)?;
+            if indexs.is_none() {
+                anyhow::bail!(format!(
+                    "some we can't extract indexes this statement {}",
+                    create_index_sql
+                ));
+            }
+            let (name2, on) = indexs.unwrap();
+            if let Some(name2) = &name2 {
+                debug_assert_eq!(&name, name2);
+            }
+
+            ret.push(Index::new(
+                name,
+                if unique == 1 {
+                    IndexKind::Unique
+                } else {
+                    IndexKind::Normal
+                },
+                on,
+            ))
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+impl SqliteDB {
+    async fn query_auto_increment_key(&self, table_name: &str) -> anyhow::Result<Option<String>> {
+        let s = format!(
+            r#"select sql from sqlite_master where type='table' and name='{}'"#,
+            table_name
+        );
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(s.as_str()).fetch_one(conn.deref_mut()).await?;
+        let sql: String = row.get(0);
+        extract_auto_increment_key(sql.as_str())
+    }
+}
+
+fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
+    if rows.len() == 0 {
+        return vec![];
+    }
+    let mut ret = Vec::with_capacity(rows[0].columns().len());
+    for c in rows[0].columns().iter() {
+        ret.push(Field {
+            name: c.name().to_string(),
+            typ: c.type_info().name().to_string(),
+            nullable: true,
+            default_value: None,
+            is_primary: false,
+            is_auto_increment: false,
+        });
+    }
+    ret
+}
+
+fn encode_bytes(bs: &[u8]) -> String {
+    format!("X'{}'", hex::encode_upper(bs))
+}
+
+fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+    let mut ret = Vec::with_capacity(rows.len());
+
+    for r in rows.iter() {
+        let mut values = Vec::with_capacity(r.len());
+        for c in 0..r.len() {
+            let ty = r.column(c).type_info().name();
+            let v = match ty {
+                "NULL" | "" => {
+                    // null table is not always null. I quote 'suitable for
+                    // representing missing or unknown data'
+                    // try get possible values
+                    if let Result::Ok(s) = r.try_get(c) {
+                        Some(s)
+                    } else if let Result::Ok(s) = r.try_get::<'_, f64, _>(c) {
+                        Some(s.to_string())
+                    } else if let Result::Ok(s) = r.try_get::<'_, Vec<u8>, _>(c) {
+                        Some(encode_bytes(s.as_slice()))
+                    } else if let Result::Ok(s) = r.try_get::<'_, i64, _>(c) {
+                        Some(s.to_string())
+                    } else {
+                        None
+                    }
+                }
+
+                "TEXT" => {
+                    let v: Option<String> = r.get(c);
+                    v
+                }
+                "REAL" => {
+                    let v: Option<f64> = r.get(c);
+                    v.map(|x| format!("{}", x))
+                }
+                "BLOB" => {
+                    let v: Option<Vec<u8>> = r.get(c);
+                    v.map(|x| format!("X'{}'", encode_bytes(x.as_slice())))
+                }
+
+                "INTEGER" => {
+                    let v: Option<i64> = r.get(c);
+                    v.map(|x| format!("{}", x))
+                }
+                "NUMERIC" => {
+                    let v: Option<f64> = r.get(c);
+                    v.map(|x| format!("{}", x))
+                }
+
+                // non-standard extensions 这些实际上不存在？
+                // "BOOLEAN" => {
+                //
+                // }
+                // "DATE" => {
+                //
+                // }
+                // "TIME" => {
+                //
+                // }
+                // "DATETIME" => {
+                //
+                // }
+                _ => anyhow::bail!(format!("type '{ty}' not supported")),
+            };
+
+            values.push(v);
+        }
+        ret.push(values);
+    }
+    anyhow::Ok(ret)
+}
+
+impl SqliteDB {
+    fn new(pool: PoolManager, path: String) -> Self {
+        Self { path, pool }
+    }
+
+    async fn query_count(
+        &self, table_name: &str, where_str: Option<&str>,
+    ) -> anyhow::Result<usize> {
+        let mut conn = self.get_conn().await?;
+        let mut s = format!("select count(1) from {table_name} ");
+        if let Some(where_str) = where_str {
+            s.push_str(format!(" where {where_str}").as_str());
+        }
+        let row = sqlx::query(s.as_str()).fetch_one(conn.deref_mut()).await?;
+        let count: i64 = row.get(0);
+        anyhow::Ok(count as usize)
+    }
+
+    pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<sqlx::Sqlite>> {
+        let pool = match self
+            .pool
+            .get(&DBConfig::Sqlite {
+                path: self.path.clone(),
+            })
+            .await?
+        {
+            NexusPool::Sqlite(p) => p.clone(),
+            _ => unreachable!(),
+        };
+
+        let conn = pool.acquire().await?;
+        return anyhow::Ok(conn);
+    }
+}
+
+fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
+    use sqlparser::dialect::SQLiteDialect;
+    let ss = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, sql)?;
+    if ss.len() != 1 {
+        anyhow::bail!("should contains one statement");
+    }
+
+    let s = ss.get(0).unwrap();
+    match s {
+        Statement::CreateTable {
+            or_replace: _,
+            temporary: _,
+            external: _,
+            global: _,
+            if_not_exists: _,
+            transient: _,
+            name: _,
+            columns,
+            constraints: _,
+            hive_distribution: _,
+            hive_formats: _,
+            table_properties: _,
+            with_options: _,
+            file_format: _,
+            location: _,
+            query: _,
+            without_rowid: _,
+            like: _,
+            clone: _,
+            engine: _,
+            comment: _,
+            auto_increment_offset: _,
+            default_charset: _,
+            collation: _,
+            on_commit: _,
+            on_cluster: _,
+            order_by: _,
+            partition_by: _,
+            cluster_by: _,
+            options: _,
+            strict: _,
+        } => {
+            for c in columns.iter() {
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
+                        }
+                        _ => false,
+                    }
+                }) {
+                    return anyhow::Ok(Some(c.name.to_string()));
+                }
+            }
+        }
+        _ => anyhow::bail!("should be a create table statement"),
+    };
+    anyhow::Ok(None)
+}
+
+#[async_trait::async_trait]
+impl QuerySql for SqliteDB {
+    async fn query_sql(
+        &self, sql: &str,
+    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+        let seq = get_sql_seq(sql);
+        let x = match seq {
+            anyhow::Result::Ok(e) => e,
+            anyhow::Result::Err(_err) => {
+                log::error!("parse sql fail use as query");
+                vec![SqlSeq {
+                    sql: sql.to_string(),
+                    kind: crate::db::SqlKind::Query,
+                }]
+            }
+        };
+
+        let mut ret = Vec::with_capacity(x.len());
+        let mut conn = self.get_conn().await?;
+        use crate::db::SqlKind;
+
+        for c in x.iter() {
+            let result = match c.kind {
+                SqlKind::Query => {
+                    let result = sqlx::query(&c.sql).fetch_all(conn.deref_mut()).await;
+                    let result: Result<TableListResp, ExeSqlError> = match result {
+                        Ok(rows) => {
+                            let data = encode_rows(&rows)?;
+                            let fields = get_rows_types(&rows);
+                            Ok(TableListResp::new(fields, data.len(), data, &c.sql))
+                        }
+                        Err(err) => {
+                            Err(ExeSqlError::new(
+                                &c.sql,
+                                anyhow::Error::msg(err.to_string()),
+                            ))
+                        }
+                    };
+                    result
+                }
+
+                SqlKind::Execution => {
+                    let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
+                    let result: Result<TableListResp, ExeSqlError> = match result {
+                        Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
+                        Err(err) => {
+                            Err(ExeSqlError::new(
+                                &c.sql,
+                                anyhow::Error::msg(err.to_string()),
+                            ))
+                        }
+                    };
+                    result
+                }
+            };
+            ret.push(result);
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl AutoCompletionTrait for SqliteDB {
+    async fn auto_completion(
+        &self, sql: &str, pos: sqlparser::tokenizer::Location,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        LexerCompletionBackend::do_auto_completion(
+            self,
+            sql,
+            &sqlparser::dialect::SQLiteDialect {},
+            pos,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+
+impl crate::completion::LexerCompletionBackend for SqliteDB {
+    type Dialect = sqlparser::dialect::SQLiteDialect;
+
+    const BUILD_IN_FUNCTIONS: &'static [&'static str] = SQLITE_FUNTIONS;
+    // https://sqlite.org/lang_keywords.html
+    const KEY_WORDS: &'static [&'static str] = SQLITE_KEY_WORDS;
+    const TEXTS: &'static [&'static str] = &["true"];
+    const TYPES: &'static [&'static str] = SQLITE_TYPES;
+
+    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
+        crate::db::DBTrait::list_table(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.table).collect())
+    }
+
+    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
+        crate::db::DBTrait::show_columns(self, table_name)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn extra_completion_item(&self) -> Vec<CompletionItem> {
+        PRAGMA_ITEMS
+            .iter()
+            .map(|x| {
+                CompletionItem {
+                    name: x.to_string(),
+                    kind: CompletionKind::Text,
+                }
+            })
+            .collect()
+    }
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn test_auto_completion() {
+    use crate::completion::LexerCompletionBackend;
+    let s = SqliteDB {
+        pool: Default::default(),
+        path: ":memory:".to_string(),
+    };
+    let mut conn = s.get_conn().await.unwrap();
+    sqlx::query(
+        r#"
+
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY,
+        username TEXT NOT NULL,
+        password TEXT NOT NULL,
+        email TEXT NOT NULL
+    );
+    "#,
+    )
+    .execute(conn.deref_mut())
+    .await
+    .unwrap();
+
+    {
+        let completion = LexerCompletionBackend::do_auto_completion(
+            &s,
+            "sel  * from",
+            &sqlparser::dialect::SQLiteDialect {},
+            sqlparser::tokenizer::Location { line: 1, column: 4 },
+        )
+        .await
+        .unwrap();
+
+        println!("{:?}", completion)
+    }
+    {
+        let completion = LexerCompletionBackend::do_auto_completion(
+            &s,
+            "cou  xxxx",
+            &sqlparser::dialect::SQLiteDialect {},
+            sqlparser::tokenizer::Location { line: 1, column: 4 },
+        )
+        .await
+        .unwrap();
+        println!("{:?}", completion)
+    }
+    {
+        let completion = LexerCompletionBackend::do_auto_completion(
+            &s,
+            "nul",
+            &sqlparser::dialect::SQLiteDialect {},
+            sqlparser::tokenizer::Location { line: 1, column: 4 },
+        )
+        .await
+        .unwrap();
+        println!("{:?}", completion)
+    }
+    {
+        let completion = LexerCompletionBackend::do_auto_completion(
+            &s,
+            "emai  dddd",
+            &sqlparser::dialect::SQLiteDialect {},
+            sqlparser::tokenizer::Location { line: 1, column: 4 },
+        )
+        .await
+        .unwrap();
+        println!("{:?}", completion)
+    }
+    {
+        let completion = LexerCompletionBackend::do_auto_completion(
+            &s,
+            "use 1111",
+            &sqlparser::dialect::SQLiteDialect {},
+            sqlparser::tokenizer::Location { line: 1, column: 4 },
+        )
+        .await
+        .unwrap();
+        println!("{:?}", completion)
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_detect_auto_increment() {
+    let x = extract_auto_increment_key(
+        r#"
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY autoincrement,
+        name TEXT,
+        age INTEGER
+      )
+    "#,
+    )
+    .unwrap();
+    assert!(x == Some("id".to_string()));
+    let x = extract_auto_increment_key(
+        r#"
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        age INTEGER
+      )
+    "#,
+    )
+    .unwrap();
+    assert!(x == None);
+}
+
+fn extract_index(sql: &str) -> anyhow::Result<Option<(Option<String>, Vec<String>)>> {
+    use sqlparser::dialect::SQLiteDialect;
+    let ss = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, sql)?;
+    if ss.len() != 1 {
+        anyhow::bail!("should contains one statement");
+    }
+    let s = ss.get(0).unwrap();
+
+    match s {
+        Statement::CreateIndex {
+            name,
+            table_name: _,
+            using: _,
+            columns,
+            unique: _,
+            concurrently: _,
+            if_not_exists: _,
+            include: _,
+            nulls_distinct: _,
+            predicate: _,
+        } => {
+            let name = name.clone().map(|x| x.to_string());
+            let mut on = Vec::with_capacity(columns.len());
+            for c in columns.iter() {
+                match &c.expr {
+                    Expr::Identifier(x) => {
+                        on.push(x.to_string());
+                    }
+
+                    _ => {
+                        anyhow::bail!(format!("not a valid index expr:{:?}", &c.expr));
+                    }
+                }
+            }
+
+            anyhow::Ok(Some((name, on)))
+        }
+
+        _ => anyhow::Ok(None),
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_extract_index() {
+    let extract_index =
+        extract_index("CREATE INDEX idx_employees_age ON employees (name , age )").unwrap();
+    assert_eq!(
+        format!("{:?}", extract_index),
+        "Some((Some(\"idx_employees_age\"), [\"name\", \"age\"]))"
+    );
+}
+
+fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
+    let dialect = sqlparser::dialect::SQLiteDialect {};
+
+    sql_to_sql_seq(
+        sql,
+        &dialect,
+        |s| {
+            if is_statement_absolute_query(s) {
+                crate::db::SqlKind::Query
+            } else {
+                match s {
+                    Statement::Pragma {
+                        name: _,
+                        value: _,
+                        is_eq,
+                    } => {
+                        if !is_eq {
+                            crate::db::SqlKind::Query
+                        } else {
+                            crate::db::SqlKind::Execution
+                        }
+                    }
+                    _ => crate::db::SqlKind::Execution,
+                }
+            }
+        },
+        |x| {
+            let t = x.to_uppercase();
+            if t.starts_with("SELECT") || t.starts_with("PRAGMA") || t.starts_with("EXPLAIN") {
+                crate::db::SqlKind::Query
+            } else {
+                crate::db::SqlKind::Execution
+            }
+        },
+    )
+}
+
+#[cfg(test)]
+#[test]
+fn test_cut_sql_to_each_statement() {
+    {
+        let seq = get_sql_seq(
+            r#"PRAGMA table_info(xxx);
+        select * from xxx;"#,
+        )
+        .unwrap();
+        assert_eq!(
+            seq,
+            vec![
+                SqlSeq {
+                    sql: "PRAGMA table_info(xxx)".to_string(),
+                    kind: crate::db::SqlKind::Query,
+                },
+                SqlSeq {
+                    sql: "select * from xxx".to_string(),
+                    kind: crate::db::SqlKind::Query,
+                }
+            ]
+        )
+    }
+
+    {
+        let seq = get_sql_seq(
+            r#"PRAGMA table_info('xxxx')
+        select * from xxx;"#,
+        )
+        .unwrap();
+        assert_eq!(
+            seq,
+            vec![
+                SqlSeq {
+                    sql: "PRAGMA table_info('xxxx')".to_string(),
+                    kind: crate::db::SqlKind::Query,
+                },
+                SqlSeq {
+                    sql: "select * from xxx".to_string(),
+                    kind: crate::db::SqlKind::Query,
+                }
+            ]
+        )
+    }
+
+    {
+        let seq = get_sql_seq(
+            r#" ;;;;
+        select * from xxx 'xxx';;;;"#,
+        )
+        .unwrap();
+        assert_eq!(
+            seq,
+            vec![SqlSeq {
+                sql: "select * from xxx 'xxx'".to_string(),
+                kind: crate::db::SqlKind::Query,
+            },]
+        )
+    }
+    {
+        let seq = get_sql_seq(
+            r#" ;;;;
+         ;"#,
+        )
+        .unwrap();
+        assert_eq!(seq, vec![])
+    }
+}
+
+fn gen_show_sql(
+    table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    page_size: usize,
+) -> String {
+    let mut sql = format!("select * from {table_name}");
+    if let Some(where_str) = where_str {
+        sql.push_str(format!(" where {where_str} ").as_str());
+    }
+    if let Some(order_by) = order_by {
+        sql.push_str(format!(" order by {order_by} ").as_str());
+    }
+    let offset = (page - 1) * page_size;
+    sql.push_str(format!(" limit {} offset {} ", page_size, offset).as_str());
+    sql
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::init_log;
+
+    // this test no need clean up, we use memory sqlite db.
+    async fn make_test_db() -> SqliteDB {
+        let pool_manager = PoolManager::new();
+        let db = SqliteDB::new(pool_manager, ":memory:".to_string());
+        let _conn = db.get_conn().await.unwrap();
+        db
+    }
+
+    #[tokio::test]
+    async fn test_standard() {
+        init_log();
+        let db = make_test_db().await;
+        let mut conn = db.get_conn().await.unwrap();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS test_table (
+                id INTEGER PRIMARY KEY autoincrement,
+                null_col NULL,
+                text_col TEXT,
+                real_col REAL,
+                blob_col BLOB,
+                int_col INTEGER,
+                numeric_col NUMERIC
+            );
+            CREATE INDEX idx ON test_table (real_col , int_col );
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+
+        // sqlx::query(
+        //     r#"
+        //     INSERT INTO test_table (null_col, text_col, real_col, blob_col, int_col,
+        // numeric_col)         VALUES (NULL, 'Some text', 3.14,
+        // X'0123456789ABCDEF', 42, 123.45); "#,
+        // )
+        // .execute(conn.deref_mut())
+        // .await
+        // .unwrap();
+        let table_name = "test_table";
+
+        let db = &db as &dyn crate::db::DBTrait;
+        let mut values: HashMap<String, Option<String>> = HashMap::new();
+        values.insert("text_col".to_string(), Some("Some text".to_string()));
+        values.insert("real_col".to_string(), Some("3.14".to_string()));
+        values.insert(
+            "blob_col".to_string(),
+            Some("X'0123456789ABCDEF'".to_string()),
+        );
+        values.insert("int_col".to_string(), Some("42".to_string()));
+        values.insert("numeric_col".to_string(), Some("123.45".to_string()));
+
+        let r = db.insert(table_name, values.clone()).await.unwrap();
+        let mut wheres = HashMap::new();
+        wheres.insert(
+            "id".to_string(),
+            Some(r.last_insert_row_id.unwrap().to_string()),
+        );
+
+        let r = db.update(table_name, values.clone(), wheres).await.unwrap();
+        println!("{:?}", r);
+
+        let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        println!("{:?}", cols);
+
+        let indexes = db.show_indexes(table_name).await.unwrap();
+        println!("{:?}", indexes);
+
+        {
+            let r = db
+                .query_sql(
+                    r#"
+            select * from test_table;
+            PRAGMA table_info('test_table')
+
+        "#,
+                )
+                .await
+                .unwrap();
+
+            for (index, x) in r.iter().enumerate() {
+                println!("result {} r:{:?}", index, x);
+            }
+        }
+        sqlx::query(format!("create view test_view as select * from {table_name}").as_str())
+            .execute(conn.deref_mut())
+            .await
+            .unwrap();
+        println!("\nafetr here are view test.\n");
+
+        let views = db.list_view().await.unwrap();
+        for v in views.iter() {
+            let list = db
+                .show_view(&v.name.as_str(), None, None, 1, 100)
+                .await
+                .unwrap();
+            println!("view value:{:?}", list);
+        }
+
+        {
+            let e = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export e :{}", e);
+        }
+        db.drop_view("test_view").await.unwrap();
+        db.drop_table(table_name).await.unwrap();
+    }
+}
+
+const SQLITE_FUNTIONS: &[&str] = &[
+    "abs",
+    "acos",
+    "acosh",
+    "asin",
+    "asinh",
+    "atan",
+    "atan2",
+    "atanh",
+    "avg",
+    "bm25",
+    "ceil",
+    "ceiling",
+    "changes",
+    "char",
+    "coalesce",
+    "cos",
+    "cosh",
+    "count",
+    "cume_dist",
+    "current_date",
+    "current_time",
+    "current_timestamp",
+    "date",
+    "datetime",
+    "degrees",
+    "dense_rank",
+    "exp",
+    "first_value",
+    "floor",
+    "format",
+    "fts3_tokenizer",
+    "fts5",
+    "fts5_source_id",
+    "geopoly_area",
+    "geopoly_bbox",
+    "geopoly_blob",
+    "geopoly_ccw",
+    "geopoly_contains_point",
+    "geopoly_debug",
+    "geopoly_group_bbox",
+    "geopoly_json",
+    "geopoly_overlap",
+    "geopoly_regular",
+    "geopoly_svg",
+    "geopoly_within",
+    "geopoly_xform",
+    "glob",
+    "group_concat",
+    "hex",
+    "highlight",
+    "ifnull",
+    "iif",
+    "instr",
+    "json",
+    "json_array",
+    "json_array_length",
+    "json_extract",
+    "json_group_array",
+    "json_group_object",
+    "json_insert",
+    "json_object",
+    "json_patch",
+    "json_quote",
+    "json_remove",
+    "json_replace",
+    "json_set",
+    "json_type",
+    "json_valid",
+    "julianday",
+    "lag",
+    "last_insert_rowid",
+    "last_value",
+    "lead",
+    "length",
+    "like",
+    "likelihood",
+    "likely",
+    "ln",
+    "load_extension",
+    "log",
+    "log10",
+    "log2",
+    "lower",
+    "ltrim",
+    "match",
+    "matchinfo",
+    "max",
+    "min",
+    "mod",
+    "nth_value",
+    "ntile",
+    "nullif",
+    "offsets",
+    "optimize",
+    "percent_rank",
+    "pi",
+    "pow",
+    "power",
+    "printf",
+    "quote",
+    "radians",
+    "random",
+    "randomblob",
+    "rank",
+    "replace",
+    "round",
+    "row_number",
+    "rtreecheck",
+    "rtreedepth",
+    "rtreenode",
+    "rtrim",
+    "sign",
+    "sin",
+    "sinh",
+    "snippet",
+    "soundex",
+    "sqlite_compileoption_get",
+    "sqlite_compileoption_used",
+    "sqlite_log",
+    "sqlite_source_id",
+    "sqlite_version",
+    "sqrt",
+    "strftime",
+    "substr",
+    "substring",
+    "subtype",
+    "sum",
+    "tan",
+    "tanh",
+    "time",
+    "total",
+    "total_changes",
+    "trim",
+    "trunc",
+    "typeof",
+    "unhex",
+    "unicode",
+    "unixepoch",
+    "unlikely",
+    "upper",
+    "zeroblob",
+];
+const SQLITE_TYPES: &[&str] = &["NULL", "INTEGER", "REAL", "TEXT", "BLOB"];
+
+const SQLITE_KEY_WORDS: &[&str] = &[
+    "ABORT",
+    "ACTION",
+    "ADD",
+    "AFTER",
+    "ALL",
+    "ALTER",
+    "ALWAYS",
+    "ANALYZE",
+    "AND",
+    "AS",
+    "ASC",
+    "ATTACH",
+    "AUTOINCREMENT",
+    "BEFORE",
+    "BEGIN",
+    "BETWEEN",
+    "BY",
+    "CASCADE",
+    "CASE",
+    "CAST",
+    "CHECK",
+    "COLLATE",
+    "COLUMN",
+    "COMMIT",
+    "CONFLICT",
+    "CONSTRAINT",
+    "CREATE",
+    "CROSS",
+    "CURRENT",
+    "CURRENT_DATE",
+    "CURRENT_TIME",
+    "CURRENT_TIMESTAMP",
+    "DATABASE",
+    "DEFAULT",
+    "DEFERRABLE",
+    "DEFERRED",
+    "DELETE",
+    "DESC",
+    "DETACH",
+    "DISTINCT",
+    "DO",
+    "DROP",
+    "EACH",
+    "ELSE",
+    "END",
+    "ESCAPE",
+    "EXCEPT",
+    "EXCLUDE",
+    "EXCLUSIVE",
+    "EXISTS",
+    "EXPLAIN",
+    "FAIL",
+    "FILTER",
+    "FIRST",
+    "FOLLOWING",
+    "FOR",
+    "FOREIGN",
+    "FROM",
+    "FULL",
+    "GENERATED",
+    "GLOB",
+    "GROUP",
+    "GROUPS",
+    "HAVING",
+    "IF",
+    "IGNORE",
+    "IMMEDIATE",
+    "IN",
+    "INDEX",
+    "INDEXED",
+    "INITIALLY",
+    "INNER",
+    "INSERT",
+    "INSTEAD",
+    "INTERSECT",
+    "INTO",
+    "IS",
+    "ISNULL",
+    "JOIN",
+    "KEY",
+    "LAST",
+    "LEFT",
+    "LIKE",
+    "LIMIT",
+    "MATCH",
+    "MATERIALIZED",
+    "NATURAL",
+    "NO",
+    "NOT",
+    "NOTHING",
+    "NOTNULL",
+    "NULL",
+    "NULLS",
+    "OF",
+    "OFFSET",
+    "ON",
+    "OR",
+    "ORDER",
+    "OTHERS",
+    "OUTER",
+    "OVER",
+    "PARTITION",
+    "PLAN",
+    "PRAGMA",
+    "PRECEDING",
+    "PRIMARY",
+    "QUERY",
+    "RAISE",
+    "RANGE",
+    "RECURSIVE",
+    "REFERENCES",
+    "REGEXP",
+    "REINDEX",
+    "RELEASE",
+    "RENAME",
+    "REPLACE",
+    "RESTRICT",
+    "RETURNING",
+    "RIGHT",
+    "ROLLBACK",
+    "ROW",
+    "ROWS",
+    "SAVEPOINT",
+    "SELECT",
+    "SET",
+    "TABLE",
+    "TEMP",
+    "TEMPORARY",
+    "THEN",
+    "TIES",
+    "TO",
+    "TRANSACTION",
+    "TRIGGER",
+    "UNBOUNDED",
+    "UNION",
+    "UNIQUE",
+    "UPDATE",
+    "USING",
+    "VACUUM",
+    "VALUES",
+    "VIEW",
+    "VIRTUAL",
+    "WHEN",
+    "WHERE",
+    "WINDOW",
+    "WITH",
+    "WITHOUT",
+];
+
+const PRAGMA_ITEMS: &'static [&'static str] = &[
+    "analysis_limit",
+    "application_id",
+    "auto_vacuum",
+    "automatic_index",
+    "busy_timeout",
+    "cache_size",
+    "cache_spill",
+    "case_sensitive_like",
+    "cell_size_check",
+    "checkpoint_fullfsync",
+    "collation_list",
+    "compile_options",
+    "count_changes",
+    "data_store_directory",
+    "data_version",
+    "database_list",
+    "default_cache_size",
+    "defer_foreign_keys",
+    "empty_result_callbacks",
+    "encoding",
+    "foreign_key_check",
+    "foreign_key_list",
+    "foreign_keys",
+    "freelist_count",
+    "full_column_names",
+    "fullfsync",
+    "function_list",
+    "hard_heap_limit",
+    "ignore_check_constraints",
+    "incremental_vacuum",
+    "index_info",
+    "index_list",
+    "index_xinfo",
+    "integrity_check",
+    "journal_mode",
+    "journal_size_limit",
+    "legacy_alter_table",
+    "legacy_file_format",
+    "locking_mode",
+    "max_page_count",
+    "mmap_size",
+    "module_list",
+    "optimize",
+    "page_count",
+    "page_size",
+    "parser_trace",
+    "pragma_list",
+    "query_only",
+    "quick_check",
+    "read_uncommitted",
+    "recursive_triggers",
+    "reverse_unordered_selects",
+    "schema_version",
+    "secure_delete",
+    "short_column_names",
+    "shrink_memory",
+    "soft_heap_limit",
+    "stats",
+    "synchronous",
+    "table_info",
+    "table_list",
+    "table_xinfo",
+    "temp_store",
+    "temp_store_directory",
+    "threads",
+    "trusted_schema",
+    "user_version",
+    "vdbe_addoptrace",
+    "vdbe_debug",
+    "vdbe_listing",
+    "vdbe_trace",
+    "wal_autocheckpoint",
+    "wal_checkpoint",
+    "writable_schema",
+];

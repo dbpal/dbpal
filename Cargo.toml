@@ -1,0 +1,70 @@
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+homepage = "https://github/dbnexus"
+repository = "https://github.com/dbnexus/dbnexus"
+license = "Unlicense"
+
+[workspace]
+members = ["dbnexus-core", "dbnexus-db", "dbnexus-app/src-tauri"]
+resolver = "2"
+
+[workspace.dependencies]
+# workspace dependencies
+dbnexus-core = { path = "dbnexus-core" }
+dbnexus-db = { path = "dbnexus-db" }
+
+# crates.io dependencies
+serde_jsonserde_json = "1.0"
+tauri = { version = "1.6", features = ["shell-open"] }
+async-trait = "0.1"
+sqlx = { version = "0.7.3", features = [
+    "runtime-tokio",
+    "postgres",
+    "sqlite",
+    "mysql",
+    "bigdecimal",
+    "mac_address",
+    "chrono",
+    "ipnetwork",
+    "bit-vec",
+    "uuid",
+    "json",
+] }
+
+redis = { version = "*", features = [
+    "tokio-comp",
+    "aio",
+    "connection-manager",
+] }
+
+dashmap = "5.5.3"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"
+serde = "1.0"
+hex = "0.4.3"
+mac_address = "1.1.5"
+ipnetwork = "0.20.0"
+chrono = "0.4.34"
+bit-vec = "0.6.3"
+uuid = "1.7.0"
+serde_json = "1"
+sqlparser = "0.43.1"
+lazy_static = "1.4.0"
+line-index = "0.1.1"
+log = "0.4.21"
+
+futures-util = "*"
+futures-core = "*"
+mongodb = { version = "2.8.1", features = ["tokio-runtime"] }
+tiberius = { version = "0.12.2", features = [
+    "chrono",
+    "rust_decimal",
+    "tds73",
+] }
+tokio-util = "*"
+rust_decimal = "*"
+bb8-tiberius = "*"
+bb8 = "*"
+oracle = "*"
+fuzzy-matcher = "*"

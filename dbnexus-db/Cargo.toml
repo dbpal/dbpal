@@ -1,0 +1,39 @@
+[package]
+name = "dbnexus-db"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+async-trait.workspace = true
+sqlx.workspace = true
+dashmap.workspace = true
+hex.workspace = true
+mac_address.workspace = true
+ipnetwork.workspace = true
+chrono.workspace = true
+bit-vec.workspace = "0.6.3"
+uuid.workspace = true
+serde_json.workspace = true
+sqlparser.workspace = true
+lazy_static.workspace = true
+line-index.workspace = true
+log.workspace = true
+redis.workspace = true
+
+bb8.worksapce = true
+futures-util.workspace = true
+futures-core.workspace = true
+mongodb.workspace = true
+tiberius.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+rust_decimal.workspace = true
+bb8-tiberius.worksapce = true
+oracle.worksapce = true
+fuzzy-matcher.worksapce = true
+[dev-dependencies]

@@ -1,0 +1,195 @@
+use std::collections::HashSet;
+
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
+use sqlparser::tokenizer::Token;
+
+#[async_trait::async_trait]
+pub trait AutoCompletionTrait {
+    async fn auto_completion(
+        &self, sql: &str, pos: sqlparser::tokenizer::Location,
+    ) -> anyhow::Result<Vec<CompletionItem>>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct CompletionItem {
+    pub name: String,
+    pub kind: CompletionKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+pub enum CompletionKind {
+    KeyWord = 1,
+    Function = 2,
+    Dbname = 3,
+    TableName = 4,
+    Column = 5,
+    Text = 6,
+    Type = 7,
+}
+
+#[async_trait::async_trait]
+
+pub trait LexerCompletionBackend {
+    const KEY_WORDS: &'static [&'static str];
+    const BUILD_IN_FUNCTIONS: &'static [&'static str];
+    const TYPES: &'static [&'static str];
+    const TEXTS: &'static [&'static str] = &[];
+
+    type Dialect: sqlparser::dialect::Dialect + Sync + Send + 'static;
+
+    async fn list_table(&self) -> anyhow::Result<Vec<String>>;
+    async fn list_db(&self) -> anyhow::Result<Vec<String>>;
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>>;
+
+    async fn extra_completion_item(&self) -> Vec<CompletionItem> {
+        vec![]
+    }
+
+    async fn do_auto_completion(
+        &self, sql: &str, dialect: &Self::Dialect, pos: sqlparser::tokenizer::Location,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
+            .tokenize_with_location()
+            .unwrap_or(vec![]);
+        let all_item = self.all_completion_items().await;
+
+        for t in tokens.iter() {
+            let pattern = t.token.to_string();
+            match t.token {
+                Token::Word(_) => {
+                    // we only completion on word.
+                }
+                _ => {
+                    continue;
+                }
+            }
+            if pos.line == t.location.line
+                && (pos.column >= t.location.column
+                    && pos.column <= (t.location.column + pattern.len() as u64))
+            {
+                // matched
+                return anyhow::Ok(match_pattern_and_sort(all_item, pattern.as_str()));
+            }
+        }
+        return anyhow::Ok(all_item);
+    }
+
+    async fn all_completion_items(&self) -> Vec<CompletionItem> {
+        let mut ret = Vec::new();
+        ret.extend(
+            Self::KEY_WORDS
+                .iter()
+                .map(|x| {
+                    CompletionItem {
+                        name: (*x).to_string(),
+                        kind: CompletionKind::KeyWord,
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
+        ret.extend(
+            Self::BUILD_IN_FUNCTIONS
+                .iter()
+                .map(|x| {
+                    CompletionItem {
+                        name: (*x).to_string(),
+                        kind: CompletionKind::Function,
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
+        ret.extend(
+            Self::TYPES
+                .iter()
+                .map(|x| {
+                    CompletionItem {
+                        name: (*x).to_string(),
+                        kind: CompletionKind::Type,
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
+        ret.extend(
+            Self::TEXTS
+                .iter()
+                .map(|x| {
+                    CompletionItem {
+                        name: (*x).to_string(),
+                        kind: CompletionKind::Text,
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
+        ret.extend(
+            self.list_db()
+                .await
+                .unwrap_or(vec![])
+                .into_iter()
+                .map(|x| {
+                    CompletionItem {
+                        name: x,
+                        kind: CompletionKind::Dbname,
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
+        ret.extend(
+            self.list_table()
+                .await
+                .unwrap_or(vec![])
+                .into_iter()
+                .map(|x| {
+                    CompletionItem {
+                        name: x,
+                        kind: CompletionKind::TableName,
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
+        ret.extend(self.extra_completion_item().await.into_iter());
+        for v in self.list_table().await.unwrap_or(vec![]).iter() {
+            ret.extend(
+                self.list_columns(v.as_str())
+                    .await
+                    .unwrap_or(vec![])
+                    .into_iter()
+                    .map(|x| {
+                        CompletionItem {
+                            name: x,
+                            kind: CompletionKind::Column,
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            );
+        }
+        ret
+    }
+}
+
+pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<CompletionItem> {
+    pub struct AndScore {
+        item: CompletionItem,
+        score: i64,
+    }
+    let matcher = SkimMatcherV2::default();
+    let mut matched = Vec::new();
+    let mut names = HashSet::new();
+
+    for item in items.into_iter() {
+        if names.contains(&item.name.to_lowercase()) {
+            // don't handle already handled.
+            continue;
+        }
+
+        let m = matcher.fuzzy_match(item.name.as_str(), pattern);
+        if let Some(s) = m {
+            names.insert(item.name.to_lowercase());
+
+            matched.push(AndScore { item, score: s });
+        }
+    }
+    // desc order
+    matched.sort_by(|a, b| b.score.cmp(&a.score));
+    matched.into_iter().map(|x| x.item).collect()
+}
