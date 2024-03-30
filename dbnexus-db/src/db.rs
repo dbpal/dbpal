@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use chrono::{DateTime, FixedOffset};
 use line_index::{LineCol, TextSize};
@@ -125,6 +126,7 @@ impl dyn DBTrait {
 #[async_trait::async_trait]
 pub trait MultiDBTrait: Sync + Send + QuerySql + 'static {
     async fn list_db(&self) -> anyhow::Result<Vec<String>>;
+    async fn open_db(&self) -> anyhow::Result<Arc<dyn DBTrait>>;
 }
 
 #[async_trait::async_trait]
@@ -152,7 +154,7 @@ impl From<&str> for ListView {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ListTable {
     pub table: String,
     pub meta: HashMap<String, String>,

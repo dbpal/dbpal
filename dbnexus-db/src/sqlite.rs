@@ -484,7 +484,7 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
 }
 
 impl SqliteDB {
-    fn new(pool: PoolManager, path: String) -> Self {
+    pub fn new(pool: PoolManager, path: String) -> Self {
         Self { path, pool }
     }
 

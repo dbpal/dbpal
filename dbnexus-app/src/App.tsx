@@ -11,6 +11,22 @@ function App() {
     // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
     setGreetMsg(await invoke("greet", { name }));
   }
+  // test funcs
+
+  console.log("11111111111");
+  async function xxx() {
+    let uuid = "xxx123";
+
+    await invoke("add_config", {
+      uuid: uuid,
+      config: { kind: "sqlite", path: "d:/sqlite.test.db" },
+    });
+    await invoke("open_db", { uuid });
+    let list = await invoke("list_table", { uuid });
+    console.log(list);
+  }
+
+  xxx().then(() => {});
 
   return (
     <div className="container">
