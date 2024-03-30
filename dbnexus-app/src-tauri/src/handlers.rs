@@ -1,4 +1,6 @@
-use dbnexus_db::db::ListTable;
+use std::collections::HashMap;
+
+use dbnexus_db::db::{Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp};
 
 use crate::storage::{DBConnectionConfig, DBS};
 
@@ -11,6 +13,24 @@ pub async fn add_config(
         .await
         .map_err(|x| x.to_string())
 }
+#[tauri::command]
+pub async fn delete_config(uuid: String, dbs: tauri::State<'_, DBS>) -> Result<(), String> {
+    log::info!("del config:{}", uuid);
+    dbs.delete_config(uuid.as_str())
+        .await
+        .map_err(|x| x.to_string())
+}
+
+#[tauri::command]
+pub async fn update_config(
+    uuid: String, config: DBConnectionConfig, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    log::info!("update config:{} {:?}", uuid, config);
+    dbs.update_config(uuid.as_str(), config)
+        .await
+        .map_err(|x| x.to_string())
+}
+
 #[tauri::command]
 pub async fn open_db(uuid: String, dbs: tauri::State<'_, DBS>) -> Result<(), String> {
     log::info!("open db:{}", uuid);
@@ -28,4 +48,115 @@ pub async fn list_table(
     dbs.list_table(uuid.as_str())
         .await
         .map_err(|x| x.to_string())
+}
+
+#[tauri::command]
+pub async fn show_columns(
+    uuid: String, table_name: String, dbs: tauri::State<'_, DBS>,
+) -> Result<Vec<Field>, String> {
+    dbs.show_columns(uuid.as_str(), &table_name)
+        .await
+        .map_err(|x| x.to_string())
+}
+
+#[tauri::command]
+pub async fn show_table(
+    uuid: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    page_size: usize, dbs: tauri::State<'_, DBS>,
+) -> Result<TableListResp, String> {
+    dbs.show_table(
+        uuid.as_str(),
+        &table_name,
+        where_str,
+        order_by,
+        page,
+        page_size,
+    )
+    .await
+    .map_err(|x| x.to_string())
+}
+
+#[tauri::command]
+pub async fn show_indexes(
+    uuid: String, table_name: String, dbs: tauri::State<'_, DBS>,
+) -> Result<Vec<Index>, String> {
+    dbs.show_indexes(uuid.as_str(), &table_name)
+        .await
+        .map_err(|x| x.to_string())
+}
+
+#[tauri::command]
+pub async fn insert(
+    uuid: String, table_name: String, values: HashMap<String, Option<String>>,
+    dbs: tauri::State<'_, DBS>,
+) -> Result<SqlExecuteRet, String> {
+    dbs.insert(uuid.as_str(), &table_name, values)
+        .await
+        .map_err(|x| x.to_string())
+}
+
+#[tauri::command]
+pub async fn update(
+    uuid: String, table_name: String, values: HashMap<String, Option<String>>,
+    wheres: HashMap<String, Option<String>>, dbs: tauri::State<'_, DBS>,
+) -> Result<SqlExecuteRet, String> {
+    dbs.update(uuid.as_str(), &table_name, values, wheres)
+        .await
+        .map_err(|x| x.to_string())
+}
+#[tauri::command]
+pub async fn truncate_table(
+    uuid: String, table_name: String, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    dbs.truncate_table(uuid.as_str(), &table_name)
+        .await
+        .map_err(|x| x.to_string())
+}
+#[tauri::command]
+pub async fn delete(
+    uuid: String, table_name: String, wheres: HashMap<String, Option<String>>,
+    dbs: tauri::State<'_, DBS>,
+) -> Result<SqlExecuteRet, String> {
+    dbs.delete(uuid.as_str(), &table_name, wheres)
+        .await
+        .map_err(|x| x.to_string())
+}
+
+#[tauri::command]
+pub async fn list_view(uuid: String, dbs: tauri::State<'_, DBS>) -> Result<Vec<ListView>, String> {
+    dbs.list_view(uuid.as_str())
+        .await
+        .map_err(|x| x.to_string())
+}
+#[tauri::command]
+pub async fn drop_view(
+    uuid: String, view_name: String, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    dbs.drop_view(uuid.as_str(), &view_name)
+        .await
+        .map_err(|x| x.to_string())
+}
+#[tauri::command]
+pub async fn drop_table(
+    uuid: String, table_name: String, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    dbs.drop_table(uuid.as_str(), &table_name)
+        .await
+        .map_err(|x| x.to_string())
+}
+#[tauri::command]
+pub async fn show_view(
+    uuid: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    page_size: usize, dbs: tauri::State<'_, DBS>,
+) -> Result<TableListResp, String> {
+    dbs.show_view(
+        uuid.as_str(),
+        &view_name,
+        where_str,
+        order_by,
+        page,
+        page_size,
+    )
+    .await
+    .map_err(|x| x.to_string())
 }

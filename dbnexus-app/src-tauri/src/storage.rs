@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use dbnexus_db::db::{DBTrait, ListTable};
+use dbnexus_db::db::{DBTrait, Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp};
 use dbnexus_db::pool::PoolManager;
 use tokio::sync::Mutex;
 
@@ -180,7 +180,7 @@ impl DBS {
     }
 
     pub async fn update_config(
-        &mut self, uuid: &str, config: DBConnectionConfig,
+        &self, uuid: &str, config: DBConnectionConfig,
     ) -> anyhow::Result<()> {
         self.loader.update(uuid, config).await?;
         self.delete_prefix_dbs(uuid).await;
@@ -202,6 +202,76 @@ impl DBS {
     pub async fn list_table(&self, uuid: &str) -> anyhow::Result<Vec<ListTable>> {
         let db = self.get_one_db(uuid).await?;
         db.list_table().await
+    }
+
+    pub async fn show_columns(&self, uuid: &str, table_name: &str) -> anyhow::Result<Vec<Field>> {
+        let db = self.get_one_db(uuid).await?;
+        db.show_columns(table_name).await
+    }
+
+    pub async fn show_table(
+        &self, uuid: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>,
+        page: usize, page_size: usize,
+    ) -> anyhow::Result<TableListResp> {
+        let db = self.get_one_db(uuid).await?;
+        db.show_table(table_name, where_str, order_by, page, page_size)
+            .await
+    }
+
+    pub async fn show_indexes(&self, uuid: &str, table_name: &str) -> anyhow::Result<Vec<Index>> {
+        let db = self.get_one_db(uuid).await?;
+        db.show_indexes(table_name).await
+    }
+
+    pub async fn insert(
+        &self, uuid: &str, table_name: &str, values: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet> {
+        let db = self.get_one_db(uuid).await?;
+        db.insert(table_name, values).await
+    }
+
+    pub async fn update(
+        &self, uuid: &str, table_name: &str, values: HashMap<String, Option<String>>,
+        wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet> {
+        let db = self.get_one_db(uuid).await?;
+        db.update(table_name, values, wheres).await
+    }
+
+    pub async fn truncate_table(&self, uuid: &str, table_name: &str) -> anyhow::Result<()> {
+        let db = self.get_one_db(uuid).await?;
+        db.truncate_table(table_name).await
+    }
+
+    pub async fn delete(
+        &self, uuid: &str, table_name: &str, wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet> {
+        let db = self.get_one_db(uuid).await?;
+        db.delete(table_name, wheres).await
+    }
+
+    pub async fn list_view(&self, uuid: &str) -> anyhow::Result<Vec<ListView>> {
+        let db = self.get_one_db(uuid).await?;
+        db.list_view().await
+    }
+
+    pub async fn drop_view(&self, uuid: &str, view_name: &str) -> anyhow::Result<()> {
+        let db = self.get_one_db(uuid).await?;
+        db.drop_view(view_name).await
+    }
+
+    pub async fn drop_table(&self, uuid: &str, table_name: &str) -> anyhow::Result<()> {
+        let db = self.get_one_db(uuid).await?;
+        db.drop_table(table_name).await
+    }
+
+    pub async fn show_view(
+        &self, uuid: &str, view_name: &str, where_str: Option<&str>, order_by: Option<&str>,
+        page: usize, page_size: usize,
+    ) -> anyhow::Result<TableListResp> {
+        let db = self.get_one_db(uuid).await?;
+        db.show_view(view_name, where_str, order_by, page, page_size)
+            .await
     }
 
     async fn get_one_db(&self, uuid: &str) -> anyhow::Result<Arc<dyn DBTrait>> {

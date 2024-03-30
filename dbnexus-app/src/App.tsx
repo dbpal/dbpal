@@ -24,6 +24,16 @@ function App() {
     await invoke("open_db", { uuid });
     let list = await invoke("list_table", { uuid });
     console.log(list);
+    let cols = await invoke("show_columns", { uuid, tableName: "users" });
+    console.log("cols:", cols);
+
+    let table_list = await invoke("show_table", {
+      uuid,
+      tableName: "users",
+      page: 1,
+      pageSize: 100,
+    });
+    console.log("list:", table_list);
   }
 
   xxx().then(() => {});
