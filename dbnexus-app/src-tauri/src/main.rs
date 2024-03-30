@@ -9,8 +9,9 @@ use storage::{DbConfigLoader, FileJsonSaver, DBS};
 mod handlers;
 mod storage;
 use handlers::{
-    add_config, delete, drop_table, drop_view, insert, list_table, list_view, open_db,
-    show_columns, show_indexes, show_table, show_view, truncate_table, update,
+    add_config, delete, delete_config, drop_table, drop_view, insert, list_table, list_view,
+    open_db, show_columns, show_indexes, show_table, show_view, truncate_table, update,
+    update_config,
 };
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -31,6 +32,8 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             greet,
             add_config,
+            update_config,
+            delete_config,
             open_db,
             list_table,
             show_columns,
