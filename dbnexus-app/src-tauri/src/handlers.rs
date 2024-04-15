@@ -4,7 +4,7 @@ use dbnexus_db::db::{
     ExeSqlError, Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp,
 };
 
-use crate::storage::{DBConnectionConfig, DBS};
+use crate::storage::{DBConnectionConfig, UserSettings, DBS};
 
 #[tauri::command]
 pub async fn add_config(
@@ -188,4 +188,31 @@ pub async fn query_sql(
         crate::storage::DB::One(x) => x.query_sql(sql).await,
     };
     result.map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn save_user_settings(
+    user_settings: UserSettings, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    dbs.loader
+        .save_user_settings(&user_settings)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_user_settings(dbs: tauri::State<'_, DBS>) -> Result<UserSettings, String> {
+    dbs.loader
+        .get_user_settings_cloned()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_all_config(
+    dbs: tauri::State<'_, DBS>,
+) -> Result<HashMap<String, HashMap<String, String>>, String> {
+    dbs.loader
+        .list_all_configs_cloned()
+        .await
+        .map_err(|e| e.to_string())
 }

@@ -11,32 +11,29 @@ function App() {
     // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
     setGreetMsg(await invoke("greet", { name }));
   }
-  // test funcs
 
-  console.log("11111111111");
-  async function xxx() {
-    let uuid = "xxx123";
+  // console.log("11111111111");
+  // async function xxx() {
+  //   let uuid = "xxx123";
 
-    await invoke("add_config", {
-      uuid: uuid,
-      config: { kind: "sqlite", path: "d:/sqlite.test.db" },
-    });
-    await invoke("open_db", { uuid });
-    let list = await invoke("list_table", { uuid });
-    console.log(list);
-    let cols = await invoke("show_columns", { uuid, tableName: "users" });
-    console.log("cols:", cols);
+  //   await invoke("add_config", {
+  //     uuid: uuid,
+  //     config: { kind: "sqlite", path: "d:/sqlite.test.db" },
+  //   });
+  //   await invoke("open_db", { uuid });
+  //   let list = await invoke("list_table", { uuid });
+  //   console.log(list);
+  //   let cols = await invoke("show_columns", { uuid, tableName: "users" });
+  //   console.log("cols:", cols);
 
-    let table_list = await invoke("show_table", {
-      uuid,
-      tableName: "users",
-      page: 1,
-      pageSize: 100,
-    });
-    console.log("list:", table_list);
-  }
-
-  xxx().then(() => {});
+  //   let table_list = await invoke("show_table", {
+  //     uuid,
+  //     tableName: "users",
+  //     page: 1,
+  //     pageSize: 100,
+  //   });
+  //   console.log("list:", table_list);
+  // }
 
   return (
     <div className="container">

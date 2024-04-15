@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -9,6 +10,7 @@ use tokio::sync::Mutex;
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct DBNexusConfigs {
     connection_configs: HashMap<String, HashMap<String, String>>,
+    user_settings: UserSettings,
 }
 
 pub type DBConnectionConfig = HashMap<String, String>;
@@ -24,6 +26,12 @@ pub trait DbConfigLoader: Send + Sync + 'static {
     async fn update(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()>;
     ///
     async fn get_config_cloned(&self, uuid: &str) -> anyhow::Result<Option<DBConnectionConfig>>;
+    async fn list_all_configs_cloned(
+        &self,
+    ) -> anyhow::Result<HashMap<String, HashMap<String, String>>>;
+
+    async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings>;
+    async fn save_user_settings(&self, x: &UserSettings) -> anyhow::Result<()>;
 }
 
 pub struct FileJsonSaver {
@@ -63,6 +71,20 @@ impl FileJsonSaver {
 
 #[async_trait::async_trait]
 impl DbConfigLoader for FileJsonSaver {
+    async fn list_all_configs_cloned(
+        &self,
+    ) -> anyhow::Result<HashMap<String, HashMap<String, String>>> {
+        anyhow::Ok(self.config.lock().await.connection_configs.clone())
+    }
+
+    async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings> {
+        Ok(self.config.lock().await.user_settings.clone())
+    }
+
+    async fn save_user_settings(&self, x: &UserSettings) -> anyhow::Result<()> {
+        self.save(self.config.lock().await.deref()).await
+    }
+
     async fn add(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()> {
         let mut lock = self.config.lock().await;
         lock.connection_configs.insert(uuid.to_string(), config);
@@ -123,7 +145,7 @@ pub enum DB {
 
 /// all the databases
 pub struct DBS {
-    loader: Arc<dyn DbConfigLoader>,
+    pub(crate) loader: Arc<dyn DbConfigLoader>,
     dbs: Arc<Mutex<HashMap<String, DB>>>,
     pm: PoolManager,
 }
@@ -289,5 +311,16 @@ impl DBS {
             None => anyhow::bail!("db '{}' not found", uuid),
         };
         anyhow::Ok(x)
+    }
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize, Debug)]
+pub struct UserSettings {
+    page_size: usize,
+}
+
+impl Default for UserSettings {
+    fn default() -> Self {
+        Self { page_size: 100 }
     }
 }
