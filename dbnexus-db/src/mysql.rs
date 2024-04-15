@@ -8,8 +8,9 @@ use sqlx::{Row, TypeInfo};
 
 use crate::datasource::{CommDBConfig, DBConfig};
 use crate::db::{
-    is_statement_absolute_query, sql_to_sql_seq, DBTrait, ExeSqlError, Field, Index, IndexKind,
-    ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
+    is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError,
+    Field, Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlSeq,
+    TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -57,6 +58,20 @@ fn gen_select_sql(
 #[async_trait::async_trait]
 
 impl DBTrait for MysqlDB {
+    async fn create_table_and_index_sql(
+        &self, _table_name: &str,
+    ) -> anyhow::Result<CreateTableAndIndexSql> {
+        unimplemented!()
+    }
+
+    async fn create_view_sql(&self, _view_name: &str) -> anyhow::Result<String> {
+        unimplemented!()
+    }
+
+    fn backend_name(&self) -> &str {
+        "mysql"
+    }
+
     fn clone(&self) -> Box<dyn DBTrait> {
         Box::new(Clone::clone(self))
     }
@@ -402,11 +417,9 @@ impl MysqlDB {
         Self { pool, config: conn }
     }
 
-    async fn query_count(
-        &self, table_name: &str, where_str: Option<&str>,
-    ) -> anyhow::Result<usize> {
+    async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!("SELECT count(1) FROM {table_name} ");
+        let mut s = format!("SELECT count(1) FROM {name} ");
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }

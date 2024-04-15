@@ -77,6 +77,10 @@ fn value_to_frontend(v: &Value) -> String {
 
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
+    fn backend_name(&self) -> &str {
+        "mongodb"
+    }
+
     fn clone(&self) -> Box<dyn DBTrait> {
         Box::new(Clone::clone(self))
     }

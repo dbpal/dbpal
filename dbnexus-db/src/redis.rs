@@ -161,6 +161,10 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
+    fn backend_name(&self) -> &str {
+        "redis"
+    }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

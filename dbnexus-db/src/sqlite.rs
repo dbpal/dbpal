@@ -62,7 +62,7 @@ impl SqliteDB {
         sender: tokio::sync::mpsc::Sender<String>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = DBTrait::create_table_sql(self, table_name).await?;
+            let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(ss.create_table.clone()).await?;
             sender.send("\n".to_string()).await?;
 
@@ -98,7 +98,13 @@ impl SqliteDB {
 
 #[async_trait::async_trait]
 impl DBTrait for SqliteDB {
-    async fn create_table_sql(&self, table_name: &str) -> anyhow::Result<CreateTableAndIndexSql> {
+    fn backend_name(&self) -> &str {
+        "sqlite"
+    }
+
+    async fn create_table_and_index_sql(
+        &self, table_name: &str,
+    ) -> anyhow::Result<CreateTableAndIndexSql> {
         let table = self.create_table_or_view_sql(table_name, "table").await?;
         let indexes = self.get_table_indexes_sql(table_name).await?;
 
@@ -488,11 +494,9 @@ impl SqliteDB {
         Self { path, pool }
     }
 
-    async fn query_count(
-        &self, table_name: &str, where_str: Option<&str>,
-    ) -> anyhow::Result<usize> {
+    async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!("select count(1) from {table_name} ");
+        let mut s = format!("select count(1) from {name} ");
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }

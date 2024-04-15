@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-
 use crate::datasource::{DBConfig, OracleDBConfig};
 use crate::db::{
     DBTrait, ExeSqlError, Field, Index, ListTable, ListView, QuerySql, SqlExecuteRet, TableListResp,
@@ -24,6 +23,10 @@ impl QuerySql for OracleDB {
 
 #[async_trait::async_trait]
 impl DBTrait for OracleDB {
+    fn backend_name(&self) -> &str {
+        "oracle"
+    }
+
     fn clone(&self) -> Box<dyn DBTrait> {
         Box::new(Clone::clone(self))
     }
@@ -106,7 +109,6 @@ impl OracleDB {
             NexusPool::Oracle(p) => p.clone(),
             _ => unreachable!(),
         };
-
         let conn = tokio::task::block_in_place(|| pool.get())?;
         return anyhow::Ok(conn);
     }

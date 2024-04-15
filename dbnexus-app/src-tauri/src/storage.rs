@@ -149,6 +149,7 @@ impl DBS {
         };
         let db = open_db(&config, self.pm.clone()).await?;
         self.dbs.lock().await.insert(uuid.to_string(), db.clone());
+
         anyhow::Ok(db)
     }
 

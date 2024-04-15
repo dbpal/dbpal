@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ops::DerefMut;
+use std::sync::Arc;
 
 use chrono::FixedOffset;
 use futures_core::future::BoxFuture;
@@ -11,8 +12,8 @@ use tokio_util::compat::Compat;
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
 use crate::datasource::CommDBConfig;
 use crate::db::{
-    format_data_time_fix_offset, sql_to_sql_seq, DBTrait, ExeSqlError, Field, Index, IndexKind,
-    ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
+    format_data_time_fix_offset, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError,
+    Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -190,6 +191,16 @@ fn gen_select_sql(
 
 #[async_trait::async_trait]
 impl DBTrait for SqlServer {
+    async fn create_table_and_index_sql(
+        &self, _table_name: &str,
+    ) -> anyhow::Result<CreateTableAndIndexSql> {
+        unimplemented!()
+    }
+
+    fn backend_name(&self) -> &str {
+        "sqlserver"
+    }
+
     fn clone(&self) -> Box<dyn DBTrait> {
         Box::new(Clone::clone(self))
     }
@@ -542,12 +553,12 @@ WHERE i.object_id = OBJECT_ID('{table_name}')
 
 impl SqlServer {
     async fn query_count(
-        conn: &mut Connection, table_name: &str, where_str: Option<&str>,
+        conn: &mut Connection, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<i32> {
         let mut stream = conn
             .query(
                 format!(
-                    "SELECT count(*) from {table_name} {}",
+                    "SELECT count(*) from {name} {}",
                     match where_str {
                         Some(x) => format!("  where {} ", x),
                         None => "".to_string(),
@@ -771,6 +782,19 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     )
 }
 
+#[async_trait::async_trait]
+impl crate::db::MultiDBTrait for SqlServer {
+    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+        unimplemented!()
+    }
+
+    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+        debug_assert!(self.config.db_name.is_none());
+        let mut x = Clone::clone(self);
+        x.config.db_name = Some(name.to_owned());
+        Ok(Arc::new(x))
+    }
+}
 #[async_trait::async_trait]
 impl LexerCompletionBackend for SqlServer {
     type Dialect = sqlparser::dialect::MsSqlDialect;

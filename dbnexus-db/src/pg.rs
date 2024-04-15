@@ -9,8 +9,8 @@ use sqlx::{Postgres, Row};
 use crate::completion::LexerCompletionBackend;
 use crate::datasource::{CommDBConfig, DBConfig};
 use crate::db::{
-    sql_to_sql_seq, DBTrait, ExeSqlError, Field, Index, IndexKind, ListTable, ListView, QuerySql,
-    SqlExecuteRet, SqlSeq, TableListResp,
+    sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, Field, Index, IndexKind,
+    ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
 };
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
@@ -62,8 +62,35 @@ impl crate::db::MultiDBTrait for PGDB {
     }
 }
 
+fn gen_show_sql(
+    table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    page_size: usize,
+) -> String {
+    let mut sql = format!("SELECT * from {table_name}");
+    if let Some(where_str) = where_str {
+        sql.push_str(format!(" where {where_str} ").as_str());
+    }
+    if let Some(order_by) = order_by {
+        sql.push_str(format!(" order by {order_by} ").as_str());
+    }
+    let offset = (page - 1) * page_size;
+    sql.push_str(format!(" offset {} limit {}", offset, page_size).as_str());
+
+    sql
+}
+
 #[async_trait::async_trait]
 impl DBTrait for PGDB {
+    fn backend_name(&self) -> &str {
+        "postgres"
+    }
+
+    async fn create_table_and_index_sql(
+        &self, _table_name: &str,
+    ) -> anyhow::Result<CreateTableAndIndexSql> {
+        unimplemented!()
+    }
+
     fn clone(&self) -> Box<dyn DBTrait> {
         Box::new(Clone::clone(self))
     }
@@ -73,22 +100,56 @@ impl DBTrait for PGDB {
     }
 
     async fn show_view(
-        &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize,
+        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+        page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        unimplemented!()
+        let total = self.query_count(view_name, where_str).await?;
+
+        let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+
+        let data = encode_rows(&rows)?;
+        let fields = get_rows_types(&rows);
+        anyhow::Ok(TableListResp::new(fields, total, data, sql))
     }
 
-    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let sql = format!("DROP VIEW {view_name}");
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
     }
 
-    async fn drop_table(&self, _table: &str) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let sql = format!("DROP TABLE {table}");
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
-        unimplemented!()
+        let mut conn = self.get_conn().await?;
+
+        let rows = sqlx::query(
+            r#"
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_type = 'VIEW'
+          AND table_schema = 'public';
+        "#,
+        )
+        .fetch_all(conn.deref_mut())
+        .await?;
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let view_name: String = r.get(0);
+            ret.push(view_name);
+        }
+        anyhow::Ok(ret.into_iter().map(ListView::from).collect())
     }
 
     async fn delete(
@@ -256,16 +317,7 @@ impl DBTrait for PGDB {
         page_size: usize,
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
-        let mut sql = format!("SELECT * from {table_name}");
-        if let Some(where_str) = where_str {
-            sql.push_str(format!(" where {where_str} ").as_str());
-        }
-        if let Some(order_by) = order_by {
-            sql.push_str(format!(" order by {order_by} ").as_str());
-        }
-        let offset = (page - 1) * page_size;
-        sql.push_str(format!(" offset {} limit {}", offset, page_size).as_str());
-
+        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -327,11 +379,9 @@ impl DBTrait for PGDB {
 }
 
 impl PGDB {
-    async fn query_count(
-        &self, table_name: &str, where_str: Option<&str>,
-    ) -> anyhow::Result<usize> {
+    async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!("SELECT count(1) from {table_name} ");
+        let mut s = format!("SELECT count(1) from {name} ");
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }

@@ -14,6 +14,7 @@ use tokio::io::AsyncWriteExt;
 #[async_trait::async_trait]
 pub trait DBTrait: Sync + Send + QuerySql + 'static {
     fn as_any(&self) -> &dyn std::any::Any;
+    fn backend_name(&self) -> &str;
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
@@ -53,7 +54,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
     async fn export_table(
         &self, _table_name: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<String>,
     ) -> anyhow::Result<()> {
-        unimplemented!()
+        anyhow::bail!(format!("{} don't support this", self.backend_name()))
     }
 
     async fn export_table_to_file(
@@ -82,12 +83,14 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
     }
 
     fn clone(&self) -> Box<dyn DBTrait>;
-    async fn create_table_sql(&self, _table_name: &str) -> anyhow::Result<CreateTableAndIndexSql> {
-        unimplemented!()
+    async fn create_table_and_index_sql(
+        &self, _table_name: &str,
+    ) -> anyhow::Result<CreateTableAndIndexSql> {
+        anyhow::bail!(format!("'{}' don't support this", self.backend_name()))
     }
 
     async fn create_view_sql(&self, _view_name: &str) -> anyhow::Result<String> {
-        unimplemented!()
+        anyhow::bail!(format!("'{}' don't support this", self.backend_name()))
     }
 }
 
