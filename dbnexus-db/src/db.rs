@@ -126,7 +126,7 @@ impl dyn DBTrait {
 #[async_trait::async_trait]
 pub trait MultiDBTrait: Sync + Send + QuerySql + 'static {
     async fn list_db(&self) -> anyhow::Result<Vec<String>>;
-    async fn open_db(&self) -> anyhow::Result<Arc<dyn DBTrait>>;
+    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
 }
 
 #[async_trait::async_trait]

@@ -156,7 +156,7 @@ impl DBS {
         let db = self.open_db(uuid).await?;
         match db {
             DB::Multi(x) => {
-                let x = x.open_db().await?;
+                let x = x.open_db(db_name).await?;
                 let db = DB::One(x.clone());
                 self.dbs
                     .lock()
