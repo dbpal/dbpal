@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use dbnexus_db::db::{Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp};
+use dbnexus_db::db::{
+    ExeSqlError, Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp,
+};
 
-use crate::storage::{DBConnectionConfig, DBS};
+use crate::storage::{DBConnectionConfig, UserSettings, DBS};
 
 #[tauri::command]
 pub async fn add_config(
@@ -159,4 +161,73 @@ pub async fn show_view(
     )
     .await
     .map_err(|x| x.to_string())
+}
+
+#[tauri::command]
+pub async fn open_db2(
+    uuid: String, db_name: String, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    dbs.open_db2(uuid.as_str(), db_name.as_str())
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn query_sql(
+    uuid: String, sql: String, dbs: tauri::State<'_, DBS>,
+) -> Result<Vec<Result<TableListResp, ExeSqlError>>, String> {
+    let sql = sql.as_str();
+    let db = dbs
+        .open_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let result = match db {
+        crate::storage::DB::Multi(x) => x.query_sql(sql).await,
+        crate::storage::DB::One(x) => x.query_sql(sql).await,
+    };
+    result.map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn save_user_settings(
+    user_settings: UserSettings, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    dbs.loader
+        .save_user_settings(&user_settings)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_user_settings(dbs: tauri::State<'_, DBS>) -> Result<UserSettings, String> {
+    dbs.loader
+        .get_user_settings_cloned()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_all_config(
+    dbs: tauri::State<'_, DBS>,
+) -> Result<Vec<HashMap<String, String>>, String> {
+    dbs.loader
+        .list_all_configs_cloned()
+        .await
+        .map_err(|e| e.to_string())
+        .map(|e| {
+            {
+                e.into_iter().map(|(uuid, mut m)| {
+                    m.insert("uuid".to_string(), uuid);
+                    m
+                })
+            }
+            .collect()
+        })
+}
+
+#[tauri::command]
+pub fn exit(code: i32) -> Result<(), String> {
+    std::process::exit(0);
+    Ok(())
 }

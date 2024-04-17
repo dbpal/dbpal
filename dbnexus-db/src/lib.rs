@@ -7,7 +7,12 @@ pub mod completion;
 pub mod datasource;
 pub mod db;
 
+pub mod mongo;
+pub mod mysql;
 pub mod oracle;
+pub mod pg;
+pub mod pg_format;
+pub mod redis;
 
 pub mod pool;
 

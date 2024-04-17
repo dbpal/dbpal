@@ -1,0 +1,963 @@
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::vec;
+
+use futures_util::StreamExt;
+
+use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
+use crate::db::{
+    DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView, QuerySql, SqlExecuteRet,
+    TableListResp,
+};
+use crate::pool::{NexusPool, PoolManager};
+
+/// https://stackoverflow.com/questions/30611215/redis-how-to-limit-the-return-number-of-keys-command
+
+#[derive(Clone)]
+pub struct RedisDB {
+    server: String,
+    pm: PoolManager,
+}
+
+use redis::aio::ConnectionManager;
+use redis::{AsyncCommands, AsyncIter, Value};
+
+impl RedisDB {
+    fn key_value_fields() -> [Field; 2] {
+        let key_field = Field {
+            name: "key".to_string(),
+            typ: "any".to_string(),
+            nullable: false,
+            default_value: None,
+            is_primary: false,
+            is_auto_increment: false,
+        };
+        let value_field = Field {
+            name: "value".to_string(),
+            typ: "any".to_string(),
+            nullable: false,
+            default_value: None,
+            is_primary: false,
+            is_auto_increment: false,
+        };
+        [key_field, value_field]
+    }
+}
+
+fn single_quote_escape_string(s: &str) -> String {
+    s.replace("\\", "\\\\").replace("'", "\\'")
+}
+
+fn quote_key_or_value(s: &str) -> Cow<'_, str> {
+    if s.contains("'") || s.contains("\\") {
+        Cow::Owned(format!("'{}'", single_quote_escape_string(s)))
+    } else {
+        Cow::Borrowed(s)
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_escape_string() {
+    assert_eq!(quote_key_or_value("xxx"), "xxx");
+    assert_eq!(quote_key_or_value("x'xx"), "'x\\'xx'");
+    assert_eq!(quote_key_or_value("x\\xx"), "'x\\\\xx'");
+    assert_eq!(quote_key_or_value("x\'xx"), "'x\\\\\'xx'");
+}
+
+impl RedisDB {
+    async fn export_table_to_command(
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<String>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let ty = Self::get_key_type(&mut conn, key).await?;
+        match ty {
+            RedisType::String => {
+                let x: String = conn.get(key).await?;
+                sender
+                    .send(format!(
+                        "SET {} {}\n",
+                        quote_key_or_value(key),
+                        quote_key_or_value(x.as_str())
+                    ))
+                    .await?;
+            }
+
+            RedisType::List => {
+                let list: Vec<String> = conn.lrange(key, 0, -1).await?;
+                for l in list.iter() {
+                    sender
+                        .send(format!(
+                            "RPUSH {} {}\n",
+                            quote_key_or_value(key),
+                            quote_key_or_value(l)
+                        ))
+                        .await?;
+                }
+            }
+            RedisType::Set => {
+                let members: HashSet<String> = conn.smembers(key).await?;
+                for s in members.iter() {
+                    sender
+                        .send(format!(
+                            "SADD {} {}\n",
+                            quote_key_or_value(key),
+                            quote_key_or_value(s)
+                        ))
+                        .await?;
+                }
+            }
+            RedisType::Hash => {
+                let mut stream: AsyncIter<'_, String> = conn.hscan(key).await?;
+                let mut hkey = None as Option<String>;
+                while let Some(s) = stream.next().await {
+                    match hkey {
+                        Some(hkey2) => {
+                            sender
+                                .send(format!(
+                                    "HMSET {} {} {}\n",
+                                    quote_key_or_value(key),
+                                    quote_key_or_value(hkey2.as_str()),
+                                    quote_key_or_value(s.as_str())
+                                ))
+                                .await?;
+                            hkey = None;
+                        }
+
+                        None => {
+                            hkey = Some(s);
+                        }
+                    }
+                }
+            }
+
+            RedisType::Zset => {
+                let mut stream: AsyncIter<'_, String> = conn.zscan(key).await?;
+                let mut zkey = None as Option<String>;
+                while let Some(s) = stream.next().await {
+                    match zkey {
+                        Some(zkey2) => {
+                            sender
+                                .send(format!(
+                                    "ZADD {} {} {}\n",
+                                    quote_key_or_value(key),
+                                    quote_key_or_value(s.as_str()),
+                                    quote_key_or_value(zkey2.as_str()),
+                                ))
+                                .await?;
+                            zkey = None;
+                        }
+                        None => {
+                            zkey = Some(s);
+                        }
+                    }
+                }
+            }
+        }
+
+        anyhow::Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl DBTrait for RedisDB {
+    fn backend_name(&self) -> &str {
+        "redis"
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn clone(&self) -> Box<dyn DBTrait> {
+        Box::new(Clone::clone(self))
+    }
+
+    async fn show_view(
+        &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
+        _page_size: usize,
+    ) -> anyhow::Result<TableListResp> {
+        anyhow::bail!("redis have no view")
+    }
+
+    async fn export_table(
+        &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<String>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                anyhow::bail!("not implemented")
+            }
+            ExportKind::Json { pretty } => anyhow::bail!("not implemented"),
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => self.export_table_to_command(key, sender.clone()).await,
+        }
+    }
+
+    async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
+        let mut conn = self.get_conn().await?;
+        let keys: Vec<String> = conn.keys("*").await?;
+        let mut ret = Vec::with_capacity(keys.len());
+        for k in keys.into_iter() {
+            let typ = Self::get_key_type(&mut conn, k.as_str()).await?;
+            let mut meta = HashMap::new();
+            meta.insert("type".to_string(), typ.to_string());
+            ret.push(ListTable { table: k, meta });
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn show_columns(&self, key: &str) -> anyhow::Result<Vec<Field>> {
+        let mut conn = self.get_conn().await?;
+        let typ = Self::get_key_type(&mut conn, key).await?;
+        let [key_field, value_field] = Self::key_value_fields();
+
+        match typ {
+            RedisType::String => anyhow::Ok(vec![value_field]),
+            RedisType::List => anyhow::Ok(vec![value_field]),
+            RedisType::Set => anyhow::Ok(vec![value_field]),
+            RedisType::Hash => anyhow::Ok(vec![key_field, value_field]),
+            RedisType::Zset => {
+                anyhow::Ok(vec![
+                    value_field,
+                    Field {
+                        name: "score".to_string(),
+                        typ: "float64".to_string(),
+                        nullable: false,
+                        default_value: None,
+                        is_primary: false,
+                        is_auto_increment: false,
+                    },
+                ])
+            }
+        }
+    }
+
+    async fn show_table(
+        &self, key: &str, where_str: Option<&str>, _order_by: Option<&str>, page: usize,
+        page_size: usize,
+    ) -> anyhow::Result<TableListResp> {
+        let mut conn = self.get_conn().await?;
+        let typ = Self::get_key_type(&mut conn, key).await?;
+        use futures_util::StreamExt;
+        match typ {
+            RedisType::String => {
+                let ret: Option<String> = conn.get(key).await?;
+                anyhow::Ok(TableListResp::result(
+                    "value",
+                    format!("GET {}", key),
+                    vec![ret],
+                ))
+            }
+            RedisType::List => {
+                let total: usize = conn.llen(key).await?;
+                let start = (page - 1) * page;
+                let ret: Vec<String> = conn
+                    .lrange(key, start as isize, (start + page) as isize)
+                    .await?;
+                anyhow::Ok(TableListResp::new(
+                    vec![Field::from_name_type("value", "string")],
+                    total,
+                    ret.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>(),
+                    format!("LRANGE {} {} {}  ", key, start, start + page_size),
+                ))
+            }
+
+            RedisType::Set => {
+                let total: usize = conn.scard(key).await?;
+                let mut ret: AsyncIter<String> =
+                    conn.sscan_match(key, where_str.unwrap_or("*")).await?;
+                let mut set_values = Vec::new();
+                while let Some(value) = ret.next().await {
+                    set_values.push(Some(value));
+                }
+                anyhow::Ok(TableListResp::new(
+                    vec![Field::from_name_type("value", "string")],
+                    total,
+                    set_values.into_iter().map(|x| vec![x]).collect(),
+                    format!("SSCAN {} 0 {}", key, where_str.unwrap_or("*")),
+                ))
+            }
+            RedisType::Hash => {
+                let total: usize = conn.hlen(key).await?;
+                let mut ret: AsyncIter<String> =
+                    conn.hscan_match(key, where_str.unwrap_or("*")).await?;
+                let mut index = 0;
+                let mut key_values = Vec::new();
+                let mut value_values = Vec::new();
+                while let Some(value) = ret.next().await {
+                    if index % 2 == 0 {
+                        key_values.push(Some(value.clone()));
+                    } else {
+                        value_values.push(Some(value.clone()));
+                    }
+                    index += 1;
+                }
+                anyhow::Ok(TableListResp::new(
+                    vec![
+                        Field::from_name_type("key", "string"),
+                        Field::from_name_type("value", "string"),
+                    ],
+                    total,
+                    key_values
+                        .into_iter()
+                        .zip(value_values.into_iter())
+                        .map(|(k, v)| vec![k, v])
+                        .collect(),
+                    format!("HSCAN {} 0 {}", key, where_str.unwrap_or("*")),
+                ))
+            }
+
+            RedisType::Zset => {
+                let total: usize = conn.zcard(key).await?;
+                let mut ret: AsyncIter<String> =
+                    conn.zscan_match(key, where_str.unwrap_or("*")).await?;
+                let mut index = 0;
+                let mut key_values = Vec::new();
+                let mut value_values = Vec::new();
+                while let Some(value) = ret.next().await {
+                    if index % 2 == 0 {
+                        key_values.push(Some(value.clone()));
+                    } else {
+                        value_values.push(Some(value.clone()));
+                    }
+                    index += 1;
+                }
+                anyhow::Ok(TableListResp::new(
+                    vec![
+                        Field::from_name_type("key", "string"),
+                        Field::from_name_type("value", "string"),
+                    ],
+                    total,
+                    key_values
+                        .into_iter()
+                        .zip(value_values.into_iter())
+                        .map(|(k, v)| vec![k, v])
+                        .collect(),
+                    format!("ZSCAN {} 0 {}", key, where_str.unwrap_or("*")),
+                ))
+            }
+        }
+    }
+
+    async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn insert(
+        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet> {
+        anyhow::bail!("insert should not called.")
+    }
+
+    async fn update(
+        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
+        _wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet> {
+        anyhow::bail!("this function should not called.")
+    }
+
+    async fn truncate_table(&self, _table_name: &str) -> anyhow::Result<()> {
+        anyhow::bail!("redis doesn't support this.")
+    }
+
+    async fn delete(
+        &self, key: &str, _wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet> {
+        let mut conn = self.get_conn().await?;
+        conn.del(key).await?;
+        anyhow::Ok(SqlExecuteRet {
+            sql: format!("DEL {}", key),
+            changes: 1,
+            last_insert_row_id: None,
+            last_insert_id_string: None,
+        })
+    }
+
+    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
+        anyhow::bail!("redis have no view")
+    }
+
+    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+        self.delete(table, Default::default()).await?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl QuerySql for RedisDB {
+    async fn query_sql(
+        &self, sql: &str,
+    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+        let mut conn = self.get_conn().await?;
+        query_sql(&mut conn, sql).await
+    }
+}
+impl RedisDB {
+    async fn get_key_type(conn: &mut ConnectionManager, key: &str) -> anyhow::Result<RedisType> {
+        let ty: String = conn.key_type(key).await?;
+        RedisType::from_str(&ty)
+    }
+}
+
+pub enum RedisType {
+    String,
+    List,
+    Set,
+    Hash,
+    Zset,
+}
+
+impl std::fmt::Display for RedisType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            RedisType::String => "string",
+            RedisType::List => "list",
+            RedisType::Set => "set",
+            RedisType::Hash => "hash",
+            RedisType::Zset => "zset",
+        };
+        write!(f, "{}", s)
+    }
+}
+impl TryFrom<&str> for RedisType {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        RedisType::from_str(value)
+    }
+}
+
+impl RedisType {
+    fn from_str(s: &str) -> anyhow::Result<Self> {
+        match s {
+            "string" => Ok(Self::String),
+            "list" => Ok(Self::List),
+            "set" => Ok(Self::Set),
+            "hash" => Ok(Self::Hash),
+            "zset" => Ok(Self::Zset),
+            _ => {
+                anyhow::bail!(format!("'{}' not a valid type", s))
+            }
+        }
+    }
+}
+
+async fn query_sql(
+    conn: &mut ConnectionManager, sql: &str,
+) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    let mut commands = Vec::new();
+    for line in sql.lines() {
+        let v: Vec<_> = line.split(" ").collect();
+        let mut v2 = Vec::new();
+        for c in v.iter() {
+            let c = (*c).trim().to_string();
+            if !c.is_empty() {
+                v2.push(c);
+            }
+        }
+        if !v2.is_empty() {
+            commands.push(v2);
+        }
+    }
+    let mut ret = Vec::new();
+    for c in commands.iter() {
+        let args = &c[1..];
+        let command = c.join(" ");
+        let v = redis::cmd(c[0].as_str())
+            .arg(args)
+            .query_async(conn)
+            .await
+            .map(|x| encode_value(&x));
+
+        match v {
+            Ok(x) => {
+                ret.push(Ok(TableListResp::result(
+                    "result",
+                    command,
+                    x.into_iter().map(|x| Some(x)).collect(),
+                )));
+            }
+
+            Err(x) => ret.push(Err(ExeSqlError::new(command, anyhow::Error::from(x)))),
+        }
+    }
+
+    anyhow::Ok(ret)
+}
+fn encode_hashmap(v: &HashMap<String, String>) -> Vec<String> {
+    vec![format!("{:?}", v)]
+}
+fn encode_hashset(v: &HashSet<String>) -> Vec<String> {
+    vec![format!("{:?}", v)]
+}
+
+fn encode_value(v: &Value) -> Vec<String> {
+    match v {
+        Value::Nil => vec!["(nil)".to_string()],
+        Value::Int(x) => vec![format!("integer({})", x)],
+        Value::Data(bs) => {
+            let m: Result<HashMap<String, String>, _> = redis::from_redis_value(v);
+            match m {
+                Ok(x) => return encode_hashmap(&x),
+                Err(_) => {}
+            }
+            let m: Result<HashSet<String>, _> = redis::from_redis_value(v);
+            match m {
+                Ok(x) => return encode_hashset(&x),
+                Err(_) => {}
+            }
+            let m: Result<Vec<String>, _> = redis::from_redis_value(v);
+            match m {
+                Ok(x) => return x,
+                Err(_) => {}
+            }
+            let m: Result<String, _> = redis::from_redis_value(v);
+            match m {
+                Ok(x) => return vec![x],
+                Err(_) => {}
+            }
+            return vec![format!(
+                "unkownn object:0x{}",
+                hex::encode_upper(bs.as_slice())
+            )];
+        }
+        Value::Bulk(x) => {
+            let data: Vec<_> = x.iter().map(|x| encode_value(&x)).collect();
+            let mut ret = Vec::new();
+            for d in data.into_iter() {
+                for d in d.into_iter() {
+                    ret.push(d);
+                }
+            }
+            ret
+        }
+        Value::Status(x) => vec![format!("status({})", x)],
+        Value::Okay => vec!["(ok)".to_string()],
+    }
+}
+
+impl RedisDB {
+    async fn get_conn(&self) -> anyhow::Result<redis::aio::ConnectionManager> {
+        let m = match self
+            .pm
+            .get(&crate::datasource::DBConfig::Redis {
+                server: self.server.clone(),
+            })
+            .await?
+        {
+            NexusPool::Redis(x) => x.clone(),
+            _ => unreachable!(),
+        };
+        anyhow::Ok(m)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::RedisDB;
+    use crate::TEST_HOST;
+
+    fn make_test_object() -> RedisDB {
+        let x = RedisDB {
+            server: format!("redis://{}/", *TEST_HOST),
+            pm: Default::default(),
+        };
+        x
+    }
+
+    #[tokio::test]
+    async fn test() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+
+        db.delete("string_value", Default::default()).await.unwrap();
+        db.delete("hash_value", Default::default()).await.unwrap();
+        db.delete("list_value", Default::default()).await.unwrap();
+        db.delete("set_value", Default::default()).await.unwrap();
+        db.delete("zset_value", Default::default()).await.unwrap();
+
+        let ret = db.query_sql("set string_value string_value").await.unwrap();
+        println!("ret:{:?}", ret);
+
+        let ret = db
+            .query_sql("hset hash_value key11111 value2222")
+            .await
+            .unwrap();
+
+        println!("ret:{:?}", ret);
+
+        let ret = db
+            .query_sql("hset hash_value key2222 value33333")
+            .await
+            .unwrap();
+
+        println!("ret:{:?}", ret);
+        let ret = db.query_sql("lpush list_value 1").await.unwrap();
+        db.query_sql("lpush list_value 2").await.unwrap();
+        println!("ret:{:?}", ret);
+        let ret = db.query_sql("sadd set_value  1").await.unwrap();
+        let ret = db.query_sql("sadd set_value  2").await.unwrap();
+        println!("ret:{:?}", ret);
+        let ret = db.query_sql("zadd zset_value 1 haha").await.unwrap();
+        let ret = db.query_sql("zadd zset_value 2 xxx").await.unwrap();
+        println!("ret:{:?}", ret);
+
+        {
+            let x = db
+                .export_table_to_string(
+                    "string_value",
+                    crate::db::ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export str is :{}", x);
+            let x = db
+                .export_table_to_string(
+                    "set_value",
+                    crate::db::ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export str is :{}", x);
+            let x = db
+                .export_table_to_string(
+                    "hash_value",
+                    crate::db::ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export str is :{}", x);
+            let x = db
+                .export_table_to_string(
+                    "zset_value",
+                    crate::db::ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export str is :{}", x);
+            let x = db
+                .export_table_to_string(
+                    "list_value",
+                    crate::db::ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export str is :{}", x);
+        }
+
+        let tables = db.list_table().await.unwrap();
+        for table in tables.iter() {
+            println!("table is {:?}", table);
+            let cols = db.show_columns(table.table.as_str()).await.unwrap();
+            println!("columns is {:?}", cols);
+            let table_list = db
+                .show_table(table.table.as_str(), None, None, 1, 100)
+                .await
+                .unwrap();
+            println!("table list is {:?}", table_list);
+            println!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test2() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let ret = db
+            .query_sql("set test_string_value string_value")
+            .await
+            .unwrap();
+        println!("ret:{:?}", ret);
+
+        let _ret = db
+            .query_sql("set test_string_value key11111")
+            .await
+            .unwrap();
+        db.drop_table("test_string_value").await.unwrap();
+    }
+}
+
+#[async_trait::async_trait]
+
+impl AutoCompletionTrait for RedisDB {
+    async fn auto_completion(
+        &self, sql: &str, pos: sqlparser::tokenizer::Location,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        LexerCompletionBackend::do_auto_completion(
+            self,
+            sql,
+            &sqlparser::dialect::GenericDialect,
+            pos,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl LexerCompletionBackend for RedisDB {
+    type Dialect = sqlparser::dialect::GenericDialect;
+
+    const BUILD_IN_FUNCTIONS: &'static [&'static str] = REDIS_COMMANDS;
+    const KEY_WORDS: &'static [&'static str] = &[];
+    const TEXTS: &'static [&'static str] = &[
+        "NX",
+        "XX",
+        "EX",
+        "PX",
+        "CH",
+        "INCR",
+        "DECR",
+        "WITHSCORES",
+        "LIMIT",
+        "ALPHA",
+        "STORE",
+        "BY",
+        "RESETSTAT",
+        "RESET",
+        "REWRITE",
+    ];
+    const TYPES: &'static [&'static str] = &[];
+
+    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(
+            crate::db::DBTrait::list_table(self)
+                .await?
+                .into_iter()
+                .map(|x| x.table)
+                .collect(),
+        )
+    }
+
+    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn list_columns(&self, _table_name: &str) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+}
+
+const REDIS_COMMANDS: &'static [&'static str] = &[
+    "APPEND",
+    "ASKING",
+    "AUTH",
+    "BGREWRITEAOF",
+    "BGSAVE",
+    "BITCOUNT",
+    "BITFIELD",
+    "BITOP",
+    "BITPOS",
+    "BLPOP",
+    "BRPOP",
+    "BRPOPLPUSH",
+    "CLIENT_GETNAME",
+    "CLIENT_ID",
+    "CLIENT_KILL",
+    "CLIENT_LIST",
+    "CLIENT_PAUSE",
+    "CLIENT_REPLY",
+    "CLIENT_SETNAME",
+    "CLUSTER_ADDSLOTS",
+    "CLUSTER_COUNT_FAILURE_REPORTS",
+    "CLUSTER_COUNTKEYSINSLOT",
+    "CLUSTER_DELSLOTS",
+    "CLUSTER_FAILOVER",
+    "CLUSTER_FORGET",
+    "CLUSTER_GETKEYSINSLOT",
+    "CLUSTER_INFO",
+    "CLUSTER_KEYSLOT",
+    "CLUSTER_MEET",
+    "CLUSTER_MYID",
+    "CLUSTER_NODES",
+    "CLUSTER_REPLICATE",
+    "CLUSTER_RESET",
+    "CLUSTER_SAVECONFIG",
+    "CLUSTER_SET_CONFIG_EPOCH",
+    "CLUSTER_SETSLOT",
+    "CLUSTER_SLAVES",
+    "CLUSTER_SLOTS",
+    "COMMAND",
+    "CONFIG_GET",
+    "CONFIG_REWRITE",
+    "CONFIG_SET",
+    "CONFIG_RESETSTAT",
+    "DBSIZE",
+    "DEBUG_OBJECT",
+    "DEBUG_SEGFAULT",
+    "DECR",
+    "DECRBY",
+    "DEL",
+    "DISCARD",
+    "DUMP",
+    "ECHO",
+    "EVAL",
+    "EVALSHA",
+    "EXEC",
+    "EXISTS",
+    "EXPIRE",
+    "EXPIREAT",
+    "FLUSHALL",
+    "FLUSHDB",
+    "GEOADD",
+    "GEODIST",
+    "GEOHASH",
+    "GEOPOS",
+    "GEORADIUS",
+    "GEORADIUSBYMEMBER",
+    "GET",
+    "GETBIT",
+    "GETRANGE",
+    "GETSET",
+    "HDEL",
+    "HEXISTS",
+    "HGET",
+    "HGETALL",
+    "HINCRBY",
+    "HINCRBYFLOAT",
+    "HKEYS",
+    "HLEN",
+    "HMGET",
+    "HMSET",
+    "HSCAN",
+    "HSET",
+    "HSETNX",
+    "HSTRLEN",
+    "HVALS",
+    "INCR",
+    "INCRBY",
+    "INCRBYFLOAT",
+    "INFO",
+    "KEYS",
+    "LASTSAVE",
+    "LINDEX",
+    "LINSERT",
+    "LLEN",
+    "LPOP",
+    "LPUSH",
+    "LPUSHX",
+    "LRANGE",
+    "LREM",
+    "LSET",
+    "LTRIM",
+    "MGET",
+    "MIGRATE",
+    "MONITOR",
+    "MOVE",
+    "MSET",
+    "MSETNX",
+    "MULTI",
+    "OBJECT",
+    "PERSIST",
+    "PEXPIRE",
+    "PEXPIREAT",
+    "PFADD",
+    "PFCOUNT",
+    "PFMERGE",
+    "PING",
+    "PSETEX",
+    "PSUBSCRIBE",
+    "PUBSUB_CHANNELS",
+    "PUBSUB_NUMPAT",
+    "PUBSUB_NUMSUB",
+    "PTTL",
+    "PUBLISH",
+    "PUNSUBSCRIBE",
+    "QUIT",
+    "RANDOMKEY",
+    "READONLY",
+    "READWRITE",
+    "RENAME",
+    "RENAMENX",
+    "RESTORE",
+    "RESTORE_ASKING",
+    "ROLE",
+    "RPOP",
+    "RPOPLPUSH",
+    "RPUSH",
+    "RPUSHX",
+    "SADD",
+    "SAVE",
+    "SCAN",
+    "SCARD",
+    "SCRIPT_EXISTS",
+    "SCRIPT_FLUSH",
+    "SCRIPT_KILL",
+    "SCRIPT_LOAD",
+    "SDIFF",
+    "SDIFFSTORE",
+    "SELECT",
+    "SET",
+    "SETBIT",
+    "SETEX",
+    "SETNX",
+    "SETRANGE",
+    "SHUTDOWN",
+    "SINTER",
+    "SINTERSTORE",
+    "SISMEMBER",
+    "SLAVEOF",
+    "SLOWLOG_GET",
+    "SLOWLOG_LEN",
+    "SLOWLOG_RESET",
+    "SMEMBERS",
+    "SMOVE",
+    "SORT",
+    "SPOP",
+    "SRANDMEMBER",
+    "SREM",
+    "SSCAN",
+    "STRLEN",
+    "SUBSCRIBE",
+    "SUNION",
+    "SUNIONSTORE",
+    "SYNC",
+    "TIME",
+    "TOUCH",
+    "TTL",
+    "TYPE",
+    "UNSUBSCRIBE",
+    "UNLINK",
+    "UNWATCH",
+    "WAIT",
+    "WATCH",
+    "ZADD",
+    "ZCARD",
+    "ZCOUNT",
+    "ZINCRBY",
+    "ZINTERSTORE",
+    "ZLEXCOUNT",
+    "ZRANGE",
+    "ZRANGEBYLEX",
+    "ZRANGEBYSCORE",
+    "ZRANK",
+    "ZREM",
+    "ZREMRANGEBYLEX",
+    "ZREMRANGEBYRANK",
+    "ZREMRANGEBYSCORE",
+    "ZREVRANGE",
+    "ZREVRANGEBYLEX",
+    "ZREVRANGEBYSCORE",
+    "ZREVRANK",
+    "ZSCAN",
+    "ZSCORE",
+    "ZUNIONSTORE",
+];
