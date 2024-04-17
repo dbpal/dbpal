@@ -216,3 +216,9 @@ pub async fn list_all_config(
         .await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn exit(code: i32) -> Result<(), String> {
+    std::process::exit(0);
+    Ok(())
+}
