@@ -1,40 +1,107 @@
-import React from "react";
-import { Form, Input, Checkbox, Button, Radio } from "@arco-design/web-react";
+import React, { useState } from "react";
+import {
+  Form,
+  Input,
+  Checkbox,
+  Button,
+  Radio,
+  Select,
+  Space,
+  Typography,
+} from "@arco-design/web-react";
+const Option = Select.Option;
+
+import { open } from "@tauri-apps/api/dialog";
 
 const FormItem = Form.Item;
 const RadioGroup = Radio.Group;
 
-function NewConnection() {
-  return (
-    <Form>
-      <FormItem label="Layout">
-        <RadioGroup type="button" name="layout">
-          <Radio value="horizontal">sqlite</Radio>
-          <Radio value="vertical">mysql </Radio>
-          <Radio value="inline">postgres</Radio>
-        </RadioGroup>
-      </FormItem>
-      <FormItem
-        label="Username"
-        field="username"
-        tooltip={<div>Username is required </div>}
-        rules={[{ required: true }]}
-      >
-        <Input style={{ width: 270 }} placeholder="please enter your name" />
-      </FormItem>
-      <FormItem label="Post">
-        <Input style={{ width: 270 }} placeholder="please enter your post" />
-      </FormItem>
-      <FormItem>
-        <Checkbox>I have read the manual</Checkbox>
-      </FormItem>
+const dbKinds = ["sqlite", "mysql", "postgres", "sqlserver", "redis", "mongo"];
 
-      <FormItem>
-        <Button type="primary" htmlType="submit">
-          Submit
-        </Button>
-      </FormItem>
-    </Form>
+function Sqlite({ db }) {
+  const { Title, Paragraph } = Typography;
+
+  const [file, setFile] = useState("");
+  function handleOpen() {
+    open({
+      directory: false,
+      multiple: false,
+      title: "Select a sqlite db file",
+    }).then((e) => {
+      setFile(e);
+    });
+  }
+
+  return (
+    <div hidden={!(db === "sqlite")}>
+      <Typography>
+        <Paragraph>{file}</Paragraph>
+        <Paragraph>
+          <Button type="primary" onClick={handleOpen}>
+            open
+          </Button>
+        </Paragraph>
+        <Paragraph>
+          <Button type="primary">Done</Button>
+        </Paragraph>
+      </Typography>
+    </div>
+  );
+}
+function Mysql({ db }) {
+  return (
+    <div hidden={!(db === "mysql")}>
+      <Form autoComplete="off">
+        <FormItem label="Username">
+          <Input placeholder="host" />
+        </FormItem>
+        <Button> Done </Button>
+      </Form>
+    </div>
+  );
+}
+
+function Postgres({ db }) {
+  return <div hidden={!(db === "postgres")}></div>;
+}
+
+function Redis({ db }) {
+  return <div hidden={!(db === "redis")}></div>;
+}
+function Mongo({ db }) {
+  return <div hidden={!(db === "mongo")}></div>;
+}
+
+function Sqlserver({ db }) {
+  return <div hidden={!(db === "sqlserver")}></div>;
+}
+
+function NewConnection() {
+  let [db, setDb] = useState("sqlite");
+  function handleChange(value) {
+    setDb(value);
+  }
+  return (
+    <div style={{ width: "40%" }}>
+      <Select
+        placeholder="Select db kind"
+        defaultValue="sqlite"
+        onChange={handleChange}
+        // style={{ width: "235px" }}
+      >
+        {dbKinds.map((option, index) => (
+          <Option key={option} value={option}>
+            {option}
+          </Option>
+        ))}
+      </Select>
+      <Sqlite db={db} />
+      <Mysql db={db} />
+      <Postgres db={db} />
+      <Redis db={db} />
+      <Mongo db={db} />
+      <Sqlserver db={db} />
+    </div>
   );
 }
 

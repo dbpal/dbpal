@@ -19,7 +19,6 @@ function FileMenu({ setTabList, setActiveTab }) {
       </Menu.Item>
     </Menu>
   );
-
   let i = 0;
   function on_new_connection() {
     let name = "new_connection:" + i;

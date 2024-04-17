@@ -1,23 +1,39 @@
 import { Layout } from "@arco-design/web-react";
 import MenuBar from "./header.jsx";
 import ContentTabs from "./tabs.jsx";
-
-import { useState } from "react";
+import { invoke } from "@tauri-apps/api/tauri";
+import { useEffect, useState } from "react";
 import { TabItem } from "./context.tsx";
+import { showErrMsg } from "./functions.jsx";
+import { LeftTree } from "./left.jsx";
+
 const Sider = Layout.Sider;
 const Header = Layout.Header;
 const Content = Layout.Content;
 
 function App() {
-  let [tabs, setTabs] = useState([]);
+  const [tabs, setTabs] = useState([]);
   function handleSetTabs(e: TabItem[]) {
     setTabs(e as any);
   }
 
-  let [activeTab, setActiveTab] = useState("");
+  const [activeTab, setActiveTab] = useState("");
   function handleSetActiveTab(e: string) {
     setActiveTab(e);
   }
+
+  const [listConfig, setListConfig] = useState([]);
+
+  useEffect(() => {
+    invoke("list_all_config", {})
+      .then((e) => {
+        setListConfig(e);
+      })
+      .catch((e) => {
+        showErrMsg(e, {});
+      });
+  }, []);
+
   return (
     <div>
       <Layout>
@@ -31,13 +47,19 @@ function App() {
           <Sider
             resizeDirections={["right"]}
             style={{
-              minWidth: 150,
+              minWidth: 250,
               maxWidth: 500,
-              height: 800,
+              minHeight: "800px",
+              height: "100%",
             }}
           >
-            Sider
+            <LeftTree
+              listConfig={listConfig}
+              setTabList={handleSetTabs}
+              setActiveTab={handleSetActiveTab}
+            />
           </Sider>
+
           <Content>
             <ContentTabs
               tabList={tabs}

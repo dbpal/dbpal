@@ -27,7 +27,7 @@ function ContentTabs({ tabList, setTabList, activeTab, setActiveTab }) {
     >
       {tabList.map((x, _) => (
         <TabPane destroyOnHide key={x.key} title={x.title} closable={true}>
-          ${x.content}
+          {x.content}
         </TabPane>
       ))}
     </Tabs>
