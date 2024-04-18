@@ -8,8 +8,13 @@ function randomString(e) {
   return n;
 }
 
-function showErrMsg(msg, options) {
+function showMsg(msg, options) {
+  message(msg, options);
+}
+function showSysErrMsg(msg, options) {
   message(msg, options);
 }
 
-export { showErrMsg, randomString };
+
+
+export { showSysErrMsg, randomString, showMsg };
