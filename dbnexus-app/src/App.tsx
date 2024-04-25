@@ -4,7 +4,7 @@ import ContentTabs from "./tabs.jsx";
 import { invoke } from "@tauri-apps/api/tauri";
 import { useEffect, useState } from "react";
 import { TabItem } from "./context.tsx";
-import { showErrMsg } from "./functions.jsx";
+import { showSysErrMsg } from "./functions.jsx";
 import { LeftTree } from "./left.jsx";
 
 const Sider = Layout.Sider;
@@ -30,7 +30,7 @@ function App() {
         setListConfig(e);
       })
       .catch((e) => {
-        showErrMsg(e, {});
+        showSysErrMsg(e, {});
       });
   }, []);
 
