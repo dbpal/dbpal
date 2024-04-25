@@ -17,6 +17,7 @@ use crate::pool::{NexusPool, PoolManager};
 pub struct RedisDB {
     server: String,
     pm: PoolManager,
+    read_only: bool,
 }
 
 use redis::aio::ConnectionManager;
@@ -161,6 +162,10 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+
     fn backend_name(&self) -> &str {
         "redis"
     }
@@ -371,6 +376,8 @@ impl DBTrait for RedisDB {
     async fn delete(
         &self, key: &str, _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
+
         let mut conn = self.get_conn().await?;
         conn.del(key).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -386,6 +393,7 @@ impl DBTrait for RedisDB {
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         self.delete(table, Default::default()).await?;
         Ok(())
     }
@@ -570,6 +578,7 @@ mod tests {
         let x = RedisDB {
             server: format!("redis://{}/", *TEST_HOST),
             pm: Default::default(),
+            read_only: false,
         };
         x
     }

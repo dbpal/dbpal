@@ -18,6 +18,7 @@ use crate::pool::{NexusPool, PoolManager};
 pub struct MysqlDB {
     pool: PoolManager,
     config: CommDBConfig,
+    read_only: bool,
 }
 
 fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
@@ -58,6 +59,10 @@ fn gen_select_sql(
 #[async_trait::async_trait]
 
 impl DBTrait for MysqlDB {
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+
     async fn create_table_and_index_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
@@ -98,6 +103,8 @@ impl DBTrait for MysqlDB {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
+
         let mut conn = self.get_conn().await?;
         let sql = format!("DROP VIEW {view_name}");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -105,6 +112,7 @@ impl DBTrait for MysqlDB {
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let sql = format!("DROP TABLE {table}");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -133,6 +141,7 @@ impl DBTrait for MysqlDB {
     async fn delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
         let fields = self.show_columns(table_name).await?;
         let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
         let mut conn = self.get_conn().await?;
@@ -146,6 +155,7 @@ impl DBTrait for MysqlDB {
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let s = format!(
             r#"
             TRUNCATE TABLE {table_name};
@@ -193,6 +203,7 @@ impl DBTrait for MysqlDB {
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
         let fs = self.show_columns(table_name).await?;
         let s = (self as &dyn crate::db::DBTrait).insert_sql(table_name, &fs, &values)?;
 
@@ -211,6 +222,7 @@ impl DBTrait for MysqlDB {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
         let fs = self.show_columns(table_name).await?;
         let s = (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
         let mut conn = self.get_conn().await?;
@@ -413,8 +425,12 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
 }
 
 impl MysqlDB {
-    fn new(pool: PoolManager, conn: CommDBConfig) -> Self {
-        Self { pool, config: conn }
+    fn new(pool: PoolManager, conn: CommDBConfig, read_only: bool) -> Self {
+        Self {
+            pool,
+            config: conn,
+            read_only,
+        }
     }
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
@@ -572,6 +588,7 @@ mod tests {
                 port: 3306,
                 db_name: Some("test".to_string()),
             },
+            false,
         );
         db
     }

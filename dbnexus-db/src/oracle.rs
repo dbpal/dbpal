@@ -10,6 +10,7 @@ use crate::pool::{NexusPool, PoolManager};
 pub struct OracleDB {
     config: OracleDBConfig,
     pm: PoolManager,
+    read_only: bool,
 }
 
 #[async_trait::async_trait]
@@ -23,6 +24,10 @@ impl QuerySql for OracleDB {
 
 #[async_trait::async_trait]
 impl DBTrait for OracleDB {
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+
     fn backend_name(&self) -> &str {
         "oracle"
     }
@@ -74,12 +79,16 @@ impl DBTrait for OracleDB {
     }
 
     async fn truncate_table(&self, _table_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
+
         unimplemented!()
     }
 
     async fn delete(
         &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
+
         unimplemented!()
     }
 

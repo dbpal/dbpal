@@ -22,14 +22,16 @@ pub struct SqlServer {
     config: CommDBConfig,
     trust_cert: bool,
     pm: PoolManager,
+    read_only: bool,
 }
 
 impl SqlServer {
-    fn new(config: CommDBConfig, trust_cert: bool, pm: PoolManager) -> Self {
+    fn new(config: CommDBConfig, trust_cert: bool, pm: PoolManager, read_only: bool) -> Self {
         Self {
             config,
             trust_cert,
             pm,
+            read_only,
         }
     }
 }
@@ -191,6 +193,10 @@ fn gen_select_sql(
 
 #[async_trait::async_trait]
 impl DBTrait for SqlServer {
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+
     async fn create_table_and_index_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
@@ -242,6 +248,7 @@ impl DBTrait for SqlServer {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let s = format!("DROP VIEW {view_name}");
         let conn = self.get_conn().await?;
         let mut conn = conn.get().await?;
@@ -252,6 +259,8 @@ impl DBTrait for SqlServer {
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+        self.can_write()?;
+
         let s = format!("DROP TABLE {table}");
         let conn = self.get_conn().await?;
         let mut conn = conn.get().await?;
@@ -467,6 +476,8 @@ WHERE i.object_id = OBJECT_ID('{table_name}')
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
+
         let fs = self.show_columns(table_name).await?;
         let s = (self as &dyn crate::db::DBTrait).insert_sql(table_name, &fs, &values)?;
 
@@ -488,6 +499,8 @@ WHERE i.object_id = OBJECT_ID('{table_name}')
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
+
         let fs = self.show_columns(table_name).await?;
         let s = (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
         let conn = self.get_conn().await?;
@@ -520,6 +533,7 @@ WHERE i.object_id = OBJECT_ID('{table_name}')
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let s = format!(
             r#"
             TRUNCATE TABLE {table_name};
@@ -535,6 +549,8 @@ WHERE i.object_id = OBJECT_ID('{table_name}')
     async fn delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
+
         let fields = self.show_columns(table_name).await?;
         let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
         let conn = self.get_conn().await?;
@@ -855,6 +871,7 @@ mod tests {
             },
             true,
             Default::default(),
+            false,
         );
 
         pg

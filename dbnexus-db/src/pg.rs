@@ -21,6 +21,7 @@ pub struct PGDB {
     /// database name.
     pool: PoolManager,
     config: CommDBConfig,
+    read_only: bool,
 }
 
 #[async_trait::async_trait]
@@ -81,6 +82,10 @@ fn gen_show_sql(
 
 #[async_trait::async_trait]
 impl DBTrait for PGDB {
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+
     fn backend_name(&self) -> &str {
         "postgres"
     }
@@ -117,6 +122,7 @@ impl DBTrait for PGDB {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let sql = format!("DROP VIEW {view_name}");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -124,6 +130,7 @@ impl DBTrait for PGDB {
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let sql = format!("DROP TABLE {table}");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -155,6 +162,7 @@ impl DBTrait for PGDB {
     async fn delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
         let fields = self.show_columns(table_name).await?;
         let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
         let mut conn = self.get_conn().await?;
@@ -168,6 +176,7 @@ impl DBTrait for PGDB {
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let s = format!(
             r#"
             TRUNCATE TABLE {table_name};
@@ -202,6 +211,7 @@ impl DBTrait for PGDB {
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
         let fs = self.show_columns(table_name).await?;
         let s = (self as &dyn crate::db::DBTrait).insert_sql(table_name, &fs, &values)?;
 
@@ -392,8 +402,14 @@ impl PGDB {
 }
 
 impl PGDB {
-    pub fn new(db: impl Into<String>, pool: PoolManager, config: CommDBConfig) -> Self {
-        Self { pool, config }
+    pub fn new(
+        db: impl Into<String>, pool: PoolManager, config: CommDBConfig, read_only: bool,
+    ) -> Self {
+        Self {
+            pool,
+            config,
+            read_only,
+        }
     }
 
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<Postgres>> {
@@ -650,6 +666,7 @@ mod test {
                 password: "root".to_string(),
                 db_name: Some("test".to_string()),
             },
+            false,
         );
 
         pg

@@ -23,6 +23,7 @@ use crate::pool::{NexusPool, PoolManager};
 pub struct SqliteDB {
     pool: PoolManager,
     path: String,
+    read_only: bool,
 }
 
 impl SqliteDB {
@@ -98,6 +99,10 @@ impl SqliteDB {
 
 #[async_trait::async_trait]
 impl DBTrait for SqliteDB {
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+
     fn backend_name(&self) -> &str {
         "sqlite"
     }
@@ -165,6 +170,8 @@ impl DBTrait for SqliteDB {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
+
         let s = format!("DROP VIEW {view_name}");
         let mut conn = self.get_conn().await?;
         sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
@@ -172,6 +179,7 @@ impl DBTrait for SqliteDB {
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let s = format!("DROP TABLE {table}");
         let mut conn = self.get_conn().await?;
         sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
@@ -181,6 +189,7 @@ impl DBTrait for SqliteDB {
     async fn delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
         let fields = self.show_columns(table_name).await?;
         let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
         let mut conn = self.get_conn().await?;
@@ -194,6 +203,7 @@ impl DBTrait for SqliteDB {
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let s = format!(
             r#"
             DELETE FROM {table_name};
@@ -231,6 +241,7 @@ impl DBTrait for SqliteDB {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
         let fields = self.show_columns(table_name).await?;
 
         let mut conn = self.get_conn().await?;
@@ -249,6 +260,7 @@ impl DBTrait for SqliteDB {
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
         let fields = self.show_columns(table_name).await?;
         let sql = (self as &dyn crate::db::DBTrait).insert_sql(table_name, &fields, &values)?;
         let mut conn = self.get_conn().await?;
@@ -490,8 +502,12 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
 }
 
 impl SqliteDB {
-    pub fn new(pool: PoolManager, path: String) -> Self {
-        Self { path, pool }
+    pub fn new(pool: PoolManager, path: String, read_only: bool) -> Self {
+        Self {
+            path,
+            pool,
+            read_only,
+        }
     }
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
@@ -713,6 +729,7 @@ async fn test_auto_completion() {
     let s = SqliteDB {
         pool: Default::default(),
         path: ":memory:".to_string(),
+        read_only: false,
     };
     let mut conn = s.get_conn().await.unwrap();
     sqlx::query(
@@ -998,7 +1015,7 @@ mod tests {
     // this test no need clean up, we use memory sqlite db.
     async fn make_test_db() -> SqliteDB {
         let pool_manager = PoolManager::new();
-        let db = SqliteDB::new(pool_manager, ":memory:".to_string());
+        let db = SqliteDB::new(pool_manager, ":memory:".to_string(), false);
         let _conn = db.get_conn().await.unwrap();
         db
     }

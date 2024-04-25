@@ -128,7 +128,7 @@ async fn open_db(config: &HashMap<String, String>, pm: PoolManager) -> anyhow::R
                         None => return Err(anyhow::Error::msg("path is empty")),
                     };
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::sqlite::SqliteDB::new(pm, path));
+                        Arc::new(dbnexus_db::sqlite::SqliteDB::new(pm, path, false));
 
                     anyhow::Ok(DB::One(db))
                 }

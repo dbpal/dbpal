@@ -92,6 +92,15 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
     async fn create_view_sql(&self, _view_name: &str) -> anyhow::Result<String> {
         anyhow::bail!(format!("'{}' don't support this", self.backend_name()))
     }
+    /// if this connection is read only
+    fn read_only(&self) -> bool;
+
+    fn can_write(&self) -> anyhow::Result<()> {
+        if self.read_only() {
+            return Err(anyhow::Error::msg("this is connection is readonly"));
+        }
+        anyhow::Ok(())
+    }
 }
 
 /// create table and all index sql.

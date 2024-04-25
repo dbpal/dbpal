@@ -18,6 +18,7 @@ pub struct Mongo {
     ds: MongoDataSource,
     dbname: Option<String>,
     pm: crate::pool::PoolManager,
+    read_only: bool,
 }
 
 fn infer_schema(v: &serde_json::Value) -> Vec<Field> {
@@ -77,6 +78,10 @@ fn value_to_frontend(v: &Value) -> String {
 
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+
     fn backend_name(&self) -> &str {
         "mongodb"
     }
@@ -143,6 +148,8 @@ impl DBTrait for Mongo {
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+        self.can_write()?;
+
         let conn = self.get_db().await?;
         conn.collection::<serde_json::Value>(table)
             .drop(None)
@@ -288,6 +295,8 @@ impl DBTrait for Mongo {
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
+
         let values = {
             let mut value_json = HashMap::new();
             for (k, v) in check_input_none_string(&values)?.iter() {
@@ -318,6 +327,8 @@ impl DBTrait for Mongo {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
+
         let mut update_by_id = None;
 
         let wheres = {
@@ -367,6 +378,8 @@ impl DBTrait for Mongo {
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
+
         let db = self.get_db().await?;
         db.collection::<serde_json::Value>(table_name)
             .delete_many(doc! {}, None)
@@ -378,6 +391,8 @@ impl DBTrait for Mongo {
     async fn delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
+        self.can_write()?;
+
         let mut update_by_id = None;
         let wheres = {
             let mut value_json = serde_json::Map::new();
@@ -466,7 +481,7 @@ mod tests {
                 port: 27017,
                 username_and_password: None,
             },
-
+            read_only: false,
             dbname: Some("test".to_string()),
             pm: PoolManager::default(),
         };
