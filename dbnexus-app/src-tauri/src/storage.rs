@@ -31,7 +31,7 @@ pub trait DbConfigLoader: Send + Sync + 'static {
     ) -> anyhow::Result<HashMap<String, HashMap<String, String>>>;
 
     async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings>;
-    async fn save_user_settings(&self, x: &UserSettings) -> anyhow::Result<()>;
+    async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()>;
 }
 
 pub struct FileJsonSaver {
@@ -81,8 +81,10 @@ impl DbConfigLoader for FileJsonSaver {
         Ok(self.config.lock().await.user_settings.clone())
     }
 
-    async fn save_user_settings(&self, x: &UserSettings) -> anyhow::Result<()> {
-        self.save(self.config.lock().await.deref()).await
+    async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()> {
+        let mut g = self.config.lock().await;
+        g.user_settings = x;
+        self.save(g.deref()).await
     }
 
     async fn add(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()> {
@@ -322,5 +324,29 @@ pub struct UserSettings {
 impl Default for UserSettings {
     fn default() -> Self {
         Self { page_size: 100 }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::DBNexusConfigs;
+
+    #[test]
+    fn print_config() {
+        let s = DBNexusConfigs {
+            user_settings: super::UserSettings { page_size: 100 },
+            connection_configs: {
+                let mut m = HashMap::new();
+                let mut m2 = HashMap::new();
+                m2.insert("kind".to_string(), "sqlite".to_string());
+                m2.insert("path".to_string(), "D:\\sqlite.test.db".to_string());
+                m.insert("uuid".to_string(), m2);
+                m
+            },
+        };
+        let s = serde_json::to_string_pretty(&s).unwrap();
+        println!("config:{}", s);
     }
 }

@@ -189,12 +189,13 @@ pub async fn query_sql(
     };
     result.map_err(|e| e.to_string())
 }
+
 #[tauri::command]
 pub async fn save_user_settings(
     user_settings: UserSettings, dbs: tauri::State<'_, DBS>,
 ) -> Result<(), String> {
     dbs.loader
-        .save_user_settings(&user_settings)
+        .save_user_settings(user_settings)
         .await
         .map_err(|e| e.to_string())
 }
