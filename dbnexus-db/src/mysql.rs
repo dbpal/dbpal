@@ -172,11 +172,11 @@ impl MysqlDB {
         if include_table_schema {
             let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send(Cow::Borrowed(";\n")).await?;
 
             for index in ss.indexes.into_iter() {
                 sender.send(Cow::Owned(index)).await?;
-                sender.send(Cow::Borrowed("\n")).await?;
+                sender.send(Cow::Borrowed(";\n")).await?;
             }
         }
         let mut conn = self.get_conn().await?;
@@ -298,13 +298,31 @@ impl DBTrait for MysqlDB {
     }
 
     async fn create_table_and_index_sql(
-        &self, _table_name: &str,
+        &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        unimplemented!()
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(format!("SHOW CREATE TABLE {table_name};").as_str())
+            .fetch_one(conn.deref_mut())
+            .await?;
+
+        let s: String = row.try_get(1)?;
+
+        anyhow::Ok(CreateTableAndIndexSql {
+            create_table: s,
+
+            indexes: vec![],
+        })
     }
 
-    async fn create_view_sql(&self, _view_name: &str) -> anyhow::Result<String> {
-        unimplemented!()
+    async fn create_view_sql(&self, view_name: &str) -> anyhow::Result<String> {
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(format!("SHOW CREATE VIEW {view_name};").as_str())
+            .fetch_one(conn.deref_mut())
+            .await?;
+
+        let s: String = row.try_get(1)?;
+
+        anyhow::Ok(s)
     }
 
     fn backend_name(&self) -> &str {

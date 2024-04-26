@@ -109,6 +109,9 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
 #[derive(Clone, serde::Serialize)]
 pub struct CreateTableAndIndexSql {
     pub create_table: String,
+
+    /// some backend can query create table and index in one sql
+    /// this can be empty
     pub indexes: Vec<String>,
 }
 impl dyn DBTrait {
