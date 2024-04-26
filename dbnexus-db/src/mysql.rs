@@ -1,16 +1,18 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
+use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
 use sqlx::{Row, TypeInfo};
 
 use crate::datasource::{CommDBConfig, DBConfig};
 use crate::db::{
-    is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError,
-    Field, Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlSeq,
-    TableListResp,
+    create_csv, is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait,
+    ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql,
+    SqlExecuteRet, SqlSeq, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -56,9 +58,139 @@ fn gen_select_sql(
     sql
 }
 
+fn encode_row_as_json(row: &MySqlRow) -> anyhow::Result<serde_json::Value> {
+    unimplemented!()
+}
+
+impl MysqlDB {
+    async fn export_table_as_sql(
+        &self, table_name: &str, include_table_schema: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        if include_table_schema {
+            let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
+            sender.send(Cow::Owned(ss.create_table.clone())).await?;
+            sender.send(Cow::Borrowed("\n")).await?;
+
+            for index in ss.indexes.into_iter() {
+                sender.send(Cow::Owned(index)).await?;
+                sender.send(Cow::Borrowed("\n")).await?;
+            }
+        }
+        let mut conn = self.get_conn().await?;
+        let cols = DBTrait::show_columns(self, table_name).await?;
+        let sql = format!("select * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str())
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+
+            let data = encode_rows(&rows)?;
+            for d in data.into_iter() {
+                let mut m = HashMap::new();
+                for (d, f) in d.into_iter().zip(cols.iter()) {
+                    m.insert(f.name.clone(), d);
+                }
+
+                let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
+                sender.send(Cow::Owned(insert_sql)).await?;
+                sender.send(Cow::Borrowed("\n")).await?;
+            }
+        }
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_json(
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+
+        let sql = format!("select * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
+
+        sender.send(Cow::Borrowed("[")).await?;
+        let mut first = true;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let value = encode_row_as_json(&row)?;
+            if !first {
+                sender.send(Cow::Borrowed(",")).await?;
+            }
+            if pretty {
+                sender.send(Cow::Borrowed("\n")).await?;
+            }
+            sender
+                .send(Cow::Owned(if pretty {
+                    serde_json::to_string_pretty(&value)?
+                } else {
+                    serde_json::to_string(&value)?
+                }))
+                .await?;
+            first = false;
+        }
+        if pretty {
+            sender.send(Cow::Borrowed("\n")).await?;
+        }
+        sender.send(Cow::Borrowed("]")).await?;
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_csv(
+        &self, table_name: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        if include_header {
+            let fs = self.show_columns(table_name).await?;
+            let fs = fs.iter().map(|x| Some(x.name.clone())).collect::<Vec<_>>();
+            sender
+                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                .await?;
+        }
+
+        let sql = format!("select * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str())
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
+
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            let data = encode_rows(&rows)?;
+            sender
+                .send(Cow::Owned(create_csv(&data, delimiter)))
+                .await?;
+        }
+        anyhow::Ok(())
+    }
+}
 #[async_trait::async_trait]
 
 impl DBTrait for MysqlDB {
+    async fn export_table(
+        &self, table_name: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_table_as_csv(table_name, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_table_as_json(table_name, pretty, sender).await
+            }
+            ExportKind::Sql {
+                include_table_schema,
+            } => {
+                self.export_table_as_sql(table_name, include_table_schema, sender)
+                    .await
+            }
+        }
+    }
+
     fn read_only(&self) -> bool {
         self.read_only
     }

@@ -24,7 +24,6 @@ lazy_static.workspace = true
 line-index.workspace = true
 log.workspace = true
 redis.workspace = true
-
 bb8.worksapce = true
 futures-util.workspace = true
 futures-core.workspace = true
