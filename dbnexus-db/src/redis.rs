@@ -68,7 +68,7 @@ fn test_escape_string() {
 
 impl RedisDB {
     async fn export_table_to_command(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<String>,
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -76,11 +76,11 @@ impl RedisDB {
             RedisType::String => {
                 let x: String = conn.get(key).await?;
                 sender
-                    .send(format!(
+                    .send(Cow::Owned(format!(
                         "SET {} {}\n",
                         quote_key_or_value(key),
                         quote_key_or_value(x.as_str())
-                    ))
+                    )))
                     .await?;
             }
 
@@ -88,11 +88,11 @@ impl RedisDB {
                 let list: Vec<String> = conn.lrange(key, 0, -1).await?;
                 for l in list.iter() {
                     sender
-                        .send(format!(
+                        .send(Cow::Owned(format!(
                             "RPUSH {} {}\n",
                             quote_key_or_value(key),
                             quote_key_or_value(l)
-                        ))
+                        )))
                         .await?;
                 }
             }
@@ -100,14 +100,15 @@ impl RedisDB {
                 let members: HashSet<String> = conn.smembers(key).await?;
                 for s in members.iter() {
                     sender
-                        .send(format!(
+                        .send(Cow::Owned(format!(
                             "SADD {} {}\n",
                             quote_key_or_value(key),
                             quote_key_or_value(s)
-                        ))
+                        )))
                         .await?;
                 }
             }
+
             RedisType::Hash => {
                 let mut stream: AsyncIter<'_, String> = conn.hscan(key).await?;
                 let mut hkey = None as Option<String>;
@@ -115,12 +116,12 @@ impl RedisDB {
                     match hkey {
                         Some(hkey2) => {
                             sender
-                                .send(format!(
+                                .send(Cow::Owned(format!(
                                     "HMSET {} {} {}\n",
                                     quote_key_or_value(key),
                                     quote_key_or_value(hkey2.as_str()),
                                     quote_key_or_value(s.as_str())
-                                ))
+                                )))
                                 .await?;
                             hkey = None;
                         }
@@ -139,12 +140,12 @@ impl RedisDB {
                     match zkey {
                         Some(zkey2) => {
                             sender
-                                .send(format!(
+                                .send(Cow::Owned(format!(
                                     "ZADD {} {} {}\n",
                                     quote_key_or_value(key),
                                     quote_key_or_value(s.as_str()),
                                     quote_key_or_value(zkey2.as_str()),
-                                ))
+                                )))
                                 .await?;
                             zkey = None;
                         }
@@ -186,7 +187,7 @@ impl DBTrait for RedisDB {
     }
 
     async fn export_table(
-        &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<String>,
+        &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {

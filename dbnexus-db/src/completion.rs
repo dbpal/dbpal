@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -13,7 +14,7 @@ pub trait AutoCompletionTrait {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct CompletionItem {
-    pub name: String,
+    pub name: Cow<'static, str>,
     pub kind: CompletionKind,
 }
 
@@ -82,7 +83,7 @@ pub trait LexerCompletionBackend {
                 .iter()
                 .map(|x| {
                     CompletionItem {
-                        name: (*x).to_string(),
+                        name: Cow::Borrowed(*x),
                         kind: CompletionKind::KeyWord,
                     }
                 })
@@ -93,7 +94,7 @@ pub trait LexerCompletionBackend {
                 .iter()
                 .map(|x| {
                     CompletionItem {
-                        name: (*x).to_string(),
+                        name: Cow::Borrowed(*x),
                         kind: CompletionKind::Function,
                     }
                 })
@@ -104,7 +105,7 @@ pub trait LexerCompletionBackend {
                 .iter()
                 .map(|x| {
                     CompletionItem {
-                        name: (*x).to_string(),
+                        name: Cow::Borrowed(*x),
                         kind: CompletionKind::Type,
                     }
                 })
@@ -115,7 +116,7 @@ pub trait LexerCompletionBackend {
                 .iter()
                 .map(|x| {
                     CompletionItem {
-                        name: (*x).to_string(),
+                        name: Cow::Borrowed(*x),
                         kind: CompletionKind::Text,
                     }
                 })
@@ -128,7 +129,7 @@ pub trait LexerCompletionBackend {
                 .into_iter()
                 .map(|x| {
                     CompletionItem {
-                        name: x,
+                        name: Cow::Owned(x),
                         kind: CompletionKind::Dbname,
                     }
                 })
@@ -141,7 +142,7 @@ pub trait LexerCompletionBackend {
                 .into_iter()
                 .map(|x| {
                     CompletionItem {
-                        name: x,
+                        name: Cow::Owned(x),
                         kind: CompletionKind::TableName,
                     }
                 })
@@ -156,7 +157,7 @@ pub trait LexerCompletionBackend {
                     .into_iter()
                     .map(|x| {
                         CompletionItem {
-                            name: x,
+                            name: Cow::Owned(x),
                             kind: CompletionKind::Column,
                         }
                     })
@@ -182,7 +183,7 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
             continue;
         }
 
-        let m = matcher.fuzzy_match(item.name.as_str(), pattern);
+        let m = matcher.fuzzy_match(&item.name, pattern);
         if let Some(s) = m {
             names.insert(item.name.to_lowercase());
 

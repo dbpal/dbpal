@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use chrono::{DateTime, FixedOffset};
@@ -52,7 +53,8 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
     ) -> anyhow::Result<TableListResp>;
 
     async fn export_table(
-        &self, _table_name: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<String>,
+        &self, _table_name: &str, _kind: ExportKind,
+        _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         anyhow::bail!(format!("{} don't support this", self.backend_name()))
     }
@@ -125,7 +127,7 @@ impl dyn DBTrait {
             tokio::spawn(async move {
                 let mut s = String::new();
                 while let Some(r) = receiver.recv().await {
-                    s.push_str(r.as_str());
+                    s.push_str(r.deref());
                 }
                 anyhow::Ok(s)
             })
@@ -297,7 +299,7 @@ impl dyn DBTrait {
             sql.push_str(")");
         }
         // values
-        sql.push_str(" VALUES(");
+        sql.push_str(" VALUES (");
         {
             let last = fs.len() - 1;
             for (index, f) in fs.iter().enumerate() {
@@ -316,6 +318,7 @@ impl dyn DBTrait {
             }
             sql.push_str(")");
         }
+        sql.push_str(";");
         log::info!("insert sql:{}", sql);
         anyhow::Ok(sql)
     }
@@ -724,6 +727,8 @@ pub enum ExportKind {
     },
 }
 
+/// create csv file list of string
+/// each line of line separator
 pub(crate) fn create_csv(ds: &Vec<Vec<Option<String>>>, delimiter: char) -> String {
     let mut s = String::new();
     for d in ds.iter() {
@@ -739,6 +744,7 @@ pub(crate) fn create_csv(ds: &Vec<Vec<Option<String>>>, delimiter: char) -> Stri
             }
         }
         s.push_str(s2.as_str());
+        s.push_str("\n");
     }
     s
 }

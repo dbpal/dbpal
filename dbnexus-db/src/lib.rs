@@ -47,7 +47,3 @@ pub fn init_log() {
             .unwrap()
     })
 }
-
-pub struct OneShotStream {
-    item: Option<anyhow::Result<String>>,
-}

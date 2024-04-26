@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 
@@ -13,9 +14,9 @@ use crate::completion::{
 };
 use crate::datasource::DBConfig;
 use crate::db::{
-    is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError,
-    ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq,
-    TableListResp,
+    create_csv, is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait,
+    ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet,
+    SqlSeq, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -60,16 +61,16 @@ impl SqliteDB {
 
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<String>,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
             let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
-            sender.send(ss.create_table.clone()).await?;
-            sender.send("\n".to_string()).await?;
+            sender.send(Cow::Owned(ss.create_table.clone())).await?;
+            sender.send(Cow::Borrowed("\n")).await?;
 
             for index in ss.indexes.into_iter() {
-                sender.send(index).await?;
-                sender.send("\n".to_string()).await?;
+                sender.send(Cow::Owned(index)).await?;
+                sender.send(Cow::Borrowed("\n")).await?;
             }
         }
         let mut conn = self.get_conn().await?;
@@ -89,9 +90,73 @@ impl SqliteDB {
                 }
 
                 let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
-                sender.send(insert_sql).await?;
-                sender.send("\n".to_string()).await?;
+                sender.send(Cow::Owned(insert_sql)).await?;
+                sender.send(Cow::Borrowed("\n")).await?;
             }
+        }
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_json(
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+
+        let sql = format!("select * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
+
+        sender.send(Cow::Borrowed("[")).await?;
+        let mut first = true;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let value = encode_row_as_json(&row)?;
+            if !first {
+                sender.send(Cow::Borrowed(",")).await?;
+            }
+            if pretty {
+                sender.send(Cow::Borrowed("\n")).await?;
+            }
+            sender
+                .send(Cow::Owned(if pretty {
+                    serde_json::to_string_pretty(&value)?
+                } else {
+                    serde_json::to_string(&value)?
+                }))
+                .await?;
+            first = false;
+        }
+        if pretty {
+            sender.send(Cow::Borrowed("\n")).await?;
+        }
+        sender.send(Cow::Borrowed("]")).await?;
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_csv(
+        &self, table_name: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        if include_header {
+            let fs = self.show_columns(table_name).await?;
+            let fs = fs.iter().map(|x| Some(x.name.clone())).collect::<Vec<_>>();
+            sender
+                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                .await?;
+        }
+
+        let sql = format!("select * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str())
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
+
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            let data = encode_rows(&rows)?;
+
+            sender
+                .send(Cow::Owned(create_csv(&data, delimiter)))
+                .await?;
         }
         anyhow::Ok(())
     }
@@ -120,14 +185,20 @@ impl DBTrait for SqliteDB {
     }
 
     async fn export_table(
-        &self, table_name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<String>,
+        &self, table_name: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
-            } => anyhow::bail!("not impl"),
-            ExportKind::Json { pretty } => anyhow::bail!("not impl"),
+            } => {
+                self.export_table_as_csv(table_name, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_table_as_json(table_name, pretty, sender).await
+            }
             ExportKind::Sql {
                 include_table_schema,
             } => {
@@ -431,6 +502,79 @@ fn encode_bytes(bs: &[u8]) -> String {
     format!("X'{}'", hex::encode_upper(bs))
 }
 
+fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
+    let mut values = serde_json::Map::default();
+    let null_value = serde_json::Value::Null;
+
+    for c in 0..r.columns().len() {
+        let ty = r.column(c).type_info().name();
+        let v: serde_json::Value = match ty {
+            "NULL" | "" => {
+                // null table is not always null. I quote 'suitable for
+                // representing missing or unknown data'
+                // try get possible values
+                if let Result::Ok(s) = r.try_get::<'_, f64, _>(c) {
+                    serde_json::Value::from(s)
+                } else if let Result::Ok(s) = r.try_get::<'_, Vec<u8>, _>(c) {
+                    serde_json::Value::from(encode_bytes(s.as_slice()))
+                } else if let Result::Ok(s) = r.try_get::<'_, i64, _>(c) {
+                    serde_json::Value::from(s)
+                } else if let Result::Ok(s) = r.try_get::<'_, String, _>(c) {
+                    serde_json::Value::from(s)
+                } else {
+                    null_value.clone()
+                }
+            }
+
+            "TEXT" => {
+                let v: Option<String> = r.get(c);
+                v.map(|x| serde_json::Value::String(x))
+                    .unwrap_or(null_value.clone())
+            }
+            "REAL" => {
+                let v: Option<f64> = r.get(c);
+                v.map(|x| serde_json::Value::from(x))
+                    .unwrap_or(null_value.clone())
+            }
+            "BLOB" => {
+                let v: Option<Vec<u8>> = r.get(c);
+                v.map(|x| format!("X'{}'", encode_bytes(x.as_slice())))
+                    .map(|x| serde_json::Value::from(x))
+                    .unwrap_or(null_value.clone())
+            }
+
+            "INTEGER" => {
+                let v: Option<i64> = r.get(c);
+                v.map(|x| serde_json::Value::from(x))
+                    .unwrap_or(null_value.clone())
+            }
+            "NUMERIC" => {
+                let v: Option<f64> = r.get(c);
+                v.map(|x| serde_json::Value::from(x))
+                    .unwrap_or(null_value.clone())
+            }
+
+            // non-standard extensions 这些实际上不存在？
+            // "BOOLEAN" => {
+            //
+            // }
+            // "DATE" => {
+            //
+            // }
+            // "TIME" => {
+            //
+            // }
+            // "DATETIME" => {
+            //
+            // }
+            _ => anyhow::bail!(format!("type '{ty}' not supported")),
+        };
+
+        values.insert(r.column(c).name().to_owned(), v);
+    }
+    anyhow::Ok(serde_json::Value::Object(values))
+}
+
 fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = Vec::with_capacity(rows.len());
 
@@ -443,14 +587,14 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
                     // null table is not always null. I quote 'suitable for
                     // representing missing or unknown data'
                     // try get possible values
-                    if let Result::Ok(s) = r.try_get(c) {
-                        Some(s)
-                    } else if let Result::Ok(s) = r.try_get::<'_, f64, _>(c) {
+                    if let Result::Ok(s) = r.try_get::<'_, f64, _>(c) {
                         Some(s.to_string())
                     } else if let Result::Ok(s) = r.try_get::<'_, Vec<u8>, _>(c) {
                         Some(encode_bytes(s.as_slice()))
                     } else if let Result::Ok(s) = r.try_get::<'_, i64, _>(c) {
                         Some(s.to_string())
+                    } else if let Result::Ok(s) = r.try_get(c) {
+                        Some(s)
                     } else {
                         None
                     }
@@ -466,7 +610,7 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
                 }
                 "BLOB" => {
                     let v: Option<Vec<u8>> = r.get(c);
-                    v.map(|x| format!("X'{}'", encode_bytes(x.as_slice())))
+                    v.map(|x| encode_bytes(x.as_slice()))
                 }
 
                 "INTEGER" => {
@@ -714,7 +858,7 @@ impl crate::completion::LexerCompletionBackend for SqliteDB {
             .iter()
             .map(|x| {
                 CompletionItem {
-                    name: x.to_string(),
+                    name: Cow::Borrowed(*x),
                     kind: CompletionKind::Text,
                 }
             })
@@ -1019,6 +1163,77 @@ mod tests {
         let _conn = db.get_conn().await.unwrap();
         db
     }
+    #[tokio::test]
+
+    async fn test_export() {
+        init_log();
+        let db = make_test_db().await;
+        let mut conn = db.get_conn().await.unwrap();
+        let table_name = "Persons";
+        sqlx::query(
+            r#"
+        -- 创建表
+        CREATE TABLE Persons (
+            ID INTEGER PRIMARY KEY,
+            Name TEXT,
+            Age INTEGER
+        );
+        -- 插入测试数据
+        INSERT INTO Persons (Name, Age) VALUES ('John', 25);
+        INSERT INTO Persons (Name, Age) VALUES ('Jane', 30);
+        INSERT INTO Persons (Name, Age) VALUES ('Mike', 35);
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+        let db = &db as &dyn DBTrait;
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                r#"CREATE TABLE Persons (
+            ID INTEGER PRIMARY KEY,
+            Name TEXT,
+            Age INTEGER
+        )
+INSERT INTO Persons(ID,Name,Age) VALUES (1,'John',25);
+INSERT INTO Persons(ID,Name,Age) VALUES (2,'Jane',30);
+INSERT INTO Persons(ID,Name,Age) VALUES (3,'Mike',35);
+"#,
+                s
+            )
+        }
+
+        {
+            let s = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", s);
+            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
+        }
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", s);
+        }
+    }
 
     #[tokio::test]
     async fn test_standard() {
@@ -1112,18 +1327,6 @@ mod tests {
             println!("view value:{:?}", list);
         }
 
-        {
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export e :{}", e);
-        }
         db.drop_view("test_view").await.unwrap();
         db.drop_table(table_name).await.unwrap();
     }

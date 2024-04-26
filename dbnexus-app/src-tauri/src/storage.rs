@@ -141,6 +141,7 @@ async fn open_db(config: &HashMap<String, String>, pm: PoolManager) -> anyhow::R
 
 #[derive(Clone)]
 pub enum DB {
+    #[allow(dead_code)]
     Multi(Arc<dyn dbnexus_db::db::MultiDBTrait>),
     One(Arc<dyn dbnexus_db::db::DBTrait>),
 }

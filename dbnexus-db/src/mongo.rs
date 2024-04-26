@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
@@ -91,7 +92,8 @@ impl DBTrait for Mongo {
     }
 
     async fn export_table(
-        &self, table_name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<String>,
+        &self, table_name: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let pretty = match kind {
             ExportKind::Json { pretty } => pretty,
@@ -102,33 +104,33 @@ impl DBTrait for Mongo {
             .collection::<serde_json::Value>(table_name)
             .find(None, None)
             .await?;
-        sender.send("[".to_string()).await?;
+        sender.send(Cow::Borrowed("[")).await?;
         if pretty {
-            sender.send("\n".to_string()).await?;
+            sender.send(Cow::Borrowed("\n")).await?;
         }
         let mut need_comma = false;
 
         while let Some(item) = stream.next().await {
             let item = item?;
             if need_comma {
-                sender.send(",".to_string()).await?;
+                sender.send(Cow::Borrowed(",")).await?;
                 if pretty {
-                    sender.send("\n".to_string()).await?;
+                    sender.send(Cow::Borrowed("\n")).await?;
                 }
             }
             sender
-                .send(if pretty {
+                .send(Cow::Owned(if pretty {
                     serde_json::to_string_pretty(&item)?
                 } else {
                     serde_json::to_string(&item)?
-                })
+                }))
                 .await?;
             need_comma = true;
         }
         if pretty {
-            sender.send("\n".to_string()).await?;
+            sender.send(Cow::Borrowed("\n")).await?;
         }
-        sender.send("]".to_string()).await?;
+        sender.send(Cow::Borrowed("]")).await?;
         anyhow::Ok(())
     }
 

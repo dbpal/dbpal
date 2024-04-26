@@ -229,6 +229,5 @@ pub async fn list_all_config(
 
 #[tauri::command]
 pub fn exit(code: i32) -> Result<(), String> {
-    std::process::exit(0);
-    Ok(())
+    std::process::exit(code);
 }
