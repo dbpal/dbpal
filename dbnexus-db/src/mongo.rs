@@ -17,11 +17,23 @@ use crate::db::{
 #[derive(Clone)]
 pub struct Mongo {
     ds: MongoDataSource,
-    dbname: Option<String>,
+    dbname: String,
     pm: crate::pool::PoolManager,
     read_only: bool,
 }
 
+impl Mongo {
+    pub fn new(
+        pm: crate::pool::PoolManager, ds: MongoDataSource, dbname: String, read_only: bool,
+    ) -> Self {
+        Self {
+            ds,
+            dbname,
+            pm,
+            read_only,
+        }
+    }
+}
 fn infer_schema(v: &serde_json::Value) -> Vec<Field> {
     match v {
         serde_json::Value::Object(x) => {
@@ -440,14 +452,14 @@ impl Mongo {
     async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
         let client = self
             .pm
-            .get(&datasource::DBConfig::MongoDB(self.ds.clone()))
+            .get(&datasource::DBPoolKey::MongoDB(self.ds.clone()))
             .await?;
         let client = match client {
             crate::pool::NexusPool::MongoDB(x) => x.clone(),
             _ => unreachable!(),
         };
 
-        Ok(client.database(self.dbname.as_ref().unwrap()))
+        Ok(client.database(self.dbname.as_str()))
     }
 }
 
@@ -484,9 +496,10 @@ mod tests {
                 username_and_password: None,
             },
             read_only: false,
-            dbname: Some("test".to_string()),
+            dbname: "test".to_string(),
             pm: PoolManager::default(),
         };
+
         x
     }
 

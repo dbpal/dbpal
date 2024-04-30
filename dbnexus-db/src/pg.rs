@@ -7,7 +7,7 @@ use sqlx::postgres::PgRow;
 use sqlx::{Postgres, Row};
 
 use crate::completion::LexerCompletionBackend;
-use crate::datasource::{CommDBConfig, DBConfig};
+use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, Field, Index, IndexKind,
     ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
@@ -415,7 +415,7 @@ impl PGDB {
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<Postgres>> {
         let pool = match self
             .pool
-            .get(&DBConfig::PostGres {
+            .get(&DBPoolKey::PostGres {
                 conn: self.config.clone(),
             })
             .await?
@@ -435,11 +435,9 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| {
-            match s {
-                Statement::Query(_) => crate::db::SqlKind::Query,
-                _ => crate::db::SqlKind::Execution,
-            }
+        |s| match s {
+            Statement::Query(_) => crate::db::SqlKind::Query,
+            _ => crate::db::SqlKind::Execution,
         },
         |x| {
             let t = x.to_uppercase();
@@ -565,12 +563,10 @@ impl QuerySql for PGDB {
                             let fields = get_rows_types(&rows);
                             Ok(TableListResp::new(fields, data.len(), data, &c.sql))
                         }
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
+                        Err(err) => Err(ExeSqlError::new(
+                            &c.sql,
+                            anyhow::Error::msg(err.to_string()),
+                        )),
                     };
                     result
                 }
@@ -579,12 +575,10 @@ impl QuerySql for PGDB {
                     let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
                         Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
+                        Err(err) => Err(ExeSqlError::new(
+                            &c.sql,
+                            anyhow::Error::msg(err.to_string()),
+                        )),
                     };
                     result
                 }

@@ -116,26 +116,20 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => {
-                chrono::NaiveDateTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Date(_) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Time(_x) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -728,18 +722,14 @@ impl QuerySql for SqlServer {
                 SqlKind::Execution => {
                     let result = conn.execute(c.sql.as_str(), &[]).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => {
-                            Ok(TableListResp::row_affected(
-                                &c.sql,
-                                rows.rows_affected().iter().sum(),
-                            ))
-                        }
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
+                        Ok(rows) => Ok(TableListResp::row_affected(
+                            &c.sql,
+                            rows.rows_affected().iter().sum(),
+                        )),
+                        Err(err) => Err(ExeSqlError::new(
+                            &c.sql,
+                            anyhow::Error::msg(err.to_string()),
+                        )),
                     };
                     ret.push(result);
                 }
@@ -752,7 +742,7 @@ impl SqlServer {
     async fn get_conn(&self) -> anyhow::Result<bb8::Pool<bb8_tiberius::ConnectionManager>> {
         let p = self
             .pm
-            .get(&crate::datasource::DBConfig::SqlServer {
+            .get(&crate::datasource::DBPoolKey::SqlServer {
                 config: self.config.clone(),
                 trust_cert: self.trust_cert,
             })
@@ -781,11 +771,9 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| {
-            match s {
-                Statement::Query(_) => crate::db::SqlKind::Query,
-                _ => crate::db::SqlKind::Execution,
-            }
+        |s| match s {
+            Statement::Query(_) => crate::db::SqlKind::Query,
+            _ => crate::db::SqlKind::Execution,
         },
         |x| {
             let t = x.to_uppercase();

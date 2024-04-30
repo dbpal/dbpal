@@ -4,11 +4,11 @@ use dashmap::DashMap;
 use mongodb::options::ServerAddress;
 use sqlx::{MySqlPool, PgPool, SqlitePool};
 
-use crate::datasource::DBConfig;
+use crate::datasource::DBPoolKey;
 
 #[derive(Default, Clone)]
 pub struct PoolManager {
-    map: Arc<DashMap<DBConfig, NexusPool>>,
+    map: Arc<DashMap<DBPoolKey, NexusPool>>,
 }
 
 impl PoolManager {
@@ -18,7 +18,7 @@ impl PoolManager {
 }
 
 impl PoolManager {
-    pub async fn get(&self, ds: &crate::datasource::DBConfig) -> anyhow::Result<NexusPool> {
+    pub async fn get(&self, ds: &crate::datasource::DBPoolKey) -> anyhow::Result<NexusPool> {
         if let Some(p) = self.map.get(ds) {
             return anyhow::Result::Ok(p.clone());
         }
@@ -28,15 +28,15 @@ impl PoolManager {
     }
 }
 
-async fn make_pool(db: &DBConfig) -> anyhow::Result<crate::pool::NexusPool> {
+async fn make_pool(db: &DBPoolKey) -> anyhow::Result<crate::pool::NexusPool> {
     use crate::pool::NexusPool::*;
 
     match db {
-        DBConfig::Sqlite { path } => {
+        DBPoolKey::Sqlite { path } => {
             let pool = sqlx::sqlite::SqlitePool::connect(path).await?;
             anyhow::Ok(Sqlite(pool))
         }
-        DBConfig::Mysql { conn } => {
+        DBPoolKey::Mysql { conn } => {
             let mut opts = sqlx::mysql::MySqlConnectOptions::new();
             opts = opts
                 .host(&conn.host)
@@ -49,7 +49,7 @@ async fn make_pool(db: &DBConfig) -> anyhow::Result<crate::pool::NexusPool> {
             let pool = sqlx::mysql::MySqlPool::connect_with(opts).await?;
             anyhow::Ok(Mysql(pool))
         }
-        DBConfig::PostGres { conn } => {
+        DBPoolKey::PostGres { conn } => {
             let mut opts = sqlx::postgres::PgConnectOptions::new();
             opts = opts
                 .host(&conn.host)
@@ -63,13 +63,13 @@ async fn make_pool(db: &DBConfig) -> anyhow::Result<crate::pool::NexusPool> {
             let pool = sqlx::postgres::PgPool::connect_with(opts).await?;
             anyhow::Ok(Pg(pool))
         }
-        DBConfig::Redis { server } => {
+        DBPoolKey::Redis { server } => {
             let client = redis::Client::open(server.as_str())?;
             let m = redis::aio::ConnectionManager::new(client).await?;
             anyhow::Ok(Redis(m))
         }
 
-        DBConfig::MongoDB(ds) => {
+        DBPoolKey::MongoDB(ds) => {
             let mut opts = mongodb::options::ClientOptions::default();
             opts.hosts = vec![ServerAddress::Tcp {
                 host: ds.host.to_string(),
@@ -82,7 +82,7 @@ async fn make_pool(db: &DBConfig) -> anyhow::Result<crate::pool::NexusPool> {
             let client = mongodb::Client::with_options(opts)?;
             anyhow::Ok(MongoDB(client))
         }
-        DBConfig::SqlServer {
+        DBPoolKey::SqlServer {
             config: c,
             trust_cert,
         } => {
@@ -101,7 +101,7 @@ async fn make_pool(db: &DBConfig) -> anyhow::Result<crate::pool::NexusPool> {
             let pool = bb8::Pool::builder().max_size(15).build(manager).await?;
             anyhow::Ok(SqlServer(pool))
         }
-        DBConfig::Oracle(config) => {
+        DBPoolKey::Oracle(config) => {
             let pool = oracle::pool::PoolBuilder::new(
                 &config.username,
                 &config.password,

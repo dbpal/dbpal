@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum DBConfig {
+pub enum DBPoolKey {
     Sqlite {
         path: String,
     },
@@ -19,7 +19,8 @@ pub enum DBConfig {
     },
     Oracle(OracleDBConfig),
 }
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize)]
 pub struct MongoDataSource {
     pub host: String,
     pub port: u16,
@@ -28,7 +29,7 @@ pub struct MongoDataSource {
 
 /// username password host and port database name
 /// packed together.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize)]
 pub struct CommDBConfig {
     pub host: String,
     pub port: u16,

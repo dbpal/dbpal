@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::datasource::{DBConfig, OracleDBConfig};
+use crate::datasource::{DBPoolKey, OracleDBConfig};
 use crate::db::{
     DBTrait, ExeSqlError, Field, Index, ListTable, ListView, QuerySql, SqlExecuteRet, TableListResp,
 };
@@ -114,7 +114,7 @@ impl DBTrait for OracleDB {
 
 impl OracleDB {
     async fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
-        let pool = match self.pm.get(&DBConfig::Oracle(self.config.clone())).await? {
+        let pool = match self.pm.get(&DBPoolKey::Oracle(self.config.clone())).await? {
             NexusPool::Oracle(p) => p.clone(),
             _ => unreachable!(),
         };

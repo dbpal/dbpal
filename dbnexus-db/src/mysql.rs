@@ -9,7 +9,7 @@ use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
 use sqlx::{Row, TypeInfo};
 
-use crate::datasource::{CommDBConfig, DBConfig};
+use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait,
     ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql,
@@ -677,7 +677,7 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
 }
 
 impl MysqlDB {
-    fn new(pool: PoolManager, conn: CommDBConfig, read_only: bool) -> Self {
+    pub fn new(pool: PoolManager, conn: CommDBConfig, read_only: bool) -> Self {
         Self {
             pool,
             config: conn,
@@ -699,7 +699,7 @@ impl MysqlDB {
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<sqlx::MySql>> {
         let pool = match self
             .pool
-            .get(&&DBConfig::Mysql {
+            .get(&&DBPoolKey::Mysql {
                 conn: self.config.clone(),
             })
             .await?

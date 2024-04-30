@@ -3,17 +3,52 @@ use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
-use dbnexus_db::db::{DBTrait, Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp};
+use dbnexus_db::datasource::{CommDBConfig, MongoDataSource};
+use dbnexus_db::db::{
+    DBTrait, Field, Index, ListTable, ListView, MultiDBTrait, SqlExecuteRet, TableListResp,
+};
 use dbnexus_db::pool::PoolManager;
+
 use tokio::sync::Mutex;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct DBNexusConfigs {
-    connection_configs: HashMap<String, HashMap<String, String>>,
+    connection_configs: HashMap<String, DBConnectionConfig>,
     user_settings: UserSettings,
 }
 
-pub type DBConnectionConfig = HashMap<String, String>;
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub enum DBConnectionConfig {
+    Sqlite {
+        path: String,
+        read_only: bool,
+    },
+    Mysql {
+        conn: CommDBConfig,
+        read_only: bool,
+    },
+    Postgres {
+        conn: CommDBConfig,
+        read_only: bool,
+    },
+    SqlServer {
+        conn: CommDBConfig,
+        read_only: bool,
+    },
+    MongoDB {
+        conn: MongoDataSource,
+        read_only: bool,
+        db_name: String,
+    },
+    Redis {
+        server: String,
+        read_only: bool,
+    },
+    Oracle {
+        conn: CommDBConfig,
+        read_only: bool,
+    },
+}
 
 #[async_trait::async_trait]
 
@@ -26,9 +61,7 @@ pub trait DbConfigLoader: Send + Sync + 'static {
     async fn update(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()>;
     ///
     async fn get_config_cloned(&self, uuid: &str) -> anyhow::Result<Option<DBConnectionConfig>>;
-    async fn list_all_configs_cloned(
-        &self,
-    ) -> anyhow::Result<HashMap<String, HashMap<String, String>>>;
+    async fn list_all_configs_cloned(&self) -> anyhow::Result<HashMap<String, DBConnectionConfig>>;
 
     async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings>;
     async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()>;
@@ -71,9 +104,7 @@ impl FileJsonSaver {
 
 #[async_trait::async_trait]
 impl DbConfigLoader for FileJsonSaver {
-    async fn list_all_configs_cloned(
-        &self,
-    ) -> anyhow::Result<HashMap<String, HashMap<String, String>>> {
+    async fn list_all_configs_cloned(&self) -> anyhow::Result<HashMap<String, DBConnectionConfig>> {
         anyhow::Ok(self.config.lock().await.connection_configs.clone())
     }
 
@@ -118,24 +149,136 @@ impl DbConfigLoader for FileJsonSaver {
     }
 }
 
-async fn open_db(config: &HashMap<String, String>, pm: PoolManager) -> anyhow::Result<DB> {
-    match config.get("kind").as_ref().map(|x| x.to_lowercase()) {
-        Some(x) => {
-            match x.as_str() {
-                "sqlite" => {
-                    let path = match config.get(&"path".to_string()) {
-                        Some(x) => x.to_owned(),
-                        None => return Err(anyhow::Error::msg("path is empty")),
-                    };
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::sqlite::SqliteDB::new(pm, path, false));
+async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result<DB> {
+    // match config.get("kind").as_ref().map(|x| x.to_lowercase()) {
+    //     Some(x) => match x.as_str() {
+    //         "sqlite" => {
+    //             let path = match config.get(&"path".to_string()) {
+    //                 Some(x) => x.to_owned(),
+    //                 None => return Err(anyhow::Error::msg("path is empty")),
+    //             };
+    //             let db: Arc<dyn DBTrait> =
+    //                 Arc::new(dbnexus_db::sqlite::SqliteDB::new(pm, path, false));
 
-                    anyhow::Ok(DB::One(db))
-                }
-                _ => Err(anyhow::Error::msg(format!("db kind '{}' not handle", x))),
-            }
+    //             anyhow::Ok(DB::One(db))
+    //         }
+    //         _ => Err(anyhow::Error::msg(format!("db kind '{}' not handle", x))),
+    //     },
+    //     _ => Err(anyhow::Error::msg("kind is empty")),
+    // }
+    match config {
+        DBConnectionConfig::Sqlite { path, read_only } => {
+            let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::sqlite::SqliteDB::new(
+                pm.clone(),
+                path.clone(),
+                *read_only,
+            ));
+
+            anyhow::Ok(DB::One(db))
         }
-        _ => Err(anyhow::Error::msg("kind is empty")),
+        DBConnectionConfig::Mysql { conn, read_only } => match &conn.db_name {
+            Some(_) => {
+                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::One(db))
+            }
+            None => {
+                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::Multi(db))
+            }
+        },
+        DBConnectionConfig::Postgres { conn, read_only } => match &conn.db_name {
+            Some(_) => {
+                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::One(db))
+            }
+            None => {
+                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::Multi(db))
+            }
+        },
+        DBConnectionConfig::SqlServer { conn, read_only } => match &conn.db_name {
+            Some(_) => {
+                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::One(db))
+            }
+            None => {
+                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::Multi(db))
+            }
+        },
+
+        DBConnectionConfig::MongoDB {
+            conn,
+            read_only,
+            db_name,
+        } => {
+            let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mongo::Mongo::new(
+                pm.clone(),
+                conn.clone(),
+                db_name.to_string(),
+                *read_only,
+            ));
+
+            anyhow::Ok(DB::One(db))
+        }
+        DBConnectionConfig::Redis { server, read_only } => {
+            let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::redis::RedisDB::new(
+                pm.clone(),
+                server.to_string(),
+                *read_only,
+            ));
+
+            anyhow::Ok(DB::One(db))
+        }
+        DBConnectionConfig::Oracle { conn, read_only } => match &conn.db_name {
+            Some(_) => {
+                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::One(db))
+            }
+            None => {
+                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+                anyhow::Ok(DB::Multi(db))
+            }
+        },
     }
 }
 
@@ -332,6 +475,8 @@ impl Default for UserSettings {
 mod tests {
     use std::collections::HashMap;
 
+    use crate::storage::DBConnectionConfig;
+
     use super::DBNexusConfigs;
 
     #[test]
@@ -340,10 +485,13 @@ mod tests {
             user_settings: super::UserSettings { page_size: 100 },
             connection_configs: {
                 let mut m = HashMap::new();
-                let mut m2 = HashMap::new();
-                m2.insert("kind".to_string(), "sqlite".to_string());
-                m2.insert("path".to_string(), "D:\\sqlite.test.db".to_string());
-                m.insert("uuid".to_string(), m2);
+                m.insert(
+                    "xxxx".to_string(),
+                    DBConnectionConfig::Sqlite {
+                        path: "d:\\sqlite.test.db".to_string(),
+                        read_only: false,
+                    },
+                );
                 m
             },
         };

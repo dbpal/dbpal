@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 use dbnexus_db::db::{
     ExeSqlError, Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp,
@@ -211,20 +211,11 @@ pub async fn get_user_settings(dbs: tauri::State<'_, DBS>) -> Result<UserSetting
 #[tauri::command]
 pub async fn list_all_config(
     dbs: tauri::State<'_, DBS>,
-) -> Result<Vec<HashMap<String, String>>, String> {
+) -> Result<HashMap<String, DBConnectionConfig>, String> {
     dbs.loader
         .list_all_configs_cloned()
         .await
         .map_err(|e| e.to_string())
-        .map(|e| {
-            {
-                e.into_iter().map(|(uuid, mut m)| {
-                    m.insert("uuid".to_string(), uuid);
-                    m
-                })
-            }
-            .collect()
-        })
 }
 
 #[tauri::command]

@@ -12,7 +12,7 @@ use sqlx::{Column, Row, TypeInfo};
 use crate::completion::{
     AutoCompletionTrait, CompletionItem, CompletionKind, LexerCompletionBackend,
 };
-use crate::datasource::DBConfig;
+use crate::datasource::DBPoolKey;
 use crate::db::{
     create_csv, is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait,
     ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet,
@@ -668,7 +668,7 @@ impl SqliteDB {
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<sqlx::Sqlite>> {
         let pool = match self
             .pool
-            .get(&DBConfig::Sqlite {
+            .get(&DBPoolKey::Sqlite {
                 path: self.path.clone(),
             })
             .await?
@@ -725,21 +725,15 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
             strict: _,
         } => {
             for c in columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -781,12 +775,10 @@ impl QuerySql for SqliteDB {
                             let fields = get_rows_types(&rows);
                             Ok(TableListResp::new(fields, data.len(), data, &c.sql))
                         }
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
+                        Err(err) => Err(ExeSqlError::new(
+                            &c.sql,
+                            anyhow::Error::msg(err.to_string()),
+                        )),
                     };
                     result
                 }
@@ -795,12 +787,10 @@ impl QuerySql for SqliteDB {
                     let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
                         Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
+                        Err(err) => Err(ExeSqlError::new(
+                            &c.sql,
+                            anyhow::Error::msg(err.to_string()),
+                        )),
                     };
                     result
                 }
@@ -856,11 +846,9 @@ impl crate::completion::LexerCompletionBackend for SqliteDB {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         PRAGMA_ITEMS
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    name: Cow::Borrowed(*x),
-                    kind: CompletionKind::Text,
-                }
+            .map(|x| CompletionItem {
+                name: Cow::Borrowed(*x),
+                kind: CompletionKind::Text,
             })
             .collect()
     }
