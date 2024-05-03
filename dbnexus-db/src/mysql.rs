@@ -1,4 +1,3 @@
-use sqlx::Column;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
@@ -7,7 +6,7 @@ use std::sync::Arc;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
-use sqlx::{Row, TypeInfo};
+use sqlx::{Column, Row, TypeInfo};
 
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
@@ -59,97 +58,97 @@ fn gen_select_sql(
     sql
 }
 
-fn encode_row_as_json(r: &MySqlRow) -> anyhow::Result<serde_json::Value> {
+fn encode_row_as_json(row: &MySqlRow) -> anyhow::Result<serde_json::Value> {
     let mut values = serde_json::Map::new();
     let null_value = serde_json::Value::Null;
 
-    for c in 0..r.columns().len() {
-        let col = r.column(c);
+    for c in 0..row.columns().len() {
+        let col = row.column(c);
         let ty = (col as &dyn sqlx::Column<Database = sqlx::mysql::MySql>)
             .type_info()
             .name();
 
         let v = match ty.to_uppercase().as_str() {
             "BOOLEAN" | "BOOL" => {
-                let value: Option<bool> = r.get(c);
+                let value: Option<bool> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "TINYINT" => {
-                let value: Option<i8> = r.get(c);
+                let value: Option<i8> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "SMALLINT" => {
-                let value: Option<i16> = r.get(c);
+                let value: Option<i16> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "INT" => {
-                let value: Option<i32> = r.get(c);
+                let value: Option<i32> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "BIGINT" => {
-                let value: Option<i64> = r.get(c);
+                let value: Option<i64> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "TINYINT UNSIGNED" => {
-                let value: Option<u8> = r.get(c);
+                let value: Option<u8> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "SMALLINT UNSIGNED" => {
-                let value: Option<u16> = r.get(c);
+                let value: Option<u16> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "INT UNSIGNED" => {
-                let value: Option<u32> = r.get(c);
+                let value: Option<u32> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "BIGINT UNSIGNED" => {
-                let value: Option<u64> = r.get(c);
+                let value: Option<u64> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "FLOAT" => {
-                let value: Option<f32> = r.get(c);
+                let value: Option<f32> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "DOUBLE" => {
-                let value: Option<f64> = r.get(c);
+                let value: Option<f64> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "VARCHAR" | "CHAR" | "TEXT" => {
-                let value: Option<String> = r.get(c);
+                let value: Option<String> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             _ if ty.starts_with("VARCHAR") || ty.starts_with("CHAR") || ty.starts_with("TEXT") => {
-                let value: Option<String> = r.get(c);
+                let value: Option<String> = row.get(c);
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "VARBINARY" | "BINARY" | "BLOB" => {
-                let value: Option<Vec<u8>> = r.get(c);
+                let value: Option<Vec<u8>> = row.get(c);
                 value
                     .map(|x| format!("0x{}", hex::encode_upper(x.as_slice())))
                     .map(serde_json::Value::from)
@@ -158,7 +157,7 @@ fn encode_row_as_json(r: &MySqlRow) -> anyhow::Result<serde_json::Value> {
 
             _ => anyhow::bail!(format!("type '{ty}' not supported")),
         };
-        values.insert(r.column(c).name().to_string(), v);
+        values.insert(row.column(c).name().to_string(), v);
     }
 
     anyhow::Ok(serde_json::Value::Object(values))
@@ -793,10 +792,12 @@ impl QuerySql for MysqlDB {
                             let fields = get_rows_types(&rows);
                             Ok(TableListResp::new(fields, data.len(), data, &c.sql))
                         }
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
+                        Err(err) => {
+                            Err(ExeSqlError::new(
+                                &c.sql,
+                                anyhow::Error::msg(err.to_string()),
+                            ))
+                        }
                     };
                     result
                 }
@@ -805,10 +806,12 @@ impl QuerySql for MysqlDB {
                     let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
                         Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
+                        Err(err) => {
+                            Err(ExeSqlError::new(
+                                &c.sql,
+                                anyhow::Error::msg(err.to_string()),
+                            ))
+                        }
                     };
                     result
                 }
@@ -825,7 +828,7 @@ mod tests {
     use super::*;
     use crate::{init_log, TEST_HOST};
     // this test no need clean up, we use memory sqlite db.
-    async fn make_test_db() -> MysqlDB {
+    async fn make_test_object() -> MysqlDB {
         let pool_manager = PoolManager::new();
         let db = MysqlDB::new(
             pool_manager,
@@ -845,20 +848,19 @@ mod tests {
     async fn test_export() {
         // init_log();
         let table_name = "test_export";
-        let db = make_test_db().await;
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
-        let rs =
-            vec![r#"drop table if exists test_export;"#,
+        let rs = vec![
+            r#"drop table if exists test_export;"#,
             r#"CREATE TABLE test_export (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(50),
                 age INT,
                 email VARCHAR(100)
-            );"# , 
-        "INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');" ,
-        "INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');"  ,
-        "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
-
+            );"#,
+            "INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');",
+            "INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');",
+            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
         ];
         for s in rs.iter() {
             sqlx::query(*s).execute(conn.deref_mut()).await.unwrap();
@@ -916,7 +918,7 @@ mod tests {
     async fn test_index() {
         init_log();
         let table_name = "test_index";
-        let db = make_test_db().await;
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -951,7 +953,7 @@ mod tests {
 
         let table_name = "test_types1";
 
-        let db = make_test_db().await;
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -995,7 +997,7 @@ mod tests {
 
         let table_name = "test_types2";
 
-        let db = make_test_db().await;
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -1039,7 +1041,7 @@ mod tests {
 
         let table_name = "test_types3";
 
-        let db = make_test_db().await;
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())

@@ -35,4 +35,5 @@ rust_decimal.workspace = true
 bb8-tiberius.worksapce = true
 oracle.worksapce = true
 fuzzy-matcher.worksapce = true
+pg_interval.worksapce = true
 [dev-dependencies]

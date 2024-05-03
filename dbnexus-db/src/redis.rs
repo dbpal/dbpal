@@ -31,6 +31,7 @@ impl RedisDB {
             read_only,
         }
     }
+
     fn key_value_fields() -> [Field; 2] {
         let key_field = Field {
             name: "key".to_string(),
@@ -233,17 +234,19 @@ impl DBTrait for RedisDB {
             RedisType::List => anyhow::Ok(vec![value_field]),
             RedisType::Set => anyhow::Ok(vec![value_field]),
             RedisType::Hash => anyhow::Ok(vec![key_field, value_field]),
-            RedisType::Zset => anyhow::Ok(vec![
-                value_field,
-                Field {
-                    name: "score".to_string(),
-                    typ: "float64".to_string(),
-                    nullable: false,
-                    default_value: None,
-                    is_primary: false,
-                    is_auto_increment: false,
-                },
-            ]),
+            RedisType::Zset => {
+                anyhow::Ok(vec![
+                    value_field,
+                    Field {
+                        name: "score".to_string(),
+                        typ: "float64".to_string(),
+                        nullable: false,
+                        default_value: None,
+                        is_primary: false,
+                        is_auto_increment: false,
+                    },
+                ])
+            }
         }
     }
 

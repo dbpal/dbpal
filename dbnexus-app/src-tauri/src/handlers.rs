@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap};
 
 use dbnexus_db::db::{
     ExeSqlError, Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp,

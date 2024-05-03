@@ -1,7 +1,9 @@
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
 
+use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::PgRow;
 use sqlx::{Postgres, Row};
@@ -9,8 +11,8 @@ use sqlx::{Postgres, Row};
 use crate::completion::LexerCompletionBackend;
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, Field, Index, IndexKind,
-    ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
+    create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
+    Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
 };
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
@@ -63,6 +65,112 @@ impl crate::db::MultiDBTrait for PGDB {
     }
 }
 
+impl PGDB {
+    async fn export_table_as_sql(
+        &self, table_name: &str, include_table_schema: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        if include_table_schema {
+            // let ss = DBTrait::create_table_and_index_sql(self,
+            // table_name).await?; sender.send(Cow::Owned(ss.
+            // create_table.clone())).await?;
+            // sender.send(Cow::Borrowed(";\n")).await?;
+
+            // for index in ss.indexes.into_iter() {
+            //     sender.send(Cow::Owned(index)).await?;
+            //     sender.send(Cow::Borrowed(";\n")).await?;
+            // }
+            anyhow::bail!("export create table have bug")
+        }
+
+        let mut conn = self.get_conn().await?;
+        let cols = DBTrait::show_columns(self, table_name).await?;
+        let sql = format!("select * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str())
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+
+            let data = encode_rows(&rows)?;
+            for d in data.into_iter() {
+                let mut m = HashMap::new();
+                for (d, f) in d.into_iter().zip(cols.iter()) {
+                    m.insert(f.name.clone(), d);
+                }
+
+                let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
+                sender.send(Cow::Owned(insert_sql)).await?;
+                sender.send(Cow::Borrowed("\n")).await?;
+            }
+        }
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_json(
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+
+        let sql = format!("select * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
+
+        sender.send(Cow::Borrowed("[")).await?;
+        let mut first = true;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let value = encode_row_as_json(&row)?;
+            if !first {
+                sender.send(Cow::Borrowed(",")).await?;
+            }
+            if pretty {
+                sender.send(Cow::Borrowed("\n")).await?;
+            }
+            sender
+                .send(Cow::Owned(if pretty {
+                    serde_json::to_string_pretty(&value)?
+                } else {
+                    serde_json::to_string(&value)?
+                }))
+                .await?;
+            first = false;
+        }
+        if pretty {
+            sender.send(Cow::Borrowed("\n")).await?;
+        }
+        sender.send(Cow::Borrowed("]")).await?;
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_csv(
+        &self, table_name: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        if include_header {
+            let fs = self.show_columns(table_name).await?;
+            let fs = fs.iter().map(|x| Some(x.name.clone())).collect::<Vec<_>>();
+            sender
+                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                .await?;
+        }
+
+        let sql = format!("select * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str())
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
+
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            let data = encode_rows(&rows)?;
+            sender
+                .send(Cow::Owned(create_csv(&data, delimiter)))
+                .await?;
+        }
+        anyhow::Ok(())
+    }
+}
+
 fn gen_show_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
@@ -82,6 +190,30 @@ fn gen_show_sql(
 
 #[async_trait::async_trait]
 impl DBTrait for PGDB {
+    async fn export_table(
+        &self, table_name: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_table_as_csv(table_name, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_table_as_json(table_name, pretty, sender).await
+            }
+            ExportKind::Sql {
+                include_table_schema,
+            } => {
+                self.export_table_as_sql(table_name, include_table_schema, sender)
+                    .await
+            }
+        }
+    }
+
     fn read_only(&self) -> bool {
         self.read_only
     }
@@ -90,10 +222,62 @@ impl DBTrait for PGDB {
         "postgres"
     }
 
+    /// FIXME 如果一个主键是自增的只能得到类型
     async fn create_table_and_index_sql(
-        &self, _table_name: &str,
+        &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        unimplemented!()
+        // https://stackoverflow.com/questions/2593803/how-to-generate-the-create-table-sql-statement-for-an-existing-table-in-postgr
+        // sql coped from
+        // notice
+        let sql = format!(
+            r#"
+        SELECT                                          
+        'CREATE TABLE ' || relname || E'\n(\n' ||
+        array_to_string(
+          array_agg(
+            '    ' || column_name || ' ' ||  type || ' '|| not_null
+          )
+          , E',\n'
+        ) || E'\n);\n'
+      from
+      (
+        SELECT 
+          c.relname, a.attname AS column_name,
+          pg_catalog.format_type(a.atttypid, a.atttypmod) as type,
+          case 
+            when a.attnotnull
+          then 'NOT NULL' 
+          else 'NULL' 
+          END as not_null 
+        FROM pg_class c,
+         pg_attribute a,
+         pg_type t
+         WHERE c.relname = '{table_name}'
+         AND a.attnum > 0
+         AND a.attrelid = c.oid
+         AND a.atttypid = t.oid
+       ORDER BY a.attnum
+      ) as tabledefinition
+      group by relname;
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+
+        let row = sqlx::query(sql.as_str())
+            .fetch_one(conn.deref_mut())
+            .await?;
+        let create_sql: String = row.try_get(0)?;
+        let indexes = self.show_indexes(&table_name).await?;
+
+        let mut sqls = Vec::with_capacity(indexes.len());
+        for index in indexes.iter() {
+            let index_sql = get_index_def(&mut conn, table_name, &index.name).await?;
+            sqls.push(index_sql);
+        }
+        anyhow::Ok(CreateTableAndIndexSql {
+            create_table: create_sql,
+            indexes: sqls,
+        })
     }
 
     fn clone(&self) -> Box<dyn DBTrait> {
@@ -435,9 +619,11 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| match s {
-            Statement::Query(_) => crate::db::SqlKind::Query,
-            _ => crate::db::SqlKind::Execution,
+        |s| {
+            match s {
+                Statement::Query(_) => crate::db::SqlKind::Query,
+                _ => crate::db::SqlKind::Execution,
+            }
         },
         |x| {
             let t = x.to_uppercase();
@@ -563,10 +749,12 @@ impl QuerySql for PGDB {
                             let fields = get_rows_types(&rows);
                             Ok(TableListResp::new(fields, data.len(), data, &c.sql))
                         }
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
+                        Err(err) => {
+                            Err(ExeSqlError::new(
+                                &c.sql,
+                                anyhow::Error::msg(err.to_string()),
+                            ))
+                        }
                     };
                     result
                 }
@@ -575,10 +763,12 @@ impl QuerySql for PGDB {
                     let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
                         Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
+                        Err(err) => {
+                            Err(ExeSqlError::new(
+                                &c.sql,
+                                anyhow::Error::msg(err.to_string()),
+                            ))
+                        }
                     };
                     result
                 }
@@ -589,9 +779,9 @@ impl QuerySql for PGDB {
     }
 }
 
-async fn get_index_kind(
+async fn get_index_def(
     conn: &mut PoolConnection<Postgres>, table_name: &str, index_name: &str,
-) -> anyhow::Result<IndexKind> {
+) -> anyhow::Result<String> {
     let sql = format!(
         "SELECT indexdef from pg_indexes where tablename='{table_name}' and indexname='{index_name}'"
     );
@@ -600,6 +790,14 @@ async fn get_index_kind(
         .await?;
 
     let sql: String = row.get(0);
+
+    anyhow::Ok(sql)
+}
+
+async fn get_index_kind(
+    conn: &mut PoolConnection<Postgres>, table_name: &str, index_name: &str,
+) -> anyhow::Result<IndexKind> {
+    let sql: String = get_index_def(conn, table_name, index_name).await?;
     let ss = sqlparser::parser::Parser::parse_sql(
         &sqlparser::dialect::PostgreSqlDialect {},
         sql.as_str(),
@@ -643,7 +841,7 @@ mod test {
 
     use super::PGDB;
     use crate::datasource::CommDBConfig;
-    use crate::db::DBTrait;
+    use crate::db::{DBTrait, ExportKind};
     use crate::pool::PoolManager;
     use crate::{init_log, TEST_HOST};
 
@@ -664,6 +862,76 @@ mod test {
         );
 
         pg
+    }
+
+    #[tokio::test]
+    async fn test_export() {
+        // init_log();
+        let table_name = "test_export";
+        let db = make_test_object();
+        let mut conn = db.get_conn().await.unwrap();
+        let rs = vec![
+            r#"drop table if exists test_export;"#,
+            r#"CREATE TABLE test_export (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(50),
+                age INT,
+                email VARCHAR(100)
+            );"#,
+            "INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');",
+            "INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');",
+            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
+        ];
+        for s in rs.iter() {
+            sqlx::query(*s).execute(conn.deref_mut()).await.unwrap();
+        }
+        let db = &db as &dyn DBTrait;
+
+        {
+            let s = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", s);
+            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
+        }
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", s);
+        }
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("sql:{}", s);
+        }
+        // {
+        //     let s = db
+        //         .export_table_to_string(
+        //             table_name,
+        //             ExportKind::Sql {
+        //                 include_table_schema: true,
+        //             },
+        //         )
+        //         .await
+        //         .unwrap();
+        //     println!("sql:{}", s);
+        // }
     }
 
     #[tokio::test]
@@ -753,6 +1021,14 @@ mod test {
             .await
             .unwrap();
         println!("{:?}", x);
+
+        let json = pg
+            .export_table_to_string("test_types1", ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -818,6 +1094,13 @@ mod test {
 
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+        let json = pg
+            .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -877,6 +1160,13 @@ mod test {
 
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+        let json = pg
+            .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -929,6 +1219,13 @@ mod test {
 
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+        let json = pg
+            .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -1001,6 +1298,14 @@ mod test {
 
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+        // let json = pg
+        //     .export_table_to_string(&table_name, ExportKind::Json { pretty:
+        // true })     .await
+        //     .unwrap();
+        // let _: serde_json::Value =
+        // serde_json::from_str(json.as_str()).unwrap();
+
+        // println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -1069,6 +1374,13 @@ mod test {
 
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+        let json = pg
+            .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -1121,6 +1433,14 @@ mod test {
         pg.insert(table_name, values).await.unwrap();
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+
+        let json = pg
+            .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -1165,6 +1485,13 @@ mod test {
         pg.insert(table_name, values).await.unwrap();
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+        let json = pg
+            .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -1229,6 +1556,13 @@ mod test {
         pg.insert(table_name, values).await.unwrap();
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+        let json = pg
+            .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -1284,6 +1618,13 @@ mod test {
         pg.insert(table_name, values).await.unwrap();
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+        let json = pg
+            .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 
     #[tokio::test]
@@ -1349,6 +1690,14 @@ mod test {
         pg.insert(table_name, values).await.unwrap();
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", x);
+
+        let json = pg
+            .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+
+        println!("export json:{}", json);
     }
 }
 
