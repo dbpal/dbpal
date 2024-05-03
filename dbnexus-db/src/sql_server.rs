@@ -1,19 +1,21 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
 use chrono::FixedOffset;
 use futures_core::future::BoxFuture;
-use futures_util::StreamExt;
-use tiberius::{Client, ColumnData, ColumnType, FromSql};
+use futures_util::{StreamExt, TryStreamExt};
+use tiberius::{Client, ColumnData, ColumnType, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio_util::compat::Compat;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
 use crate::datasource::CommDBConfig;
 use crate::db::{
-    format_data_time_fix_offset, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError,
-    Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
+    create_csv, format_data_time_fix_offset, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait,
+    ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet,
+    SqlSeq, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -116,20 +118,26 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -146,22 +154,30 @@ fn make_table_list_from_meta_and_row(
     meta: &tiberius::ResultMetadata, rows: &Vec<tiberius::Row>, total: usize,
     sql: impl Into<String>,
 ) -> anyhow::Result<TableListResp> {
-    let fiels = if rows.len() > 0 {
+    let fields = if rows.len() > 0 {
         get_fields_from_row(rows.get(0).unwrap())
     } else {
         get_fields_from_meta(meta)
     };
+    let mut data = encode_rows(rows)?;
+
+    anyhow::Ok(TableListResp::new(fields, total, data, sql))
+}
+
+fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+    if rows.len() == 0 {
+        return anyhow::Ok(vec![]);
+    }
     let mut data = vec![];
     for r in rows.iter() {
         let mut values: Vec<Option<String>> = Vec::new();
-        for index in 0..meta.columns().len() {
+        for index in 0..rows[0].columns().len() {
             let v: Option<ConvertColumnDataToString> = r.try_get(index)?;
             values.push(v.map(|x| x.value));
         }
         data.push(values);
     }
-
-    anyhow::Ok(TableListResp::new(fiels, total, data, sql))
+    anyhow::Ok(data)
 }
 
 fn gen_select_sql(
@@ -187,14 +203,32 @@ fn gen_select_sql(
 
 #[async_trait::async_trait]
 impl DBTrait for SqlServer {
-    fn read_only(&self) -> bool {
-        self.read_only
+    async fn export_table(
+        &self, table_name: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_table_as_csv(table_name, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_table_as_json(table_name, pretty, sender).await
+            }
+            ExportKind::Sql {
+                include_table_schema,
+            } => {
+                self.export_table_as_sql(table_name, include_table_schema, sender)
+                    .await
+            }
+        }
     }
 
-    async fn create_table_and_index_sql(
-        &self, _table_name: &str,
-    ) -> anyhow::Result<CreateTableAndIndexSql> {
-        unimplemented!()
+    fn read_only(&self) -> bool {
+        self.read_only
     }
 
     fn backend_name(&self) -> &str {
@@ -647,6 +681,225 @@ impl SqlServer {
     }
 }
 
+struct ExtractValueAsJson {
+    value: serde_json::Value,
+}
+
+impl<'a> FromSql<'a> for ExtractValueAsJson {
+    fn from_sql(value: &'a ColumnData<'static>) -> tiberius::Result<Option<Self>> {
+        let value = match value {
+            tiberius::ColumnData::U8(x) => x.clone().map(serde_json::Value::from),
+            tiberius::ColumnData::I16(x) => x.clone().map(serde_json::Value::from),
+            tiberius::ColumnData::I32(x) => x.clone().map(serde_json::Value::from),
+            tiberius::ColumnData::I64(x) => x.clone().map(serde_json::Value::from),
+            tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
+            tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
+            tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
+            tiberius::ColumnData::String(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Guid(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Binary(x) => {
+                x.as_ref()
+                    .map(|x| format!("0X{}", hex::encode_upper(x)))
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Numeric(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+
+            tiberius::ColumnData::Xml(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::DateTime(_)
+            | tiberius::ColumnData::DateTime2(_)
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+
+            tiberius::ColumnData::DateTimeOffset(_) => {
+                chrono::DateTime::<FixedOffset>::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| format_data_time_fix_offset(&x))
+                    .map(serde_json::Value::from)
+            }
+        };
+
+        Ok(value.map(|x| ExtractValueAsJson { value: x }))
+    }
+}
+fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
+    let mut values = serde_json::Map::new();
+    for c in 0..row.len() {
+        let value: Option<ExtractValueAsJson> = row.try_get(c)?;
+        let value = value.map(|x| x.value);
+        values.insert(
+            row.columns()[c].name().to_string(),
+            value.unwrap_or(serde_json::Value::Null),
+        );
+    }
+    anyhow::Ok(values)
+}
+
+impl SqlServer {
+    async fn export_table_as_sql(
+        &self, table_name: &str, include_table_schema: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        if include_table_schema {
+            let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
+            sender.send(Cow::Owned(ss.create_table.clone())).await?;
+            sender.send(Cow::Borrowed(";\n")).await?;
+
+            for index in ss.indexes.into_iter() {
+                sender.send(Cow::Owned(index)).await?;
+                sender.send(Cow::Borrowed(";\n")).await?;
+            }
+        }
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+        let cols = DBTrait::show_columns(self, table_name).await?;
+        let sql = format!("select * from {}", table_name);
+
+        let mut stream = conn.query(sql.as_str(), &[]).await?.try_chunks(100);
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            let mut rows_row = Vec::with_capacity(rows.len());
+            for r in rows.into_iter() {
+                match r {
+                    tiberius::QueryItem::Row(x) => rows_row.push(x),
+                    tiberius::QueryItem::Metadata(_) => {}
+                }
+            }
+            let data = encode_rows(&rows_row)?;
+            for d in data.into_iter() {
+                let mut m = HashMap::new();
+                for (d, f) in d.into_iter().zip(cols.iter()) {
+                    m.insert(f.name.clone(), d);
+                }
+
+                let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
+                sender.send(Cow::Owned(insert_sql)).await?;
+                sender.send(Cow::Borrowed("\n")).await?;
+            }
+        }
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_json(
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+
+        let sql = format!("select * from {}", table_name);
+        let mut stream = conn.query(sql.as_str(), &[]).await?;
+
+        sender.send(Cow::Borrowed("[")).await?;
+        let mut first = true;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let row = match row {
+                tiberius::QueryItem::Row(r) => r,
+                tiberius::QueryItem::Metadata(_) => {
+                    continue;
+                }
+            };
+            let value = encode_row_as_json(&row)?;
+            if !first {
+                sender.send(Cow::Borrowed(",")).await?;
+            }
+            if pretty {
+                sender.send(Cow::Borrowed("\n")).await?;
+            }
+            sender
+                .send(Cow::Owned(if pretty {
+                    serde_json::to_string_pretty(&value)?
+                } else {
+                    serde_json::to_string(&value)?
+                }))
+                .await?;
+            first = false;
+        }
+        if pretty {
+            sender.send(Cow::Borrowed("\n")).await?;
+        }
+        sender.send(Cow::Borrowed("]")).await?;
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_csv(
+        &self, table_name: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+
+        if include_header {
+            let fs = self.show_columns(table_name).await?;
+            let fs = fs.iter().map(|x| Some(x.name.clone())).collect::<Vec<_>>();
+            sender
+                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                .await?;
+        }
+
+        let sql = format!("select * from {}", table_name);
+        let mut stream = conn.query(sql.as_str(), &[]).await?.try_chunks(100);
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            let mut rows_row = Vec::new();
+            for r in rows.into_iter() {
+                match r {
+                    tiberius::QueryItem::Row(r) => {
+                        rows_row.push(r);
+                    }
+                    tiberius::QueryItem::Metadata(_x) => {}
+                }
+            }
+            if rows_row.len() > 0 {
+                let s = create_csv(&encode_rows(&rows_row)?, delimiter);
+                sender.send(Cow::Owned(s)).await?;
+            }
+        }
+
+        anyhow::Ok(())
+    }
+}
+
 type Connection = Client<Compat<TcpStream>>;
 #[async_trait::async_trait]
 impl QuerySql for SqlServer {
@@ -722,14 +975,18 @@ impl QuerySql for SqlServer {
                 SqlKind::Execution => {
                     let result = conn.execute(c.sql.as_str(), &[]).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => Ok(TableListResp::row_affected(
-                            &c.sql,
-                            rows.rows_affected().iter().sum(),
-                        )),
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
+                        Ok(rows) => {
+                            Ok(TableListResp::row_affected(
+                                &c.sql,
+                                rows.rows_affected().iter().sum(),
+                            ))
+                        }
+                        Err(err) => {
+                            Err(ExeSqlError::new(
+                                &c.sql,
+                                anyhow::Error::msg(err.to_string()),
+                            ))
+                        }
                     };
                     ret.push(result);
                 }
@@ -771,9 +1028,11 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| match s {
-            Statement::Query(_) => crate::db::SqlKind::Query,
-            _ => crate::db::SqlKind::Execution,
+        |s| {
+            match s {
+                Statement::Query(_) => crate::db::SqlKind::Query,
+                _ => crate::db::SqlKind::Execution,
+            }
         },
         |x| {
             let t = x.to_uppercase();
@@ -854,7 +1113,7 @@ mod tests {
                 host: TEST_HOST.to_string(),
                 port: 1433,
                 username: "sa".to_string(),
-                password: "fdsOPNHB76".to_string(),
+                password: "sfdewRE123".to_string(),
                 db_name: Some("test".to_string()),
             },
             true,
@@ -924,6 +1183,77 @@ mod tests {
             println!("list:{:?}", list);
             println!()
         }
+    }
+    #[tokio::test]
+    async fn test_export() {
+        // init_log();
+        let table_name = "test_export";
+        let db = make_test_object();
+        let conn = db.get_conn().await.unwrap();
+        let mut conn = conn.get().await.unwrap();
+        let conn = conn.deref_mut();
+        let rs = vec![
+            r#"drop table if exists test_export;"#,
+            r#"CREATE TABLE test_export (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                name VARCHAR(50),
+                age INT,
+                email VARCHAR(100)
+            );"#,
+            "INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');",
+            "INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');",
+            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
+        ];
+        for s in rs.iter() {
+            conn.execute(*s, &[]).await.unwrap();
+        }
+        let db = &db as &dyn DBTrait;
+
+        {
+            let s = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", s);
+            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
+        }
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", s);
+        }
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("sql:{}", s);
+        }
+        // {
+        //     let s = db
+        //         .export_table_to_string(
+        //             table_name,
+        //             ExportKind::Sql {
+        //                 include_table_schema: true,
+        //             },
+        //         )
+        //         .await
+        //         .unwrap();
+        //     println!("sql:{}", s);
+        // }
     }
 
     #[tokio::test]

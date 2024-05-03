@@ -434,14 +434,14 @@ impl DBS {
             .await
     }
 
-    async fn get_one_db(&self, uuid: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+    pub async fn get_one_db(&self, uuid: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         match self.get_db(uuid).await? {
             DB::Multi(_) => anyhow::bail!(format!("this '{}' a multi", uuid)),
             DB::One(x) => anyhow::Ok(x.clone()),
         }
     }
 
-    async fn get_db(&self, uuid: &str) -> anyhow::Result<DB> {
+    pub async fn get_db(&self, uuid: &str) -> anyhow::Result<DB> {
         let db = self.dbs.lock().await.get(uuid).map(|x| x.clone());
         let x = match db {
             Some(x) => x,

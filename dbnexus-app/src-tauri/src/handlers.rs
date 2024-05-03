@@ -1,7 +1,7 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use dbnexus_db::db::{
-    ExeSqlError, Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp,
+    ExeSqlError, ExportKind, Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp,
 };
 
 use crate::storage::{DBConnectionConfig, UserSettings, DBS};
@@ -214,6 +214,20 @@ pub async fn list_all_config(
 ) -> Result<HashMap<String, DBConnectionConfig>, String> {
     dbs.loader
         .list_all_configs_cloned()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn export_table(
+    uuid: String, table_name: String, filepath: String, kind: ExportKind,
+    dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    db.export_table_to_file(table_name.as_str(), filepath.as_str(), kind)
         .await
         .map_err(|e| e.to_string())
 }

@@ -715,7 +715,7 @@ pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
     format!("{} {}", x.naive_local(), x.offset())
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize)]
 pub enum ExportKind {
     CSV {
         include_header: bool,
