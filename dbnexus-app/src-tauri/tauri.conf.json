@@ -18,6 +18,9 @@
         "message": true,
         "open": true,
         "save": true
+      },
+      "process": {
+        "all": true
       }
     },
     "windows": [
