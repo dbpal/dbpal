@@ -6,14 +6,16 @@ use std::sync::Arc;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
+use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::{Column, Row, TypeInfo};
+use tokio::sync::Mutex;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    create_csv, is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait,
-    ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql,
-    SqlExecuteRet, SqlSeq, TableListResp,
+    create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
+    Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
+    TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -22,6 +24,8 @@ pub struct MysqlDB {
     pool: PoolManager,
     config: CommDBConfig,
     read_only: bool,
+
+    query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::MySql>>>>,
 }
 
 fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
@@ -682,6 +686,7 @@ impl MysqlDB {
             pool,
             config: conn,
             read_only,
+            query_connection: Default::default(),
         }
     }
 
@@ -719,22 +724,8 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| {
-            if is_statement_absolute_query(s) {
-                crate::db::SqlKind::Query
-            } else {
-                crate::db::SqlKind::Execution
-            }
-        },
-        |x| {
-            let t = x.to_uppercase();
-
-            if t.starts_with("SELECT") || t.starts_with("SHOW") || t.starts_with("EXPLAIN") {
-                crate::db::SqlKind::Query
-            } else {
-                crate::db::SqlKind::Execution
-            }
-        },
+        |s| SqlKind::get_from_statement(s),
+        |x| SqlKind::get_from_sql(x),
     )
 }
 
@@ -764,9 +755,38 @@ impl MultiDBTrait for MysqlDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MysqlDB {
+    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+        let id = uuid::Uuid::new_v4();
+        let conn = self.get_conn().await?;
+        self.query_connection.lock().await.insert(id, conn);
+        anyhow::Ok(id)
+    }
+
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_connection.lock().await.remove(&id);
+        let conn = self.get_conn().await?;
+        self.query_connection.lock().await.insert(id, conn);
+        anyhow::Ok(())
+    }
+
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        let x = self.query_connection.lock().await.remove(&id);
+        if let Some(x) = x {
+            x.close().await?;
+        }
+        anyhow::Ok(())
+    }
+
     async fn query_sql(
-        &self, sql: &str,
+        &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+        let mut conn = self.query_connection.lock().await;
+        let conn = conn.get_mut(&id);
+        let conn = match conn {
+            Some(x) => x,
+            None => anyhow::bail!("id '{}' have no connection", id),
+        };
+
         let seq = get_sql_seq(sql);
         let x = match seq {
             anyhow::Result::Ok(e) => e,
@@ -774,14 +794,12 @@ impl QuerySql for MysqlDB {
                 log::error!("parse sql fail use as query");
                 vec![SqlSeq {
                     sql: sql.to_string(),
-                    kind: crate::db::SqlKind::Query,
+                    kind: SqlKind::Query,
                 }]
             }
         };
 
         let mut ret = Vec::with_capacity(x.len());
-        let mut conn = self.get_conn().await?;
-        use crate::db::SqlKind;
 
         for c in x.iter() {
             let result = match c.kind {
@@ -802,7 +820,18 @@ impl QuerySql for MysqlDB {
                     };
                     result
                 }
-
+                SqlKind::Begin => {
+                    conn.begin().await?;
+                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
+                }
+                SqlKind::Commit => {
+                    conn.commit().await?;
+                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
+                }
+                SqlKind::Rollback => {
+                    conn.rollback().await?;
+                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
+                }
                 SqlKind::Execution => {
                     let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
@@ -818,6 +847,28 @@ impl QuerySql for MysqlDB {
                 }
             };
             ret.push(result);
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+impl MysqlDB {
+    async fn build_fn_completion_items(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut conn = self.get_conn().await?;
+
+        let rows = sqlx::query("SHOW FUNCTION STATUS;")
+            .fetch_all(conn.deref_mut())
+            .await
+            .unwrap();
+        let mut ret: Vec<_> = Vec::with_capacity(rows.len());
+
+        for r in rows.iter() {
+            // let db: String = r.get(0);
+            let name: String = r.get(1);
+            ret.push(CompletionItem {
+                name: Cow::Owned(name),
+                kind: crate::completion::CompletionKind::Function,
+            });
         }
         anyhow::Ok(ret)
     }
@@ -1175,6 +1226,49 @@ mod tests {
         let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", cols);
     }
+
+    #[tokio::test]
+    async fn test_query() {
+        init_log();
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let id = db.open_connection().await.unwrap();
+
+        let ret = db.query_sql(id.clone(), "begin").await.unwrap();
+        db.query_sql(id.clone(), "drop table if exists test_query ")
+            .await
+            .unwrap();
+
+        db.query_sql(
+            id.clone(),
+            r#"
+        CREATE TABLE test_query (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255),
+            age INT
+        )
+        "#,
+        )
+        .await
+        .unwrap();
+
+        db.query_sql(
+            id.clone(),
+            r#"
+            INSERT INTO test_query (name, age)
+            VALUES
+                ('John', 25),
+                ('Jane', 30),
+                ('Alice', 28)
+        "#,
+        )
+        .await
+        .unwrap();
+
+        db.query_sql(id.clone(), "commit").await.unwrap();
+
+        println!("begin ret:{:?}", ret);
+    }
 }
 
 #[async_trait::async_trait]
@@ -1195,10 +1289,28 @@ impl LexerCompletionBackend for MysqlDB {
         MultiDBTrait::list_db(self).await
     }
 
+    async fn extra_completion_item(&self) -> Vec<CompletionItem> {
+        self.build_fn_completion_items().await.unwrap_or(vec![])
+    }
+
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
         DBTrait::show_columns(self, table_name)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())
+    }
+}
+#[async_trait::async_trait]
+impl AutoCompletionTrait for MysqlDB {
+    async fn auto_completion(
+        &self, sql: &str, pos: sqlparser::tokenizer::Location,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        LexerCompletionBackend::do_auto_completion(
+            self,
+            sql,
+            &sqlparser::dialect::MySqlDialect {},
+            pos,
+        )
+        .await
     }
 }
 
@@ -2000,17 +2112,3 @@ const BUILD_IN_FUNCTIONS: &'static [&'static str] = &[
     "sys_get_config",
     "extract_table_from_file_name",
 ];
-#[async_trait::async_trait]
-impl AutoCompletionTrait for MysqlDB {
-    async fn auto_completion(
-        &self, sql: &str, pos: sqlparser::tokenizer::Location,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionBackend::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::MySqlDialect {},
-            pos,
-        )
-        .await
-    }
-}

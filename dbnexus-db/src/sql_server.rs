@@ -13,9 +13,8 @@ use tokio_util::compat::Compat;
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
 use crate::datasource::CommDBConfig;
 use crate::db::{
-    create_csv, format_data_time_fix_offset, sql_to_sql_seq, DBTrait,
-    ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet,
-    SqlSeq, TableListResp,
+    create_csv, format_data_time_fix_offset, sql_to_sql_seq, DBTrait, ExeSqlError, ExportKind,
+    Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -903,8 +902,20 @@ impl SqlServer {
 type Connection = Client<Compat<TcpStream>>;
 #[async_trait::async_trait]
 impl QuerySql for SqlServer {
+    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+        unimplemented!()
+    }
+
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+
     async fn query_sql(
-        &self, sql: &str,
+        &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
         let seq = get_sql_seq(sql);
         let x = match seq {
@@ -926,6 +937,15 @@ impl QuerySql for SqlServer {
 
         for c in x.iter() {
             match c.kind {
+                SqlKind::Begin => {
+                    unimplemented!()
+                }
+                SqlKind::Commit => {
+                    unimplemented!()
+                }
+                SqlKind::Rollback => {
+                    unimplemented!()
+                }
                 SqlKind::Query => {
                     let result = conn
                         .query(&c.sql, &[])

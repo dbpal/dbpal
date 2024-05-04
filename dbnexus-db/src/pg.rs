@@ -5,8 +5,10 @@ use std::sync::Arc;
 
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
+use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::postgres::PgRow;
 use sqlx::{Postgres, Row};
+use tokio::sync::Mutex;
 
 use crate::completion::LexerCompletionBackend;
 use crate::datasource::{CommDBConfig, DBPoolKey};
@@ -24,6 +26,7 @@ pub struct PGDB {
     pool: PoolManager,
     config: CommDBConfig,
     read_only: bool,
+    query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::Postgres>>>>,
 }
 
 #[async_trait::async_trait]
@@ -593,6 +596,7 @@ impl PGDB {
             pool,
             config,
             read_only,
+            query_connection: Default::default(),
         }
     }
 
@@ -720,9 +724,37 @@ fn get_pg_type_base_on_data_type_and_udtname(data_type: &str, udt_name: &str) ->
 }
 #[async_trait::async_trait]
 impl QuerySql for PGDB {
+    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+        let id = uuid::Uuid::new_v4();
+        let conn = self.get_conn().await?;
+        self.query_connection.lock().await.insert(id, conn);
+        anyhow::Ok(id)
+    }
+
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_connection.lock().await.remove(&id);
+        let conn = self.get_conn().await?;
+        self.query_connection.lock().await.insert(id, conn);
+        anyhow::Ok(())
+    }
+
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        let x = self.query_connection.lock().await.remove(&id);
+        if let Some(x) = x {
+            x.close().await?;
+        }
+        anyhow::Ok(())
+    }
+
     async fn query_sql(
-        &self, sql: &str,
+        &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+        let mut conn = self.query_connection.lock().await;
+        let conn = conn.get_mut(&id);
+        let conn = match conn {
+            Some(x) => x,
+            None => anyhow::bail!("id '{}' have no connection", id),
+        };
         let seq = get_sql_seq(sql);
         let x = match seq {
             anyhow::Result::Ok(e) => e,
@@ -736,11 +768,23 @@ impl QuerySql for PGDB {
         };
 
         let mut ret = Vec::with_capacity(x.len());
-        let mut conn = self.get_conn().await?;
+
         use crate::db::SqlKind;
 
         for c in x.iter() {
             let result = match c.kind {
+                SqlKind::Begin => {
+                    conn.begin().await?;
+                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
+                }
+                SqlKind::Commit => {
+                    conn.commit().await?;
+                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
+                }
+                SqlKind::Rollback => {
+                    conn.rollback().await?;
+                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
+                }
                 SqlKind::Query => {
                     let result = sqlx::query(&c.sql).fetch_all(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {

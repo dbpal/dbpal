@@ -188,7 +188,7 @@ pub async fn open_db2(
 
 #[tauri::command]
 pub async fn query_sql(
-    uuid: String, sql: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, id: uuid::Uuid, sql: String, dbs: tauri::State<'_, DBS>,
 ) -> Result<Vec<Result<TableListResp, ExeSqlError>>, String> {
     let sql = sql.as_str();
     let db = dbs
@@ -197,8 +197,50 @@ pub async fn query_sql(
         .map_err(|e| e.to_string())?;
 
     let result = match db {
-        crate::storage::DB::Multi(x) => x.query_sql(sql).await,
-        crate::storage::DB::One(x) => x.query_sql(sql).await,
+        crate::storage::DB::Multi(x) => x.query_sql(id, sql).await,
+        crate::storage::DB::One(x) => x.query_sql(id, sql).await,
+    };
+    result.map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn query_sql_open_connection(
+    uuid: String, dbs: tauri::State<'_, DBS>,
+) -> Result<uuid::Uuid, String> {
+    let db = dbs
+        .open_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let result = match db {
+        crate::storage::DB::Multi(x) => x.open_connection().await,
+        crate::storage::DB::One(x) => x.open_connection().await,
+    };
+    result.map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn query_sql_re_connection(
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    let db = dbs
+        .open_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let result = match db {
+        crate::storage::DB::Multi(x) => x.re_connect(id).await,
+        crate::storage::DB::One(x) => x.re_connect(id).await,
+    };
+    result.map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn query_sql_close_connection(
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    let db = dbs
+        .open_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let result = match db {
+        crate::storage::DB::Multi(x) => x.close_connection(id).await,
+        crate::storage::DB::One(x) => x.close_connection(id).await,
     };
     result.map_err(|e| e.to_string())
 }

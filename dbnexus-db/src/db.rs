@@ -153,8 +153,13 @@ pub trait MultiDBTrait: Sync + Send + QuerySql + 'static {
 #[async_trait::async_trait]
 pub trait QuerySql {
     async fn query_sql(
-        &self, _sql: &str,
+        &self, conn: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>>;
+    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
+
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
+
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -563,6 +568,51 @@ impl SqlSeq {
 pub enum SqlKind {
     Query,
     Execution,
+    /// start transaction.
+    Begin,
+    /// commit
+    Commit,
+    /// rollback
+    Rollback,
+}
+
+impl SqlKind {
+    pub(crate) fn get_from_statement(s: &Statement) -> Self {
+        if is_statement_begin(s) {
+            return SqlKind::Begin;
+        }
+        if is_statement_commit(s) {
+            return SqlKind::Commit;
+        }
+        if is_statement_rollback(s) {
+            return SqlKind::Rollback;
+        }
+
+        if is_statement_absolute_query(s) {
+            SqlKind::Query
+        } else {
+            SqlKind::Execution
+        }
+    }
+
+    pub(crate) fn get_from_sql(sql: &str) -> Self {
+        let t = sql.to_uppercase();
+        if t.starts_with("BEGIN") || (t.starts_with("START") && t.contains("TRANSACTION")) {
+            return SqlKind::Begin;
+        }
+        if t.starts_with("COMMIT") {
+            return SqlKind::Commit;
+        }
+        if t.starts_with("ROLLBACK") {
+            return SqlKind::Rollback;
+        }
+
+        if t.starts_with("SELECT") || t.starts_with("SHOW") || t.starts_with("EXPLAIN") {
+            SqlKind::Query
+        } else {
+            SqlKind::Execution
+        }
+    }
 }
 
 /// cut statement into smaller base on statement or semi_colon.
@@ -672,7 +722,7 @@ pub fn sql_to_sql_seq(
     cut_sql_to_each_statement_semi_colon(sql, dialect, statement_kind_sql)
 }
 
-pub(crate) fn is_statement_absolute_query(s: &Statement) -> bool {
+fn is_statement_absolute_query(s: &Statement) -> bool {
     match s {
         Statement::Query(_) => true,
         Statement::Fetch {
@@ -773,4 +823,29 @@ fn escape_csv(s: &str, delimiter: char) -> Cow<'_, str> {
 #[test]
 fn test_escape_csv() {
     assert_eq!(escape_csv("\" aaaa,", ','), "\"\\\" aaaa,\"");
+}
+
+fn is_statement_begin(s: &Statement) -> bool {
+    match s {
+        Statement::StartTransaction {
+            modes,
+            begin,
+            modifier,
+        } => true,
+        _ => false,
+    }
+}
+
+fn is_statement_commit(s: &Statement) -> bool {
+    match s {
+        Statement::Commit { chain } => true,
+        _ => false,
+    }
+}
+
+fn is_statement_rollback(s: &Statement) -> bool {
+    match s {
+        Statement::Rollback { chain, savepoint } => true,
+        _ => false,
+    }
 }

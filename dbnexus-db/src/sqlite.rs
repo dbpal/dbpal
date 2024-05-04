@@ -1,22 +1,24 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
+use std::sync::Arc;
 
 use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::ast::{ColumnOption, Expr, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::PoolConnection;
+use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Row, TypeInfo};
+use tokio::sync::Mutex;
 
 use crate::completion::{
     AutoCompletionTrait, CompletionItem, CompletionKind, LexerCompletionBackend,
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
-    create_csv, is_statement_absolute_query, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait,
-    ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet,
-    SqlSeq, TableListResp,
+    create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
+    Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -25,6 +27,7 @@ pub struct SqliteDB {
     pool: PoolManager,
     path: String,
     read_only: bool,
+    query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::Sqlite>>>>,
 }
 
 impl SqliteDB {
@@ -651,6 +654,7 @@ impl SqliteDB {
             path,
             pool,
             read_only,
+            query_connection: Default::default(),
         }
     }
 
@@ -725,15 +729,21 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
             strict: _,
         } => {
             for c in columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -747,8 +757,14 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
     async fn query_sql(
-        &self, sql: &str,
+        &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+        let mut conn = self.query_connection.lock().await;
+        let conn = conn.get_mut(&id);
+        let conn = match conn {
+            Some(x) => x,
+            None => anyhow::bail!("id '{}' have no connection", id),
+        };
         let seq = get_sql_seq(sql);
         let x = match seq {
             anyhow::Result::Ok(e) => e,
@@ -760,13 +776,23 @@ impl QuerySql for SqliteDB {
                 }]
             }
         };
-
         let mut ret = Vec::with_capacity(x.len());
-        let mut conn = self.get_conn().await?;
         use crate::db::SqlKind;
 
         for c in x.iter() {
             let result = match c.kind {
+                SqlKind::Begin => {
+                    conn.begin().await?;
+                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
+                }
+                SqlKind::Commit => {
+                    conn.commit().await?;
+                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
+                }
+                SqlKind::Rollback => {
+                    conn.rollback().await?;
+                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
+                }
                 SqlKind::Query => {
                     let result = sqlx::query(&c.sql).fetch_all(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
@@ -775,10 +801,12 @@ impl QuerySql for SqliteDB {
                             let fields = get_rows_types(&rows);
                             Ok(TableListResp::new(fields, data.len(), data, &c.sql))
                         }
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
+                        Err(err) => {
+                            Err(ExeSqlError::new(
+                                &c.sql,
+                                anyhow::Error::msg(err.to_string()),
+                            ))
+                        }
                     };
                     result
                 }
@@ -787,10 +815,12 @@ impl QuerySql for SqliteDB {
                     let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
                         Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
+                        Err(err) => {
+                            Err(ExeSqlError::new(
+                                &c.sql,
+                                anyhow::Error::msg(err.to_string()),
+                            ))
+                        }
                     };
                     result
                 }
@@ -798,6 +828,28 @@ impl QuerySql for SqliteDB {
             ret.push(result);
         }
         anyhow::Ok(ret)
+    }
+
+    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+        let id = uuid::Uuid::new_v4();
+        let conn = self.get_conn().await?;
+        self.query_connection.lock().await.insert(id, conn);
+        anyhow::Ok(id)
+    }
+
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_connection.lock().await.remove(&id);
+        let conn = self.get_conn().await?;
+        self.query_connection.lock().await.insert(id, conn);
+        anyhow::Ok(())
+    }
+
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        let x = self.query_connection.lock().await.remove(&id);
+        if let Some(x) = x {
+            x.close().await?;
+        }
+        anyhow::Ok(())
     }
 }
 
@@ -846,9 +898,11 @@ impl crate::completion::LexerCompletionBackend for SqliteDB {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         PRAGMA_ITEMS
             .iter()
-            .map(|x| CompletionItem {
-                name: Cow::Borrowed(*x),
-                kind: CompletionKind::Text,
+            .map(|x| {
+                CompletionItem {
+                    name: Cow::Borrowed(*x),
+                    kind: CompletionKind::Text,
+                }
             })
             .collect()
     }
@@ -862,6 +916,7 @@ async fn test_auto_completion() {
         pool: Default::default(),
         path: ":memory:".to_string(),
         read_only: false,
+        query_connection: Default::default(),
     };
     let mut conn = s.get_conn().await.unwrap();
     sqlx::query(
@@ -1024,32 +1079,28 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
         sql,
         &dialect,
         |s| {
-            if is_statement_absolute_query(s) {
-                crate::db::SqlKind::Query
-            } else {
-                match s {
-                    Statement::Pragma {
-                        name: _,
-                        value: _,
-                        is_eq,
-                    } => {
-                        if !is_eq {
-                            crate::db::SqlKind::Query
-                        } else {
-                            crate::db::SqlKind::Execution
-                        }
+            match s {
+                Statement::Pragma {
+                    name: _,
+                    value: _,
+                    is_eq,
+                } => {
+                    if !is_eq {
+                        return crate::db::SqlKind::Query;
+                    } else {
+                        return crate::db::SqlKind::Execution;
                     }
-                    _ => crate::db::SqlKind::Execution,
                 }
+                _ => {}
             }
+            SqlKind::get_from_statement(s)
         },
         |x| {
             let t = x.to_uppercase();
-            if t.starts_with("SELECT") || t.starts_with("PRAGMA") || t.starts_with("EXPLAIN") {
-                crate::db::SqlKind::Query
-            } else {
-                crate::db::SqlKind::Execution
+            if t.starts_with("PRAGMA") {
+                return crate::db::SqlKind::Query;
             }
+            SqlKind::get_from_sql(x)
         },
     )
 }
@@ -1283,10 +1334,12 @@ INSERT INTO Persons(ID,Name,Age) VALUES (3,'Mike',35);
 
         let indexes = db.show_indexes(table_name).await.unwrap();
         println!("{:?}", indexes);
+        let id = db.open_connection().await.unwrap();
 
         {
             let r = db
                 .query_sql(
+                    id.clone(),
                     r#"
             select * from test_table;
             PRAGMA table_info('test_table')

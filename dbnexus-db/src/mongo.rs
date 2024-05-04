@@ -442,9 +442,21 @@ impl DBTrait for Mongo {
 #[async_trait::async_trait]
 impl QuerySql for Mongo {
     async fn query_sql(
-        &self, _sql: &str,
+        &self, id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
         anyhow::bail!("mongodb query sql is not supported right now.")
+    }
+
+    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+        unimplemented!()
+    }
+
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        unimplemented!()
     }
 }
 

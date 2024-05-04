@@ -428,8 +428,20 @@ impl DBTrait for RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
+    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+        unimplemented!()
+    }
+
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+
     async fn query_sql(
-        &self, sql: &str,
+        &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
         let mut conn = self.get_conn().await?;
         query_sql(&mut conn, sql).await
@@ -614,6 +626,7 @@ mod tests {
     async fn test() {
         let db = make_test_object();
         let db = &db as &dyn crate::db::DBTrait;
+        let id = db.open_connection().await.unwrap();
 
         db.delete("string_value", Default::default()).await.unwrap();
         db.delete("hash_value", Default::default()).await.unwrap();
@@ -621,31 +634,45 @@ mod tests {
         db.delete("set_value", Default::default()).await.unwrap();
         db.delete("zset_value", Default::default()).await.unwrap();
 
-        let ret = db.query_sql("set string_value string_value").await.unwrap();
+        let ret = db
+            .query_sql(id.clone(), "set string_value string_value")
+            .await
+            .unwrap();
         println!("ret:{:?}", ret);
 
         let ret = db
-            .query_sql("hset hash_value key11111 value2222")
+            .query_sql(id.clone(), "hset hash_value key11111 value2222")
             .await
             .unwrap();
 
         println!("ret:{:?}", ret);
 
         let ret = db
-            .query_sql("hset hash_value key2222 value33333")
+            .query_sql(id.clone(), "hset hash_value key2222 value33333")
             .await
             .unwrap();
 
         println!("ret:{:?}", ret);
 
-        let ret = db.query_sql("lpush list_value 1").await.unwrap();
-        db.query_sql("lpush list_value 2").await.unwrap();
+        let ret = db
+            .query_sql(id.clone(), "lpush list_value 1")
+            .await
+            .unwrap();
+        db.query_sql(id.clone(), "lpush list_value 2")
+            .await
+            .unwrap();
         println!("ret:{:?}", ret);
-        let ret = db.query_sql("sadd set_value  1").await.unwrap();
-        let ret = db.query_sql("sadd set_value  2").await.unwrap();
+        let ret = db.query_sql(id.clone(), "sadd set_value  1").await.unwrap();
+        let ret = db.query_sql(id.clone(), "sadd set_value  2").await.unwrap();
         println!("ret:{:?}", ret);
-        let ret = db.query_sql("zadd zset_value 1 haha").await.unwrap();
-        let ret = db.query_sql("zadd zset_value 2 xxx").await.unwrap();
+        let ret = db
+            .query_sql(id.clone(), "zadd zset_value 1 haha")
+            .await
+            .unwrap();
+        let ret = db
+            .query_sql(id.clone(), "zadd zset_value 2 xxx")
+            .await
+            .unwrap();
         println!("ret:{:?}", ret);
 
         let redis_list_table = db.redis_list_table().await.unwrap();
@@ -721,14 +748,15 @@ mod tests {
     async fn test2() {
         let db = make_test_object();
         let db = &db as &dyn crate::db::DBTrait;
+        let id = db.open_connection().await.unwrap();
         let ret = db
-            .query_sql("set test_string_value string_value")
+            .query_sql(id.clone(), "set test_string_value string_value")
             .await
             .unwrap();
         println!("ret:{:?}", ret);
 
         let _ret = db
-            .query_sql("set test_string_value key11111")
+            .query_sql(id.clone(), "set test_string_value key11111")
             .await
             .unwrap();
         db.drop_table("test_string_value").await.unwrap();
