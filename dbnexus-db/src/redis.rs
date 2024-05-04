@@ -6,8 +6,8 @@ use futures_util::StreamExt;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
 use crate::db::{
-    DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView, QuerySql, SqlExecuteRet,
-    TableListResp,
+    DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView, QuerySql, RedisListTable,
+    SqlExecuteRet, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -219,7 +219,7 @@ impl DBTrait for RedisDB {
             let typ = Self::get_key_type(&mut conn, k.as_str()).await?;
             let mut meta = HashMap::new();
             meta.insert("type".to_string(), typ.to_string());
-            ret.push(ListTable { table: k, meta });
+            ret.push(ListTable { table: k });
         }
         anyhow::Ok(ret)
     }
@@ -405,6 +405,24 @@ impl DBTrait for RedisDB {
         self.can_write()?;
         self.delete(table, Default::default()).await?;
         Ok(())
+    }
+
+    async fn redis_list_table(&self) -> anyhow::Result<RedisListTable> {
+        let mut conn = self.get_conn().await?;
+        let tables: Vec<String> = conn.keys("*").await?;
+        let mut ret = RedisListTable::default();
+
+        for table in tables.into_iter() {
+            let typ = Self::get_key_type(&mut conn, table.as_str()).await?;
+            match typ {
+                RedisType::String => ret.string_table.push(table),
+                RedisType::List => ret.list_table.push(table),
+                RedisType::Set => ret.set_table.push(table),
+                RedisType::Hash => ret.hash_table.push(table),
+                RedisType::Zset => ret.zset_table.push(table),
+            }
+        }
+        anyhow::Ok(ret)
     }
 }
 
@@ -619,6 +637,7 @@ mod tests {
             .unwrap();
 
         println!("ret:{:?}", ret);
+
         let ret = db.query_sql("lpush list_value 1").await.unwrap();
         db.query_sql("lpush list_value 2").await.unwrap();
         println!("ret:{:?}", ret);
@@ -629,6 +648,8 @@ mod tests {
         let ret = db.query_sql("zadd zset_value 2 xxx").await.unwrap();
         println!("ret:{:?}", ret);
 
+        let redis_list_table = db.redis_list_table().await.unwrap();
+        println!("redis list table:{:?}", redis_list_table);
         {
             let x = db
                 .export_table_to_string(

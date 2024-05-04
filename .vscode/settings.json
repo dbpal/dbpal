@@ -9,6 +9,7 @@
         "rowid",
         "sqlparser",
         "sqlx",
-        "tinyint"
+        "tinyint",
+        "Zset"
     ]
 }

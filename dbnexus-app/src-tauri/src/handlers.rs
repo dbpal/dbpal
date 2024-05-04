@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use dbnexus_db::db::{
-    ExeSqlError, ExportKind, Field, Index, ListTable, ListView, SqlExecuteRet, TableListResp,
+    ExeSqlError, ExportKind, Field, Index, ListTable, ListView, RedisListTable, SqlExecuteRet,
+    TableListResp,
 };
 
 use crate::storage::{DBConnectionConfig, UserSettings, DBS};
@@ -50,6 +51,18 @@ pub async fn list_table(
     dbs.list_table(uuid.as_str())
         .await
         .map_err(|x| x.to_string())
+}
+
+#[tauri::command]
+pub async fn redis_list_table(
+    uuid: String, dbs: tauri::State<'_, DBS>,
+) -> Result<RedisListTable, String> {
+    dbs.get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?
+        .redis_list_table()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -230,9 +243,4 @@ pub async fn export_table(
     db.export_table_to_file(table_name.as_str(), filepath.as_str(), kind)
         .await
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn exit(code: i32) -> Result<(), String> {
-    std::process::exit(code);
 }

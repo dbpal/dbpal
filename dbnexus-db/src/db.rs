@@ -103,6 +103,10 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
         }
         anyhow::Ok(())
     }
+
+    async fn redis_list_table(&self) -> anyhow::Result<RedisListTable> {
+        anyhow::bail!(format!("'{}' is not a redis.", self.backend_name()))
+    }
 }
 
 /// create table and all index sql.
@@ -174,23 +178,27 @@ impl From<&str> for ListView {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ListTable {
     pub table: String,
-    pub meta: HashMap<String, String>,
 }
 impl From<String> for ListTable {
     fn from(value: String) -> Self {
-        Self {
-            table: value,
-            meta: Default::default(),
-        }
+        Self { table: value }
     }
 }
 impl From<&str> for ListTable {
     fn from(value: &str) -> Self {
         Self {
             table: value.to_string(),
-            meta: Default::default(),
         }
     }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
+pub struct RedisListTable {
+    pub(crate) string_table: Vec<String>,
+    pub(crate) list_table: Vec<String>,
+    pub(crate) set_table: Vec<String>,
+    pub(crate) hash_table: Vec<String>,
+    pub(crate) zset_table: Vec<String>,
 }
 
 impl dyn DBTrait {
