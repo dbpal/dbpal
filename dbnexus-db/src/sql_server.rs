@@ -13,7 +13,7 @@ use tokio_util::compat::Compat;
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
 use crate::datasource::CommDBConfig;
 use crate::db::{
-    create_csv, format_data_time_fix_offset, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait,
+    create_csv, format_data_time_fix_offset, sql_to_sql_seq, DBTrait,
     ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet,
     SqlSeq, TableListResp,
 };
@@ -159,7 +159,7 @@ fn make_table_list_from_meta_and_row(
     } else {
         get_fields_from_meta(meta)
     };
-    let mut data = encode_rows(rows)?;
+    let data = encode_rows(rows)?;
 
     anyhow::Ok(TableListResp::new(fields, total, data, sql))
 }
