@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use chrono::FixedOffset;
 use futures_core::future::BoxFuture;
-use futures_core::stream;
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
 use tiberius::{Client, ColumnData, ColumnType, FromSql, Row};
 use tokio::net::TcpStream;
@@ -948,116 +947,6 @@ impl QuerySql for SqlServer {
         self.query_connections.lock().await.remove(&id);
         anyhow::Ok(())
     }
-
-    // async fn query_sql(
-    //     &self, id: uuid::Uuid, sql: &str,
-    // ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
-    //     let seq = get_sql_seq(sql);
-    //     let x = match seq {
-    //         anyhow::Result::Ok(e) => e,
-    //         anyhow::Result::Err(_err) => {
-    //             log::error!("parse sql fail use as query");
-    //             vec![SqlSeq {
-    //                 sql: sql.to_string(),
-    //                 kind: crate::db::SqlKind::Query,
-    //             }]
-    //         }
-    //     };
-    //     let mut conns = self.query_connections.lock().await;
-
-    //     let mut conn = match conns.get_mut(&id) {
-    //         Some(x) => x,
-    //         None => anyhow::bail!(format!("id connection '{}' not opened", id)),
-    //     };
-
-    //     let mut ret = Vec::with_capacity(x.len());
-
-    //     use crate::db::SqlKind;
-
-    //     for c in x.iter() {
-    //         match c.kind {
-    //             SqlKind::Query => {
-    //                 let result = conn
-    //                     .query(&c.sql, &[])
-    //                     .await
-    //                     .map_err(|e| anyhow::Error::msg(e.to_string()));
-    //                 let mut result = match result {
-    //                     Ok(x) => x,
-    //                     Err(err) => {
-    //                         ret.push(Err(ExeSqlError::new(c.sql.as_str(), err)));
-    //                         continue;
-    //                     }
-    //                 };
-
-    //                 let mut meta_prev = None;
-    //                 let mut rows = Vec::new();
-    //                 while let Some(item) = result.next().await {
-    //                     let item = item?;
-    //                     match item {
-    //                         tiberius::QueryItem::Row(row) => rows.push(row),
-    //                         tiberius::QueryItem::Metadata(meta) => {
-    //                             if meta_prev.is_some() {
-    //                                 let tablelist =
-    // make_table_list_from_meta_and_row(
-    // meta_prev.as_ref().unwrap(),                                     &rows,
-    //                                     rows.len(),
-    //                                     &c.sql,
-    //                                 )?;
-    //                                 ret.push(Ok(tablelist));
-    //                                 rows = vec![];
-    //                             }
-    //                             meta_prev = Some(meta);
-    //                         }
-    //                     }
-    //                     // last one
-    //                     if meta_prev.is_some() {
-    //                         let tablelist = make_table_list_from_meta_and_row(
-    //                             meta_prev.as_ref().unwrap(),
-    //                             &rows,
-    //                             rows.len(),
-    //                             &c.sql,
-    //                         )?;
-    //                         ret.push(Ok(tablelist));
-    //                     }
-    //                 }
-    //             }
-
-    //             SqlKind::Execution => {
-    //                 let result = conn.execute(c.sql.as_str(), &[]).await;
-    //                 let result: Result<TableListResp, ExeSqlError> = match result
-    // {                     Ok(rows) => {
-    //                         Ok(TableListResp::row_affected(
-    //                             &c.sql,
-    //                             rows.rows_affected().iter().sum(),
-    //                         ))
-    //                     }
-    //                     Err(err) => {
-    //                         Err(ExeSqlError::new(
-    //                             &c.sql,
-    //                             anyhow::Error::msg(err.to_string()),
-    //                         ))
-    //                     }
-    //                 };
-    //                 ret.push(result);
-    //             }
-
-    //             SqlKind::Begin => {
-    //                 println!("11111111111111111111111111111111111");
-
-    //                 conn.execute("BEGIN TRANSACTION;", &[]).await?;
-    //             }
-    //             SqlKind::Commit => {
-    //                 println!("2222222222222222222");
-
-    //                 conn.execute("COMMIT;", &[]).await?;
-    //             }
-    //             SqlKind::Rollback => {
-    //                 conn.execute("ROLLBACK;", &[]).await?;
-    //             }
-    //         };
-    //     }
-    //     anyhow::Ok(ret)
-    // }
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,

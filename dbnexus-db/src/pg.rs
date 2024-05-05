@@ -21,7 +21,7 @@ use crate::pool::{NexusPool, PoolManager};
 
 /// postgres version of pg.
 #[derive(Clone)]
-pub struct PGDB {
+pub struct PostGresDB {
     /// database name.
     pool: PoolManager,
     config: CommDBConfig,
@@ -30,7 +30,7 @@ pub struct PGDB {
 }
 
 #[async_trait::async_trait]
-impl LexerCompletionBackend for PGDB {
+impl LexerCompletionBackend for PostGresDB {
     type Dialect = sqlparser::dialect::PostgreSqlDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = PG_FUNCTIONS;
@@ -55,9 +55,18 @@ impl LexerCompletionBackend for PGDB {
 }
 
 #[async_trait::async_trait]
-impl crate::db::MultiDBTrait for PGDB {
+impl crate::db::MultiDBTrait for PostGresDB {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        unimplemented!()
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(" SELECT datname FROM pg_database WHERE datistemplate = false;")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name)
+        }
+        anyhow::Ok(ret)
     }
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
@@ -68,7 +77,7 @@ impl crate::db::MultiDBTrait for PGDB {
     }
 }
 
-impl PGDB {
+impl PostGresDB {
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -192,7 +201,7 @@ fn gen_show_sql(
 }
 
 #[async_trait::async_trait]
-impl DBTrait for PGDB {
+impl DBTrait for PostGresDB {
     async fn export_table(
         &self, table_name: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -575,7 +584,7 @@ impl DBTrait for PGDB {
     }
 }
 
-impl PGDB {
+impl PostGresDB {
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
         let mut s = format!("SELECT count(1) from {name} ");
@@ -588,7 +597,7 @@ impl PGDB {
     }
 }
 
-impl PGDB {
+impl PostGresDB {
     pub fn new(
         db: impl Into<String>, pool: PoolManager, config: CommDBConfig, read_only: bool,
     ) -> Self {
@@ -723,7 +732,7 @@ fn get_pg_type_base_on_data_type_and_udtname(data_type: &str, udt_name: &str) ->
     return data_type.to_string();
 }
 #[async_trait::async_trait]
-impl QuerySql for PGDB {
+impl QuerySql for PostGresDB {
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn().await?;
@@ -887,16 +896,16 @@ mod test {
     use std::collections::HashMap;
     use std::ops::DerefMut;
 
-    use super::PGDB;
+    use super::PostGresDB;
     use crate::datasource::CommDBConfig;
     use crate::db::{DBTrait, ExportKind};
     use crate::pool::PoolManager;
     use crate::{init_log, TEST_HOST};
 
-    fn make_test_object() -> PGDB {
+    fn make_test_object() -> PostGresDB {
         // list all table and query
         let pool_manager = PoolManager::new();
-        let pg = PGDB::new(
+        let pg = PostGresDB::new(
             "test".to_string(),
             pool_manager.clone(),
             CommDBConfig {
@@ -1151,6 +1160,14 @@ mod test {
         println!("export json:{}", json);
     }
 
+    #[tokio::test]
+    async fn test_list_database() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::MultiDBTrait;
+
+        let resp = db.list_db().await.unwrap();
+        assert_eq!(resp, vec!["postgres", "test",]);
+    }
     #[tokio::test]
     async fn test_types3() {
         init_log();

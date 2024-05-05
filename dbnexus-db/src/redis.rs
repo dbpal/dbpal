@@ -428,20 +428,23 @@ impl DBTrait for RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
+    /// redis have no transaction any connection is fine
+    /// so connection management for redis is dummy
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        unimplemented!()
+        let id = uuid::Uuid::new_v4();
+        anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn re_connect(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
+        anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        unimplemented!()
+        anyhow::Ok(())
     }
 
     async fn query_sql(
-        &self, id: uuid::Uuid, sql: &str,
+        &self, _id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
         let mut conn = self.get_conn().await?;
         query_sql(&mut conn, sql).await

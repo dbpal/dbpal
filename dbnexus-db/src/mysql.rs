@@ -1230,6 +1230,23 @@ mod tests {
         let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", cols);
     }
+    #[tokio::test]
+    async fn test_list_database() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::MultiDBTrait;
+
+        let resp = db.list_db().await.unwrap();
+        assert_eq!(
+            resp,
+            vec![
+                "information_schema",
+                "mysql",
+                "performance_schema",
+                "sys",
+                "test"
+            ]
+        );
+    }
 
     #[tokio::test]
     async fn test_query() {
