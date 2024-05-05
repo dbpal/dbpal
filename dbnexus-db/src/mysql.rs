@@ -763,7 +763,11 @@ impl QuerySql for MysqlDB {
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_connection.lock().await.remove(&id);
+        if let Some(x) = self.query_connection.lock().await.remove(&id) {
+            tokio::spawn(async move {
+                let _ = x.close();
+            });
+        }
         let conn = self.get_conn().await?;
         self.query_connection.lock().await.insert(id, conn);
         anyhow::Ok(())

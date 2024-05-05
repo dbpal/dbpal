@@ -5,10 +5,12 @@ use std::sync::Arc;
 
 use chrono::FixedOffset;
 use futures_core::future::BoxFuture;
-use futures_util::{StreamExt, TryStreamExt};
+use futures_core::stream;
+use futures_util::{FutureExt, StreamExt, TryStreamExt};
 use tiberius::{Client, ColumnData, ColumnType, FromSql, Row};
 use tokio::net::TcpStream;
-use tokio_util::compat::Compat;
+use tokio::sync::Mutex;
+use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
 use crate::datasource::CommDBConfig;
@@ -24,6 +26,7 @@ pub struct SqlServer {
     trust_cert: bool,
     pm: PoolManager,
     read_only: bool,
+    query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
 }
 
 impl SqlServer {
@@ -33,6 +36,7 @@ impl SqlServer {
             trust_cert,
             pm,
             read_only,
+            query_connections: Default::default(),
         }
     }
 }
@@ -899,119 +903,207 @@ impl SqlServer {
     }
 }
 
+impl SqlServer {
+    async fn new_tcp_conn(&self) -> anyhow::Result<Connection> {
+        let mut config = tiberius::Config::new();
+        config.host(&self.config.host);
+        config.port(self.config.port);
+        config.authentication(tiberius::AuthMethod::sql_server(
+            &self.config.username,
+            &self.config.password,
+        ));
+        if let Some(db) = &self.config.db_name {
+            config.database(&db);
+        }
+        let tcp = TcpStream::connect(config.get_addr()).await?;
+        tcp.set_nodelay(true)?;
+        if self.trust_cert {
+            config.trust_cert(); // on production, it is not a good idea to do this
+        }
+
+        let client = tiberius::Client::connect(config, tcp.compat_write()).await?;
+
+        anyhow::Ok(client)
+    }
+}
+
 type Connection = Client<Compat<TcpStream>>;
 #[async_trait::async_trait]
 impl QuerySql for SqlServer {
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        unimplemented!()
+        let conn = self.new_tcp_conn().await?;
+
+        let id = uuid::Uuid::new_v4();
+        self.query_connections.lock().await.insert(id.clone(), conn);
+        anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        unimplemented!()
+        let conn = self.new_tcp_conn().await?;
+        self.query_connections.lock().await.insert(id.clone(), conn);
+        anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        unimplemented!()
+        self.query_connections.lock().await.remove(&id);
+        anyhow::Ok(())
     }
+
+    // async fn query_sql(
+    //     &self, id: uuid::Uuid, sql: &str,
+    // ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    //     let seq = get_sql_seq(sql);
+    //     let x = match seq {
+    //         anyhow::Result::Ok(e) => e,
+    //         anyhow::Result::Err(_err) => {
+    //             log::error!("parse sql fail use as query");
+    //             vec![SqlSeq {
+    //                 sql: sql.to_string(),
+    //                 kind: crate::db::SqlKind::Query,
+    //             }]
+    //         }
+    //     };
+    //     let mut conns = self.query_connections.lock().await;
+
+    //     let mut conn = match conns.get_mut(&id) {
+    //         Some(x) => x,
+    //         None => anyhow::bail!(format!("id connection '{}' not opened", id)),
+    //     };
+
+    //     let mut ret = Vec::with_capacity(x.len());
+
+    //     use crate::db::SqlKind;
+
+    //     for c in x.iter() {
+    //         match c.kind {
+    //             SqlKind::Query => {
+    //                 let result = conn
+    //                     .query(&c.sql, &[])
+    //                     .await
+    //                     .map_err(|e| anyhow::Error::msg(e.to_string()));
+    //                 let mut result = match result {
+    //                     Ok(x) => x,
+    //                     Err(err) => {
+    //                         ret.push(Err(ExeSqlError::new(c.sql.as_str(), err)));
+    //                         continue;
+    //                     }
+    //                 };
+
+    //                 let mut meta_prev = None;
+    //                 let mut rows = Vec::new();
+    //                 while let Some(item) = result.next().await {
+    //                     let item = item?;
+    //                     match item {
+    //                         tiberius::QueryItem::Row(row) => rows.push(row),
+    //                         tiberius::QueryItem::Metadata(meta) => {
+    //                             if meta_prev.is_some() {
+    //                                 let tablelist =
+    // make_table_list_from_meta_and_row(
+    // meta_prev.as_ref().unwrap(),                                     &rows,
+    //                                     rows.len(),
+    //                                     &c.sql,
+    //                                 )?;
+    //                                 ret.push(Ok(tablelist));
+    //                                 rows = vec![];
+    //                             }
+    //                             meta_prev = Some(meta);
+    //                         }
+    //                     }
+    //                     // last one
+    //                     if meta_prev.is_some() {
+    //                         let tablelist = make_table_list_from_meta_and_row(
+    //                             meta_prev.as_ref().unwrap(),
+    //                             &rows,
+    //                             rows.len(),
+    //                             &c.sql,
+    //                         )?;
+    //                         ret.push(Ok(tablelist));
+    //                     }
+    //                 }
+    //             }
+
+    //             SqlKind::Execution => {
+    //                 let result = conn.execute(c.sql.as_str(), &[]).await;
+    //                 let result: Result<TableListResp, ExeSqlError> = match result
+    // {                     Ok(rows) => {
+    //                         Ok(TableListResp::row_affected(
+    //                             &c.sql,
+    //                             rows.rows_affected().iter().sum(),
+    //                         ))
+    //                     }
+    //                     Err(err) => {
+    //                         Err(ExeSqlError::new(
+    //                             &c.sql,
+    //                             anyhow::Error::msg(err.to_string()),
+    //                         ))
+    //                     }
+    //                 };
+    //                 ret.push(result);
+    //             }
+
+    //             SqlKind::Begin => {
+    //                 println!("11111111111111111111111111111111111");
+
+    //                 conn.execute("BEGIN TRANSACTION;", &[]).await?;
+    //             }
+    //             SqlKind::Commit => {
+    //                 println!("2222222222222222222");
+
+    //                 conn.execute("COMMIT;", &[]).await?;
+    //             }
+    //             SqlKind::Rollback => {
+    //                 conn.execute("ROLLBACK;", &[]).await?;
+    //             }
+    //         };
+    //     }
+    //     anyhow::Ok(ret)
+    // }
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
-        let seq = get_sql_seq(sql);
-        let x = match seq {
-            anyhow::Result::Ok(e) => e,
-            anyhow::Result::Err(_err) => {
-                log::error!("parse sql fail use as query");
-                vec![SqlSeq {
-                    sql: sql.to_string(),
-                    kind: crate::db::SqlKind::Query,
-                }]
-            }
+        let mut conns = self.query_connections.lock().await;
+
+        let mut conn = match conns.get_mut(&id) {
+            Some(x) => x,
+            None => anyhow::bail!(format!("id connection '{}' not opened", id)),
         };
 
-        let mut ret = Vec::with_capacity(x.len());
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
-        let conn = conn.deref_mut();
-        use crate::db::SqlKind;
+        let mut ret = Vec::with_capacity(0);
 
-        for c in x.iter() {
-            match c.kind {
-                SqlKind::Begin => {
-                    unimplemented!()
-                }
-                SqlKind::Commit => {
-                    unimplemented!()
-                }
-                SqlKind::Rollback => {
-                    unimplemented!()
-                }
-                SqlKind::Query => {
-                    let result = conn
-                        .query(&c.sql, &[])
-                        .await
-                        .map_err(|e| anyhow::Error::msg(e.to_string()));
-                    let mut result = match result {
-                        Ok(x) => x,
-                        Err(err) => {
-                            ret.push(Err(ExeSqlError::new(c.sql.as_str(), err)));
-                            continue;
-                        }
-                    };
-
-                    let mut meta_prev = None;
-                    let mut rows = Vec::new();
-                    while let Some(item) = result.next().await {
-                        let item = item?;
-                        match item {
-                            tiberius::QueryItem::Row(row) => rows.push(row),
-                            tiberius::QueryItem::Metadata(meta) => {
-                                if meta_prev.is_some() {
-                                    let tablelist = make_table_list_from_meta_and_row(
-                                        meta_prev.as_ref().unwrap(),
-                                        &rows,
-                                        rows.len(),
-                                        &c.sql,
-                                    )?;
-                                    ret.push(Ok(tablelist));
-                                    rows = vec![];
-                                }
-                                meta_prev = Some(meta);
-                            }
-                        }
-                        // last one
-                        if meta_prev.is_some() {
-                            let tablelist = make_table_list_from_meta_and_row(
-                                meta_prev.as_ref().unwrap(),
-                                &rows,
-                                rows.len(),
-                                &c.sql,
-                            )?;
-                            ret.push(Ok(tablelist));
-                        }
+        let mut stream = conn.query(sql, &[]).await?;
+        let mut meta_prev = None;
+        let mut rows = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => rows.push(row),
+                tiberius::QueryItem::Metadata(meta) => {
+                    if meta_prev.is_some() {
+                        let tablelist = make_table_list_from_meta_and_row(
+                            meta_prev.as_ref().unwrap(),
+                            &rows,
+                            rows.len(),
+                            "".to_string(),
+                        )?;
+                        ret.push(Ok(tablelist));
+                        rows = vec![];
                     }
+                    meta_prev = Some(meta);
                 }
-
-                SqlKind::Execution => {
-                    let result = conn.execute(c.sql.as_str(), &[]).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => {
-                            Ok(TableListResp::row_affected(
-                                &c.sql,
-                                rows.rows_affected().iter().sum(),
-                            ))
-                        }
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
-                    };
-                    ret.push(result);
-                }
-            };
+            }
+            // last one
+            if meta_prev.is_some() {
+                let tablelist = make_table_list_from_meta_and_row(
+                    meta_prev.as_ref().unwrap(),
+                    &rows,
+                    rows.len(),
+                    "",
+                )?;
+                ret.push(Ok(tablelist));
+            }
         }
+
         anyhow::Ok(ret)
     }
 }
@@ -1031,6 +1123,7 @@ impl SqlServer {
         anyhow::Ok(p)
     }
 
+    #[allow(unused)]
     async fn with_conn<R>(
         &self,
         call_back: impl FnOnce(&mut Client<Compat<TcpStream>>) -> BoxFuture<anyhow::Result<R>>,
@@ -1044,31 +1137,39 @@ impl SqlServer {
 
 fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     let dialect = sqlparser::dialect::MsSqlDialect {};
-    use sqlparser::ast::Statement;
+
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| {
-            match s {
-                Statement::Query(_) => crate::db::SqlKind::Query,
-                _ => crate::db::SqlKind::Execution,
-            }
-        },
-        |x| {
-            let t = x.to_uppercase();
-            if t.starts_with("SELECT") || t.starts_with("EXPLAIN") {
-                crate::db::SqlKind::Query
-            } else {
-                crate::db::SqlKind::Execution
-            }
-        },
+        |s| crate::db::SqlKind::get_from_statement(s),
+        |x| crate::db::SqlKind::get_from_sql(x),
     )
 }
 
 #[async_trait::async_trait]
 impl crate::db::MultiDBTrait for SqlServer {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        unimplemented!()
+        self.with_conn(|conn| {
+            async {
+                let mut stream = conn.query("SELECT name FROM sys.databases", &[]).await?;
+                let mut ret = Vec::new();
+
+                while let Some(item) = stream.next().await {
+                    let item = item?;
+                    match item {
+                        tiberius::QueryItem::Row(r) => {
+                            let name: Option<&str> = r.try_get(0)?;
+                            ret.push(name.unwrap().to_string());
+                        }
+                        tiberius::QueryItem::Metadata(_) => {}
+                    }
+                }
+
+                anyhow::Ok(ret)
+            }
+            .boxed()
+        })
+        .await
     }
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
@@ -1142,6 +1243,46 @@ mod tests {
         );
 
         pg
+    }
+
+    #[tokio::test]
+    async fn test_query() {
+        init_log();
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let id = db.open_connection().await.unwrap();
+
+        let ret = db
+            .query_sql(
+                id.clone(),
+                r#"BEGIN TRANSACTION;
+        
+            drop table if exists test_query;
+            CREATE TABLE test_query (
+                id INT PRIMARY KEY,
+                name VARCHAR(50),
+                age INT
+              );
+
+              INSERT INTO test_query (id, name, age) VALUES (1, 'John', 25);
+              INSERT INTO test_query (id, name, age) VALUES (2, 'Jane', 30);
+              INSERT INTO test_query (id, name, age) VALUES (3, 'Mike', 35);
+              COMMIT;
+        "#,
+            )
+            .await
+            .unwrap();
+
+        println!("begin ret:{:?}", ret);
+    }
+
+    #[tokio::test]
+    async fn test_list_database() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::MultiDBTrait;
+
+        let resp = db.list_db().await.unwrap();
+        assert_eq!(resp, vec!["master", "tempdb", "model", "msdb", "test"]);
     }
 
     #[tokio::test]

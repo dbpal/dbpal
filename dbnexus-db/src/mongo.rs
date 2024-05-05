@@ -448,15 +448,15 @@ impl QuerySql for Mongo {
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        unimplemented!()
+        anyhow::bail!("mongodb doesn't support query sql")
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        unimplemented!()
+        anyhow::bail!("mongodb doesn't support query sql")
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        unimplemented!()
+        anyhow::bail!("mongodb doesn't support query sql")
     }
 }
 

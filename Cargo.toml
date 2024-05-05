@@ -57,11 +57,7 @@ log = "0.4.21"
 futures-util = "*"
 futures-core = "*"
 mongodb = { version = "2.8.1", features = ["tokio-runtime"] }
-tiberius = { version = "0.12.2", features = [
-    "chrono",
-    "rust_decimal",
-    "tds73",
-] }
+tiberius = { version = "*", features = ["chrono", "rust_decimal", "tds73"] }
 tokio-util = "*"
 rust_decimal = "*"
 bb8-tiberius = "*"
