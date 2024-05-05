@@ -6,8 +6,8 @@ use futures_util::StreamExt;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
 use crate::db::{
-    DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView, QuerySql, RedisListTable,
-    SqlExecuteRet, TableListResp,
+    DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView, OffsetLimitIter, QuerySql,
+    RedisListTable, SqlExecuteRet, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -75,6 +75,134 @@ fn test_escape_string() {
 }
 
 impl RedisDB {
+    async fn export_table_as_csv(
+        &self, _key: &str, _include_header: bool, _delimitor: char,
+        _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+
+    async fn export_table_as_json(
+        &self, key: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let ty = Self::get_key_type(&mut conn, key).await?;
+        match ty {
+            RedisType::String => {
+                let value: String = conn.get(key).await?;
+                let mut m = HashMap::new();
+                m.insert(key, value);
+                let value = if pretty {
+                    serde_json::to_string_pretty(&m)
+                } else {
+                    serde_json::to_string(&m)
+                };
+                let value = value?;
+                sender.send(Cow::Owned(value)).await?;
+            }
+            RedisType::List => {
+                sender.send(Cow::Borrowed("[")).await?;
+
+                let total: isize = conn.llen(key).await?;
+                let size: isize = 100;
+                let iter = OffsetLimitIter::new(total, 100);
+                let mut first = true;
+                for x in iter {
+                    let list: Vec<String> = conn.lrange(key, x, x + size).await?;
+                    for l in list.iter() {
+                        if !first {
+                            sender.send(Cow::Borrowed(",")).await?;
+                        }
+                        if pretty {
+                            sender.send(Cow::Borrowed("\n")).await?;
+                        }
+                        sender
+                            .send(Cow::Owned(serde_json::to_string(l.as_str())?))
+                            .await?;
+                        first = false;
+                    }
+                }
+
+                if pretty {
+                    sender.send(Cow::Borrowed("\n")).await?;
+                }
+                sender.send(Cow::Borrowed("]")).await?;
+            }
+            RedisType::Set => {
+                let mut iter = conn.sscan::<_, String>(key).await?;
+                let mut first = true;
+                sender.send(Cow::Borrowed("[")).await?;
+                if pretty {
+                    sender.send(Cow::Borrowed("\n")).await?;
+                }
+
+                while let Some(s) = iter.next().await {
+                    if !first {
+                        sender.send(Cow::Borrowed(",")).await?;
+                        if pretty {
+                            sender.send(Cow::Borrowed("\n")).await?;
+                        }
+                    }
+
+                    sender
+                        .send(Cow::Owned(serde_json::to_string(s.as_str())?))
+                        .await?;
+                    first = false;
+                }
+                if pretty {
+                    sender.send(Cow::Borrowed("\n")).await?;
+                }
+                sender.send(Cow::Borrowed("]")).await?;
+            }
+            RedisType::Hash => {
+                let mut stream: AsyncIter<'_, String> = conn.hscan(key).await?;
+                let mut key = None as Option<String>;
+                let mut m = HashMap::new();
+                while let Some(value) = stream.next().await {
+                    match &key {
+                        Some(key2) => {
+                            m.insert(key2.clone(), value);
+                            key = None;
+                        }
+                        None => {
+                            key = Some(value);
+                        }
+                    }
+                }
+
+                let value = if pretty {
+                    serde_json::to_string_pretty(&m)?
+                } else {
+                    serde_json::to_string(&m)?
+                };
+                sender.send(Cow::Owned(value)).await?;
+            }
+            RedisType::Zset => {
+                let mut stream: AsyncIter<'_, String> = conn.zscan(key).await?;
+                let mut zkey = None as Option<String>;
+                let mut m = HashMap::new();
+                while let Some(score) = stream.next().await {
+                    match zkey {
+                        Some(zkey2) => {
+                            zkey = None;
+                            m.insert(zkey2, score);
+                        }
+                        None => {
+                            zkey = Some(score);
+                        }
+                    }
+                }
+                let value = if pretty {
+                    serde_json::to_string_pretty(&m)?
+                } else {
+                    serde_json::to_string(&m)?
+                };
+                sender.send(Cow::Owned(value)).await?;
+            }
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_table_to_command(
         &self, key: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -93,25 +221,31 @@ impl RedisDB {
             }
 
             RedisType::List => {
-                let list: Vec<String> = conn.lrange(key, 0, -1).await?;
-                for l in list.iter() {
-                    sender
-                        .send(Cow::Owned(format!(
-                            "RPUSH {} {}\n",
-                            quote_key_or_value(key),
-                            quote_key_or_value(l)
-                        )))
-                        .await?;
+                let total: isize = conn.llen(key).await?;
+                let size: isize = 100;
+
+                let iter = OffsetLimitIter::new(total, 100);
+                for x in iter {
+                    let list: Vec<String> = conn.lrange(key, x, x + size).await?;
+                    for l in list.iter() {
+                        sender
+                            .send(Cow::Owned(format!(
+                                "RPUSH {} {}\n",
+                                quote_key_or_value(key),
+                                quote_key_or_value(l)
+                            )))
+                            .await?;
+                    }
                 }
             }
             RedisType::Set => {
-                let members: HashSet<String> = conn.smembers(key).await?;
-                for s in members.iter() {
+                let mut iter = conn.sscan::<_, String>(key).await?;
+                while let Some(value) = iter.next().await {
                     sender
                         .send(Cow::Owned(format!(
                             "SADD {} {}\n",
                             quote_key_or_value(key),
-                            quote_key_or_value(s)
+                            quote_key_or_value(value.as_str())
                         )))
                         .await?;
                 }
@@ -122,12 +256,12 @@ impl RedisDB {
                 let mut hkey = None as Option<String>;
                 while let Some(s) = stream.next().await {
                     match hkey {
-                        Some(hkey2) => {
+                        Some(value) => {
                             sender
                                 .send(Cow::Owned(format!(
                                     "HMSET {} {} {}\n",
                                     quote_key_or_value(key),
-                                    quote_key_or_value(hkey2.as_str()),
+                                    quote_key_or_value(value.as_str()),
                                     quote_key_or_value(s.as_str())
                                 )))
                                 .await?;
@@ -144,21 +278,21 @@ impl RedisDB {
             RedisType::Zset => {
                 let mut stream: AsyncIter<'_, String> = conn.zscan(key).await?;
                 let mut zkey = None as Option<String>;
-                while let Some(s) = stream.next().await {
+                while let Some(score) = stream.next().await {
                     match zkey {
                         Some(zkey2) => {
                             sender
                                 .send(Cow::Owned(format!(
                                     "ZADD {} {} {}\n",
                                     quote_key_or_value(key),
-                                    quote_key_or_value(s.as_str()),
+                                    quote_key_or_value(score.as_str()),
                                     quote_key_or_value(zkey2.as_str()),
                                 )))
                                 .await?;
                             zkey = None;
                         }
                         None => {
-                            zkey = Some(s);
+                            zkey = Some(score);
                         }
                     }
                 }
@@ -202,9 +336,10 @@ impl DBTrait for RedisDB {
                 include_header,
                 delimiter,
             } => {
-                anyhow::bail!("not implemented")
+                self.export_table_as_csv(key, include_header, delimiter, sender)
+                    .await
             }
-            ExportKind::Json { pretty } => anyhow::bail!("not implemented"),
+            ExportKind::Json { pretty } => self.export_table_as_json(key, pretty, sender).await,
             ExportKind::Sql {
                 include_table_schema: _,
             } => self.export_table_to_command(key, sender.clone()).await,
@@ -457,6 +592,7 @@ impl RedisDB {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum RedisType {
     String,
     List,
@@ -693,6 +829,16 @@ mod tests {
             println!("export str is :{}", x);
             let x = db
                 .export_table_to_string(
+                    "string_value",
+                    crate::db::ExportKind::Json { pretty: true },
+                )
+                .await
+                .unwrap();
+            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
+
+            println!("export str is :{}", x);
+            let x = db
+                .export_table_to_string(
                     "set_value",
                     crate::db::ExportKind::Sql {
                         include_table_schema: false,
@@ -701,6 +847,13 @@ mod tests {
                 .await
                 .unwrap();
             println!("export str is :{}", x);
+            let x = db
+                .export_table_to_string("set_value", crate::db::ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("export str is :{}", x);
+            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
+
             let x = db
                 .export_table_to_string(
                     "hash_value",
@@ -712,6 +865,13 @@ mod tests {
                 .unwrap();
             println!("export str is :{}", x);
             let x = db
+                .export_table_to_string("hash_value", crate::db::ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("export str is :{}", x);
+            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
+
+            let x = db
                 .export_table_to_string(
                     "zset_value",
                     crate::db::ExportKind::Sql {
@@ -722,6 +882,13 @@ mod tests {
                 .unwrap();
             println!("export str is :{}", x);
             let x = db
+                .export_table_to_string("zset_value", crate::db::ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("export str is :{}", x);
+            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
+
+            let x = db
                 .export_table_to_string(
                     "list_value",
                     crate::db::ExportKind::Sql {
@@ -731,6 +898,12 @@ mod tests {
                 .await
                 .unwrap();
             println!("export str is :{}", x);
+            let x = db
+                .export_table_to_string("list_value", crate::db::ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("export str is :{}", x);
+            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
         }
 
         let tables = db.list_table().await.unwrap();

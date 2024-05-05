@@ -953,7 +953,7 @@ impl QuerySql for SqlServer {
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
         let mut conns = self.query_connections.lock().await;
 
-        let mut conn = match conns.get_mut(&id) {
+        let conn = match conns.get_mut(&id) {
             Some(x) => x,
             None => anyhow::bail!(format!("id connection '{}' not opened", id)),
         };

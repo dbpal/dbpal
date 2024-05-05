@@ -130,7 +130,7 @@ impl OracleDB {
             NexusPool::Oracle(p) => p.clone(),
             _ => unreachable!(),
         };
-        let conn = tokio::task::block_in_place(|| pool.get())?;
+        let conn: oracle::Connection = tokio::task::block_in_place(|| pool.get())?;
         return anyhow::Ok(conn);
     }
 }

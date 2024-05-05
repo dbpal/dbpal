@@ -849,3 +849,48 @@ fn is_statement_rollback(s: &Statement) -> bool {
         _ => false,
     }
 }
+
+pub struct OffsetLimitIter<Index = usize> {
+    pub(crate) total: Index,
+    pub(crate) offset: Index,
+    pub(crate) size: Index,
+}
+
+impl<T: Default> OffsetLimitIter<T> {
+    pub(crate) fn new(total: T, size: T) -> Self {
+        Self {
+            offset: Default::default(),
+            total,
+            size,
+        }
+    }
+}
+
+impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
+    for OffsetLimitIter<T>
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset < self.total {
+            let offset = self.offset;
+            self.offset += self.size;
+            Some(offset)
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_off_iter() {
+    assert_eq!(
+        OffsetLimitIter::new(9, 3).collect::<Vec<_>>(),
+        vec![0, 3, 6]
+    );
+    assert_eq!(
+        OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
+        vec![0, 4, 8]
+    );
+}
