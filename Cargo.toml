@@ -54,6 +54,7 @@ lazy_static = "1.4.0"
 line-index = "0.1.1"
 log = "0.4.21"
 
+
 futures-util = "*"
 futures-core = "*"
 mongodb = { version = "2.8.1", features = ["tokio-runtime"] }
@@ -62,7 +63,6 @@ tokio-util = "*"
 rust_decimal = "*"
 bb8-tiberius = "*"
 bb8 = "*"
-oracle = "*"
 fuzzy-matcher = "*"
 pg_interval = "*"
 uuid = { version = "*", features = ["v4"] }

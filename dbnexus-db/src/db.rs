@@ -390,9 +390,12 @@ pub struct ExeSqlError {
 }
 
 impl ExeSqlError {
-    pub(crate) fn new(sql: impl Into<String>, err: anyhow::Error) -> Self {
+    pub(crate) fn new(sql: impl Into<String>, err: impl Into<anyhow::Error>) -> Self {
         let sql = sql.into();
-        Self { sql, err }
+        Self {
+            sql,
+            err: err.into(),
+        }
     }
 }
 

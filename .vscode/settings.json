@@ -1,15 +1,18 @@
 {
-    "cSpell.words": [
-        "AUTOINCREMENT",
-        "dashmap",
-        "datasource",
-        "dbname",
-        "dbnexus",
-        "lineindex",
-        "rowid",
-        "sqlparser",
-        "sqlx",
-        "tinyint",
-        "Zset"
-    ]
+  "cSpell.words": [
+    "autocommit",
+    "AUTOINCREMENT",
+    "dashmap",
+    "datasource",
+    "dbname",
+    "dbnexus",
+    "lineindex",
+    "rnum",
+    "rowid",
+    "ROWNUM",
+    "sqlparser",
+    "sqlx",
+    "tinyint",
+    "Zset"
+  ]
 }
