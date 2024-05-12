@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+/// notice oracle sql 不能带有分号
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -18,7 +19,7 @@ pub struct OracleDB {
     config: OracleDBConfig,
     pm: PoolManager,
     read_only: bool,
-    db_name: String,
+    db_name: Option<String>,
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
 }
 
@@ -64,6 +65,7 @@ impl OracleDB {
         })
         .await
     }
+
     pub async fn query_commit(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.with_query_connection(id, |f| -> anyhow::Result<()> {
             f.commit()?;
@@ -71,6 +73,7 @@ impl OracleDB {
         })
         .await
     }
+
     pub async fn query_rollback(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.with_query_connection(id, |f| -> anyhow::Result<()> {
             f.rollback()?;
@@ -78,6 +81,7 @@ impl OracleDB {
         })
         .await
     }
+
     pub async fn query_call_timeout(&self, id: uuid::Uuid) -> anyhow::Result<Option<Duration>> {
         self.with_query_connection(id, |x| -> anyhow::Result<Option<Duration>> {
             let d = x.call_timeout()?;
@@ -128,10 +132,12 @@ impl QuerySql for OracleDB {
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
-            Err(_err) => vec![SqlSeq {
-                sql: sql.to_string(),
-                kind: SqlKind::Query,
-            }],
+            Err(_err) => {
+                vec![SqlSeq {
+                    sql: sql.to_string(),
+                    kind: SqlKind::Query,
+                }]
+            }
         };
         let mut conns = self.query_connections.lock().await;
         let conn = match conns.get_mut(&id) {
@@ -178,13 +184,10 @@ impl QuerySql for OracleDB {
 }
 
 fn gen_select_sql(
-    db_name: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!(
-        "SELECT *, ROWNUM as {} FROM \"{}\".\"{}\"",
-        ROW_COL, db_name, table_name
-    );
+    let mut sql = format!("SELECT *, ROWNUM as {} FROM \"{}\"", ROW_COL, table_name);
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {}", where_str).as_str());
     }
@@ -279,16 +282,19 @@ fn encode_rows(
                     let x: Option<String> = r.get(c)?;
                     x
                 }
-                oracle::sql_type::OracleType::Raw(_) => todo!(),
+                oracle::sql_type::OracleType::Raw(_) => {
+                    let x: Option<String> = r.get(c)?;
+                    x
+                }
                 oracle::sql_type::OracleType::BinaryFloat => todo!(),
                 oracle::sql_type::OracleType::BinaryDouble => todo!(),
-                oracle::sql_type::OracleType::Number(_, _) => todo!(),
+                oracle::sql_type::OracleType::Number(..) => todo!(),
                 oracle::sql_type::OracleType::Float(_) => todo!(),
                 oracle::sql_type::OracleType::Date => todo!(),
                 oracle::sql_type::OracleType::Timestamp(_) => todo!(),
                 oracle::sql_type::OracleType::TimestampTZ(_) => todo!(),
                 oracle::sql_type::OracleType::TimestampLTZ(_) => todo!(),
-                oracle::sql_type::OracleType::IntervalDS(_, _) => todo!(),
+                oracle::sql_type::OracleType::IntervalDS(..) => todo!(),
                 oracle::sql_type::OracleType::IntervalYM(_) => todo!(),
                 oracle::sql_type::OracleType::CLOB => todo!(),
                 oracle::sql_type::OracleType::NCLOB => todo!(),
@@ -312,8 +318,70 @@ fn encode_rows(
     anyhow::Ok(data)
 }
 
+impl OracleDB {
+    fn db_name_unchecked(&self) -> &String {
+        self.db_name.as_ref().unwrap()
+    }
+}
+
+fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
+    match f.typ.to_string().to_uppercase() {
+        _ => anyhow::bail!(format!("type '{}' not handled", f.typ)),
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for OracleDB {
+    async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+        let sql = format!(
+            "SELECT COLUMN_NAME, DATA_TYPE , NULLABLE ,DATA_DEFAULT FROM DBA_TAB_COLUMNS WHERE OWNER = '{}' AND TABLE_NAME = '{table_name}'",
+            self.db_name.as_ref().unwrap()
+        );
+
+        let mut ret = Vec::new();
+        let conn = self.get_conn().await?;
+
+        let rows = conn.query(sql.as_str(), &[])?;
+        for r in rows {
+            let r = r?;
+            let name: String = r.get(0)?;
+            let data_type: String = r.get(1)?;
+            let nullable: String = r.get(2)?;
+            let value_default: Option<String> = r.get(3)?;
+            let nullable = nullable == "Y";
+            ret.push(Field::new(
+                name,
+                data_type,
+                nullable,
+                value_default,
+                false,
+                false,
+            ));
+        }
+        let names = {
+            let sql = format!(
+                "SELECT COLUMN_NAME FROM user_cons_columns where  OWNER='{}' and TABLE_NAME='{}' and CONSTRAINT_NAME='{}_PK'",
+                self.db_name_unchecked(),
+                table_name,
+                table_name
+            );
+            let rows = conn.query(sql.as_str(), &[])?;
+            let mut names = HashSet::new();
+            for r in rows {
+                let r = r?;
+                let name: String = r.get(0)?;
+                names.insert(name);
+            }
+            names
+        };
+        for x in ret.iter_mut() {
+            if names.contains(&x.name) {
+                x.is_primary = true;
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
     fn read_only(&self) -> bool {
         self.read_only
     }
@@ -331,11 +399,20 @@ impl DBTrait for OracleDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        unimplemented!()
-    }
+        let sql = format!(
+            r#"SELECT TABLE_NAME FROM DBA_TABLES WHERE OWNER = '{}'"#,
+            self.db_name.as_ref().unwrap()
+        );
+        let conn = self.get_conn().await?;
+        let result = conn.query(&sql, &[])?;
+        let mut ret = Vec::new();
+        for r in result {
+            let r = r?;
+            let name: String = r.get(0)?;
+            ret.push(name);
+        }
 
-    async fn show_columns(&self, _table_name: &str) -> anyhow::Result<Vec<Field>> {
-        unimplemented!()
+        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
     }
 
     async fn show_table(
@@ -343,14 +420,7 @@ impl DBTrait for OracleDB {
         page_size: usize,
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
-        let sql = gen_select_sql(
-            &self.db_name,
-            table_name,
-            where_str,
-            order_by,
-            page,
-            page_size,
-        );
+        let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
         let total = OracleDB::query_count(&mut conn, table_name, where_str)?;
         let rows = conn.query(sql.as_str(), &[])?;
         let data = encode_rows(rows.into_iter().collect::<Vec<_>>(), true)?;
@@ -363,22 +433,52 @@ impl DBTrait for OracleDB {
     }
 
     async fn insert(
-        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
+        &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        unimplemented!()
+        self.can_write()?;
+
+        let conn = self.get_conn().await?;
+        let fs = self.show_columns(&table_name).await?;
+        let sql = (self as &dyn DBTrait).insert_sql(table_name, &fs, &values)?;
+        let mut stmt = conn.execute(&sql, &[])?;
+        stmt.execute(&[])?;
+        let changes = stmt.row_count()?;
+        let id = stmt.last_row_id()?;
+
+        anyhow::Ok(SqlExecuteRet {
+            sql,
+            changes,
+            last_insert_row_id: None,
+            last_insert_id_string: id,
+        })
     }
 
     async fn update(
-        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
-        _wheres: HashMap<String, Option<String>>,
+        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        unimplemented!()
+        self.can_write()?;
+
+        let fs = self.show_columns(table_name).await?;
+        let sql =
+            (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
+        let mut conn = self.get_conn().await?;
+
+        let mut stmt = conn.execute(sql.as_str(), &[])?;
+        stmt.execute(&[])?;
+
+        anyhow::Ok(SqlExecuteRet {
+            sql,
+            changes: stmt.row_count()?,
+            last_insert_row_id: None,
+            last_insert_id_string: None,
+        })
     }
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, _f: &Field, _value: Option<&str>) -> anyhow::Result<String> {
-        unreachable!("I don't need impl this this is a internal bug")
+    fn put_value_in_sql(&self, f: &Field, value: Option<&str>) -> anyhow::Result<String> {
+        put_value_in_sql(f, value)
     }
 
     async fn truncate_table(&self, _table_name: &str) -> anyhow::Result<()> {
@@ -418,14 +518,10 @@ impl DBTrait for OracleDB {
 #[async_trait::async_trait]
 impl MultiDBTrait for OracleDB {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
-        let rows = conn.query(
-            r#"
-        SELECT USERNAME     
-            FROM DBA_USERS;
-        "#,
-            &[],
-        )?;
+        let conn = self.get_conn().await?;
+        let rows = conn
+            .query(r#"SELECT USERNAME FROM DBA_USERS"#, &[])
+            .unwrap();
         let mut ret = Vec::new();
         for r in rows {
             let r = r?;
@@ -437,7 +533,7 @@ impl MultiDBTrait for OracleDB {
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut x = Clone::clone(self);
-        x.db_name = name.to_string();
+        x.db_name = Some(name.to_string());
         anyhow::Ok(Arc::new(x))
     }
 }
@@ -448,7 +544,67 @@ impl OracleDB {
             NexusPool::Oracle(p) => p.clone(),
             _ => unreachable!(),
         };
-        let conn: oracle::Connection = tokio::task::block_in_place(|| pool.get())?;
+        let conn: oracle::Connection = tokio::task::spawn_blocking(move || pool.get())
+            .await
+            .unwrap()?;
+        match &self.db_name {
+            Some(db_name) => {
+                let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
+                conn.execute(&sql, &[])?;
+            }
+            None => {}
+        }
         return anyhow::Ok(conn);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TEST_HOST;
+    fn make_test_object(db_name: Option<String>) -> OracleDB {
+        let x = OracleDB {
+            pm: Default::default(),
+            read_only: false,
+            config: OracleDBConfig {
+                username: "system".to_string(),
+                password: "root".to_string(),
+                connect_str: format!("//{}/ORCL", *TEST_HOST),
+            },
+            db_name,
+            query_connections: Default::default(),
+        };
+        x
+    }
+
+    #[tokio::test]
+    async fn test_multidb_trait() {
+        let db = make_test_object(None);
+        let db = &db as &dyn MultiDBTrait;
+        let dbs = db.list_db().await.unwrap();
+        println!("dbs : {:?}", dbs);
+        db.open_db("SYSTEM").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_show_tables() {
+        let db = make_test_object(Some("APPQOSSYS".to_string()));
+        let db = &db as &dyn DBTrait;
+        let tables = db.list_table().await.unwrap();
+        println!("tables : {:?}", tables);
+        for t in tables.iter() {
+            let cols = db.show_columns(&t.table).await.unwrap();
+            println!("table:{} ,cols:{:?}", t.table, cols);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_type1() {
+        let db = make_test_object(Some("APPQOSSYS".to_string()));
+        let conn = db.get_conn().await.unwrap();
+        let mut  stmt =    conn.execute(r#"
+        CREATE TABLE my_table (  varchar2_column   VARCHAR2(100) CHARACTER SET AL32UTF8,   nvarchar2_column  VARCHAR2(100) CHARACTER SET AL32UTF8,   char_column       CHAR(10) CHARACTER SET AL32UTF8,   nchar_column      CHAR(10) CHARACTER SET AL32UTF8, raw_column        RAW(100))
+        "#,  &[] ) .unwrap();
+        stmt.execute(&[]).unwrap();
     }
 }
