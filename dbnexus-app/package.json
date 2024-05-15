@@ -1,5 +1,5 @@
 {
-  "name": "dbnexus-app",
+  "name": "dvnexus-app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,16 +10,22 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@arco-design/web-react": "^2.61.3",
-    "@tauri-apps/api": "^1",
+    "@emotion/react": "^11.11.4",
+    "@emotion/styled": "^11.11.5",
+    "@mui/icons-material": "^5.15.17",
+    "@mui/material": "^5.15.17",
+    "@mui/x-charts": "^7.4.0",
+    "@tauri-apps/api": ">=2.0.0-beta.0",
+    "@tauri-apps/plugin-shell": ">=2.0.0-beta.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^1",
+    "@tauri-apps/cli": ">=2.0.0-beta.0",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^4.2.1",
+    "internal-ip": "^7.0.0",
     "typescript": "^5.0.2",
     "vite": "^5.0.0"
   }
