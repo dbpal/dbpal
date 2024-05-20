@@ -600,11 +600,37 @@ mod tests {
 
     #[tokio::test]
     async fn test_type1() {
-        let db = make_test_object(Some("APPQOSSYS".to_string()));
+        let table_name = "test_type1";
+
+        let db = make_test_object(None);
+
         let conn = db.get_conn().await.unwrap();
-        let mut  stmt =    conn.execute(r#"
-        CREATE TABLE my_table (  varchar2_column   VARCHAR2(100) CHARACTER SET AL32UTF8,   nvarchar2_column  VARCHAR2(100) CHARACTER SET AL32UTF8,   char_column       CHAR(10) CHARACTER SET AL32UTF8,   nchar_column      CHAR(10) CHARACTER SET AL32UTF8, raw_column        RAW(100))
-        "#,  &[] ) .unwrap();
+        match conn.execute(
+            format!("DROP TABLE {table_name} CASCADE CONSTRAINTS PURGE").as_str(),
+            &[],
+        ) {
+            Ok(mut x) => x.execute(&[]),
+            Err(_) => Ok(()),
+        }
+        .unwrap();
+
+        let mut stmt = conn
+            .execute(
+                format!(
+                    r#"
+                CREATE TABLE {table_name} (
+                    varchar2_col VARCHAR2(100),
+                    nvarchar2_col NVARCHAR2(100),
+                    char_col CHAR(10),
+                    nchar_col NCHAR(10),
+                    raw_col RAW(100)
+                )
+        "#
+                )
+                .as_str(),
+                &[],
+            )
+            .unwrap();
         stmt.execute(&[]).unwrap();
     }
 }
