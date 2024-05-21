@@ -21,6 +21,7 @@ import { mainListItems, secondaryListItems } from './listItems';
 import Chart from './Chart';
 import Deposits from './Deposits';
 import Orders from './Orders';
+import NavBar from './Nav';
 
 function Copyright(props: any) {
   return (
@@ -101,7 +102,7 @@ export default function Dashboard() {
         <AppBar position="absolute" open={open}>
           <Toolbar
             sx={{
-              pr: '24px', // keep right padding when drawer closed
+              pr: '25px', // keep right padding when drawer closed
             }}
           >
             <IconButton
@@ -116,6 +117,10 @@ export default function Dashboard() {
             >
               <MenuIcon />
             </IconButton>
+
+            <NavBar>
+            </NavBar>
+
             <Typography
               component="h1"
               variant="h6"
@@ -123,8 +128,9 @@ export default function Dashboard() {
               noWrap
               sx={{ flexGrow: 1 }}
             >
-              Dashboard
+              bdnexus
             </Typography>
+
             <IconButton color="inherit">
               <Badge badgeContent={4} color="secondary">
                 <NotificationsIcon />
@@ -132,6 +138,7 @@ export default function Dashboard() {
             </IconButton>
           </Toolbar>
         </AppBar>
+
         <Drawer variant="permanent" open={open}>
           <Toolbar
             sx={{
