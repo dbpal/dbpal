@@ -22,6 +22,7 @@ import Chart from './Chart';
 import Deposits from './Deposits';
 import Orders from './Orders';
 import NavBar from './Nav';
+import DatabaseConnectionForm from './DatabaseConnectionForm';
 
 function Copyright(props: any) {
   return (
@@ -99,12 +100,16 @@ export default function Dashboard() {
     <ThemeProvider theme={defaultTheme}>
       <Box sx={{ display: 'flex' }}>
         <CssBaseline />
+
+
         <AppBar position="absolute" open={open}>
           <Toolbar
             sx={{
               pr: '25px', // keep right padding when drawer closed
             }}
           >
+
+
             <IconButton
               edge="start"
               color="inherit"
@@ -118,6 +123,14 @@ export default function Dashboard() {
               <MenuIcon />
             </IconButton>
 
+            <Typography
+              component="h1"
+              variant="h6"
+              sx={{ ml: 1, mr: 3 }}
+            >
+              bdnexus
+            </Typography>
+
             <NavBar>
             </NavBar>
 
@@ -128,7 +141,6 @@ export default function Dashboard() {
               noWrap
               sx={{ flexGrow: 1 }}
             >
-              bdnexus
             </Typography>
 
             <IconButton color="inherit">
@@ -159,6 +171,7 @@ export default function Dashboard() {
             {secondaryListItems}
           </List>
         </Drawer>
+
         <Box
           component="main"
           sx={{
@@ -171,11 +184,16 @@ export default function Dashboard() {
             overflow: 'auto',
           }}
         >
+
           <Toolbar />
           <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Grid container spacing={3}>
+
+              <DatabaseConnectionForm
+              ></DatabaseConnectionForm>
+
               {/* Chart */}
-              <Grid item xs={12} md={8} lg={9}>
+              {/* <Grid item xs={12} md={8} lg={9}>
                 <Paper
                   sx={{
                     p: 2,
@@ -186,9 +204,9 @@ export default function Dashboard() {
                 >
                   <Chart />
                 </Paper>
-              </Grid>
+              </Grid> */}
               {/* Recent Deposits */}
-              <Grid item xs={12} md={4} lg={3}>
+              {/* <Grid item xs={12} md={4} lg={3}>
                 <Paper
                   sx={{
                     p: 2,
@@ -199,17 +217,19 @@ export default function Dashboard() {
                 >
                   <Deposits />
                 </Paper>
-              </Grid>
+              </Grid> */}
               {/* Recent Orders */}
-              <Grid item xs={12}>
+              {/* <Grid item xs={12}>
                 <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
                   <Orders />
                 </Paper>
-              </Grid>
+              </Grid> */}
+
             </Grid>
             <Copyright sx={{ pt: 4 }} />
           </Container>
         </Box>
+
       </Box>
     </ThemeProvider>
   );
