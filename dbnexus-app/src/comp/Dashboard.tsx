@@ -23,6 +23,9 @@ import Deposits from './Deposits';
 import Orders from './Orders';
 import NavBar from './Nav';
 import DatabaseConnectionForm from './DatabaseConnectionForm';
+import { darkTheme } from './theme';
+import { useState } from 'react';
+import { Switch } from '@mui/material';
 
 function Copyright(props: any) {
   return (
@@ -88,7 +91,15 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 );
 
 // TODO remove, this demo shouldn't need to reset the theme.
-const defaultTheme = createTheme();
+const lightTheme = createTheme();
+
+const [theme, setTheme] = useState('light'); // 默认为明亮主题
+
+const isDarkMode = theme === 'dark';
+
+const toggleTheme = () => {
+  setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
+};
 
 export default function Dashboard() {
   const [open, setOpen] = React.useState(true);
@@ -97,7 +108,7 @@ export default function Dashboard() {
   };
 
   return (
-    <ThemeProvider theme={defaultTheme}>
+    <ThemeProvider theme={theme === 'light' ? lightTheme : darkTheme}>
       <Box sx={{ display: 'flex' }}>
         <CssBaseline />
 
@@ -133,6 +144,20 @@ export default function Dashboard() {
 
             <NavBar>
             </NavBar>
+
+            <Switch
+              checked={isDarkMode}
+              onChange={toggleTheme}
+              color="primary"
+              sx={{
+                '& .MuiSwitch-track': {
+                  backgroundColor: isDarkMode ? 'grey.800' : 'grey.300',
+                },
+                '& .MuiSwitch-thumb': {
+                  backgroundColor: isDarkMode ? 'yellow' : 'blue',
+                },
+              }}
+            />
 
             <Typography
               component="h1"
@@ -187,7 +212,7 @@ export default function Dashboard() {
 
           <Toolbar />
           <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Grid container spacing={3}>
+            <Grid container spacing={3} sx={{ justifyContent: 'center' }}>
 
               <DatabaseConnectionForm
               ></DatabaseConnectionForm>
@@ -226,7 +251,7 @@ export default function Dashboard() {
               </Grid> */}
 
             </Grid>
-            <Copyright sx={{ pt: 4 }} />
+            {/* <Copyright sx={{ pt: 4 }} /> */}
           </Container>
         </Box>
 
