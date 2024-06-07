@@ -168,7 +168,7 @@ impl QuerySql for OracleDB {
                     }
                 }
                 SqlKind::Begin | SqlKind::Commit | SqlKind::Rollback => {
-                    anyhow::bail!("oracle doesn't work this way this is should be unreachable");
+                    anyhow::bail!("oracle doesn't work this way,this is should be unreachable");
                 }
             }
         }
@@ -414,6 +414,9 @@ impl DBTrait for OracleDB {
         unimplemented!()
     }
 }
+
+// 设置当前模式
+// conn.execute(&format!("ALTER SESSION SET CURRENT_SCHEMA = {}", schema), &[]).unwrap();
 
 #[async_trait::async_trait]
 impl MultiDBTrait for OracleDB {
