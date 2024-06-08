@@ -1093,6 +1093,9 @@ FROM  TEST_VIEW_TABLE"#,
 
         let resp = db.show_view("PRODUCT_VIEW", None, None, 1, 100).await;
         println!("show view:{:?}", resp);
+        let sql = db.create_view_sql("PRODUCT_VIEW").await.unwrap();
+        println!("create view sql:{}", sql);
+
         db.drop_view("PRODUCT_VIEW").await.unwrap();
 
         db.drop_table("TEST_VIEW_TABLE").await.unwrap();
