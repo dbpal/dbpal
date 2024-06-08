@@ -288,8 +288,8 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
 
 #[derive(Clone)]
 pub enum DB {
-    #[allow(dead_code)]
     Multi(Arc<dyn dbnexus_db::db::MultiDBTrait>),
+    ///
     One(Arc<dyn dbnexus_db::db::DBTrait>),
 }
 

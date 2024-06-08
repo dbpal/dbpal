@@ -7,6 +7,7 @@ use std::vec;
 
 use oracle::{Connection, Row};
 use tokio::sync::Mutex;
+use tokio::task::block_in_place;
 
 use crate::datasource::{DBPoolKey, OracleDBConfig};
 use crate::db::{
@@ -154,7 +155,7 @@ impl QuerySql for OracleDB {
         for s in ss.iter() {
             match s.kind {
                 SqlKind::Query => {
-                    match conn.query(&s.sql, &[]) {
+                    match block_in_place(|| conn.query(&s.sql, &[])) {
                         Ok(rows) => {
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows, false)?;
@@ -167,12 +168,13 @@ impl QuerySql for OracleDB {
                     };
                 }
                 SqlKind::Execution => {
-                    let mut stmt = conn.execute(sql, &[])?;
-                    let row_aff = stmt.row_count()?;
-
-                    match stmt.execute(&[]) {
-                        Ok(_) => {
-                            ret.push(Ok(TableListResp::row_affected(s.sql.as_str(), row_aff)));
+                    let stmt = block_in_place(|| conn.execute(sql, &[]));
+                    match stmt {
+                        Ok(x) => {
+                            ret.push(Ok(TableListResp::row_affected(
+                                s.sql.as_str(),
+                                x.row_count()?,
+                            )));
                         }
                         Err(err) => ret.push(Err(ExeSqlError::new(s.sql.as_str(), err))),
                     }
@@ -624,7 +626,7 @@ impl OracleDB {
         let conn = self.get_conn().await?;
         let cols = DBTrait::show_columns(self, table_name).await?;
         let sql = format!("select * from {}", table_name);
-        let rows = conn.query(sql.as_str(), &[])?;
+        let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
 
         let data = encode_rows(rows, false)?;
@@ -647,7 +649,7 @@ impl OracleDB {
         let conn = self.get_conn().await?;
 
         let sql = format!("select * from {}", table_name);
-        let rows = conn.query(&sql, &[])?;
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         let json = encode_rows_as_json(rows)?;
         let str = if pretty {
@@ -673,7 +675,7 @@ impl OracleDB {
         }
 
         let sql = format!("select * from {}", table_name);
-        let rows = conn.query(&sql, &[])?;
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let rows: Vec<_> = rows.collect();
         let data = encode_rows(rows, false)?;
         sender
@@ -741,7 +743,7 @@ impl DBTrait for OracleDB {
         let mut ret = Vec::new();
         let conn = self.get_conn().await?;
 
-        let rows = conn.query(sql.as_str(), &[])?;
+        let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         for r in rows {
             let r = r?;
             let name: String = r.get(0)?;
@@ -765,7 +767,7 @@ impl DBTrait for OracleDB {
                 table_name,
                 table_name
             );
-            let rows = conn.query(sql.as_str(), &[])?;
+            let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
             let mut names = HashSet::new();
             for r in rows {
                 let r = r?;
@@ -804,7 +806,7 @@ impl DBTrait for OracleDB {
             self.db_name.as_ref().unwrap()
         );
         let conn = self.get_conn().await?;
-        let result = conn.query(&sql, &[])?;
+        let result = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
         for r in result {
             let r = r?;
@@ -823,7 +825,7 @@ impl DBTrait for OracleDB {
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
         let total = OracleDB::query_count(&conn, table_name, where_str)?;
         log::info!("query sql:{}", sql);
-        let rows = conn.query(sql.as_str(), &[]).unwrap();
+        let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let data = encode_rows(rows.into_iter().collect::<Vec<_>>(), true)?;
         let cols = self.show_columns(table_name).await?;
         anyhow::Ok(TableListResp::new(cols, total as usize, data, sql))
@@ -842,7 +844,7 @@ impl DBTrait for OracleDB {
         "#
         );
         let conn = self.get_conn().await?;
-        let rows = conn.query(&sql, &[])?;
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret: HashMap<String, Index> = HashMap::new();
         for r in rows {
             let r = r?;
@@ -887,7 +889,7 @@ impl DBTrait for OracleDB {
         let sql = (self as &dyn DBTrait).insert_sql(table_name, &fs, &values)?;
         log::info!("insert sql:{}", sql);
 
-        let stmt = conn.execute(&sql, &[])?;
+        let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
         let changes = stmt.row_count()?;
         let id = stmt.last_row_id()?;
         anyhow::Ok(SqlExecuteRet {
@@ -909,9 +911,7 @@ impl DBTrait for OracleDB {
             (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
         let conn = self.get_conn().await?;
 
-        let mut stmt = conn.execute(sql.as_str(), &[])?;
-        stmt.execute(&[])?;
-
+        let stmt = block_in_place(|| conn.execute(sql.as_str(), &[]))?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: stmt.row_count()?,
@@ -930,7 +930,7 @@ impl DBTrait for OracleDB {
         self.can_write()?;
         let sql = format!("TRUNCATE TABLE  {table_name}");
         let conn = self.get_conn().await?;
-        conn.execute(&sql, &[])?;
+        block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
 
@@ -942,7 +942,7 @@ impl DBTrait for OracleDB {
         let fields = self.show_columns(table_name).await?;
         let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
         let conn = self.get_conn().await?;
-        let stmt = conn.execute(&sql, &[])?;
+        let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
         let row_count = stmt.row_count()?;
         anyhow::Ok(SqlExecuteRet {
             sql,
@@ -960,7 +960,7 @@ impl DBTrait for OracleDB {
             "#,
             self.db_name.as_deref().unwrap()
         );
-        let rows = conn.query(&sql, &[])?;
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
         for r in rows {
             let r = r?;
@@ -973,15 +973,14 @@ impl DBTrait for OracleDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         let sql = format!("DROP VIEW {view_name}");
         let conn = self.get_conn().await?;
-        conn.execute(&sql, &[])?;
+        block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         let sql = format!("DROP TABLE {table} CASCADE CONSTRAINTS PURGE");
         let conn = self.get_conn().await?;
-        let mut stmt = conn.execute(&sql.as_str(), &[])?;
-        stmt.execute(&[])?;
+        let _ = block_in_place(|| conn.execute(&sql.as_str(), &[]))?;
         anyhow::Ok(())
     }
 
@@ -993,7 +992,7 @@ impl DBTrait for OracleDB {
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
         let total = OracleDB::query_count(&conn, view_name, where_str)?;
         log::info!("query sql:{}", sql);
-        let rows = conn.query(sql.as_str(), &[]).unwrap();
+        let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         let cols = infer_schema_by_result(&rows, true)?;
         let data = encode_rows(rows, true)?;
@@ -1004,9 +1003,7 @@ impl DBTrait for OracleDB {
 impl MultiDBTrait for OracleDB {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
-        let rows = conn
-            .query(r#"SELECT USERNAME FROM DBA_USERS"#, &[])
-            .unwrap();
+        let rows = block_in_place(|| conn.query(r#"SELECT USERNAME FROM DBA_USERS"#, &[]))?;
         let mut ret = Vec::new();
         for r in rows {
             let r = r?;
@@ -1035,7 +1032,7 @@ impl OracleDB {
         match &self.db_name {
             Some(db_name) => {
                 let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
-                conn.execute(&sql, &[])?;
+                block_in_place(|| conn.execute(&sql, &[]))?;
             }
             None => {}
         }
@@ -1061,7 +1058,7 @@ mod tests {
         };
         x
     }
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_view() {
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().await.unwrap();
@@ -1100,7 +1097,7 @@ FROM  TEST_VIEW_TABLE"#,
 
         db.drop_table("TEST_VIEW_TABLE").await.unwrap();
     }
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_indexes() {
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().await.unwrap();
@@ -1126,7 +1123,7 @@ FROM  TEST_VIEW_TABLE"#,
         println!("{:?}", indexes);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_multidb_trait() {
         let db = make_test_object(None);
         let db = &db as &dyn MultiDBTrait;
@@ -1135,7 +1132,7 @@ FROM  TEST_VIEW_TABLE"#,
         db.open_db("SYSTEM").await.unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_tables() {
         let db = make_test_object(Some("APPQOSSYS".to_string()));
         let db = &db as &dyn DBTrait;
@@ -1147,7 +1144,7 @@ FROM  TEST_VIEW_TABLE"#,
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type1() {
         init_log();
         let table_name = "TEST_TYPES1";
@@ -1235,7 +1232,7 @@ FROM  TEST_VIEW_TABLE"#,
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type2() {
         init_log();
         let table_name = "TEST_TYPES2";
@@ -1318,7 +1315,7 @@ FROM  TEST_VIEW_TABLE"#,
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type3() {
         init_log();
         let table_name = "TEST_TYPES3";
@@ -1403,7 +1400,7 @@ FROM  TEST_VIEW_TABLE"#,
     }
 
     // TODO create table sql not passed
-    // #[tokio::test]
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     // async fn test_type4() {
     //     init_log();
     //     let table_name = "TEST_TYPES4";

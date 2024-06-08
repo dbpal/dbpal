@@ -266,7 +266,7 @@ pub async fn get_user_settings(dbs: tauri::State<'_, DBS>) -> Result<UserSetting
 #[tauri::command]
 pub async fn list_all_config(
     dbs: tauri::State<'_, DBS>,
-) -> Result<HashMap<String, DBConnectionConfig>, String> {
+) -> Result<HashMap<String /* uuid */, DBConnectionConfig>, String> {
     dbs.loader
         .list_all_configs_cloned()
         .await
