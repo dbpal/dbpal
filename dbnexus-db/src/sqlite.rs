@@ -1090,9 +1090,9 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
                     is_eq,
                 } => {
                     if !is_eq {
-                        return crate::db::SqlKind::Query;
+                        return anyhow::Ok(crate::db::SqlKind::Query);
                     } else {
-                        return crate::db::SqlKind::Execution;
+                        return anyhow::Ok(crate::db::SqlKind::Execution);
                     }
                 }
                 _ => {}
@@ -1102,7 +1102,7 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
         |x| {
             let t = x.to_uppercase();
             if t.starts_with("PRAGMA") {
-                return crate::db::SqlKind::Query;
+                return anyhow::Ok(crate::db::SqlKind::Query);
             }
             SqlKind::get_from_sql(x)
         },

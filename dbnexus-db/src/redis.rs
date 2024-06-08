@@ -574,7 +574,7 @@ impl QuerySql for RedisDB {
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
         anyhow::Ok(())
     }
 
@@ -802,12 +802,14 @@ mod tests {
             .unwrap();
         println!("ret:{:?}", ret);
         let ret = db.query_sql(id.clone(), "sadd set_value  1").await.unwrap();
+        println!("{:?}", ret);
         let ret = db.query_sql(id.clone(), "sadd set_value  2").await.unwrap();
         println!("ret:{:?}", ret);
         let ret = db
             .query_sql(id.clone(), "zadd zset_value 1 haha")
             .await
             .unwrap();
+        println!("ret:{:?}", ret);
         let ret = db
             .query_sql(id.clone(), "zadd zset_value 2 xxx")
             .await

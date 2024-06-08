@@ -598,9 +598,7 @@ impl PostGresDB {
 }
 
 impl PostGresDB {
-    pub fn new(
-        db: impl Into<String>, pool: PoolManager, config: CommDBConfig, read_only: bool,
-    ) -> Self {
+    pub fn new(pool: PoolManager, config: CommDBConfig, read_only: bool) -> Self {
         Self {
             pool,
             config,
@@ -634,16 +632,16 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
         &dialect,
         |s| {
             match s {
-                Statement::Query(_) => crate::db::SqlKind::Query,
-                _ => crate::db::SqlKind::Execution,
+                Statement::Query(_) => anyhow::Ok(crate::db::SqlKind::Query),
+                _ => anyhow::Ok(crate::db::SqlKind::Execution),
             }
         },
         |x| {
             let t = x.to_uppercase();
             if t.starts_with("SELECT") || t.starts_with("SHOW") || t.starts_with("EXPLAIN") {
-                crate::db::SqlKind::Query
+                anyhow::Ok(crate::db::SqlKind::Query)
             } else {
-                crate::db::SqlKind::Execution
+                anyhow::Ok(crate::db::SqlKind::Execution)
             }
         },
     )
@@ -906,7 +904,6 @@ mod test {
         // list all table and query
         let pool_manager = PoolManager::new();
         let pg = PostGresDB::new(
-            "test".to_string(),
             pool_manager.clone(),
             CommDBConfig {
                 host: TEST_HOST.to_string(),

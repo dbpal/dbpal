@@ -9,8 +9,8 @@ use storage::{DbConfigLoader, FileJsonSaver, DBS};
 mod handlers;
 mod storage;
 use handlers::{
-    add_config, delete, delete_config, drop_table, drop_view, get_user_settings, insert,
-    list_all_config, list_table, list_view, open_db, open_db2, query_sql,
+    add_config, delete, delete_config, drop_table, drop_view, export_table, get_user_settings,
+    insert, list_all_config, list_table, list_view, open_db, open_db2, query_sql,
     query_sql_close_connection, query_sql_open_connection, query_sql_re_connection,
     redis_list_table, save_user_settings, show_columns, show_indexes, show_table, show_view,
     truncate_table, update, update_config,
@@ -57,7 +57,8 @@ async fn main() {
             redis_list_table,
             query_sql_close_connection,
             query_sql_open_connection,
-            query_sql_re_connection
+            query_sql_re_connection,
+            export_table
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

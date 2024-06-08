@@ -29,7 +29,7 @@ pub struct SqlServer {
 }
 
 impl SqlServer {
-    fn new(config: CommDBConfig, trust_cert: bool, pm: PoolManager, read_only: bool) -> Self {
+    pub fn new(config: CommDBConfig, trust_cert: bool, pm: PoolManager, read_only: bool) -> Self {
         Self {
             config,
             trust_cert,
@@ -969,13 +969,13 @@ impl QuerySql for SqlServer {
                 tiberius::QueryItem::Row(row) => rows.push(row),
                 tiberius::QueryItem::Metadata(meta) => {
                     if meta_prev.is_some() {
-                        let tablelist = make_table_list_from_meta_and_row(
+                        let table_list = make_table_list_from_meta_and_row(
                             meta_prev.as_ref().unwrap(),
                             &rows,
                             rows.len(),
                             "".to_string(),
                         )?;
-                        ret.push(Ok(tablelist));
+                        ret.push(Ok(table_list));
                         rows = vec![];
                     }
                     meta_prev = Some(meta);
@@ -983,13 +983,13 @@ impl QuerySql for SqlServer {
             }
             // last one
             if meta_prev.is_some() {
-                let tablelist = make_table_list_from_meta_and_row(
+                let table_list = make_table_list_from_meta_and_row(
                     meta_prev.as_ref().unwrap(),
                     &rows,
                     rows.len(),
                     "",
                 )?;
-                ret.push(Ok(tablelist));
+                ret.push(Ok(table_list));
             }
         }
 
@@ -1024,6 +1024,7 @@ impl SqlServer {
     }
 }
 
+#[allow(dead_code)]
 fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     let dialect = sqlparser::dialect::MsSqlDialect {};
 

@@ -585,7 +585,7 @@ impl DBTrait for MysqlDB {
                     Index::new(
                         name.clone(),
                         if name == "PRIMARY" {
-                            IndexKind::PriMary
+                            IndexKind::Primary
                         } else if unique.map(|x| x != 0).unwrap_or_default() {
                             IndexKind::Unique
                         } else {

@@ -10,6 +10,7 @@
     "rnum",
     "rowid",
     "ROWNUM",
+    "savepoint",
     "sqlparser",
     "sqlx",
     "tinyint",
