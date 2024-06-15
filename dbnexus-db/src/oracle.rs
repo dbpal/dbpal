@@ -62,7 +62,7 @@ impl OracleDB {
                 anyhow::bail!(format!("id '{}' not found", id));
             }
         };
-        f(conn)
+        block_in_place(|| f(conn))
     }
 
     // a list of set function
