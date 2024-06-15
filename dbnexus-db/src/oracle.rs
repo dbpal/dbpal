@@ -26,6 +26,20 @@ pub struct OracleDB {
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
 }
 
+impl OracleDB {
+    pub fn new(
+        config: OracleDBConfig, pm: PoolManager, read_only: bool, db_name: Option<String>,
+    ) -> Self {
+        Self {
+            config,
+            pm,
+            read_only,
+            db_name,
+            query_connections: Default::default(),
+        }
+    }
+}
+
 fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     // use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::GenericDialect {};

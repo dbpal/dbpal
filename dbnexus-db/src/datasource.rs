@@ -38,7 +38,7 @@ pub struct CommDBConfig {
     pub db_name: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct OracleDBConfig {
     pub username: String,
     pub password: String,

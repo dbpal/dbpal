@@ -13,6 +13,7 @@
     "savepoint",
     "sqlparser",
     "sqlx",
+    "tauri",
     "tinyint",
     "Zset"
   ]
