@@ -13,7 +13,8 @@ use sqlx::{Column, Row, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::completion::{
-    AutoCompletionTrait, CompletionItem, CompletionKind, LexerCompletionBackend,
+    AutoCompletionTrait, CompletionItem, CompletionKind, DBLexerCompletionBackend,
+    DBListCompletionItem,
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
@@ -862,7 +863,7 @@ impl AutoCompletionTrait for SqliteDB {
     async fn auto_completion(
         &self, sql: &str, pos: sqlparser::tokenizer::Location,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionBackend::do_auto_completion(
+        DBLexerCompletionBackend::do_auto_completion(
             self,
             sql,
             &sqlparser::dialect::SQLiteDialect {},
@@ -873,17 +874,12 @@ impl AutoCompletionTrait for SqliteDB {
 }
 
 #[async_trait::async_trait]
+impl DBListCompletionItem for SqliteDB {
+    fn multi_db(&self) -> bool {
+        false
+    }
 
-impl crate::completion::LexerCompletionBackend for SqliteDB {
-    type Dialect = sqlparser::dialect::SQLiteDialect;
-
-    const BUILD_IN_FUNCTIONS: &'static [&'static str] = SQLITE_FUNTIONS;
-    // https://sqlite.org/lang_keywords.html
-    const KEY_WORDS: &'static [&'static str] = SQLITE_KEY_WORDS;
-    const TEXTS: &'static [&'static str] = &["true"];
-    const TYPES: &'static [&'static str] = SQLITE_TYPES;
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, _db: Option<String>) -> anyhow::Result<Vec<String>> {
         crate::db::DBTrait::list_table(self)
             .await
             .map(|x| x.into_iter().map(|x| x.table).collect())
@@ -893,11 +889,25 @@ impl crate::completion::LexerCompletionBackend for SqliteDB {
         anyhow::Ok(vec![])
     }
 
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
+    async fn list_columns(
+        &self, _db: Option<String>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
         crate::db::DBTrait::show_columns(self, table_name)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
+}
+
+#[async_trait::async_trait]
+
+impl crate::completion::DBLexerCompletionBackend for SqliteDB {
+    type Dialect = sqlparser::dialect::SQLiteDialect;
+
+    const BUILD_IN_FUNCTIONS: &'static [&'static str] = SQLITE_FUNTIONS;
+    // https://sqlite.org/lang_keywords.html
+    const KEY_WORDS: &'static [&'static str] = SQLITE_KEY_WORDS;
+    const TEXTS: &'static [&'static str] = &["true"];
+    const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         PRAGMA_ITEMS
@@ -915,7 +925,7 @@ impl crate::completion::LexerCompletionBackend for SqliteDB {
 #[cfg(test)]
 #[tokio::test]
 async fn test_auto_completion() {
-    use crate::completion::LexerCompletionBackend;
+    use crate::completion::DBLexerCompletionBackend;
     let s = SqliteDB {
         pool: Default::default(),
         path: ":memory:".to_string(),
@@ -939,7 +949,7 @@ async fn test_auto_completion() {
     .unwrap();
 
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "sel  * from",
             &sqlparser::dialect::SQLiteDialect {},
@@ -951,7 +961,7 @@ async fn test_auto_completion() {
         println!("{:?}", completion)
     }
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "cou  xxxx",
             &sqlparser::dialect::SQLiteDialect {},
@@ -962,7 +972,7 @@ async fn test_auto_completion() {
         println!("{:?}", completion)
     }
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "nul",
             &sqlparser::dialect::SQLiteDialect {},
@@ -973,7 +983,7 @@ async fn test_auto_completion() {
         println!("{:?}", completion)
     }
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "emai  dddd",
             &sqlparser::dialect::SQLiteDialect {},
@@ -984,7 +994,7 @@ async fn test_auto_completion() {
         println!("{:?}", completion)
     }
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "use 1111",
             &sqlparser::dialect::SQLiteDialect {},

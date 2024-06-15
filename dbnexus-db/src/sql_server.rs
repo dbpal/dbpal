@@ -11,11 +11,14 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
+use crate::completion::{
+    AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
+};
 use crate::datasource::CommDBConfig;
 use crate::db::{
     create_csv, format_data_time_fix_offset, sql_to_sql_seq, DBTrait, ExeSqlError, ExportKind,
-    Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
+    Field, Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlSeq,
+    TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -1069,16 +1072,13 @@ impl crate::db::MultiDBTrait for SqlServer {
         Ok(Arc::new(x))
     }
 }
+
 #[async_trait::async_trait]
-impl LexerCompletionBackend for SqlServer {
-    type Dialect = sqlparser::dialect::MsSqlDialect;
 
-    const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;
-    const KEY_WORDS: &'static [&'static str] = KEYWORDS;
-    const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::list_table(self)
+impl DBListCompletionItem for SqlServer {
+    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>> {
+        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
+        x.list_table()
             .await
             .map(|x| x.into_iter().map(|x| x.table).collect())
     }
@@ -1088,11 +1088,23 @@ impl LexerCompletionBackend for SqlServer {
         anyhow::Ok(vec![])
     }
 
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::show_columns(self, table_name)
+    async fn list_columns(
+        &self, db: Option<String>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
+        x.show_columns(table_name)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
+}
+
+#[async_trait::async_trait]
+impl DBLexerCompletionBackend for SqlServer {
+    type Dialect = sqlparser::dialect::MsSqlDialect;
+
+    const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;
+    const KEY_WORDS: &'static [&'static str] = KEYWORDS;
+    const TYPES: &'static [&'static str] = TYPES;
 }
 
 #[async_trait::async_trait]
@@ -1100,7 +1112,7 @@ impl AutoCompletionTrait for SqlServer {
     async fn auto_completion(
         &self, sql: &str, pos: sqlparser::tokenizer::Location,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionBackend::do_auto_completion(
+        DBLexerCompletionBackend::do_auto_completion(
             self,
             sql,
             &sqlparser::dialect::MsSqlDialect {},

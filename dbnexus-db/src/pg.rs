@@ -10,11 +10,12 @@ use sqlx::postgres::PgRow;
 use sqlx::{Postgres, Row};
 use tokio::sync::Mutex;
 
-use crate::completion::LexerCompletionBackend;
+use crate::completion::{DBLexerCompletionBackend, DBListCompletionItem};
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
-    Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
+    Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlSeq,
+    TableListResp,
 };
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
@@ -30,15 +31,11 @@ pub struct PostGresDB {
 }
 
 #[async_trait::async_trait]
-impl LexerCompletionBackend for PostGresDB {
-    type Dialect = sqlparser::dialect::PostgreSqlDialect;
+impl DBListCompletionItem for PostGresDB {
+    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>> {
+        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
 
-    const BUILD_IN_FUNCTIONS: &'static [&'static str] = PG_FUNCTIONS;
-    const KEY_WORDS: &'static [&'static str] = PG_KEYWORDS;
-    const TYPES: &'static [&'static str] = PG_TYPES;
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::list_table(self)
+        x.list_table()
             .await
             .map(|x| x.into_iter().map(|x| x.table).collect())
     }
@@ -47,11 +44,22 @@ impl LexerCompletionBackend for PostGresDB {
         crate::db::MultiDBTrait::list_db(self).await
     }
 
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::show_columns(self, table_name)
+    async fn list_columns(
+        &self, db: Option<String>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
+        x.show_columns(table_name)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
+}
+#[async_trait::async_trait]
+impl DBLexerCompletionBackend for PostGresDB {
+    type Dialect = sqlparser::dialect::PostgreSqlDialect;
+
+    const BUILD_IN_FUNCTIONS: &'static [&'static str] = PG_FUNCTIONS;
+    const KEY_WORDS: &'static [&'static str] = PG_KEYWORDS;
+    const TYPES: &'static [&'static str] = PG_TYPES;
 }
 
 #[async_trait::async_trait]

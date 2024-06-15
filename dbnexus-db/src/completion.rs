@@ -30,18 +30,26 @@ pub enum CompletionKind {
 }
 
 #[async_trait::async_trait]
+pub trait DBListCompletionItem {
+    fn multi_db(&self) -> bool {
+        true
+    }
+    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>>;
+    async fn list_db(&self) -> anyhow::Result<Vec<String>>;
+    async fn list_columns(
+        &self, db: Option<String>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>>;
+}
 
-pub trait LexerCompletionBackend {
+#[async_trait::async_trait]
+
+pub trait DBLexerCompletionBackend: DBListCompletionItem {
     const KEY_WORDS: &'static [&'static str];
     const BUILD_IN_FUNCTIONS: &'static [&'static str];
     const TYPES: &'static [&'static str];
     const TEXTS: &'static [&'static str] = &[];
 
     type Dialect: sqlparser::dialect::Dialect + Sync + Send + 'static;
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>>;
-    async fn list_db(&self) -> anyhow::Result<Vec<String>>;
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>>;
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         vec![]
@@ -122,48 +130,75 @@ pub trait LexerCompletionBackend {
                 })
                 .collect::<Vec<_>>(),
         );
+        let list_db = self.list_db().await.unwrap_or(vec![]);
+
         ret.extend(
-            self.list_db()
-                .await
-                .unwrap_or(vec![])
-                .into_iter()
+            list_db
+                .iter()
                 .map(|x| {
                     CompletionItem {
-                        name: Cow::Owned(x),
+                        name: Cow::Owned(x.clone()),
                         kind: CompletionKind::Dbname,
                     }
                 })
                 .collect::<Vec<_>>(),
         );
-        ret.extend(
-            self.list_table()
-                .await
-                .unwrap_or(vec![])
-                .into_iter()
-                .map(|x| {
+
+        if self.multi_db() {
+            for db in list_db.iter() {
+                let list_tables = self
+                    .list_table(Some(db.to_string()))
+                    .await
+                    .unwrap_or(vec![]);
+                for t in list_tables.iter() {
+                    let cols = self
+                        .list_columns(Some(db.to_string()), t.as_str())
+                        .await
+                        .unwrap_or(vec![]);
+                    ret.extend(cols.into_iter().map(|x| {
+                        CompletionItem {
+                            name: Cow::Owned(x),
+                            kind: CompletionKind::Column,
+                        }
+                    }));
+                }
+                ret.extend(
+                    list_tables
+                        .into_iter()
+                        .map(|x| {
+                            CompletionItem {
+                                name: Cow::Owned(x),
+                                kind: CompletionKind::TableName,
+                            }
+                        })
+                        .collect::<Vec<_>>(),
+                );
+            }
+        } else {
+            let list_tables = self.list_table(None).await.unwrap_or(vec![]);
+            for t in list_tables.iter() {
+                let cols = self.list_columns(None, t.as_str()).await.unwrap_or(vec![]);
+                ret.extend(cols.into_iter().map(|x| {
                     CompletionItem {
                         name: Cow::Owned(x),
-                        kind: CompletionKind::TableName,
+                        kind: CompletionKind::Column,
                     }
-                })
-                .collect::<Vec<_>>(),
-        );
-        ret.extend(self.extra_completion_item().await.into_iter());
-        for v in self.list_table().await.unwrap_or(vec![]).iter() {
+                }));
+            }
+
             ret.extend(
-                self.list_columns(v.as_str())
-                    .await
-                    .unwrap_or(vec![])
+                list_tables
                     .into_iter()
                     .map(|x| {
                         CompletionItem {
                             name: Cow::Owned(x),
-                            kind: CompletionKind::Column,
+                            kind: CompletionKind::TableName,
                         }
                     })
                     .collect::<Vec<_>>(),
             );
         }
+        ret.extend(self.extra_completion_item().await.into_iter());
         ret
     }
 }

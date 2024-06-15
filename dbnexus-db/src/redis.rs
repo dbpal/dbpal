@@ -4,7 +4,9 @@ use std::vec;
 
 use futures_util::StreamExt;
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
+use crate::completion::{
+    AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
+};
 use crate::db::{
     DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView, OffsetLimitIter, QuerySql,
     RedisListTable, SqlExecuteRet, TableListResp,
@@ -947,7 +949,7 @@ impl AutoCompletionTrait for RedisDB {
     async fn auto_completion(
         &self, sql: &str, pos: sqlparser::tokenizer::Location,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionBackend::do_auto_completion(
+        DBLexerCompletionBackend::do_auto_completion(
             self,
             sql,
             &sqlparser::dialect::GenericDialect,
@@ -956,9 +958,35 @@ impl AutoCompletionTrait for RedisDB {
         .await
     }
 }
-
 #[async_trait::async_trait]
-impl LexerCompletionBackend for RedisDB {
+
+impl DBListCompletionItem for RedisDB {
+    fn multi_db(&self) -> bool {
+        false
+    }
+
+    async fn list_table(&self, _db: Option<String>) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(
+            crate::db::DBTrait::list_table(self)
+                .await?
+                .into_iter()
+                .map(|x| x.table)
+                .collect(),
+        )
+    }
+
+    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn list_columns(
+        &self, _db: Option<String>, _table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+}
+#[async_trait::async_trait]
+impl DBLexerCompletionBackend for RedisDB {
     type Dialect = sqlparser::dialect::GenericDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = REDIS_COMMANDS;
@@ -981,24 +1009,6 @@ impl LexerCompletionBackend for RedisDB {
         "REWRITE",
     ];
     const TYPES: &'static [&'static str] = &[];
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(
-            crate::db::DBTrait::list_table(self)
-                .await?
-                .into_iter()
-                .map(|x| x.table)
-                .collect(),
-        )
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_columns(&self, _table_name: &str) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
 }
 
 const REDIS_COMMANDS: &'static [&'static str] = &[

@@ -10,7 +10,9 @@ use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::{Column, Row, TypeInfo};
 use tokio::sync::Mutex;
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
+use crate::completion::{
+    AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
+};
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
@@ -1291,17 +1293,12 @@ mod tests {
         println!("begin ret:{:?}", ret);
     }
 }
-
 #[async_trait::async_trait]
-impl LexerCompletionBackend for MysqlDB {
-    type Dialect = sqlparser::dialect::MySqlDialect;
+impl DBListCompletionItem for MysqlDB {
+    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>> {
+        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
 
-    const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;
-    const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
-    const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_table(self)
+        x.list_table()
             .await
             .map(|x| x.into_iter().map(|x| x.table).collect::<Vec<_>>())
     }
@@ -1310,14 +1307,26 @@ impl LexerCompletionBackend for MysqlDB {
         MultiDBTrait::list_db(self).await
     }
 
-    async fn extra_completion_item(&self) -> Vec<CompletionItem> {
-        self.build_fn_completion_items().await.unwrap_or(vec![])
-    }
-
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
-        DBTrait::show_columns(self, table_name)
+    async fn list_columns(
+        &self, db: Option<String>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
+        x.show_columns(table_name)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())
+    }
+}
+
+#[async_trait::async_trait]
+impl DBLexerCompletionBackend for MysqlDB {
+    type Dialect = sqlparser::dialect::MySqlDialect;
+
+    const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;
+    const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
+    const TYPES: &'static [&'static str] = TYPES;
+
+    async fn extra_completion_item(&self) -> Vec<CompletionItem> {
+        self.build_fn_completion_items().await.unwrap_or(vec![])
     }
 }
 #[async_trait::async_trait]
@@ -1325,7 +1334,7 @@ impl AutoCompletionTrait for MysqlDB {
     async fn auto_completion(
         &self, sql: &str, pos: sqlparser::tokenizer::Location,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionBackend::do_auto_completion(
+        DBLexerCompletionBackend::do_auto_completion(
             self,
             sql,
             &sqlparser::dialect::MySqlDialect {},
