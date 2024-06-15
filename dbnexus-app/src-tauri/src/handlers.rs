@@ -7,11 +7,11 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::oracle::OracleDB;
 
-use crate::storage::{DBConnectionConfig, UserSettings, DBS};
+use crate::storage::{DBConnectionConfig, UserSettings, App};
 
 #[tauri::command]
 pub async fn add_config(
-    uuid: String, config: DBConnectionConfig, dbs: tauri::State<'_, DBS>,
+    uuid: String, config: DBConnectionConfig, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     log::info!("add config:{} {:?}", uuid, config);
     dbs.add_config(uuid.as_str(), config)
@@ -19,7 +19,7 @@ pub async fn add_config(
         .map_err(|x| x.to_string())
 }
 #[tauri::command]
-pub async fn delete_config(uuid: String, dbs: tauri::State<'_, DBS>) -> Result<(), String> {
+pub async fn delete_config(uuid: String, dbs: tauri::State<'_, App>) -> Result<(), String> {
     log::info!("del config:{}", uuid);
     dbs.delete_config(uuid.as_str())
         .await
@@ -28,7 +28,7 @@ pub async fn delete_config(uuid: String, dbs: tauri::State<'_, DBS>) -> Result<(
 
 #[tauri::command]
 pub async fn update_config(
-    uuid: String, config: DBConnectionConfig, dbs: tauri::State<'_, DBS>,
+    uuid: String, config: DBConnectionConfig, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     log::info!("update config:{} {:?}", uuid, config);
     dbs.update_config(uuid.as_str(), config)
@@ -37,7 +37,7 @@ pub async fn update_config(
 }
 
 #[tauri::command]
-pub async fn open_db(uuid: String, dbs: tauri::State<'_, DBS>) -> Result<(), String> {
+pub async fn open_db(uuid: String, dbs: tauri::State<'_, App>) -> Result<(), String> {
     log::info!("open db:{}", uuid);
     dbs.open_db(uuid.as_str())
         .await
@@ -47,7 +47,7 @@ pub async fn open_db(uuid: String, dbs: tauri::State<'_, DBS>) -> Result<(), Str
 
 #[tauri::command]
 pub async fn list_table(
-    uuid: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, dbs: tauri::State<'_, App>,
 ) -> Result<Vec<ListTable>, String> {
     log::info!("show table db:{}", uuid);
     dbs.list_table(uuid.as_str())
@@ -57,7 +57,7 @@ pub async fn list_table(
 
 #[tauri::command]
 pub async fn redis_list_table(
-    uuid: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, dbs: tauri::State<'_, App>,
 ) -> Result<RedisListTable, String> {
     dbs.get_one_db(uuid.as_str())
         .await
@@ -69,7 +69,7 @@ pub async fn redis_list_table(
 
 #[tauri::command]
 pub async fn show_columns(
-    uuid: String, table_name: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, table_name: String, dbs: tauri::State<'_, App>,
 ) -> Result<Vec<Field>, String> {
     dbs.show_columns(uuid.as_str(), &table_name)
         .await
@@ -79,7 +79,7 @@ pub async fn show_columns(
 #[tauri::command]
 pub async fn show_table(
     uuid: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, dbs: tauri::State<'_, DBS>,
+    page_size: usize, dbs: tauri::State<'_, App>,
 ) -> Result<TableListResp, String> {
     dbs.show_table(
         uuid.as_str(),
@@ -95,7 +95,7 @@ pub async fn show_table(
 
 #[tauri::command]
 pub async fn show_indexes(
-    uuid: String, table_name: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, table_name: String, dbs: tauri::State<'_, App>,
 ) -> Result<Vec<Index>, String> {
     dbs.show_indexes(uuid.as_str(), &table_name)
         .await
@@ -105,7 +105,7 @@ pub async fn show_indexes(
 #[tauri::command]
 pub async fn insert(
     uuid: String, table_name: String, values: HashMap<String, Option<String>>,
-    dbs: tauri::State<'_, DBS>,
+    dbs: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, String> {
     dbs.insert(uuid.as_str(), &table_name, values)
         .await
@@ -115,7 +115,7 @@ pub async fn insert(
 #[tauri::command]
 pub async fn update(
     uuid: String, table_name: String, values: HashMap<String, Option<String>>,
-    wheres: HashMap<String, Option<String>>, dbs: tauri::State<'_, DBS>,
+    wheres: HashMap<String, Option<String>>, dbs: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, String> {
     dbs.update(uuid.as_str(), &table_name, values, wheres)
         .await
@@ -123,7 +123,7 @@ pub async fn update(
 }
 #[tauri::command]
 pub async fn truncate_table(
-    uuid: String, table_name: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, table_name: String, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     dbs.truncate_table(uuid.as_str(), &table_name)
         .await
@@ -132,7 +132,7 @@ pub async fn truncate_table(
 #[tauri::command]
 pub async fn delete(
     uuid: String, table_name: String, wheres: HashMap<String, Option<String>>,
-    dbs: tauri::State<'_, DBS>,
+    dbs: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, String> {
     dbs.delete(uuid.as_str(), &table_name, wheres)
         .await
@@ -140,14 +140,14 @@ pub async fn delete(
 }
 
 #[tauri::command]
-pub async fn list_view(uuid: String, dbs: tauri::State<'_, DBS>) -> Result<Vec<ListView>, String> {
+pub async fn list_view(uuid: String, dbs: tauri::State<'_, App>) -> Result<Vec<ListView>, String> {
     dbs.list_view(uuid.as_str())
         .await
         .map_err(|x| x.to_string())
 }
 #[tauri::command]
 pub async fn drop_view(
-    uuid: String, view_name: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, view_name: String, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     dbs.drop_view(uuid.as_str(), &view_name)
         .await
@@ -155,7 +155,7 @@ pub async fn drop_view(
 }
 #[tauri::command]
 pub async fn drop_table(
-    uuid: String, table_name: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, table_name: String, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     dbs.drop_table(uuid.as_str(), &table_name)
         .await
@@ -164,7 +164,7 @@ pub async fn drop_table(
 #[tauri::command]
 pub async fn show_view(
     uuid: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, dbs: tauri::State<'_, DBS>,
+    page_size: usize, dbs: tauri::State<'_, App>,
 ) -> Result<TableListResp, String> {
     dbs.show_view(
         uuid.as_str(),
@@ -180,7 +180,7 @@ pub async fn show_view(
 
 #[tauri::command]
 pub async fn open_db2(
-    uuid: String, db_name: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, db_name: String, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     dbs.open_db2(uuid.as_str(), db_name.as_str())
         .await
@@ -190,7 +190,7 @@ pub async fn open_db2(
 
 #[tauri::command]
 pub async fn query_sql(
-    uuid: String, id: uuid::Uuid, sql: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, id: uuid::Uuid, sql: String, dbs: tauri::State<'_, App>,
 ) -> Result<Vec<Result<TableListResp, ExeSqlError>>, String> {
     let sql = sql.as_str();
     let db = dbs
@@ -206,7 +206,7 @@ pub async fn query_sql(
 }
 #[tauri::command]
 pub async fn query_sql_open_connection(
-    uuid: String, dbs: tauri::State<'_, DBS>,
+    uuid: String, dbs: tauri::State<'_, App>,
 ) -> Result<uuid::Uuid, String> {
     let db = dbs
         .open_db(uuid.as_str())
@@ -220,7 +220,7 @@ pub async fn query_sql_open_connection(
 }
 #[tauri::command]
 pub async fn query_sql_re_connection(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
         .open_db(uuid.as_str())
@@ -234,7 +234,7 @@ pub async fn query_sql_re_connection(
 }
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
         .open_db(uuid.as_str())
@@ -249,7 +249,7 @@ pub async fn query_sql_close_connection(
 
 #[tauri::command]
 pub async fn save_user_settings(
-    user_settings: UserSettings, dbs: tauri::State<'_, DBS>,
+    user_settings: UserSettings, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     dbs.loader
         .save_user_settings(user_settings)
@@ -258,7 +258,7 @@ pub async fn save_user_settings(
 }
 
 #[tauri::command]
-pub async fn get_user_settings(dbs: tauri::State<'_, DBS>) -> Result<UserSettings, String> {
+pub async fn get_user_settings(dbs: tauri::State<'_, App>) -> Result<UserSettings, String> {
     dbs.loader
         .get_user_settings_cloned()
         .await
@@ -267,7 +267,7 @@ pub async fn get_user_settings(dbs: tauri::State<'_, DBS>) -> Result<UserSetting
 
 #[tauri::command]
 pub async fn list_all_config(
-    dbs: tauri::State<'_, DBS>,
+    dbs: tauri::State<'_, App>,
 ) -> Result<HashMap<String /* uuid */, DBConnectionConfig>, String> {
     dbs.loader
         .list_all_configs_cloned()
@@ -278,7 +278,7 @@ pub async fn list_all_config(
 #[tauri::command]
 pub async fn export_table(
     uuid: String, table_name: String, filepath: String, kind: ExportKind,
-    dbs: tauri::State<'_, DBS>,
+    dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -291,7 +291,7 @@ pub async fn export_table(
 
 #[tauri::command]
 pub async fn oracle_query_set_autocommit(
-    uuid: String, id: uuid::Uuid, commit: bool, dbs: tauri::State<'_, DBS>,
+    uuid: String, id: uuid::Uuid, commit: bool, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -308,7 +308,7 @@ pub async fn oracle_query_set_autocommit(
 }
 #[tauri::command]
 pub async fn oracle_query_autocommit(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<bool, String> {
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -321,7 +321,7 @@ pub async fn oracle_query_autocommit(
 }
 #[tauri::command]
 pub async fn oracle_query_commit(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -334,7 +334,7 @@ pub async fn oracle_query_commit(
 }
 #[tauri::command]
 pub async fn oracle_query_rollback(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -348,7 +348,7 @@ pub async fn oracle_query_rollback(
 
 #[tauri::command]
 pub async fn oracle_query_call_timeout(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<Option<Duration>, String> {
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -365,7 +365,7 @@ pub async fn oracle_query_set_call_timeout(
     uuid: String,
     id: uuid::Uuid,
     timeout: Option<Duration>, // {"secs":1,"nanos":234000000}
-    dbs: tauri::State<'_, DBS>,
+    dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
         .get_one_db(uuid.as_str())

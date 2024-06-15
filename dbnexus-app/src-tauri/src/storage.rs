@@ -302,13 +302,13 @@ pub enum DB {
 }
 
 /// all the databases
-pub struct DBS {
+pub struct App {
     pub(crate) loader: Arc<dyn DbConfigLoader>,
     dbs: Arc<Mutex<HashMap<String, DB>>>,
     pm: PoolManager,
 }
 
-impl DBS {
+impl App {
     pub fn new(loader: Arc<dyn DbConfigLoader>) -> Self {
         Self {
             loader,
@@ -318,7 +318,7 @@ impl DBS {
     }
 }
 
-impl DBS {
+impl App {
     pub async fn open_db(&self, uuid: &str) -> anyhow::Result<DB> {
         if let Some(x) = self.dbs.lock().await.get(&uuid.to_string()) {
             return anyhow::Ok(x.clone());

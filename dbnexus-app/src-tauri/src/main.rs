@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use dbnexus_db::init_log;
-use storage::{DbConfigLoader, FileJsonSaver, DBS};
+use storage::{App, DbConfigLoader, FileJsonSaver};
 
 mod handlers;
 mod storage;
@@ -29,7 +29,7 @@ async fn main() {
     init_log();
 
     let loader: Arc<dyn DbConfigLoader> = Arc::new(FileJsonSaver::new("dbnexus.json").unwrap());
-    let dbs = DBS::new(loader);
+    let dbs = App::new(loader);
 
     tauri::Builder::default()
         .manage(dbs)
