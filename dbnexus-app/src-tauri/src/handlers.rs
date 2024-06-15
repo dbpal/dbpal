@@ -362,7 +362,10 @@ pub async fn oracle_query_call_timeout(
 
 #[tauri::command]
 pub async fn oracle_query_set_call_timeout(
-    uuid: String, timeout: Option<Duration>, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+    uuid: String,
+    id: uuid::Uuid,
+    timeout: Option<Duration>, // {"secs":1,"nanos":234000000}
+    dbs: tauri::State<'_, DBS>,
 ) -> Result<(), String> {
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -376,4 +379,13 @@ pub async fn oracle_query_set_call_timeout(
         }
         None => Err(format!("db '{}' is not oracle", uuid)),
     }
+}
+
+#[cfg(test)]
+#[test]
+fn test_serde_duration() {
+    let d = Duration::from_millis(1234);
+
+    let s = serde_json::to_string(&d).unwrap();
+    println!("s:{}", s);
 }
