@@ -9,6 +9,7 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
+use crate::completion::LexerCompletionBackend;
 use crate::datasource::{DBPoolKey, OracleDBConfig};
 use crate::db::{
     create_csv, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field, Index, IndexKind,
@@ -1026,9 +1027,8 @@ impl OracleDB {
             NexusPool::Oracle(p) => p.clone(),
             _ => unreachable!(),
         };
-        let conn: oracle::Connection = tokio::task::spawn_blocking(move || pool.get())
-            .await
-            .unwrap()?;
+
+        let mut conn: oracle::Connection = block_in_place(|| pool.get())?;
         match &self.db_name {
             Some(db_name) => {
                 let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
@@ -1036,12 +1036,17 @@ impl OracleDB {
             }
             None => {}
         }
+        block_in_place(|| {
+            conn.set_autocommit(true);
+        });
+
         return anyhow::Ok(conn);
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::{init_log, TEST_HOST};
     fn make_test_object(db_name: Option<String>) -> OracleDB {
@@ -1142,6 +1147,57 @@ FROM  TEST_VIEW_TABLE"#,
             let cols = db.show_columns(&t.table).await.unwrap();
             println!("table:{} ,cols:{:?}", t.table, cols);
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_query_sql() {
+        let db = make_test_object(Some("SYSTEM".to_string()));
+
+        let db_trait = &db as &dyn DBTrait;
+        // get query_uuid
+        let query_uuid = db_trait.open_connection().await.unwrap();
+        // test auto commit
+        db.query_set_autocommit(query_uuid, false).await.unwrap();
+        assert!(!db.query_autocommit(query_uuid).await.unwrap());
+
+        let call_timeout = db.query_call_timeout(query_uuid).await.unwrap();
+        println!("call timeout:{:?}", call_timeout);
+        let call_timeout = Some(Duration::from_secs(5));
+        db.query_set_call_timeout(query_uuid, call_timeout)
+            .await
+            .unwrap();
+        assert_eq!(
+            db.query_call_timeout(query_uuid).await.unwrap(),
+            call_timeout
+        );
+        let sqls = vec![
+            r#"
+            CREATE TABLE TEST_QUERY (
+                id NUMBER PRIMARY KEY,
+                name VARCHAR2(50),
+                age NUMBER
+            )
+        "#,
+            "INSERT INTO TEST_QUERY (id, name, age) VALUES (1, 'Alice', 25)",
+            "INSERT INTO TEST_QUERY (id, name, age) VALUES (2, 'Bob', 32)",
+            "INSERT INTO TEST_QUERY (id, name, age) VALUES (3, 'Charlie', 18)",
+        ];
+        // test a rollback but we rollback nothings
+
+        db.query_rollback(query_uuid).await.unwrap();
+
+        let _ = db_trait.drop_table("TEST_QUERY").await;
+        for sql in sqls.iter() {
+            let _ = db_trait.query_sql(query_uuid, *sql).await;
+        }
+
+        db.query_commit(query_uuid).await.unwrap();
+
+        let resp = db_trait
+            .show_table("TEST_QUERY", None, None, 1, 100)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1449,3 +1505,528 @@ FROM  TEST_VIEW_TABLE"#,
     //     println!("resp:{:?}", resp);
     // }
 }
+
+#[async_trait::async_trait]
+impl LexerCompletionBackend for OracleDB {
+    type Dialect = sqlparser::dialect::GenericDialect;
+
+    const BUILD_IN_FUNCTIONS: &'static [&'static str] = &[];
+    const KEY_WORDS: &'static [&'static str] = ORACLE_KEY_WORDS;
+    const TYPES: &'static [&'static str] = ORACLE_TYPES;
+
+    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
+        match &self.db_name {
+            Some(_) => {
+                DBTrait::list_table(self)
+                    .await
+                    .map(|x| x.into_iter().map(|x| x.table).collect())
+            }
+            None => anyhow::Ok(vec![]),
+        }
+    }
+
+    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+        MultiDBTrait::list_db(self).await
+    }
+
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
+        match &self.db_name {
+            Some(_) => {
+                DBTrait::show_columns(self, &table_name)
+                    .await
+                    .map(|x| x.into_iter().map(|x| x.name).collect())
+            }
+            None => anyhow::Ok(vec![]),
+        }
+    }
+}
+
+const ORACLE_TYPES: &'static [&'static str] = &[
+    "NUMBER",
+    "BINARY_FLOAT",
+    "BINARY_DOUBLE",
+    "BINARY_INTEGER",
+    "CHAR",
+    "VARCHAR2",
+    "NCHAR",
+    "NVARCHAR2",
+    "DATE",
+    "TIMESTAMP",
+    "INTERVAL YEAR TO MONTH",
+    "INTERVAL DAY TO SECOND",
+    "RAW",
+    "LONG RAW",
+    "CLOB",
+    "NCLOB",
+    "BLOB",
+    "SDO_GEOMETRY",
+    "XMLType",
+];
+
+const ORACLE_KEY_WORDS: &'static [&'static str] = &[
+    "ACCESS",
+    "ELSE",
+    "MODIFY",
+    "START",
+    "ADD",
+    "EXCLUSIVE",
+    "NOAUDIT",
+    "SELECT",
+    "ALL",
+    "EXISTS",
+    "NOCOMPRESS",
+    "SESSION",
+    "ALTER",
+    "FILE",
+    "NOT",
+    "SET",
+    "AND",
+    "FLOAT",
+    "NOTFOUND",
+    "SHARE",
+    "ANY",
+    "FOR",
+    "NOWAIT",
+    "SIZE",
+    "ARRAYLEN",
+    "FROM",
+    "NULL",
+    "SMALLINT",
+    "AS",
+    "GRANT",
+    "NUMBER",
+    "SQLBUF",
+    "ASC",
+    "GROUP",
+    "OF",
+    "SUCCESSFUL",
+    "AUDIT",
+    "HAVING",
+    "OFFLINE",
+    "SYNONYM",
+    "BETWEEN",
+    "IDENTIFIED",
+    "ON",
+    "SYSDATE",
+    "BY",
+    "IMMEDIATE",
+    "ONLINE",
+    "TABLE",
+    "CHAR",
+    "IN",
+    "OPTION",
+    "THEN",
+    "CHECK",
+    "INCREMENT",
+    "OR",
+    "TO",
+    "CLUSTER",
+    "INDEX",
+    "ORDER",
+    "TRIGGER",
+    "COLUMN",
+    "INITIAL",
+    "PCTFREE",
+    "UID",
+    "COMMENT",
+    "INSERT",
+    "PRIOR",
+    "UNION",
+    "COMPRESS",
+    "INTEGER",
+    "PRIVILEGES",
+    "UNIQUE",
+    "CONNECT",
+    "INTERSECT",
+    "PUBLIC",
+    "UPDATE",
+    "CREATE",
+    "INTO",
+    "RAW",
+    "USER",
+    "CURRENT",
+    "IS",
+    "RENAME",
+    "VALIDATE",
+    "DATE",
+    "LEVEL",
+    "RESOURCE",
+    "VALUES",
+    "DECIMAL",
+    "LIKE",
+    "REVOKE",
+    "VARCHAR",
+    "DEFAULT",
+    "LOCK",
+    "ROW",
+    "VARCHAR2",
+    "DELETE",
+    "LONG",
+    "ROWID",
+    "VIEW",
+    "DESC",
+    "MAXEXTENTS",
+    "ROWLABEL",
+    "WHENEVER",
+    "DISTINCT",
+    "MINUS",
+    "ROWNUM",
+    "WHERE",
+    "DROP",
+    "MODE",
+    "ROWS",
+    "WITH",
+    "ADMIN",
+    "CURSOR",
+    "FOUND",
+    "MOUNT",
+    "AFTER",
+    "CYCLE",
+    "FUNCTION",
+    "NEXT",
+    "ALLOCATE",
+    "DATABASE",
+    "GO",
+    "NEW",
+    "ANALYZE",
+    "DATAFILE",
+    "GOTO",
+    "NOARCHIVELOG",
+    "ARCHIVE",
+    "DBA",
+    "GROUPS",
+    "NOCACHE",
+    "ARCHIVELOG",
+    "DEC",
+    "INCLUDING",
+    "NOCYCLE",
+    "AUTHORIZATION",
+    "DECLARE",
+    "INDICATOR",
+    "NOMAXVALUE",
+    "AVG",
+    "DISABLE",
+    "INITRANS",
+    "NOMINVALUE",
+    "BACKUP",
+    "DISMOUNT",
+    "INSTANCE",
+    "NONE",
+    "BEGIN",
+    "DOUBLE",
+    "INT",
+    "NOORDER",
+    "BECOME",
+    "DUMP",
+    "KEY",
+    "NORESETLOGS",
+    "BEFORE",
+    "EACH",
+    "LANGUAGE",
+    "NORMAL",
+    "BLOCK",
+    "ENABLE",
+    "LAYER",
+    "NOSORT",
+    "BODY",
+    "END",
+    "LINK",
+    "NUMERIC",
+    "CACHE",
+    "ESCAPE",
+    "LISTS",
+    "OFF",
+    "CANCEL",
+    "EVENTS",
+    "LOGFILE",
+    "OLD",
+    "CASCADE",
+    "EXCEPT",
+    "MANAGE",
+    "ONLY",
+    "CHANGE",
+    "EXCEPTIONS",
+    "MANUAL",
+    "OPEN",
+    "CHARACTER",
+    "EXEC",
+    "MAX",
+    "OPTIMAL",
+    "CHECKPOINT",
+    "EXPLAIN",
+    "MAXDATAFILES",
+    "OWN",
+    "CLOSE",
+    "EXECUTE",
+    "MAXINSTANCES",
+    "PACKAGE",
+    "COBOL",
+    "EXTENT",
+    "MAXLOGFILES",
+    "PARALLEL",
+    "COMMIT",
+    "EXTERNALLY",
+    "MAXLOGHISTORY",
+    "PCTINCREASE",
+    "COMPILE",
+    "FETCH",
+    "MAXLOGMEMBERS",
+    "PCTUSED",
+    "CONSTRAINT",
+    "FLUSH",
+    "MAXTRANS",
+    "PLAN",
+    "CONSTRAINTS",
+    "FREELIST",
+    "MAXVALUE",
+    "PLI",
+    "CONTENTS",
+    "FREELISTS",
+    "MIN",
+    "PRECISION",
+    "CONTINUE",
+    "FORCE",
+    "MINEXTENTS",
+    "PRIMARY",
+    "CONTROLFILE",
+    "FOREIGN",
+    "MINVALUE",
+    "PRIVATE",
+    "COUNT",
+    "FORTRAN",
+    "MODULE",
+    "PROCEDURE",
+    "PROFILE",
+    "SAVEPOINT",
+    "SQLSTATE",
+    "TRACING",
+    "QUOTA",
+    "SCHEMA",
+    "STATEMENT_ID",
+    "TRANSACTION",
+    "READ",
+    "SCN",
+    "STATISTICS",
+    "TRIGGERS",
+    "REAL",
+    "SECTION",
+    "STOP",
+    "TRUNCATE",
+    "RECOVER",
+    "SEGMENT",
+    "STORAGE",
+    "UNDER",
+    "REFERENCES",
+    "SEQUENCE",
+    "SUM",
+    "UNLIMITED",
+    "REFERENCING",
+    "SHARED",
+    "SWITCH",
+    "UNTIL",
+    "RESETLOGS",
+    "SNAPSHOT",
+    "SYSTEM",
+    "USE",
+    "RESTRICTED",
+    "SOME",
+    "TABLES",
+    "USING",
+    "REUSE",
+    "SORT",
+    "TABLESPACE",
+    "WHEN",
+    "ROLE",
+    "SQL",
+    "TEMPORARY",
+    "WRITE",
+    "ROLES",
+    "SQLCODE",
+    "THREAD",
+    "WORK",
+    "ROLLBACK",
+    "SQLERROR",
+    "TIME",
+    "ABORT",
+    "BETWEEN",
+    "CRASH",
+    "DIGITS",
+    "ACCEPT",
+    "BINARY_INTEGER",
+    "CREATE",
+    "DISPOSE",
+    "ACCESS",
+    "BODY",
+    "CURRENT",
+    "DISTINCT",
+    "ADD",
+    "BOOLEAN",
+    "CURRVAL",
+    "DO",
+    "ALL",
+    "BY",
+    "CURSOR",
+    "DROP",
+    "ALTER",
+    "CASE",
+    "DATABASE",
+    "ELSE",
+    "AND",
+    "CHAR",
+    "DATA_BASE",
+    "ELSIF",
+    "ANY",
+    "CHAR_BASE",
+    "DATE",
+    "END",
+    "ARRAY",
+    "CHECK",
+    "DBA",
+    "ENTRY",
+    "ARRAYLEN",
+    "CLOSE",
+    "DEBUGOFF",
+    "EXCEPTION",
+    "AS",
+    "CLUSTER",
+    "DEBUGON",
+    "EXCEPTION_INIT",
+    "ASC",
+    "CLUSTERS",
+    "DECLARE",
+    "EXISTS",
+    "ASSERT",
+    "COLAUTH",
+    "DECIMAL",
+    "EXIT",
+    "ASSIGN",
+    "COLUMNS",
+    "DEFAULT",
+    "FALSE",
+    "AT",
+    "COMMIT",
+    "DEFINITION",
+    "FETCH",
+    "AUTHORIZATION",
+    "COMPRESS",
+    "DELAY",
+    "FLOAT",
+    "AVG",
+    "CONNECT",
+    "DELETE",
+    "FOR",
+    "BASE_TABLE",
+    "CONSTANT",
+    "DESC",
+    "FORM",
+    "FUNCTION",
+    "NEW",
+    "RELEASE",
+    "SUM",
+    "GENERIC",
+    "NEXTVAL",
+    "REMR",
+    "TABAUTH",
+    "GOTO",
+    "NOCOMPRESS",
+    "RENAME",
+    "TABLE",
+    "GRANT",
+    "NOT",
+    "RESOURCE",
+    "TABLES",
+    "GROUP",
+    "NULL",
+    "RETURN",
+    "TASK",
+    "HAVING",
+    "NUMBER",
+    "REVERSE",
+    "TERMINATE",
+    "IDENTIFIED",
+    "NUMBER_BASE",
+    "REVOKE",
+    "THEN",
+    "IF",
+    "OF",
+    "ROLLBACK",
+    "TO",
+    "IN",
+    "ON",
+    "ROWID",
+    "TRUE",
+    "INDEX",
+    "OPEN",
+    "ROWLABEL",
+    "TYPE",
+    "INDEXES",
+    "OPTION",
+    "ROWNUM",
+    "UNION",
+    "INDICATOR",
+    "OR",
+    "ROWTYPE",
+    "UNIQUE",
+    "INSERT",
+    "ORDER",
+    "RUN",
+    "UPDATE",
+    "INTEGER",
+    "OTHERS",
+    "SAVEPOINT",
+    "USE",
+    "INTERSECT",
+    "OUT",
+    "SCHEMA",
+    "VALUES",
+    "INTO",
+    "PACKAGE",
+    "SELECT",
+    "VARCHAR",
+    "IS",
+    "PARTITION",
+    "SEPARATE",
+    "VARCHAR2",
+    "LEVEL",
+    "PCTFREE",
+    "SET",
+    "VARIANCE",
+    "LIKE",
+    "POSITIVE",
+    "SIZE",
+    "VIEW",
+    "LIMITED",
+    "PRAGMA",
+    "SMALLINT",
+    "VIEWS",
+    "LOOP",
+    "PRIOR",
+    "SPACE",
+    "WHEN",
+    "MAX",
+    "PRIVATE",
+    "SQL",
+    "WHERE",
+    "MIN",
+    "PROCEDURE",
+    "SQLCODE",
+    "WHILE",
+    "MINUS",
+    "PUBLIC",
+    "SQLERRM",
+    "WITH",
+    "MLSLABEL",
+    "RAISE",
+    "START",
+    "WORK",
+    "MOD",
+    "RANGE",
+    "STATEMENT",
+    "XOR",
+    "MODE",
+    "REAL",
+    "STDDEV",
+    "NATURAL",
+    "RECORD",
+    "SUBTYPE",
+];
