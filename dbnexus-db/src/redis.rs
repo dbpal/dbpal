@@ -961,7 +961,7 @@ impl AutoCompletionTrait for RedisDB {
 #[async_trait::async_trait]
 
 impl DBListCompletionItem for RedisDB {
-    fn multi_db(&self) -> bool {
+    fn is_multi_db(&self) -> bool {
         false
     }
 

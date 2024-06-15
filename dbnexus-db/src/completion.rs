@@ -31,7 +31,10 @@ pub enum CompletionKind {
 
 #[async_trait::async_trait]
 pub trait DBListCompletionItem {
-    fn multi_db(&self) -> bool {
+    /// some fact about the backend
+    /// postgres and mysql etc support multiple database
+    /// while sqlite only contains one database
+    fn is_multi_db(&self) -> bool {
         true
     }
     async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>>;
@@ -144,7 +147,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                 .collect::<Vec<_>>(),
         );
 
-        if self.multi_db() {
+        if self.is_multi_db() {
             for db in list_db.iter() {
                 let list_tables = self
                     .list_table(Some(db.to_string()))
@@ -229,3 +232,6 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
     matched.sort_by(|a, b| b.score.cmp(&a.score));
     matched.into_iter().map(|x| x.item).collect()
 }
+
+#[cfg(test)]
+mod tests {}

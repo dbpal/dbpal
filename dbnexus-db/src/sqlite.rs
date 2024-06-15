@@ -875,7 +875,7 @@ impl AutoCompletionTrait for SqliteDB {
 
 #[async_trait::async_trait]
 impl DBListCompletionItem for SqliteDB {
-    fn multi_db(&self) -> bool {
+    fn is_multi_db(&self) -> bool {
         false
     }
 

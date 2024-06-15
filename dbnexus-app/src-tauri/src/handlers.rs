@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use dbnexus_db::db::{
     ExeSqlError, ExportKind, Field, Index, ListTable, ListView, RedisListTable, SqlExecuteRet,
     TableListResp,
 };
+use dbnexus_db::oracle::OracleDB;
 
 use crate::storage::{DBConnectionConfig, UserSettings, DBS};
 
@@ -285,4 +287,93 @@ pub async fn export_table(
     db.export_table_to_file(table_name.as_str(), filepath.as_str(), kind)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn oracle_query_set_autocommit(
+    uuid: String, id: uuid::Uuid, commit: bool, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<OracleDB>() {
+        Some(x) => {
+            x.query_set_autocommit(id, commit)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        None => Err(format!("db '{}' is not oracle", uuid)),
+    }
+}
+#[tauri::command]
+pub async fn oracle_query_autocommit(
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+) -> Result<bool, String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<OracleDB>() {
+        Some(x) => x.query_autocommit(id).await.map_err(|e| e.to_string()),
+        None => Err(format!("db '{}' is not oracle", uuid)),
+    }
+}
+#[tauri::command]
+pub async fn oracle_query_commit(
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<OracleDB>() {
+        Some(x) => x.query_commit(id).await.map_err(|e| e.to_string()),
+        None => Err(format!("db '{}' is not oracle", uuid)),
+    }
+}
+#[tauri::command]
+pub async fn oracle_query_rollback(
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<OracleDB>() {
+        Some(x) => x.query_rollback(id).await.map_err(|e| e.to_string()),
+        None => Err(format!("db '{}' is not oracle", uuid)),
+    }
+}
+
+#[tauri::command]
+pub async fn oracle_query_call_timeout(
+    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+) -> Result<Option<Duration>, String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<OracleDB>() {
+        Some(x) => x.query_call_timeout(id).await.map_err(|e| e.to_string()),
+        None => Err(format!("db '{}' is not oracle", uuid)),
+    }
+}
+
+#[tauri::command]
+pub async fn oracle_query_set_call_timeout(
+    uuid: String, timeout: Option<Duration>, id: uuid::Uuid, dbs: tauri::State<'_, DBS>,
+) -> Result<(), String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<OracleDB>() {
+        Some(x) => {
+            x.query_set_call_timeout(id, timeout)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        None => Err(format!("db '{}' is not oracle", uuid)),
+    }
 }
