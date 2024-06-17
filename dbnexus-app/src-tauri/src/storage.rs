@@ -17,7 +17,7 @@ pub struct DBNexusConfigs {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "conn_type")]
 pub enum DBConnectionConfig {
     Sqlite {
         path: String,
