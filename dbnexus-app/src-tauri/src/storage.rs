@@ -24,23 +24,28 @@ pub enum DBConnectionConfig {
         read_only: bool,
     },
     Mysql {
+        #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
     },
     MariaDB {
+        #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
     },
     Postgres {
+        #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
     },
     SqlServer {
+        #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
         trust_cert: bool,
     },
     MongoDB {
+        #[serde(flatten)]
         conn: MongoDataSource,
         read_only: bool,
         db_name: String,
@@ -50,6 +55,7 @@ pub enum DBConnectionConfig {
         read_only: bool,
     },
     Oracle {
+        #[serde(flatten)]
         conn: OracleDBConfig,
         read_only: bool,
         db_name: Option<String>,
@@ -479,6 +485,8 @@ impl Default for UserSettings {
 mod tests {
     use std::collections::HashMap;
 
+    use dbnexus_db::datasource::CommDBConfig;
+
     use super::DBNexusConfigs;
     use crate::storage::DBConnectionConfig;
 
@@ -492,6 +500,19 @@ mod tests {
                     "xxxx".to_string(),
                     DBConnectionConfig::Sqlite {
                         path: "d:\\sqlite.test.db".to_string(),
+                        read_only: false,
+                    },
+                );
+                m.insert(
+                    "yyyy".to_string(),
+                    DBConnectionConfig::Mysql {
+                        conn: CommDBConfig {
+                            host: "127.0.0.1".to_string(),
+                            port: 33,
+                            username: "aaa".to_string(),
+                            password: "bbb".to_string(),
+                            db_name: None,
+                        },
                         read_only: false,
                     },
                 );
