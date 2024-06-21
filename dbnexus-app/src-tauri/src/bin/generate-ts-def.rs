@@ -39,7 +39,8 @@ fn main() {
         ];
 
         let mut buf = Vec::new();
-        let options: DefinitionFileOptions = DefinitionFileOptions::default();
+        let mut options: DefinitionFileOptions = DefinitionFileOptions::default();
+        options.root_namespace = Some("db_apis");
         write_definition_file_from_type_infos(&mut buf, options, &api).unwrap();
         buf
     };
