@@ -199,7 +199,7 @@ impl From<&str> for ListTable {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default, TypeDef)]
 pub struct RedisListTable {
     pub(crate) string_table: Vec<String>,
     pub(crate) list_table: Vec<String>,

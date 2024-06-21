@@ -131,4 +131,11 @@ export namespace types {
     } & {
         "include_table_schema": boolean;
     }));
+    export type RedisListTable = {
+        "string_table": (string)[];
+        "list_table": (string)[];
+        "set_table": (string)[];
+        "hash_table": (string)[];
+        "zset_table": (string)[];
+    };
 }
