@@ -1,3 +1,5 @@
+use typescript_type_def::TypeDef;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DBPoolKey {
     Sqlite {
@@ -20,7 +22,7 @@ pub enum DBPoolKey {
     Oracle(OracleDBConfig),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct MongoDataSource {
     pub host: String,
     pub port: u16,
@@ -29,7 +31,16 @@ pub struct MongoDataSource {
 
 /// username password host and port database name
 /// packed together.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Deserialize,
+    serde::Serialize,
+    typescript_type_def::TypeDef,
+)]
 pub struct CommDBConfig {
     pub host: String,
     pub port: u16,
@@ -38,7 +49,7 @@ pub struct CommDBConfig {
     pub db_name: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, TypeDef)]
 pub struct OracleDBConfig {
     pub username: String,
     pub password: String,

@@ -11,6 +11,8 @@ use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::{Location, Token};
 use tokio::io::AsyncWriteExt;
 
+use typescript_type_def::TypeDef;
+
 /// A db representation of database
 #[async_trait::async_trait]
 pub trait DBTrait: Sync + Send + QuerySql + 'static {
@@ -162,7 +164,7 @@ pub trait QuerySql {
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct ListView {
     pub name: String,
 }
@@ -180,7 +182,7 @@ impl From<&str> for ListView {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct ListTable {
     pub table: String,
 }
@@ -338,7 +340,7 @@ impl dyn DBTrait {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct SqlExecuteRet {
     pub sql: String,
     pub changes: u64,
@@ -367,7 +369,7 @@ impl From<u64> for SqlExecuteRet {
         }
     }
 }
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct Index {
     pub(crate) name: String,
     pub(crate) kind: IndexKind,
@@ -385,6 +387,57 @@ impl Index {
 pub struct ExeSqlError {
     sql: String,
     err: anyhow::Error,
+}
+
+impl typescript_type_def::TypeDef for ExeSqlError {
+    const INFO: typescript_type_def::type_expr::TypeInfo =
+        typescript_type_def::type_expr::TypeInfo::Defined(
+            typescript_type_def::type_expr::DefinedTypeInfo {
+                def: typescript_type_def::type_expr::TypeDefinition {
+                    docs: None,
+                    path: &[],
+                    name: typescript_type_def::type_expr::Ident("ExeSqlError"),
+                    generic_vars: &[],
+                    def: typescript_type_def::type_expr::TypeExpr::Object(
+                        typescript_type_def::type_expr::TypeObject {
+                            docs: None,
+                            index_signature: None,
+                            fields: &[
+                                typescript_type_def::type_expr::ObjectField {
+                                    docs: None,
+                                    name: typescript_type_def::type_expr::TypeString {
+                                        docs: None,
+                                        value: "sql",
+                                    },
+                                    optional: false,
+                                    r#type: typescript_type_def::type_expr::TypeExpr::String(
+                                        typescript_type_def::type_expr::TypeString {
+                                            docs: None,
+                                            value: "string",
+                                        },
+                                    ),
+                                },
+                                typescript_type_def::type_expr::ObjectField {
+                                    docs: None,
+                                    name: typescript_type_def::type_expr::TypeString {
+                                        docs: None,
+                                        value: "err",
+                                    },
+                                    optional: false,
+                                    r#type: typescript_type_def::type_expr::TypeExpr::String(
+                                        typescript_type_def::type_expr::TypeString {
+                                            docs: None,
+                                            value: "string",
+                                        },
+                                    ),
+                                },
+                            ],
+                        },
+                    ),
+                },
+                generic_args: &[],
+            },
+        );
 }
 
 impl ExeSqlError {
@@ -427,14 +480,14 @@ fn test_serde_json_exe_sql_error() {
     println!("{:?}", s);
 }
 
-#[derive(Clone, serde::Serialize, Copy, Debug)]
+#[derive(Clone, serde::Serialize, Copy, Debug, TypeDef)]
 pub enum IndexKind {
     Normal = 0,
     Unique = 1,
     Primary = 2,
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct TableListResp {
     pub(crate) fields: Vec<Field>,
     pub(crate) total: usize,
@@ -504,7 +557,7 @@ impl TableListResp {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct Field {
     pub name: String,
     pub typ: String,
@@ -776,7 +829,8 @@ pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
     format!("{} {}", x.naive_local(), x.offset())
 }
 
-#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize, TypeDef)]
+#[serde(tag = "export_kind", rename_all = "lowercase")]
 pub enum ExportKind {
     CSV {
         include_header: bool,

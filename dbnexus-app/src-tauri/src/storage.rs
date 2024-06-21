@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
+use typescript_type_def::TypeDef;
 
 use dbnexus_db::datasource::{CommDBConfig, MongoDataSource, OracleDBConfig};
 use dbnexus_db::db::{
@@ -16,8 +17,8 @@ pub struct DBNexusConfigs {
     user_settings: UserSettings,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "conn_type")]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
+#[serde(tag = "conn_type", rename_all = "lowercase")]
 pub enum DBConnectionConfig {
     Sqlite {
         path: String,
@@ -470,7 +471,7 @@ impl App {
     }
 }
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, TypeDef)]
 pub struct UserSettings {
     page_size: usize,
 }

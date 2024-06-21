@@ -25,7 +25,7 @@ futures-core.workspace = true
 lazy_static.workspace = true
 log.workspace = true
 uuid.workspace = true
-
+typescript-type-def.workspace = true
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]

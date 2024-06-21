@@ -66,3 +66,4 @@ bb8 = "*"
 fuzzy-matcher = "*"
 pg_interval = "*"
 uuid = { version = "*", features = ["v4"] }
+typescript-type-def = "0.5.11"
