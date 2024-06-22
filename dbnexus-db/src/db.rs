@@ -416,11 +416,10 @@ impl typescript_type_def::TypeDef for ExeSqlError {
                                         value: "sql",
                                     },
                                     optional: false,
-                                    r#type: typescript_type_def::type_expr::TypeExpr::String(
-                                        typescript_type_def::type_expr::TypeString {
-                                            docs: None,
-                                            value: "string",
-                                        },
+                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
+                                        typescript_type_def::type_expr::TypeName::ident(
+                                            typescript_type_def::type_expr::Ident("string"),
+                                        ),
                                     ),
                                 },
                                 typescript_type_def::type_expr::ObjectField {
@@ -430,11 +429,10 @@ impl typescript_type_def::TypeDef for ExeSqlError {
                                         value: "err",
                                     },
                                     optional: false,
-                                    r#type: typescript_type_def::type_expr::TypeExpr::String(
-                                        typescript_type_def::type_expr::TypeString {
-                                            docs: None,
-                                            value: "string",
-                                        },
+                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
+                                        typescript_type_def::type_expr::TypeName::ident(
+                                            typescript_type_def::type_expr::Ident("string"),
+                                        ),
                                     ),
                                 },
                             ],

@@ -114,8 +114,8 @@ export namespace db_apis {
         "name": string;
     };
     export type ExeSqlError = {
-        "sql": "string";
-        "err": "string";
+        "sql": string;
+        "err": string;
     };
     export type ExportKind = (({
         "export_kind": "csv";
@@ -148,4 +148,9 @@ export namespace db_apis {
     export type ListTrigger = {
         "name": string;
     };
+    export type CompletionItem = {
+        "name": string;
+        "kind": CompletionKind;
+    };
+    export type CompletionKind = ("KeyWord" | "Function" | "Dbname" | "TableName" | "Column" | "Text" | "Type");
 }
