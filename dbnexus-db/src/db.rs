@@ -112,7 +112,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
     async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
         anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
     }
-    async fn show_trigger(&self, _name: &str) -> anyhow::Result<TriggerDetail> {
+    async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
         anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
     }
 }

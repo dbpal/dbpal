@@ -394,14 +394,16 @@ pub async fn list_trigger(
 }
 #[tauri::command]
 pub async fn show_trigger(
-    uuid: String, name: String, dbs: tauri::State<'_, App>,
+    uuid: String, table: String, name: String, dbs: tauri::State<'_, App>,
 ) -> Result<TriggerDetail, String> {
     let db = dbs
         .get_one_db(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
 
-    db.show_trigger(&name).await.map_err(|e| e.to_string())
+    db.show_trigger(&table, &name)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

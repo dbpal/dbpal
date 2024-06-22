@@ -324,7 +324,7 @@ impl DBTrait for SqliteDB {
         anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
     }
 
-    async fn show_trigger(&self, name: &str) -> anyhow::Result<TriggerDetail> {
+    async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
         query_trigger_detail(conn.deref_mut(), &name).await
     }
@@ -1377,7 +1377,7 @@ mod tests {
     }
     #[tokio::test]
 
-    async fn test_trigger() {
+    async fn test_triggers() {
         let db = make_test_db().await;
         let mut conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn DBTrait;
@@ -1421,7 +1421,10 @@ mod tests {
 
         let triggers = db_trait.list_trigger("test_create_trigger").await.unwrap();
         for trigger in triggers.iter() {
-            let details = db_trait.show_trigger(trigger.name.as_str()).await.unwrap();
+            let details = db_trait
+                .show_trigger("test_create_trigger", trigger.name.as_str())
+                .await
+                .unwrap();
             println!("name:{} , detail:{:?}", trigger.name, details);
         }
     }

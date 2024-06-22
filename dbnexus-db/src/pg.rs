@@ -14,8 +14,8 @@ use crate::completion::{DBLexerCompletionBackend, DBListCompletionItem};
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
-    Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlSeq,
-    TableListResp,
+    Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QuerySql, SqlExecuteRet,
+    SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
@@ -63,7 +63,7 @@ impl DBLexerCompletionBackend for PostGresDB {
 }
 
 #[async_trait::async_trait]
-impl crate::db::MultiDBTrait for PostGresDB {
+impl MultiDBTrait for PostGresDB {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(" SELECT datname FROM pg_database WHERE datistemplate = false;")
@@ -208,8 +208,112 @@ fn gen_show_sql(
     sql
 }
 
+/// AI help me impl this.
+// 当然可以,下面是一个 Rust 函数,用于解析 PostgreSQL 触发器的 tgtype 值:
+//
+// rust
+// 复制
+// fn parse_trigger_type(tgtype: i32) -> String {
+// let mut result = String::new();
+//
+// if (tgtype & 0b1) == 0b1 {
+// result.push_str("INSERT AFTER, ");
+// } else if (tgtype & 0b10) == 0b10 {
+// result.push_str("INSERT BEFORE, ");
+// }
+//
+// if (tgtype & 0b100) == 0b100 {
+// result.push_str("DELETE AFTER, ");
+// } else if (tgtype & 0b1000) == 0b1000 {
+// result.push_str("DELETE BEFORE, ");
+// }
+//
+// if (tgtype & 0b10000) == 0b10000 {
+// result.push_str("UPDATE AFTER, ");
+// } else if (tgtype & 0b100000) == 0b100000 {
+// result.push_str("UPDATE BEFORE, ");
+// }
+//
+// if result.is_empty() {
+// "UNKNOWN".to_string()
+// } else {
+// result.trim_end_matches(", ").to_string()
+// }
+// }
+// 这个函数接受一个 i32 类型的 tgtype
+// 值,并返回一个描述触发器类型的字符串。它检查 tgtype 的每个位,并根据触发器的
+// timing 和 event 类型构建结果字符串。
+//
+// 如果没有找到任何匹配的位模式,它将返回 "UNKNOWN"
+// 字符串。否则,它将返回一个以逗号和空格分隔的触发器类型列表。
+//
+// 您可以像这样使用这个函数:
+fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTiming)> {
+    if (tgtype & 0b1) == 0b1 {
+        return anyhow::Ok((TriggerEvent::Insert, TriggerTiming::After));
+    } else if (tgtype & 0b10) == 0b10 {
+        return anyhow::Ok((TriggerEvent::Insert, TriggerTiming::Before));
+    }
+
+    if (tgtype & 0b100) == 0b100 {
+        return anyhow::Ok((TriggerEvent::Delete, TriggerTiming::After));
+    } else if (tgtype & 0b1000) == 0b1000 {
+        return anyhow::Ok((TriggerEvent::Delete, TriggerTiming::Before));
+    }
+
+    if (tgtype & 0b10000) == 0b10000 {
+        return anyhow::Ok((TriggerEvent::Update, TriggerTiming::After));
+    } else if (tgtype & 0b100000) == 0b100000 {
+        return anyhow::Ok((TriggerEvent::Update, TriggerTiming::Before));
+    }
+    anyhow::bail!(format!("unknown tgtype:{}", tgtype))
+}
+
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        let sql = format!(
+            r#"
+             SELECT tgname 
+                FROM pg_trigger 
+                WHERE tgrelid = '{table_name}'::regclass;
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+    }
+
+    async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
+        let sql = format!(
+            r#"
+            SELECT
+                pg_get_triggerdef(oid)  AS trigger_definition ,
+                    tgtype
+                FROM
+                    pg_trigger
+                WHERE
+                    tgrelid = '{table}'::regclass
+                    AND tgname = '{name}';
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(sql.as_str())
+            .fetch_one(conn.deref_mut())
+            .await?;
+        let definition: String = row.get(0);
+        let tgtype: i16 = row.get(1);
+        let (event, timing) = parse_trigger_type(tgtype)?;
+        anyhow::Ok(TriggerDetail::new(timing, event, definition))
+    }
+
     async fn export_table(
         &self, table_name: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -1011,8 +1115,8 @@ mod test {
         .await;
 
         let db = &db as &dyn crate::db::DBTrait;
-        let indexs = db.show_indexes(table_name).await.unwrap();
-        println!("{:?}", indexs);
+        let indexes = db.show_indexes(table_name).await.unwrap();
+        println!("{:?}", indexes);
     }
 
     #[tokio::test]
@@ -1023,6 +1127,75 @@ mod test {
         let pg = &pg as &dyn DBTrait;
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
+    }
+
+    #[tokio::test]
+    async fn test_triggers() {
+        let pg = make_test_object();
+        let mut conn = pg.get_conn().await.unwrap();
+        let db_trait = &pg as &dyn DBTrait;
+        //
+        let _ = db_trait.drop_table("test_create_trigger").await;
+        sqlx::query(
+            r#"
+          CREATE TABLE test_create_trigger (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(50)
+          );
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+        let _ = db_trait.drop_table("test_create_trigger_update").await;
+        sqlx::query(
+            r#"
+            CREATE TABLE test_create_trigger_update (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+        // create trigger
+        let _ = sqlx::query(
+            r#"
+            CREATE FUNCTION trigger_insert_test_create_trigger()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                INSERT INTO test_create_trigger_update (name, created_at)
+                VALUES (NEW.name, CURRENT_TIMESTAMP);
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await;
+
+        sqlx::query(
+            r#"
+            CREATE TRIGGER trigger_insert_test_create_trigger
+            AFTER INSERT ON test_create_trigger
+            FOR EACH ROW
+            EXECUTE FUNCTION trigger_insert_test_create_trigger();
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+
+        let triggers = db_trait.list_trigger("test_create_trigger").await.unwrap();
+        for tri in triggers.iter() {
+            let detail = db_trait
+                .show_trigger("test_create_trigger", tri.name.as_str())
+                .await
+                .unwrap();
+            println!("details:{:?}", detail);
+        }
     }
 
     #[tokio::test]

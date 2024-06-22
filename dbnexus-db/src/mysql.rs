@@ -296,7 +296,7 @@ async fn query_trigger_detail(
 #[async_trait::async_trait]
 
 impl DBTrait for MysqlDB {
-    async fn show_trigger(&self, name: &str) -> anyhow::Result<TriggerDetail> {
+    async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
 
         let (event, timing, sql) = query_trigger_detail(&mut conn, name).await?;
@@ -955,7 +955,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_trigger() {
+    async fn test_triggers() {
         // due to https://github.com/launchbadge/sqlx/issues/3305
         // I can't create trigger, use mysql_trigger_test.txt
         // create trigger by hand
@@ -1015,7 +1015,10 @@ mod tests {
         //     .unwrap();
         let ts = db_trait.list_trigger("test_create_trigger").await.unwrap();
         for t in ts.iter() {
-            let detail = db_trait.show_trigger(&t.name).await.unwrap();
+            let detail = db_trait
+                .show_trigger("test_create_trigger", &t.name)
+                .await
+                .unwrap();
 
             println!("trigger:{} {:?}", t.name, detail);
             if t.name == "after_insert_test_create_trigger2" {
