@@ -9,7 +9,7 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::completion::{DBLexerCompletionBackend, DBListCompletionItem};
+use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{DBPoolKey, OracleDBConfig};
 use crate::db::{
     create_csv, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field, Index, IndexKind,
@@ -1518,30 +1518,6 @@ FROM  TEST_VIEW_TABLE"#,
     //         .unwrap();
     //     println!("resp:{:?}", resp);
     // }
-}
-
-#[async_trait::async_trait]
-impl DBListCompletionItem for OracleDB {
-    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>> {
-        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
-        x.list_table()
-            .await
-            .map(|x| x.into_iter().map(|x| x.table).collect())
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        MultiDBTrait::list_db(self).await
-    }
-
-    async fn list_columns(
-        &self, db: Option<String>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
-
-        x.show_columns(&table_name)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
 }
 
 #[async_trait::async_trait]

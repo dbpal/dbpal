@@ -11,14 +11,11 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
-use crate::completion::{
-    AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
-};
+use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::CommDBConfig;
 use crate::db::{
     create_csv, format_data_time_fix_offset, sql_to_sql_seq, DBTrait, ExeSqlError, ExportKind,
-    Field, Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlSeq,
-    TableListResp,
+    Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -1070,31 +1067,6 @@ impl crate::db::MultiDBTrait for SqlServer {
         let mut x = Clone::clone(self);
         x.config.db_name = Some(name.to_owned());
         Ok(Arc::new(x))
-    }
-}
-
-#[async_trait::async_trait]
-
-impl DBListCompletionItem for SqlServer {
-    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>> {
-        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
-        x.list_table()
-            .await
-            .map(|x| x.into_iter().map(|x| x.table).collect())
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        // TODO
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_columns(
-        &self, db: Option<String>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
-        x.show_columns(table_name)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 }
 

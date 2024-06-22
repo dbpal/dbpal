@@ -10,9 +10,7 @@ use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
-use crate::completion::{
-    AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
-};
+use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
@@ -1417,29 +1415,6 @@ mod tests {
         db.query_sql(id.clone(), "commit").await.unwrap();
 
         println!("begin ret:{:?}", ret);
-    }
-}
-#[async_trait::async_trait]
-impl DBListCompletionItem for MysqlDB {
-    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>> {
-        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
-
-        x.list_table()
-            .await
-            .map(|x| x.into_iter().map(|x| x.table).collect::<Vec<_>>())
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        MultiDBTrait::list_db(self).await
-    }
-
-    async fn list_columns(
-        &self, db: Option<String>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
-        x.show_columns(table_name)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())
     }
 }
 
