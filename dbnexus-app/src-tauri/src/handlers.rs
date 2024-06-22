@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use dbnexus_db::db::{
-    ExeSqlError, ExportKind, Field, Index, ListTable, ListView, RedisListTable, SqlExecuteRet,
-    TableListResp,
+    ExeSqlError, ExportKind, Field, Index, ListTable, ListTrigger, ListView, RedisListTable,
+    SqlExecuteRet, TableListResp, TriggerDetail,
 };
 use dbnexus_db::oracle::OracleDB;
 
-use crate::storage::{DBConnectionConfig, UserSettings, App};
+use crate::storage::{App, DBConnectionConfig, UserSettings};
 
 #[tauri::command]
 pub async fn add_config(
@@ -379,6 +379,29 @@ pub async fn oracle_query_set_call_timeout(
         }
         None => Err(format!("db '{}' is not oracle", uuid)),
     }
+}
+
+#[tauri::command]
+pub async fn list_trigger(
+    uuid: String, table: String, dbs: tauri::State<'_, App>,
+) -> Result<Vec<ListTrigger>, String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    db.list_trigger(&table).await.map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn show_trigger(
+    uuid: String, name: String, dbs: tauri::State<'_, App>,
+) -> Result<TriggerDetail, String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    db.show_trigger(&name).await.map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

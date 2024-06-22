@@ -78,7 +78,7 @@ fn test_escape_string() {
 
 impl RedisDB {
     async fn export_table_as_csv(
-        &self, _key: &str, _include_header: bool, _delimitor: char,
+        &self, _key: &str, _include_header: bool, _delimiter: char,
         _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         unimplemented!()

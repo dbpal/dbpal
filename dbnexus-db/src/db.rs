@@ -10,7 +10,6 @@ use sqlparser::ast::Statement;
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::{Location, Token};
 use tokio::io::AsyncWriteExt;
-
 use typescript_type_def::TypeDef;
 
 /// A db representation of database
@@ -109,6 +108,13 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
     async fn redis_list_table(&self) -> anyhow::Result<RedisListTable> {
         anyhow::bail!(format!("'{}' is not a redis.", self.backend_name()))
     }
+
+    async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
+    }
+    async fn show_trigger(&self, _name: &str) -> anyhow::Result<TriggerDetail> {
+        anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
+    }
 }
 
 /// create table and all index sql.
@@ -199,7 +205,7 @@ impl From<&str> for ListTable {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default, TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]
 pub struct RedisListTable {
     pub(crate) string_table: Vec<String>,
     pub(crate) list_table: Vec<String>,
@@ -482,9 +488,9 @@ fn test_serde_json_exe_sql_error() {
 
 #[derive(Clone, serde::Serialize, Copy, Debug, TypeDef)]
 pub enum IndexKind {
-    Normal = 0,
-    Unique = 1,
-    Primary = 2,
+    Normal,
+    Unique,
+    Primary,
 }
 
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
@@ -946,6 +952,52 @@ impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
             None
         }
     }
+}
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+pub struct TriggerDetail {
+    timing: TriggerTiming,
+    event: TriggerEvent,
+    sql: String,
+}
+
+impl TriggerDetail {
+    pub fn new(timing: TriggerTiming, event: TriggerEvent, sql: String) -> Self {
+        Self { timing, event, sql }
+    }
+}
+
+#[derive(Debug, Clone, TypeDef)]
+pub struct TriggerEvent(pub String);
+
+impl serde::Serialize for TriggerEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_trigger_event_ser() {
+    let s = TriggerEvent("aaaa".to_owned());
+    assert_eq!(serde_json::to_string(&s).unwrap(), "\"aaaa\"");
+}
+
+impl From<String> for ListTrigger {
+    fn from(value: String) -> Self {
+        Self { name: value }
+    }
+}
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+pub struct ListTrigger {
+    pub name: String,
+}
+#[derive(Debug, Clone, Copy, serde::Serialize, TypeDef)]
+pub enum TriggerTiming {
+    Before,
+    After,
 }
 
 #[cfg(test)]

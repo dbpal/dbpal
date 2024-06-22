@@ -16,5 +16,8 @@
     "tauri",
     "tinyint",
     "Zset"
+  ],
+  "rust-analyzer.cargo.extraArgs": [
+    "--offline"
   ]
 }

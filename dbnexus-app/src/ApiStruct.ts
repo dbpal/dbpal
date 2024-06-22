@@ -138,4 +138,14 @@ export namespace db_apis {
         "hash_table": (string)[];
         "zset_table": (string)[];
     };
+    export type TriggerTiming = ("Before" | "After");
+    export type TriggerEvent = string;
+    export type TriggerDetail = {
+        "timing": db_apis.TriggerTiming;
+        "event": db_apis.TriggerEvent;
+        "sql": string;
+    };
+    export type ListTrigger = {
+        "name": string;
+    };
 }

@@ -7,7 +7,7 @@ use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::any::AnyConnectionBackend;
-use sqlx::{Column, Row, TypeInfo};
+use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::completion::{
@@ -16,8 +16,8 @@ use crate::completion::{
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
-    Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
-    TableListResp,
+    Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QuerySql, SqlExecuteRet,
+    SqlKind, SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -272,9 +272,59 @@ impl MysqlDB {
         anyhow::Ok(())
     }
 }
+
+#[allow(dead_code)]
+async fn query_trigger_detail(
+    conn: &mut MySqlConnection, name: &str,
+) -> anyhow::Result<(TriggerEvent, TriggerTiming, String)> {
+    let sql = format!("SHOW TRIGGERS WHERE `Trigger`='{name}'");
+
+    let row = sqlx::query(&sql).fetch_one(conn).await?;
+    let event: String = row.try_get(1)?;
+    let sql = row.try_get(3)?;
+    let timing: String = row.try_get(4)?;
+
+    let timing = if timing == "BEFORE" {
+        TriggerTiming::Before
+    } else {
+        TriggerTiming::After
+    };
+
+    anyhow::Ok((TriggerEvent(event), timing, sql))
+}
+
 #[async_trait::async_trait]
 
 impl DBTrait for MysqlDB {
+    async fn show_trigger(&self, name: &str) -> anyhow::Result<TriggerDetail> {
+        let mut conn = self.get_conn().await?;
+
+        let (event, timing, sql) = query_trigger_detail(&mut conn, name).await?;
+        anyhow::Ok(TriggerDetail::new(timing, event, sql))
+    }
+
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        let sql = format!(
+            r#"
+            SELECT TRIGGER_NAME
+                FROM INFORMATION_SCHEMA.TRIGGERS
+                WHERE EVENT_OBJECT_TABLE = '{table_name}'
+                AND TRIGGER_SCHEMA = DATABASE();
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+    }
+
     async fn export_table(
         &self, table_name: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -905,6 +955,72 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_trigger() {
+        // due to https://github.com/launchbadge/sqlx/issues/3305
+        // I can't create trigger, use mysql_trigger_test.txt
+        // create trigger by hand
+
+        let db = make_test_object();
+        let mut _conn = db.get_conn().await.unwrap();
+        let db_trait = &db as &dyn DBTrait;
+
+        //     let _ = db_trait.drop_table("test_create_trigger").await;
+        //     let _ = db_trait.drop_table("test_create_trigger_update").await;
+        //     // create test_create_trigger
+        //     sqlx::query(
+        //         r#"
+        //         CREATE TABLE test_create_trigger (
+        //             id INT AUTO_INCREMENT, -- 自动递增的ID
+        //             data VARCHAR(255) NOT NULL, --
+        // 存储数据的字段，最大长度255字符，不允许为空
+        // PRIMARY KEY (id) -- 设置id为表的主键         );
+        //     "#,
+        //     )
+        //     .execute(conn.deref_mut())
+        //     .await
+        //     .unwrap();
+
+        //     // create test_create_trigger_update
+        //     sqlx::query(
+        //         r#"
+        //     CREATE TABLE test_create_trigger_update (
+        //         id INT AUTO_INCREMENT, -- 自动递增的ID，作为主键
+        //         data VARCHAR(255) NOT NULL, --
+        // 数据字段，最大长度255字符，不允许为空         last_updated
+        // TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, --
+        // 记录每次更新的时间，默认值为当前时间，并在每次更新时自动更新
+        //         PRIMARY KEY (id) -- 设置id为主键
+        //     );
+        // "#,
+        //     )
+        //     .execute(conn.deref_mut())
+        //     .await
+        //     .unwrap();
+
+        //     // create trigger
+
+        //     sqlx::query(
+        //         r#"
+        //         CREATE TRIGGER after_insert_test_create_trigger
+        //         AFTER INSERT ON test_create_trigger
+        //         FOR EACH ROW
+        //         BEGIN
+        //             INSERT INTO test_create_trigger_update (data)
+        //             VALUES (NEW.data);
+        //         END
+        //     "#,
+        //     )
+        //     .execute(conn.deref_mut())
+        //     .await
+        //     .unwrap();
+        let ts = db_trait.list_trigger("test_create_trigger").await.unwrap();
+        for t in ts.iter() {
+            let detail = db_trait.show_trigger(&t.name).await.unwrap();
+
+            println!("trigger:{} {:?}", t.name, detail);
+        }
+    }
+    #[tokio::test]
     async fn show_build_in_fns() {
         let oj = make_test_object();
         let mut conn = oj.get_conn().await.unwrap();
@@ -938,7 +1054,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_completion() {
-        let s = make_test_object();
+        let mut s = make_test_object();
+        s.config.db_name = None;
+
         println!("#############################################");
         {
             let completion = AutoCompletionTrait::auto_completion(
