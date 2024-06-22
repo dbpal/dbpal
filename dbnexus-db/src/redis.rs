@@ -55,27 +55,6 @@ impl RedisDB {
     }
 }
 
-fn single_quote_escape_string(s: &str) -> String {
-    s.replace("\\", "\\\\").replace("'", "\\'")
-}
-
-fn quote_key_or_value(s: &str) -> Cow<'_, str> {
-    if s.contains("'") || s.contains("\\") {
-        Cow::Owned(format!("'{}'", single_quote_escape_string(s)))
-    } else {
-        Cow::Borrowed(s)
-    }
-}
-
-#[cfg(test)]
-#[test]
-fn test_escape_string() {
-    assert_eq!(quote_key_or_value("xxx"), "xxx");
-    assert_eq!(quote_key_or_value("x'xx"), "'x\\'xx'");
-    assert_eq!(quote_key_or_value("x\\xx"), "'x\\\\xx'");
-    assert_eq!(quote_key_or_value("x\'xx"), "'x\\\\\'xx'");
-}
-
 impl RedisDB {
     async fn export_table_as_csv(
         &self, _key: &str, _include_header: bool, _delimiter: char,
@@ -214,11 +193,7 @@ impl RedisDB {
             RedisType::String => {
                 let x: String = conn.get(key).await?;
                 sender
-                    .send(Cow::Owned(format!(
-                        "SET {} {}\n",
-                        quote_key_or_value(key),
-                        quote_key_or_value(x.as_str())
-                    )))
+                    .send(Cow::Owned(format!("SET {} {}\n", key, x.as_str())))
                     .await?;
             }
 
@@ -231,11 +206,7 @@ impl RedisDB {
                     let list: Vec<String> = conn.lrange(key, x, x + size).await?;
                     for l in list.iter() {
                         sender
-                            .send(Cow::Owned(format!(
-                                "RPUSH {} {}\n",
-                                quote_key_or_value(key),
-                                quote_key_or_value(l)
-                            )))
+                            .send(Cow::Owned(format!("RPUSH {} {}\n", key, l)))
                             .await?;
                     }
                 }
@@ -244,11 +215,7 @@ impl RedisDB {
                 let mut iter = conn.sscan::<_, String>(key).await?;
                 while let Some(value) = iter.next().await {
                     sender
-                        .send(Cow::Owned(format!(
-                            "SADD {} {}\n",
-                            quote_key_or_value(key),
-                            quote_key_or_value(value.as_str())
-                        )))
+                        .send(Cow::Owned(format!("SADD {} {}\n", key, value.as_str())))
                         .await?;
                 }
             }
@@ -262,9 +229,9 @@ impl RedisDB {
                             sender
                                 .send(Cow::Owned(format!(
                                     "HMSET {} {} {}\n",
-                                    quote_key_or_value(key),
-                                    quote_key_or_value(value.as_str()),
-                                    quote_key_or_value(s.as_str())
+                                    key,
+                                    value.as_str(),
+                                    s.as_str()
                                 )))
                                 .await?;
                             hkey = None;
@@ -286,9 +253,9 @@ impl RedisDB {
                             sender
                                 .send(Cow::Owned(format!(
                                     "ZADD {} {} {}\n",
-                                    quote_key_or_value(key),
-                                    quote_key_or_value(score.as_str()),
-                                    quote_key_or_value(zkey2.as_str()),
+                                    key,
+                                    score.as_str(),
+                                    zkey2.as_str(),
                                 )))
                                 .await?;
                             zkey = None;

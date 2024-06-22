@@ -551,10 +551,10 @@ WHERE i.object_id = OBJECT_ID('{table_name}')
             .map(|x| format!("'{}'", x))
             .unwrap_or("null".to_string());
         let v = match f.typ.as_str().to_uppercase().as_str() {
-            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" => default_value,
+            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" => default_value,
             "BIT" => default_value,
             "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" => single_quote,
-            "BINARY" | " VARBINARY" | "IMAGE" | "UNIQUEIDENTIFIER" | "NUMERIC" | "DECIMAL" => {
+            "BINARY" | "VARBINARY" | "IMAGE" | "UNIQUEIDENTIFIER" | "NUMERIC" | "DECIMAL" => {
                 default_value
             }
             "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME"
@@ -1191,6 +1191,47 @@ mod tests {
     async fn test_view() {
         let db = make_test_object();
         let db = &db as &dyn crate::db::DBTrait;
+        // let _ = db.drop_table("test_view_table").await;
+        // let _ = db.drop_view("test_view").await;
+        let conn_id = db.open_connection().await.unwrap();
+
+        let _ = db
+            .query_sql(
+                conn_id,
+                r#"
+            CREATE TABLE test_view_table (
+                id INT PRIMARY KEY,
+                name VARCHAR(50),
+                age INT,
+                email VARCHAR(100)
+            );
+            INSERT INTO test_view_table (id, name, age, email)
+                VALUES
+                    (1, 'John Doe', 35, 'john.doe@example.com'),
+                    (2, 'Jane Smith', 28, 'jane.smith@example.com'),
+                    (3, 'Bob Johnson', 42, 'bob.johnson@example.com'),
+                    (4, 'Sarah Lee', 31, 'sarah.lee@example.com'),
+                    (5, 'Tom Wilson', 25, 'tom.wilson@example.com');
+             
+        "#,
+            )
+            .await;
+        // FIXME this sql not execute ,but can execute through dbeaver
+        // let _ = db
+        //     .query_sql(
+        //         conn_id,
+        //         r#"CREATE VIEW test_view AS
+        //         SELECT
+        //             id,
+        //             name,
+        //             age,
+        //             email
+        //         FROM
+        //             test_view_table;
+        // "#,
+        //     )
+        //     .await
+        //     .unwrap();
 
         let resp = db.show_view("test_view", None, None, 1, 100).await.unwrap();
         println!("resp:{:?}", resp);
