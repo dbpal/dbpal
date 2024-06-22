@@ -819,6 +819,7 @@ fn is_statement_absolute_query(s: &Statement) -> bool {
         Statement::ExplainTable {
             describe_alias: _,
             table_name: _,
+            hive_format: _,
         } => true,
         Statement::Explain {
             describe_alias: _,
@@ -953,36 +954,41 @@ impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
         }
     }
 }
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub struct TriggerDetail {
-    timing: TriggerTiming,
-    event: TriggerEvent,
-    sql: String,
+    pub(crate) timing: TriggerTiming,
+    pub(crate) event: TriggerEvent,
+    pub(crate) sql: String,
 }
 
 impl TriggerDetail {
-    pub fn new(timing: TriggerTiming, event: TriggerEvent, sql: String) -> Self {
-        Self { timing, event, sql }
+    pub fn new(timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: String) -> Self {
+        Self {
+            timing,
+            event: event.into(),
+            sql,
+        }
     }
 }
 
-#[derive(Debug, Clone, TypeDef)]
-pub struct TriggerEvent(pub String);
-
-impl serde::Serialize for TriggerEvent {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.0)
-    }
+#[derive(Debug, Clone, TypeDef, PartialEq, Eq, serde::Serialize)]
+pub enum TriggerEvent {
+    Insert,
+    Update,
+    Delete,
 }
 
-#[cfg(test)]
-#[test]
-fn test_trigger_event_ser() {
-    let s = TriggerEvent("aaaa".to_owned());
-    assert_eq!(serde_json::to_string(&s).unwrap(), "\"aaaa\"");
+impl TryFrom<&str> for TriggerEvent {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value.to_uppercase().as_str() {
+            "INSERT" => Ok(Self::Insert),
+            "UPDATE" => Ok(Self::Update),
+            "DELETE" => Ok(Self::Delete),
+            _ => anyhow::bail!(format!("'{}' not a valid event", value)),
+        }
+    }
 }
 
 impl From<String> for ListTrigger {
@@ -994,7 +1000,7 @@ impl From<String> for ListTrigger {
 pub struct ListTrigger {
     pub name: String,
 }
-#[derive(Debug, Clone, Copy, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, Copy, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub enum TriggerTiming {
     Before,
     After,

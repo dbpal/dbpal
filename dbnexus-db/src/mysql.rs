@@ -290,7 +290,7 @@ async fn query_trigger_detail(
         TriggerTiming::After
     };
 
-    anyhow::Ok((TriggerEvent(event), timing, sql))
+    anyhow::Ok((TriggerEvent::try_from(event.as_str())?, timing, sql))
 }
 
 #[async_trait::async_trait]
@@ -1018,6 +1018,11 @@ mod tests {
             let detail = db_trait.show_trigger(&t.name).await.unwrap();
 
             println!("trigger:{} {:?}", t.name, detail);
+            if t.name == "after_insert_test_create_trigger2" {
+                assert_eq!(detail.timing, TriggerTiming::Before);
+            } else if t.name == "after_insert_test_create_trigger" {
+                assert_eq!(detail.timing, TriggerTiming::After);
+            }
         }
     }
     #[tokio::test]

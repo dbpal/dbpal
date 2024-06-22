@@ -9,7 +9,7 @@ use sqlparser::tokenizer::Token;
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::sqlite::SqliteRow;
-use sqlx::{Column, Row, TypeInfo};
+use sqlx::{Column, Row, SqliteConnection, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::completion::{
@@ -19,7 +19,8 @@ use crate::completion::{
 use crate::datasource::DBPoolKey;
 use crate::db::{
     create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
-    Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
+    Index, IndexKind, ListTable, ListTrigger, ListView, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -165,9 +166,169 @@ impl SqliteDB {
         anyhow::Ok(())
     }
 }
+// TODO sqlparse don't support parse trigger statement
+// use lexer to solve this issue.
+fn extract_trigger_base_on_lexer(sql: String) -> anyhow::Result<TriggerDetail> {
+    let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
+        .tokenize()?;
+    let mut event = None;
+    let mut timing = None;
+    for token in t {
+        match token {
+            Token::Word(x) => {
+                let word = x.to_string().to_uppercase();
+                match word.as_str() {
+                    "INSERT" | "UPDATE" | "DELETE" => {
+                        event = Some(word);
+                    }
+                    "AFTER" | "BEFORE" => {
+                        timing = Some(word);
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+    if event.is_none() || timing.is_none() {
+        anyhow::bail!("trigger statement is not valid");
+    }
+    let event = event.unwrap();
+    let timing = timing.unwrap();
+    anyhow::Ok(TriggerDetail::new(
+        match timing.as_str() {
+            "AFTER" => TriggerTiming::After,
+            "BEFORE" => TriggerTiming::Before,
+            _ => unreachable!(),
+        },
+        TriggerEvent::try_from(event.as_str())?,
+        sql,
+    ))
+}
 
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_base_on_lexer() {
+    {
+        let sql = "after insert".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Insert, sql)
+        );
+    }
+    {
+        let sql = "after update".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Update, sql)
+        );
+    }
+    {
+        let sql = "after delete".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Delete, sql)
+        );
+    }
+    {
+        let sql = "before insert".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Insert, sql)
+        );
+    }
+    {
+        let sql = "before update".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Update, sql)
+        );
+    }
+    {
+        let sql = "before delete".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Delete, sql)
+        );
+    }
+
+    // error cases
+    {
+        let sql = "before xxx".to_string();
+        assert!(extract_trigger_base_on_lexer(sql.clone()).is_err());
+    }
+    {
+        let sql = "insert xxx".to_string();
+        assert!(extract_trigger_base_on_lexer(sql.clone()).is_err());
+    }
+}
+
+fn extract_trigger_detail_from_sql(sql: String) -> anyhow::Result<TriggerDetail> {
+    // let ss = sqlparser::parser::Parser::parse_sql(&
+    // sqlparser::dialect::SQLiteDialect {}, sql)     .map_err(|e| ->
+    // anyhow::Error { e.into() })     .map_err(|e| e.context("extract trigger
+    // detail fail to parse sql"))?;
+
+    extract_trigger_base_on_lexer(sql)
+}
+
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_detail_from_sql() {
+    {
+        let x = extract_trigger_detail_from_sql(
+            r#"
+            CREATE TRIGGER after_insert_test_create_trigger
+            AFTER INSERT ON test_create_trigger
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO test_create_trigger_update (info)
+                VALUES (NEW.info);
+            END
+        "#
+            .to_owned(),
+        )
+        .unwrap();
+        assert_eq!(x.event, TriggerEvent::Insert);
+    }
+}
+
+async fn query_trigger_detail(
+    conn: &mut SqliteConnection, name: &str,
+) -> anyhow::Result<TriggerDetail> {
+    let s = format!("select sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
+    let row = sqlx::query(&s).fetch_one(conn).await?;
+    let sql: String = row.get(0);
+    extract_trigger_detail_from_sql(sql)
+}
 #[async_trait::async_trait]
 impl DBTrait for SqliteDB {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        let sql = format!(
+            r#"
+            SELECT name 
+            FROM sqlite_master 
+            WHERE type = 'trigger' AND tbl_name = '{table_name}';
+        "#
+        );
+
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+    }
+
+    async fn show_trigger(&self, name: &str) -> anyhow::Result<TriggerDetail> {
+        let mut conn = self.get_conn().await?;
+        query_trigger_detail(conn.deref_mut(), &name).await
+    }
+
     fn read_only(&self) -> bool {
         self.read_only
     }
@@ -1218,6 +1379,51 @@ mod tests {
 
     async fn test_trigger() {
         let db = make_test_db().await;
+        let mut conn = db.get_conn().await.unwrap();
+        let db_trait = &db as &dyn DBTrait;
+        sqlx::query(
+            r#"
+            CREATE TABLE test_create_trigger (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
+                info TEXT NOT NULL 
+            );
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+        CREATE TABLE test_create_trigger_update (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
+            info TEXT NOT NULL
+        );
+    "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+
+        sqlx::query(
+            r#"
+        CREATE TRIGGER after_insert_test_create_trigger
+        AFTER INSERT ON test_create_trigger
+        FOR EACH ROW
+        BEGIN
+            INSERT INTO test_create_trigger_update (info)
+            VALUES (NEW.info);
+        END;
+    "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+
+        let triggers = db_trait.list_trigger("test_create_trigger").await.unwrap();
+        for trigger in triggers.iter() {
+            let details = db_trait.show_trigger(trigger.name.as_str()).await.unwrap();
+            println!("name:{} , detail:{:?}", trigger.name, details);
+        }
     }
     #[tokio::test]
     async fn test_export() {
