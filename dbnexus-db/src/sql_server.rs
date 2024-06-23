@@ -1397,8 +1397,8 @@ mod tests {
     async fn test_view() {
         let db = make_test_object();
         let db = &db as &dyn crate::db::DBTrait;
-        // let _ = db.drop_table("test_view_table").await;
-        // let _ = db.drop_view("test_view").await;
+        let _ = db.drop_table("test_view_table").await;
+        let _ = db.drop_view("test_view").await;
         let conn_id = db.open_connection().await.unwrap();
 
         let _ = db
@@ -1422,22 +1422,22 @@ mod tests {
         "#,
             )
             .await;
-        // FIXME this sql not execute ,but can execute through dbeaver
-        // let _ = db
-        //     .query_sql(
-        //         conn_id,
-        //         r#"CREATE VIEW test_view AS
-        //         SELECT
-        //             id,
-        //             name,
-        //             age,
-        //             email
-        //         FROM
-        //             test_view_table;
-        // "#,
-        //     )
-        //     .await
-        //     .unwrap();
+
+        let _ = db
+            .query_sql(
+                conn_id,
+                r#"CREATE VIEW test_view AS
+                SELECT
+                    id,
+                    name,
+                    age,
+                    email
+                FROM
+                    test_view_table;
+        "#,
+            )
+            .await
+            .unwrap();
 
         let resp = db.show_view("test_view", None, None, 1, 100).await.unwrap();
         println!("resp:{:?}", resp);
