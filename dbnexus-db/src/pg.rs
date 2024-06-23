@@ -298,7 +298,12 @@ impl DBTrait for PostGresDB {
         let definition: String = row.get(0);
         let tgtype: i16 = row.get(1);
         let (event, timing) = parse_trigger_type(tgtype)?;
-        anyhow::Ok(TriggerDetail::new(timing, event, definition))
+        anyhow::Ok(TriggerDetail::new(
+            timing,
+            event,
+            definition,
+            unimplemented!(),
+        ))
     }
 
     async fn export_table(
@@ -984,14 +989,14 @@ async fn get_index_kind(
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-    use std::ops::DerefMut;
-
     use super::PostGresDB;
     use crate::datasource::CommDBConfig;
+    use crate::db::CheckConn;
     use crate::db::{DBTrait, ExportKind};
     use crate::pool::PoolManager;
     use crate::{init_log, TEST_HOST};
+    use std::collections::HashMap;
+    use std::ops::DerefMut;
 
     fn make_test_object() -> PostGresDB {
         // list all table and query
@@ -1009,6 +1014,11 @@ mod test {
         );
 
         pg
+    }
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object();
+        CheckConn::check_conn(&db).await.unwrap();
     }
 
     #[tokio::test]

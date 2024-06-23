@@ -169,7 +169,7 @@ pub trait MultiDBTrait: Sync + Send + QuerySql + 'static + CheckConn {
 #[async_trait::async_trait]
 pub trait QuerySql {
     async fn query_sql(
-        &self, conn: uuid::Uuid, _sql: &str,
+        &self, query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>>;
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
 
@@ -965,14 +965,18 @@ pub struct TriggerDetail {
     pub(crate) timing: TriggerTiming,
     pub(crate) event: TriggerEvent,
     pub(crate) sql: String,
+    pub(crate) enable: bool,
 }
 
 impl TriggerDetail {
-    pub fn new(timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: String) -> Self {
+    pub fn new(
+        timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: impl Into<String>, enable: bool,
+    ) -> Self {
         Self {
             timing,
             event: event.into(),
-            sql,
+            sql: sql.into(),
+            enable,
         }
     }
 }
@@ -1010,6 +1014,8 @@ pub struct ListTrigger {
 pub enum TriggerTiming {
     Before,
     After,
+    /// sql server have this timing but I am not quit understand.
+    InsteadOf,
 }
 
 #[cfg(test)]

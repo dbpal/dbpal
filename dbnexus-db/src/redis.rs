@@ -728,6 +728,7 @@ impl RedisDB {
 mod tests {
 
     use super::RedisDB;
+
     use crate::TEST_HOST;
 
     fn make_test_object() -> RedisDB {
@@ -738,7 +739,11 @@ mod tests {
         };
         x
     }
-
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object();
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
     #[tokio::test]
     async fn test() {
         let db = make_test_object();

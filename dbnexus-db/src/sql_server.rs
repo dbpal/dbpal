@@ -6,7 +6,10 @@ use std::time::Duration;
 
 use chrono::FixedOffset;
 use futures_core::future::BoxFuture;
+
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
+
+use sqlparser::tokenizer::Token;
 use tiberius::{Client, ColumnData, ColumnType, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
@@ -17,8 +20,8 @@ use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBa
 use crate::datasource::CommDBConfig;
 use crate::db::{
     create_csv, format_data_time_fix_offset, sql_to_sql_seq, CheckConn, DBTrait, ExeSqlError,
-    ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq,
-    TableListResp,
+    ExportKind, Field, Index, IndexKind, ListTable, ListTrigger, ListView, QuerySql, SqlExecuteRet,
+    SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -199,6 +202,98 @@ fn gen_select_sql(
 
     sql
 }
+
+// TODO sqlparse don't support parse trigger statement
+// use lexer to solve this issue.
+fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent> {
+    let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
+        .tokenize()?;
+    let mut event = None;
+
+    for token in t {
+        match token {
+            Token::Word(x) => {
+                let word = x.to_string().to_uppercase();
+                match word.as_str() {
+                    "INSERT" | "UPDATE" | "DELETE" => {
+                        event = Some(word);
+                    }
+
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+    if event.is_none() {
+        anyhow::bail!("trigger statement is not valid");
+    }
+    let event = event.unwrap();
+
+    anyhow::Ok(TriggerEvent::try_from(event.as_str())?)
+}
+
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_base_on_lexer() {
+    {
+        let sql = "after insert";
+        assert_eq!(
+            extract_trigger_event_base_on_lexer(sql).unwrap(),
+            TriggerEvent::Insert
+        );
+    }
+    {
+        let sql = "after update";
+        assert_eq!(
+            extract_trigger_event_base_on_lexer(sql).unwrap(),
+            TriggerEvent::Update
+        );
+    }
+    {
+        let sql = "after delete";
+        assert_eq!(
+            extract_trigger_event_base_on_lexer(sql).unwrap(),
+            TriggerEvent::Delete
+        );
+    }
+
+    // error cases
+    {
+        let sql = "xxx";
+        assert!(extract_trigger_event_base_on_lexer(sql).is_err());
+    }
+    {
+        let sql = "yyy";
+        assert!(extract_trigger_event_base_on_lexer(sql).is_err());
+    }
+}
+
+fn extract_trigger_event_from_sql(sql: &str) -> anyhow::Result<TriggerEvent> {
+    extract_trigger_event_base_on_lexer(sql)
+}
+
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_detail_from_sql() {
+    {
+        let x = extract_trigger_event_from_sql(
+            r#"
+             CREATE TRIGGER tr_test_create_trigger_insert
+            ON test_create_trigger
+            AFTER INSERT
+            AS
+            BEGIN
+                INSERT INTO test_create_trigger_update (id, email)
+                SELECT id, 'test@example.com' FROM inserted
+            END
+        "#,
+        )
+        .unwrap();
+        assert_eq!(x, TriggerEvent::Insert);
+    }
+}
+
 #[async_trait::async_trait]
 impl CheckConn for SqlServer {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
@@ -213,6 +308,87 @@ impl CheckConn for SqlServer {
 
 #[async_trait::async_trait]
 impl DBTrait for SqlServer {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        let sql = format!(
+            r#"
+            SELECT 
+                t.name AS trigger_name
+            FROM 
+                sys.triggers t
+            WHERE 
+                t.parent_class = 1 -- 1 表示与表关联的触发器
+                AND OBJECT_NAME(t.parent_id) = '{table_name}' -- 指定要查看的表名
+        "#
+        );
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.simple_query(&sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(x) => {
+                    let name: Option<&str> = x.get(0);
+                    ret.push(name.unwrap().to_string());
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+    }
+    async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
+        let sql = format!(
+            r#"
+            SELECT
+                t.is_disabled,
+                t.is_instead_of_trigger,
+                OBJECT_DEFINITION(t.object_id) AS trigger_definition
+            FROM
+                sys.triggers t
+            WHERE
+                t.parent_class_desc = 'OBJECT_OR_COLUMN'
+                AND OBJECT_NAME(t.parent_id) = '{table}' and name ='{name}'
+      "#
+        );
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.simple_query(&sql).await?;
+        let mut result = None;
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(x) => {
+                    let name: Option<bool> = x.get(0);
+                    let is_instead_of_trigger: Option<bool> = x.get(1);
+                    let sql: Option<&str> = x.get(2);
+                    result = Some((
+                        name.unwrap_or_default(),
+                        is_instead_of_trigger.unwrap_or_default(),
+                        sql.unwrap().to_string(),
+                    ));
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+        let (disabled, instead_of, sql) = match result {
+            Some(x) => x,
+            None => anyhow::bail!("select trigger don't return a result"),
+        };
+        let event = extract_trigger_event_from_sql(&sql)?;
+        anyhow::Ok(TriggerDetail::new(
+            if instead_of {
+                TriggerTiming::InsteadOf
+            } else {
+                TriggerTiming::After
+            },
+            event,
+            sql,
+            !disabled,
+        ))
+    }
+
     async fn export_table(
         &self, table_name: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -957,7 +1133,7 @@ impl QuerySql for SqlServer {
 
         let mut ret = Vec::with_capacity(0);
 
-        let mut stream = conn.query(sql, &[]).await?;
+        let mut stream = conn.simple_query(sql).await?;
         let mut meta_prev = None;
         let mut rows = Vec::new();
         while let Some(item) = stream.next().await {
@@ -1114,6 +1290,67 @@ mod tests {
         );
 
         pg
+    }
+
+    #[tokio::test]
+    async fn test_triggers() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db.drop_table("test_create_trigger").await;
+        let _ = db.drop_table("test_create_trigger_update").await;
+        let x = db
+            .query_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_create_trigger (
+                id INT PRIMARY KEY,
+                name VARCHAR(50)
+            );
+        "#,
+            )
+            .await
+            .unwrap();
+        println!("!!!{:?}", x);
+
+        let x = db
+            .query_sql(
+                query_id,
+                r#"
+        
+        CREATE TABLE test_create_trigger_update (
+            id INT PRIMARY KEY,
+            email VARCHAR(100)
+        );
+    "#,
+            )
+            .await
+            .unwrap();
+        println!("!!!{:?}", x);
+        let x = db
+            .query_sql(
+                query_id,
+                r#"CREATE TRIGGER tr_test_create_trigger_insert
+            ON test_create_trigger
+            AFTER INSERT
+            AS
+            BEGIN
+                INSERT INTO test_create_trigger_update (id, email)
+                SELECT id, 'test@example.com' FROM inserted
+            END
+        "#,
+            )
+            .await
+            .unwrap();
+        println!("!!!{:?}", x);
+        let tris = db.list_trigger("test_create_trigger").await.unwrap();
+        for tri in tris.iter() {
+            let detail = db
+                .show_trigger("test_create_trigger", &tri.name)
+                .await
+                .unwrap();
+            println!("trigger:{} details:{:?}", tri.name, detail);
+        }
     }
 
     #[tokio::test]

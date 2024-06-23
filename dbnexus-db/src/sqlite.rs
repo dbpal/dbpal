@@ -204,6 +204,7 @@ fn extract_trigger_base_on_lexer(sql: String) -> anyhow::Result<TriggerDetail> {
         },
         TriggerEvent::try_from(event.as_str())?,
         sql,
+        true,
     ))
 }
 
@@ -214,42 +215,42 @@ fn test_extract_trigger_base_on_lexer() {
         let sql = "after insert".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Insert, sql)
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Insert, sql, true)
         );
     }
     {
         let sql = "after update".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Update, sql)
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Update, sql, true)
         );
     }
     {
         let sql = "after delete".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Delete, sql)
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Delete, sql, true)
         );
     }
     {
         let sql = "before insert".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Insert, sql)
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Insert, sql, true)
         );
     }
     {
         let sql = "before update".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Update, sql)
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Update, sql, true)
         );
     }
     {
         let sql = "before delete".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Delete, sql)
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Delete, sql, true)
         );
     }
 
@@ -1370,16 +1371,21 @@ mod tests {
     use crate::init_log;
 
     // this test no need clean up, we use memory sqlite db.
-    async fn make_test_db() -> SqliteDB {
+    fn make_test_db() -> SqliteDB {
         let pool_manager = PoolManager::new();
         let db = SqliteDB::new(pool_manager, ":memory:".to_string(), false);
-        let _conn = db.get_conn().await.unwrap();
+
         db
+    }
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_db();
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
     #[tokio::test]
 
     async fn test_triggers() {
-        let db = make_test_db().await;
+        let db = make_test_db();
         let mut conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn DBTrait;
         sqlx::query(
@@ -1432,7 +1438,7 @@ mod tests {
     #[tokio::test]
     async fn test_export() {
         init_log();
-        let db = make_test_db().await;
+        let db = make_test_db();
         let mut conn = db.get_conn().await.unwrap();
         let table_name = "Persons";
         sqlx::query(
@@ -1492,7 +1498,7 @@ mod tests {
     #[tokio::test]
     async fn test_standard() {
         init_log();
-        let db = make_test_db().await;
+        let db = make_test_db();
         let mut conn = db.get_conn().await.unwrap();
         sqlx::query(
             r#"

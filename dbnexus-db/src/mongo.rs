@@ -541,6 +541,11 @@ mod tests {
             println!("list:{:?}", indexes);
         }
     }
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object();
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
 
     #[tokio::test]
     async fn test2() {

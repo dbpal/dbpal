@@ -310,7 +310,7 @@ impl DBTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let (event, timing, sql) = query_trigger_detail(&mut conn, name).await?;
-        anyhow::Ok(TriggerDetail::new(timing, event, sql))
+        anyhow::Ok(TriggerDetail::new(timing, event, sql, unimplemented!()))
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
@@ -959,7 +959,11 @@ mod tests {
         );
         db
     }
-
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object();
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
     #[tokio::test]
     async fn test_triggers() {
         // due to https://github.com/launchbadge/sqlx/issues/3305
