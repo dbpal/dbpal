@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
@@ -13,9 +14,9 @@ use tokio::sync::Mutex;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
-    Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QuerySql, SqlExecuteRet,
-    SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, sql_to_sql_seq, CheckConn, CreateTableAndIndexSql, DBTrait, ExeSqlError,
+    ExportKind, Field, Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QuerySql,
+    SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
@@ -37,6 +38,15 @@ impl DBLexerCompletionBackend for PostGresDB {
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = PG_FUNCTIONS;
     const KEY_WORDS: &'static [&'static str] = PG_KEYWORDS;
     const TYPES: &'static [&'static str] = PG_TYPES;
+}
+#[async_trait::async_trait]
+impl CheckConn for PostGresDB {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let mut conn = self.get_conn().await?;
+        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
+        anyhow::Ok(ins.elapsed())
+    }
 }
 
 #[async_trait::async_trait]
@@ -82,7 +92,7 @@ impl PostGresDB {
 
         let mut conn = self.get_conn().await?;
         let cols = DBTrait::show_columns(self, table_name).await?;
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -109,7 +119,7 @@ impl PostGresDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
 
         sender.send(Cow::Borrowed("[")).await?;
@@ -152,7 +162,7 @@ impl PostGresDB {
                 .await?;
         }
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -177,10 +187,10 @@ fn gen_show_sql(
         sql.push_str(format!(" where {where_str} ").as_str());
     }
     if let Some(order_by) = order_by {
-        sql.push_str(format!(" order by {order_by} ").as_str());
+        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
     }
     let offset = (page - 1) * page_size;
-    sql.push_str(format!(" offset {} limit {}", offset, page_size).as_str());
+    sql.push_str(format!(" offset {} LIMIT {}", offset, page_size).as_str());
 
     sql
 }
@@ -538,7 +548,7 @@ impl DBTrait for PostGresDB {
             r#"
 
             SELECT  column_name , data_type,is_nullable,column_default,udt_name
-            FROM information_schema.columns where table_catalog='{}' and table_name = '{}' order by ordinal_position
+            FROM information_schema.columns where table_catalog='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
             self.config.db_name.as_ref().map(|x| x.as_str()).unwrap(),
             table_name
@@ -648,7 +658,7 @@ impl DBTrait for PostGresDB {
             group by
                 t.relname,
                 i.relname
-                order by
+                ORDER BY
                 t.relname,
                 i.relname;
         "#
@@ -719,11 +729,9 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| {
-            match s {
-                Statement::Query(_) => anyhow::Ok(crate::db::SqlKind::Query),
-                _ => anyhow::Ok(crate::db::SqlKind::Execution),
-            }
+        |s| match s {
+            Statement::Query(_) => anyhow::Ok(crate::db::SqlKind::Query),
+            _ => anyhow::Ok(crate::db::SqlKind::Execution),
         },
         |x| {
             let t = x.to_uppercase();
@@ -893,12 +901,10 @@ impl QuerySql for PostGresDB {
                             let fields = get_rows_types(&rows);
                             Ok(TableListResp::new(fields, data.len(), data, &c.sql))
                         }
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
+                        Err(err) => Err(ExeSqlError::new(
+                            &c.sql,
+                            anyhow::Error::msg(err.to_string()),
+                        )),
                     };
                     result
                 }
@@ -907,12 +913,10 @@ impl QuerySql for PostGresDB {
                     let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
                         Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
+                        Err(err) => Err(ExeSqlError::new(
+                            &c.sql,
+                            anyhow::Error::msg(err.to_string()),
+                        )),
                     };
                     result
                 }

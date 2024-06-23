@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 use std::vec;
 
 use futures_util::StreamExt;
@@ -8,8 +9,8 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
-    DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView, OffsetLimitIter, QuerySql,
-    RedisListTable, SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView,
+    OffsetLimitIter, QuerySql, RedisListTable, SqlExecuteRet, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -271,6 +272,16 @@ impl RedisDB {
         anyhow::Ok(())
     }
 }
+#[async_trait::async_trait]
+impl CheckConn for RedisDB {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let mut conn = self.get_conn().await?;
+        let _e: bool = conn.exists("xxx").await?;
+
+        anyhow::Ok(ins.elapsed())
+    }
+}
 
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
@@ -338,19 +349,17 @@ impl DBTrait for RedisDB {
             RedisType::List => anyhow::Ok(vec![value_field]),
             RedisType::Set => anyhow::Ok(vec![value_field]),
             RedisType::Hash => anyhow::Ok(vec![key_field, value_field]),
-            RedisType::Zset => {
-                anyhow::Ok(vec![
-                    value_field,
-                    Field {
-                        name: "score".to_string(),
-                        typ: "float64".to_string(),
-                        nullable: false,
-                        default_value: None,
-                        is_primary: false,
-                        is_auto_increment: false,
-                    },
-                ])
-            }
+            RedisType::Zset => anyhow::Ok(vec![
+                value_field,
+                Field {
+                    name: "score".to_string(),
+                    typ: "float64".to_string(),
+                    nullable: false,
+                    default_value: None,
+                    is_primary: false,
+                    is_auto_increment: false,
+                },
+            ]),
         }
     }
 

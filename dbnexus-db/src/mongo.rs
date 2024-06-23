@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use std::time::Duration;
 
 use futures_util::StreamExt;
 use mongodb::bson::oid::ObjectId;
@@ -10,8 +11,8 @@ use serde_json::Value;
 
 use crate::datasource::{self, MongoDataSource};
 use crate::db::{
-    DBTrait, ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql,
-    SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView,
+    QuerySql, SqlExecuteRet, TableListResp,
 };
 
 #[derive(Clone)]
@@ -89,6 +90,14 @@ fn value_to_frontend(v: &Value) -> String {
     }
 }
 
+#[async_trait::async_trait]
+impl CheckConn for Mongo {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let _db = self.get_db().await?;
+        anyhow::Ok(ins.elapsed())
+    }
+}
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
     fn read_only(&self) -> bool {

@@ -1,9 +1,12 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Deref;
+
 use std::sync::Arc;
+use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
+
 use line_index::{LineCol, TextSize};
 use serde::ser::SerializeStruct;
 use sqlparser::ast::Statement;
@@ -14,7 +17,7 @@ use typescript_type_def::TypeDef;
 
 /// A db representation of database
 #[async_trait::async_trait]
-pub trait DBTrait: Sync + Send + QuerySql + 'static {
+pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn {
     fn as_any(&self) -> &dyn std::any::Any;
     fn backend_name(&self) -> &str;
 
@@ -117,6 +120,11 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
     }
 }
 
+#[async_trait::async_trait]
+
+pub trait CheckConn {
+    async fn check_conn(&self) -> anyhow::Result<Duration>;
+}
 /// create table and all index sql.
 #[derive(Clone, serde::Serialize)]
 pub struct CreateTableAndIndexSql {
@@ -153,7 +161,7 @@ impl dyn DBTrait {
 }
 
 #[async_trait::async_trait]
-pub trait MultiDBTrait: Sync + Send + QuerySql + 'static {
+pub trait MultiDBTrait: Sync + Send + QuerySql + 'static + CheckConn {
     async fn list_db(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
 }

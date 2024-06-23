@@ -12,8 +12,9 @@ use tokio::task::block_in_place;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{DBPoolKey, OracleDBConfig};
 use crate::db::{
-    create_csv, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field, Index, IndexKind,
-    ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
+    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field, Index,
+    IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
+    TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -41,7 +42,7 @@ impl OracleDB {
 }
 
 fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
-    // use oracle later when sqlparser supported
+    // TODO use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::GenericDialect {};
     crate::db::sql_to_sql_seq(
         sql,
@@ -245,7 +246,7 @@ impl OracleDB {
 const ROW_COL: &str = "RNUMXXX_YYY_ZZZZ";
 
 fn infer_schema_by_result(
-    rows: &Vec<oracle::Result<Row>>, expect_row_num: bool,
+    rows: &Vec<oracle::Result<Row>>, exclude_row_num: bool,
 ) -> anyhow::Result<Vec<Field>> {
     if rows.len() == 0 {
         return anyhow::Ok(vec![]);
@@ -255,12 +256,12 @@ fn infer_schema_by_result(
         Ok(x) => x,
         Err(err) => anyhow::bail!(format!("{}", err.to_string())),
     };
-    infer_schema_by_row(x, expect_row_num)
+    infer_schema_by_row(x, exclude_row_num)
 }
-fn infer_schema_by_row(x: &oracle::Row, expect_row_num: bool) -> anyhow::Result<Vec<Field>> {
+fn infer_schema_by_row(x: &oracle::Row, exclude_row_num: bool) -> anyhow::Result<Vec<Field>> {
     let mut ret = Vec::with_capacity(x.column_info().len());
     for c in x.column_info().iter() {
-        if expect_row_num && c.name() == ROW_COL {
+        if exclude_row_num && c.name() == ROW_COL {
             continue;
         }
         ret.push(Field::from_name_type(
@@ -393,60 +394,42 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
     match f.typ.to_string().to_uppercase().as_str() {
-        "VARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NVARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "CHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "RAW" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
-            anyhow::Ok(match value {
-                Some(x) => x.to_string(),
-                None => null_string,
-            })
-        }
-        "CLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "BLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
+        "VARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NVARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "CHAR" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCHAR" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "RAW" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
+            Some(x) => x.to_string(),
+            None => null_string,
+        }),
+        "CLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCLOB" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "BLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -640,7 +623,7 @@ impl OracleDB {
         }
         let conn = self.get_conn().await?;
         let cols = DBTrait::show_columns(self, table_name).await?;
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
 
@@ -663,7 +646,7 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         let json = encode_rows_as_json(rows)?;
@@ -689,7 +672,7 @@ impl OracleDB {
                 .await?;
         }
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let rows: Vec<_> = rows.collect();
         let data = encode_rows(rows, false)?;
@@ -697,6 +680,16 @@ impl OracleDB {
             .send(Cow::Owned(create_csv(&data, delimiter)))
             .await?;
         anyhow::Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl CheckConn for OracleDB {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let conn = self.get_conn().await?;
+        let _ = block_in_place(|| conn.query("select 1", &[]))?;
+        anyhow::Ok(ins.elapsed())
     }
 }
 

@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::ast::{ColumnOption, Expr, Statement};
@@ -18,9 +19,9 @@ use crate::completion::{
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
-    create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
-    Index, IndexKind, ListTable, ListTrigger, ListView, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, sql_to_sql_seq, CheckConn, CreateTableAndIndexSql, DBTrait, ExeSqlError,
+    ExportKind, Field, Index, IndexKind, ListTable, ListTrigger, ListView, QuerySql, SqlExecuteRet,
+    SqlKind, SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -80,7 +81,7 @@ impl SqliteDB {
         }
         let mut conn = self.get_conn().await?;
         let cols = DBTrait::show_columns(self, table_name).await?;
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -107,7 +108,7 @@ impl SqliteDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
 
         sender.send(Cow::Borrowed("[")).await?;
@@ -150,7 +151,7 @@ impl SqliteDB {
                 .await?;
         }
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -296,11 +297,23 @@ fn test_extract_trigger_detail_from_sql() {
 async fn query_trigger_detail(
     conn: &mut SqliteConnection, name: &str,
 ) -> anyhow::Result<TriggerDetail> {
-    let s = format!("select sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
+    let s = format!("SELECT sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
     let row = sqlx::query(&s).fetch_one(conn).await?;
     let sql: String = row.get(0);
     extract_trigger_detail_from_sql(sql)
 }
+
+#[async_trait::async_trait]
+impl CheckConn for SqliteDB {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let mut conn = self.get_conn().await?;
+        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
+
+        anyhow::Ok(ins.elapsed())
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for SqliteDB {
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
@@ -599,7 +612,7 @@ impl DBTrait for SqliteDB {
             let unique: i64 = r.get(2);
             // query create index sql
             let s = format!(
-                "select sql from sqlite_master where type='index' and name='{name}' and tbl_name='{table_name}'; "
+                "SELECT sql from sqlite_master where type='index' and name='{name}' and tbl_name='{table_name}'; "
             );
             let row = sqlx::query(s.as_str()).fetch_one(conn.deref_mut()).await?;
             let create_index_sql: String = row.get(0);
@@ -633,7 +646,7 @@ impl DBTrait for SqliteDB {
 impl SqliteDB {
     async fn query_auto_increment_key(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let s = format!(
-            r#"select sql from sqlite_master where type='table' and name='{}'"#,
+            r#"SELECT sql from sqlite_master where type='table' and name='{}'"#,
             table_name
         );
         let mut conn = self.get_conn().await?;
@@ -820,7 +833,7 @@ impl SqliteDB {
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!("select count(1) from {name} ");
+        let mut s = format!("SELECT count(1) from {name} ");
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
@@ -889,21 +902,15 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
             strict: _,
         } => {
             for c in columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -961,12 +968,10 @@ impl QuerySql for SqliteDB {
                             let fields = get_rows_types(&rows);
                             Ok(TableListResp::new(fields, data.len(), data, &c.sql))
                         }
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
+                        Err(err) => Err(ExeSqlError::new(
+                            &c.sql,
+                            anyhow::Error::msg(err.to_string()),
+                        )),
                     };
                     result
                 }
@@ -975,12 +980,10 @@ impl QuerySql for SqliteDB {
                     let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
                     let result: Result<TableListResp, ExeSqlError> = match result {
                         Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
+                        Err(err) => Err(ExeSqlError::new(
+                            &c.sql,
+                            anyhow::Error::msg(err.to_string()),
+                        )),
                     };
                     result
                 }
@@ -1071,11 +1074,9 @@ impl crate::completion::DBLexerCompletionBackend for SqliteDB {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         PRAGMA_ITEMS
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    name: Cow::Borrowed(*x),
-                    kind: CompletionKind::Text,
-                }
+            .map(|x| CompletionItem {
+                name: Cow::Borrowed(*x),
+                kind: CompletionKind::Text,
             })
             .collect()
     }
@@ -1284,7 +1285,7 @@ fn test_cut_sql_to_each_statement() {
     {
         let seq = get_sql_seq(
             r#"PRAGMA table_info(xxx);
-        select * from xxx;"#,
+        SELECT * from xxx;"#,
         )
         .unwrap();
         assert_eq!(
@@ -1295,7 +1296,7 @@ fn test_cut_sql_to_each_statement() {
                     kind: crate::db::SqlKind::Query,
                 },
                 SqlSeq {
-                    sql: "select * from xxx".to_string(),
+                    sql: "SELECT * from xxx".to_string(),
                     kind: crate::db::SqlKind::Query,
                 }
             ]
@@ -1305,7 +1306,7 @@ fn test_cut_sql_to_each_statement() {
     {
         let seq = get_sql_seq(
             r#"PRAGMA table_info('xxxx')
-        select * from xxx;"#,
+        SELECT * from xxx;"#,
         )
         .unwrap();
         assert_eq!(
@@ -1316,7 +1317,7 @@ fn test_cut_sql_to_each_statement() {
                     kind: crate::db::SqlKind::Query,
                 },
                 SqlSeq {
-                    sql: "select * from xxx".to_string(),
+                    sql: "SELECT * from xxx".to_string(),
                     kind: crate::db::SqlKind::Query,
                 }
             ]
@@ -1326,13 +1327,13 @@ fn test_cut_sql_to_each_statement() {
     {
         let seq = get_sql_seq(
             r#" ;;;;
-        select * from xxx 'xxx';;;;"#,
+        SELECT * from xxx 'xxx';;;;"#,
         )
         .unwrap();
         assert_eq!(
             seq,
             vec![SqlSeq {
-                sql: "select * from xxx 'xxx'".to_string(),
+                sql: "SELECT * from xxx 'xxx'".to_string(),
                 kind: crate::db::SqlKind::Query,
             },]
         )
@@ -1351,15 +1352,15 @@ fn gen_show_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("select * from {table_name}");
+    let mut sql = format!("SELECT * FROM {table_name}");
     if let Some(where_str) = where_str {
-        sql.push_str(format!(" where {where_str} ").as_str());
+        sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
     if let Some(order_by) = order_by {
-        sql.push_str(format!(" order by {order_by} ").as_str());
+        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
     }
     let offset = (page - 1) * page_size;
-    sql.push_str(format!(" limit {} offset {} ", page_size, offset).as_str());
+    sql.push_str(format!(" LIMIT {} offset {} ", page_size, offset).as_str());
     sql
 }
 
@@ -1555,7 +1556,7 @@ mod tests {
                 .query_sql(
                     id.clone(),
                     r#"
-            select * from test_table;
+            SELECT * from test_table;
             PRAGMA table_info('test_table')
 
         "#,
@@ -1567,7 +1568,7 @@ mod tests {
                 println!("result {} r:{:?}", index, x);
             }
         }
-        sqlx::query(format!("create view test_view as select * from {table_name}").as_str())
+        sqlx::query(format!("create view test_view as SELECT * from {table_name}").as_str())
             .execute(conn.deref_mut())
             .await
             .unwrap();
