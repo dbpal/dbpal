@@ -12,8 +12,8 @@ use tokio::task::block_in_place;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{DBPoolKey, OracleDBConfig};
 use crate::db::{
-    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field, Index,
-    IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
+    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
+    ListTable, ListView, MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
     TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
@@ -150,7 +150,7 @@ impl QuerySql for OracleDB {
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
@@ -176,24 +176,16 @@ impl QuerySql for OracleDB {
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows, false)?;
                             let data = encode_rows(rows, false)?;
-                            ret.push(Ok(TableListResp::new(cols, data.len(), data, &s.sql)));
+                            ret.push(Ok(QueryResp::new(cols, data)));
                         }
                         Err(err) => {
-                            ret.push(Err(ExeSqlError::new(s.sql.as_str(), err)));
+                            ret.push(Err(err.to_string()));
                         }
                     };
                 }
                 SqlKind::Execution => {
-                    let stmt = block_in_place(|| conn.execute(sql, &[]));
-                    match stmt {
-                        Ok(x) => {
-                            ret.push(Ok(TableListResp::row_affected(
-                                s.sql.as_str(),
-                                x.row_count()?,
-                            )));
-                        }
-                        Err(err) => ret.push(Err(ExeSqlError::new(s.sql.as_str(), err))),
-                    }
+                    let _stmt = block_in_place(|| conn.execute(sql, &[]));
+                    continue;
                 }
                 SqlKind::Begin | SqlKind::Commit | SqlKind::Rollback => {
                     anyhow::bail!("oracle doesn't work this way,this is should be unreachable");
@@ -394,42 +386,60 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
     match f.typ.to_string().to_uppercase().as_str() {
-        "VARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NVARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "CHAR" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCHAR" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "RAW" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
-        "CLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCLOB" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "BLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
+        "VARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NVARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "CHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "RAW" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
+            anyhow::Ok(match value {
+                Some(x) => x.to_string(),
+                None => null_string,
+            })
+        }
+        "CLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "BLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),

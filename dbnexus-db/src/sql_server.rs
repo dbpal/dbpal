@@ -6,22 +6,19 @@ use std::time::Duration;
 
 use chrono::FixedOffset;
 use futures_core::future::BoxFuture;
-
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
-
 use sqlparser::tokenizer::Token;
 use tiberius::{Client, ColumnData, ColumnType, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
-
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::CommDBConfig;
 use crate::db::{
-    create_csv, format_data_time_fix_offset, sql_to_sql_seq, CheckConn, DBTrait, ExeSqlError,
-    ExportKind, Field, Index, IndexKind, ListTable, ListTrigger, ListView, QuerySql, SqlExecuteRet,
-    SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, format_data_time_fix_offset, sql_to_sql_seq, CheckConn, DBTrait, ExportKind, Field,
+    Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql, SqlExecuteRet, SqlSeq,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -126,20 +123,26 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -337,6 +340,7 @@ impl DBTrait for SqlServer {
         }
         anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
     }
+
     async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let sql = format!(
             r#"
@@ -881,46 +885,57 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
             tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::String(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Guid(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Binary(x) => x
-                .as_ref()
-                .map(|x| format!("0X{}", hex::encode_upper(x)))
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Numeric(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::String(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Guid(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Binary(x) => {
+                x.as_ref()
+                    .map(|x| format!("0X{}", hex::encode_upper(x)))
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Numeric(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Xml(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Xml(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -1123,7 +1138,7 @@ impl QuerySql for SqlServer {
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut conns = self.query_connections.lock().await;
 
         let conn = match conns.get_mut(&id) {
@@ -1148,7 +1163,7 @@ impl QuerySql for SqlServer {
                             rows.len(),
                             "".to_string(),
                         )?;
-                        ret.push(Ok(table_list));
+                        ret.push(Ok(table_list.to_query_resp()));
                         rows = vec![];
                     }
                     meta_prev = Some(meta);
@@ -1162,7 +1177,7 @@ impl QuerySql for SqlServer {
                     rows.len(),
                     "",
                 )?;
-                ret.push(Ok(table_list));
+                ret.push(Ok(table_list.to_query_resp()));
             }
         }
 

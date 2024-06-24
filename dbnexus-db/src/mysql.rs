@@ -7,16 +7,15 @@ use std::time::Duration;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
-use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    create_csv, sql_to_sql_seq, CheckConn, CreateTableAndIndexSql, DBTrait, ExeSqlError,
-    ExportKind, Field, Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QuerySql,
-    SqlExecuteRet, SqlKind, SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
+    ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -310,7 +309,7 @@ impl DBTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let (event, timing, sql) = query_trigger_detail(&mut conn, name).await?;
-        anyhow::Ok(TriggerDetail::new(timing, event, sql, unimplemented!()))
+        anyhow::Ok(TriggerDetail::new(timing, event, sql, true))
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
@@ -780,17 +779,6 @@ impl MysqlDB {
     }
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
-    let dialect = sqlparser::dialect::MySqlDialect {};
-
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
-    )
-}
-
 #[async_trait::async_trait]
 impl MultiDBTrait for MysqlDB {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
@@ -845,70 +833,42 @@ impl QuerySql for MysqlDB {
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut conn = self.query_connection.lock().await;
         let conn = conn.get_mut(&id);
         let conn = match conn {
             Some(x) => x,
             None => anyhow::bail!("id '{}' have no connection", id),
         };
+        let mut ret = Vec::new();
+        let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
-        let seq = get_sql_seq(sql);
-        let x = match seq {
-            anyhow::Result::Ok(e) => e,
-            anyhow::Result::Err(_err) => {
-                log::error!("parse sql fail use as query");
-                vec![SqlSeq {
-                    sql: sql.to_string(),
-                    kind: SqlKind::Query,
-                }]
-            }
-        };
+        let mut rows = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = match item {
+                Ok(x) => x,
+                Err(err) => {
+                    ret.push(Err(err.to_string()));
 
-        let mut ret = Vec::with_capacity(x.len());
-
-        for c in x.iter() {
-            let result = match c.kind {
-                SqlKind::Query => {
-                    let result = sqlx::query(&c.sql).fetch_all(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => {
-                            let data = encode_rows(&rows)?;
-                            let fields = get_rows_types(&rows);
-                            Ok(TableListResp::new(fields, data.len(), data, &c.sql))
-                        }
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
-                    };
-                    result
-                }
-                SqlKind::Begin => {
-                    conn.begin().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Commit => {
-                    conn.commit().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Rollback => {
-                    conn.rollback().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Execution => {
-                    let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
-                    };
-                    result
+                    continue;
                 }
             };
-            ret.push(result);
+            match item {
+                sqlx::Either::Left(_) => {
+                    if rows.len() > 0 {
+                        let fields = get_rows_types(&rows);
+                        let data = encode_rows(&rows)?;
+                        ret.push(Ok(QueryResp::new(fields, data)));
+
+                        rows.clear();
+                    };
+
+                    continue;
+                }
+                sqlx::Either::Right(row) => {
+                    rows.push(row);
+                }
+            }
         }
         anyhow::Ok(ret)
     }
@@ -966,63 +926,55 @@ mod tests {
     }
     #[tokio::test]
     async fn test_triggers() {
-        // due to https://github.com/launchbadge/sqlx/issues/3305
-        // I can't create trigger, use mysql_trigger_test.txt
-        // create trigger by hand
-
         let db = make_test_object();
         let mut _conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn DBTrait;
 
-        //     let _ = db_trait.drop_table("test_create_trigger").await;
-        //     let _ = db_trait.drop_table("test_create_trigger_update").await;
-        //     // create test_create_trigger
-        //     sqlx::query(
-        //         r#"
-        //         CREATE TABLE test_create_trigger (
-        //             id INT AUTO_INCREMENT, -- 自动递增的ID
-        //             data VARCHAR(255) NOT NULL, --
-        // 存储数据的字段，最大长度255字符，不允许为空
-        // PRIMARY KEY (id) -- 设置id为表的主键         );
-        //     "#,
-        //     )
-        //     .execute(conn.deref_mut())
-        //     .await
-        //     .unwrap();
+        let _ = db_trait.drop_table("test_create_trigger").await;
+        let _ = db_trait.drop_table("test_create_trigger_update").await;
 
-        //     // create test_create_trigger_update
-        //     sqlx::query(
-        //         r#"
-        //     CREATE TABLE test_create_trigger_update (
-        //         id INT AUTO_INCREMENT, -- 自动递增的ID，作为主键
-        //         data VARCHAR(255) NOT NULL, --
-        // 数据字段，最大长度255字符，不允许为空         last_updated
-        // TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, --
-        // 记录每次更新的时间，默认值为当前时间，并在每次更新时自动更新
-        //         PRIMARY KEY (id) -- 设置id为主键
-        //     );
-        // "#,
-        //     )
-        //     .execute(conn.deref_mut())
-        //     .await
-        //     .unwrap();
+        let query_id = db_trait.open_connection().await.unwrap();
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_create_trigger (
+                id INT AUTO_INCREMENT, -- 自动递增的ID
+                data VARCHAR(255) NOT NULL, -- 存储数据的字段，最大长度255字符，不允许为空
+                PRIMARY KEY (id) -- 设置id为表的主键
+            );
 
-        //     // create trigger
+            
+            CREATE TABLE test_create_trigger_update (
+                id INT AUTO_INCREMENT, -- 自动递增的ID，作为主键
+                data VARCHAR(255) NOT NULL, -- 数据字段，最大长度255字符，不允许为空
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 记录每次更新的时间，默认值为当前时间，并在每次更新时自动更新
+                PRIMARY KEY (id) -- 设置id为主键
+            );
 
-        //     sqlx::query(
-        //         r#"
-        //         CREATE TRIGGER after_insert_test_create_trigger
-        //         AFTER INSERT ON test_create_trigger
-        //         FOR EACH ROW
-        //         BEGIN
-        //             INSERT INTO test_create_trigger_update (data)
-        //             VALUES (NEW.data);
-        //         END
-        //     "#,
-        //     )
-        //     .execute(conn.deref_mut())
-        //     .await
-        //     .unwrap();
+            CREATE TRIGGER after_insert_test_create_trigger
+            AFTER INSERT ON test_create_trigger
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO test_create_trigger_update (data)
+                VALUES (NEW.data);
+            END; 
+
+
+
+            CREATE TRIGGER after_insert_test_create_trigger2
+            BEFORE INSERT ON test_create_trigger
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO test_create_trigger_update (data)
+                VALUES (NEW.data);
+            END; 
+
+        "#,
+            )
+            .await
+            .unwrap();
+
         let ts = db_trait.list_trigger("test_create_trigger").await.unwrap();
         for t in ts.iter() {
             let detail = db_trait

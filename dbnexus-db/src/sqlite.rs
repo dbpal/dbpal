@@ -18,9 +18,9 @@ use crate::completion::{
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
-    create_csv, sql_to_sql_seq, CheckConn, CreateTableAndIndexSql, DBTrait, ExeSqlError,
-    ExportKind, Field, Index, IndexKind, ListTable, ListTrigger, ListView, QuerySql, SqlExecuteRet,
-    SqlKind, SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
+    ListTable, ListTrigger, ListView, QueryResp, QuerySql, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -902,15 +902,21 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
             strict: _,
         } => {
             for c in columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -925,7 +931,7 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
 impl QuerySql for SqliteDB {
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut conn = self.query_connection.lock().await;
         let conn = conn.get_mut(&id);
         let conn = match conn {
@@ -940,18 +946,21 @@ impl QuerySql for SqliteDB {
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
-                    // todo push to error;
+                    ret.push(Err(err.to_string()));
+
                     continue;
                 }
             };
             match item {
-                sqlx::Either::Left(result) => {
-                    // do nothing
+                sqlx::Either::Left(_) => {
                     if rows.len() > 0 {
-                        
-                        ret.push(Ok( TableListResp::new( , total, encode_rows(&rows)?, sql)  ));
+                        let fields = get_rows_types(&rows);
+                        let data = encode_rows(&rows)?;
+                        ret.push(Ok(QueryResp::new(fields, data)));
+
                         rows.clear();
-                    }
+                    };
+
                     continue;
                 }
                 sqlx::Either::Right(row) => {
@@ -1043,9 +1052,11 @@ impl crate::completion::DBLexerCompletionBackend for SqliteDB {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         PRAGMA_ITEMS
             .iter()
-            .map(|x| CompletionItem {
-                name: Cow::Borrowed(*x),
-                kind: CompletionKind::Text,
+            .map(|x| {
+                CompletionItem {
+                    name: Cow::Borrowed(*x),
+                    kind: CompletionKind::Text,
+                }
             })
             .collect()
     }
@@ -1215,108 +1226,6 @@ fn test_extract_index() {
     );
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
-    let dialect = sqlparser::dialect::SQLiteDialect {};
-
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        |s| {
-            match s {
-                Statement::Pragma {
-                    name: _,
-                    value: _,
-                    is_eq,
-                } => {
-                    if !is_eq {
-                        return anyhow::Ok(crate::db::SqlKind::Query);
-                    } else {
-                        return anyhow::Ok(crate::db::SqlKind::Execution);
-                    }
-                }
-                _ => {}
-            }
-            SqlKind::get_from_statement(s)
-        },
-        |x| {
-            let t = x.to_uppercase();
-            if t.starts_with("PRAGMA") {
-                return anyhow::Ok(crate::db::SqlKind::Query);
-            }
-            SqlKind::get_from_sql(x)
-        },
-    )
-}
-
-#[cfg(test)]
-#[test]
-fn test_cut_sql_to_each_statement() {
-    {
-        let seq = get_sql_seq(
-            r#"PRAGMA table_info(xxx);
-        SELECT * from xxx;"#,
-        )
-        .unwrap();
-        assert_eq!(
-            seq,
-            vec![
-                SqlSeq {
-                    sql: "PRAGMA table_info(xxx)".to_string(),
-                    kind: crate::db::SqlKind::Query,
-                },
-                SqlSeq {
-                    sql: "SELECT * from xxx".to_string(),
-                    kind: crate::db::SqlKind::Query,
-                }
-            ]
-        )
-    }
-
-    {
-        let seq = get_sql_seq(
-            r#"PRAGMA table_info('xxxx')
-        SELECT * from xxx;"#,
-        )
-        .unwrap();
-        assert_eq!(
-            seq,
-            vec![
-                SqlSeq {
-                    sql: "PRAGMA table_info('xxxx')".to_string(),
-                    kind: crate::db::SqlKind::Query,
-                },
-                SqlSeq {
-                    sql: "SELECT * from xxx".to_string(),
-                    kind: crate::db::SqlKind::Query,
-                }
-            ]
-        )
-    }
-
-    {
-        let seq = get_sql_seq(
-            r#" ;;;;
-        SELECT * from xxx 'xxx';;;;"#,
-        )
-        .unwrap();
-        assert_eq!(
-            seq,
-            vec![SqlSeq {
-                sql: "SELECT * from xxx 'xxx'".to_string(),
-                kind: crate::db::SqlKind::Query,
-            },]
-        )
-    }
-    {
-        let seq = get_sql_seq(
-            r#" ;;;;
-         ;"#,
-        )
-        .unwrap();
-        assert_eq!(seq, vec![])
-    }
-}
-
 fn gen_show_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
@@ -1329,7 +1238,7 @@ fn gen_show_sql(
         sql.push_str(format!(" ORDER BY {order_by} ").as_str());
     }
     let offset = (page - 1) * page_size;
-    sql.push_str(format!(" LIMIT {} offset {} ", page_size, offset).as_str());
+    sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
     sql
 }
 

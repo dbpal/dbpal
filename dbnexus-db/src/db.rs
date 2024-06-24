@@ -1,14 +1,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Deref;
-
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
-
 use line_index::{LineCol, TextSize};
-use serde::ser::SerializeStruct;
 use sqlparser::ast::Statement;
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::{Location, Token};
@@ -170,7 +167,7 @@ pub trait MultiDBTrait: Sync + Send + QuerySql + 'static + CheckConn {
 pub trait QuerySql {
     async fn query_sql(
         &self, query_id: uuid::Uuid, _sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>>;
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
@@ -397,106 +394,37 @@ impl Index {
     }
 }
 
-#[derive(Debug)]
-pub struct ExeSqlError {
-    sql: String,
-    err: anyhow::Error,
-}
-
-impl typescript_type_def::TypeDef for ExeSqlError {
-    const INFO: typescript_type_def::type_expr::TypeInfo =
-        typescript_type_def::type_expr::TypeInfo::Defined(
-            typescript_type_def::type_expr::DefinedTypeInfo {
-                def: typescript_type_def::type_expr::TypeDefinition {
-                    docs: None,
-                    path: &[],
-                    name: typescript_type_def::type_expr::Ident("ExeSqlError"),
-                    generic_vars: &[],
-                    def: typescript_type_def::type_expr::TypeExpr::Object(
-                        typescript_type_def::type_expr::TypeObject {
-                            docs: None,
-                            index_signature: None,
-                            fields: &[
-                                typescript_type_def::type_expr::ObjectField {
-                                    docs: None,
-                                    name: typescript_type_def::type_expr::TypeString {
-                                        docs: None,
-                                        value: "sql",
-                                    },
-                                    optional: false,
-                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
-                                        typescript_type_def::type_expr::TypeName::ident(
-                                            typescript_type_def::type_expr::Ident("string"),
-                                        ),
-                                    ),
-                                },
-                                typescript_type_def::type_expr::ObjectField {
-                                    docs: None,
-                                    name: typescript_type_def::type_expr::TypeString {
-                                        docs: None,
-                                        value: "err",
-                                    },
-                                    optional: false,
-                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
-                                        typescript_type_def::type_expr::TypeName::ident(
-                                            typescript_type_def::type_expr::Ident("string"),
-                                        ),
-                                    ),
-                                },
-                            ],
-                        },
-                    ),
-                },
-                generic_args: &[],
-            },
-        );
-}
-
-impl ExeSqlError {
-    pub(crate) fn new(sql: impl Into<String>, err: impl Into<anyhow::Error>) -> Self {
-        let sql = sql.into();
-        Self {
-            sql,
-            err: err.into(),
-        }
-    }
-}
-
-impl serde::Serialize for ExeSqlError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("ExeSqlError", 2)?;
-        state.serialize_field("sql", &self.sql)?;
-        state.serialize_field("err", &self.err.to_string())?;
-        state.end()
-    }
-}
-
-#[cfg(test)]
-#[test]
-fn test_serde_json_exe_sql_error() {
-    use std::vec;
-
-    let s = serde_json::to_string(&Result::Err(ExeSqlError {
-        sql: "SELECT * from xxxx".to_string(),
-        err: anyhow::Error::msg("a error "),
-    }) as &Result<Vec<TableListResp>, ExeSqlError>)
-    .unwrap();
-    println!("{:?}", s);
-
-    let s = serde_json::to_string(&Result::Ok(vec![TableListResp::row_affected("a sql", 10)])
-        as &Result<Vec<TableListResp>, ExeSqlError>)
-    .unwrap();
-    println!("{:?}", s);
-}
-
 #[derive(Clone, serde::Serialize, Copy, Debug, TypeDef)]
 pub enum IndexKind {
     Normal,
     Unique,
     Primary,
+}
+#[derive(Clone, Debug, serde::Serialize, TypeDef)]
+pub struct QueryResp {
+    pub(crate) fields: Vec<Field>,
+    pub(crate) data: Vec<Vec<Option<String>>>,
+}
+impl QueryResp {
+    pub(crate) fn new(fields: Vec<Field>, data: Vec<Vec<Option<String>>>) -> Self {
+        Self { fields, data }
+    }
+
+    pub fn result(col_name: impl Into<String>, result: Vec<Option<String>>) -> Self {
+        let col_name = col_name.into();
+
+        Self {
+            data: vec![result],
+            fields: vec![Field {
+                name: col_name,
+                typ: "".to_string(),
+                nullable: false,
+                default_value: None,
+                is_primary: false,
+                is_auto_increment: false,
+            }],
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
@@ -516,6 +444,16 @@ impl TableListResp {
 }
 
 impl TableListResp {
+    pub fn to_query_resp(self) -> QueryResp {
+        let TableListResp {
+            fields,
+            total: _,
+            data,
+            sql: _,
+        } = self;
+        QueryResp::new(fields, data)
+    }
+
     pub fn new(
         fields: Vec<Field>, total: usize, data: Vec<Vec<Option<String>>>, sql: impl Into<String>,
     ) -> Self {

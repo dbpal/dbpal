@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use dbnexus_db::db::{
-    ExeSqlError, ExportKind, Field, Index, ListTable, ListTrigger, ListView, RedisListTable,
+    ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, RedisListTable,
     SqlExecuteRet, TableListResp, TriggerDetail,
 };
 use dbnexus_db::oracle::OracleDB;
@@ -191,7 +191,7 @@ pub async fn open_db2(
 #[tauri::command]
 pub async fn query_sql(
     uuid: String, id: uuid::Uuid, sql: String, dbs: tauri::State<'_, App>,
-) -> Result<Vec<Result<TableListResp, ExeSqlError>>, String> {
+) -> Result<Vec<Result<QueryResp, String>>, String> {
     let sql = sql.as_str();
     let db = dbs
         .open_db(uuid.as_str())

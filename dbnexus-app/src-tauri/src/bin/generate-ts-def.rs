@@ -6,7 +6,7 @@ use std::path::Path;
 
 use dbnexus_db::completion::{CompletionItem, CompletionKind};
 use dbnexus_db::db::{
-    ExeSqlError, ExportKind, Field, Index, ListTable, ListTrigger, ListView, RedisListTable,
+    ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, RedisListTable,
     SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use dvnexus_app_lib::storage;
@@ -26,7 +26,6 @@ fn main() {
             &Index::INFO,
             &SqlExecuteRet::INFO,
             &ListView::INFO,
-            &ExeSqlError::INFO,
             &ExportKind::INFO,
             &RedisListTable::INFO,
             &TriggerDetail::INFO,
@@ -35,6 +34,7 @@ fn main() {
             &ListTrigger::INFO,
             &CompletionItem::INFO,
             &CompletionKind::INFO,
+            &QueryResp::INFO,
         ];
 
         let mut buf = Vec::new();

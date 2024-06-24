@@ -9,8 +9,8 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
-    CheckConn, DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView,
-    OffsetLimitIter, QuerySql, RedisListTable, SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExportKind, Field, Index, ListTable, ListView, OffsetLimitIter, QueryResp,
+    QuerySql, RedisListTable, SqlExecuteRet, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -349,17 +349,19 @@ impl DBTrait for RedisDB {
             RedisType::List => anyhow::Ok(vec![value_field]),
             RedisType::Set => anyhow::Ok(vec![value_field]),
             RedisType::Hash => anyhow::Ok(vec![key_field, value_field]),
-            RedisType::Zset => anyhow::Ok(vec![
-                value_field,
-                Field {
-                    name: "score".to_string(),
-                    typ: "float64".to_string(),
-                    nullable: false,
-                    default_value: None,
-                    is_primary: false,
-                    is_auto_increment: false,
-                },
-            ]),
+            RedisType::Zset => {
+                anyhow::Ok(vec![
+                    value_field,
+                    Field {
+                        name: "score".to_string(),
+                        typ: "float64".to_string(),
+                        nullable: false,
+                        default_value: None,
+                        is_primary: false,
+                        is_auto_increment: false,
+                    },
+                ])
+            }
         }
     }
 
@@ -558,7 +560,7 @@ impl QuerySql for RedisDB {
 
     async fn query_sql(
         &self, _id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut conn = self.get_conn().await?;
         query_sql(&mut conn, sql).await
     }
@@ -616,7 +618,7 @@ impl RedisType {
 
 async fn query_sql(
     conn: &mut ConnectionManager, sql: &str,
-) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
     let mut commands = Vec::new();
     for line in sql.lines() {
         let v: Vec<_> = line.split(" ").collect();
@@ -643,17 +645,15 @@ async fn query_sql(
 
         match v {
             Ok(x) => {
-                ret.push(Ok(TableListResp::result(
+                ret.push(Ok(QueryResp::result(
                     "result",
-                    command,
                     x.into_iter().map(|x| Some(x)).collect(),
                 )));
             }
 
-            Err(x) => ret.push(Err(ExeSqlError::new(command, anyhow::Error::from(x)))),
+            Err(x) => ret.push(Err(x.to_string())),
         }
     }
-
     anyhow::Ok(ret)
 }
 fn encode_hashmap(v: &HashMap<String, String>) -> Vec<String> {
@@ -728,7 +728,6 @@ impl RedisDB {
 mod tests {
 
     use super::RedisDB;
-
     use crate::TEST_HOST;
 
     fn make_test_object() -> RedisDB {

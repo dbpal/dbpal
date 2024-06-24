@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use crate::datasource::{self, MongoDataSource};
 use crate::db::{
-    CheckConn, DBTrait, ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView,
+    CheckConn, DBTrait, ExportKind, Field, Index, IndexKind, ListTable, ListView, QueryResp,
     QuerySql, SqlExecuteRet, TableListResp,
 };
 
@@ -452,7 +452,7 @@ impl DBTrait for Mongo {
 impl QuerySql for Mongo {
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         anyhow::bail!("mongodb query sql is not supported right now.")
     }
 

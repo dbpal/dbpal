@@ -113,10 +113,6 @@ export namespace db_apis {
     export type ListView = {
         "name": string;
     };
-    export type ExeSqlError = {
-        "sql": string;
-        "err": string;
-    };
     export type ExportKind = (({
         "export_kind": "csv";
     } & {
@@ -138,12 +134,17 @@ export namespace db_apis {
         "hash_table": (string)[];
         "zset_table": (string)[];
     };
-    export type TriggerTiming = ("Before" | "After");
+    export type TriggerTiming = ("Before" | "After" | 
+    /**
+     * sql server have this timing but I am not quit understand.
+     */
+"InsteadOf");
     export type TriggerEvent = ("Insert" | "Update" | "Delete");
     export type TriggerDetail = {
         "timing": db_apis.TriggerTiming;
         "event": db_apis.TriggerEvent;
         "sql": string;
+        "enable": boolean;
     };
     export type ListTrigger = {
         "name": string;
@@ -153,4 +154,8 @@ export namespace db_apis {
         "kind": CompletionKind;
     };
     export type CompletionKind = ("KeyWord" | "Function" | "Dbname" | "TableName" | "Column" | "Text" | "Type");
+    export type QueryResp = {
+        "fields": (db_apis.Field)[];
+        "data": (((string | null))[])[];
+    };
 }
