@@ -8,7 +8,6 @@ use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::ast::{ColumnOption, Expr, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::PoolConnection;
-use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Row, SqliteConnection, TypeInfo};
 use tokio::sync::Mutex;
@@ -933,63 +932,32 @@ impl QuerySql for SqliteDB {
             Some(x) => x,
             None => anyhow::bail!("id '{}' have no connection", id),
         };
-        let seq = get_sql_seq(sql);
-        let x = match seq {
-            anyhow::Result::Ok(e) => e,
-            anyhow::Result::Err(_err) => {
-                log::error!("parse sql fail use as query");
-                vec![SqlSeq {
-                    sql: sql.to_string(),
-                    kind: crate::db::SqlKind::Query,
-                }]
-            }
-        };
-        let mut ret = Vec::with_capacity(x.len());
-        use crate::db::SqlKind;
+        let mut ret = Vec::new();
+        let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
-        for c in x.iter() {
-            let result = match c.kind {
-                SqlKind::Begin => {
-                    conn.begin().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Commit => {
-                    conn.commit().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Rollback => {
-                    conn.rollback().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Query => {
-                    let result = sqlx::query(&c.sql).fetch_all(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => {
-                            let data = encode_rows(&rows)?;
-                            let fields = get_rows_types(&rows);
-                            Ok(TableListResp::new(fields, data.len(), data, &c.sql))
-                        }
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
-                    };
-                    result
-                }
-
-                SqlKind::Execution => {
-                    let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => Err(ExeSqlError::new(
-                            &c.sql,
-                            anyhow::Error::msg(err.to_string()),
-                        )),
-                    };
-                    result
+        let mut rows = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = match item {
+                Ok(x) => x,
+                Err(err) => {
+                    // todo push to error;
+                    continue;
                 }
             };
-            ret.push(result);
+            match item {
+                sqlx::Either::Left(result) => {
+                    // do nothing
+                    if rows.len() > 0 {
+                        
+                        ret.push(Ok( TableListResp::new( , total, encode_rows(&rows)?, sql)  ));
+                        rows.clear();
+                    }
+                    continue;
+                }
+                sqlx::Either::Right(row) => {
+                    rows.push(row);
+                }
+            }
         }
         anyhow::Ok(ret)
     }
