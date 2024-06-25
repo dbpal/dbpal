@@ -31,39 +31,47 @@ export namespace db_apis {
     } & {
         "path": string;
         "read_only": boolean;
+        "name": string;
     }) | ({
         "conn_type": "mysql";
     } & (db_apis.CommDBConfig & {
         "read_only": boolean;
+        "name": string;
     })) | ({
         "conn_type": "mariadb";
     } & (db_apis.CommDBConfig & {
         "read_only": boolean;
+        "name": string;
     })) | ({
         "conn_type": "postgres";
     } & (db_apis.CommDBConfig & {
         "read_only": boolean;
+        "name": string;
     })) | ({
         "conn_type": "sqlserver";
     } & (db_apis.CommDBConfig & {
         "read_only": boolean;
         "trust_cert": boolean;
+        "name": string;
     })) | ({
         "conn_type": "mongodb";
     } & (db_apis.MongoDataSource & {
         "read_only": boolean;
         "db_name": string;
+        "name": string;
     })) | ({
         "conn_type": "redis";
     } & {
         "server": string;
         "read_only": boolean;
+        "name": string;
     }) | ({
         "conn_type": "oracle";
     } & (db_apis.OracleDBConfig & {
         "read_only": boolean;
         "db_name": (string | null);
         "call_timeout": (db_apis.U64 | null);
+        "name": string;
     })));
     export type Usize = number;
     export type UserSettings = {

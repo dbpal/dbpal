@@ -10,12 +10,15 @@ use crate::storage::{App, DBConnectionConfig, UserSettings};
 
 #[tauri::command]
 pub async fn add_config(
-    uuid: String, config: DBConnectionConfig, dbs: tauri::State<'_, App>,
-) -> Result<(), String> {
+    config: DBConnectionConfig, dbs: tauri::State<'_, App>,
+) -> Result<String, String> {
+    let uuid = uuid::Uuid::new_v4().to_string();
+
     log::info!("add config:{} {:?}", uuid, config);
     dbs.add_config(uuid.as_str(), config)
         .await
-        .map_err(|x| x.to_string())
+        .map_err(|x| x.to_string())?;
+    Ok(uuid)
 }
 #[tauri::command]
 pub async fn delete_config(uuid: String, dbs: tauri::State<'_, App>) -> Result<(), String> {

@@ -24,37 +24,44 @@ pub enum DBConnectionConfig {
     Sqlite {
         path: String,
         read_only: bool,
+        name: String,
     },
     Mysql {
         #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
+        name: String,
     },
     MariaDB {
         #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
+        name: String,
     },
     Postgres {
         #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
+        name: String,
     },
     SqlServer {
         #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
         trust_cert: bool,
+        name: String,
     },
     MongoDB {
         #[serde(flatten)]
         conn: MongoDataSource,
         read_only: bool,
         db_name: String,
+        name: String,
     },
     Redis {
         server: String,
         read_only: bool,
+        name: String,
     },
     Oracle {
         #[serde(flatten)]
@@ -63,6 +70,7 @@ pub enum DBConnectionConfig {
         db_name: Option<String>,
         // milliseond
         call_timeout: Option<u64>,
+        name: String,
     },
 }
 
@@ -168,7 +176,11 @@ impl DbConfigLoader for FileJsonSaver {
 
 async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result<DB> {
     match config {
-        DBConnectionConfig::Sqlite { path, read_only } => {
+        DBConnectionConfig::Sqlite {
+            path,
+            read_only,
+            name: _,
+        } => {
             let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::sqlite::SqliteDB::new(
                 pm.clone(),
                 path.clone(),
@@ -177,8 +189,16 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
 
             anyhow::Ok(DB::One(db))
         }
-        DBConnectionConfig::Mysql { conn, read_only }
-        | DBConnectionConfig::MariaDB { conn, read_only } => match &conn.db_name {
+        DBConnectionConfig::Mysql {
+            conn,
+            read_only,
+            name: _,
+        }
+        | DBConnectionConfig::MariaDB {
+            conn,
+            read_only,
+            name: _,
+        } => match &conn.db_name {
             Some(_) => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
                     pm.clone(),
@@ -198,7 +218,11 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
                 anyhow::Ok(DB::Multi(db))
             }
         },
-        DBConnectionConfig::Postgres { conn, read_only } => match &conn.db_name {
+        DBConnectionConfig::Postgres {
+            conn,
+            read_only,
+            name: _,
+        } => match &conn.db_name {
             Some(_) => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::pg::PostGresDB::new(
                     pm.clone(),
@@ -222,6 +246,7 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
             conn,
             read_only,
             trust_cert,
+            name: _,
         } => match &conn.db_name {
             Some(_) => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::sql_server::SqlServer::new(
@@ -249,6 +274,7 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
             conn,
             read_only,
             db_name,
+            name: _,
         } => {
             let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mongo::Mongo::new(
                 pm.clone(),
@@ -259,7 +285,11 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
 
             anyhow::Ok(DB::One(db))
         }
-        DBConnectionConfig::Redis { server, read_only } => {
+        DBConnectionConfig::Redis {
+            server,
+            read_only,
+            name: _,
+        } => {
             let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::redis::RedisDB::new(
                 pm.clone(),
                 server.to_string(),
@@ -273,6 +303,7 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
             read_only,
             db_name,
             call_timeout,
+            name: _,
         } => match db_name.as_ref() {
             Some(_) => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::oracle::OracleDB::new(
