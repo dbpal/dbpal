@@ -17,7 +17,7 @@ import Link from '@mui/material/Link';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import { mainListItems, secondaryListItems } from './listItems';
+import MainListItems, { secondaryListItems } from './listItems';
 import Chart from './Chart';
 import Deposits from './Deposits';
 import Orders from './Orders';
@@ -91,20 +91,22 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 );
 
 // TODO remove, this demo shouldn't need to reset the theme.
-const lightTheme = createTheme();
 
-const [theme, setTheme] = useState('light'); // 默认为明亮主题
-
-const isDarkMode = theme === 'dark';
-
-const toggleTheme = () => {
-  setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
-};
 
 export default function Dashboard() {
   const [open, setOpen] = React.useState(true);
   const toggleDrawer = () => {
     setOpen(!open);
+  };
+
+  const lightTheme = createTheme();
+
+  const [theme, setTheme] = useState('light'); // 默认为明亮主题
+
+  const isDarkMode = theme === 'dark';
+
+  const toggleTheme = () => {
+    setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
   };
 
   return (
@@ -119,7 +121,6 @@ export default function Dashboard() {
               pr: '25px', // keep right padding when drawer closed
             }}
           >
-
 
             <IconButton
               edge="start"
@@ -191,8 +192,12 @@ export default function Dashboard() {
           </Toolbar>
           <Divider />
           <List component="nav">
-            {mainListItems}
+            {
+            /* <MainListItems>
+            </MainListItems> 
             <Divider sx={{ my: 1 }} />
+            */}
+
             {secondaryListItems}
           </List>
         </Drawer>
