@@ -902,21 +902,15 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
             strict: _,
         } => {
             for c in columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -952,7 +946,7 @@ impl QuerySql for SqliteDB {
                 }
             };
             match item {
-                sqlx::Either::Left(_) => {
+                sqlx::Either::Left(row_aff) => {
                     if rows.len() > 0 {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows)?;
@@ -961,7 +955,9 @@ impl QuerySql for SqliteDB {
                         rows.clear();
                     };
 
-                    continue;
+                    if row_aff.rows_affected() > 0 {
+                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected())));
+                    }
                 }
                 sqlx::Either::Right(row) => {
                     rows.push(row);
@@ -1052,11 +1048,9 @@ impl crate::completion::DBLexerCompletionBackend for SqliteDB {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         PRAGMA_ITEMS
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    name: Cow::Borrowed(*x),
-                    kind: CompletionKind::Text,
-                }
+            .map(|x| CompletionItem {
+                name: Cow::Borrowed(*x),
+                kind: CompletionKind::Text,
             })
             .collect()
     }

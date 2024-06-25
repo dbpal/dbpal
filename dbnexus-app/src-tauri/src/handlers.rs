@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::time::Duration;
 
 use dbnexus_db::db::{
     ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, RedisListTable,
@@ -298,11 +297,10 @@ pub async fn oracle_query_set_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_set_autocommit(id, commit)
-                .await
-                .map_err(|e| e.to_string())
-        }
+        Some(x) => x
+            .query_set_autocommit(id, commit)
+            .await
+            .map_err(|e| e.to_string()),
         None => Err(format!("db '{}' is not oracle", uuid)),
     }
 }
@@ -347,41 +345,6 @@ pub async fn oracle_query_rollback(
 }
 
 #[tauri::command]
-pub async fn oracle_query_call_timeout(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
-) -> Result<Option<Duration>, String> {
-    let db = dbs
-        .get_one_db(uuid.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x.query_call_timeout(id).await.map_err(|e| e.to_string()),
-        None => Err(format!("db '{}' is not oracle", uuid)),
-    }
-}
-
-#[tauri::command]
-pub async fn oracle_query_set_call_timeout(
-    uuid: String,
-    id: uuid::Uuid,
-    timeout: Option<Duration>, // {"secs":1,"nanos":234000000}
-    dbs: tauri::State<'_, App>,
-) -> Result<(), String> {
-    let db = dbs
-        .get_one_db(uuid.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_set_call_timeout(id, timeout)
-                .await
-                .map_err(|e| e.to_string())
-        }
-        None => Err(format!("db '{}' is not oracle", uuid)),
-    }
-}
-
-#[tauri::command]
 pub async fn list_trigger(
     uuid: String, table: String, dbs: tauri::State<'_, App>,
 ) -> Result<Vec<ListTrigger>, String> {
@@ -409,7 +372,7 @@ pub async fn show_trigger(
 #[cfg(test)]
 #[test]
 fn test_serde_duration() {
-    let d = Duration::from_millis(1234);
+    let d = std::time::Duration::from_millis(1234);
 
     let s = serde_json::to_string(&d).unwrap();
     println!("s:{}", s);

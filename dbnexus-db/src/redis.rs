@@ -349,19 +349,17 @@ impl DBTrait for RedisDB {
             RedisType::List => anyhow::Ok(vec![value_field]),
             RedisType::Set => anyhow::Ok(vec![value_field]),
             RedisType::Hash => anyhow::Ok(vec![key_field, value_field]),
-            RedisType::Zset => {
-                anyhow::Ok(vec![
-                    value_field,
-                    Field {
-                        name: "score".to_string(),
-                        typ: "float64".to_string(),
-                        nullable: false,
-                        default_value: None,
-                        is_primary: false,
-                        is_auto_increment: false,
-                    },
-                ])
-            }
+            RedisType::Zset => anyhow::Ok(vec![
+                value_field,
+                Field {
+                    name: "score".to_string(),
+                    typ: "float64".to_string(),
+                    nullable: false,
+                    default_value: None,
+                    is_primary: false,
+                    is_auto_increment: false,
+                },
+            ]),
         }
     }
 
@@ -636,7 +634,6 @@ async fn query_sql(
     let mut ret = Vec::new();
     for c in commands.iter() {
         let args = &c[1..];
-        let command = c.join(" ");
         let v = redis::cmd(c[0].as_str())
             .arg(args)
             .query_async(conn)

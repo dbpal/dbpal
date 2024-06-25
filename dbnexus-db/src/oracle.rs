@@ -25,11 +25,13 @@ pub struct OracleDB {
     read_only: bool,
     db_name: Option<String>,
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
+    call_timeout: Option<Duration>,
 }
 
 impl OracleDB {
     pub fn new(
         config: OracleDBConfig, pm: PoolManager, read_only: bool, db_name: Option<String>,
+        call_timeout: Option<Duration>,
     ) -> Self {
         Self {
             config,
@@ -37,6 +39,7 @@ impl OracleDB {
             read_only,
             db_name,
             query_connections: Default::default(),
+            call_timeout,
         }
     }
 }
@@ -95,24 +98,6 @@ impl OracleDB {
     pub async fn query_rollback(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.with_query_connection(id, |f| -> anyhow::Result<()> {
             f.rollback()?;
-            anyhow::Ok(())
-        })
-        .await
-    }
-
-    pub async fn query_call_timeout(&self, id: uuid::Uuid) -> anyhow::Result<Option<Duration>> {
-        self.with_query_connection(id, |x| -> anyhow::Result<Option<Duration>> {
-            let d = x.call_timeout()?;
-            anyhow::Ok(d)
-        })
-        .await
-    }
-
-    pub async fn query_set_call_timeout(
-        &self, id: uuid::Uuid, d: Option<Duration>,
-    ) -> anyhow::Result<()> {
-        self.with_query_connection(id, |x| -> anyhow::Result<()> {
-            x.set_call_timeout(d)?;
             anyhow::Ok(())
         })
         .await
@@ -184,7 +169,9 @@ impl QuerySql for OracleDB {
                     };
                 }
                 SqlKind::Execution => {
-                    let _stmt = block_in_place(|| conn.execute(sql, &[]));
+                    // TODO handle error
+                    let stmt = block_in_place(|| conn.execute(sql, &[]));
+
                     continue;
                 }
                 SqlKind::Begin | SqlKind::Commit | SqlKind::Rollback => {
@@ -386,60 +373,42 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
     match f.typ.to_string().to_uppercase().as_str() {
-        "VARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NVARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "CHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "RAW" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
-            anyhow::Ok(match value {
-                Some(x) => x.to_string(),
-                None => null_string,
-            })
-        }
-        "CLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "BLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
+        "VARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NVARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "CHAR" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCHAR" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "RAW" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
+            Some(x) => x.to_string(),
+            None => null_string,
+        }),
+        "CLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCLOB" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "BLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -1056,6 +1025,9 @@ impl OracleDB {
         block_in_place(|| {
             conn.set_autocommit(true);
         });
+        if self.call_timeout.is_some() {
+            conn.set_call_timeout(self.call_timeout.clone())?;
+        }
 
         return anyhow::Ok(conn);
     }
@@ -1077,6 +1049,7 @@ mod tests {
             },
             db_name,
             query_connections: Default::default(),
+            call_timeout: None,
         };
         x
     }

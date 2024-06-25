@@ -425,6 +425,21 @@ impl QueryResp {
             }],
         }
     }
+
+    pub fn row_affected(affected: u64) -> Self {
+        let sql = sql.into();
+        Self {
+            data: vec![vec![Some(affected.to_string())]],
+            fields: vec![Field {
+                name: "row affected".to_string(),
+                typ: "int".to_string(),
+                nullable: false,
+                default_value: None,
+                is_primary: false,
+                is_auto_increment: false,
+            }],
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
@@ -481,23 +496,6 @@ impl TableListResp {
             fields: vec![Field {
                 name: col_name,
                 typ: "".to_string(),
-                nullable: false,
-                default_value: None,
-                is_primary: false,
-                is_auto_increment: false,
-            }],
-        }
-    }
-
-    pub fn row_affected(sql: impl Into<String>, affected: u64) -> Self {
-        let sql = sql.into();
-        Self {
-            total: 1,
-            sql,
-            data: vec![vec![Some(affected.to_string())]],
-            fields: vec![Field {
-                name: "row affected".to_string(),
-                typ: "int".to_string(),
                 nullable: false,
                 default_value: None,
                 is_primary: false,

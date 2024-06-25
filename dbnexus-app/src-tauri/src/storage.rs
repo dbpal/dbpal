@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use dbnexus_db::datasource::{CommDBConfig, MongoDataSource, OracleDBConfig};
 use dbnexus_db::db::{
@@ -60,6 +61,8 @@ pub enum DBConnectionConfig {
         conn: OracleDBConfig,
         read_only: bool,
         db_name: Option<String>,
+        // milliseond
+        call_timeout: Option<u64>,
     },
 }
 
@@ -269,6 +272,7 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
             conn,
             read_only,
             db_name,
+            call_timeout,
         } => match db_name.as_ref() {
             Some(_) => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::oracle::OracleDB::new(
@@ -276,6 +280,7 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
                     pm.clone(),
                     *read_only,
                     db_name.clone(),
+                    call_timeout.clone().map(Duration::from_millis),
                 ));
 
                 anyhow::Ok(DB::One(db))
@@ -286,6 +291,7 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
                     pm.clone(),
                     *read_only,
                     db_name.clone(),
+                    call_timeout.clone().map(Duration::from_millis),
                 ));
 
                 anyhow::Ok(DB::Multi(db))

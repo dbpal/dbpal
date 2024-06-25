@@ -25,6 +25,7 @@ export namespace db_apis {
         "password": string;
         "connect_str": string;
     };
+    export type U64 = number;
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & {
@@ -62,6 +63,7 @@ export namespace db_apis {
     } & (db_apis.OracleDBConfig & {
         "read_only": boolean;
         "db_name": (string | null);
+        "call_timeout": (db_apis.U64 | null);
     })));
     export type Usize = number;
     export type UserSettings = {
@@ -98,7 +100,6 @@ export namespace db_apis {
         "kind": db_apis.IndexKind;
         "on": (string)[];
     };
-    export type U64 = number;
     export type I64 = number;
     export type SqlExecuteRet = {
         "sql": string;
