@@ -427,7 +427,6 @@ impl QueryResp {
     }
 
     pub fn row_affected(affected: u64) -> Self {
-        let sql = sql.into();
         Self {
             data: vec![vec![Some(affected.to_string())]],
             fields: vec![Field {

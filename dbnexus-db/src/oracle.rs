@@ -169,10 +169,14 @@ impl QuerySql for OracleDB {
                     };
                 }
                 SqlKind::Execution => {
-                    // TODO handle error
                     let stmt = block_in_place(|| conn.execute(sql, &[]));
-
-                    continue;
+                    match stmt {
+                        Ok(x) => match x.row_count() {
+                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
+                            Err(err) => ret.push(Err(err.to_string())),
+                        },
+                        Err(err) => ret.push(Err(err.to_string())),
+                    }
                 }
                 SqlKind::Begin | SqlKind::Commit | SqlKind::Rollback => {
                     anyhow::bail!("oracle doesn't work this way,this is should be unreachable");
