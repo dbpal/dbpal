@@ -7,11 +7,14 @@ use std::vec;
 
 use oracle::{Connection, Row};
 use tokio::sync::Mutex;
+use tokio::task::block_in_place;
 
+use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{DBPoolKey, OracleDBConfig};
 use crate::db::{
-    create_csv, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field, Index, IndexKind,
-    ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
+    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
+    ListTable, ListView, MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
+    TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -22,10 +25,27 @@ pub struct OracleDB {
     read_only: bool,
     db_name: Option<String>,
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
+    call_timeout: Option<Duration>,
+}
+
+impl OracleDB {
+    pub fn new(
+        config: OracleDBConfig, pm: PoolManager, read_only: bool, db_name: Option<String>,
+        call_timeout: Option<Duration>,
+    ) -> Self {
+        Self {
+            config,
+            pm,
+            read_only,
+            db_name,
+            query_connections: Default::default(),
+            call_timeout,
+        }
+    }
 }
 
 fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
-    // use oracle later when sqlparser supported
+    // TODO use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::GenericDialect {};
     crate::db::sql_to_sql_seq(
         sql,
@@ -46,7 +66,7 @@ impl OracleDB {
                 anyhow::bail!(format!("id '{}' not found", id));
             }
         };
-        f(conn)
+        block_in_place(|| f(conn))
     }
 
     // a list of set function
@@ -78,24 +98,6 @@ impl OracleDB {
     pub async fn query_rollback(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.with_query_connection(id, |f| -> anyhow::Result<()> {
             f.rollback()?;
-            anyhow::Ok(())
-        })
-        .await
-    }
-
-    pub async fn query_call_timeout(&self, id: uuid::Uuid) -> anyhow::Result<Option<Duration>> {
-        self.with_query_connection(id, |x| -> anyhow::Result<Option<Duration>> {
-            let d = x.call_timeout()?;
-            anyhow::Ok(d)
-        })
-        .await
-    }
-
-    pub async fn query_set_call_timeout(
-        &self, id: uuid::Uuid, d: Option<Duration>,
-    ) -> anyhow::Result<()> {
-        self.with_query_connection(id, |x| -> anyhow::Result<()> {
-            x.set_call_timeout(d)?;
             anyhow::Ok(())
         })
         .await
@@ -133,7 +135,7 @@ impl QuerySql for OracleDB {
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
@@ -154,27 +156,26 @@ impl QuerySql for OracleDB {
         for s in ss.iter() {
             match s.kind {
                 SqlKind::Query => {
-                    match conn.query(&s.sql, &[]) {
+                    match block_in_place(|| conn.query(&s.sql, &[])) {
                         Ok(rows) => {
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows, false)?;
                             let data = encode_rows(rows, false)?;
-                            ret.push(Ok(TableListResp::new(cols, data.len(), data, &s.sql)));
+                            ret.push(Ok(QueryResp::new(cols, data)));
                         }
                         Err(err) => {
-                            ret.push(Err(ExeSqlError::new(s.sql.as_str(), err)));
+                            ret.push(Err(err.to_string()));
                         }
                     };
                 }
                 SqlKind::Execution => {
-                    let mut stmt = conn.execute(sql, &[])?;
-                    let row_aff = stmt.row_count()?;
-
-                    match stmt.execute(&[]) {
-                        Ok(_) => {
-                            ret.push(Ok(TableListResp::row_affected(s.sql.as_str(), row_aff)));
-                        }
-                        Err(err) => ret.push(Err(ExeSqlError::new(s.sql.as_str(), err))),
+                    let stmt = block_in_place(|| conn.execute(sql, &[]));
+                    match stmt {
+                        Ok(x) => match x.row_count() {
+                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
+                            Err(err) => ret.push(Err(err.to_string())),
+                        },
+                        Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
                 SqlKind::Begin | SqlKind::Commit | SqlKind::Rollback => {
@@ -228,7 +229,7 @@ impl OracleDB {
 const ROW_COL: &str = "RNUMXXX_YYY_ZZZZ";
 
 fn infer_schema_by_result(
-    rows: &Vec<oracle::Result<Row>>, expect_row_num: bool,
+    rows: &Vec<oracle::Result<Row>>, exclude_row_num: bool,
 ) -> anyhow::Result<Vec<Field>> {
     if rows.len() == 0 {
         return anyhow::Ok(vec![]);
@@ -238,12 +239,12 @@ fn infer_schema_by_result(
         Ok(x) => x,
         Err(err) => anyhow::bail!(format!("{}", err.to_string())),
     };
-    infer_schema_by_row(x, expect_row_num)
+    infer_schema_by_row(x, exclude_row_num)
 }
-fn infer_schema_by_row(x: &oracle::Row, expect_row_num: bool) -> anyhow::Result<Vec<Field>> {
+fn infer_schema_by_row(x: &oracle::Row, exclude_row_num: bool) -> anyhow::Result<Vec<Field>> {
     let mut ret = Vec::with_capacity(x.column_info().len());
     for c in x.column_info().iter() {
-        if expect_row_num && c.name() == ROW_COL {
+        if exclude_row_num && c.name() == ROW_COL {
             continue;
         }
         ret.push(Field::from_name_type(
@@ -376,60 +377,42 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
     match f.typ.to_string().to_uppercase().as_str() {
-        "VARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NVARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "CHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "RAW" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
-            anyhow::Ok(match value {
-                Some(x) => x.to_string(),
-                None => null_string,
-            })
-        }
-        "CLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "BLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
+        "VARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NVARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "CHAR" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCHAR" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "RAW" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
+            Some(x) => x.to_string(),
+            None => null_string,
+        }),
+        "CLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCLOB" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "BLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -623,8 +606,8 @@ impl OracleDB {
         }
         let conn = self.get_conn().await?;
         let cols = DBTrait::show_columns(self, table_name).await?;
-        let sql = format!("select * from {}", table_name);
-        let rows = conn.query(sql.as_str(), &[])?;
+        let sql = format!("SELECT * from {}", table_name);
+        let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
 
         let data = encode_rows(rows, false)?;
@@ -646,8 +629,8 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
 
-        let sql = format!("select * from {}", table_name);
-        let rows = conn.query(&sql, &[])?;
+        let sql = format!("SELECT * from {}", table_name);
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         let json = encode_rows_as_json(rows)?;
         let str = if pretty {
@@ -672,14 +655,24 @@ impl OracleDB {
                 .await?;
         }
 
-        let sql = format!("select * from {}", table_name);
-        let rows = conn.query(&sql, &[])?;
+        let sql = format!("SELECT * from {}", table_name);
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let rows: Vec<_> = rows.collect();
         let data = encode_rows(rows, false)?;
         sender
             .send(Cow::Owned(create_csv(&data, delimiter)))
             .await?;
         anyhow::Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl CheckConn for OracleDB {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let conn = self.get_conn().await?;
+        let _ = block_in_place(|| conn.query("select 1", &[]))?;
+        anyhow::Ok(ins.elapsed())
     }
 }
 
@@ -741,7 +734,7 @@ impl DBTrait for OracleDB {
         let mut ret = Vec::new();
         let conn = self.get_conn().await?;
 
-        let rows = conn.query(sql.as_str(), &[])?;
+        let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         for r in rows {
             let r = r?;
             let name: String = r.get(0)?;
@@ -765,7 +758,7 @@ impl DBTrait for OracleDB {
                 table_name,
                 table_name
             );
-            let rows = conn.query(sql.as_str(), &[])?;
+            let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
             let mut names = HashSet::new();
             for r in rows {
                 let r = r?;
@@ -804,7 +797,7 @@ impl DBTrait for OracleDB {
             self.db_name.as_ref().unwrap()
         );
         let conn = self.get_conn().await?;
-        let result = conn.query(&sql, &[])?;
+        let result = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
         for r in result {
             let r = r?;
@@ -823,7 +816,7 @@ impl DBTrait for OracleDB {
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
         let total = OracleDB::query_count(&conn, table_name, where_str)?;
         log::info!("query sql:{}", sql);
-        let rows = conn.query(sql.as_str(), &[]).unwrap();
+        let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let data = encode_rows(rows.into_iter().collect::<Vec<_>>(), true)?;
         let cols = self.show_columns(table_name).await?;
         anyhow::Ok(TableListResp::new(cols, total as usize, data, sql))
@@ -842,7 +835,7 @@ impl DBTrait for OracleDB {
         "#
         );
         let conn = self.get_conn().await?;
-        let rows = conn.query(&sql, &[])?;
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret: HashMap<String, Index> = HashMap::new();
         for r in rows {
             let r = r?;
@@ -887,7 +880,7 @@ impl DBTrait for OracleDB {
         let sql = (self as &dyn DBTrait).insert_sql(table_name, &fs, &values)?;
         log::info!("insert sql:{}", sql);
 
-        let stmt = conn.execute(&sql, &[])?;
+        let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
         let changes = stmt.row_count()?;
         let id = stmt.last_row_id()?;
         anyhow::Ok(SqlExecuteRet {
@@ -909,9 +902,7 @@ impl DBTrait for OracleDB {
             (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
         let conn = self.get_conn().await?;
 
-        let mut stmt = conn.execute(sql.as_str(), &[])?;
-        stmt.execute(&[])?;
-
+        let stmt = block_in_place(|| conn.execute(sql.as_str(), &[]))?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: stmt.row_count()?,
@@ -930,7 +921,7 @@ impl DBTrait for OracleDB {
         self.can_write()?;
         let sql = format!("TRUNCATE TABLE  {table_name}");
         let conn = self.get_conn().await?;
-        conn.execute(&sql, &[])?;
+        block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
 
@@ -942,7 +933,7 @@ impl DBTrait for OracleDB {
         let fields = self.show_columns(table_name).await?;
         let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
         let conn = self.get_conn().await?;
-        let stmt = conn.execute(&sql, &[])?;
+        let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
         let row_count = stmt.row_count()?;
         anyhow::Ok(SqlExecuteRet {
             sql,
@@ -960,7 +951,7 @@ impl DBTrait for OracleDB {
             "#,
             self.db_name.as_deref().unwrap()
         );
-        let rows = conn.query(&sql, &[])?;
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
         for r in rows {
             let r = r?;
@@ -973,15 +964,14 @@ impl DBTrait for OracleDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         let sql = format!("DROP VIEW {view_name}");
         let conn = self.get_conn().await?;
-        conn.execute(&sql, &[])?;
+        block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         let sql = format!("DROP TABLE {table} CASCADE CONSTRAINTS PURGE");
         let conn = self.get_conn().await?;
-        let mut stmt = conn.execute(&sql.as_str(), &[])?;
-        stmt.execute(&[])?;
+        let _ = block_in_place(|| conn.execute(&sql.as_str(), &[]))?;
         anyhow::Ok(())
     }
 
@@ -993,7 +983,7 @@ impl DBTrait for OracleDB {
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
         let total = OracleDB::query_count(&conn, view_name, where_str)?;
         log::info!("query sql:{}", sql);
-        let rows = conn.query(sql.as_str(), &[]).unwrap();
+        let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         let cols = infer_schema_by_result(&rows, true)?;
         let data = encode_rows(rows, true)?;
@@ -1004,9 +994,7 @@ impl DBTrait for OracleDB {
 impl MultiDBTrait for OracleDB {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
-        let rows = conn
-            .query(r#"SELECT USERNAME FROM DBA_USERS"#, &[])
-            .unwrap();
+        let rows = block_in_place(|| conn.query(r#"SELECT USERNAME FROM DBA_USERS"#, &[]))?;
         let mut ret = Vec::new();
         for r in rows {
             let r = r?;
@@ -1029,22 +1017,29 @@ impl OracleDB {
             NexusPool::Oracle(p) => p.clone(),
             _ => unreachable!(),
         };
-        let conn: oracle::Connection = tokio::task::spawn_blocking(move || pool.get())
-            .await
-            .unwrap()?;
+
+        let mut conn: oracle::Connection = block_in_place(|| pool.get())?;
         match &self.db_name {
             Some(db_name) => {
                 let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
-                conn.execute(&sql, &[])?;
+                block_in_place(|| conn.execute(&sql, &[]))?;
             }
             None => {}
         }
+        block_in_place(|| {
+            conn.set_autocommit(true);
+        });
+        if self.call_timeout.is_some() {
+            conn.set_call_timeout(self.call_timeout.clone())?;
+        }
+
         return anyhow::Ok(conn);
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::{init_log, TEST_HOST};
     fn make_test_object(db_name: Option<String>) -> OracleDB {
@@ -1058,10 +1053,16 @@ mod tests {
             },
             db_name,
             query_connections: Default::default(),
+            call_timeout: None,
         };
         x
     }
     #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object(None);
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_view() {
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().await.unwrap();
@@ -1100,7 +1101,7 @@ FROM  TEST_VIEW_TABLE"#,
 
         db.drop_table("TEST_VIEW_TABLE").await.unwrap();
     }
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_indexes() {
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().await.unwrap();
@@ -1126,7 +1127,7 @@ FROM  TEST_VIEW_TABLE"#,
         println!("{:?}", indexes);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_multidb_trait() {
         let db = make_test_object(None);
         let db = &db as &dyn MultiDBTrait;
@@ -1135,7 +1136,7 @@ FROM  TEST_VIEW_TABLE"#,
         db.open_db("SYSTEM").await.unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_tables() {
         let db = make_test_object(Some("APPQOSSYS".to_string()));
         let db = &db as &dyn DBTrait;
@@ -1147,7 +1148,58 @@ FROM  TEST_VIEW_TABLE"#,
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_query_sql() {
+        let db = make_test_object(Some("SYSTEM".to_string()));
+
+        let db_trait = &db as &dyn DBTrait;
+        // get query_uuid
+        let query_uuid = db_trait.open_connection().await.unwrap();
+        // test auto commit
+        db.query_set_autocommit(query_uuid, false).await.unwrap();
+        assert!(!db.query_autocommit(query_uuid).await.unwrap());
+
+        let call_timeout = db.query_call_timeout(query_uuid).await.unwrap();
+        println!("call timeout:{:?}", call_timeout);
+        let call_timeout = Some(Duration::from_secs(5));
+        db.query_set_call_timeout(query_uuid, call_timeout)
+            .await
+            .unwrap();
+        assert_eq!(
+            db.query_call_timeout(query_uuid).await.unwrap(),
+            call_timeout
+        );
+        let sqls = vec![
+            r#"
+            CREATE TABLE TEST_QUERY (
+                id NUMBER PRIMARY KEY,
+                name VARCHAR2(50),
+                age NUMBER
+            )
+        "#,
+            "INSERT INTO TEST_QUERY (id, name, age) VALUES (1, 'Alice', 25)",
+            "INSERT INTO TEST_QUERY (id, name, age) VALUES (2, 'Bob', 32)",
+            "INSERT INTO TEST_QUERY (id, name, age) VALUES (3, 'Charlie', 18)",
+        ];
+        // test a rollback but we rollback nothings
+
+        db.query_rollback(query_uuid).await.unwrap();
+
+        let _ = db_trait.drop_table("TEST_QUERY").await;
+        for sql in sqls.iter() {
+            let _ = db_trait.query_sql(query_uuid, *sql).await;
+        }
+
+        db.query_commit(query_uuid).await.unwrap();
+
+        let resp = db_trait
+            .show_table("TEST_QUERY", None, None, 1, 100)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type1() {
         init_log();
         let table_name = "TEST_TYPES1";
@@ -1235,7 +1287,7 @@ FROM  TEST_VIEW_TABLE"#,
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type2() {
         init_log();
         let table_name = "TEST_TYPES2";
@@ -1318,7 +1370,7 @@ FROM  TEST_VIEW_TABLE"#,
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type3() {
         init_log();
         let table_name = "TEST_TYPES3";
@@ -1403,7 +1455,7 @@ FROM  TEST_VIEW_TABLE"#,
     }
 
     // TODO create table sql not passed
-    // #[tokio::test]
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     // async fn test_type4() {
     //     init_log();
     //     let table_name = "TEST_TYPES4";
@@ -1452,3 +1504,502 @@ FROM  TEST_VIEW_TABLE"#,
     //     println!("resp:{:?}", resp);
     // }
 }
+
+#[async_trait::async_trait]
+impl DBLexerCompletionBackend for OracleDB {
+    type Dialect = sqlparser::dialect::GenericDialect;
+
+    const BUILD_IN_FUNCTIONS: &'static [&'static str] = &[];
+    const KEY_WORDS: &'static [&'static str] = ORACLE_KEY_WORDS;
+    const TYPES: &'static [&'static str] = ORACLE_TYPES;
+}
+
+const ORACLE_TYPES: &'static [&'static str] = &[
+    "NUMBER",
+    "BINARY_FLOAT",
+    "BINARY_DOUBLE",
+    "BINARY_INTEGER",
+    "CHAR",
+    "VARCHAR2",
+    "NCHAR",
+    "NVARCHAR2",
+    "DATE",
+    "TIMESTAMP",
+    "INTERVAL YEAR TO MONTH",
+    "INTERVAL DAY TO SECOND",
+    "RAW",
+    "LONG RAW",
+    "CLOB",
+    "NCLOB",
+    "BLOB",
+    "SDO_GEOMETRY",
+    "XMLType",
+];
+
+const ORACLE_KEY_WORDS: &'static [&'static str] = &[
+    "ACCESS",
+    "ELSE",
+    "MODIFY",
+    "START",
+    "ADD",
+    "EXCLUSIVE",
+    "NOAUDIT",
+    "SELECT",
+    "ALL",
+    "EXISTS",
+    "NOCOMPRESS",
+    "SESSION",
+    "ALTER",
+    "FILE",
+    "NOT",
+    "SET",
+    "AND",
+    "FLOAT",
+    "NOTFOUND",
+    "SHARE",
+    "ANY",
+    "FOR",
+    "NOWAIT",
+    "SIZE",
+    "ARRAYLEN",
+    "FROM",
+    "NULL",
+    "SMALLINT",
+    "AS",
+    "GRANT",
+    "NUMBER",
+    "SQLBUF",
+    "ASC",
+    "GROUP",
+    "OF",
+    "SUCCESSFUL",
+    "AUDIT",
+    "HAVING",
+    "OFFLINE",
+    "SYNONYM",
+    "BETWEEN",
+    "IDENTIFIED",
+    "ON",
+    "SYSDATE",
+    "BY",
+    "IMMEDIATE",
+    "ONLINE",
+    "TABLE",
+    "CHAR",
+    "IN",
+    "OPTION",
+    "THEN",
+    "CHECK",
+    "INCREMENT",
+    "OR",
+    "TO",
+    "CLUSTER",
+    "INDEX",
+    "ORDER",
+    "TRIGGER",
+    "COLUMN",
+    "INITIAL",
+    "PCTFREE",
+    "UID",
+    "COMMENT",
+    "INSERT",
+    "PRIOR",
+    "UNION",
+    "COMPRESS",
+    "INTEGER",
+    "PRIVILEGES",
+    "UNIQUE",
+    "CONNECT",
+    "INTERSECT",
+    "PUBLIC",
+    "UPDATE",
+    "CREATE",
+    "INTO",
+    "RAW",
+    "USER",
+    "CURRENT",
+    "IS",
+    "RENAME",
+    "VALIDATE",
+    "DATE",
+    "LEVEL",
+    "RESOURCE",
+    "VALUES",
+    "DECIMAL",
+    "LIKE",
+    "REVOKE",
+    "VARCHAR",
+    "DEFAULT",
+    "LOCK",
+    "ROW",
+    "VARCHAR2",
+    "DELETE",
+    "LONG",
+    "ROWID",
+    "VIEW",
+    "DESC",
+    "MAXEXTENTS",
+    "ROWLABEL",
+    "WHENEVER",
+    "DISTINCT",
+    "MINUS",
+    "ROWNUM",
+    "WHERE",
+    "DROP",
+    "MODE",
+    "ROWS",
+    "WITH",
+    "ADMIN",
+    "CURSOR",
+    "FOUND",
+    "MOUNT",
+    "AFTER",
+    "CYCLE",
+    "FUNCTION",
+    "NEXT",
+    "ALLOCATE",
+    "DATABASE",
+    "GO",
+    "NEW",
+    "ANALYZE",
+    "DATAFILE",
+    "GOTO",
+    "NOARCHIVELOG",
+    "ARCHIVE",
+    "DBA",
+    "GROUPS",
+    "NOCACHE",
+    "ARCHIVELOG",
+    "DEC",
+    "INCLUDING",
+    "NOCYCLE",
+    "AUTHORIZATION",
+    "DECLARE",
+    "INDICATOR",
+    "NOMAXVALUE",
+    "AVG",
+    "DISABLE",
+    "INITRANS",
+    "NOMINVALUE",
+    "BACKUP",
+    "DISMOUNT",
+    "INSTANCE",
+    "NONE",
+    "BEGIN",
+    "DOUBLE",
+    "INT",
+    "NOORDER",
+    "BECOME",
+    "DUMP",
+    "KEY",
+    "NORESETLOGS",
+    "BEFORE",
+    "EACH",
+    "LANGUAGE",
+    "NORMAL",
+    "BLOCK",
+    "ENABLE",
+    "LAYER",
+    "NOSORT",
+    "BODY",
+    "END",
+    "LINK",
+    "NUMERIC",
+    "CACHE",
+    "ESCAPE",
+    "LISTS",
+    "OFF",
+    "CANCEL",
+    "EVENTS",
+    "LOGFILE",
+    "OLD",
+    "CASCADE",
+    "EXCEPT",
+    "MANAGE",
+    "ONLY",
+    "CHANGE",
+    "EXCEPTIONS",
+    "MANUAL",
+    "OPEN",
+    "CHARACTER",
+    "EXEC",
+    "MAX",
+    "OPTIMAL",
+    "CHECKPOINT",
+    "EXPLAIN",
+    "MAXDATAFILES",
+    "OWN",
+    "CLOSE",
+    "EXECUTE",
+    "MAXINSTANCES",
+    "PACKAGE",
+    "COBOL",
+    "EXTENT",
+    "MAXLOGFILES",
+    "PARALLEL",
+    "COMMIT",
+    "EXTERNALLY",
+    "MAXLOGHISTORY",
+    "PCTINCREASE",
+    "COMPILE",
+    "FETCH",
+    "MAXLOGMEMBERS",
+    "PCTUSED",
+    "CONSTRAINT",
+    "FLUSH",
+    "MAXTRANS",
+    "PLAN",
+    "CONSTRAINTS",
+    "FREELIST",
+    "MAXVALUE",
+    "PLI",
+    "CONTENTS",
+    "FREELISTS",
+    "MIN",
+    "PRECISION",
+    "CONTINUE",
+    "FORCE",
+    "MINEXTENTS",
+    "PRIMARY",
+    "CONTROLFILE",
+    "FOREIGN",
+    "MINVALUE",
+    "PRIVATE",
+    "COUNT",
+    "FORTRAN",
+    "MODULE",
+    "PROCEDURE",
+    "PROFILE",
+    "SAVEPOINT",
+    "SQLSTATE",
+    "TRACING",
+    "QUOTA",
+    "SCHEMA",
+    "STATEMENT_ID",
+    "TRANSACTION",
+    "READ",
+    "SCN",
+    "STATISTICS",
+    "TRIGGERS",
+    "REAL",
+    "SECTION",
+    "STOP",
+    "TRUNCATE",
+    "RECOVER",
+    "SEGMENT",
+    "STORAGE",
+    "UNDER",
+    "REFERENCES",
+    "SEQUENCE",
+    "SUM",
+    "UNLIMITED",
+    "REFERENCING",
+    "SHARED",
+    "SWITCH",
+    "UNTIL",
+    "RESETLOGS",
+    "SNAPSHOT",
+    "SYSTEM",
+    "USE",
+    "RESTRICTED",
+    "SOME",
+    "TABLES",
+    "USING",
+    "REUSE",
+    "SORT",
+    "TABLESPACE",
+    "WHEN",
+    "ROLE",
+    "SQL",
+    "TEMPORARY",
+    "WRITE",
+    "ROLES",
+    "SQLCODE",
+    "THREAD",
+    "WORK",
+    "ROLLBACK",
+    "SQLERROR",
+    "TIME",
+    "ABORT",
+    "BETWEEN",
+    "CRASH",
+    "DIGITS",
+    "ACCEPT",
+    "BINARY_INTEGER",
+    "CREATE",
+    "DISPOSE",
+    "ACCESS",
+    "BODY",
+    "CURRENT",
+    "DISTINCT",
+    "ADD",
+    "BOOLEAN",
+    "CURRVAL",
+    "DO",
+    "ALL",
+    "BY",
+    "CURSOR",
+    "DROP",
+    "ALTER",
+    "CASE",
+    "DATABASE",
+    "ELSE",
+    "AND",
+    "CHAR",
+    "DATA_BASE",
+    "ELSIF",
+    "ANY",
+    "CHAR_BASE",
+    "DATE",
+    "END",
+    "ARRAY",
+    "CHECK",
+    "DBA",
+    "ENTRY",
+    "ARRAYLEN",
+    "CLOSE",
+    "DEBUGOFF",
+    "EXCEPTION",
+    "AS",
+    "CLUSTER",
+    "DEBUGON",
+    "EXCEPTION_INIT",
+    "ASC",
+    "CLUSTERS",
+    "DECLARE",
+    "EXISTS",
+    "ASSERT",
+    "COLAUTH",
+    "DECIMAL",
+    "EXIT",
+    "ASSIGN",
+    "COLUMNS",
+    "DEFAULT",
+    "FALSE",
+    "AT",
+    "COMMIT",
+    "DEFINITION",
+    "FETCH",
+    "AUTHORIZATION",
+    "COMPRESS",
+    "DELAY",
+    "FLOAT",
+    "AVG",
+    "CONNECT",
+    "DELETE",
+    "FOR",
+    "BASE_TABLE",
+    "CONSTANT",
+    "DESC",
+    "FORM",
+    "FUNCTION",
+    "NEW",
+    "RELEASE",
+    "SUM",
+    "GENERIC",
+    "NEXTVAL",
+    "REMR",
+    "TABAUTH",
+    "GOTO",
+    "NOCOMPRESS",
+    "RENAME",
+    "TABLE",
+    "GRANT",
+    "NOT",
+    "RESOURCE",
+    "TABLES",
+    "GROUP",
+    "NULL",
+    "RETURN",
+    "TASK",
+    "HAVING",
+    "NUMBER",
+    "REVERSE",
+    "TERMINATE",
+    "IDENTIFIED",
+    "NUMBER_BASE",
+    "REVOKE",
+    "THEN",
+    "IF",
+    "OF",
+    "ROLLBACK",
+    "TO",
+    "IN",
+    "ON",
+    "ROWID",
+    "TRUE",
+    "INDEX",
+    "OPEN",
+    "ROWLABEL",
+    "TYPE",
+    "INDEXES",
+    "OPTION",
+    "ROWNUM",
+    "UNION",
+    "INDICATOR",
+    "OR",
+    "ROWTYPE",
+    "UNIQUE",
+    "INSERT",
+    "ORDER",
+    "RUN",
+    "UPDATE",
+    "INTEGER",
+    "OTHERS",
+    "SAVEPOINT",
+    "USE",
+    "INTERSECT",
+    "OUT",
+    "SCHEMA",
+    "VALUES",
+    "INTO",
+    "PACKAGE",
+    "SELECT",
+    "VARCHAR",
+    "IS",
+    "PARTITION",
+    "SEPARATE",
+    "VARCHAR2",
+    "LEVEL",
+    "PCTFREE",
+    "SET",
+    "VARIANCE",
+    "LIKE",
+    "POSITIVE",
+    "SIZE",
+    "VIEW",
+    "LIMITED",
+    "PRAGMA",
+    "SMALLINT",
+    "VIEWS",
+    "LOOP",
+    "PRIOR",
+    "SPACE",
+    "WHEN",
+    "MAX",
+    "PRIVATE",
+    "SQL",
+    "WHERE",
+    "MIN",
+    "PROCEDURE",
+    "SQLCODE",
+    "WHILE",
+    "MINUS",
+    "PUBLIC",
+    "SQLERRM",
+    "WITH",
+    "MLSLABEL",
+    "RAISE",
+    "START",
+    "WORK",
+    "MOD",
+    "RANGE",
+    "STATEMENT",
+    "XOR",
+    "MODE",
+    "REAL",
+    "STDDEV",
+    "NATURAL",
+    "RECORD",
+    "SUBTYPE",
+];

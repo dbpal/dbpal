@@ -4,16 +4,17 @@
 use std::sync::Arc;
 
 use dbnexus_db::init_log;
-use storage::{DbConfigLoader, FileJsonSaver, DBS};
+use storage::{App, DbConfigLoader, FileJsonSaver};
 
 mod handlers;
 mod storage;
 use handlers::{
     add_config, delete, delete_config, drop_table, drop_view, export_table, get_user_settings,
-    insert, list_all_config, list_table, list_view, open_db, open_db2, query_sql,
-    query_sql_close_connection, query_sql_open_connection, query_sql_re_connection,
-    redis_list_table, save_user_settings, show_columns, show_indexes, show_table, show_view,
-    truncate_table, update, update_config,
+    insert, list_all_config, list_table, list_trigger, list_view, open_db, open_db2,
+    oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
+    oracle_query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
+    query_sql_re_connection, redis_list_table, save_user_settings, show_columns, show_indexes,
+    show_table, show_trigger, show_view, truncate_table, update, update_config,
 };
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -27,7 +28,7 @@ async fn main() {
     init_log();
 
     let loader: Arc<dyn DbConfigLoader> = Arc::new(FileJsonSaver::new("dbnexus.json").unwrap());
-    let dbs = DBS::new(loader);
+    let dbs = App::new(loader);
 
     tauri::Builder::default()
         .manage(dbs)
@@ -58,7 +59,13 @@ async fn main() {
             query_sql_close_connection,
             query_sql_open_connection,
             query_sql_re_connection,
-            export_table
+            export_table,
+            oracle_query_autocommit,
+            oracle_query_commit,
+            oracle_query_rollback,
+            oracle_query_set_autocommit,
+            list_trigger,
+            show_trigger,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

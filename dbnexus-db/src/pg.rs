@@ -2,19 +2,20 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
-use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::postgres::PgRow;
 use sqlx::{Postgres, Row};
 use tokio::sync::Mutex;
 
-use crate::completion::LexerCompletionBackend;
+use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
-    Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
+    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
+    ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
@@ -30,32 +31,25 @@ pub struct PostGresDB {
 }
 
 #[async_trait::async_trait]
-impl LexerCompletionBackend for PostGresDB {
+impl DBLexerCompletionBackend for PostGresDB {
     type Dialect = sqlparser::dialect::PostgreSqlDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = PG_FUNCTIONS;
     const KEY_WORDS: &'static [&'static str] = PG_KEYWORDS;
     const TYPES: &'static [&'static str] = PG_TYPES;
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::list_table(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.table).collect())
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        crate::db::MultiDBTrait::list_db(self).await
-    }
-
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::show_columns(self, table_name)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
+}
+#[async_trait::async_trait]
+impl CheckConn for PostGresDB {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let mut conn = self.get_conn().await?;
+        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
+        anyhow::Ok(ins.elapsed())
     }
 }
 
 #[async_trait::async_trait]
-impl crate::db::MultiDBTrait for PostGresDB {
+impl MultiDBTrait for PostGresDB {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(" SELECT datname FROM pg_database WHERE datistemplate = false;")
@@ -97,7 +91,7 @@ impl PostGresDB {
 
         let mut conn = self.get_conn().await?;
         let cols = DBTrait::show_columns(self, table_name).await?;
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -124,7 +118,7 @@ impl PostGresDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
 
         sender.send(Cow::Borrowed("[")).await?;
@@ -167,7 +161,7 @@ impl PostGresDB {
                 .await?;
         }
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -192,16 +186,125 @@ fn gen_show_sql(
         sql.push_str(format!(" where {where_str} ").as_str());
     }
     if let Some(order_by) = order_by {
-        sql.push_str(format!(" order by {order_by} ").as_str());
+        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
     }
     let offset = (page - 1) * page_size;
-    sql.push_str(format!(" offset {} limit {}", offset, page_size).as_str());
+    sql.push_str(format!(" OFFSET {} LIMIT {}", offset, page_size).as_str());
 
     sql
 }
 
+/// AI help me impl this.
+// 当然可以,下面是一个 Rust 函数,用于解析 PostgreSQL 触发器的 tgtype 值:
+//
+// rust
+// 复制
+// fn parse_trigger_type(tgtype: i32) -> String {
+// let mut result = String::new();
+//
+// if (tgtype & 0b1) == 0b1 {
+// result.push_str("INSERT AFTER, ");
+// } else if (tgtype & 0b10) == 0b10 {
+// result.push_str("INSERT BEFORE, ");
+// }
+//
+// if (tgtype & 0b100) == 0b100 {
+// result.push_str("DELETE AFTER, ");
+// } else if (tgtype & 0b1000) == 0b1000 {
+// result.push_str("DELETE BEFORE, ");
+// }
+//
+// if (tgtype & 0b10000) == 0b10000 {
+// result.push_str("UPDATE AFTER, ");
+// } else if (tgtype & 0b100000) == 0b100000 {
+// result.push_str("UPDATE BEFORE, ");
+// }
+//
+// if result.is_empty() {
+// "UNKNOWN".to_string()
+// } else {
+// result.trim_end_matches(", ").to_string()
+// }
+// }
+// 这个函数接受一个 i32 类型的 tgtype
+// 值,并返回一个描述触发器类型的字符串。它检查 tgtype 的每个位,并根据触发器的
+// timing 和 event 类型构建结果字符串。
+//
+// 如果没有找到任何匹配的位模式,它将返回 "UNKNOWN"
+// 字符串。否则,它将返回一个以逗号和空格分隔的触发器类型列表。
+//
+// 您可以像这样使用这个函数:
+fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTiming)> {
+    if (tgtype & 0b1) == 0b1 {
+        return anyhow::Ok((TriggerEvent::Insert, TriggerTiming::After));
+    } else if (tgtype & 0b10) == 0b10 {
+        return anyhow::Ok((TriggerEvent::Insert, TriggerTiming::Before));
+    }
+
+    if (tgtype & 0b100) == 0b100 {
+        return anyhow::Ok((TriggerEvent::Delete, TriggerTiming::After));
+    } else if (tgtype & 0b1000) == 0b1000 {
+        return anyhow::Ok((TriggerEvent::Delete, TriggerTiming::Before));
+    }
+
+    if (tgtype & 0b10000) == 0b10000 {
+        return anyhow::Ok((TriggerEvent::Update, TriggerTiming::After));
+    } else if (tgtype & 0b100000) == 0b100000 {
+        return anyhow::Ok((TriggerEvent::Update, TriggerTiming::Before));
+    }
+    anyhow::bail!(format!("unknown tgtype:{}", tgtype))
+}
+
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        let sql = format!(
+            r#"
+             SELECT tgname 
+                FROM pg_trigger 
+                WHERE tgrelid = '{table_name}'::regclass;
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+    }
+
+    async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
+        let sql = format!(
+            r#"
+            SELECT
+                pg_get_triggerdef(oid)  AS trigger_definition ,
+                    tgtype
+                FROM
+                    pg_trigger
+                WHERE
+                    tgrelid = '{table}'::regclass
+                    AND tgname = '{name}';
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(sql.as_str())
+            .fetch_one(conn.deref_mut())
+            .await?;
+        let definition: String = row.get(0);
+        let tgtype: i16 = row.get(1);
+        let (event, timing) = parse_trigger_type(tgtype)?;
+        anyhow::Ok(TriggerDetail::new(
+            timing,
+            event,
+            definition,
+            unimplemented!(),
+        ))
+    }
+
     async fn export_table(
         &self, table_name: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -449,7 +552,7 @@ impl DBTrait for PostGresDB {
             r#"
 
             SELECT  column_name , data_type,is_nullable,column_default,udt_name
-            FROM information_schema.columns where table_catalog='{}' and table_name = '{}' order by ordinal_position
+            FROM information_schema.columns where table_catalog='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
             self.config.db_name.as_ref().map(|x| x.as_str()).unwrap(),
             table_name
@@ -559,7 +662,7 @@ impl DBTrait for PostGresDB {
             group by
                 t.relname,
                 i.relname
-                order by
+                ORDER BY
                 t.relname,
                 i.relname;
         "#
@@ -622,29 +725,6 @@ impl PostGresDB {
         let conn = pool.acquire().await?;
         return anyhow::Ok(conn);
     }
-}
-
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
-    let dialect = sqlparser::dialect::PostgreSqlDialect {};
-    use sqlparser::ast::Statement;
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        |s| {
-            match s {
-                Statement::Query(_) => anyhow::Ok(crate::db::SqlKind::Query),
-                _ => anyhow::Ok(crate::db::SqlKind::Execution),
-            }
-        },
-        |x| {
-            let t = x.to_uppercase();
-            if t.starts_with("SELECT") || t.starts_with("SHOW") || t.starts_with("EXPLAIN") {
-                anyhow::Ok(crate::db::SqlKind::Query)
-            } else {
-                anyhow::Ok(crate::db::SqlKind::Execution)
-            }
-        },
-    )
 }
 
 fn get_rows_types(rows: &Vec<PgRow>) -> Vec<Field> {
@@ -759,76 +839,43 @@ impl QuerySql for PostGresDB {
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut conn = self.query_connection.lock().await;
         let conn = conn.get_mut(&id);
         let conn = match conn {
             Some(x) => x,
             None => anyhow::bail!("id '{}' have no connection", id),
         };
-        let seq = get_sql_seq(sql);
-        let x = match seq {
-            anyhow::Result::Ok(e) => e,
-            anyhow::Result::Err(_err) => {
-                log::error!("parse sql fail use as query");
-                vec![SqlSeq {
-                    sql: sql.to_string(),
-                    kind: crate::db::SqlKind::Query,
-                }]
-            }
-        };
+        let mut ret = Vec::new();
+        let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
-        let mut ret = Vec::with_capacity(x.len());
+        let mut rows = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = match item {
+                Ok(x) => x,
+                Err(err) => {
+                    ret.push(Err(err.to_string()));
 
-        use crate::db::SqlKind;
-
-        for c in x.iter() {
-            let result = match c.kind {
-                SqlKind::Begin => {
-                    conn.begin().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Commit => {
-                    conn.commit().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Rollback => {
-                    conn.rollback().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Query => {
-                    let result = sqlx::query(&c.sql).fetch_all(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => {
-                            let data = encode_rows(&rows)?;
-                            let fields = get_rows_types(&rows);
-                            Ok(TableListResp::new(fields, data.len(), data, &c.sql))
-                        }
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
-                    };
-                    result
-                }
-
-                SqlKind::Execution => {
-                    let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
-                    };
-                    result
+                    continue;
                 }
             };
-            ret.push(result);
+            match item {
+                sqlx::Either::Left(row_aff) => {
+                    if rows.len() > 0 {
+                        let fields = get_rows_types(&rows);
+                        let data = encode_rows(&rows)?;
+                        ret.push(Ok(QueryResp::new(fields, data)));
+
+                        rows.clear();
+                    };
+                    if row_aff.rows_affected() > 0 {
+                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected())));
+                    }
+                }
+                sqlx::Either::Right(row) => {
+                    rows.push(row);
+                }
+            }
         }
         anyhow::Ok(ret)
     }
@@ -896,7 +943,7 @@ mod test {
 
     use super::PostGresDB;
     use crate::datasource::CommDBConfig;
-    use crate::db::{DBTrait, ExportKind};
+    use crate::db::{CheckConn, DBTrait, ExportKind};
     use crate::pool::PoolManager;
     use crate::{init_log, TEST_HOST};
 
@@ -916,6 +963,11 @@ mod test {
         );
 
         pg
+    }
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object();
+        CheckConn::check_conn(&db).await.unwrap();
     }
 
     #[tokio::test]
@@ -1003,8 +1055,8 @@ mod test {
         .await;
 
         let db = &db as &dyn crate::db::DBTrait;
-        let indexs = db.show_indexes(table_name).await.unwrap();
-        println!("{:?}", indexs);
+        let indexes = db.show_indexes(table_name).await.unwrap();
+        println!("{:?}", indexes);
     }
 
     #[tokio::test]
@@ -1015,6 +1067,75 @@ mod test {
         let pg = &pg as &dyn DBTrait;
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
+    }
+
+    #[tokio::test]
+    async fn test_triggers() {
+        let pg = make_test_object();
+        let mut conn = pg.get_conn().await.unwrap();
+        let db_trait = &pg as &dyn DBTrait;
+        //
+        let _ = db_trait.drop_table("test_create_trigger").await;
+        sqlx::query(
+            r#"
+          CREATE TABLE test_create_trigger (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(50)
+          );
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+        let _ = db_trait.drop_table("test_create_trigger_update").await;
+        sqlx::query(
+            r#"
+            CREATE TABLE test_create_trigger_update (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+        // create trigger
+        let _ = sqlx::query(
+            r#"
+            CREATE FUNCTION trigger_insert_test_create_trigger()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                INSERT INTO test_create_trigger_update (name, created_at)
+                VALUES (NEW.name, CURRENT_TIMESTAMP);
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await;
+
+        sqlx::query(
+            r#"
+            CREATE TRIGGER trigger_insert_test_create_trigger
+            AFTER INSERT ON test_create_trigger
+            FOR EACH ROW
+            EXECUTE FUNCTION trigger_insert_test_create_trigger();
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+
+        let triggers = db_trait.list_trigger("test_create_trigger").await.unwrap();
+        for tri in triggers.iter() {
+            let detail = db_trait
+                .show_trigger("test_create_trigger", tri.name.as_str())
+                .await
+                .unwrap();
+            println!("details:{:?}", detail);
+        }
     }
 
     #[tokio::test]

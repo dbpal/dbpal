@@ -36,4 +36,5 @@ bb8-tiberius.worksapce = true
 oracle = { git = "https://github.com/kubo/rust-oracle", branch = "master" }
 fuzzy-matcher.worksapce = true
 pg_interval.worksapce = true
+typescript-type-def.worksapce = true
 [dev-dependencies]

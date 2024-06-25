@@ -2,18 +2,19 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
+use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
 use line_index::{LineCol, TextSize};
-use serde::ser::SerializeStruct;
 use sqlparser::ast::Statement;
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::{Location, Token};
 use tokio::io::AsyncWriteExt;
+use typescript_type_def::TypeDef;
 
 /// A db representation of database
 #[async_trait::async_trait]
-pub trait DBTrait: Sync + Send + QuerySql + 'static {
+pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn {
     fn as_any(&self) -> &dyn std::any::Any;
     fn backend_name(&self) -> &str;
 
@@ -107,8 +108,20 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static {
     async fn redis_list_table(&self) -> anyhow::Result<RedisListTable> {
         anyhow::bail!(format!("'{}' is not a redis.", self.backend_name()))
     }
+
+    async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
+    }
+    async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
+        anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
+    }
 }
 
+#[async_trait::async_trait]
+
+pub trait CheckConn {
+    async fn check_conn(&self) -> anyhow::Result<Duration>;
+}
 /// create table and all index sql.
 #[derive(Clone, serde::Serialize)]
 pub struct CreateTableAndIndexSql {
@@ -145,7 +158,7 @@ impl dyn DBTrait {
 }
 
 #[async_trait::async_trait]
-pub trait MultiDBTrait: Sync + Send + QuerySql + 'static {
+pub trait MultiDBTrait: Sync + Send + QuerySql + 'static + CheckConn {
     async fn list_db(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
 }
@@ -153,8 +166,8 @@ pub trait MultiDBTrait: Sync + Send + QuerySql + 'static {
 #[async_trait::async_trait]
 pub trait QuerySql {
     async fn query_sql(
-        &self, conn: uuid::Uuid, _sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>>;
+        &self, query_id: uuid::Uuid, _sql: &str,
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
@@ -162,7 +175,7 @@ pub trait QuerySql {
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct ListView {
     pub name: String,
 }
@@ -180,7 +193,7 @@ impl From<&str> for ListView {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct ListTable {
     pub table: String,
 }
@@ -197,7 +210,7 @@ impl From<&str> for ListTable {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
+#[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]
 pub struct RedisListTable {
     pub(crate) string_table: Vec<String>,
     pub(crate) list_table: Vec<String>,
@@ -338,7 +351,7 @@ impl dyn DBTrait {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct SqlExecuteRet {
     pub sql: String,
     pub changes: u64,
@@ -367,7 +380,7 @@ impl From<u64> for SqlExecuteRet {
         }
     }
 }
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct Index {
     pub(crate) name: String,
     pub(crate) kind: IndexKind,
@@ -381,60 +394,54 @@ impl Index {
     }
 }
 
-#[derive(Debug)]
-pub struct ExeSqlError {
-    sql: String,
-    err: anyhow::Error,
+#[derive(Clone, serde::Serialize, Copy, Debug, TypeDef)]
+pub enum IndexKind {
+    Normal,
+    Unique,
+    Primary,
 }
+#[derive(Clone, Debug, serde::Serialize, TypeDef)]
+pub struct QueryResp {
+    pub(crate) fields: Vec<Field>,
+    pub(crate) data: Vec<Vec<Option<String>>>,
+}
+impl QueryResp {
+    pub(crate) fn new(fields: Vec<Field>, data: Vec<Vec<Option<String>>>) -> Self {
+        Self { fields, data }
+    }
 
-impl ExeSqlError {
-    pub(crate) fn new(sql: impl Into<String>, err: impl Into<anyhow::Error>) -> Self {
-        let sql = sql.into();
+    pub fn result(col_name: impl Into<String>, result: Vec<Option<String>>) -> Self {
+        let col_name = col_name.into();
+
         Self {
-            sql,
-            err: err.into(),
+            data: vec![result],
+            fields: vec![Field {
+                name: col_name,
+                typ: "".to_string(),
+                nullable: false,
+                default_value: None,
+                is_primary: false,
+                is_auto_increment: false,
+            }],
+        }
+    }
+
+    pub fn row_affected(affected: u64) -> Self {
+        Self {
+            data: vec![vec![Some(affected.to_string())]],
+            fields: vec![Field {
+                name: "row affected".to_string(),
+                typ: "int".to_string(),
+                nullable: false,
+                default_value: None,
+                is_primary: false,
+                is_auto_increment: false,
+            }],
         }
     }
 }
 
-impl serde::Serialize for ExeSqlError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("ExeSqlError", 2)?;
-        state.serialize_field("sql", &self.sql)?;
-        state.serialize_field("err", &self.err.to_string())?;
-        state.end()
-    }
-}
-
-#[cfg(test)]
-#[test]
-fn test_serde_json_exe_sql_error() {
-    use std::vec;
-
-    let s = serde_json::to_string(&Result::Err(ExeSqlError {
-        sql: "SELECT * from xxxx".to_string(),
-        err: anyhow::Error::msg("a error "),
-    }) as &Result<Vec<TableListResp>, ExeSqlError>)
-    .unwrap();
-    println!("{:?}", s);
-
-    let s = serde_json::to_string(&Result::Ok(vec![TableListResp::row_affected("a sql", 10)])
-        as &Result<Vec<TableListResp>, ExeSqlError>)
-    .unwrap();
-    println!("{:?}", s);
-}
-
-#[derive(Clone, serde::Serialize, Copy, Debug)]
-pub enum IndexKind {
-    Normal = 0,
-    Unique = 1,
-    Primary = 2,
-}
-
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct TableListResp {
     pub(crate) fields: Vec<Field>,
     pub(crate) total: usize,
@@ -451,6 +458,16 @@ impl TableListResp {
 }
 
 impl TableListResp {
+    pub fn to_query_resp(self) -> QueryResp {
+        let TableListResp {
+            fields,
+            total: _,
+            data,
+            sql: _,
+        } = self;
+        QueryResp::new(fields, data)
+    }
+
     pub fn new(
         fields: Vec<Field>, total: usize, data: Vec<Vec<Option<String>>>, sql: impl Into<String>,
     ) -> Self {
@@ -485,26 +502,9 @@ impl TableListResp {
             }],
         }
     }
-
-    pub fn row_affected(sql: impl Into<String>, affected: u64) -> Self {
-        let sql = sql.into();
-        Self {
-            total: 1,
-            sql,
-            data: vec![vec![Some(affected.to_string())]],
-            fields: vec![Field {
-                name: "row affected".to_string(),
-                typ: "int".to_string(),
-                nullable: false,
-                default_value: None,
-                is_primary: false,
-                is_auto_increment: false,
-            }],
-        }
-    }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct Field {
     pub name: String,
     pub typ: String,
@@ -760,6 +760,7 @@ fn is_statement_absolute_query(s: &Statement) -> bool {
         Statement::ExplainTable {
             describe_alias: _,
             table_name: _,
+            hive_format: _,
         } => true,
         Statement::Explain {
             describe_alias: _,
@@ -776,7 +777,8 @@ pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
     format!("{} {}", x.naive_local(), x.offset())
 }
 
-#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize, TypeDef)]
+#[serde(tag = "export_kind", rename_all = "lowercase")]
 pub enum ExportKind {
     CSV {
         include_header: bool,
@@ -892,6 +894,63 @@ impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
             None
         }
     }
+}
+#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
+pub struct TriggerDetail {
+    pub(crate) timing: TriggerTiming,
+    pub(crate) event: TriggerEvent,
+    pub(crate) sql: String,
+    pub(crate) enable: bool,
+}
+
+impl TriggerDetail {
+    pub fn new(
+        timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: impl Into<String>, enable: bool,
+    ) -> Self {
+        Self {
+            timing,
+            event: event.into(),
+            sql: sql.into(),
+            enable,
+        }
+    }
+}
+
+#[derive(Debug, Clone, TypeDef, PartialEq, Eq, serde::Serialize)]
+pub enum TriggerEvent {
+    Insert,
+    Update,
+    Delete,
+}
+
+impl TryFrom<&str> for TriggerEvent {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value.to_uppercase().as_str() {
+            "INSERT" => Ok(Self::Insert),
+            "UPDATE" => Ok(Self::Update),
+            "DELETE" => Ok(Self::Delete),
+            _ => anyhow::bail!(format!("'{}' not a valid event", value)),
+        }
+    }
+}
+
+impl From<String> for ListTrigger {
+    fn from(value: String) -> Self {
+        Self { name: value }
+    }
+}
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+pub struct ListTrigger {
+    pub name: String,
+}
+#[derive(Debug, Clone, Copy, serde::Serialize, TypeDef, PartialEq, Eq)]
+pub enum TriggerTiming {
+    Before,
+    After,
+    /// sql server have this timing but I am not quit understand.
+    InsteadOf,
 }
 
 #[cfg(test)]

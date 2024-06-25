@@ -873,6 +873,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-shell",
  "tokio",
+ "typescript-type-def",
  "uuid",
 ]
 
@@ -912,6 +913,7 @@ dependencies = [
  "tiberius",
  "tokio",
  "tokio-util",
+ "typescript-type-def",
  "uuid",
 ]
 
@@ -4418,9 +4420,9 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.43.1"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f95c4bae5aba7cd30bd506f7140026ade63cff5afd778af8854026f9606bf5d4"
+checksum = "295e9930cd7a97e58ca2a070541a3ca502b17f5d1fa7157376d0fabd85324f25"
 dependencies = [
  "log",
 ]
@@ -5529,6 +5531,29 @@ name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
+
+[[package]]
+name = "typescript-type-def"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19d9560109be8840693dcb09ed745851f3713bee7b23534b8cab65b7ff9383f1"
+dependencies = [
+ "typescript-type-def-derive",
+]
+
+[[package]]
+name = "typescript-type-def-derive"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2835fe6badda3e20a012d19d6593ded0fc11f659d5d5152394061ffbb03b4b04"
+dependencies = [
+ "darling 0.13.4",
+ "ident_case",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "unic-char-property"

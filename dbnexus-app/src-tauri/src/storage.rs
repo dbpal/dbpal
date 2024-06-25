@@ -2,13 +2,15 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
-use dbnexus_db::datasource::{CommDBConfig, MongoDataSource};
+use dbnexus_db::datasource::{CommDBConfig, MongoDataSource, OracleDBConfig};
 use dbnexus_db::db::{
     DBTrait, Field, Index, ListTable, ListView, MultiDBTrait, SqlExecuteRet, TableListResp,
 };
 use dbnexus_db::pool::PoolManager;
 use tokio::sync::Mutex;
+use typescript_type_def::TypeDef;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct DBNexusConfigs {
@@ -16,41 +18,59 @@ pub struct DBNexusConfigs {
     user_settings: UserSettings,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
+#[serde(tag = "conn_type", rename_all = "lowercase")]
 pub enum DBConnectionConfig {
     Sqlite {
         path: String,
         read_only: bool,
+        name: String,
     },
     Mysql {
+        #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
+        name: String,
     },
     MariaDB {
+        #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
+        name: String,
     },
     Postgres {
+        #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
+        name: String,
     },
     SqlServer {
+        #[serde(flatten)]
         conn: CommDBConfig,
         read_only: bool,
         trust_cert: bool,
+        name: String,
     },
     MongoDB {
+        #[serde(flatten)]
         conn: MongoDataSource,
         read_only: bool,
         db_name: String,
+        name: String,
     },
     Redis {
         server: String,
         read_only: bool,
+        name: String,
     },
     Oracle {
-        conn: CommDBConfig,
+        #[serde(flatten)]
+        conn: OracleDBConfig,
         read_only: bool,
+        db_name: Option<String>,
+        // milliseond
+        call_timeout: Option<u64>,
+        name: String,
     },
 }
 
@@ -119,7 +139,8 @@ impl DbConfigLoader for FileJsonSaver {
     async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()> {
         let mut g = self.config.lock().await;
         g.user_settings = x;
-        self.save(g.deref()).await
+        self.save(g.deref()).await?;
+        anyhow::Ok(())
     }
 
     async fn add(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()> {
@@ -155,7 +176,11 @@ impl DbConfigLoader for FileJsonSaver {
 
 async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result<DB> {
     match config {
-        DBConnectionConfig::Sqlite { path, read_only } => {
+        DBConnectionConfig::Sqlite {
+            path,
+            read_only,
+            name: _,
+        } => {
             let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::sqlite::SqliteDB::new(
                 pm.clone(),
                 path.clone(),
@@ -164,85 +189,92 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
 
             anyhow::Ok(DB::One(db))
         }
-        DBConnectionConfig::Mysql { conn, read_only }
-        | DBConnectionConfig::MariaDB { conn, read_only } => {
-            match &conn.db_name {
-                Some(_) => {
-                    let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
-                        pm.clone(),
-                        conn.clone(),
-                        *read_only,
-                    ));
-
-                    anyhow::Ok(DB::One(db))
-                }
-                None => {
-                    let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
-                        pm.clone(),
-                        conn.clone(),
-                        *read_only,
-                    ));
-
-                    anyhow::Ok(DB::Multi(db))
-                }
-            }
+        DBConnectionConfig::Mysql {
+            conn,
+            read_only,
+            name: _,
         }
-        DBConnectionConfig::Postgres { conn, read_only } => {
-            match &conn.db_name {
-                Some(_) => {
-                    let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
-                        pm.clone(),
-                        conn.clone(),
-                        *read_only,
-                    ));
+        | DBConnectionConfig::MariaDB {
+            conn,
+            read_only,
+            name: _,
+        } => match &conn.db_name {
+            Some(_) => {
+                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
 
-                    anyhow::Ok(DB::One(db))
-                }
-                None => {
-                    let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
-                        pm.clone(),
-                        conn.clone(),
-                        *read_only,
-                    ));
-
-                    anyhow::Ok(DB::Multi(db))
-                }
+                anyhow::Ok(DB::One(db))
             }
-        }
+            None => {
+                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::Multi(db))
+            }
+        },
+        DBConnectionConfig::Postgres {
+            conn,
+            read_only,
+            name: _,
+        } => match &conn.db_name {
+            Some(_) => {
+                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::pg::PostGresDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::One(db))
+            }
+            None => {
+                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::pg::PostGresDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::Multi(db))
+            }
+        },
         DBConnectionConfig::SqlServer {
             conn,
             read_only,
             trust_cert,
-        } => {
-            match &conn.db_name {
-                Some(_) => {
-                    let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::sql_server::SqlServer::new(
-                        conn.clone(),
-                        *trust_cert,
-                        pm.clone(),
-                        *read_only,
-                    ));
+            name: _,
+        } => match &conn.db_name {
+            Some(_) => {
+                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::sql_server::SqlServer::new(
+                    conn.clone(),
+                    *trust_cert,
+                    pm.clone(),
+                    *read_only,
+                ));
 
-                    anyhow::Ok(DB::One(db))
-                }
-                None => {
-                    let db: Arc<dyn MultiDBTrait> =
-                        Arc::new(dbnexus_db::sql_server::SqlServer::new(
-                            conn.clone(),
-                            *trust_cert,
-                            pm.clone(),
-                            *read_only,
-                        ));
-
-                    anyhow::Ok(DB::Multi(db))
-                }
+                anyhow::Ok(DB::One(db))
             }
-        }
+            None => {
+                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::sql_server::SqlServer::new(
+                    conn.clone(),
+                    *trust_cert,
+                    pm.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(DB::Multi(db))
+            }
+        },
 
         DBConnectionConfig::MongoDB {
             conn,
             read_only,
             db_name,
+            name: _,
         } => {
             let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mongo::Mongo::new(
                 pm.clone(),
@@ -253,7 +285,11 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
 
             anyhow::Ok(DB::One(db))
         }
-        DBConnectionConfig::Redis { server, read_only } => {
+        DBConnectionConfig::Redis {
+            server,
+            read_only,
+            name: _,
+        } => {
             let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::redis::RedisDB::new(
                 pm.clone(),
                 server.to_string(),
@@ -262,45 +298,54 @@ async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result
 
             anyhow::Ok(DB::One(db))
         }
-        DBConnectionConfig::Oracle { conn, read_only } => {
-            match &conn.db_name {
-                Some(_) => {
-                    let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
-                        pm.clone(),
-                        conn.clone(),
-                        *read_only,
-                    ));
+        DBConnectionConfig::Oracle {
+            conn,
+            read_only,
+            db_name,
+            call_timeout,
+            name: _,
+        } => match db_name.as_ref() {
+            Some(_) => {
+                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::oracle::OracleDB::new(
+                    conn.clone(),
+                    pm.clone(),
+                    *read_only,
+                    db_name.clone(),
+                    call_timeout.clone().map(Duration::from_millis),
+                ));
 
-                    anyhow::Ok(DB::One(db))
-                }
-                None => {
-                    let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
-                        pm.clone(),
-                        conn.clone(),
-                        *read_only,
-                    ));
-                    anyhow::Ok(DB::Multi(db))
-                }
+                anyhow::Ok(DB::One(db))
             }
-        }
+            None => {
+                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::oracle::OracleDB::new(
+                    conn.clone(),
+                    pm.clone(),
+                    *read_only,
+                    db_name.clone(),
+                    call_timeout.clone().map(Duration::from_millis),
+                ));
+
+                anyhow::Ok(DB::Multi(db))
+            }
+        },
     }
 }
 
 #[derive(Clone)]
 pub enum DB {
-    #[allow(dead_code)]
     Multi(Arc<dyn dbnexus_db::db::MultiDBTrait>),
+    ///
     One(Arc<dyn dbnexus_db::db::DBTrait>),
 }
 
 /// all the databases
-pub struct DBS {
+pub struct App {
     pub(crate) loader: Arc<dyn DbConfigLoader>,
     dbs: Arc<Mutex<HashMap<String, DB>>>,
     pm: PoolManager,
 }
 
-impl DBS {
+impl App {
     pub fn new(loader: Arc<dyn DbConfigLoader>) -> Self {
         Self {
             loader,
@@ -310,7 +355,7 @@ impl DBS {
     }
 }
 
-impl DBS {
+impl App {
     pub async fn open_db(&self, uuid: &str) -> anyhow::Result<DB> {
         if let Some(x) = self.dbs.lock().await.get(&uuid.to_string()) {
             return anyhow::Ok(x.clone());
@@ -320,6 +365,15 @@ impl DBS {
             None => anyhow::bail!(format!("connect '{}' not found", uuid)),
         };
         let db = open_db(&config, self.pm.clone()).await?;
+        match &db {
+            DB::Multi(x) => {
+                x.check_conn().await?;
+            }
+            DB::One(x) => {
+                x.check_conn().await?;
+            }
+        }
+
         self.dbs.lock().await.insert(uuid.to_string(), db.clone());
 
         anyhow::Ok(db)
@@ -330,6 +384,7 @@ impl DBS {
         match db {
             DB::Multi(x) => {
                 let x = x.open_db(db_name).await?;
+                x.check_conn().await?;
                 let db = DB::One(x.clone());
                 self.dbs
                     .lock()
@@ -464,7 +519,7 @@ impl DBS {
     }
 }
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, TypeDef)]
 pub struct UserSettings {
     page_size: usize,
 }
@@ -479,6 +534,8 @@ impl Default for UserSettings {
 mod tests {
     use std::collections::HashMap;
 
+    use dbnexus_db::datasource::CommDBConfig;
+
     use super::DBNexusConfigs;
     use crate::storage::DBConnectionConfig;
 
@@ -492,6 +549,19 @@ mod tests {
                     "xxxx".to_string(),
                     DBConnectionConfig::Sqlite {
                         path: "d:\\sqlite.test.db".to_string(),
+                        read_only: false,
+                    },
+                );
+                m.insert(
+                    "yyyy".to_string(),
+                    DBConnectionConfig::Mysql {
+                        conn: CommDBConfig {
+                            host: "127.0.0.1".to_string(),
+                            port: 33,
+                            username: "aaa".to_string(),
+                            password: "bbb".to_string(),
+                            db_name: None,
+                        },
                         read_only: false,
                     },
                 );

@@ -1,13 +1,16 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 use std::vec;
 
 use futures_util::StreamExt;
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
+use crate::completion::{
+    AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
+};
 use crate::db::{
-    DBTrait, ExeSqlError, ExportKind, Field, Index, ListTable, ListView, OffsetLimitIter, QuerySql,
-    RedisListTable, SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExportKind, Field, Index, ListTable, ListView, OffsetLimitIter, QueryResp,
+    QuerySql, RedisListTable, SqlExecuteRet, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -53,30 +56,9 @@ impl RedisDB {
     }
 }
 
-fn single_quote_escape_string(s: &str) -> String {
-    s.replace("\\", "\\\\").replace("'", "\\'")
-}
-
-fn quote_key_or_value(s: &str) -> Cow<'_, str> {
-    if s.contains("'") || s.contains("\\") {
-        Cow::Owned(format!("'{}'", single_quote_escape_string(s)))
-    } else {
-        Cow::Borrowed(s)
-    }
-}
-
-#[cfg(test)]
-#[test]
-fn test_escape_string() {
-    assert_eq!(quote_key_or_value("xxx"), "xxx");
-    assert_eq!(quote_key_or_value("x'xx"), "'x\\'xx'");
-    assert_eq!(quote_key_or_value("x\\xx"), "'x\\\\xx'");
-    assert_eq!(quote_key_or_value("x\'xx"), "'x\\\\\'xx'");
-}
-
 impl RedisDB {
     async fn export_table_as_csv(
-        &self, _key: &str, _include_header: bool, _delimitor: char,
+        &self, _key: &str, _include_header: bool, _delimiter: char,
         _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         unimplemented!()
@@ -212,11 +194,7 @@ impl RedisDB {
             RedisType::String => {
                 let x: String = conn.get(key).await?;
                 sender
-                    .send(Cow::Owned(format!(
-                        "SET {} {}\n",
-                        quote_key_or_value(key),
-                        quote_key_or_value(x.as_str())
-                    )))
+                    .send(Cow::Owned(format!("SET {} {}\n", key, x.as_str())))
                     .await?;
             }
 
@@ -229,11 +207,7 @@ impl RedisDB {
                     let list: Vec<String> = conn.lrange(key, x, x + size).await?;
                     for l in list.iter() {
                         sender
-                            .send(Cow::Owned(format!(
-                                "RPUSH {} {}\n",
-                                quote_key_or_value(key),
-                                quote_key_or_value(l)
-                            )))
+                            .send(Cow::Owned(format!("RPUSH {} {}\n", key, l)))
                             .await?;
                     }
                 }
@@ -242,11 +216,7 @@ impl RedisDB {
                 let mut iter = conn.sscan::<_, String>(key).await?;
                 while let Some(value) = iter.next().await {
                     sender
-                        .send(Cow::Owned(format!(
-                            "SADD {} {}\n",
-                            quote_key_or_value(key),
-                            quote_key_or_value(value.as_str())
-                        )))
+                        .send(Cow::Owned(format!("SADD {} {}\n", key, value.as_str())))
                         .await?;
                 }
             }
@@ -260,9 +230,9 @@ impl RedisDB {
                             sender
                                 .send(Cow::Owned(format!(
                                     "HMSET {} {} {}\n",
-                                    quote_key_or_value(key),
-                                    quote_key_or_value(value.as_str()),
-                                    quote_key_or_value(s.as_str())
+                                    key,
+                                    value.as_str(),
+                                    s.as_str()
                                 )))
                                 .await?;
                             hkey = None;
@@ -284,9 +254,9 @@ impl RedisDB {
                             sender
                                 .send(Cow::Owned(format!(
                                     "ZADD {} {} {}\n",
-                                    quote_key_or_value(key),
-                                    quote_key_or_value(score.as_str()),
-                                    quote_key_or_value(zkey2.as_str()),
+                                    key,
+                                    score.as_str(),
+                                    zkey2.as_str(),
                                 )))
                                 .await?;
                             zkey = None;
@@ -300,6 +270,16 @@ impl RedisDB {
         }
 
         anyhow::Ok(())
+    }
+}
+#[async_trait::async_trait]
+impl CheckConn for RedisDB {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let mut conn = self.get_conn().await?;
+        let _e: bool = conn.exists("xxx").await?;
+
+        anyhow::Ok(ins.elapsed())
     }
 }
 
@@ -369,19 +349,17 @@ impl DBTrait for RedisDB {
             RedisType::List => anyhow::Ok(vec![value_field]),
             RedisType::Set => anyhow::Ok(vec![value_field]),
             RedisType::Hash => anyhow::Ok(vec![key_field, value_field]),
-            RedisType::Zset => {
-                anyhow::Ok(vec![
-                    value_field,
-                    Field {
-                        name: "score".to_string(),
-                        typ: "float64".to_string(),
-                        nullable: false,
-                        default_value: None,
-                        is_primary: false,
-                        is_auto_increment: false,
-                    },
-                ])
-            }
+            RedisType::Zset => anyhow::Ok(vec![
+                value_field,
+                Field {
+                    name: "score".to_string(),
+                    typ: "float64".to_string(),
+                    nullable: false,
+                    default_value: None,
+                    is_primary: false,
+                    is_auto_increment: false,
+                },
+            ]),
         }
     }
 
@@ -580,7 +558,7 @@ impl QuerySql for RedisDB {
 
     async fn query_sql(
         &self, _id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut conn = self.get_conn().await?;
         query_sql(&mut conn, sql).await
     }
@@ -638,7 +616,7 @@ impl RedisType {
 
 async fn query_sql(
     conn: &mut ConnectionManager, sql: &str,
-) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
     let mut commands = Vec::new();
     for line in sql.lines() {
         let v: Vec<_> = line.split(" ").collect();
@@ -656,7 +634,6 @@ async fn query_sql(
     let mut ret = Vec::new();
     for c in commands.iter() {
         let args = &c[1..];
-        let command = c.join(" ");
         let v = redis::cmd(c[0].as_str())
             .arg(args)
             .query_async(conn)
@@ -665,17 +642,15 @@ async fn query_sql(
 
         match v {
             Ok(x) => {
-                ret.push(Ok(TableListResp::result(
+                ret.push(Ok(QueryResp::result(
                     "result",
-                    command,
                     x.into_iter().map(|x| Some(x)).collect(),
                 )));
             }
 
-            Err(x) => ret.push(Err(ExeSqlError::new(command, anyhow::Error::from(x)))),
+            Err(x) => ret.push(Err(x.to_string())),
         }
     }
-
     anyhow::Ok(ret)
 }
 fn encode_hashmap(v: &HashMap<String, String>) -> Vec<String> {
@@ -760,7 +735,11 @@ mod tests {
         };
         x
     }
-
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object();
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
     #[tokio::test]
     async fn test() {
         let db = make_test_object();
@@ -947,7 +926,7 @@ impl AutoCompletionTrait for RedisDB {
     async fn auto_completion(
         &self, sql: &str, pos: sqlparser::tokenizer::Location,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionBackend::do_auto_completion(
+        DBLexerCompletionBackend::do_auto_completion(
             self,
             sql,
             &sqlparser::dialect::GenericDialect,
@@ -956,9 +935,35 @@ impl AutoCompletionTrait for RedisDB {
         .await
     }
 }
-
 #[async_trait::async_trait]
-impl LexerCompletionBackend for RedisDB {
+
+impl DBListCompletionItem for RedisDB {
+    fn is_multi_db(&self) -> bool {
+        false
+    }
+
+    async fn list_table(&self, _db: Option<String>) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(
+            crate::db::DBTrait::list_table(self)
+                .await?
+                .into_iter()
+                .map(|x| x.table)
+                .collect(),
+        )
+    }
+
+    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn list_columns(
+        &self, _db: Option<String>, _table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+}
+#[async_trait::async_trait]
+impl DBLexerCompletionBackend for RedisDB {
     type Dialect = sqlparser::dialect::GenericDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = REDIS_COMMANDS;
@@ -981,24 +986,6 @@ impl LexerCompletionBackend for RedisDB {
         "REWRITE",
     ];
     const TYPES: &'static [&'static str] = &[];
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(
-            crate::db::DBTrait::list_table(self)
-                .await?
-                .into_iter()
-                .map(|x| x.table)
-                .collect(),
-        )
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_columns(&self, _table_name: &str) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
 }
 
 const REDIS_COMMANDS: &'static [&'static str] = &[

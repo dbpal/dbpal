@@ -13,7 +13,11 @@
     "savepoint",
     "sqlparser",
     "sqlx",
+    "tauri",
     "tinyint",
     "Zset"
+  ],
+  "rust-analyzer.cargo.extraArgs": [
+    "--offline"
   ]
 }

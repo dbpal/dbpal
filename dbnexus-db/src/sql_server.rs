@@ -2,20 +2,23 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::time::Duration;
 
 use chrono::FixedOffset;
 use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
+use sqlparser::tokenizer::Token;
 use tiberius::{Client, ColumnData, ColumnType, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
+use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::CommDBConfig;
 use crate::db::{
-    create_csv, format_data_time_fix_offset, sql_to_sql_seq, DBTrait, ExeSqlError, ExportKind,
-    Field, Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlSeq, TableListResp,
+    create_csv, format_data_time_fix_offset, sql_to_sql_seq, CheckConn, DBTrait, ExportKind, Field,
+    Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql, SqlExecuteRet, SqlSeq,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -120,26 +123,20 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => {
-                chrono::NaiveDateTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Date(_) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Time(_x) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -203,8 +200,193 @@ fn gen_select_sql(
     sql
 }
 
+// TODO sqlparse don't support parse trigger statement
+// use lexer to solve this issue.
+fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent> {
+    let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
+        .tokenize()?;
+    let mut event = None;
+
+    for token in t {
+        match token {
+            Token::Word(x) => {
+                let word = x.to_string().to_uppercase();
+                match word.as_str() {
+                    "INSERT" | "UPDATE" | "DELETE" => {
+                        event = Some(word);
+                    }
+
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+    if event.is_none() {
+        anyhow::bail!("trigger statement is not valid");
+    }
+    let event = event.unwrap();
+
+    anyhow::Ok(TriggerEvent::try_from(event.as_str())?)
+}
+
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_base_on_lexer() {
+    {
+        let sql = "after insert";
+        assert_eq!(
+            extract_trigger_event_base_on_lexer(sql).unwrap(),
+            TriggerEvent::Insert
+        );
+    }
+    {
+        let sql = "after update";
+        assert_eq!(
+            extract_trigger_event_base_on_lexer(sql).unwrap(),
+            TriggerEvent::Update
+        );
+    }
+    {
+        let sql = "after delete";
+        assert_eq!(
+            extract_trigger_event_base_on_lexer(sql).unwrap(),
+            TriggerEvent::Delete
+        );
+    }
+
+    // error cases
+    {
+        let sql = "xxx";
+        assert!(extract_trigger_event_base_on_lexer(sql).is_err());
+    }
+    {
+        let sql = "yyy";
+        assert!(extract_trigger_event_base_on_lexer(sql).is_err());
+    }
+}
+
+fn extract_trigger_event_from_sql(sql: &str) -> anyhow::Result<TriggerEvent> {
+    extract_trigger_event_base_on_lexer(sql)
+}
+
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_detail_from_sql() {
+    {
+        let x = extract_trigger_event_from_sql(
+            r#"
+             CREATE TRIGGER tr_test_create_trigger_insert
+            ON test_create_trigger
+            AFTER INSERT
+            AS
+            BEGIN
+                INSERT INTO test_create_trigger_update (id, email)
+                SELECT id, 'test@example.com' FROM inserted
+            END
+        "#,
+        )
+        .unwrap();
+        assert_eq!(x, TriggerEvent::Insert);
+    }
+}
+
+#[async_trait::async_trait]
+impl CheckConn for SqlServer {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+        let _x = conn.query("select 1", &[]).await?;
+        anyhow::Ok(ins.elapsed())
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for SqlServer {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        let sql = format!(
+            r#"
+            SELECT 
+                t.name AS trigger_name
+            FROM 
+                sys.triggers t
+            WHERE 
+                t.parent_class = 1 -- 1 表示与表关联的触发器
+                AND OBJECT_NAME(t.parent_id) = '{table_name}' -- 指定要查看的表名
+        "#
+        );
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.simple_query(&sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(x) => {
+                    let name: Option<&str> = x.get(0);
+                    ret.push(name.unwrap().to_string());
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+    }
+
+    async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
+        let sql = format!(
+            r#"
+            SELECT
+                t.is_disabled,
+                t.is_instead_of_trigger,
+                OBJECT_DEFINITION(t.object_id) AS trigger_definition
+            FROM
+                sys.triggers t
+            WHERE
+                t.parent_class_desc = 'OBJECT_OR_COLUMN'
+                AND OBJECT_NAME(t.parent_id) = '{table}' and name ='{name}'
+      "#
+        );
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.simple_query(&sql).await?;
+        let mut result = None;
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(x) => {
+                    let name: Option<bool> = x.get(0);
+                    let is_instead_of_trigger: Option<bool> = x.get(1);
+                    let sql: Option<&str> = x.get(2);
+                    result = Some((
+                        name.unwrap_or_default(),
+                        is_instead_of_trigger.unwrap_or_default(),
+                        sql.unwrap().to_string(),
+                    ));
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+        let (disabled, instead_of, sql) = match result {
+            Some(x) => x,
+            None => anyhow::bail!("select trigger don't return a result"),
+        };
+        let event = extract_trigger_event_from_sql(&sql)?;
+        anyhow::Ok(TriggerDetail::new(
+            if instead_of {
+                TriggerTiming::InsteadOf
+            } else {
+                TriggerTiming::After
+            },
+            event,
+            sql,
+            !disabled,
+        ))
+    }
+
     async fn export_table(
         &self, table_name: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -373,7 +555,7 @@ impl DBTrait for SqlServer {
                     r#"
                 SELECT COLUMN_NAME,DATA_TYPE,COLUMN_DEFAULT,IS_NULLABLE
                 FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = '{table_name}' order by  ORDINAL_POSITION
+                WHERE TABLE_NAME = '{table_name}' ORDER BY  ORDINAL_POSITION
                 "#
                 ),
                 &[],
@@ -548,10 +730,10 @@ WHERE i.object_id = OBJECT_ID('{table_name}')
             .map(|x| format!("'{}'", x))
             .unwrap_or("null".to_string());
         let v = match f.typ.as_str().to_uppercase().as_str() {
-            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" => default_value,
+            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" => default_value,
             "BIT" => default_value,
             "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" => single_quote,
-            "BINARY" | " VARBINARY" | "IMAGE" | "UNIQUEIDENTIFIER" | "NUMERIC" | "DECIMAL" => {
+            "BINARY" | "VARBINARY" | "IMAGE" | "UNIQUEIDENTIFIER" | "NUMERIC" | "DECIMAL" => {
                 default_value
             }
             "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME"
@@ -697,57 +879,46 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
             tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::String(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
-            tiberius::ColumnData::Guid(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
-            tiberius::ColumnData::Binary(x) => {
-                x.as_ref()
-                    .map(|x| format!("0X{}", hex::encode_upper(x)))
-                    .map(serde_json::Value::from)
-            }
-            tiberius::ColumnData::Numeric(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::String(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
+            tiberius::ColumnData::Guid(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
+            tiberius::ColumnData::Binary(x) => x
+                .as_ref()
+                .map(|x| format!("0X{}", hex::encode_upper(x)))
+                .map(serde_json::Value::from),
+            tiberius::ColumnData::Numeric(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Xml(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::Xml(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => {
-                chrono::NaiveDateTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Date(_) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Time(_x) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -793,7 +964,7 @@ impl SqlServer {
         let mut conn = conn.get().await?;
         let conn = conn.deref_mut();
         let cols = DBTrait::show_columns(self, table_name).await?;
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
 
         let mut stream = conn.query(sql.as_str(), &[]).await?.try_chunks(100);
         while let Some(rows) = stream.next().await {
@@ -827,7 +998,7 @@ impl SqlServer {
         let mut conn = conn.get().await?;
         let conn = conn.deref_mut();
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = conn.query(sql.as_str(), &[]).await?;
 
         sender.send(Cow::Borrowed("[")).await?;
@@ -879,7 +1050,7 @@ impl SqlServer {
                 .await?;
         }
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = conn.query(sql.as_str(), &[]).await?.try_chunks(100);
         while let Some(rows) = stream.next().await {
             let rows = rows?;
@@ -950,7 +1121,7 @@ impl QuerySql for SqlServer {
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut conns = self.query_connections.lock().await;
 
         let conn = match conns.get_mut(&id) {
@@ -960,11 +1131,17 @@ impl QuerySql for SqlServer {
 
         let mut ret = Vec::with_capacity(0);
 
-        let mut stream = conn.query(sql, &[]).await?;
+        let mut stream = conn.simple_query(sql).await?;
         let mut meta_prev = None;
         let mut rows = Vec::new();
         while let Some(item) = stream.next().await {
-            let item = item?;
+            let item = match item {
+                Ok(item) => item,
+                Err(err) => {
+                    ret.push(Err(err.to_string()));
+                    continue;
+                }
+            };
             match item {
                 tiberius::QueryItem::Row(row) => rows.push(row),
                 tiberius::QueryItem::Metadata(meta) => {
@@ -975,7 +1152,7 @@ impl QuerySql for SqlServer {
                             rows.len(),
                             "".to_string(),
                         )?;
-                        ret.push(Ok(table_list));
+                        ret.push(Ok(table_list.to_query_resp()));
                         rows = vec![];
                     }
                     meta_prev = Some(meta);
@@ -989,7 +1166,7 @@ impl QuerySql for SqlServer {
                     rows.len(),
                     "",
                 )?;
-                ret.push(Ok(table_list));
+                ret.push(Ok(table_list.to_query_resp()));
             }
         }
 
@@ -1069,30 +1246,14 @@ impl crate::db::MultiDBTrait for SqlServer {
         Ok(Arc::new(x))
     }
 }
+
 #[async_trait::async_trait]
-impl LexerCompletionBackend for SqlServer {
+impl DBLexerCompletionBackend for SqlServer {
     type Dialect = sqlparser::dialect::MsSqlDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;
     const KEY_WORDS: &'static [&'static str] = KEYWORDS;
     const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::list_table(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.table).collect())
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        // TODO
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::show_columns(self, table_name)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
 }
 
 #[async_trait::async_trait]
@@ -1100,7 +1261,7 @@ impl AutoCompletionTrait for SqlServer {
     async fn auto_completion(
         &self, sql: &str, pos: sqlparser::tokenizer::Location,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionBackend::do_auto_completion(
+        DBLexerCompletionBackend::do_auto_completion(
             self,
             sql,
             &sqlparser::dialect::MsSqlDialect {},
@@ -1133,6 +1294,67 @@ mod tests {
         );
 
         pg
+    }
+
+    #[tokio::test]
+    async fn test_triggers() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db.drop_table("test_create_trigger").await;
+        let _ = db.drop_table("test_create_trigger_update").await;
+        let x = db
+            .query_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_create_trigger (
+                id INT PRIMARY KEY,
+                name VARCHAR(50)
+            );
+        "#,
+            )
+            .await
+            .unwrap();
+        println!("!!!{:?}", x);
+
+        let x = db
+            .query_sql(
+                query_id,
+                r#"
+        
+        CREATE TABLE test_create_trigger_update (
+            id INT PRIMARY KEY,
+            email VARCHAR(100)
+        );
+    "#,
+            )
+            .await
+            .unwrap();
+        println!("!!!{:?}", x);
+        let x = db
+            .query_sql(
+                query_id,
+                r#"CREATE TRIGGER tr_test_create_trigger_insert
+            ON test_create_trigger
+            AFTER INSERT
+            AS
+            BEGIN
+                INSERT INTO test_create_trigger_update (id, email)
+                SELECT id, 'test@example.com' FROM inserted
+            END
+        "#,
+            )
+            .await
+            .unwrap();
+        println!("!!!{:?}", x);
+        let tris = db.list_trigger("test_create_trigger").await.unwrap();
+        for tri in tris.iter() {
+            let detail = db
+                .show_trigger("test_create_trigger", &tri.name)
+                .await
+                .unwrap();
+            println!("trigger:{} details:{:?}", tri.name, detail);
+        }
     }
 
     #[tokio::test]
@@ -1179,6 +1401,47 @@ mod tests {
     async fn test_view() {
         let db = make_test_object();
         let db = &db as &dyn crate::db::DBTrait;
+        let _ = db.drop_table("test_view_table").await;
+        let _ = db.drop_view("test_view").await;
+        let conn_id = db.open_connection().await.unwrap();
+
+        let _ = db
+            .query_sql(
+                conn_id,
+                r#"
+            CREATE TABLE test_view_table (
+                id INT PRIMARY KEY,
+                name VARCHAR(50),
+                age INT,
+                email VARCHAR(100)
+            );
+            INSERT INTO test_view_table (id, name, age, email)
+                VALUES
+                    (1, 'John Doe', 35, 'john.doe@example.com'),
+                    (2, 'Jane Smith', 28, 'jane.smith@example.com'),
+                    (3, 'Bob Johnson', 42, 'bob.johnson@example.com'),
+                    (4, 'Sarah Lee', 31, 'sarah.lee@example.com'),
+                    (5, 'Tom Wilson', 25, 'tom.wilson@example.com');
+             
+        "#,
+            )
+            .await;
+
+        let _ = db
+            .query_sql(
+                conn_id,
+                r#"CREATE VIEW test_view AS
+                SELECT
+                    id,
+                    name,
+                    age,
+                    email
+                FROM
+                    test_view_table;
+        "#,
+            )
+            .await
+            .unwrap();
 
         let resp = db.show_view("test_view", None, None, 1, 100).await.unwrap();
         println!("resp:{:?}", resp);

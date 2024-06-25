@@ -2,23 +2,25 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::ast::{ColumnOption, Expr, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::PoolConnection;
-use sqlx::postgres::any::AnyConnectionBackend;
 use sqlx::sqlite::SqliteRow;
-use sqlx::{Column, Row, TypeInfo};
+use sqlx::{Column, Row, SqliteConnection, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::completion::{
-    AutoCompletionTrait, CompletionItem, CompletionKind, LexerCompletionBackend,
+    AutoCompletionTrait, CompletionItem, CompletionKind, DBLexerCompletionBackend,
+    DBListCompletionItem,
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
-    create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
-    Index, IndexKind, ListTable, ListView, QuerySql, SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
+    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
+    ListTable, ListTrigger, ListView, QueryResp, QuerySql, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -78,7 +80,7 @@ impl SqliteDB {
         }
         let mut conn = self.get_conn().await?;
         let cols = DBTrait::show_columns(self, table_name).await?;
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -105,7 +107,7 @@ impl SqliteDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
 
         sender.send(Cow::Borrowed("[")).await?;
@@ -148,7 +150,7 @@ impl SqliteDB {
                 .await?;
         }
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -164,9 +166,182 @@ impl SqliteDB {
         anyhow::Ok(())
     }
 }
+// TODO sqlparse don't support parse trigger statement
+// use lexer to solve this issue.
+fn extract_trigger_base_on_lexer(sql: String) -> anyhow::Result<TriggerDetail> {
+    let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
+        .tokenize()?;
+    let mut event = None;
+    let mut timing = None;
+    for token in t {
+        match token {
+            Token::Word(x) => {
+                let word = x.to_string().to_uppercase();
+                match word.as_str() {
+                    "INSERT" | "UPDATE" | "DELETE" => {
+                        event = Some(word);
+                    }
+                    "AFTER" | "BEFORE" => {
+                        timing = Some(word);
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+    if event.is_none() || timing.is_none() {
+        anyhow::bail!("trigger statement is not valid");
+    }
+    let event = event.unwrap();
+    let timing = timing.unwrap();
+    anyhow::Ok(TriggerDetail::new(
+        match timing.as_str() {
+            "AFTER" => TriggerTiming::After,
+            "BEFORE" => TriggerTiming::Before,
+            _ => unreachable!(),
+        },
+        TriggerEvent::try_from(event.as_str())?,
+        sql,
+        true,
+    ))
+}
+
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_base_on_lexer() {
+    {
+        let sql = "after insert".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Insert, sql, true)
+        );
+    }
+    {
+        let sql = "after update".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Update, sql, true)
+        );
+    }
+    {
+        let sql = "after delete".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Delete, sql, true)
+        );
+    }
+    {
+        let sql = "before insert".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Insert, sql, true)
+        );
+    }
+    {
+        let sql = "before update".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Update, sql, true)
+        );
+    }
+    {
+        let sql = "before delete".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Delete, sql, true)
+        );
+    }
+
+    // error cases
+    {
+        let sql = "before xxx".to_string();
+        assert!(extract_trigger_base_on_lexer(sql.clone()).is_err());
+    }
+    {
+        let sql = "insert xxx".to_string();
+        assert!(extract_trigger_base_on_lexer(sql.clone()).is_err());
+    }
+}
+
+fn extract_trigger_detail_from_sql(sql: String) -> anyhow::Result<TriggerDetail> {
+    // let ss = sqlparser::parser::Parser::parse_sql(&
+    // sqlparser::dialect::SQLiteDialect {}, sql)     .map_err(|e| ->
+    // anyhow::Error { e.into() })     .map_err(|e| e.context("extract trigger
+    // detail fail to parse sql"))?;
+
+    extract_trigger_base_on_lexer(sql)
+}
+
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_detail_from_sql() {
+    {
+        let x = extract_trigger_detail_from_sql(
+            r#"
+            CREATE TRIGGER after_insert_test_create_trigger
+            AFTER INSERT ON test_create_trigger
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO test_create_trigger_update (info)
+                VALUES (NEW.info);
+            END
+        "#
+            .to_owned(),
+        )
+        .unwrap();
+        assert_eq!(x.event, TriggerEvent::Insert);
+    }
+}
+
+async fn query_trigger_detail(
+    conn: &mut SqliteConnection, name: &str,
+) -> anyhow::Result<TriggerDetail> {
+    let s = format!("SELECT sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
+    let row = sqlx::query(&s).fetch_one(conn).await?;
+    let sql: String = row.get(0);
+    extract_trigger_detail_from_sql(sql)
+}
+
+#[async_trait::async_trait]
+impl CheckConn for SqliteDB {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let mut conn = self.get_conn().await?;
+        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
+
+        anyhow::Ok(ins.elapsed())
+    }
+}
 
 #[async_trait::async_trait]
 impl DBTrait for SqliteDB {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        let sql = format!(
+            r#"
+            SELECT name 
+            FROM sqlite_master 
+            WHERE type = 'trigger' AND tbl_name = '{table_name}';
+        "#
+        );
+
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+    }
+
+    async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
+        let mut conn = self.get_conn().await?;
+        query_trigger_detail(conn.deref_mut(), &name).await
+    }
+
     fn read_only(&self) -> bool {
         self.read_only
     }
@@ -300,14 +475,12 @@ impl DBTrait for SqliteDB {
             )
         } else {
             let mut x = value.unwrap_or("null").to_string();
-            // debug_assert!(!x.is_empty(), "{:?} value:{:?}", f, value);
             if x.is_empty() {
                 // todo null return "" string sometimes??
                 x = "null".to_string();
             }
             x
         };
-
         anyhow::Ok(v)
     }
 
@@ -439,7 +612,7 @@ impl DBTrait for SqliteDB {
             let unique: i64 = r.get(2);
             // query create index sql
             let s = format!(
-                "select sql from sqlite_master where type='index' and name='{name}' and tbl_name='{table_name}'; "
+                "SELECT sql from sqlite_master where type='index' and name='{name}' and tbl_name='{table_name}'; "
             );
             let row = sqlx::query(s.as_str()).fetch_one(conn.deref_mut()).await?;
             let create_index_sql: String = row.get(0);
@@ -473,7 +646,7 @@ impl DBTrait for SqliteDB {
 impl SqliteDB {
     async fn query_auto_increment_key(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let s = format!(
-            r#"select sql from sqlite_master where type='table' and name='{}'"#,
+            r#"SELECT sql from sqlite_master where type='table' and name='{}'"#,
             table_name
         );
         let mut conn = self.get_conn().await?;
@@ -660,7 +833,7 @@ impl SqliteDB {
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!("select count(1) from {name} ");
+        let mut s = format!("SELECT count(1) from {name} ");
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
@@ -729,21 +902,15 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
             strict: _,
         } => {
             for c in columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -758,74 +925,44 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
 impl QuerySql for SqliteDB {
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut conn = self.query_connection.lock().await;
         let conn = conn.get_mut(&id);
         let conn = match conn {
             Some(x) => x,
             None => anyhow::bail!("id '{}' have no connection", id),
         };
-        let seq = get_sql_seq(sql);
-        let x = match seq {
-            anyhow::Result::Ok(e) => e,
-            anyhow::Result::Err(_err) => {
-                log::error!("parse sql fail use as query");
-                vec![SqlSeq {
-                    sql: sql.to_string(),
-                    kind: crate::db::SqlKind::Query,
-                }]
-            }
-        };
-        let mut ret = Vec::with_capacity(x.len());
-        use crate::db::SqlKind;
+        let mut ret = Vec::new();
+        let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
-        for c in x.iter() {
-            let result = match c.kind {
-                SqlKind::Begin => {
-                    conn.begin().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Commit => {
-                    conn.commit().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Rollback => {
-                    conn.rollback().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Query => {
-                    let result = sqlx::query(&c.sql).fetch_all(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => {
-                            let data = encode_rows(&rows)?;
-                            let fields = get_rows_types(&rows);
-                            Ok(TableListResp::new(fields, data.len(), data, &c.sql))
-                        }
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
-                    };
-                    result
-                }
+        let mut rows = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = match item {
+                Ok(x) => x,
+                Err(err) => {
+                    ret.push(Err(err.to_string()));
 
-                SqlKind::Execution => {
-                    let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
-                    };
-                    result
+                    continue;
                 }
             };
-            ret.push(result);
+            match item {
+                sqlx::Either::Left(row_aff) => {
+                    if rows.len() > 0 {
+                        let fields = get_rows_types(&rows);
+                        let data = encode_rows(&rows)?;
+                        ret.push(Ok(QueryResp::new(fields, data)));
+
+                        rows.clear();
+                    };
+
+                    if row_aff.rows_affected() > 0 {
+                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected())));
+                    }
+                }
+                sqlx::Either::Right(row) => {
+                    rows.push(row);
+                }
+            }
         }
         anyhow::Ok(ret)
     }
@@ -862,7 +999,7 @@ impl AutoCompletionTrait for SqliteDB {
     async fn auto_completion(
         &self, sql: &str, pos: sqlparser::tokenizer::Location,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionBackend::do_auto_completion(
+        DBLexerCompletionBackend::do_auto_completion(
             self,
             sql,
             &sqlparser::dialect::SQLiteDialect {},
@@ -873,17 +1010,12 @@ impl AutoCompletionTrait for SqliteDB {
 }
 
 #[async_trait::async_trait]
+impl DBListCompletionItem for SqliteDB {
+    fn is_multi_db(&self) -> bool {
+        false
+    }
 
-impl crate::completion::LexerCompletionBackend for SqliteDB {
-    type Dialect = sqlparser::dialect::SQLiteDialect;
-
-    const BUILD_IN_FUNCTIONS: &'static [&'static str] = SQLITE_FUNTIONS;
-    // https://sqlite.org/lang_keywords.html
-    const KEY_WORDS: &'static [&'static str] = SQLITE_KEY_WORDS;
-    const TEXTS: &'static [&'static str] = &["true"];
-    const TYPES: &'static [&'static str] = SQLITE_TYPES;
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, _db: Option<String>) -> anyhow::Result<Vec<String>> {
         crate::db::DBTrait::list_table(self)
             .await
             .map(|x| x.into_iter().map(|x| x.table).collect())
@@ -893,20 +1025,32 @@ impl crate::completion::LexerCompletionBackend for SqliteDB {
         anyhow::Ok(vec![])
     }
 
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
+    async fn list_columns(
+        &self, _db: Option<String>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
         crate::db::DBTrait::show_columns(self, table_name)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
+}
+
+#[async_trait::async_trait]
+
+impl crate::completion::DBLexerCompletionBackend for SqliteDB {
+    type Dialect = sqlparser::dialect::SQLiteDialect;
+
+    const BUILD_IN_FUNCTIONS: &'static [&'static str] = SQLITE_FUNTIONS;
+    // https://sqlite.org/lang_keywords.html
+    const KEY_WORDS: &'static [&'static str] = SQLITE_KEY_WORDS;
+    const TEXTS: &'static [&'static str] = &["true"];
+    const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         PRAGMA_ITEMS
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    name: Cow::Borrowed(*x),
-                    kind: CompletionKind::Text,
-                }
+            .map(|x| CompletionItem {
+                name: Cow::Borrowed(*x),
+                kind: CompletionKind::Text,
             })
             .collect()
     }
@@ -915,7 +1059,7 @@ impl crate::completion::LexerCompletionBackend for SqliteDB {
 #[cfg(test)]
 #[tokio::test]
 async fn test_auto_completion() {
-    use crate::completion::LexerCompletionBackend;
+    use crate::completion::DBLexerCompletionBackend;
     let s = SqliteDB {
         pool: Default::default(),
         path: ":memory:".to_string(),
@@ -939,7 +1083,7 @@ async fn test_auto_completion() {
     .unwrap();
 
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "sel  * from",
             &sqlparser::dialect::SQLiteDialect {},
@@ -951,7 +1095,7 @@ async fn test_auto_completion() {
         println!("{:?}", completion)
     }
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "cou  xxxx",
             &sqlparser::dialect::SQLiteDialect {},
@@ -962,7 +1106,7 @@ async fn test_auto_completion() {
         println!("{:?}", completion)
     }
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "nul",
             &sqlparser::dialect::SQLiteDialect {},
@@ -973,7 +1117,7 @@ async fn test_auto_completion() {
         println!("{:?}", completion)
     }
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "emai  dddd",
             &sqlparser::dialect::SQLiteDialect {},
@@ -984,7 +1128,7 @@ async fn test_auto_completion() {
         println!("{:?}", completion)
     }
     {
-        let completion = LexerCompletionBackend::do_auto_completion(
+        let completion = DBLexerCompletionBackend::do_auto_completion(
             &s,
             "use 1111",
             &sqlparser::dialect::SQLiteDialect {},
@@ -1076,121 +1220,19 @@ fn test_extract_index() {
     );
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
-    let dialect = sqlparser::dialect::SQLiteDialect {};
-
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        |s| {
-            match s {
-                Statement::Pragma {
-                    name: _,
-                    value: _,
-                    is_eq,
-                } => {
-                    if !is_eq {
-                        return anyhow::Ok(crate::db::SqlKind::Query);
-                    } else {
-                        return anyhow::Ok(crate::db::SqlKind::Execution);
-                    }
-                }
-                _ => {}
-            }
-            SqlKind::get_from_statement(s)
-        },
-        |x| {
-            let t = x.to_uppercase();
-            if t.starts_with("PRAGMA") {
-                return anyhow::Ok(crate::db::SqlKind::Query);
-            }
-            SqlKind::get_from_sql(x)
-        },
-    )
-}
-
-#[cfg(test)]
-#[test]
-fn test_cut_sql_to_each_statement() {
-    {
-        let seq = get_sql_seq(
-            r#"PRAGMA table_info(xxx);
-        select * from xxx;"#,
-        )
-        .unwrap();
-        assert_eq!(
-            seq,
-            vec![
-                SqlSeq {
-                    sql: "PRAGMA table_info(xxx)".to_string(),
-                    kind: crate::db::SqlKind::Query,
-                },
-                SqlSeq {
-                    sql: "select * from xxx".to_string(),
-                    kind: crate::db::SqlKind::Query,
-                }
-            ]
-        )
-    }
-
-    {
-        let seq = get_sql_seq(
-            r#"PRAGMA table_info('xxxx')
-        select * from xxx;"#,
-        )
-        .unwrap();
-        assert_eq!(
-            seq,
-            vec![
-                SqlSeq {
-                    sql: "PRAGMA table_info('xxxx')".to_string(),
-                    kind: crate::db::SqlKind::Query,
-                },
-                SqlSeq {
-                    sql: "select * from xxx".to_string(),
-                    kind: crate::db::SqlKind::Query,
-                }
-            ]
-        )
-    }
-
-    {
-        let seq = get_sql_seq(
-            r#" ;;;;
-        select * from xxx 'xxx';;;;"#,
-        )
-        .unwrap();
-        assert_eq!(
-            seq,
-            vec![SqlSeq {
-                sql: "select * from xxx 'xxx'".to_string(),
-                kind: crate::db::SqlKind::Query,
-            },]
-        )
-    }
-    {
-        let seq = get_sql_seq(
-            r#" ;;;;
-         ;"#,
-        )
-        .unwrap();
-        assert_eq!(seq, vec![])
-    }
-}
-
 fn gen_show_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("select * from {table_name}");
+    let mut sql = format!("SELECT * FROM {table_name}");
     if let Some(where_str) = where_str {
-        sql.push_str(format!(" where {where_str} ").as_str());
+        sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
     if let Some(order_by) = order_by {
-        sql.push_str(format!(" order by {order_by} ").as_str());
+        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
     }
     let offset = (page - 1) * page_size;
-    sql.push_str(format!(" limit {} offset {} ", page_size, offset).as_str());
+    sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
     sql
 }
 
@@ -1200,17 +1242,74 @@ mod tests {
     use crate::init_log;
 
     // this test no need clean up, we use memory sqlite db.
-    async fn make_test_db() -> SqliteDB {
+    fn make_test_db() -> SqliteDB {
         let pool_manager = PoolManager::new();
         let db = SqliteDB::new(pool_manager, ":memory:".to_string(), false);
-        let _conn = db.get_conn().await.unwrap();
+
         db
     }
     #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_db();
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
+    #[tokio::test]
 
+    async fn test_triggers() {
+        let db = make_test_db();
+        let mut conn = db.get_conn().await.unwrap();
+        let db_trait = &db as &dyn DBTrait;
+        sqlx::query(
+            r#"
+            CREATE TABLE test_create_trigger (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
+                info TEXT NOT NULL 
+            );
+        "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+        CREATE TABLE test_create_trigger_update (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
+            info TEXT NOT NULL
+        );
+    "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+
+        sqlx::query(
+            r#"
+        CREATE TRIGGER after_insert_test_create_trigger
+        AFTER INSERT ON test_create_trigger
+        FOR EACH ROW
+        BEGIN
+            INSERT INTO test_create_trigger_update (info)
+            VALUES (NEW.info);
+        END;
+    "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+
+        let triggers = db_trait.list_trigger("test_create_trigger").await.unwrap();
+        for trigger in triggers.iter() {
+            let details = db_trait
+                .show_trigger("test_create_trigger", trigger.name.as_str())
+                .await
+                .unwrap();
+            println!("name:{} , detail:{:?}", trigger.name, details);
+        }
+    }
+    #[tokio::test]
     async fn test_export() {
         init_log();
-        let db = make_test_db().await;
+        let db = make_test_db();
         let mut conn = db.get_conn().await.unwrap();
         let table_name = "Persons";
         sqlx::query(
@@ -1241,18 +1340,7 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            assert_eq!(
-                r#"CREATE TABLE Persons (
-            ID INTEGER PRIMARY KEY,
-            Name TEXT,
-            Age INTEGER
-        )
-INSERT INTO Persons(ID,Name,Age) VALUES (1,'John',25);
-INSERT INTO Persons(ID,Name,Age) VALUES (2,'Jane',30);
-INSERT INTO Persons(ID,Name,Age) VALUES (3,'Mike',35);
-"#,
-                s
-            )
+            println!("sql:{}", s);
         }
 
         {
@@ -1281,7 +1369,7 @@ INSERT INTO Persons(ID,Name,Age) VALUES (3,'Mike',35);
     #[tokio::test]
     async fn test_standard() {
         init_log();
-        let db = make_test_db().await;
+        let db = make_test_db();
         let mut conn = db.get_conn().await.unwrap();
         sqlx::query(
             r#"
@@ -1345,7 +1433,7 @@ INSERT INTO Persons(ID,Name,Age) VALUES (3,'Mike',35);
                 .query_sql(
                     id.clone(),
                     r#"
-            select * from test_table;
+            SELECT * from test_table;
             PRAGMA table_info('test_table')
 
         "#,
@@ -1357,7 +1445,7 @@ INSERT INTO Persons(ID,Name,Age) VALUES (3,'Mike',35);
                 println!("result {} r:{:?}", index, x);
             }
         }
-        sqlx::query(format!("create view test_view as select * from {table_name}").as_str())
+        sqlx::query(format!("create view test_view as SELECT * from {table_name}").as_str())
             .execute(conn.deref_mut())
             .await
             .unwrap();

@@ -2,20 +2,20 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
-use sqlx::postgres::any::AnyConnectionBackend;
-use sqlx::{Column, Row, TypeInfo};
+use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionBackend};
+use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    create_csv, sql_to_sql_seq, CreateTableAndIndexSql, DBTrait, ExeSqlError, ExportKind, Field,
-    Index, IndexKind, ListTable, ListView, MultiDBTrait, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
-    TableListResp,
+    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
+    ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -168,6 +168,17 @@ fn encode_row_as_json(row: &MySqlRow) -> anyhow::Result<serde_json::Value> {
     anyhow::Ok(serde_json::Value::Object(values))
 }
 
+#[async_trait::async_trait]
+impl CheckConn for MysqlDB {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let mut conn = self.get_conn().await?;
+        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
+
+        anyhow::Ok(ins.elapsed())
+    }
+}
+
 impl MysqlDB {
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
@@ -185,7 +196,7 @@ impl MysqlDB {
         }
         let mut conn = self.get_conn().await?;
         let cols = DBTrait::show_columns(self, table_name).await?;
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -212,7 +223,7 @@ impl MysqlDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
 
         sender.send(Cow::Borrowed("[")).await?;
@@ -255,7 +266,7 @@ impl MysqlDB {
                 .await?;
         }
 
-        let sql = format!("select * from {}", table_name);
+        let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -270,9 +281,59 @@ impl MysqlDB {
         anyhow::Ok(())
     }
 }
+
+#[allow(dead_code)]
+async fn query_trigger_detail(
+    conn: &mut MySqlConnection, name: &str,
+) -> anyhow::Result<(TriggerEvent, TriggerTiming, String)> {
+    let sql = format!("SHOW TRIGGERS WHERE `Trigger`='{name}'");
+
+    let row = sqlx::query(&sql).fetch_one(conn).await?;
+    let event: String = row.try_get(1)?;
+    let sql = row.try_get(3)?;
+    let timing: String = row.try_get(4)?;
+
+    let timing = if timing == "BEFORE" {
+        TriggerTiming::Before
+    } else {
+        TriggerTiming::After
+    };
+
+    anyhow::Ok((TriggerEvent::try_from(event.as_str())?, timing, sql))
+}
+
 #[async_trait::async_trait]
 
 impl DBTrait for MysqlDB {
+    async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
+        let mut conn = self.get_conn().await?;
+
+        let (event, timing, sql) = query_trigger_detail(&mut conn, name).await?;
+        anyhow::Ok(TriggerDetail::new(timing, event, sql, true))
+    }
+
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+        let sql = format!(
+            r#"
+            SELECT TRIGGER_NAME
+                FROM INFORMATION_SCHEMA.TRIGGERS
+                WHERE EVENT_OBJECT_TABLE = '{table_name}'
+                AND TRIGGER_SCHEMA = DATABASE();
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+    }
+
     async fn export_table(
         &self, table_name: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -718,17 +779,6 @@ impl MysqlDB {
     }
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
-    let dialect = sqlparser::dialect::MySqlDialect {};
-
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
-    )
-}
-
 #[async_trait::async_trait]
 impl MultiDBTrait for MysqlDB {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
@@ -783,74 +833,43 @@ impl QuerySql for MysqlDB {
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut conn = self.query_connection.lock().await;
         let conn = conn.get_mut(&id);
         let conn = match conn {
             Some(x) => x,
             None => anyhow::bail!("id '{}' have no connection", id),
         };
+        let mut ret = Vec::new();
+        let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
-        let seq = get_sql_seq(sql);
-        let x = match seq {
-            anyhow::Result::Ok(e) => e,
-            anyhow::Result::Err(_err) => {
-                log::error!("parse sql fail use as query");
-                vec![SqlSeq {
-                    sql: sql.to_string(),
-                    kind: SqlKind::Query,
-                }]
-            }
-        };
+        let mut rows = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = match item {
+                Ok(x) => x,
+                Err(err) => {
+                    ret.push(Err(err.to_string()));
 
-        let mut ret = Vec::with_capacity(x.len());
-
-        for c in x.iter() {
-            let result = match c.kind {
-                SqlKind::Query => {
-                    let result = sqlx::query(&c.sql).fetch_all(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => {
-                            let data = encode_rows(&rows)?;
-                            let fields = get_rows_types(&rows);
-                            Ok(TableListResp::new(fields, data.len(), data, &c.sql))
-                        }
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
-                    };
-                    result
-                }
-                SqlKind::Begin => {
-                    conn.begin().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Commit => {
-                    conn.commit().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Rollback => {
-                    conn.rollback().await?;
-                    Ok(TableListResp::row_affected(c.sql.clone(), 0))
-                }
-                SqlKind::Execution => {
-                    let result = sqlx::query(&c.sql).execute(conn.deref_mut()).await;
-                    let result: Result<TableListResp, ExeSqlError> = match result {
-                        Ok(rows) => Ok(TableListResp::row_affected(&c.sql, rows.rows_affected())),
-                        Err(err) => {
-                            Err(ExeSqlError::new(
-                                &c.sql,
-                                anyhow::Error::msg(err.to_string()),
-                            ))
-                        }
-                    };
-                    result
+                    continue;
                 }
             };
-            ret.push(result);
+            match item {
+                sqlx::Either::Left(row_aff) => {
+                    if rows.len() > 0 {
+                        let fields = get_rows_types(&rows);
+                        let data = encode_rows(&rows)?;
+                        ret.push(Ok(QueryResp::new(fields, data)));
+
+                        rows.clear();
+                    };
+                    if row_aff.rows_affected() > 0 {
+                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected())));
+                    }
+                }
+                sqlx::Either::Right(row) => {
+                    rows.push(row);
+                }
+            }
         }
         anyhow::Ok(ret)
     }
@@ -901,7 +920,77 @@ mod tests {
         );
         db
     }
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object();
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
+    #[tokio::test]
+    async fn test_triggers() {
+        let db = make_test_object();
+        let mut _conn = db.get_conn().await.unwrap();
+        let db_trait = &db as &dyn DBTrait;
 
+        let _ = db_trait.drop_table("test_create_trigger").await;
+        let _ = db_trait.drop_table("test_create_trigger_update").await;
+
+        let query_id = db_trait.open_connection().await.unwrap();
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_create_trigger (
+                id INT AUTO_INCREMENT, -- 自动递增的ID
+                data VARCHAR(255) NOT NULL, -- 存储数据的字段，最大长度255字符，不允许为空
+                PRIMARY KEY (id) -- 设置id为表的主键
+            );
+
+            
+            CREATE TABLE test_create_trigger_update (
+                id INT AUTO_INCREMENT, -- 自动递增的ID，作为主键
+                data VARCHAR(255) NOT NULL, -- 数据字段，最大长度255字符，不允许为空
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 记录每次更新的时间，默认值为当前时间，并在每次更新时自动更新
+                PRIMARY KEY (id) -- 设置id为主键
+            );
+
+            CREATE TRIGGER after_insert_test_create_trigger
+            AFTER INSERT ON test_create_trigger
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO test_create_trigger_update (data)
+                VALUES (NEW.data);
+            END; 
+
+
+
+            CREATE TRIGGER after_insert_test_create_trigger2
+            BEFORE INSERT ON test_create_trigger
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO test_create_trigger_update (data)
+                VALUES (NEW.data);
+            END; 
+
+        "#,
+            )
+            .await
+            .unwrap();
+
+        let ts = db_trait.list_trigger("test_create_trigger").await.unwrap();
+        for t in ts.iter() {
+            let detail = db_trait
+                .show_trigger("test_create_trigger", &t.name)
+                .await
+                .unwrap();
+
+            println!("trigger:{} {:?}", t.name, detail);
+            if t.name == "after_insert_test_create_trigger2" {
+                assert_eq!(detail.timing, TriggerTiming::Before);
+            } else if t.name == "after_insert_test_create_trigger" {
+                assert_eq!(detail.timing, TriggerTiming::After);
+            }
+        }
+    }
     #[tokio::test]
     async fn show_build_in_fns() {
         let oj = make_test_object();
@@ -936,7 +1025,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_completion() {
-        let s = make_test_object();
+        let mut s = make_test_object();
+        s.config.db_name = None;
+
         println!("#############################################");
         {
             let completion = AutoCompletionTrait::auto_completion(
@@ -1293,31 +1384,15 @@ mod tests {
 }
 
 #[async_trait::async_trait]
-impl LexerCompletionBackend for MysqlDB {
+impl DBLexerCompletionBackend for MysqlDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;
     const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
     const TYPES: &'static [&'static str] = TYPES;
 
-    async fn list_table(&self) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_table(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.table).collect::<Vec<_>>())
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        MultiDBTrait::list_db(self).await
-    }
-
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         self.build_fn_completion_items().await.unwrap_or(vec![])
-    }
-
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
-        DBTrait::show_columns(self, table_name)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())
     }
 }
 #[async_trait::async_trait]
@@ -1325,7 +1400,7 @@ impl AutoCompletionTrait for MysqlDB {
     async fn auto_completion(
         &self, sql: &str, pos: sqlparser::tokenizer::Location,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionBackend::do_auto_completion(
+        DBLexerCompletionBackend::do_auto_completion(
             self,
             sql,
             &sqlparser::dialect::MySqlDialect {},

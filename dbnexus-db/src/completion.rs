@@ -4,6 +4,9 @@ use std::collections::HashSet;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use sqlparser::tokenizer::Token;
+use typescript_type_def::TypeDef;
+
+use crate::db::MultiDBTrait;
 
 #[async_trait::async_trait]
 pub trait AutoCompletionTrait {
@@ -18,30 +21,114 @@ pub struct CompletionItem {
     pub kind: CompletionKind,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+impl typescript_type_def::TypeDef for CompletionItem {
+    const INFO: typescript_type_def::type_expr::TypeInfo =
+        typescript_type_def::type_expr::TypeInfo::Defined(
+            typescript_type_def::type_expr::DefinedTypeInfo {
+                def: typescript_type_def::type_expr::TypeDefinition {
+                    docs: None,
+                    path: &[],
+                    name: typescript_type_def::type_expr::Ident("CompletionItem"),
+                    generic_vars: &[],
+                    def: typescript_type_def::type_expr::TypeExpr::Object(
+                        typescript_type_def::type_expr::TypeObject {
+                            docs: None,
+                            index_signature: None,
+                            fields: &[
+                                typescript_type_def::type_expr::ObjectField {
+                                    docs: None,
+                                    name: typescript_type_def::type_expr::TypeString {
+                                        docs: None,
+                                        value: "name",
+                                    },
+                                    optional: false,
+                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
+                                        typescript_type_def::type_expr::TypeName::ident(
+                                            typescript_type_def::type_expr::Ident("string"),
+                                        ),
+                                    ),
+                                },
+                                typescript_type_def::type_expr::ObjectField {
+                                    docs: None,
+                                    name: typescript_type_def::type_expr::TypeString {
+                                        docs: None,
+                                        value: "kind",
+                                    },
+                                    optional: false,
+                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
+                                        typescript_type_def::type_expr::TypeName::ident(
+                                            typescript_type_def::type_expr::Ident("CompletionKind"),
+                                        ),
+                                    ),
+                                },
+                            ],
+                        },
+                    ),
+                },
+                generic_args: &[],
+            },
+        );
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
 pub enum CompletionKind {
-    KeyWord = 1,
-    Function = 2,
-    Dbname = 3,
-    TableName = 4,
-    Column = 5,
-    Text = 6,
-    Type = 7,
+    KeyWord,
+    Function,
+    Dbname,
+    TableName,
+    Column,
+    Text,
+    Type,
+}
+
+#[async_trait::async_trait]
+pub trait DBListCompletionItem {
+    /// some fact about the backend
+    /// postgres and mysql etc support multiple database
+    /// while sqlite only contains one database
+    fn is_multi_db(&self) -> bool {
+        true
+    }
+    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>>;
+    async fn list_db(&self) -> anyhow::Result<Vec<String>>;
+    async fn list_columns(
+        &self, db: Option<String>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>>;
+}
+
+#[async_trait::async_trait]
+impl<T: MultiDBTrait> DBListCompletionItem for T {
+    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>> {
+        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
+
+        x.list_table()
+            .await
+            .map(|x| x.into_iter().map(|x| x.table).collect::<Vec<_>>())
+    }
+
+    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+        MultiDBTrait::list_db(self).await
+    }
+
+    async fn list_columns(
+        &self, db: Option<String>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let x = MultiDBTrait::open_db(self, db.as_deref().unwrap()).await?;
+        x.show_columns(table_name)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())
+    }
 }
 
 #[async_trait::async_trait]
 
-pub trait LexerCompletionBackend {
+pub trait DBLexerCompletionBackend: DBListCompletionItem {
     const KEY_WORDS: &'static [&'static str];
     const BUILD_IN_FUNCTIONS: &'static [&'static str];
     const TYPES: &'static [&'static str];
     const TEXTS: &'static [&'static str] = &[];
 
     type Dialect: sqlparser::dialect::Dialect + Sync + Send + 'static;
-
-    async fn list_table(&self) -> anyhow::Result<Vec<String>>;
-    async fn list_db(&self) -> anyhow::Result<Vec<String>>;
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<String>>;
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         vec![]
@@ -122,48 +209,75 @@ pub trait LexerCompletionBackend {
                 })
                 .collect::<Vec<_>>(),
         );
+        let list_db = self.list_db().await.unwrap_or(vec![]);
+
         ret.extend(
-            self.list_db()
-                .await
-                .unwrap_or(vec![])
-                .into_iter()
+            list_db
+                .iter()
                 .map(|x| {
                     CompletionItem {
-                        name: Cow::Owned(x),
+                        name: Cow::Owned(x.clone()),
                         kind: CompletionKind::Dbname,
                     }
                 })
                 .collect::<Vec<_>>(),
         );
-        ret.extend(
-            self.list_table()
-                .await
-                .unwrap_or(vec![])
-                .into_iter()
-                .map(|x| {
+
+        if self.is_multi_db() {
+            for db in list_db.iter() {
+                let list_tables = self
+                    .list_table(Some(db.to_string()))
+                    .await
+                    .unwrap_or(vec![]);
+                for t in list_tables.iter() {
+                    let cols = self
+                        .list_columns(Some(db.to_string()), t.as_str())
+                        .await
+                        .unwrap_or(vec![]);
+                    ret.extend(cols.into_iter().map(|x| {
+                        CompletionItem {
+                            name: Cow::Owned(x),
+                            kind: CompletionKind::Column,
+                        }
+                    }));
+                }
+                ret.extend(
+                    list_tables
+                        .into_iter()
+                        .map(|x| {
+                            CompletionItem {
+                                name: Cow::Owned(x),
+                                kind: CompletionKind::TableName,
+                            }
+                        })
+                        .collect::<Vec<_>>(),
+                );
+            }
+        } else {
+            let list_tables = self.list_table(None).await.unwrap_or(vec![]);
+            for t in list_tables.iter() {
+                let cols = self.list_columns(None, t.as_str()).await.unwrap_or(vec![]);
+                ret.extend(cols.into_iter().map(|x| {
                     CompletionItem {
                         name: Cow::Owned(x),
-                        kind: CompletionKind::TableName,
+                        kind: CompletionKind::Column,
                     }
-                })
-                .collect::<Vec<_>>(),
-        );
-        ret.extend(self.extra_completion_item().await.into_iter());
-        for v in self.list_table().await.unwrap_or(vec![]).iter() {
+                }));
+            }
+
             ret.extend(
-                self.list_columns(v.as_str())
-                    .await
-                    .unwrap_or(vec![])
+                list_tables
                     .into_iter()
                     .map(|x| {
                         CompletionItem {
                             name: Cow::Owned(x),
-                            kind: CompletionKind::Column,
+                            kind: CompletionKind::TableName,
                         }
                     })
                     .collect::<Vec<_>>(),
             );
         }
+        ret.extend(self.extra_completion_item().await.into_iter());
         ret
     }
 }
@@ -194,3 +308,6 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
     matched.sort_by(|a, b| b.score.cmp(&a.score));
     matched.into_iter().map(|x| x.item).collect()
 }
+
+#[cfg(test)]
+mod tests {}

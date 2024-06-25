@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use std::time::Duration;
 
 use futures_util::StreamExt;
 use mongodb::bson::oid::ObjectId;
@@ -10,8 +11,8 @@ use serde_json::Value;
 
 use crate::datasource::{self, MongoDataSource};
 use crate::db::{
-    DBTrait, ExeSqlError, ExportKind, Field, Index, IndexKind, ListTable, ListView, QuerySql,
-    SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExportKind, Field, Index, IndexKind, ListTable, ListView, QueryResp,
+    QuerySql, SqlExecuteRet, TableListResp,
 };
 
 #[derive(Clone)]
@@ -89,6 +90,14 @@ fn value_to_frontend(v: &Value) -> String {
     }
 }
 
+#[async_trait::async_trait]
+impl CheckConn for Mongo {
+    async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let ins = std::time::Instant::now();
+        let _db = self.get_db().await?;
+        anyhow::Ok(ins.elapsed())
+    }
+}
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
     fn read_only(&self) -> bool {
@@ -443,7 +452,7 @@ impl DBTrait for Mongo {
 impl QuerySql for Mongo {
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
-    ) -> anyhow::Result<Vec<Result<TableListResp, ExeSqlError>>> {
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         anyhow::bail!("mongodb query sql is not supported right now.")
     }
 
@@ -531,6 +540,11 @@ mod tests {
             let indexes = handle.show_indexes(t.table.as_str()).await.unwrap();
             println!("list:{:?}", indexes);
         }
+    }
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object();
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
 
     #[tokio::test]
