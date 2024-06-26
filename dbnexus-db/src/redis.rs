@@ -9,8 +9,8 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
-    CheckConn, DBTrait, ExportKind, Field, Index, ListTable, ListView, OffsetLimitIter, QueryResp,
-    QuerySql, RedisListTable, SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, ListTable, ListView, OffsetLimitIter,
+    QueryResp, QuerySql, RedisListTable, SqlExecuteRet, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -283,8 +283,22 @@ impl CheckConn for RedisDB {
     }
 }
 
+impl FormatSql for RedisDB {
+    fn format_sql(&self, _sql: &String) -> anyhow::Result<String> {
+        anyhow::bail!(format!(
+            "this backend '{}' don't support format sql",
+            self.backend_name()
+        ))
+    }
+}
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
+    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
     fn read_only(&self) -> bool {
         self.read_only
     }
@@ -323,6 +337,9 @@ impl DBTrait for RedisDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => self.export_table_to_command(key, sender.clone()).await,
+            ExportKind::JsonLine => {
+                todo!()
+            }
         }
     }
 

@@ -14,7 +14,7 @@ use typescript_type_def::TypeDef;
 
 /// A db representation of database
 #[async_trait::async_trait]
-pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn {
+pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     fn as_any(&self) -> &dyn std::any::Any;
     fn backend_name(&self) -> &str;
 
@@ -58,6 +58,37 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn {
         _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         anyhow::bail!(format!("{} don't support this", self.backend_name()))
+    }
+
+    async fn export_sql_result(
+        &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        anyhow::bail!(format!("{} don't support this", self.backend_name()))
+    }
+
+    async fn export_sql_result_to_file(
+        &self, sql: &str, kind: ExportKind, file: &str,
+    ) -> anyhow::Result<()> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let h1 = {
+            let x = self.clone();
+            let sql = sql.to_string();
+            let h1 = tokio::spawn(async move { x.export_sql_result(&sql, kind, sender).await });
+            h1
+        };
+        let h2 = {
+            let filepath = file.to_string();
+            tokio::spawn(async move {
+                let mut file = tokio::fs::File::create(&filepath).await?;
+                while let Some(r) = receiver.recv().await {
+                    file.write_all(r.as_bytes()).await?;
+                }
+                anyhow::Ok(())
+            })
+        };
+        h1.await??;
+        h2.await??;
+        anyhow::Ok(())
     }
 
     async fn export_table_to_file(
@@ -115,8 +146,13 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn {
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
         anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
     }
+    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()>;
+    async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
 }
 
+pub trait FormatSql {
+    fn format_sql(&self, sql: &String) -> anyhow::Result<String>;
+}
 #[async_trait::async_trait]
 
 pub trait CheckConn {
@@ -155,10 +191,33 @@ impl dyn DBTrait {
         h1.await??;
         h2.await?
     }
+    #[allow(unused)]
+    pub async fn export_sql_result_to_string(
+        &self, sql: &str, kind: ExportKind,
+    ) -> anyhow::Result<String> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let h1 = {
+            let x = self.clone();
+            let sql = sql.to_string();
+            let h1 = tokio::spawn(async move { x.export_sql_result(&sql, kind, sender).await });
+            h1
+        };
+        let h2 = {
+            tokio::spawn(async move {
+                let mut s = String::new();
+                while let Some(r) = receiver.recv().await {
+                    s.push_str(r.deref());
+                }
+                anyhow::Ok(s)
+            })
+        };
+        h1.await??;
+        h2.await?
+    }
 }
 
 #[async_trait::async_trait]
-pub trait MultiDBTrait: Sync + Send + QuerySql + 'static + CheckConn {
+pub trait MultiDBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     async fn list_db(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
 }
@@ -450,6 +509,7 @@ pub struct TableListResp {
 }
 
 impl TableListResp {
+    #[allow(dead_code)]
     fn check(&self) {
         for x in self.data.iter() {
             assert_eq!(x.len(), self.fields.len());
@@ -478,6 +538,7 @@ impl TableListResp {
             sql,
             data,
         };
+        #[cfg(debug_assertions)]
         ret.check();
         ret
     }
@@ -787,6 +848,7 @@ pub enum ExportKind {
     Json {
         pretty: bool,
     },
+    JsonLine,
 
     Sql {
         include_table_schema: bool,
@@ -964,4 +1026,14 @@ fn test_off_iter() {
         OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
         vec![0, 4, 8]
     );
+}
+
+pub(crate) fn format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
+    sqlformat::format(sql, &sqlformat::QueryParams::None, op.unwrap_or_default())
+}
+
+#[cfg(test)]
+#[test]
+fn test_format_sql() {
+    assert_eq!(format_sql("select 1", None), "select\n  1");
 }

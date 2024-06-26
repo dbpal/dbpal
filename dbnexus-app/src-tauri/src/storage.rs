@@ -550,6 +550,7 @@ mod tests {
                     DBConnectionConfig::Sqlite {
                         path: "d:\\sqlite.test.db".to_string(),
                         read_only: false,
+                        name: "haha".to_string(),
                     },
                 );
                 m.insert(
@@ -563,6 +564,7 @@ mod tests {
                             db_name: None,
                         },
                         read_only: false,
+                        name: "haha".to_string(),
                     },
                 );
                 m

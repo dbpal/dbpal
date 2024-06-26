@@ -11,8 +11,8 @@ use serde_json::Value;
 
 use crate::datasource::{self, MongoDataSource};
 use crate::db::{
-    CheckConn, DBTrait, ExportKind, Field, Index, IndexKind, ListTable, ListView, QueryResp,
-    QuerySql, SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListView,
+    QueryResp, QuerySql, SqlExecuteRet, TableListResp,
 };
 
 #[derive(Clone)]
@@ -98,8 +98,24 @@ impl CheckConn for Mongo {
         anyhow::Ok(ins.elapsed())
     }
 }
+
+impl FormatSql for Mongo {
+    fn format_sql(&self, _sql: &String) -> anyhow::Result<String> {
+        anyhow::bail!(format!(
+            "this backend '{}' don't support format sql",
+            self.backend_name()
+        ))
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
+    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
     fn read_only(&self) -> bool {
         self.read_only
     }
