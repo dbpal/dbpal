@@ -16,9 +16,9 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::CommDBConfig;
 use crate::db::{
-    create_csv, format_data_time_fix_offset, sql_to_sql_seq, CheckConn, DBTrait, ExportKind, Field,
-    Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql, SqlExecuteRet, SqlSeq,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, format_data_time_fix_offset, format_sql, sql_to_sql_seq, CheckConn, DBTrait,
+    ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp,
+    QuerySql, SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -29,6 +29,11 @@ pub struct SqlServer {
     pm: PoolManager,
     read_only: bool,
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
+}
+impl FormatSql for SqlServer {
+    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+        anyhow::Ok(format_sql(sql, None))
+    }
 }
 
 impl SqlServer {

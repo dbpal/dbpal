@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use mongodb::bson::document::VacantEntry;
 use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
@@ -13,12 +12,16 @@ use tokio::task::block_in_place;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{DBPoolKey, OracleDBConfig};
 use crate::db::{
-    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, ListView, MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet, SqlKind, SqlSeq,
-    TableListResp,
+    create_csv, format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    FormatSql, Index, IndexKind, ListTable, ListView, MultiDBTrait, QueryResp, QuerySql,
+    SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
-
+impl FormatSql for OracleDB {
+    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+        anyhow::Ok(format_sql(sql, None))
+    }
+}
 #[derive(Clone)]
 pub struct OracleDB {
     config: OracleDBConfig,

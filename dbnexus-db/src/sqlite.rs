@@ -18,12 +18,16 @@ use crate::completion::{
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
-    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, ListTrigger, ListView, QueryResp, QuerySql, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
-
+impl FormatSql for SqliteDB {
+    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+        anyhow::Ok(format_sql(sql, None))
+    }
+}
 #[derive(Clone)]
 pub struct SqliteDB {
     pool: PoolManager,

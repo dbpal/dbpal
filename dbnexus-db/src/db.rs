@@ -14,7 +14,7 @@ use typescript_type_def::TypeDef;
 
 /// A db representation of database
 #[async_trait::async_trait]
-pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn {
+pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     fn as_any(&self) -> &dyn std::any::Any;
     fn backend_name(&self) -> &str;
 
@@ -150,6 +150,14 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn {
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
 }
 
+pub trait FormatSql {
+    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+        anyhow::bail!(format!(
+            "this backend '{}' don't support format sql",
+            self.backend_name()
+        ))
+    }
+}
 #[async_trait::async_trait]
 
 pub trait CheckConn {
@@ -214,7 +222,7 @@ impl dyn DBTrait {
 }
 
 #[async_trait::async_trait]
-pub trait MultiDBTrait: Sync + Send + QuerySql + 'static + CheckConn {
+pub trait MultiDBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     async fn list_db(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
 }
@@ -1023,4 +1031,14 @@ fn test_off_iter() {
         OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
         vec![0, 4, 8]
     );
+}
+
+pub(crate) fn format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
+    sqlformat::format(sql, &sqlformat::QueryParams::None, op.unwrap_or_default())
+}
+
+#[cfg(test)]
+#[test]
+fn test_format_sql() {
+    assert_eq!(format_sql("select 1", None), "select\n  1");
 }

@@ -13,9 +13,9 @@ use tokio::sync::Mutex;
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp,
+    QuerySql, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -45,6 +45,11 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
         });
     }
     ret
+}
+impl FormatSql for MysqlDB {
+    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+        anyhow::Ok(format_sql(sql, None))
+    }
 }
 
 fn gen_select_sql(

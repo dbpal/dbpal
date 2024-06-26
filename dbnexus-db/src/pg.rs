@@ -13,12 +13,17 @@ use tokio::sync::Mutex;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    create_csv, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp,
+    QuerySql, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
+impl FormatSql for PostGresDB {
+    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+        anyhow::Ok(format_sql(sql, None))
+    }
+}
 
 /// postgres version of pg.
 #[derive(Clone)]
