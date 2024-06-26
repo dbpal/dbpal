@@ -151,12 +151,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
 }
 
 pub trait FormatSql {
-    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
-        anyhow::bail!(format!(
-            "this backend '{}' don't support format sql",
-            self.backend_name()
-        ))
-    }
+    fn format_sql(&self, sql: &String) -> anyhow::Result<String>;
 }
 #[async_trait::async_trait]
 

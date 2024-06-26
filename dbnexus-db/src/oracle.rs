@@ -532,7 +532,7 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::map::Map<String, se
 fn encode_rows_as_json(rows: Vec<oracle::Result<Row>>) -> anyhow::Result<Vec<serde_json::Value>> {
     let mut datas = vec![];
     for r in rows {
-        let mut values = serde_json::map::Map::new();
+        let values = serde_json::map::Map::new();
         let r = r?;
         let values = encode_row_as_json(&r)?;
         datas.push(serde_json::Value::Object(values));
