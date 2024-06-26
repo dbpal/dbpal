@@ -305,6 +305,12 @@ impl CheckConn for SqlServer {
 
 #[async_trait::async_trait]
 impl DBTrait for SqlServer {
+    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
         let sql = format!(
             r#"
@@ -402,6 +408,7 @@ impl DBTrait for SqlServer {
             ExportKind::Json { pretty } => {
                 self.export_table_as_json(table_name, pretty, sender).await
             }
+            ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
@@ -988,6 +995,35 @@ impl SqlServer {
                 sender.send(Cow::Borrowed("\n")).await?;
             }
         }
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_json_line(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+
+        let sql = format!("SELECT * from {}", table_name);
+        let mut stream = conn.query(sql.as_str(), &[]).await?;
+
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let row = match row {
+                tiberius::QueryItem::Row(r) => r,
+                tiberius::QueryItem::Metadata(_) => {
+                    continue;
+                }
+            };
+            let value = encode_row_as_json(&row)?;
+            sender
+                .send(Cow::Owned(serde_json::to_string(&value)?))
+                .await?;
+
+            sender.send(Cow::Borrowed("\n")).await?;
+        }
+
         anyhow::Ok(())
     }
 

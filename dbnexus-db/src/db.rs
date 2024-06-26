@@ -60,6 +60,37 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn {
         anyhow::bail!(format!("{} don't support this", self.backend_name()))
     }
 
+    async fn export_sql_result(
+        &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        anyhow::bail!(format!("{} don't support this", self.backend_name()))
+    }
+
+    async fn export_sql_result_to_file(
+        &self, sql: &str, kind: ExportKind, file: &str,
+    ) -> anyhow::Result<()> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let h1 = {
+            let x = self.clone();
+            let sql = sql.to_string();
+            let h1 = tokio::spawn(async move { x.export_sql_result(&sql, kind, sender).await });
+            h1
+        };
+        let h2 = {
+            let filepath = file.to_string();
+            tokio::spawn(async move {
+                let mut file = tokio::fs::File::create(&filepath).await?;
+                while let Some(r) = receiver.recv().await {
+                    file.write_all(r.as_bytes()).await?;
+                }
+                anyhow::Ok(())
+            })
+        };
+        h1.await??;
+        h2.await??;
+        anyhow::Ok(())
+    }
+
     async fn export_table_to_file(
         &self, table_name: &str, filepath: &str, kind: ExportKind,
     ) -> anyhow::Result<()> {
@@ -115,6 +146,8 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn {
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
         anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
     }
+    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()>;
+    async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -141,6 +174,29 @@ impl dyn DBTrait {
             let x = self.clone();
             let table_name = table_name.to_string();
             let h1 = tokio::spawn(async move { x.export_table(&table_name, kind, sender).await });
+            h1
+        };
+        let h2 = {
+            tokio::spawn(async move {
+                let mut s = String::new();
+                while let Some(r) = receiver.recv().await {
+                    s.push_str(r.deref());
+                }
+                anyhow::Ok(s)
+            })
+        };
+        h1.await??;
+        h2.await?
+    }
+    #[allow(unused)]
+    pub async fn export_sql_result_to_string(
+        &self, sql: &str, kind: ExportKind,
+    ) -> anyhow::Result<String> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let h1 = {
+            let x = self.clone();
+            let sql = sql.to_string();
+            let h1 = tokio::spawn(async move { x.export_sql_result(&sql, kind, sender).await });
             h1
         };
         let h2 = {
@@ -450,6 +506,7 @@ pub struct TableListResp {
 }
 
 impl TableListResp {
+    #[allow(dead_code)]
     fn check(&self) {
         for x in self.data.iter() {
             assert_eq!(x.len(), self.fields.len());
@@ -478,6 +535,7 @@ impl TableListResp {
             sql,
             data,
         };
+        #[cfg(debug_assertions)]
         ret.check();
         ret
     }
@@ -787,6 +845,7 @@ pub enum ExportKind {
     Json {
         pretty: bool,
     },
+    JsonLine,
 
     Sql {
         include_table_schema: bool,

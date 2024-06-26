@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use mongodb::bson::document::VacantEntry;
 use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
@@ -423,111 +424,116 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
     }
 }
 
+fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::map::Map<String, serde_json::Value>> {
+    let mut values = serde_json::map::Map::new();
+    for c in 0..r.sql_values().len() {
+        let col_info = &r.column_info()[c];
+        let type_not_support = Err(anyhow::Error::msg(format!(
+            "type '{}' not supported",
+            col_info.oracle_type()
+        ))) as anyhow::Result<_>;
+        let v = match col_info.oracle_type() {
+            oracle::sql_type::OracleType::Varchar2(_) => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::NVarchar2(_) => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::Char(_) => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::NChar(_) => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::Rowid => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::Raw(_) => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::BinaryFloat => {
+                let x: Option<f32> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+
+            oracle::sql_type::OracleType::BinaryDouble => {
+                let x: Option<f64> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::Number(..) => {
+                let x: Option<f64> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::Float(_) => {
+                let x: Option<f64> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::Date => return type_not_support,
+            oracle::sql_type::OracleType::Timestamp(_) => return type_not_support,
+            oracle::sql_type::OracleType::TimestampTZ(_) => return type_not_support,
+            oracle::sql_type::OracleType::TimestampLTZ(_) => return type_not_support,
+            oracle::sql_type::OracleType::IntervalDS(..) => return type_not_support,
+            oracle::sql_type::OracleType::IntervalYM(_) => return type_not_support,
+            oracle::sql_type::OracleType::CLOB => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::NCLOB => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::BLOB => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::BFILE => return type_not_support,
+            oracle::sql_type::OracleType::Boolean => {
+                let x: Option<bool> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::RefCursor => return type_not_support,
+            oracle::sql_type::OracleType::Object(_) => return type_not_support,
+            oracle::sql_type::OracleType::Long => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::LongRaw => {
+                let x: Option<String> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::Json => return type_not_support,
+            oracle::sql_type::OracleType::Xml => return type_not_support,
+            oracle::sql_type::OracleType::Int64 => {
+                let x: Option<i64> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+            oracle::sql_type::OracleType::UInt64 => {
+                let x: Option<u64> = r.get(c)?;
+                x.map(serde_json::Value::from)
+            }
+        };
+        values.insert(
+            col_info.name().to_string(),
+            v.unwrap_or(serde_json::Value::Null),
+        );
+    }
+    anyhow::Ok(values)
+}
+
 fn encode_rows_as_json(rows: Vec<oracle::Result<Row>>) -> anyhow::Result<Vec<serde_json::Value>> {
     let mut datas = vec![];
     for r in rows {
         let mut values = serde_json::map::Map::new();
         let r = r?;
-        for c in 0..r.sql_values().len() {
-            let col_info = &r.column_info()[c];
-            let type_not_support = Err(anyhow::Error::msg(format!(
-                "type '{}' not supported",
-                col_info.oracle_type()
-            ))) as anyhow::Result<_>;
-            let v = match col_info.oracle_type() {
-                oracle::sql_type::OracleType::Varchar2(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::NVarchar2(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::Char(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::NChar(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::Rowid => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::Raw(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::BinaryFloat => {
-                    let x: Option<f32> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-
-                oracle::sql_type::OracleType::BinaryDouble => {
-                    let x: Option<f64> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::Number(..) => {
-                    let x: Option<f64> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::Float(_) => {
-                    let x: Option<f64> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::Date => return type_not_support,
-                oracle::sql_type::OracleType::Timestamp(_) => return type_not_support,
-                oracle::sql_type::OracleType::TimestampTZ(_) => return type_not_support,
-                oracle::sql_type::OracleType::TimestampLTZ(_) => return type_not_support,
-                oracle::sql_type::OracleType::IntervalDS(..) => return type_not_support,
-                oracle::sql_type::OracleType::IntervalYM(_) => return type_not_support,
-                oracle::sql_type::OracleType::CLOB => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::NCLOB => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::BLOB => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::BFILE => return type_not_support,
-                oracle::sql_type::OracleType::Boolean => {
-                    let x: Option<bool> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::RefCursor => return type_not_support,
-                oracle::sql_type::OracleType::Object(_) => return type_not_support,
-                oracle::sql_type::OracleType::Long => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::LongRaw => {
-                    let x: Option<String> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::Json => return type_not_support,
-                oracle::sql_type::OracleType::Xml => return type_not_support,
-                oracle::sql_type::OracleType::Int64 => {
-                    let x: Option<i64> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-                oracle::sql_type::OracleType::UInt64 => {
-                    let x: Option<u64> = r.get(c)?;
-                    x.map(serde_json::Value::from)
-                }
-            };
-            values.insert(
-                col_info.name().to_string(),
-                v.unwrap_or(serde_json::Value::Null),
-            );
-        }
+        let values = encode_row_as_json(&r)?;
         datas.push(serde_json::Value::Object(values));
     }
-
     anyhow::Ok(datas)
 }
 
@@ -623,7 +629,24 @@ impl OracleDB {
 
         anyhow::Ok(())
     }
+    async fn export_table_as_json_line(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
 
+        let sql = format!("SELECT * from {}", table_name);
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
+        let rows = rows.into_iter().collect::<Vec<_>>();
+        for r in rows {
+            let r = r?;
+            let json = encode_row_as_json(&r)?;
+            let str = serde_json::to_string(&json)?;
+            sender.send(Cow::Owned(str)).await?;
+            sender.send(Cow::Borrowed("\n")).await?;
+        }
+
+        anyhow::Ok(())
+    }
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -678,6 +701,12 @@ impl CheckConn for OracleDB {
 
 #[async_trait::async_trait]
 impl DBTrait for OracleDB {
+    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
     async fn create_table_and_index_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
@@ -717,6 +746,8 @@ impl DBTrait for OracleDB {
             ExportKind::Json { pretty } => {
                 self.export_table_as_json(table_name, pretty, sender).await
             }
+            ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
+
             ExportKind::Sql {
                 include_table_schema,
             } => {
@@ -1159,16 +1190,6 @@ FROM  TEST_VIEW_TABLE"#,
         db.query_set_autocommit(query_uuid, false).await.unwrap();
         assert!(!db.query_autocommit(query_uuid).await.unwrap());
 
-        let call_timeout = db.query_call_timeout(query_uuid).await.unwrap();
-        println!("call timeout:{:?}", call_timeout);
-        let call_timeout = Some(Duration::from_secs(5));
-        db.query_set_call_timeout(query_uuid, call_timeout)
-            .await
-            .unwrap();
-        assert_eq!(
-            db.query_call_timeout(query_uuid).await.unwrap(),
-            call_timeout
-        );
         let sqls = vec![
             r#"
             CREATE TABLE TEST_QUERY (

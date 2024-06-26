@@ -112,7 +112,25 @@ impl PostGresDB {
         }
         anyhow::Ok(())
     }
+    async fn export_table_as_json_line(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
 
+        let sql = format!("SELECT * from {}", table_name);
+        let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
+
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let value = encode_row_as_json(&row)?;
+            sender
+                .send(Cow::Owned(serde_json::to_string(&value)?))
+                .await?;
+            sender.send(Cow::Borrowed("\n")).await?;
+        }
+
+        anyhow::Ok(())
+    }
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -257,6 +275,12 @@ fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTimin
 
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
+    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
         let sql = format!(
             r#"
@@ -320,6 +344,7 @@ impl DBTrait for PostGresDB {
             ExportKind::Json { pretty } => {
                 self.export_table_as_json(table_name, pretty, sender).await
             }
+            ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
