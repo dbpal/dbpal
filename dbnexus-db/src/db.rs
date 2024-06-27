@@ -151,7 +151,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
 }
 
 pub trait FormatSql {
-    fn format_sql(&self, sql: &String) -> anyhow::Result<String>;
+    fn format_sql(&self, sql: &str) -> anyhow::Result<String>;
 }
 #[async_trait::async_trait]
 
@@ -853,6 +853,12 @@ pub enum ExportKind {
     Sql {
         include_table_schema: bool,
     },
+}
+
+impl ExportKind {
+    pub(crate) fn cannot_sql_result_export_as_sql() -> anyhow::Result<()> {
+        anyhow::bail!("cannot export sql result as sql")
+    }
 }
 
 /// create csv file list of string

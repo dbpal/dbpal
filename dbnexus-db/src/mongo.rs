@@ -100,7 +100,7 @@ impl CheckConn for Mongo {
 }
 
 impl FormatSql for Mongo {
-    fn format_sql(&self, _sql: &String) -> anyhow::Result<String> {
+    fn format_sql(&self, _sql: &str) -> anyhow::Result<String> {
         anyhow::bail!(format!(
             "this backend '{}' don't support format sql",
             self.backend_name()

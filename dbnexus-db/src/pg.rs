@@ -20,7 +20,7 @@ use crate::db::{
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
 impl FormatSql for PostGresDB {
-    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+    fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
         anyhow::Ok(format_sql(sql, None))
     }
 }

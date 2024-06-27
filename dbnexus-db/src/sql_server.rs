@@ -31,7 +31,7 @@ pub struct SqlServer {
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
 }
 impl FormatSql for SqlServer {
-    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+    fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
         anyhow::Ok(format_sql(sql, None))
     }
 }

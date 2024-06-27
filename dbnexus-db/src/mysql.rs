@@ -47,7 +47,7 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
     ret
 }
 impl FormatSql for MysqlDB {
-    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+    fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
         anyhow::Ok(format_sql(sql, None))
     }
 }

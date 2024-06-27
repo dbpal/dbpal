@@ -18,7 +18,7 @@ use crate::db::{
 };
 use crate::pool::{NexusPool, PoolManager};
 impl FormatSql for OracleDB {
-    fn format_sql(&self, sql: &String) -> anyhow::Result<String> {
+    fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
         anyhow::Ok(format_sql(sql, None))
     }
 }
@@ -175,12 +175,10 @@ impl QuerySql for OracleDB {
                 SqlKind::Execution => {
                     let stmt = block_in_place(|| conn.execute(sql, &[]));
                     match stmt {
-                        Ok(x) => {
-                            match x.row_count() {
-                                Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
-                                Err(err) => ret.push(Err(err.to_string())),
-                            }
-                        }
+                        Ok(x) => match x.row_count() {
+                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
+                            Err(err) => ret.push(Err(err.to_string())),
+                        },
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
@@ -385,60 +383,42 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
     match f.typ.to_string().to_uppercase().as_str() {
-        "VARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NVARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "CHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "RAW" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
-            anyhow::Ok(match value {
-                Some(x) => x.to_string(),
-                None => null_string,
-            })
-        }
-        "CLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "BLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
+        "VARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NVARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "CHAR" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCHAR" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "RAW" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
+            Some(x) => x.to_string(),
+            None => null_string,
+        }),
+        "CLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCLOB" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "BLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),

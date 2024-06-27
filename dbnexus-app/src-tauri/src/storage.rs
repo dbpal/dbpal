@@ -174,7 +174,7 @@ impl DbConfigLoader for FileJsonSaver {
     }
 }
 
-async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result<DB> {
+pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result<DB> {
     match config {
         DBConnectionConfig::Sqlite {
             path,

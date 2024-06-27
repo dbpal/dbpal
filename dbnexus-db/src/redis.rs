@@ -284,7 +284,7 @@ impl CheckConn for RedisDB {
 }
 
 impl FormatSql for RedisDB {
-    fn format_sql(&self, _sql: &String) -> anyhow::Result<String> {
+    fn format_sql(&self, _sql: &str) -> anyhow::Result<String> {
         anyhow::bail!(format!(
             "this backend '{}' don't support format sql",
             self.backend_name()

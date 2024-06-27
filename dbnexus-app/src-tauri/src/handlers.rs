@@ -6,7 +6,7 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::oracle::OracleDB;
 
-use crate::storage::{App, DBConnectionConfig, UserSettings};
+use crate::storage::{self, App, DBConnectionConfig, UserSettings};
 
 #[tauri::command]
 pub async fn add_config(
@@ -290,6 +290,35 @@ pub async fn export_table(
         .await
         .map_err(|e| e.to_string())
 }
+#[tauri::command]
+pub async fn format_sql(
+    uuid: String, sql: String, dbs: tauri::State<'_, App>,
+) -> Result<String, String> {
+    let db = dbs.get_db(uuid.as_str()).await.map_err(|e| e.to_string())?;
+    let ret = match db {
+        crate::storage::DB::Multi(x) => x.format_sql(sql.as_str()),
+        crate::storage::DB::One(x) => x.format_sql(sql.as_str()),
+    };
+    ret.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn test_connection(
+    config: DBConnectionConfig,
+) -> Result<
+    u64, // milliseconds
+    String,
+> {
+    let db = storage::open_db(&config, Default::default())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db {
+        storage::DB::Multi(x) => x.check_conn().await,
+        storage::DB::One(x) => x.check_conn().await,
+    }
+    .map_err(|e| e.to_string())
+    .map(|d| d.as_millis() as u64)
+}
 
 #[tauri::command]
 pub async fn oracle_query_set_autocommit(
@@ -358,6 +387,7 @@ pub async fn list_trigger(
 
     db.list_trigger(&table).await.map_err(|e| e.to_string())
 }
+
 #[tauri::command]
 pub async fn show_trigger(
     uuid: String, table: String, name: String, dbs: tauri::State<'_, App>,
@@ -370,13 +400,4 @@ pub async fn show_trigger(
     db.show_trigger(&table, &name)
         .await
         .map_err(|e| e.to_string())
-}
-
-#[cfg(test)]
-#[test]
-fn test_serde_duration() {
-    let d = std::time::Duration::from_millis(1234);
-
-    let s = serde_json::to_string(&d).unwrap();
-    println!("s:{}", s);
 }
