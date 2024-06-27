@@ -1,3 +1,4 @@
+use sqlx::Column;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
@@ -117,13 +118,13 @@ impl PostGresDB {
         }
         anyhow::Ok(())
     }
-    async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+
+    async fn export_query_result_as_json_line(
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let sql = format!("SELECT * from {}", table_name);
-        let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
+        let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
 
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -136,13 +137,18 @@ impl PostGresDB {
 
         anyhow::Ok(())
     }
-    async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    async fn export_table_as_json_line(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        self.export_query_result_as_json_line(&sql, sender).await
+    }
+    async fn export_query_result_as_json(
+        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let sql = format!("SELECT * from {}", table_name);
-        let mut stream = sqlx::query(sql.as_str()).fetch(conn.deref_mut());
+        let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
 
         sender.send(Cow::Borrowed("[")).await?;
         let mut first = true;
@@ -170,19 +176,19 @@ impl PostGresDB {
         sender.send(Cow::Borrowed("]")).await?;
         anyhow::Ok(())
     }
+    async fn export_table_as_json(
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        self.export_query_result_as_json(&sql, pretty, sender).await
+    }
 
-    async fn export_table_as_csv(
+    async fn export_query_result_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        if include_header {
-            let fs = self.show_columns(table_name).await?;
-            let fs = fs.iter().map(|x| Some(x.name.clone())).collect::<Vec<_>>();
-            sender
-                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
-                .await?;
-        }
+        let mut first = true;
 
         let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
@@ -191,12 +197,35 @@ impl PostGresDB {
 
         while let Some(rows) = stream.next().await {
             let rows = rows?;
+            if first && rows.len() > 0 && include_header {
+                let fs = rows
+                    .get(0)
+                    .unwrap()
+                    .columns()
+                    .iter()
+                    .map(|x| x.name().to_string())
+                    .map(Some)
+                    .collect::<Vec<_>>();
+                sender
+                    .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                    .await?;
+                first = false
+            }
+
             let data = encode_rows(&rows)?;
             sender
                 .send(Cow::Owned(create_csv(&data, delimiter)))
                 .await?;
         }
         anyhow::Ok(())
+    }
+    async fn export_table_as_csv(
+        &self, table_name: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
+            .await
     }
 }
 
@@ -280,6 +309,26 @@ fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTimin
 
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
+    }
     async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
         unimplemented!()
     }

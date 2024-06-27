@@ -60,20 +60,20 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
         anyhow::bail!(format!("{} don't support this", self.backend_name()))
     }
 
-    async fn export_sql_result(
+    async fn export_query_result(
         &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         anyhow::bail!(format!("{} don't support this", self.backend_name()))
     }
 
-    async fn export_sql_result_to_file(
+    async fn export_query_result_to_file(
         &self, sql: &str, kind: ExportKind, file: &str,
     ) -> anyhow::Result<()> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
             let x = self.clone();
             let sql = sql.to_string();
-            let h1 = tokio::spawn(async move { x.export_sql_result(&sql, kind, sender).await });
+            let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
             h1
         };
         let h2 = {
@@ -192,14 +192,14 @@ impl dyn DBTrait {
         h2.await?
     }
     #[allow(unused)]
-    pub async fn export_sql_result_to_string(
+    pub async fn export_query_result_to_string(
         &self, sql: &str, kind: ExportKind,
     ) -> anyhow::Result<String> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
             let x = self.clone();
             let sql = sql.to_string();
-            let h1 = tokio::spawn(async move { x.export_sql_result(&sql, kind, sender).await });
+            let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
             h1
         };
         let h2 = {
@@ -856,7 +856,7 @@ pub enum ExportKind {
 }
 
 impl ExportKind {
-    pub(crate) fn cannot_sql_result_export_as_sql() -> anyhow::Result<()> {
+    pub(crate) fn cannot_query_result_export_as_sql() -> anyhow::Result<()> {
         anyhow::bail!("cannot export sql result as sql")
     }
 }

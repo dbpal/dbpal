@@ -105,7 +105,7 @@ impl SqliteDB {
         }
         anyhow::Ok(())
     }
-    async fn export_sql_result_as_json_line(
+    async fn export_query_result_as_json_line(
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
@@ -130,9 +130,9 @@ impl SqliteDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
 
-        self.export_sql_result_as_json_line(&sql, sender).await
+        self.export_query_result_as_json_line(&sql, sender).await
     }
-    async fn export_sql_result_as_json(
+    async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
@@ -169,10 +169,10 @@ impl SqliteDB {
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
-        self.export_sql_result_as_json(sql.as_str(), pretty, sender)
+        self.export_query_result_as_json(sql.as_str(), pretty, sender)
             .await
     }
-    async fn export_sql_result_as_csv(
+    async fn export_query_result_as_csv(
         &self, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -210,7 +210,7 @@ impl SqliteDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
-        self.export_sql_result_as_csv(&sql, include_header, delimiter, sender)
+        self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
             .await
     }
 }
@@ -364,7 +364,7 @@ impl CheckConn for SqliteDB {
 
 #[async_trait::async_trait]
 impl DBTrait for SqliteDB {
-    async fn export_sql_result(
+    async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -372,16 +372,16 @@ impl DBTrait for SqliteDB {
                 include_header,
                 delimiter,
             } => {
-                self.export_sql_result_as_csv(sql, include_header, delimiter, sender)
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self.export_sql_result_as_json(sql, pretty, sender).await
+                self.export_query_result_as_json(sql, pretty, sender).await
             }
-            ExportKind::JsonLine => self.export_sql_result_as_json_line(sql, sender).await,
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
             ExportKind::Sql {
                 include_table_schema: _,
-            } => ExportKind::cannot_sql_result_export_as_sql(),
+            } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
 
@@ -1450,7 +1450,7 @@ mod tests {
 
         {
             let s = db
-                .export_sql_result_to_string(
+                .export_query_result_to_string(
                     "select * from persons",
                     ExportKind::Json { pretty: true },
                 )
@@ -1461,7 +1461,7 @@ mod tests {
         }
         {
             let s = db
-                .export_sql_result_to_string(
+                .export_query_result_to_string(
                     "select * from persons",
                     ExportKind::CSV {
                         include_header: true,
@@ -1474,7 +1474,7 @@ mod tests {
         }
         {
             let s = db
-                .export_sql_result_to_string("select * from persons", ExportKind::JsonLine)
+                .export_query_result_to_string("select * from persons", ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("json_line:{}", s);
