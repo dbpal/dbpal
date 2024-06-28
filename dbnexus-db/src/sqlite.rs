@@ -385,12 +385,21 @@ impl DBTrait for SqliteDB {
         }
     }
 
-    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+
+        anyhow::Ok(())
     }
-    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
-        unimplemented!()
+
+    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let sql = format!("ALTER TABLE {from} RENAME TO {to}");
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
     }
+
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
         let sql = format!(
             r#"

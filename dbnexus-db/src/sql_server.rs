@@ -308,14 +308,40 @@ impl CheckConn for SqlServer {
     }
 }
 
+impl SqlServer {
+    async fn execute_simple_execute(&self, sql: &str) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.simple_query(sql).await?;
+        while let Some(item) = stream.next().await {
+            let _item = item?;
+        }
+        anyhow::Ok(())
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for SqlServer {
-    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"
+            SELECT * INTO {table} FROM {dup} 
+        "#
+        );
+        self.execute_simple_execute(sql.as_str()).await
     }
-    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
-        unimplemented!()
+
+    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"
+            ALTER SCHEMA dbo
+            RENAME OBJECT '{from}' TO '{to}';
+        "#
+        );
+        self.execute_simple_execute(&sql).await
     }
+
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
         let sql = format!(
             r#"
@@ -650,13 +676,13 @@ impl DBTrait for SqlServer {
         let sql = format!(
             r#"
         SELECT
-    i.name AS IndexName,
-    i.is_unique AS IsUnique,
-    c.name AS ColumnName
-FROM sys.indexes AS i
-INNER JOIN sys.index_columns AS ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
-INNER JOIN sys.columns AS c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-WHERE i.object_id = OBJECT_ID('{table_name}')
+            i.name AS IndexName,
+            i.is_unique AS IsUnique,
+            c.name AS ColumnName
+        FROM sys.indexes AS i
+        INNER JOIN sys.index_columns AS ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+        INNER JOIN sys.columns AS c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+        WHERE i.object_id = OBJECT_ID('{table_name}')
         "#
         );
 

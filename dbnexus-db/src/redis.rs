@@ -294,11 +294,15 @@ impl FormatSql for RedisDB {
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
     async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        unimplemented!()
+        anyhow::bail!("duplicate key for redis is not supported")
     }
-    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
-        unimplemented!()
+
+    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        conn.rename(from, to).await?;
+        anyhow::Ok(())
     }
+
     fn read_only(&self) -> bool {
         self.read_only
     }

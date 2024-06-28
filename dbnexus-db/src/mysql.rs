@@ -379,11 +379,17 @@ impl DBTrait for MysqlDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
-    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
     }
-    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()> {
+        let sql = format!("RENAME TABLE {from} TO {to}");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
     }
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;

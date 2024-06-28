@@ -401,3 +401,28 @@ pub async fn show_trigger(
         .await
         .map_err(|e| e.to_string())
 }
+#[tauri::command]
+pub async fn rename_table(
+    uuid: String, from: String, to: String, dbs: tauri::State<'_, App>,
+) -> Result<(), String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    db.rename_table(&from, &to).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn duplicate_table(
+    uuid: String, from: String, to: String, dbs: tauri::State<'_, App>,
+) -> Result<(), String> {
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    db.duplicate_table(&from, &to)
+        .await
+        .map_err(|e| e.to_string())
+}
