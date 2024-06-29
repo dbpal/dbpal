@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
+use bson::Document;
 use dbnexus_db::db::{
-    ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, RedisListTable,
+    DBTrait, ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, RedisListTable,
     SqlExecuteRet, TableListResp, TriggerDetail,
 };
+use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 
 use crate::storage::{self, App, DBConnectionConfig, UserSettings};
@@ -426,4 +428,78 @@ pub async fn duplicate_table(
     db.duplicate_table(&from, &to)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn mongo_insert(
+    uuid: String, table: String, doc: String, dbs: tauri::State<'_, App>,
+) -> Result<mongodb::results::InsertOneResult, String> {
+    let doc = parse_bson_doc(doc.as_str())?;
+
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.insert(table.as_str(), doc).await,
+        None => return Err(format!("db '{}' not mongo", uuid)),
+    }
+    .map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn mongo_update(
+    uuid: String, table: String, update: String, query: String, dbs: tauri::State<'_, App>,
+) -> Result<mongodb::results::UpdateResult, String> {
+    let update = parse_bson_doc(update.as_str())?;
+    let query = parse_bson_doc(query.as_str())?;
+
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.update(table.as_str(), update, query).await,
+        None => return Err(format!("db '{}' not mongo", uuid)),
+    }
+    .map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn mongo_delete(
+    uuid: String, table: String, query: String, dbs: tauri::State<'_, App>,
+) -> Result<mongodb::results::DeleteResult, String> {
+    let query = parse_bson_doc(query.as_str())?;
+
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.delete(table.as_str(), query).await,
+        None => return Err(format!("db '{}' not mongo", uuid)),
+    }
+    .map_err(|e| e.to_string())
+}
+
+fn encode_bson_doc_to_string(doc: &bson::Document) -> Result<String, String> {
+    let bs = bson::to_vec(&doc).map_err(|e| e.to_string())?;
+    let x = hex::encode_upper(&bs);
+    Ok(x)
+}
+
+fn parse_bson_doc(s: &str) -> Result<Document, String> {
+    let bs = hex::decode(s).map_err(|e| e.to_string())?;
+    let doc = bson::Document::from_reader(std::io::Cursor::new(bs)).map_err(|e| e.to_string())?;
+    Ok(doc)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bson_serial() {
+        let d = bson::doc! {"x" : 1 ,"b" : 2};
+        let d2 = parse_bson_doc(encode_bson_doc_to_string(&d).unwrap().as_str());
+        assert!(format!("{:?}", d), format!("{:?}", d2));
+    }
 }

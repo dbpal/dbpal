@@ -168,7 +168,7 @@ impl Mongo {
         anyhow::Ok(ret)
     }
 
-    pub async fn bson_update(
+    pub async fn update(
         &self, table: &str, update: Document, query: Document,
     ) -> anyhow::Result<UpdateResult> {
         let db = self.get_db().await?;
