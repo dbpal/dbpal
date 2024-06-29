@@ -1,13 +1,11 @@
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
+use std::collections::HashMap;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use mongodb::bson::oid::ObjectId;
-use mongodb::bson::{doc, Bson, Document};
-use mongodb::options::{FindOptions, UpdateOptions};
-use serde_json::Value;
+use mongodb::bson::{doc, Document};
+use mongodb::options::FindOptions;
+use mongodb::results::{DeleteResult, InsertOneResult, UpdateResult};
 
 use crate::datasource::{self, MongoDataSource};
 use crate::db::{
@@ -35,59 +33,109 @@ impl Mongo {
         }
     }
 }
-fn infer_schema(v: &serde_json::Value) -> Vec<Field> {
-    match v {
-        serde_json::Value::Object(x) => {
-            let mut ret = Vec::with_capacity(x.len());
-            for (k, v) in x.iter() {
-                let typ = match v {
-                    serde_json::Value::Null => "null",
-                    serde_json::Value::Bool(_) => "bool",
-                    serde_json::Value::Number(_) => "number",
-                    serde_json::Value::String(_) => "string",
-                    serde_json::Value::Array(_) => "array",
-                    serde_json::Value::Object(_) => "object",
-                };
-                ret.push(Field::from_name_type(k.as_str(), typ));
-            }
-            ret
-        }
 
-        _ => vec![],
+fn collect_table_resp_vec(bs: &[bson::Bson]) -> anyhow::Result<String> {
+    if bs.len() == 0 {
+        return anyhow::Ok("[]".to_string());
     }
-}
-
-fn infer_multi_value_column_names(vs: &[serde_json::Value]) -> anyhow::Result<Vec<String>> {
-    let mut ret = Vec::new();
-    let mut key_set = HashSet::new();
-
-    for v in vs.iter() {
-        match v {
-            serde_json::Value::Object(x) => {
-                for k in x.keys() {
-                    if !key_set.contains(k) {
-                        ret.push(k.clone());
-                        key_set.insert(k.clone());
-                    }
-                }
-            }
-            _ => {
-                anyhow::bail!("top value is not a object")
-            }
+    let last = bs.len() - 1;
+    let mut ret = "[".to_string();
+    for (index, b) in bs.iter().enumerate() {
+        let v = bson_value_to_string(b)?.unwrap_or("null".to_string());
+        ret.push_str(v.as_str());
+        if index != last {
+            ret.push(',');
         }
     }
+    ret.push(']');
+
     anyhow::Ok(ret)
 }
 
-fn value_to_frontend(v: &Value) -> String {
-    match v {
-        Value::Null => "null".to_string(),
-        Value::Bool(x) => x.to_string(),
-        Value::Number(x) => x.to_string(),
-        Value::String(x) => x.to_string(),
-        Value::Array(_) => v.to_string(),
-        Value::Object(_) => v.to_string(),
+fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
+    let value = match b {
+        bson::Bson::Double(x) => Some(x.to_string()),
+        bson::Bson::String(x) => Some(x.to_string()),
+        bson::Bson::Array(x) => Some(collect_table_resp_vec(&x[..])?),
+        bson::Bson::Document(x) => Some(x.to_string()),
+        bson::Bson::Boolean(x) => Some(x.to_string()),
+        bson::Bson::Null => None,
+        bson::Bson::RegularExpression(x) => Some(x.to_string()),
+        bson::Bson::JavaScriptCode(x) => Some(x.to_string()),
+        bson::Bson::JavaScriptCodeWithScope(x) => Some(x.to_string()),
+        bson::Bson::Int32(x) => Some(x.to_string()),
+        bson::Bson::Int64(x) => Some(x.to_string()),
+        bson::Bson::Timestamp(x) => Some(x.to_string()),
+        bson::Bson::Binary(x) => Some(x.to_string()),
+        bson::Bson::ObjectId(x) => Some(x.to_string()),
+        bson::Bson::DateTime(x) => Some(x.to_string()),
+        bson::Bson::Symbol(x) => Some(x.to_string()),
+        bson::Bson::Decimal128(x) => Some(x.to_string()),
+        bson::Bson::Undefined => None,
+        bson::Bson::MaxKey | bson::Bson::MinKey | bson::Bson::DbPointer(_) => {
+            anyhow::bail!("should not handle those value")
+        }
+    };
+
+    anyhow::Ok(value)
+}
+fn collect_table_resp(
+    fs: &Vec<Field>, docs: &[Document],
+) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+    let mut ret = Vec::with_capacity(docs.len());
+    for doc in docs.iter() {
+        let mut values = vec![];
+        for f in fs.iter() {
+            let value = doc
+                .get(&f.name)
+                .map(|b| bson_value_to_string(b).ok())
+                .flatten()
+                .flatten();
+
+            values.push(value);
+        }
+        ret.push(values);
     }
+
+    anyhow::Ok(ret)
+}
+
+fn infer_multi_value_column_names(docs: &[Document]) -> anyhow::Result<Vec<Field>> {
+    let mut ret: HashMap<String, Field> = HashMap::new();
+    for doc in docs.iter() {
+        for (k, v) in doc.iter() {
+            if ret.contains_key(k) {
+                continue;
+            }
+            let ty = match v {
+                bson::Bson::Double(_) => "double",
+                bson::Bson::String(_) => "string",
+                bson::Bson::Array(_) => "array",
+                bson::Bson::Document(_) => "document",
+                bson::Bson::Boolean(_) => "bool",
+                bson::Bson::Null => "null",
+                bson::Bson::RegularExpression(_) => "regexp",
+                bson::Bson::JavaScriptCode(_) => "jscode",
+                bson::Bson::JavaScriptCodeWithScope(_) => "jscode",
+                bson::Bson::Int32(_) => "int32",
+                bson::Bson::Int64(_) => "int64",
+                bson::Bson::Timestamp(_) => "timestamp",
+                bson::Bson::Binary(_) => "binary",
+                bson::Bson::ObjectId(_) => "object_id",
+                bson::Bson::DateTime(_) => "datetime",
+                bson::Bson::Symbol(_) => "symbol",
+                bson::Bson::Decimal128(_) => "decimal128",
+                bson::Bson::Undefined => "undefined",
+                bson::Bson::MaxKey => continue,
+                bson::Bson::MinKey => continue,
+                // Deprecated
+                bson::Bson::DbPointer(_) => continue,
+            };
+            ret.insert(k.clone(), Field::from_name_type(k.as_str(), ty));
+        }
+    }
+
+    anyhow::Ok(ret.into_iter().map(|(_, v)| v).collect())
 }
 
 #[async_trait::async_trait]
@@ -109,12 +157,103 @@ impl FormatSql for Mongo {
     }
 }
 
+impl Mongo {
+    /// normal `insert` , `update` ,`delete` works very bad with mongodb
+    pub async fn insert(&self, table: &str, doc: Document) -> anyhow::Result<InsertOneResult> {
+        let db = self.get_db().await?;
+        let ret = db
+            .collection::<Document>(table)
+            .insert_one(doc, None)
+            .await?;
+        anyhow::Ok(ret)
+    }
+
+    pub async fn bson_update(
+        &self, table: &str, update: Document, query: Document,
+    ) -> anyhow::Result<UpdateResult> {
+        let db = self.get_db().await?;
+        let ret = db
+            .collection::<Document>(table)
+            .update_many(query, update, None)
+            .await?;
+        anyhow::Ok(ret)
+    }
+
+    pub async fn delete(&self, table: &str, query: Document) -> anyhow::Result<DeleteResult> {
+        let db = self.get_db().await?;
+        let ret = db
+            .collection::<Document>(table)
+            .delete_many(query, None)
+            .await?;
+        anyhow::Ok(ret)
+    }
+
+    pub async fn show_table(
+        &self, table: &str, filter: Document, order_by: Document, page: usize, page_size: usize,
+    ) -> anyhow::Result<TableListResp> {
+        let options = FindOptions::builder()
+            .skip(Some(((page - 1) * page_size) as u64))
+            .limit(page_size as i64)
+            .sort(order_by)
+            .build();
+        let db = self.get_db().await?;
+        let count = db
+            .collection::<u64>(table)
+            .count_documents(filter.clone(), None)
+            .await?;
+        let mut stream = db
+            .collection::<Document>(table)
+            .find(filter, options)
+            .await?;
+        let mut docs = Vec::with_capacity(page_size);
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            docs.push(item);
+        }
+        let cols = infer_multi_value_column_names(&docs[..])?;
+        let data = collect_table_resp(&cols, docs.as_slice())?;
+
+        anyhow::Ok(TableListResp::new(cols, count as usize, data, None))
+    }
+
+    pub async fn show_table_docs(
+        &self, table: &str, filter: Document, order_by: Document, page: usize, page_size: usize,
+    ) -> anyhow::Result<DocsAndCount> {
+        let options = FindOptions::builder()
+            .skip(Some(((page - 1) * page_size) as u64))
+            .limit(page_size as i64)
+            .sort(order_by)
+            .build();
+        let db = self.get_db().await?;
+        let count = db
+            .collection::<u64>(table)
+            .count_documents(filter.clone(), None)
+            .await?;
+        let mut stream = db
+            .collection::<Document>(table)
+            .find(filter, options)
+            .await?;
+        let mut docs = Vec::with_capacity(page_size);
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            docs.push(item);
+        }
+        anyhow::Ok(DocsAndCount { docs, count })
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DocsAndCount {
+    docs: Vec<Document>,
+    count: u64,
+}
+
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
     async fn duplicate_table(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
         let db = self.get_db().await?;
-        let old_table = db.collection::<bson::Document>(old_table);
-        let new_table = db.collection::<bson::Document>(dup);
+        let old_table = db.collection::<Document>(old_table);
+        let new_table = db.collection::<Document>(dup);
         let mut stream = old_table.find(None, None).await?;
 
         while let Some(d) = stream.next().await {
@@ -168,7 +307,7 @@ impl DBTrait for Mongo {
         };
         let db = self.get_db().await?;
         let mut stream = db
-            .collection::<serde_json::Value>(table_name)
+            .collection::<Document>(table_name)
             .find(None, None)
             .await?;
         sender.send(Cow::Borrowed("[")).await?;
@@ -220,9 +359,7 @@ impl DBTrait for Mongo {
         self.can_write()?;
 
         let conn = self.get_db().await?;
-        conn.collection::<serde_json::Value>(table)
-            .drop(None)
-            .await?;
+        conn.collection::<Document>(table).drop(None).await?;
 
         anyhow::Ok(())
     }
@@ -239,104 +376,27 @@ impl DBTrait for Mongo {
 
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let db = self.get_db().await?;
-        let value: Option<serde_json::Value> =
-            db.collection(table_name).find_one(None, None).await?;
+        let value: Option<Document> = db.collection(table_name).find_one(None, None).await?;
         if value.is_none() {
             return anyhow::Ok(vec![]);
         }
-        let value = value.as_ref().unwrap();
-        anyhow::Ok(infer_schema(&value))
+        let value = value.unwrap();
+        let cols = infer_multi_value_column_names(&vec![value][..])?;
+
+        anyhow::Ok(cols)
     }
 
     async fn show_table(
-        &self, table_name: &str, filter: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        &self, _table_name: &str, _filter: Option<&str>, _order_by: Option<&str>, _page: usize,
+        _page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        let db = self.get_db().await?;
-        let order_by = if let Some(order_by) = order_by {
-            let v = serde_json::from_str(order_by)?;
-            let v = match v {
-                serde_json::Value::Object(x) => x,
-                _ => {
-                    anyhow::bail!("order str must be an object")
-                }
-            };
-            Some(Document::try_from(v)?)
-        } else {
-            None
-        };
-        let options = FindOptions::builder()
-            .skip(Some(((page - 1) * page_size) as u64))
-            .limit(page_size as i64)
-            .sort(order_by)
-            .build();
-
-        let filter = if let Some(where_str) = filter {
-            let v = serde_json::from_str(where_str)?;
-            let v = match v {
-                serde_json::Value::Object(x) => x,
-                _ => {
-                    anyhow::bail!("where str must be an object")
-                }
-            };
-            Some(Document::try_from(v)?)
-        } else {
-            None
-        };
-
-        let count = db
-            .collection::<u64>(table_name)
-            .count_documents(filter.clone(), None)
-            .await?;
-
-        let mut stream = db
-            .collection::<serde_json::Value>(table_name)
-            .find(filter, Some(options))
-            .await?;
-        let mut values = Vec::new();
-        while let Some(v) = stream.next().await {
-            let v = v?;
-            values.push(v);
-        }
-        let cols = infer_multi_value_column_names(&values)?;
-        let mut data = Vec::with_capacity(cols.len());
-
-        for v in values.iter() {
-            let map = match v {
-                serde_json::Value::Object(m) => m,
-                _ => anyhow::bail!("document '{}' is not an object", v),
-            };
-            let mut values = Vec::new();
-            for (_index, c) in cols.iter().enumerate() {
-                let value = map.get(c).map(|x| {
-                    let x = if c == "_id" {
-                        x.as_object()
-                            .expect("this must be an object")
-                            .get("$oid")
-                            .expect("must have this field")
-                    } else {
-                        x
-                    };
-                    value_to_frontend(x)
-                });
-                values.push(value);
-            }
-            data.push(values);
-        }
-        anyhow::Ok(TableListResp::new(
-            cols.into_iter()
-                .map(|x| Field::from_name_type(x, ""))
-                .collect(),
-            count as usize,
-            data,
-            "",
-        ))
+        anyhow::bail!("use mongo show_tablee")
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let db = self.get_db().await?;
         let mut stream = db
-            .collection::<serde_json::Value>(table_name)
+            .collection::<Document>(table_name)
             .list_indexes(None)
             .await?;
         let mut ret = Vec::new();
@@ -369,7 +429,7 @@ impl DBTrait for Mongo {
 
     async fn update(
         &self, _table_name: &str, _values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         anyhow::bail!("use mongo update")
     }
@@ -378,7 +438,7 @@ impl DBTrait for Mongo {
         self.can_write()?;
 
         let db = self.get_db().await?;
-        db.collection::<serde_json::Value>(table_name)
+        db.collection::<Document>(table_name)
             .delete_many(doc! {}, None)
             .await?;
 
@@ -386,7 +446,7 @@ impl DBTrait for Mongo {
     }
 
     async fn delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
+        &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         anyhow::bail!("use mongo delete")
     }
@@ -428,25 +488,11 @@ impl Mongo {
     }
 }
 
-// our parameter accept a value as `HashMap<String, Option<String>>`
-// as match for sql `null` , but mongodb have no null type
-fn check_input_none_string(
-    hashmap: &HashMap<String, Option<String>>,
-) -> anyhow::Result<HashMap<&String, &String>> {
-    let mut m = HashMap::new();
-    for (k, v) in hashmap.iter() {
-        if v.is_none() {
-            anyhow::bail!("k '{}' is none", k);
-        }
-        m.insert(k, v.as_ref().unwrap());
-    }
-    anyhow::Ok(m)
-}
-
 #[cfg(test)]
 
 mod tests {
-    use std::collections::HashMap;
+
+    use bson::Document;
 
     use super::Mongo;
     use crate::datasource::MongoDataSource;
@@ -481,7 +527,7 @@ mod tests {
         let _ = db_trait.drop_table(&table_name).await;
         let _ = db_trait.drop_table(&table_name2).await;
         let database = db.get_db().await.unwrap();
-        let c = database.collection::<bson::Document>(&table_name);
+        let c = database.collection::<Document>(&table_name);
         let d = bson::doc! {"name" : 123};
         c.insert_one(d, None).await.unwrap();
 
@@ -518,91 +564,6 @@ mod tests {
     async fn test2() {
         init_log();
 
-        let table_name = "users";
-        let oj = make_test_object();
-        {
-            let db = oj.get_db().await.unwrap();
-            let _ = db
-                .collection::<serde_json::Value>(table_name)
-                .drop(None)
-                .await;
-        }
-        let db = &oj as &dyn crate::db::DBTrait;
-
-        {
-            let mut values = HashMap::new();
-
-            values.insert("email".to_string(), Some("a@qq.com".to_string()));
-            values.insert(
-                "password".to_string(),
-                Some(
-                    r#"
-                ["111", "222"]
-            "#
-                    .to_string(),
-                ),
-            );
-
-            db.insert(table_name, values).await.unwrap();
-        }
-
-        {
-            let mut values = HashMap::new();
-
-            values.insert("email".to_string(), Some("b@qq.com".to_string()));
-            values.insert(
-                "password".to_string(),
-                Some(
-                    r#"
-                {"a":123,"b":456}
-            "#
-                    .to_string(),
-                ),
-            );
-            let ret = db.insert(table_name, values.clone()).await.unwrap();
-            println!("ret{:?}", ret);
-
-            values.insert("email".to_string(), Some("c@qq.com".to_string()));
-            values.remove(&"password".to_string());
-            let changes = db
-                .update(table_name, values, {
-                    let mut wheres = HashMap::new();
-                    wheres.insert(
-                        "_id".to_string(),
-                        Some(ret.last_insert_id_string.clone().unwrap()),
-                    );
-
-                    wheres
-                })
-                .await
-                .unwrap();
-            assert_eq!(changes.changes, 1);
-            db.delete(table_name, {
-                let mut wheres = HashMap::new();
-                wheres.insert("_id".to_string(), Some(ret.last_insert_id_string.unwrap()));
-                wheres
-            })
-            .await
-            .unwrap();
-            assert_eq!(changes.changes, 1);
-        }
-
-        let indexes = db.show_indexes(table_name).await.unwrap();
-        println!("indexes:{:?}", indexes);
-        let list = db.show_table(table_name, None, None, 1, 100).await.unwrap();
-        println!("indexes:{:?}", list);
-
-        let export_str = db
-            .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
-            .await
-            .unwrap();
-        println!("export_str:{}", export_str);
-        let export_str = db
-            .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: false })
-            .await
-            .unwrap();
-        println!("export_str2:{}", export_str);
-
-        db.drop_table(table_name).await.unwrap();
+        // TODO Test
     }
 }

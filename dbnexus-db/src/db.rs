@@ -506,7 +506,7 @@ pub struct TableListResp {
     pub(crate) fields: Vec<Field>,
     pub(crate) total: usize,
     pub(crate) data: Vec<Vec<Option<String>>>,
-    pub(crate) sql: String,
+    pub(crate) sql: Option<String>,
 }
 
 impl TableListResp {
@@ -530,7 +530,8 @@ impl TableListResp {
     }
 
     pub fn new(
-        fields: Vec<Field>, total: usize, data: Vec<Vec<Option<String>>>, sql: impl Into<String>,
+        fields: Vec<Field>, total: usize, data: Vec<Vec<Option<String>>>,
+        sql: impl Into<Option<String>>,
     ) -> Self {
         let sql = sql.into();
         let ret = Self {
@@ -545,7 +546,7 @@ impl TableListResp {
     }
 
     pub fn result(
-        col_name: impl Into<String>, sql: impl Into<String>, result: Vec<Option<String>>,
+        col_name: impl Into<String>, sql: impl Into<Option<String>>, result: Vec<Option<String>>,
     ) -> Self {
         let sql = sql.into();
         let col_name = col_name.into();
