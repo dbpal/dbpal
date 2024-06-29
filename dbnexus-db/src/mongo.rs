@@ -362,88 +362,16 @@ impl DBTrait for Mongo {
     }
 
     async fn insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        // self.can_write()?;
-
-        // let values = {
-        //     let mut value_json = HashMap::new();
-        //     for (k, v) in check_input_none_string(&values)?.iter() {
-        //         let newv = serde_json::Value::from_str(v.as_str())
-        //             .ok()
-        //             .unwrap_or(serde_json::Value::from(v.as_str()));
-        //         log::trace!("str:{:?} as '{:?}'", v.as_str(), newv);
-        //         value_json.insert((*k).clone(), newv);
-        //     }
-        //     value_json
-        // };
-        // let db = self.get_db().await?;
-        // let ret = db.collection(table_name).insert_one(values, None).await?;
-        // log::trace!("insert id:{}", ret.inserted_id);
-
-        // anyhow::Ok(SqlExecuteRet {
-        //     sql: "".to_string(),
-        //     changes: 1,
-        //     last_insert_row_id: None,
-        //     last_insert_id_string: Some(match &ret.inserted_id {
-        //         Bson::ObjectId(x) => x.to_string(),
-        //         _ => unreachable!(),
-        //     }),
-        // })
+        anyhow::bail!("use mongo insert")
     }
 
     async fn update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let mut update_by_id = None;
-
-        let wheres = {
-            let mut value_json = serde_json::Map::new();
-            for (k, v) in check_input_none_string(&wheres)?.iter() {
-                let newv = serde_json::from_str(v.as_str())
-                    .ok()
-                    .unwrap_or(serde_json::Value::from(v.as_str()));
-                if k.as_str() == "_id" {
-                    update_by_id = Some((*v).clone());
-                }
-                value_json.insert((*k).clone(), newv);
-            }
-            value_json
-        };
-
-        let values = {
-            let mut value_json = serde_json::Map::new();
-            for (k, v) in check_input_none_string(&values)?.iter() {
-                let newv =
-                    serde_json::from_str(v.as_str()).unwrap_or(serde_json::Value::from(v.as_str()));
-                value_json.insert((*k).clone(), newv);
-            }
-
-            value_json
-        };
-        let wheres = match update_by_id {
-            Some(x) => {
-                doc! {"_id" : ObjectId::from_str(x.as_str()).expect(format!("id:{:?}" ,x ).as_str()) }
-            }
-            _ => Document::try_from(wheres)?,
-        };
-        let values = {
-            let mut m = serde_json::Map::new();
-            m.insert("$set".to_string(), serde_json::Value::Object(values));
-            m
-        };
-        let values = Document::try_from(values)?;
-        let options = UpdateOptions::default();
-        let db = self.get_db().await?;
-        let ret = db
-            .collection::<Document>(table_name)
-            .update_many(wheres, values, options)
-            .await?;
-
-        anyhow::Ok(SqlExecuteRet::from(ret.modified_count))
+        anyhow::bail!("use mongo update")
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
@@ -460,37 +388,7 @@ impl DBTrait for Mongo {
     async fn delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let mut update_by_id = None;
-        let wheres = {
-            let mut value_json = serde_json::Map::new();
-            for (k, v) in check_input_none_string(&wheres)?.iter() {
-                let newv = serde_json::from_str(v.as_str())
-                    .ok()
-                    .unwrap_or(serde_json::Value::from((*v).as_str()));
-                if k.as_str() == "_id" {
-                    update_by_id = Some((*v).clone());
-                    break;
-                }
-                value_json.insert((*k).clone(), newv);
-            }
-            value_json
-        };
-        let db = self.get_db().await?;
-        let wheres = match update_by_id {
-            Some(x) => {
-                doc! {"_id" : ObjectId::from_str(x.as_str()).expect(format!("id:{:?} is not right" ,x ).as_str()) }
-            }
-            _ => Document::try_from(wheres)?,
-        };
-
-        let ret = db
-            .collection::<serde_json::Value>(table_name)
-            .delete_many(Document::try_from(wheres)?, None)
-            .await?;
-
-        anyhow::Ok(SqlExecuteRet::from(ret.deleted_count))
+        anyhow::bail!("use mongo delete")
     }
 }
 
