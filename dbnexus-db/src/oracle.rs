@@ -655,12 +655,11 @@ impl OracleDB {
         anyhow::Ok(())
     }
 
-    async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    async fn export_query_result_as_json_line(
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
 
-        let sql = format!("SELECT * from {}", table_name);
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         for r in rows {
@@ -674,12 +673,18 @@ impl OracleDB {
         anyhow::Ok(())
     }
 
-    async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    async fn export_table_as_json_line(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        self.export_query_result_as_json_line(&sql, sender).await
+    }
+
+    async fn export_query_result_as_json(
+        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
 
-        let sql = format!("SELECT * from {}", table_name);
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         let json = encode_rows_as_json(rows)?;
@@ -692,11 +697,51 @@ impl OracleDB {
         anyhow::Ok(())
     }
 
+    async fn export_table_as_json(
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        self.export_query_result_as_json(&sql, pretty, sender).await
+    }
+
+    async fn export_query_result_as_csv(
+        &self,
+        sql: &str,
+        include_header: bool, // include header if possible,
+        delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
+        let rows: Vec<_> = rows.collect();
+        if include_header && rows.len() > 0 {
+            let fs = match rows.get(0).unwrap() {
+                Ok(x) => {
+                    x.column_info()
+                        .iter()
+                        .map(|x| Some(x.name().to_owned()))
+                        .collect::<Vec<_>>()
+                }
+                Err(_) => vec![],
+            };
+
+            sender
+                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                .await?;
+        }
+
+        let data = encode_rows(rows, false)?;
+        sender
+            .send(Cow::Owned(create_csv(&data, delimiter)))
+            .await?;
+        anyhow::Ok(())
+    }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
         if include_header {
             let fs = self.show_columns(table_name).await?;
             let fs = fs.iter().map(|x| Some(x.name.clone())).collect::<Vec<_>>();
@@ -704,15 +749,12 @@ impl OracleDB {
                 .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
                 .await?;
         }
-
         let sql = format!("SELECT * from {}", table_name);
-        let rows = block_in_place(|| conn.query(&sql, &[]))?;
-        let rows: Vec<_> = rows.collect();
-        let data = encode_rows(rows, false)?;
-        sender
-            .send(Cow::Owned(create_csv(&data, delimiter)))
-            .await?;
-        anyhow::Ok(())
+        self.export_query_result_as_csv(
+            &sql, false, // we have emit header before
+            delimiter, sender,
+        )
+        .await
     }
 }
 
@@ -728,9 +770,29 @@ impl CheckConn for OracleDB {
 
 #[async_trait::async_trait]
 impl DBTrait for OracleDB {
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
+    }
+
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
-        println!("!@@@:{}", sql);
 
         let conn = self.get_conn().await?;
         block_in_place(|| conn.execute(&sql, &[]))?;
