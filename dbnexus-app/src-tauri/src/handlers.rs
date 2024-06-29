@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bson::Document;
 use dbnexus_db::db::{
-    DBTrait, ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, RedisListTable,
+    ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, RedisListTable,
     SqlExecuteRet, TableListResp, TriggerDetail,
 };
 use dbnexus_db::mongo::Mongo;
@@ -432,9 +432,9 @@ pub async fn duplicate_table(
 
 #[tauri::command]
 pub async fn mongo_insert(
-    uuid: String, table: String, doc: String, dbs: tauri::State<'_, App>,
+    uuid: String, table: String, doc: Vec<u8>, dbs: tauri::State<'_, App>,
 ) -> Result<mongodb::results::InsertOneResult, String> {
-    let doc = parse_bson_doc(doc.as_str())?;
+    let doc = parse_bson_doc(doc.as_slice())?;
 
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -448,10 +448,10 @@ pub async fn mongo_insert(
 }
 #[tauri::command]
 pub async fn mongo_update(
-    uuid: String, table: String, update: String, query: String, dbs: tauri::State<'_, App>,
+    uuid: String, table: String, update: Vec<u8>, query: Vec<u8>, dbs: tauri::State<'_, App>,
 ) -> Result<mongodb::results::UpdateResult, String> {
-    let update = parse_bson_doc(update.as_str())?;
-    let query = parse_bson_doc(query.as_str())?;
+    let update = parse_bson_doc(update.as_slice())?;
+    let query = parse_bson_doc(query.as_slice())?;
 
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -465,9 +465,9 @@ pub async fn mongo_update(
 }
 #[tauri::command]
 pub async fn mongo_delete(
-    uuid: String, table: String, query: String, dbs: tauri::State<'_, App>,
+    uuid: String, table: String, query: Vec<u8>, dbs: tauri::State<'_, App>,
 ) -> Result<mongodb::results::DeleteResult, String> {
-    let query = parse_bson_doc(query.as_str())?;
+    let query = parse_bson_doc(query.as_slice())?;
 
     let db = dbs
         .get_one_db(uuid.as_str())
@@ -479,15 +479,79 @@ pub async fn mongo_delete(
     }
     .map_err(|e| e.to_string())
 }
-
-fn encode_bson_doc_to_string(doc: &bson::Document) -> Result<String, String> {
-    let bs = bson::to_vec(&doc).map_err(|e| e.to_string())?;
-    let x = hex::encode_upper(&bs);
-    Ok(x)
+#[tauri::command]
+pub async fn mongo_show_table(
+    uuid: String, table: String, filter: Vec<u8>, order_by: Vec<u8>, page: usize, page_size: usize,
+    dbs: tauri::State<'_, App>,
+) -> Result<TableListResp, String> {
+    let filter = parse_bson_doc(filter.as_slice())?;
+    let order_by = parse_bson_doc(order_by.as_slice())?;
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.show_table(table.as_str(), filter, order_by, page, page_size)
+                .await
+        }
+        None => return Err(format!("db '{}' not mongo", uuid)),
+    }
+    .map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub async fn mongo_show_table_docs(
+    uuid: String, table: String, filter: Vec<u8>, order_by: Vec<u8>, page: usize, page_size: usize,
+    dbs: tauri::State<'_, App>,
+) -> Result<DocsAndCount, String> {
+    let filter = parse_bson_doc(filter.as_slice())?;
+    let order_by = parse_bson_doc(order_by.as_slice())?;
+    let db = dbs
+        .get_one_db(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let docs = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.show_table_docs(table.as_str(), filter, order_by, page, page_size)
+                .await
+        }
+        None => return Err(format!("db '{}' not mongo", uuid)),
+    }
+    .map_err(|e| e.to_string())?;
+    DocsAndCount::try_from(docs)
 }
 
-fn parse_bson_doc(s: &str) -> Result<Document, String> {
-    let bs = hex::decode(s).map_err(|e| e.to_string())?;
+#[derive(serde::Serialize)]
+pub struct DocsAndCount {
+    count: u64,
+    /// list of docs in bson format.
+    /// use this library to parse.
+    /// https://github.com/mongodb/js-bson
+    docs: Vec<Vec<u8>>,
+}
+
+impl TryFrom<dbnexus_db::mongo::DocsAndCount> for DocsAndCount {
+    type Error = String;
+
+    fn try_from(value: dbnexus_db::mongo::DocsAndCount) -> Result<Self, Self::Error> {
+        let mut vec = Vec::with_capacity(value.docs.len());
+        for index in 0..value.docs.len() {
+            let bs = encode_bson_doc(&value.docs[index])?;
+            vec.push(bs);
+        }
+        Ok(Self {
+            count: value.count,
+            docs: vec,
+        })
+    }
+}
+fn encode_bson_doc(doc: &bson::Document) -> Result<Vec<u8>, String> {
+    let bs = bson::to_vec(&doc).map_err(|e| e.to_string())?;
+
+    Ok(bs)
+}
+
+fn parse_bson_doc(bs: &[u8]) -> Result<Document, String> {
     let doc = bson::Document::from_reader(std::io::Cursor::new(bs)).map_err(|e| e.to_string())?;
     Ok(doc)
 }
@@ -499,7 +563,7 @@ mod tests {
     #[test]
     fn test_bson_serial() {
         let d = bson::doc! {"x" : 1 ,"b" : 2};
-        let d2 = parse_bson_doc(encode_bson_doc_to_string(&d).unwrap().as_str());
-        assert!(format!("{:?}", d), format!("{:?}", d2));
+        let d2 = parse_bson_doc(&encode_bson_doc(&d).unwrap()).unwrap();
+        assert_eq!(format!("{:?}", d), format!("{:?}", d2));
     }
 }

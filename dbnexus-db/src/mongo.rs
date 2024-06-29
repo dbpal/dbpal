@@ -244,8 +244,8 @@ impl Mongo {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DocsAndCount {
-    docs: Vec<Document>,
-    count: u64,
+    pub docs: Vec<Document>,
+    pub count: u64,
 }
 
 #[async_trait::async_trait]
