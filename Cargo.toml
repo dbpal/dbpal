@@ -68,3 +68,4 @@ pg_interval = "*"
 uuid = { version = "*", features = ["v4"] }
 typescript-type-def = "0.5.11"
 sqlformat = "0.2.4"
+bson = { version = "*" }

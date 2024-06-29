@@ -890,6 +890,7 @@ dependencies = [
  "bb8",
  "bb8-tiberius",
  "bit-vec",
+ "bson",
  "chrono",
  "dashmap",
  "futures-core",

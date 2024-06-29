@@ -95,6 +95,7 @@ impl CheckConn for Mongo {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         let _db = self.get_db().await?;
+
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -110,12 +111,39 @@ impl FormatSql for Mongo {
 
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
-    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn duplicate_table(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
+        let db = self.get_db().await?;
+        let old_table = db.collection::<bson::Document>(old_table);
+        let new_table = db.collection::<bson::Document>(dup);
+        let mut stream = old_table.find(None, None).await?;
+
+        while let Some(d) = stream.next().await {
+            let d = match d {
+                Ok(d) => d,
+                Err(x) => {
+                    new_table.drop(None).await?;
+                    return Err(x.into());
+                }
+            };
+
+            match new_table.insert_one(d, None).await {
+                Ok(_) => {}
+                Err(x) => {
+                    new_table.drop(None).await?;
+                    return Err(x.into());
+                }
+            }
+        }
+        anyhow::Ok(())
     }
 
     async fn rename_table(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
-        unimplemented!()
+        // let cmd = bson::doc! { "renameCollection": old , "to": new};
+        // let db = self.get_db().await?;
+        // db.run_command(cmd, None).await?;
+        // anyhow::Ok(())
+
+        anyhow::bail!("somehow need admin database,againt design right now")
     }
 
     fn read_only(&self) -> bool {
@@ -336,32 +364,32 @@ impl DBTrait for Mongo {
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
+        // self.can_write()?;
 
-        let values = {
-            let mut value_json = HashMap::new();
-            for (k, v) in check_input_none_string(&values)?.iter() {
-                let newv = serde_json::Value::from_str(v.as_str())
-                    .ok()
-                    .unwrap_or(serde_json::Value::from(v.as_str()));
-                log::trace!("str:{:?} as '{:?}'", v.as_str(), newv);
-                value_json.insert((*k).clone(), newv);
-            }
-            value_json
-        };
-        let db = self.get_db().await?;
-        let ret = db.collection(table_name).insert_one(values, None).await?;
-        log::trace!("insert id:{}", ret.inserted_id);
+        // let values = {
+        //     let mut value_json = HashMap::new();
+        //     for (k, v) in check_input_none_string(&values)?.iter() {
+        //         let newv = serde_json::Value::from_str(v.as_str())
+        //             .ok()
+        //             .unwrap_or(serde_json::Value::from(v.as_str()));
+        //         log::trace!("str:{:?} as '{:?}'", v.as_str(), newv);
+        //         value_json.insert((*k).clone(), newv);
+        //     }
+        //     value_json
+        // };
+        // let db = self.get_db().await?;
+        // let ret = db.collection(table_name).insert_one(values, None).await?;
+        // log::trace!("insert id:{}", ret.inserted_id);
 
-        anyhow::Ok(SqlExecuteRet {
-            sql: "".to_string(),
-            changes: 1,
-            last_insert_row_id: None,
-            last_insert_id_string: Some(match &ret.inserted_id {
-                Bson::ObjectId(x) => x.to_string(),
-                _ => unreachable!(),
-            }),
-        })
+        // anyhow::Ok(SqlExecuteRet {
+        //     sql: "".to_string(),
+        //     changes: 1,
+        //     last_insert_row_id: None,
+        //     last_insert_id_string: Some(match &ret.inserted_id {
+        //         Bson::ObjectId(x) => x.to_string(),
+        //         _ => unreachable!(),
+        //     }),
+        // })
     }
 
     async fn update(
@@ -524,6 +552,7 @@ mod tests {
 
     use super::Mongo;
     use crate::datasource::MongoDataSource;
+    use crate::db::DBTrait;
     use crate::pool::PoolManager;
     use crate::{init_log, TEST_HOST};
 
@@ -540,6 +569,28 @@ mod tests {
         };
 
         x
+    }
+
+    #[ignore = "somehow need admin database to rename a collection"]
+    #[tokio::test]
+
+    async fn test_rename() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let table_name = "test_rename";
+        let table_name2 = "test_rename2";
+
+        let _ = db_trait.drop_table(&table_name).await;
+        let _ = db_trait.drop_table(&table_name2).await;
+        let database = db.get_db().await.unwrap();
+        let c = database.collection::<bson::Document>(&table_name);
+        let d = bson::doc! {"name" : 123};
+        c.insert_one(d, None).await.unwrap();
+
+        db_trait
+            .rename_table(table_name, table_name2)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

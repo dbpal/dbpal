@@ -1263,7 +1263,7 @@ mod tests {
             .unwrap();
         assert_eq!(resp.data.len(), 5);
     }
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_check_conn() {
         let db = make_test_object(None);
         crate::db::CheckConn::check_conn(&db).await.unwrap();

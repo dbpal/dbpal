@@ -38,4 +38,5 @@ fuzzy-matcher.worksapce = true
 pg_interval.worksapce = true
 typescript-type-def.worksapce = true
 sqlformat.worksapce = true
+bson.worksapce = true
 [dev-dependencies]
