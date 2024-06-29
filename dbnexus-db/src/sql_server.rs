@@ -18,7 +18,8 @@ use crate::datasource::CommDBConfig;
 use crate::db::{
     create_csv, format_data_time_fix_offset, format_sql, sql_to_sql_seq, CheckConn, DBTrait,
     ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp,
-    QuerySql, SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    QuerySql, SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent,
+    TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -128,20 +129,26 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -326,17 +333,16 @@ impl DBTrait for SqlServer {
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-            SELECT * INTO {table} FROM {dup} 
+            SELECT * INTO {dup} FROM {table} 
         "#
         );
         self.execute_simple_execute(sql.as_str()).await
     }
 
-    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-            ALTER SCHEMA dbo
-            RENAME OBJECT '{from}' TO '{to}';
+            EXEC sp_rename '{old}', '{new}';
         "#
         );
         self.execute_simple_execute(&sql).await
@@ -420,7 +426,7 @@ impl DBTrait for SqlServer {
             },
             event,
             sql,
-            !disabled,
+            Some(TriggerEnable::Bool { enable: !disabled }),
         ))
     }
 
@@ -917,46 +923,57 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
             tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::String(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Guid(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Binary(x) => x
-                .as_ref()
-                .map(|x| format!("0X{}", hex::encode_upper(x)))
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Numeric(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::String(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Guid(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Binary(x) => {
+                x.as_ref()
+                    .map(|x| format!("0X{}", hex::encode_upper(x)))
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Numeric(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Xml(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Xml(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -1361,6 +1378,77 @@ mod tests {
         );
 
         pg
+    }
+
+    #[tokio::test]
+    async fn test_rename() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let _ = db_trait.drop_table("test_rename").await;
+        let _ = db_trait.drop_table("test_rename2").await;
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_rename (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    name NVARCHAR(255) NOT NULL,
+                    created_at DATETIME DEFAULT GETDATE()
+                );
+                "#,
+            )
+            .await
+            .unwrap();
+        db_trait
+            .rename_table("test_rename", "test_rename2")
+            .await
+            .unwrap();
+
+        db_trait
+            .show_table("test_rename2", None, None, 1, 100)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+
+    async fn test_duplicate() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let _ = db_trait.drop_table("test_duplicate").await;
+        let _ = db_trait.drop_table("test_duplicate2").await;
+
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_duplicate (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    data NVARCHAR(255) NOT NULL,
+                    created_at DATETIME DEFAULT GETDATE()
+                );
+                INSERT INTO test_duplicate (data) VALUES
+                    ('测试数据1'),
+                    ('测试数据2'),
+                    ('测试数据3'),
+                    ('测试数据4'),
+                    ('测试数据5');
+                "#,
+            )
+            .await
+            .unwrap();
+        db_trait
+            .duplicate_table("test_duplicate", "test_duplicate2")
+            .await
+            .unwrap();
+
+        let resp = db_trait
+            .show_table("test_duplicate2", None, None, 1, 100)
+            .await
+            .unwrap();
+        assert_eq!(resp.data.len(), 5);
     }
 
     #[tokio::test]

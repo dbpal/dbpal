@@ -105,6 +105,7 @@ impl SqliteDB {
         }
         anyhow::Ok(())
     }
+
     async fn export_query_result_as_json_line(
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -125,6 +126,7 @@ impl SqliteDB {
 
         anyhow::Ok(())
     }
+
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -132,6 +134,7 @@ impl SqliteDB {
 
         self.export_query_result_as_json_line(&sql, sender).await
     }
+
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -165,6 +168,7 @@ impl SqliteDB {
         sender.send(Cow::Borrowed("]")).await?;
         anyhow::Ok(())
     }
+
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -172,6 +176,7 @@ impl SqliteDB {
         self.export_query_result_as_json(sql.as_str(), pretty, sender)
             .await
     }
+
     async fn export_query_result_as_csv(
         &self, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -205,6 +210,7 @@ impl SqliteDB {
         }
         anyhow::Ok(())
     }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -251,7 +257,7 @@ fn extract_trigger_base_on_lexer(sql: String) -> anyhow::Result<TriggerDetail> {
         },
         TriggerEvent::try_from(event.as_str())?,
         sql,
-        true,
+        None,
     ))
 }
 
@@ -262,42 +268,42 @@ fn test_extract_trigger_base_on_lexer() {
         let sql = "after insert".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Insert, sql, true)
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Insert, sql, None)
         );
     }
     {
         let sql = "after update".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Update, sql, true)
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Update, sql, None)
         );
     }
     {
         let sql = "after delete".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Delete, sql, true)
+            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Delete, sql, None)
         );
     }
     {
         let sql = "before insert".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Insert, sql, true)
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Insert, sql, None)
         );
     }
     {
         let sql = "before update".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Update, sql, true)
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Update, sql, None)
         );
     }
     {
         let sql = "before delete".to_string();
         assert_eq!(
             extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Delete, sql, true)
+            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Delete, sql, None)
         );
     }
 
@@ -393,9 +399,9 @@ impl DBTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let sql = format!("ALTER TABLE {from} RENAME TO {to}");
+        let sql = format!("ALTER TABLE {old} RENAME TO {new}");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
@@ -987,15 +993,21 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
             strict: _,
         } => {
             for c in columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1133,9 +1145,11 @@ impl crate::completion::DBLexerCompletionBackend for SqliteDB {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         PRAGMA_ITEMS
             .iter()
-            .map(|x| CompletionItem {
-                name: Cow::Borrowed(*x),
-                kind: CompletionKind::Text,
+            .map(|x| {
+                CompletionItem {
+                    name: Cow::Borrowed(*x),
+                    kind: CompletionKind::Text,
+                }
             })
             .collect()
     }
@@ -1337,6 +1351,61 @@ mod tests {
     async fn test_check_conn() {
         let db = make_test_db();
         crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
+    #[tokio::test]
+
+    async fn test_rename() {
+        let db = make_test_db();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE IF NOT EXISTS test_rename (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,  
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );"#,
+            )
+            .await
+            .unwrap();
+        db_trait
+            .rename_table("test_rename", "test_rename2")
+            .await
+            .unwrap();
+
+        db_trait
+            .show_table("test_rename2", None, None, 1, 100)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+
+    async fn test_duplicate() {
+        let db = make_test_db();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE IF NOT EXISTS test_duplicate (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,  
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );"#,
+            )
+            .await
+            .unwrap();
+        db_trait
+            .rename_table("test_duplicate", "test_duplicate2")
+            .await
+            .unwrap();
+
+        db_trait
+            .show_table("test_duplicate2", None, None, 1, 100)
+            .await
+            .unwrap();
     }
     #[tokio::test]
 

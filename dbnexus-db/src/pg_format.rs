@@ -331,6 +331,13 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<String> = r.get(c);
                 value.map(serde_json::Value::from)
             }
+            "\"CHAR\"" => {
+                let value: Option<i8> = r.get(c);
+                value
+                    .map(|x| x as u8 as char)
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
             "VARCHAR" => {
                 let value: Option<String> = r.get(c);
@@ -807,6 +814,10 @@ pub(crate) fn encode_rows(rows: &Vec<PgRow>) -> anyhow::Result<Vec<Vec<Option<St
                     let value: Option<String> = r.get(c);
                     value
                 }
+                "\"CHAR\"" => {
+                    let value: Option<i8> = r.get(c);
+                    value.map(|x| x as u8 as char).map(|x| x.to_string())
+                }
                 "VARCHAR" => {
                     let value: Option<String> = r.get(c);
                     value
@@ -1012,7 +1023,9 @@ pub(crate) fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result
         "INT2" | "SMALLINT" => default_str,
         "INT4" | "INTEGER" => default_str,
         "TEXT" => single_quote_str,
-
+        "\"CHAR\"" => {
+            return err;
+        }
         "CHAR" | "CHARACTER" => single_quote_str,
         "OID" => default_str,
         "JSON" => single_quote_str,

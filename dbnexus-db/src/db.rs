@@ -146,7 +146,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
         anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
     }
-    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()>;
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
 }
 
@@ -191,6 +191,7 @@ impl dyn DBTrait {
         h1.await??;
         h2.await?
     }
+
     #[allow(unused)]
     pub async fn export_query_result_to_string(
         &self, sql: &str, kind: ExportKind,
@@ -626,6 +627,12 @@ impl SqlSeq {
     }
 }
 
+impl std::fmt::Display for SqlSeq {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "kind:{:?} sql:{}", self.kind, self.sql)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SqlKind {
     Query,
@@ -968,12 +975,24 @@ pub struct TriggerDetail {
     pub(crate) timing: TriggerTiming,
     pub(crate) event: TriggerEvent,
     pub(crate) sql: String,
-    pub(crate) enable: bool,
+    pub(crate) enable: Option<TriggerEnable>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, TypeDef)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum TriggerEnable {
+    // https://www.postgresql.org/docs/current/catalog-pg-trigger.html
+    // Controls in which session_replication_role modes the trigger fires. O = trigger fires in
+    // “origin” and “local” modes, D = trigger is disabled, R = trigger fires in “replica” mode, A
+    // = trigger fires always.
+    PostGres { enable: Option<char> },
+    Bool { enable: bool },
 }
 
 impl TriggerDetail {
     pub fn new(
-        timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: impl Into<String>, enable: bool,
+        timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: impl Into<String>,
+        enable: Option<TriggerEnable>,
     ) -> Self {
         Self {
             timing,

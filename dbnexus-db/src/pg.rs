@@ -1,4 +1,3 @@
-use sqlx::Column;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
@@ -8,7 +7,7 @@ use std::time::Duration;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::PgRow;
-use sqlx::{Postgres, Row};
+use sqlx::{Column, Postgres, Row};
 use tokio::sync::Mutex;
 
 use crate::completion::DBLexerCompletionBackend;
@@ -137,12 +136,14 @@ impl PostGresDB {
 
         anyhow::Ok(())
     }
+
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         self.export_query_result_as_json_line(&sql, sender).await
     }
+
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -176,6 +177,7 @@ impl PostGresDB {
         sender.send(Cow::Borrowed("]")).await?;
         anyhow::Ok(())
     }
+
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -184,16 +186,13 @@ impl PostGresDB {
     }
 
     async fn export_query_result_as_csv(
-        &self, table_name: &str, include_header: bool, delimiter: char,
+        &self, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let mut first = true;
 
-        let sql = format!("SELECT * from {}", table_name);
-        let mut stream = sqlx::query(sql.as_str())
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
+        let mut stream = sqlx::query(sql).fetch(conn.deref_mut()).try_chunks(100);
 
         while let Some(rows) = stream.next().await {
             let rows = rows?;
@@ -219,6 +218,7 @@ impl PostGresDB {
         }
         anyhow::Ok(())
     }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -329,6 +329,7 @@ impl DBTrait for PostGresDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = format!("CREATE TABLE {dup} AS TABLE {table}");
         let mut conn = self.get_conn().await?;
@@ -336,8 +337,8 @@ impl DBTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()> {
-        let sql = format!("ALTER TABLE {from} RENAME TO {to}");
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+        let sql = format!("ALTER TABLE {old} RENAME TO {new}");
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -368,7 +369,7 @@ impl DBTrait for PostGresDB {
             r#"
             SELECT
                 pg_get_triggerdef(oid)  AS trigger_definition ,
-                    tgtype
+                    tgtype , tgenabled
                 FROM
                     pg_trigger
                 WHERE
@@ -376,18 +377,23 @@ impl DBTrait for PostGresDB {
                     AND tgname = '{name}';
         "#
         );
+
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_one(conn.deref_mut())
             .await?;
         let definition: String = row.get(0);
         let tgtype: i16 = row.get(1);
+        let enable: Option<i8> = row.get(2);
+
         let (event, timing) = parse_trigger_type(tgtype)?;
         anyhow::Ok(TriggerDetail::new(
             timing,
             event,
             definition,
-            unimplemented!(),
+            Some(crate::db::TriggerEnable::PostGres {
+                enable: enable.map(|x| x as u8 as char),
+            }),
         ))
     }
 
@@ -1058,6 +1064,77 @@ mod test {
     }
 
     #[tokio::test]
+
+    async fn test_rename() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let _ = db_trait.drop_table("test_rename").await;
+        let _ = db_trait.drop_table("test_rename2").await;
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_rename (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );"#,
+            )
+            .await
+            .unwrap();
+        db_trait
+            .rename_table("test_rename", "test_rename2")
+            .await
+            .unwrap();
+
+        db_trait
+            .show_table("test_rename2", None, None, 1, 100)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+
+    async fn test_duplicate() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let _ = db_trait.drop_table("test_duplicate").await;
+        let _ = db_trait.drop_table("test_duplicate2").await;
+
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_duplicate (
+                    id SERIAL PRIMARY KEY,
+                    data TEXT,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO test_duplicate (data) VALUES
+                ('测试数据1'),
+                ('测试数据2'),
+                ('测试数据3'),
+                ('测试数据4'),
+                ('测试数据5');
+                "#,
+            )
+            .await
+            .unwrap();
+        db_trait
+            .duplicate_table("test_duplicate", "test_duplicate2")
+            .await
+            .unwrap();
+
+        let resp = db_trait
+            .show_table("test_duplicate2", None, None, 1, 100)
+            .await
+            .unwrap();
+        assert_eq!(resp.data.len(), 5);
+    }
+
+    #[tokio::test]
     async fn test_export() {
         // init_log();
         let table_name = "test_export";
@@ -1222,6 +1299,118 @@ mod test {
                 .await
                 .unwrap();
             println!("details:{:?}", detail);
+        }
+    }
+    #[tokio::test]
+    async fn test_epxort() {
+        let db = make_test_object();
+
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let table_name = "test_export_table";
+
+        let _ = db_trait.drop_table(table_name).await;
+
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_export_table (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                date DATE
+            );
+            INSERT INTO test_export_table (name, date) VALUES
+            ('Alice', '2024-06-01'),
+            ('Bob', '2024-06-02'),
+            ('Charlie', '2024-06-03'),
+            ('David', '2024-06-04'),
+            ('Eve', '2024-06-05');
+        "#,
+            )
+            .await
+            .unwrap();
+
+        {
+            let e = db_trait
+                .export_table_to_string(
+                    &table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", e);
+        }
+        {
+            let e = db_trait
+                .export_table_to_string(
+                    &table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("sql:{}", e);
+        }
+        {
+            let e = db_trait
+                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            let _: serde_json::value::Value = serde_json::from_str(e.as_str()).unwrap();
+
+            println!("json:{}", e);
+        }
+        {
+            let e = db_trait
+                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+
+            println!("json line:{}", e);
+        }
+        println!("############################################");
+
+        {
+            let e = db_trait
+                .export_query_result_to_string(
+                    "select * from test_export_table",
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", e);
+        }
+
+        {
+            let e = db_trait
+                .export_query_result_to_string(
+                    "select * from test_export_table",
+                    ExportKind::Json { pretty: true },
+                )
+                .await
+                .unwrap();
+            let _: serde_json::value::Value = serde_json::from_str(e.as_str()).unwrap();
+
+            println!("json:{}", e);
+        }
+        {
+            let e = db_trait
+                .export_query_result_to_string(
+                    "select * from test_export_table",
+                    ExportKind::JsonLine,
+                )
+                .await
+                .unwrap();
+
+            println!("json line:{}", e);
         }
     }
 

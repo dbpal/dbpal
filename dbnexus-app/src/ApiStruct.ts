@@ -131,7 +131,9 @@ export namespace db_apis {
         "export_kind": "json";
     } & {
         "pretty": boolean;
-    }) | ({
+    }) | {
+        "export_kind": "jsonline";
+    } | ({
         "export_kind": "sql";
     } & {
         "include_table_schema": boolean;
@@ -149,11 +151,20 @@ export namespace db_apis {
      */
 "InsteadOf");
     export type TriggerEvent = ("Insert" | "Update" | "Delete");
+    export type TriggerEnable = (({
+        "kind": "postgres";
+    } & {
+        "enable": (string | null);
+    }) | ({
+        "kind": "bool";
+    } & {
+        "enable": boolean;
+    }));
     export type TriggerDetail = {
         "timing": db_apis.TriggerTiming;
         "event": db_apis.TriggerEvent;
         "sql": string;
-        "enable": boolean;
+        "enable": (db_apis.TriggerEnable | null);
     };
     export type ListTrigger = {
         "name": string;

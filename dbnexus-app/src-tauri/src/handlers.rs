@@ -329,10 +329,11 @@ pub async fn oracle_query_set_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_set_autocommit(id, commit)
-            .await
-            .map_err(|e| e.to_string()),
+        Some(x) => {
+            x.query_set_autocommit(id, commit)
+                .await
+                .map_err(|e| e.to_string())
+        }
         None => Err(format!("db '{}' is not oracle", uuid)),
     }
 }
@@ -403,14 +404,14 @@ pub async fn show_trigger(
 }
 #[tauri::command]
 pub async fn rename_table(
-    uuid: String, from: String, to: String, dbs: tauri::State<'_, App>,
+    uuid: String, old: String, new: String, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
         .get_one_db(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
 
-    db.rename_table(&from, &to).await.map_err(|e| e.to_string())
+    db.rename_table(&old, &new).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

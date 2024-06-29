@@ -108,7 +108,7 @@ impl OracleDB {
     }
 }
 
-const QUERY_AUTO_COMMIT: bool = false;
+const QUERY_AUTO_COMMIT: bool = true;
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
@@ -157,10 +157,11 @@ impl QuerySql for OracleDB {
 
         let mut ret = Vec::new();
 
-        for s in ss.iter() {
-            match s.kind {
+        for seq in ss.iter() {
+            log::trace!("oracle query sql:{}", seq);
+            match seq.kind {
                 SqlKind::Query => {
-                    match block_in_place(|| conn.query(&s.sql, &[])) {
+                    match block_in_place(|| conn.query(&seq.sql, &[])) {
                         Ok(rows) => {
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows, false)?;
@@ -173,12 +174,14 @@ impl QuerySql for OracleDB {
                     };
                 }
                 SqlKind::Execution => {
-                    let stmt = block_in_place(|| conn.execute(sql, &[]));
+                    let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
                     match stmt {
-                        Ok(x) => match x.row_count() {
-                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
-                            Err(err) => ret.push(Err(err.to_string())),
-                        },
+                        Ok(x) => {
+                            match x.row_count() {
+                                Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
+                                Err(err) => ret.push(Err(err.to_string())),
+                            }
+                        }
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
@@ -383,42 +386,60 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
     match f.typ.to_string().to_uppercase().as_str() {
-        "VARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NVARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "CHAR" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCHAR" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "RAW" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
-        "CLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCLOB" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "BLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
+        "VARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NVARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "CHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "RAW" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
+            anyhow::Ok(match value {
+                Some(x) => x.to_string(),
+                None => null_string,
+            })
+        }
+        "CLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "BLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -633,6 +654,7 @@ impl OracleDB {
 
         anyhow::Ok(())
     }
+
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -651,6 +673,7 @@ impl OracleDB {
 
         anyhow::Ok(())
     }
+
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -705,12 +728,21 @@ impl CheckConn for OracleDB {
 
 #[async_trait::async_trait]
 impl DBTrait for OracleDB {
-    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
+        println!("!@@@:{}", sql);
+
+        let conn = self.get_conn().await?;
+        block_in_place(|| conn.execute(&sql, &[]))?;
+        anyhow::Ok(())
     }
-    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
-        unimplemented!()
+
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+        block_in_place(|| conn.execute(format!("RENAME {old} TO {new}").as_str(), &[]))?;
+        anyhow::Ok(())
     }
+
     async fn create_table_and_index_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
@@ -1092,6 +1124,83 @@ mod tests {
         };
         x
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_rename() {
+        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let _ = db_trait.drop_table("TEST_RENAME").await;
+        let _ = db_trait.drop_table("TEST_RENAME2").await;
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE TEST_RENAME (
+                    ID NUMBER PRIMARY KEY,
+                    NAME VARCHAR2(255) NOT NULL,
+                    CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                "#,
+            )
+            .await
+            .unwrap();
+        db_trait
+            .rename_table("TEST_RENAME", "TEST_RENAME2")
+            .await
+            .unwrap();
+
+        db_trait
+            .show_table("TEST_RENAME2", None, None, 1, 100)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_duplicate() {
+        init_log();
+
+        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let _ = db_trait.drop_table("TEST_DUPLICATE").await;
+        let _ = db_trait.drop_table("TEST_DUPLICATE2").await;
+
+        let resp = db_trait
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE TEST_DUPLICATE (
+                    ID NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    NAME VARCHAR2(100) NOT NULL
+                );
+                
+                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy1');
+                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy2');
+                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy3');
+                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy4');
+                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy5');
+               
+                "#,
+            )
+            .await
+            .unwrap();
+        for r in resp {
+            assert!(r.is_ok(), "err:{:?}", r);
+        }
+
+        db_trait
+            .duplicate_table("TEST_DUPLICATE", "TEST_DUPLICATE2")
+            .await
+            .unwrap();
+
+        let resp = db_trait
+            .show_table("TEST_DUPLICATE2", None, None, 1, 100)
+            .await
+            .unwrap();
+        assert_eq!(resp.data.len(), 5);
+    }
     #[tokio::test]
     async fn test_check_conn() {
         let db = make_test_object(None);
@@ -1108,17 +1217,17 @@ mod tests {
         let ss = vec![
             r#"
         CREATE TABLE TEST_VIEW_TABLE (
-    product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    product_name VARCHAR2(50) NOT NULL,
-    category     VARCHAR2(30) NOT NULL,
-    price        NUMBER(8,2)  NOT NULL
-)"#,
+            product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            product_name VARCHAR2(50) NOT NULL,
+            category     VARCHAR2(30) NOT NULL,
+            price        NUMBER(8,2)  NOT NULL
+        )"#,
             "INSERT INTO TEST_VIEW_TABLE (product_name, category, price) VALUES ('iPhone 13', 'Electronics', 799.99)",
             "INSERT INTO TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21', 'Electronics', 699.99)",
             r#"
             CREATE VIEW PRODUCT_VIEW AS
-SELECT product_id, product_name, category, price
-FROM  TEST_VIEW_TABLE"#,
+            SELECT product_id, product_name, category, price
+            FROM  TEST_VIEW_TABLE"#,
         ];
 
         for s in ss.iter() {

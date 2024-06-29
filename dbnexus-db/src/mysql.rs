@@ -4,8 +4,8 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::Utc;
 use futures_util::{StreamExt, TryStreamExt};
-
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
 use sqlx::{Column, MySqlConnection, Row, TypeInfo};
@@ -166,6 +166,35 @@ fn encode_row_as_json(row: &MySqlRow) -> anyhow::Result<serde_json::Value> {
                     .unwrap_or(null_value.clone())
             }
 
+            "TIMESTAMP" => {
+                let value: Option<chrono::DateTime<Utc>> = row.get(c);
+                value
+                    .map(|x| x.naive_utc().to_string())
+                    .map(serde_json::Value::from)
+                    .unwrap_or(null_value.clone())
+            }
+            "DATETIME" => {
+                let value: Option<chrono::NaiveDateTime> = row.get(c);
+                value
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+                    .unwrap_or(null_value.clone())
+            }
+            "DATE" => {
+                let value: Option<chrono::NaiveDate> = row.get(c);
+                value
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+                    .unwrap_or(null_value.clone())
+            }
+            "TIME" => {
+                let value: Option<chrono::NaiveTime> = row.get(c);
+                value
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+                    .unwrap_or(null_value.clone())
+            }
+
             _ => anyhow::bail!(format!("type '{ty}' not supported")),
         };
         values.insert(row.column(c).name().to_string(), v);
@@ -251,6 +280,7 @@ impl MysqlDB {
         self.export_query_result_as_json_line(sql.as_str(), sender)
             .await
     }
+
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -284,6 +314,7 @@ impl MysqlDB {
         sender.send(Cow::Borrowed("]")).await?;
         anyhow::Ok(())
     }
+
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -291,6 +322,7 @@ impl MysqlDB {
         self.export_query_result_as_json(sql.as_str(), pretty, sender)
             .await
     }
+
     async fn export_query_result_as_csv(
         &self, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -379,23 +411,26 @@ impl DBTrait for MysqlDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
-    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()> {
-        let sql = format!("RENAME TABLE {from} TO {to}");
+
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+        let sql = format!("RENAME TABLE {old} TO {new}");
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
+
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
 
         let (event, timing, sql) = query_trigger_detail(&mut conn, name).await?;
-        anyhow::Ok(TriggerDetail::new(timing, event, sql, true))
+        anyhow::Ok(TriggerDetail::new(timing, event, sql, None))
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
@@ -594,6 +629,10 @@ impl DBTrait for MysqlDB {
                 single_quote_str
             }
             "VARBINARY" | "BINARY" | "BLOB" => default_str,
+            "TIMESTAMP" => single_quote_str,
+            "DATETIME" => single_quote_str,
+            "DATE" => single_quote_str,
+            "TIME" => single_quote_str,
             _ => {
                 log::error!("mysql type '{}' not handled", ty);
                 default_str
@@ -818,6 +857,22 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
                     let value: Option<Vec<u8>> = r.get(c);
                     value.map(|x| format!("0x{}", hex::encode_upper(x.as_slice())))
                 }
+                "TIMESTAMP" => {
+                    let value: Option<chrono::DateTime<Utc>> = r.get(c);
+                    value.map(|x| x.naive_utc().to_string())
+                }
+                "DATETIME" => {
+                    let value: Option<chrono::NaiveDateTime> = r.get(c);
+                    value.map(|x| x.to_string())
+                }
+                "DATE" => {
+                    let value: Option<chrono::NaiveDate> = r.get(c);
+                    value.map(|x| x.to_string())
+                }
+                "TIME" => {
+                    let value: Option<chrono::NaiveTime> = r.get(c);
+                    value.map(|x| x.to_string())
+                }
 
                 _ => anyhow::bail!(format!("type '{ty}' not supported")),
             };
@@ -1007,6 +1062,78 @@ mod tests {
         );
         db
     }
+    #[tokio::test]
+    async fn test_rename() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let _ = db_trait.drop_table("test_rename").await;
+        let _ = db_trait.drop_table("test_rename2").await;
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+                    CREATE TABLE test_rename (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                "#,
+            )
+            .await
+            .unwrap();
+        db_trait
+            .rename_table("test_rename", "test_rename2")
+            .await
+            .unwrap();
+
+        db_trait
+            .show_table("test_rename2", None, None, 1, 100)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+
+    async fn test_duplicate() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let _ = db_trait.drop_table("test_duplicate").await;
+        let _ = db_trait.drop_table("test_duplicate2").await;
+
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_duplicate (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    data VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                INSERT INTO test_duplicate (data) VALUES
+                    ('测试数据1'),
+                    ('测试数据2'),
+                    ('测试数据3'),
+                    ('测试数据4'),
+                    ('测试数据5');
+                "#,
+            )
+            .await
+            .unwrap();
+        db_trait
+            .duplicate_table("test_duplicate", "test_duplicate2")
+            .await
+            .unwrap();
+
+        let resp = db_trait
+            .show_table("test_duplicate2", None, None, 1, 100)
+            .await
+            .unwrap();
+        assert_eq!(resp.data.len(), 5);
+    }
+
     #[tokio::test]
     async fn test_check_conn() {
         let db = make_test_object();
@@ -1241,6 +1368,51 @@ mod tests {
                 .unwrap();
             println!("sql:{}", s);
         }
+        {
+            let s = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("json:{}", s);
+        }
+
+        println!("##################################");
+
+        {
+            let s = db
+                .export_query_result_to_string(
+                    format!("select * from {table_name}").as_str(),
+                    ExportKind::Json { pretty: true },
+                )
+                .await
+                .unwrap();
+            println!("json:{}", s);
+            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
+        }
+        {
+            let s = db
+                .export_query_result_to_string(
+                    format!("select * from {table_name}").as_str(),
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", s);
+        }
+
+        {
+            let s = db
+                .export_query_result_to_string(
+                    format!("select * from {table_name}").as_str(),
+                    ExportKind::JsonLine,
+                )
+                .await
+                .unwrap();
+            println!("json line:{}", s);
+        }
     }
 
     #[tokio::test]
@@ -1277,7 +1449,7 @@ mod tests {
         println!("{:?}", indexes);
     }
     #[tokio::test]
-    async fn test1() {
+    async fn test_types1() {
         init_log();
 
         let table_name = "test_types1";
@@ -1321,7 +1493,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test2() {
+    async fn test_types2() {
         init_log();
 
         let table_name = "test_types2";
@@ -1365,7 +1537,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test3() {
+    async fn test_types3() {
         init_log();
 
         let table_name = "test_types3";
@@ -1402,6 +1574,45 @@ mod tests {
         values.insert("varbinary_col".to_string(), Some("0x01020304".to_string()));
         values.insert("binary_col".to_string(), Some("0x0102030405".to_string()));
         values.insert("blob_col".to_string(), Some("0x01020304".to_string()));
+
+        db.insert(table_name, values).await.unwrap();
+
+        let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        println!("{:?}", cols);
+    }
+
+    #[tokio::test]
+    async fn test_types4() {
+        let table_name = "test_types4";
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let _ = db.drop_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+        db.query_sql(
+            query_id,
+            r#"
+                CREATE TABLE test_types4 (
+                    timestamp_column TIMESTAMP,
+                    datetime_column DATETIME,
+                    date_column DATE,
+                    time_column TIME
+                );
+        "#,
+        )
+        .await
+        .unwrap();
+
+        let mut values: HashMap<String, Option<String>> = HashMap::new();
+        values.insert(
+            "timestamp_column".to_string(),
+            Some("2024-06-29 10:00:00".to_string()),
+        );
+        values.insert(
+            "datetime_column".to_string(),
+            Some("2024-06-29 10:00:00".to_string()),
+        );
+        values.insert("date_column".to_string(), Some("2024-06-29".to_string()));
+        values.insert("time_column".to_string(), Some("10:00:00".to_string()));
 
         db.insert(table_name, values).await.unwrap();
 

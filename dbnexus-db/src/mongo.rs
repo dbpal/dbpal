@@ -113,9 +113,11 @@ impl DBTrait for Mongo {
     async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
         unimplemented!()
     }
-    async fn rename_table(&self, _from: &str, _to: &str) -> anyhow::Result<()> {
+
+    async fn rename_table(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
         unimplemented!()
     }
+
     fn read_only(&self) -> bool {
         self.read_only
     }

@@ -297,9 +297,9 @@ impl DBTrait for RedisDB {
         anyhow::bail!("duplicate key for redis is not supported")
     }
 
-    async fn rename_table(&self, from: &str, to: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        conn.rename(from, to).await?;
+        conn.rename(old, new).await?;
         anyhow::Ok(())
     }
 
@@ -370,17 +370,19 @@ impl DBTrait for RedisDB {
             RedisType::List => anyhow::Ok(vec![value_field]),
             RedisType::Set => anyhow::Ok(vec![value_field]),
             RedisType::Hash => anyhow::Ok(vec![key_field, value_field]),
-            RedisType::Zset => anyhow::Ok(vec![
-                value_field,
-                Field {
-                    name: "score".to_string(),
-                    typ: "float64".to_string(),
-                    nullable: false,
-                    default_value: None,
-                    is_primary: false,
-                    is_auto_increment: false,
-                },
-            ]),
+            RedisType::Zset => {
+                anyhow::Ok(vec![
+                    value_field,
+                    Field {
+                        name: "score".to_string(),
+                        typ: "float64".to_string(),
+                        nullable: false,
+                        default_value: None,
+                        is_primary: false,
+                        is_auto_increment: false,
+                    },
+                ])
+            }
         }
     }
 
@@ -756,6 +758,26 @@ mod tests {
         };
         x
     }
+
+    #[tokio::test]
+    async fn test_rename() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let query_id = db.open_connection().await.unwrap();
+        db.query_sql(
+            query_id,
+            r#"
+            SET test_rename_key  your_value 
+        "#,
+        )
+        .await
+        .unwrap();
+
+        db.rename_table("test_rename_key", "test_rename_key2")
+            .await
+            .unwrap();
+    }
+
     #[tokio::test]
     async fn test_check_conn() {
         let db = make_test_object();
@@ -765,7 +787,7 @@ mod tests {
     async fn test() {
         let db = make_test_object();
         let db = &db as &dyn crate::db::DBTrait;
-        let id = db.open_connection().await.unwrap();
+        let query_id = db.open_connection().await.unwrap();
 
         db.delete("string_value", Default::default()).await.unwrap();
         db.delete("hash_value", Default::default()).await.unwrap();
@@ -774,44 +796,50 @@ mod tests {
         db.delete("zset_value", Default::default()).await.unwrap();
 
         let ret = db
-            .query_sql(id.clone(), "set string_value string_value")
+            .query_sql(query_id.clone(), "set string_value string_value")
             .await
             .unwrap();
         println!("ret:{:?}", ret);
 
         let ret = db
-            .query_sql(id.clone(), "hset hash_value key11111 value2222")
-            .await
-            .unwrap();
-
-        println!("ret:{:?}", ret);
-
-        let ret = db
-            .query_sql(id.clone(), "hset hash_value key2222 value33333")
+            .query_sql(query_id.clone(), "hset hash_value key11111 value2222")
             .await
             .unwrap();
 
         println!("ret:{:?}", ret);
 
         let ret = db
-            .query_sql(id.clone(), "lpush list_value 1")
+            .query_sql(query_id.clone(), "hset hash_value key2222 value33333")
             .await
             .unwrap();
-        db.query_sql(id.clone(), "lpush list_value 2")
+
+        println!("ret:{:?}", ret);
+
+        let ret = db
+            .query_sql(query_id.clone(), "lpush list_value 1")
+            .await
+            .unwrap();
+        db.query_sql(query_id.clone(), "lpush list_value 2")
             .await
             .unwrap();
         println!("ret:{:?}", ret);
-        let ret = db.query_sql(id.clone(), "sadd set_value  1").await.unwrap();
+        let ret = db
+            .query_sql(query_id.clone(), "sadd set_value  1")
+            .await
+            .unwrap();
         println!("{:?}", ret);
-        let ret = db.query_sql(id.clone(), "sadd set_value  2").await.unwrap();
-        println!("ret:{:?}", ret);
         let ret = db
-            .query_sql(id.clone(), "zadd zset_value 1 haha")
+            .query_sql(query_id.clone(), "sadd set_value  2")
             .await
             .unwrap();
         println!("ret:{:?}", ret);
         let ret = db
-            .query_sql(id.clone(), "zadd zset_value 2 xxx")
+            .query_sql(query_id.clone(), "zadd zset_value 1 haha")
+            .await
+            .unwrap();
+        println!("ret:{:?}", ret);
+        let ret = db
+            .query_sql(query_id.clone(), "zadd zset_value 2 xxx")
             .await
             .unwrap();
         println!("ret:{:?}", ret);
