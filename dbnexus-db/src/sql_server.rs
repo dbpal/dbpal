@@ -4,6 +4,7 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use chrono::FixedOffset;
 use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
@@ -22,6 +23,7 @@ use crate::db::{
     TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
+use crate::CANNOT_GET_CONN_ERR;
 
 #[derive(Clone)]
 pub struct SqlServer {
@@ -129,26 +131,20 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => {
-                chrono::NaiveDateTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Date(_) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Time(_x) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -308,7 +304,7 @@ impl CheckConn for SqlServer {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let _x = conn.query("select 1", &[]).await?;
         anyhow::Ok(ins.elapsed())
@@ -318,7 +314,7 @@ impl CheckConn for SqlServer {
 impl SqlServer {
     async fn execute_simple_execute(&self, sql: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let mut stream = conn.simple_query(sql).await?;
         while let Some(item) = stream.next().await {
@@ -382,7 +378,7 @@ impl DBTrait for SqlServer {
         "#
         );
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let mut stream = conn.simple_query(&sql).await?;
         let mut ret = Vec::new();
@@ -414,7 +410,7 @@ impl DBTrait for SqlServer {
       "#
         );
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let mut stream = conn.simple_query(&sql).await?;
         let mut result = None;
@@ -497,7 +493,7 @@ impl DBTrait for SqlServer {
         page_size: usize,
     ) -> anyhow::Result<TableListResp> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let total = SqlServer::query_count(conn, view_name, where_str.clone()).await?;
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
@@ -528,7 +524,7 @@ impl DBTrait for SqlServer {
         self.can_write()?;
         let s = format!("DROP VIEW {view_name}");
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
 
         conn.execute(s.as_str(), &[]).await?;
@@ -540,7 +536,7 @@ impl DBTrait for SqlServer {
 
         let s = format!("DROP TABLE {table}");
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(())
@@ -548,7 +544,7 @@ impl DBTrait for SqlServer {
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let mut stream = conn
             .query(
@@ -579,7 +575,7 @@ impl DBTrait for SqlServer {
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let mut stream = conn
             .query(
@@ -612,7 +608,7 @@ impl DBTrait for SqlServer {
 
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let mut conn = conn.deref_mut();
         let mut stream = conn
             .query(
@@ -669,7 +665,7 @@ impl DBTrait for SqlServer {
         page_size: usize,
     ) -> anyhow::Result<TableListResp> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let total = SqlServer::query_count(conn, table_name, where_str.clone()).await?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
@@ -714,7 +710,7 @@ impl DBTrait for SqlServer {
         );
 
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let mut stream = conn.query(sql.as_str(), &[]).await?;
         let mut ret: HashMap<String, Index> = HashMap::new();
@@ -761,7 +757,7 @@ impl DBTrait for SqlServer {
         log::trace!("insert sql:{}", s);
 
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let _r = conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -781,7 +777,7 @@ impl DBTrait for SqlServer {
         let fs = self.show_columns(table_name).await?;
         let s = (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let r = conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet::from((s, r.rows_affected().iter().sum())))
@@ -817,7 +813,7 @@ impl DBTrait for SqlServer {
         "#
         );
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(())
@@ -831,7 +827,7 @@ impl DBTrait for SqlServer {
         let fields = self.show_columns(table_name).await?;
         let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
 
         let r = conn.execute(sql.as_str(), &[]).await?;
@@ -944,57 +940,46 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
             tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::String(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
-            tiberius::ColumnData::Guid(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
-            tiberius::ColumnData::Binary(x) => {
-                x.as_ref()
-                    .map(|x| format!("0X{}", hex::encode_upper(x)))
-                    .map(serde_json::Value::from)
-            }
-            tiberius::ColumnData::Numeric(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::String(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
+            tiberius::ColumnData::Guid(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
+            tiberius::ColumnData::Binary(x) => x
+                .as_ref()
+                .map(|x| format!("0X{}", hex::encode_upper(x)))
+                .map(serde_json::Value::from),
+            tiberius::ColumnData::Numeric(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Xml(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::Xml(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => {
-                chrono::NaiveDateTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Date(_) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Time(_x) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -1037,7 +1022,7 @@ impl SqlServer {
             }
         }
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let cols = DBTrait::show_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
@@ -1071,7 +1056,7 @@ impl SqlServer {
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
 
         let mut stream = conn.query(sql, &[]).await?;
@@ -1106,7 +1091,7 @@ impl SqlServer {
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
 
         let mut stream = conn.query(sql, &[]).await?;
@@ -1156,7 +1141,7 @@ impl SqlServer {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let mut first = true;
 
@@ -1328,7 +1313,7 @@ impl SqlServer {
         call_back: impl FnOnce(&mut Client<Compat<TcpStream>>) -> BoxFuture<anyhow::Result<R>>,
     ) -> anyhow::Result<R> {
         let conn = self.get_conn().await?;
-        let mut conn = conn.get().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         call_back(conn).await
     }

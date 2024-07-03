@@ -47,3 +47,5 @@ pub fn init_log() {
             .unwrap()
     })
 }
+
+const CANNOT_GET_CONN_ERR: &str = "can't get conneciton";
