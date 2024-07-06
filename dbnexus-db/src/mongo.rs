@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::Duration;
 
+use anyhow::Context;
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Document};
 use mongodb::options::FindOptions;
@@ -73,7 +74,7 @@ fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
         bson::Bson::Decimal128(x) => Some(x.to_string()),
         bson::Bson::Undefined => None,
         bson::Bson::MaxKey | bson::Bson::MinKey | bson::Bson::DbPointer(_) => {
-            anyhow::bail!("should not handle those value")
+            anyhow::bail!(format!("should not handle those value,bson:{:?}", b))
         }
     };
 
@@ -142,8 +143,11 @@ fn infer_multi_value_column_names(docs: &[Document]) -> anyhow::Result<Vec<Field
 impl CheckConn for Mongo {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
-        let _db = self.get_db().await?;
-
+        let db = self.get_db().await?;
+        let _ping_result = db
+            .run_command(bson::doc! {"ping": 1}, None)
+            .await
+            .context("ping failed")?;
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -159,32 +163,38 @@ impl FormatSql for Mongo {
 
 impl Mongo {
     /// normal `insert` , `update` ,`delete` works very bad with mongodb
+    /// So i just impl those method on Document
     pub async fn insert(&self, table: &str, doc: Document) -> anyhow::Result<InsertOneResult> {
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(table)
             .insert_one(doc, None)
-            .await?;
+            .await
+            .context("insert failed")?;
         anyhow::Ok(ret)
     }
 
     pub async fn update(
         &self, table: &str, update: Document, query: Document,
     ) -> anyhow::Result<UpdateResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(table)
             .update_many(query, update, None)
-            .await?;
+            .await
+            .context("update failed")?;
         anyhow::Ok(ret)
     }
 
     pub async fn delete(&self, table: &str, query: Document) -> anyhow::Result<DeleteResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(table)
             .delete_many(query, None)
-            .await?;
+            .await
+            .context("delete failed")?;
         anyhow::Ok(ret)
     }
 
@@ -200,18 +210,22 @@ impl Mongo {
         let count = db
             .collection::<u64>(table)
             .count_documents(filter.clone(), None)
-            .await?;
+            .await
+            .context("query total count failed")?;
         let mut stream = db
             .collection::<Document>(table)
             .find(filter, options)
-            .await?;
+            .await
+            .context("get query stream")?;
+
         let mut docs = Vec::with_capacity(page_size);
         while let Some(item) = stream.next().await {
-            let item = item?;
+            let item = item.context("list doc failed")?;
             docs.push(item);
         }
-        let cols = infer_multi_value_column_names(&docs[..])?;
-        let data = collect_table_resp(&cols, docs.as_slice())?;
+
+        let cols = infer_multi_value_column_names(&docs[..]).context("infer columns failed")?;
+        let data = collect_table_resp(&cols, docs.as_slice()).context("make response failed")?;
 
         anyhow::Ok(TableListResp::new(cols, count as usize, data, None))
     }
@@ -228,14 +242,16 @@ impl Mongo {
         let count = db
             .collection::<u64>(table)
             .count_documents(filter.clone(), None)
-            .await?;
+            .await
+            .context("query docs count failed")?;
         let mut stream = db
             .collection::<Document>(table)
             .find(filter, options)
-            .await?;
+            .await
+            .context("get query result")?;
         let mut docs = Vec::with_capacity(page_size);
         while let Some(item) = stream.next().await {
-            let item = item?;
+            let item = item.context("list doc failed")?;
             docs.push(item);
         }
         anyhow::Ok(DocsAndCount { docs, count })
@@ -248,41 +264,130 @@ pub struct DocsAndCount {
     pub count: u64,
 }
 
-#[async_trait::async_trait]
-impl DBTrait for Mongo {
-    async fn duplicate_table(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
+impl Mongo {
+    async fn duplicate_table_impl(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         let old_table = db.collection::<Document>(old_table);
         let new_table = db.collection::<Document>(dup);
-        let mut stream = old_table.find(None, None).await?;
+        let mut stream = old_table
+            .find(None, None)
+            .await
+            .context("query duplicate table failed")?;
+        while let Some(doc) = stream.next().await {
+            let d = doc.context("get doc failed")?;
+            new_table
+                .insert_one(d, None)
+                .await
+                .context("insert to new table failed")?;
+        }
+        anyhow::Ok(())
+    }
+    async fn delete_collection(&self, collection_name: &str) -> anyhow::Result<()> {
+        let db = self.get_db().await?;
+        db.collection::<bson::Document>(collection_name)
+            .drop(None)
+            .await
+            .context("drop collection failed")?;
+        anyhow::Ok(())
+    }
+}
 
-        while let Some(d) = stream.next().await {
-            let d = match d {
-                Ok(d) => d,
-                Err(x) => {
-                    new_table.drop(None).await?;
-                    return Err(x.into());
-                }
-            };
-
-            match new_table.insert_one(d, None).await {
-                Ok(_) => {}
-                Err(x) => {
-                    new_table.drop(None).await?;
-                    return Err(x.into());
-                }
-            }
+impl Mongo {
+    async fn export_stream_as_json_line(
+        mut stream: mongodb::Cursor<Document>, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        while let Some(item) = stream.next().await {
+            let item = item.context("stream item failed")?;
+            sender
+                .send(Cow::Owned(
+                    serde_json::to_string(&item).context("encode json failed")?,
+                ))
+                .await?;
+            sender.send(Cow::Borrowed("\n")).await?;
         }
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
-        // let cmd = bson::doc! { "renameCollection": old , "to": new};
-        // let db = self.get_db().await?;
-        // db.run_command(cmd, None).await?;
-        // anyhow::Ok(())
+    async fn export_stream_as_json(
+        mut stream: mongodb::Cursor<Document>, pretty: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        sender.send(Cow::Borrowed("[")).await?;
+        let mut first = true;
+        while let Some(item) = stream.next().await {
+            let item = item.context("stream doc failed")?;
+            if !first {
+                sender.send(Cow::Borrowed(",")).await?;
+            }
+            if pretty {
+                sender.send(Cow::Borrowed("\n")).await?;
+            }
+            sender
+                .send(Cow::Owned(if pretty {
+                    serde_json::to_string_pretty(&item).context("encode json failed")?
+                } else {
+                    serde_json::to_string(&item).context("encode json failed")?
+                }))
+                .await?;
 
-        anyhow::bail!("somehow need admin database,againt design right now")
+            first = false;
+        }
+        if pretty {
+            sender.send(Cow::Borrowed("\n")).await?;
+        }
+        sender.send(Cow::Borrowed("]")).await?;
+        anyhow::Ok(())
+    }
+
+    async fn export_table_as_json(
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let db = self.get_db().await?;
+        let stream = db
+            .collection::<Document>(table_name)
+            .find(None, None)
+            .await
+            .context("execute query stream failed")?;
+        Self::export_stream_as_json(stream, pretty, sender).await
+    }
+    async fn export_table_as_json_line(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let db = self.get_db().await?;
+        let stream = db
+            .collection::<Document>(table_name)
+            .find(None, None)
+            .await?;
+        Self::export_stream_as_json_line(stream, sender).await
+    }
+}
+
+#[async_trait::async_trait]
+impl DBTrait for Mongo {
+    async fn duplicate_table(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
+        if let Err(err) = self.duplicate_table_impl(&old_table, dup).await {
+            if let Err(err) = self.delete_collection(dup).await {
+                log::error!(
+                    "dup error has happen,but delete old collection failed,err:{:?}",
+                    err
+                );
+            }
+            return Err(err);
+        }
+        anyhow::Ok(())
+    }
+
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+        let old = format!("{}.{}", self.dbname, old);
+        let new = format!("{}.{}", self.dbname, new);
+        let cmd = bson::doc! { "renameCollection":  old , "to": new};
+        let client = self.get_conn().await?;
+        let db = client.database("admin");
+
+        db.run_command(cmd, None)
+            .await
+            .context("run rename command failed")?;
+        anyhow::Ok(())
     }
 
     fn read_only(&self) -> bool {
@@ -301,43 +406,13 @@ impl DBTrait for Mongo {
         &self, table_name: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let pretty = match kind {
-            ExportKind::Json { pretty } => pretty,
-            _ => anyhow::bail!("mongo only support export json."),
-        };
-        let db = self.get_db().await?;
-        let mut stream = db
-            .collection::<Document>(table_name)
-            .find(None, None)
-            .await?;
-        sender.send(Cow::Borrowed("[")).await?;
-        if pretty {
-            sender.send(Cow::Borrowed("\n")).await?;
-        }
-        let mut need_comma = false;
-
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            if need_comma {
-                sender.send(Cow::Borrowed(",")).await?;
-                if pretty {
-                    sender.send(Cow::Borrowed("\n")).await?;
-                }
+        match kind {
+            ExportKind::Json { pretty } => {
+                self.export_table_as_json(table_name, pretty, sender).await
             }
-            sender
-                .send(Cow::Owned(if pretty {
-                    serde_json::to_string_pretty(&item)?
-                } else {
-                    serde_json::to_string(&item)?
-                }))
-                .await?;
-            need_comma = true;
+            ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
+            _ => anyhow::bail!("mongo only support export json."),
         }
-        if pretty {
-            sender.send(Cow::Borrowed("\n")).await?;
-        }
-        sender.send(Cow::Borrowed("]")).await?;
-        anyhow::Ok(())
     }
 
     async fn show_view(
@@ -357,10 +432,8 @@ impl DBTrait for Mongo {
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         self.can_write()?;
-
         let conn = self.get_db().await?;
         conn.collection::<Document>(table).drop(None).await?;
-
         anyhow::Ok(())
     }
 
@@ -475,6 +548,11 @@ impl QuerySql for Mongo {
 
 impl Mongo {
     async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
+        let client = self.get_conn().await.context("get conn failed")?;
+        Ok(client.database(self.dbname.as_str()))
+    }
+
+    async fn get_conn(&self) -> anyhow::Result<mongodb::Client> {
         let client = self
             .pm
             .get(&datasource::DBPoolKey::MongoDB(self.ds.clone()))
@@ -483,8 +561,7 @@ impl Mongo {
             crate::pool::NexusPool::MongoDB(x) => x.clone(),
             _ => unreachable!(),
         };
-
-        Ok(client.database(self.dbname.as_str()))
+        anyhow::Ok(client)
     }
 }
 
@@ -492,13 +569,17 @@ impl Mongo {
 
 mod tests {
 
-    use bson::Document;
+    use std::str::FromStr;
+    use std::time::SystemTime;
+
+    use bson::oid::ObjectId;
+    use bson::{doc, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
 
     use super::Mongo;
     use crate::datasource::MongoDataSource;
     use crate::db::DBTrait;
     use crate::pool::PoolManager;
-    use crate::{init_log, TEST_HOST};
+    use crate::TEST_HOST;
 
     fn make_test_object() -> Mongo {
         let x = Mongo {
@@ -511,11 +592,60 @@ mod tests {
             dbname: "test".to_string(),
             pm: PoolManager::default(),
         };
-
         x
     }
+    #[tokio::test]
+    async fn test_show_index() {
+        let db = make_test_object();
+        let table = "test_index";
+        let _ = db.drop_table(&table).await;
 
-    #[ignore = "somehow need admin database to rename a collection"]
+        db.insert(&table, doc! {"name" : "haha" , "age" : 2 })
+            .await
+            .unwrap();
+        let indexes = db.show_indexes(&table).await.unwrap();
+        println!("indexes{:?}", indexes);
+    }
+    #[tokio::test]
+    async fn test_truncat() {
+        let db = make_test_object();
+        let table = "test_truncat";
+        let _ = db.drop_table(&table).await;
+
+        db.insert(&table, doc! {"name" : "haha" , "age" : 2 })
+            .await
+            .unwrap();
+        db.truncate_table(&table).await.unwrap();
+    }
+    #[tokio::test]
+    async fn test_export() {
+        let db = make_test_object();
+        let table = "test_export";
+        let _ = db.drop_table(&table).await;
+
+        db.insert(&table, doc! {"name" : "haha" , "age" : 2 })
+            .await
+            .unwrap();
+        db.insert(&table, doc! {"name" : "a name" , "age" : 10  })
+            .await
+            .unwrap();
+
+        let db_trait = &db as &dyn DBTrait;
+        let json = db_trait
+            .export_table_to_string(&table, crate::db::ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let _: serde_json::Value = serde_json::from_str(&json).unwrap();
+        println!("json:{}", json);
+
+        let json_lines = db_trait
+            .export_table_to_string(&table, crate::db::ExportKind::JsonLine)
+            .await
+            .unwrap();
+
+        println!("json_lines:{}", json_lines);
+    }
+
     #[tokio::test]
 
     async fn test_rename() {
@@ -536,24 +666,33 @@ mod tests {
             .await
             .unwrap();
     }
-
     #[tokio::test]
-    async fn test() {
-        let oj = make_test_object();
-        let handle = &oj as &dyn crate::db::DBTrait;
-        let tables = handle.list_table().await.unwrap();
-        for t in tables.iter() {
-            let cols = handle.show_columns(t.table.as_str()).await.unwrap();
-            println!("cols:{:?}", cols);
-            let list = handle
-                .show_table(t.table.as_str(), None, None, 1, 100)
-                .await
-                .unwrap();
-            println!("list:{:?}", list);
-            let indexes = handle.show_indexes(t.table.as_str()).await.unwrap();
-            println!("list:{:?}", indexes);
-        }
+
+    async fn test_dup() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let table_name = "test_dup";
+        let table_name2 = "test_dup2";
+
+        let _ = db_trait.drop_table(&table_name).await;
+        let _ = db_trait.drop_table(&table_name2).await;
+        let database = db.get_db().await.unwrap();
+        let c = database.collection::<Document>(&table_name);
+        let d = bson::doc! {"name" : 123};
+        c.insert_one(d, None).await.unwrap();
+
+        db_trait
+            .duplicate_table(table_name, table_name2)
+            .await
+            .unwrap();
+
+        let docs = db
+            .show_table_docs(table_name2, bson::doc! {}, bson::doc! {}, 1, 100)
+            .await
+            .unwrap();
+        println!("{:?}", docs);
     }
+
     #[tokio::test]
     async fn test_check_conn() {
         let db = make_test_object();
@@ -562,8 +701,60 @@ mod tests {
 
     #[tokio::test]
     async fn test2() {
-        init_log();
+        let db = make_test_object();
+        let table = "test_mongo";
+        let _ = db.drop_table(&table).await;
+        db.insert(table, doc! {"name" : "xxx" , "age" : 22})
+            .await
+            .unwrap();
+        db.insert(table, doc! {"name" : "yyy" , "age" : 22})
+            .await
+            .unwrap();
 
-        // TODO Test
+        db.update(table, doc! {"$set": {"age" : 100}}, doc! {"name" : "yyy"})
+            .await
+            .unwrap();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs() as i64;
+        let data = doc! {
+            "_id": ObjectId::new(),
+            "string_field": "Hello, world!",
+            "int_field": 123,
+            "float_field": 123.45,
+            "bool_field": true,
+            "date_field": DateTime::from_millis(now * 1_000), // MongoDB uses milliseconds since epoch
+            "null_field": Bson::Null,
+            "regex_field": Regex { pattern : "haha".to_string(),options :"i".to_string()} ,
+            "binary_field": vec![0x01, 0x02, 0x03],
+            "uuid_field": Uuid::new(),
+            "array_field": vec![
+                Bson::Int32(1),
+                Bson::Int32(2),
+                Bson::Int32(3),
+            ],
+            "object_field": doc! {"nested_key": "nested_value"},
+            "decimal_field": Decimal128::from_str("1").unwrap(),
+            "timestamp_field": Timestamp {time: now as u32, increment: 1},
+        };
+
+        db.insert(&table, data).await.unwrap();
+        assert_eq!(
+            db.delete(&table, doc! {"xxx" : 1})
+                .await
+                .unwrap()
+                .deleted_count,
+            0
+        );
+
+        let resp = db
+            .show_table(table, doc! {}, doc! {}, 1, 100)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+
+        let table_list = db.list_table().await.unwrap();
+        println!("{:?}", table_list);
     }
 }

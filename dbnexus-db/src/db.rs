@@ -131,7 +131,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
 
     fn can_write(&self) -> anyhow::Result<()> {
         if self.read_only() {
-            return Err(anyhow::Error::msg("this is connection is readonly"));
+            return Err(anyhow::Error::msg("this source is readonly"));
         }
         anyhow::Ok(())
     }

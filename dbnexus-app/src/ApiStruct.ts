@@ -100,7 +100,7 @@ export namespace db_apis {
         "fields": (db_apis.Field)[];
         "total": db_apis.Usize;
         "data": (((string | null))[])[];
-        "sql": string;
+        "sql": (string | null);
     };
     export type IndexKind = ("Normal" | "Unique" | "Primary");
     export type Index = {

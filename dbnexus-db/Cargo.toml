@@ -7,6 +7,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
+bb8.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 async-trait.workspace = true
@@ -16,7 +17,7 @@ hex.workspace = true
 mac_address.workspace = true
 ipnetwork.workspace = true
 chrono.workspace = true
-bit-vec.workspace = "0.6.3"
+bit-vec = "0.6.3"
 uuid.workspace = true
 serde_json.workspace = true
 sqlparser.workspace = true
@@ -24,7 +25,6 @@ lazy_static.workspace = true
 line-index.workspace = true
 log.workspace = true
 redis.workspace = true
-bb8.worksapce = true
 futures-util.workspace = true
 futures-core.workspace = true
 mongodb.workspace = true
@@ -32,11 +32,11 @@ tiberius.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 rust_decimal.workspace = true
-bb8-tiberius.worksapce = true
+bb8-tiberius = "*"
 oracle = { git = "https://github.com/kubo/rust-oracle", branch = "master" }
-fuzzy-matcher.worksapce = true
-pg_interval.worksapce = true
-typescript-type-def.worksapce = true
-sqlformat.worksapce = true
-bson.worksapce = true
+pg_interval = "*"
+typescript-type-def = "*"
+sqlformat = "*"
+fuzzy-matcher = "*"
+bson = "*"
 [dev-dependencies]
