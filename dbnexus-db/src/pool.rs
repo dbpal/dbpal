@@ -98,7 +98,7 @@ async fn make_pool(db: &DBPoolKey) -> anyhow::Result<crate::pool::NexusPool> {
                 config.trust_cert(); // on production, it is not a good idea to do this
             }
             let manager = bb8_tiberius::ConnectionManager::new(config);
-            let pool = bb8::Pool::builder().max_size(15).build(manager).await?;
+            let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
             anyhow::Ok(SqlServer(pool))
         }
         DBPoolKey::Oracle(config) => {

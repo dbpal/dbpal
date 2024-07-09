@@ -148,6 +148,33 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     }
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
+
+    async fn show_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
+        anyhow::bail!(format!(
+            "this backend '{}' don't support this features",
+            self.backend_name()
+        ))
+    }
+    async fn show_udf_detail(&self) -> anyhow::Result<UdfDetail> {
+        anyhow::bail!(format!(
+            "this backend '{}' don't support this features",
+            self.backend_name()
+        ))
+    }
+}
+
+#[derive(Debug, serde::Serialize, TypeDef, Clone)]
+pub struct UdfDetail {}
+
+#[derive(Debug, serde::Serialize, TypeDef, Clone)]
+pub struct ListUdf {
+    name: String,
+}
+
+impl From<String> for ListUdf {
+    fn from(value: String) -> Self {
+        ListUdf { name: value }
+    }
 }
 
 pub trait FormatSql {

@@ -1392,8 +1392,6 @@ impl AutoCompletionTrait for SqlServer {
 #[cfg(test)]
 mod tests {
 
-    use futures_util::FutureExt;
-
     use super::*;
     use crate::{init_log, TEST_HOST};
 
@@ -1639,54 +1637,33 @@ mod tests {
     #[tokio::test]
     async fn test_index() {
         let db = make_test_object();
+        let _ = db.drop_table("test_index_table").await;
 
-        db.with_conn(|conn| {
-            async {
-                conn.execute(
-                    r#"
-                    drop table if exists test_index_table;
-                    -- 创建表
-                    CREATE TABLE test_index_table (
+        let query_id = db.open_connection().await.unwrap();
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_index_table (
                         Column1 int,
                         Column2 int,
                     );
                     -- 添加唯一索引
-                    CREATE UNIQUE INDEX IX_YourTableName_Column1_Column2
-                        ON test_index_table (Column1, Column2);
+                CREATE UNIQUE INDEX IX_YourTableName_Column1_Column2
+                    ON test_index_table (Column1, Column2);
         "#,
-                    &[],
-                )
-                .await
-                .map(|_| ())
-                .map_err(|e| anyhow::Error::msg(e.to_string()))
-            }
-            .boxed()
-        })
-        .await
-        .unwrap();
+            )
+            .await
+            .unwrap();
+
         let db = &db as &dyn crate::db::DBTrait;
+        std::thread::sleep(Duration::from_secs(1));
         let indexes = db.show_indexes("test_index_table").await.unwrap();
         println!("indexes:{:?}", indexes);
         db.drop_table("test_index_table").await.unwrap();
     }
 
-    #[tokio::test]
-    async fn test() {
-        let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
-        let tables = db.list_table().await.unwrap();
-        for t in tables.iter() {
-            println!("t :{:?}", t);
-            let cols = db.show_columns(t.table.as_str()).await.unwrap();
-            println!("cols:{:?}", cols);
-            let list = db
-                .show_table(t.table.as_str(), None, None, 1, 100)
-                .await
-                .unwrap();
-            println!("list:{:?}", list);
-            println!()
-        }
-    }
     #[tokio::test]
     async fn test_export() {
         let table_name = "test_export";
