@@ -4,6 +4,7 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::PgRow;
@@ -13,8 +14,8 @@ use tokio::sync::Mutex;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
-    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp,
+    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
+    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp,
     QuerySql, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pg_format::*;
@@ -395,6 +396,20 @@ impl DBTrait for PostGresDB {
                 enable: enable.map(|x| x as u8 as char),
             }),
         ))
+    }
+
+    async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"table
+         DROP TRIGGER {name} ON {table} 
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql)
+            .execute(conn.deref_mut())
+            .await
+            .context("can't execute sql")?;
+        anyhow::Ok(())
     }
 
     async fn export_table(

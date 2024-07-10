@@ -149,6 +149,9 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
         anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
     }
+    async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
+        anyhow::bail!(format!("'{}' don't support triggers", self.backend_name()))
+    }
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
 
@@ -183,10 +186,26 @@ impl UdfDetail {
 #[derive()]
 
 pub struct MetaValue {
-    name: String,
+    name: Cow<'static, str>,
     value: Box<dyn ToString>,
 }
-
+impl MetaValue {
+    pub(crate) fn new<T: ToString + 'static>(name: impl Into<Cow<'static, str>>, value: T) -> Self {
+        Self {
+            name: name.into(),
+            value: Box::new(value),
+        }
+    }
+}
+#[cfg(test)]
+#[test]
+fn test_new_meta_value() {
+    let x = MetaValue::new("name", 1);
+    assert_eq!(
+        "MetaValue { name: \"name\", value: \"1\" }",
+        format!("{:?}", x)
+    );
+}
 impl typescript_type_def::TypeDef for MetaValue {
     const INFO: typescript_type_def::type_expr::TypeInfo =
         typescript_type_def::type_expr::TypeInfo::Defined(
@@ -251,8 +270,9 @@ impl serde::Serialize for MetaValue {
 impl std::fmt::Debug for MetaValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         #[derive(Debug)]
+        #[allow(dead_code)]
         pub struct MetaValue {
-            name: String,
+            name: Cow<'static, str>,
             value: String,
         }
         let m = MetaValue {
@@ -1095,13 +1115,25 @@ impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
         }
     }
 }
-#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
+#[derive(Debug, serde::Serialize, TypeDef)]
 pub struct TriggerDetail {
     pub(crate) timing: TriggerTiming,
     pub(crate) event: TriggerEvent,
     pub(crate) sql: String,
     pub(crate) enable: Option<TriggerEnable>,
+    pub(crate) metas: Vec<MetaValue>,
 }
+
+impl PartialEq for TriggerDetail {
+    fn eq(&self, other: &Self) -> bool {
+        self.timing == other.timing
+            && self.event == other.event
+            && self.sql == other.sql
+            && self.enable == other.enable
+    }
+}
+
+impl Eq for TriggerDetail {}
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, TypeDef)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -1124,7 +1156,12 @@ impl TriggerDetail {
             event: event.into(),
             sql: sql.into(),
             enable,
+            metas: vec![],
         }
+    }
+
+    pub(crate) fn with_metas(&mut self, metas: Vec<MetaValue>) {
+        self.metas = metas;
     }
 }
 

@@ -19,8 +19,8 @@ use crate::completion::{
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
-    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
-    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql,
+    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
+    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql,
     SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
@@ -442,6 +442,22 @@ impl DBTrait for SqliteDB {
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
         query_trigger_detail(conn.deref_mut(), &name).await
+    }
+
+    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"
+         DROP TRIGGER {name}
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+
+        sqlx::query(sql.as_str())
+            .execute(conn.deref_mut())
+            .await
+            .context("can't execute sql")?;
+
+        anyhow::Ok(())
     }
 
     fn read_only(&self) -> bool {
@@ -1468,14 +1484,17 @@ mod tests {
         .execute(conn.deref_mut())
         .await
         .unwrap();
+        let table = "test_create_trigger";
 
-        let triggers = db_trait.list_trigger("test_create_trigger").await.unwrap();
+        let triggers = db_trait.list_trigger(table).await.unwrap();
         for trigger in triggers.iter() {
             let details = db_trait
                 .show_trigger("test_create_trigger", trigger.name.as_str())
                 .await
                 .unwrap();
             println!("name:{} , detail:{:?}", trigger.name, details);
+            // drop trigger now.
+            db_trait.drop_trigger(table, &trigger.name).await.unwrap();
         }
     }
     #[tokio::test]

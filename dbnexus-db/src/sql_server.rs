@@ -17,10 +17,10 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::CommDBConfig;
 use crate::db::{
-    create_csv, format_data_time_fix_offset, sqlformat_format_sql, sql_to_sql_seq, CheckConn, DBTrait,
-    ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp,
-    QuerySql, SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming,
+    create_csv, format_data_time_fix_offset, sql_to_sql_seq, sqlformat_format_sql, CheckConn,
+    DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView,
+    QueryResp, QuerySql, SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 use crate::CANNOT_GET_CONN_ERR;
@@ -445,6 +445,23 @@ impl DBTrait for SqlServer {
             sql,
             Some(TriggerEnable::Bool { enable: !disabled }),
         ))
+    }
+
+    async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"table
+         DROP TRIGGER dbo.{name} ON {table};
+        "#
+        );
+        let conn = self.get_conn().await?;
+        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let conn = conn.deref_mut();
+
+        conn.execute(sql.as_str(), &[])
+            .await
+            .context("can't drop trigger")?;
+
+        anyhow::Ok(())
     }
 
     async fn export_table(

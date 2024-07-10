@@ -16,8 +16,9 @@ use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBa
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListUdf, ListView, MultiDBTrait,
-    QueryResp, QuerySql, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListUdf, ListView, MetaValue,
+    MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -372,21 +373,31 @@ impl MysqlDB {
 #[allow(dead_code)]
 async fn query_trigger_detail(
     conn: &mut MySqlConnection, name: &str,
-) -> anyhow::Result<(TriggerEvent, TriggerTiming, String)> {
+) -> anyhow::Result<(TriggerEvent, TriggerTiming, String, Vec<MetaValue>)> {
     let sql = format!("SHOW TRIGGERS WHERE `Trigger`='{name}'");
 
     let row = sqlx::query(&sql).fetch_one(conn).await?;
     let event: String = row.try_get(1)?;
     let sql = row.try_get(3)?;
     let timing: String = row.try_get(4)?;
-
+    let create_time: chrono::DateTime<Utc> = row.try_get(5)?;
+    let sql_mode: String = row.try_get(6)?;
+    let create_time = create_time.naive_utc();
     let timing = if timing == "BEFORE" {
         TriggerTiming::Before
     } else {
         TriggerTiming::After
     };
 
-    anyhow::Ok((TriggerEvent::try_from(event.as_str())?, timing, sql))
+    anyhow::Ok((
+        TriggerEvent::try_from(event.as_str())?,
+        timing,
+        sql,
+        vec![
+            MetaValue::new("created", create_time),
+            MetaValue::new("sql_mode", sql_mode),
+        ],
+    ))
 }
 
 #[async_trait::async_trait]
@@ -456,8 +467,23 @@ impl DBTrait for MysqlDB {
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
 
-        let (event, timing, sql) = query_trigger_detail(&mut conn, name).await?;
-        anyhow::Ok(TriggerDetail::new(timing, event, sql, None))
+        let (event, timing, sql, metas) = query_trigger_detail(&mut conn, name).await?;
+        let mut d = TriggerDetail::new(timing, event, sql, None);
+        d.with_metas(metas);
+        anyhow::Ok(d)
+    }
+    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"
+        DROP TRIGGER {name}
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql)
+            .execute(conn.deref_mut())
+            .await
+            .context("can't execute sql")?;
+        anyhow::Ok(())
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
@@ -1166,6 +1192,7 @@ mod tests {
         let db = make_test_object();
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
+
     #[tokio::test]
     async fn test_triggers() {
         let db = make_test_object();
@@ -1216,13 +1243,11 @@ mod tests {
             )
             .await
             .unwrap();
+        let table = "test_create_trigger";
 
-        let ts = db_trait.list_trigger("test_create_trigger").await.unwrap();
+        let ts = db_trait.list_trigger(&table).await.unwrap();
         for t in ts.iter() {
-            let detail = db_trait
-                .show_trigger("test_create_trigger", &t.name)
-                .await
-                .unwrap();
+            let detail = db_trait.show_trigger(&table, &t.name).await.unwrap();
 
             println!("trigger:{} {:?}", t.name, detail);
             if t.name == "after_insert_test_create_trigger2" {
@@ -1230,6 +1255,9 @@ mod tests {
             } else if t.name == "after_insert_test_create_trigger" {
                 assert_eq!(detail.timing, TriggerTiming::After);
             }
+
+            // test later.
+            // db_trait.drop_trigger(table, &t.name).await.unwrap();
         }
     }
     #[tokio::test]
