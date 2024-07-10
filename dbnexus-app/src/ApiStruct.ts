@@ -178,4 +178,12 @@ export namespace db_apis {
         "fields": (db_apis.Field)[];
         "data": (((string | null))[])[];
     };
+    export type MetaValue = {
+        "name": string;
+        "value": string;
+    };
+    export type UdfDetail = {
+        "metas": (db_apis.MetaValue)[];
+        "def": string;
+    };
 }

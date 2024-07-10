@@ -19,7 +19,7 @@ use crate::completion::{
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
-    create_csv, format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
     FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql,
     SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
@@ -27,7 +27,7 @@ use crate::pool::{NexusPool, PoolManager};
 use crate::CANNOT_GET_CONN_ERR;
 impl FormatSql for SqliteDB {
     fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
-        anyhow::Ok(format_sql(sql, None))
+        anyhow::Ok(sqlformat_format_sql(sql, None))
     }
 }
 #[derive(Clone)]

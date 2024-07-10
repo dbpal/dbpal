@@ -1,11 +1,14 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Deref;
+
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
 use line_index::{LineCol, TextSize};
+use serde::ser::SerializeStruct;
+use serde::Serializer;
 use sqlparser::ast::Statement;
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::{Location, Token};
@@ -149,7 +152,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
 
-    async fn show_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
         anyhow::bail!(format!(
             "this backend '{}' don't support this features",
             self.backend_name()
@@ -163,8 +166,102 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     }
 }
 
-#[derive(Debug, serde::Serialize, TypeDef, Clone)]
-pub struct UdfDetail {}
+#[derive(Debug, serde::Serialize, TypeDef)]
+pub struct UdfDetail {
+    metas: Vec<MetaValue>,
+    // definition of the sql.
+    def: String,
+}
+
+impl UdfDetail {
+    pub(crate) fn new(metas: Vec<MetaValue>, def: String) -> Self {
+        Self { metas, def }
+    }
+}
+
+/// meta value can used in various place.
+#[derive()]
+
+pub struct MetaValue {
+    name: String,
+    value: Box<dyn ToString>,
+}
+
+impl typescript_type_def::TypeDef for MetaValue {
+    const INFO: typescript_type_def::type_expr::TypeInfo =
+        typescript_type_def::type_expr::TypeInfo::Defined(
+            typescript_type_def::type_expr::DefinedTypeInfo {
+                def: typescript_type_def::type_expr::TypeDefinition {
+                    docs: None,
+                    path: &[],
+                    name: typescript_type_def::type_expr::Ident("MetaValue"),
+                    generic_vars: &[],
+                    def: typescript_type_def::type_expr::TypeExpr::Object(
+                        typescript_type_def::type_expr::TypeObject {
+                            docs: None,
+                            index_signature: None,
+                            fields: &[
+                                typescript_type_def::type_expr::ObjectField {
+                                    docs: None,
+                                    name: typescript_type_def::type_expr::TypeString {
+                                        docs: None,
+                                        value: "name",
+                                    },
+                                    optional: false,
+                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
+                                        typescript_type_def::type_expr::TypeName::ident(
+                                            typescript_type_def::type_expr::Ident("string"),
+                                        ),
+                                    ),
+                                },
+                                typescript_type_def::type_expr::ObjectField {
+                                    docs: None,
+                                    name: typescript_type_def::type_expr::TypeString {
+                                        docs: None,
+                                        value: "value",
+                                    },
+                                    optional: false,
+                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
+                                        typescript_type_def::type_expr::TypeName::ident(
+                                            typescript_type_def::type_expr::Ident("string"),
+                                        ),
+                                    ),
+                                },
+                            ],
+                        },
+                    ),
+                },
+                generic_args: &[],
+            },
+        );
+}
+
+impl serde::Serialize for MetaValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("MetaValue", 2)?;
+        s.serialize_field("name", &self.name)?;
+        s.serialize_field("value", &self.value.to_string())?;
+        s.end()
+    }
+}
+
+impl std::fmt::Debug for MetaValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[derive(Debug)]
+        pub struct MetaValue {
+            name: String,
+            value: String,
+        }
+        let m = MetaValue {
+            name: self.name.clone(),
+            value: self.value.to_string(),
+        };
+        write!(f, "{:?}", m)
+    }
+}
 
 #[derive(Debug, serde::Serialize, TypeDef, Clone)]
 pub struct ListUdf {
@@ -1081,12 +1178,13 @@ fn test_off_iter() {
     );
 }
 
-pub(crate) fn format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
+/// format sql routine for crate `sqlformat`.
+pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
     sqlformat::format(sql, &sqlformat::QueryParams::None, op.unwrap_or_default())
 }
 
 #[cfg(test)]
 #[test]
-fn test_format_sql() {
-    assert_eq!(format_sql("select 1", None), "select\n  1");
+fn test_sqlformat_format_sql() {
+    assert_eq!(sqlformat_format_sql("select 1", None), "select\n  1");
 }

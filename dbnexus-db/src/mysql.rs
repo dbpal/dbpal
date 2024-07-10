@@ -4,6 +4,7 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use chrono::Utc;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
@@ -14,9 +15,9 @@ use tokio::sync::Mutex;
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
-    create_csv, format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
-    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp,
-    QuerySql, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
+    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListUdf, ListView, MultiDBTrait,
+    QueryResp, QuerySql, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -49,7 +50,7 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
 }
 impl FormatSql for MysqlDB {
     fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
-        anyhow::Ok(format_sql(sql, None))
+        anyhow::Ok(sqlformat_format_sql(sql, None))
     }
 }
 
@@ -391,6 +392,32 @@ async fn query_trigger_detail(
 #[async_trait::async_trait]
 
 impl DBTrait for MysqlDB {
+    async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
+        let sql = format!(
+            r#"
+        SELECT ROUTINE_NAME
+            FROM INFORMATION_SCHEMA.ROUTINES
+            WHERE ROUTINE_SCHEMA = '{}' -- 替换为你的数据库名
+            AND ROUTINE_TYPE = 'FUNCTION';
+       "#,
+            self.config.db_name.as_ref().unwrap()
+        );
+        let mut conn = self.get_conn().await?;
+
+        let rows = sqlx::query(&sql)
+            .fetch_all(conn.deref_mut())
+            .await
+            .context("can't query")?;
+        let mut ret = Vec::new();
+
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            let udf = ListUdf::from(name);
+            ret.push(udf);
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
