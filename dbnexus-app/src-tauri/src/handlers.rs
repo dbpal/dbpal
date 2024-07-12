@@ -331,11 +331,10 @@ pub async fn oracle_query_set_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_set_autocommit(id, commit)
-                .await
-                .map_err(|e| e.to_string())
-        }
+        Some(x) => x
+            .query_set_autocommit(id, commit)
+            .await
+            .map_err(|e| e.to_string()),
         None => Err(format!("db '{}' is not oracle", uuid)),
     }
 }

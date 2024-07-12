@@ -160,11 +160,16 @@ export namespace db_apis {
     } & {
         "enable": boolean;
     }));
+    export type MetaValue = {
+        "name": string;
+        "value": string;
+    };
     export type TriggerDetail = {
         "timing": db_apis.TriggerTiming;
         "event": db_apis.TriggerEvent;
         "sql": string;
         "enable": (db_apis.TriggerEnable | null);
+        "metas": (db_apis.MetaValue)[];
     };
     export type ListTrigger = {
         "name": string;
@@ -177,10 +182,6 @@ export namespace db_apis {
     export type QueryResp = {
         "fields": (db_apis.Field)[];
         "data": (((string | null))[])[];
-    };
-    export type MetaValue = {
-        "name": string;
-        "value": string;
     };
     export type UdfDetail = {
         "metas": (db_apis.MetaValue)[];

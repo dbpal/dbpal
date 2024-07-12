@@ -60,13 +60,13 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
         &self, _table_name: &str, _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        dont_support_features(self.backend_name())
+        not_support_features(self.backend_name())
     }
 
     async fn export_query_result(
         &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        dont_support_features(self.backend_name())
+        not_support_features(self.backend_name())
     }
 
     async fn export_query_result_to_file(
@@ -123,11 +123,11 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     async fn create_table_and_index_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        dont_support_features(self.backend_name())
+        not_support_features(self.backend_name())
     }
 
     async fn create_view_sql(&self, _view_name: &str) -> anyhow::Result<String> {
-        dont_support_features(self.backend_name())
+        not_support_features(self.backend_name())
     }
     /// if this connection is read only
     fn read_only(&self) -> bool;
@@ -144,26 +144,33 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     }
 
     async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
-        dont_support_features(self.backend_name())
+        not_support_features(self.backend_name())
     }
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
-        dont_support_features(self.backend_name())
+        not_support_features(self.backend_name())
     }
     async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        dont_support_features(self.backend_name())
+        not_support_features(self.backend_name())
+    }
+
+    async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+    async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
     }
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
 
     async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
-        dont_support_features(self.backend_name())
+        not_support_features(self.backend_name())
     }
     async fn show_udf_detail(&self) -> anyhow::Result<UdfDetail> {
-        dont_support_features(self.backend_name())
+        not_support_features(self.backend_name())
     }
 }
 
-fn dont_support_features<T>(name: &str) -> anyhow::Result<T> {
+fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
     anyhow::bail!(format!(
         "this backend '{}' don't support this feature",
         name
