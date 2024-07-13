@@ -6,9 +6,9 @@ use std::path::Path;
 
 use dbnexus_db::completion::{CompletionItem, CompletionKind};
 use dbnexus_db::db::{
-    ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, RedisListTable,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfDetail,
+    ExportKind, Field, Index, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
+    ProcedureDetail, QueryResp, RedisListTable, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
 };
 use dvnexus_app_lib::storage;
 use typescript_type_def::{write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef};
@@ -38,6 +38,9 @@ fn main() {
             &CompletionKind::INFO,
             &QueryResp::INFO,
             &UdfDetail::INFO,
+            &ListUdf::INFO,
+            &ListProcedure::INFO,
+            &ProcedureDetail::INFO,
         ];
 
         let mut buf = Vec::new();

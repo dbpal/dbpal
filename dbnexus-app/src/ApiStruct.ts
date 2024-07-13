@@ -184,7 +184,17 @@ export namespace db_apis {
         "data": (((string | null))[])[];
     };
     export type UdfDetail = {
-        "metas": (db_apis.MetaValue)[];
         "def": string;
+        "metas": (db_apis.MetaValue)[];
+    };
+    export type ListUdf = {
+        "name": string;
+    };
+    export type ListProcedure = {
+        "name": string;
+    };
+    export type ProcedureDetail = {
+        "def": string;
+        "metas": (db_apis.MetaValue)[];
     };
 }

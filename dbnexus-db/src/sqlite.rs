@@ -1375,21 +1375,22 @@ mod tests {
     use crate::init_log;
 
     // this test no need clean up, we use memory sqlite db.
-    fn make_test_db() -> SqliteDB {
+    fn make_test_object() -> SqliteDB {
         let pool_manager = PoolManager::new();
         let db = SqliteDB::new(pool_manager, ":memory:".to_string(), false);
 
         db
     }
+
     #[tokio::test]
     async fn test_check_conn() {
-        let db = make_test_db();
+        let db = make_test_object();
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
     #[tokio::test]
 
     async fn test_rename() {
-        let db = make_test_db();
+        let db = make_test_object();
         let db_trait = &db as &dyn DBTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
@@ -1417,7 +1418,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_duplicate() {
-        let db = make_test_db();
+        let db = make_test_object();
         let db_trait = &db as &dyn DBTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
@@ -1444,7 +1445,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_triggers() {
-        let db = make_test_db();
+        let db = make_test_object();
         let mut conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn DBTrait;
         sqlx::query(
@@ -1499,7 +1500,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_export_table() {
-        let db = make_test_db();
+        let db = make_test_object();
         let mut conn = db.get_conn().await.unwrap();
         let table_name = "Persons";
         sqlx::query(
@@ -1599,7 +1600,7 @@ mod tests {
     #[tokio::test]
     async fn test_standard() {
         init_log();
-        let db = make_test_db();
+        let db = make_test_object();
         let mut conn = db.get_conn().await.unwrap();
         sqlx::query(
             r#"

@@ -9,6 +9,7 @@ use chrono::Utc;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
+use sqlx::Executor;
 use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
@@ -16,9 +17,9 @@ use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBa
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListUdf, ListView, MetaValue,
-    MultiDBTrait, QueryResp, QuerySql, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming,
+    Field, FormatSql, Index, IndexKind, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
+    MetaValue, MultiDBTrait, ProcedureDetail, QueryResp, QuerySql, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -49,6 +50,7 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
     }
     ret
 }
+
 impl FormatSql for MysqlDB {
     fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, None))
@@ -400,33 +402,141 @@ async fn query_trigger_detail(
     ))
 }
 
-#[async_trait::async_trait]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FunctionOrProcedure {
+    Function,
+    Procedure,
+}
 
-impl DBTrait for MysqlDB {
-    async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
+impl FunctionOrProcedure {
+    async fn query_list(
+        self, conn: &mut sqlx::mysql::MySqlConnection, db: &str,
+    ) -> anyhow::Result<Vec<String>> {
         let sql = format!(
             r#"
         SELECT ROUTINE_NAME
             FROM INFORMATION_SCHEMA.ROUTINES
             WHERE ROUTINE_SCHEMA = '{}' -- 替换为你的数据库名
-            AND ROUTINE_TYPE = 'FUNCTION';
+            AND ROUTINE_TYPE = '{}'
        "#,
-            self.config.db_name.as_ref().unwrap()
+            db,
+            self.sql_condtion_str()
         );
-        let mut conn = self.get_conn().await?;
 
         let rows = sqlx::query(&sql)
-            .fetch_all(conn.deref_mut())
+            .fetch_all(conn)
             .await
             .context("can't query")?;
         let mut ret = Vec::new();
 
         for r in rows.iter() {
             let name: String = r.get(0);
-            let udf = ListUdf::from(name);
-            ret.push(udf);
+            ret.push(name);
         }
+
         anyhow::Ok(ret)
+    }
+
+    async fn query_details(
+        self, conn: &mut MySqlConnection, db: &str, name: &str,
+    ) -> anyhow::Result<(String, Vec<MetaValue>)> {
+        let sql = format!(
+            r#"
+            SELECT
+                ROUTINE_DEFINITION, 
+                CREATED, 
+                Last_Altered
+            FROM 
+                information_schema.Routines
+            WHERE 
+                ROUTINE_SCHEMA = '{}' 
+                AND ROUTINE_TYPE = '{}' AND ROUTINE_NAME='{}'
+                "#,
+            db,
+            self.sql_condtion_str(),
+            name
+        );
+
+        let row = sqlx::query(&sql).fetch_one(conn).await?;
+        let def: String = row.try_get(0)?;
+        let create: chrono::DateTime<Utc> = row.try_get(1)?;
+        let create = create.naive_utc();
+        let last_altered: chrono::DateTime<Utc> = row.try_get(1)?;
+        let last_altered = last_altered.naive_utc();
+        anyhow::Ok((
+            def,
+            vec![
+                MetaValue::new("created", create),
+                MetaValue::new("last_altered", last_altered),
+            ],
+        ))
+    }
+
+    fn sql_condtion_str(self) -> &'static str {
+        match self {
+            FunctionOrProcedure::Function => "FUNCTION",
+            FunctionOrProcedure::Procedure => "PROCEDURE",
+        }
+    }
+}
+
+#[async_trait::async_trait]
+
+impl DBTrait for MysqlDB {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<ListProcedure>> {
+        let mut conn = self.get_conn().await?;
+
+        let ret = FunctionOrProcedure::Procedure
+            .query_list(conn.deref_mut(), self.config.db_name.as_ref().unwrap())
+            .await?;
+        anyhow::Ok(ret.into_iter().map(ListProcedure::from).collect())
+    }
+    async fn show_procedure(&self, name: &str) -> anyhow::Result<ProcedureDetail> {
+        let mut conn = self.get_conn().await?;
+        let (def, metas) = FunctionOrProcedure::Procedure
+            .query_details(
+                conn.deref_mut(),
+                self.config.db_name.as_ref().unwrap(),
+                name,
+            )
+            .await?;
+
+        anyhow::Ok(ProcedureDetail::new(def, metas))
+    }
+    async fn drop_procedure(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP PROCEDURE {name}");
+        let mut conn = self.get_conn().await?;
+        conn.execute(sqlx::raw_sql(&sql)).await?;
+        anyhow::Ok(())
+    }
+
+    async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
+        let mut conn = self.get_conn().await?;
+        let (def, metas) = FunctionOrProcedure::Function
+            .query_details(
+                conn.deref_mut(),
+                self.config.db_name.as_ref().unwrap(),
+                name,
+            )
+            .await?;
+
+        anyhow::Ok(UdfDetail::new(def, metas))
+    }
+
+    async fn drop_udf(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP FUNCTION {name}");
+        let mut conn = self.get_conn().await?;
+        conn.execute(sqlx::raw_sql(&sql)).await?;
+        anyhow::Ok(())
+    }
+
+    async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
+        let mut conn = self.get_conn().await?;
+
+        let ret = FunctionOrProcedure::Function
+            .query_list(conn.deref_mut(), self.config.db_name.as_ref().unwrap())
+            .await?;
+        anyhow::Ok(ret.into_iter().map(ListUdf::from).collect())
     }
 
     async fn export_query_result(
@@ -479,10 +589,9 @@ impl DBTrait for MysqlDB {
         "#
         );
         let mut conn = self.get_conn().await?;
-        sqlx::query(&sql)
-            .execute(conn.deref_mut())
-            .await
-            .context("can't execute sql")?;
+
+        conn.execute(sqlx::raw_sql(&sql)).await?;
+
         anyhow::Ok(())
     }
 
@@ -1115,6 +1224,77 @@ mod tests {
         );
         db
     }
+
+    #[tokio::test]
+    async fn test_procedure() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let f = "test_procedure";
+
+        let _ = db_trait.drop_procedure(f).await;
+
+        let resp = db_trait
+            .query_sql(
+                query_id,
+                r#" 
+        CREATE PROCEDURE test_procedure(
+            IN parameter1 INT,
+            IN parameter2 INT
+        )
+        BEGIN
+            DECLARE total INT;
+
+            SET total = parameter1 + parameter2;
+
+            SELECT total;
+        END;
+        "#,
+            )
+            .await
+            .unwrap();
+
+        resp.iter().for_each(|x| assert!(x.is_ok(), "{:?}", x));
+
+        let udfs = db_trait.list_procedure().await.unwrap();
+        for udf in udfs.iter() {
+            let details = db_trait.show_procedure(&udf.name).await.unwrap();
+            println!("details:{:?}", details);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_udf() {
+        let db = make_test_object();
+        let db_trait = &db as &dyn DBTrait;
+        let query_id = db_trait.open_connection().await.unwrap();
+        let f = "test_function";
+
+        let _ = db_trait.drop_udf(f).await;
+
+        let resp = db_trait
+            .query_sql(
+                query_id,
+                r#" 
+        CREATE FUNCTION test_function()
+        RETURNS VARCHAR(255)
+        DETERMINISTIC
+        BEGIN
+            RETURN "hello world";
+        END;
+        "#,
+            )
+            .await
+            .unwrap();
+
+        resp.iter().for_each(|x| assert!(x.is_ok(), "{:?}", x));
+
+        let udfs = db_trait.list_udf().await.unwrap();
+        for udf in udfs.iter() {
+            let details = db_trait.show_udf(&udf.name).await.unwrap();
+            println!("details:{:?}", details);
+        }
+    }
     #[tokio::test]
     async fn test_rename() {
         let db = make_test_object();
@@ -1256,8 +1436,7 @@ mod tests {
                 assert_eq!(detail.timing, TriggerTiming::After);
             }
 
-            // test later.
-            // db_trait.drop_trigger(table, &t.name).await.unwrap();
+            db_trait.drop_trigger(table, &t.name).await.unwrap();
         }
     }
     #[tokio::test]

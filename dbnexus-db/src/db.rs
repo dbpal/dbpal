@@ -39,7 +39,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
     fn put_value_in_sql(&self, _f: &Field, _value: Option<&str>) -> anyhow::Result<String> {
-        anyhow::bail!("this backend no need impl this")
+        not_support_features(self.backend_name())
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()>;
@@ -165,7 +165,20 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
         not_support_features(self.backend_name())
     }
-    async fn show_udf_detail(&self) -> anyhow::Result<UdfDetail> {
+    async fn show_udf(&self, _name: &str) -> anyhow::Result<UdfDetail> {
+        not_support_features(self.backend_name())
+    }
+    async fn drop_udf(&self, _name: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
+    async fn list_procedure(&self) -> anyhow::Result<Vec<ListProcedure>> {
+        not_support_features(self.backend_name())
+    }
+    async fn show_procedure(&self, _name: &str) -> anyhow::Result<ProcedureDetail> {
+        not_support_features(self.backend_name())
+    }
+    async fn drop_procedure(&self, _name: &str) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
 }
@@ -178,14 +191,26 @@ fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
-pub struct UdfDetail {
-    metas: Vec<MetaValue>,
+pub struct ProcedureDetail {
     // definition of the sql.
     def: String,
+    metas: Vec<MetaValue>,
+}
+impl ProcedureDetail {
+    pub(crate) fn new(def: String, metas: Vec<MetaValue>) -> Self {
+        Self { metas, def }
+    }
+}
+
+#[derive(Debug, serde::Serialize, TypeDef)]
+pub struct UdfDetail {
+    // definition of the sql.
+    def: String,
+    metas: Vec<MetaValue>,
 }
 
 impl UdfDetail {
-    pub(crate) fn new(metas: Vec<MetaValue>, def: String) -> Self {
+    pub(crate) fn new(def: String, metas: Vec<MetaValue>) -> Self {
         Self { metas, def }
     }
 }
@@ -290,10 +315,20 @@ impl std::fmt::Debug for MetaValue {
         write!(f, "{:?}", m)
     }
 }
+#[derive(Debug, serde::Serialize, TypeDef, Clone)]
+pub struct ListProcedure {
+    pub(crate) name: String,
+}
+
+impl From<String> for ListProcedure {
+    fn from(value: String) -> Self {
+        ListProcedure { name: value }
+    }
+}
 
 #[derive(Debug, serde::Serialize, TypeDef, Clone)]
 pub struct ListUdf {
-    name: String,
+    pub(crate) name: String,
 }
 
 impl From<String> for ListUdf {
