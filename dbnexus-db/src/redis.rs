@@ -1,9 +1,11 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
 use futures_util::StreamExt;
+use tokio::sync::Mutex;
 
 use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
@@ -21,6 +23,7 @@ pub struct RedisDB {
     server: String,
     pm: PoolManager,
     read_only: bool,
+    query_connections: Arc<Mutex<HashMap<uuid::Uuid, redis::aio::MultiplexedConnection>>>,
 }
 
 use redis::aio::ConnectionManager;
@@ -32,6 +35,7 @@ impl RedisDB {
             server,
             pm,
             read_only,
+            query_connections: Default::default(),
         }
     }
 
@@ -370,19 +374,17 @@ impl DBTrait for RedisDB {
             RedisType::List => anyhow::Ok(vec![value_field]),
             RedisType::Set => anyhow::Ok(vec![value_field]),
             RedisType::Hash => anyhow::Ok(vec![key_field, value_field]),
-            RedisType::Zset => {
-                anyhow::Ok(vec![
-                    value_field,
-                    Field {
-                        name: "score".to_string(),
-                        typ: "float64".to_string(),
-                        nullable: false,
-                        default_value: None,
-                        is_primary: false,
-                        is_auto_increment: false,
-                    },
-                ])
-            }
+            RedisType::Zset => anyhow::Ok(vec![
+                value_field,
+                Field {
+                    name: "score".to_string(),
+                    typ: "float64".to_string(),
+                    nullable: false,
+                    default_value: None,
+                    is_primary: false,
+                    is_auto_increment: false,
+                },
+            ]),
         }
     }
 
@@ -568,22 +570,41 @@ impl QuerySql for RedisDB {
     /// so connection management for redis is dummy
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
+        let client = self.get_client().await?;
+        let conn = client.get_multiplexed_async_connection().await?;
+        self.query_connections.lock().await.insert(id.clone(), conn);
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        let client = self.get_client().await?;
+        let conn = client.get_multiplexed_async_connection().await?;
+        self.query_connections.lock().await.insert(id.clone(), conn);
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        if let Some(conn) = self.query_connections.lock().await.remove(&id) {
+            tokio::spawn(async move {
+                let _ = conn;
+            });
+        }
+
         anyhow::Ok(())
     }
 
     async fn query_sql(
-        &self, _id: uuid::Uuid, sql: &str,
+        &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut conn = self.get_conn().await?;
-        query_sql(&mut conn, sql).await
+        let mut lock = self.query_connections.lock().await;
+        let conn = match lock.get_mut(&id) {
+            Some(x) => x,
+            None => {
+                anyhow::bail!(format!("can't find connection for id '{}'", id))
+            }
+        };
+
+        query_sql(conn, sql).await
     }
 }
 impl RedisDB {
@@ -638,7 +659,7 @@ impl RedisType {
 }
 
 async fn query_sql(
-    conn: &mut ConnectionManager, sql: &str,
+    conn: &mut redis::aio::MultiplexedConnection, sql: &str,
 ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
     let mut commands = Vec::new();
     for line in sql.lines() {
@@ -729,6 +750,11 @@ fn encode_value(v: &Value) -> Vec<String> {
 }
 
 impl RedisDB {
+    async fn get_client(&self) -> anyhow::Result<redis::Client> {
+        let client = redis::Client::open(self.server.as_str())?;
+        anyhow::Ok(client)
+    }
+
     async fn get_conn(&self) -> anyhow::Result<redis::aio::ConnectionManager> {
         let m = match self
             .pm
@@ -755,6 +781,7 @@ mod tests {
             server: format!("redis://{}/", *TEST_HOST),
             pm: Default::default(),
             read_only: false,
+            query_connections: Default::default(),
         };
         x
     }
