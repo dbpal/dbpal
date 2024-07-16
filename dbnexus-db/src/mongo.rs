@@ -155,7 +155,7 @@ impl CheckConn for Mongo {
 impl FormatSql for Mongo {
     fn format_sql(&self, _sql: &str) -> anyhow::Result<String> {
         anyhow::bail!(format!(
-            "this backend '{}' don't support format sql",
+            "'{}' don't support format sql",
             self.backend_name()
         ))
     }
@@ -303,7 +303,7 @@ impl Mongo {
                     serde_json::to_string(&item).context("encode json failed")?,
                 ))
                 .await?;
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send("\n".into()).await?;
         }
         anyhow::Ok(())
     }
@@ -312,7 +312,7 @@ impl Mongo {
         mut stream: mongodb::Cursor<Document>, pretty: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        sender.send(Cow::Borrowed("[")).await?;
+        sender.send("[".into()).await?;
         let mut first = true;
         while let Some(item) = stream.next().await {
             let item = item.context("stream doc failed")?;
@@ -320,7 +320,7 @@ impl Mongo {
                 sender.send(Cow::Borrowed(",")).await?;
             }
             if pretty {
-                sender.send(Cow::Borrowed("\n")).await?;
+                sender.send("\n".into()).await?;
             }
             sender
                 .send(Cow::Owned(if pretty {
@@ -333,9 +333,9 @@ impl Mongo {
             first = false;
         }
         if pretty {
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send("\n".into()).await?;
         }
-        sender.send(Cow::Borrowed("]")).await?;
+        sender.send("]".into()).await?;
         anyhow::Ok(())
     }
 

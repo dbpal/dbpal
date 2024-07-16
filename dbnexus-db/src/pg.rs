@@ -113,7 +113,7 @@ impl PostGresDB {
 
                 let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send(Cow::Borrowed("\n")).await?;
+                sender.send("\n".into()).await?;
             }
         }
         anyhow::Ok(())
@@ -132,7 +132,7 @@ impl PostGresDB {
             sender
                 .send(Cow::Owned(serde_json::to_string(&value)?))
                 .await?;
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send("\n".into()).await?;
         }
 
         anyhow::Ok(())
@@ -152,7 +152,7 @@ impl PostGresDB {
 
         let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
 
-        sender.send(Cow::Borrowed("[")).await?;
+        sender.send("[".into()).await?;
         let mut first = true;
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -161,7 +161,7 @@ impl PostGresDB {
                 sender.send(Cow::Borrowed(",")).await?;
             }
             if pretty {
-                sender.send(Cow::Borrowed("\n")).await?;
+                sender.send("\n".into()).await?;
             }
             sender
                 .send(Cow::Owned(if pretty {
@@ -173,9 +173,9 @@ impl PostGresDB {
             first = false;
         }
         if pretty {
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send("\n".into()).await?;
         }
-        sender.send(Cow::Borrowed("]")).await?;
+        sender.send("]".into()).await?;
         anyhow::Ok(())
     }
 

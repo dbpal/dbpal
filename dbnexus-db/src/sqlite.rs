@@ -79,11 +79,11 @@ impl SqliteDB {
         if include_table_schema {
             let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send("\n".into()).await?;
 
             for index in ss.indexes.into_iter() {
                 sender.send(Cow::Owned(index)).await?;
-                sender.send(Cow::Borrowed("\n")).await?;
+                sender.send("\n".into()).await?;
             }
         }
         let mut conn = self.get_conn().await?;
@@ -104,7 +104,7 @@ impl SqliteDB {
 
                 let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send(Cow::Borrowed("\n")).await?;
+                sender.send("\n".into()).await?;
             }
         }
         anyhow::Ok(())
@@ -125,7 +125,7 @@ impl SqliteDB {
                 .send(Cow::Owned(serde_json::to_string(&value)?))
                 .await?;
 
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send("\n".into()).await?;
         }
 
         anyhow::Ok(())
@@ -146,7 +146,7 @@ impl SqliteDB {
 
         let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
 
-        sender.send(Cow::Borrowed("[")).await?;
+        sender.send("[".into()).await?;
         let mut first = true;
         while let Some(row) = stream.next().await {
             let row = row.context("stream returns error")?;
@@ -155,7 +155,7 @@ impl SqliteDB {
                 sender.send(Cow::Borrowed(",")).await?;
             }
             if pretty {
-                sender.send(Cow::Borrowed("\n")).await?;
+                sender.send("\n".into()).await?;
             }
             sender
                 .send(Cow::Owned(if pretty {
@@ -167,9 +167,9 @@ impl SqliteDB {
             first = false;
         }
         if pretty {
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send("\n".into()).await?;
         }
-        sender.send(Cow::Borrowed("]")).await?;
+        sender.send("]".into()).await?;
         anyhow::Ok(())
     }
 

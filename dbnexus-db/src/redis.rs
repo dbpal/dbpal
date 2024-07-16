@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -11,10 +13,12 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
-    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, ListTable, ListView, OffsetLimitIter,
-    QueryResp, QuerySql, RedisListTable, SqlExecuteRet, TableListResp,
+    create_csv, CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, ListTable,
+    OffsetLimitIter, QueryResp, QuerySql, RedisListTable, SqlExecuteRet, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
+use redis::aio::{ConnectionManager, MultiplexedConnection};
+use redis::{AsyncCommands, AsyncIter, Value};
 
 /// https://stackoverflow.com/questions/30611215/redis-how-to-limit-the-return-number-of-keys-command
 
@@ -23,11 +27,8 @@ pub struct RedisDB {
     server: String,
     pm: PoolManager,
     read_only: bool,
-    query_connections: Arc<Mutex<HashMap<uuid::Uuid, redis::aio::MultiplexedConnection>>>,
+    query_connections: Arc<Mutex<HashMap<uuid::Uuid, MultiplexedConnection>>>,
 }
-
-use redis::aio::ConnectionManager;
-use redis::{AsyncCommands, AsyncIter, Value};
 
 impl RedisDB {
     pub fn new(pm: PoolManager, server: String, read_only: bool) -> Self {
@@ -38,34 +39,93 @@ impl RedisDB {
             query_connections: Default::default(),
         }
     }
-
-    fn key_value_fields() -> [Field; 2] {
-        let key_field = Field {
-            name: "key".to_string(),
-            typ: "any".to_string(),
-            nullable: false,
-            default_value: None,
-            is_primary: false,
-            is_auto_increment: false,
-        };
-        let value_field = Field {
-            name: "value".to_string(),
-            typ: "any".to_string(),
-            nullable: false,
-            default_value: None,
-            is_primary: false,
-            is_auto_increment: false,
-        };
-        [key_field, value_field]
-    }
 }
 
 impl RedisDB {
     async fn export_table_as_csv(
-        &self, _key: &str, _include_header: bool, _delimiter: char,
-        _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, key: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        unimplemented!()
+        if include_header {
+            anyhow::bail!("redis have no header")
+        }
+        let mut conn = self.get_conn().await?;
+        let ty = Self::get_key_type(&mut conn, key).await?;
+        match ty {
+            RedisType::String => {
+                let value: String = conn.get(key).await?;
+                sender
+                    .send(create_csv(&vec![vec![Some(value)]], delimiter).into())
+                    .await?;
+            }
+            RedisType::List => {
+                let total: isize = conn.llen(key).await?;
+                let size: isize = 100;
+                let iter = OffsetLimitIter::new(total, 100);
+                for x in iter {
+                    let list: Vec<String> = conn.lrange(key, x, x + size).await?;
+                    let list = list.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>();
+                    sender.send(create_csv(&list, delimiter).into()).await?;
+                }
+            }
+            RedisType::Set => {
+                let mut iter = conn.sscan::<_, String>(key).await?.ready_chunks(100);
+                while let Some(set) = iter.next().await {
+                    let set = set.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>();
+                    sender.send(create_csv(&set, delimiter).into()).await?;
+                }
+            }
+
+            RedisType::Hash => {
+                let mut stream: AsyncIter<'_, String> = conn.hscan(key).await?;
+                let mut key = None as Option<String>;
+                while let Some(value) = stream.next().await {
+                    match &key {
+                        Some(key2) => {
+                            sender
+                                .send(
+                                    create_csv(
+                                        &vec![vec![Some(key2.clone()), Some(value)]],
+                                        delimiter,
+                                    )
+                                    .into(),
+                                )
+                                .await?;
+
+                            key = None;
+                        }
+                        None => {
+                            key = Some(value);
+                        }
+                    }
+                }
+            }
+            RedisType::Zset => {
+                let mut stream: AsyncIter<'_, String> = conn.zscan(key).await?;
+                let mut zkey = None as Option<String>;
+
+                while let Some(score) = stream.next().await {
+                    match zkey {
+                        Some(zkey2) => {
+                            sender
+                                .send(
+                                    create_csv(
+                                        &vec![vec![Some(zkey2.clone()), Some(score)]],
+                                        delimiter,
+                                    )
+                                    .into(),
+                                )
+                                .await?;
+                            zkey = None;
+                        }
+                        None => {
+                            zkey = Some(score);
+                        }
+                    }
+                }
+            }
+        }
+        anyhow::Ok(())
     }
 
     async fn export_table_as_json(
@@ -87,7 +147,7 @@ impl RedisDB {
                 sender.send(Cow::Owned(value)).await?;
             }
             RedisType::List => {
-                sender.send(Cow::Borrowed("[")).await?;
+                sender.send("[".into()).await?;
 
                 let total: isize = conn.llen(key).await?;
                 let size: isize = 100;
@@ -100,7 +160,7 @@ impl RedisDB {
                             sender.send(Cow::Borrowed(",")).await?;
                         }
                         if pretty {
-                            sender.send(Cow::Borrowed("\n")).await?;
+                            sender.send("\n".into()).await?;
                         }
                         sender
                             .send(Cow::Owned(serde_json::to_string(l.as_str())?))
@@ -108,25 +168,24 @@ impl RedisDB {
                         first = false;
                     }
                 }
-
                 if pretty {
-                    sender.send(Cow::Borrowed("\n")).await?;
+                    sender.send("\n".into()).await?;
                 }
-                sender.send(Cow::Borrowed("]")).await?;
+                sender.send("]".into()).await?;
             }
             RedisType::Set => {
                 let mut iter = conn.sscan::<_, String>(key).await?;
                 let mut first = true;
-                sender.send(Cow::Borrowed("[")).await?;
+                sender.send("[".into()).await?;
                 if pretty {
-                    sender.send(Cow::Borrowed("\n")).await?;
+                    sender.send("\n".into()).await?;
                 }
 
                 while let Some(s) = iter.next().await {
                     if !first {
                         sender.send(Cow::Borrowed(",")).await?;
                         if pretty {
-                            sender.send(Cow::Borrowed("\n")).await?;
+                            sender.send("\n".into()).await?;
                         }
                     }
 
@@ -136,9 +195,9 @@ impl RedisDB {
                     first = false;
                 }
                 if pretty {
-                    sender.send(Cow::Borrowed("\n")).await?;
+                    sender.send("\n".into()).await?;
                 }
-                sender.send(Cow::Borrowed("]")).await?;
+                sender.send("]".into()).await?;
             }
             RedisType::Hash => {
                 let mut stream: AsyncIter<'_, String> = conn.hscan(key).await?;
@@ -189,6 +248,84 @@ impl RedisDB {
         anyhow::Ok(())
     }
 
+    async fn export_table_as_json_line(
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let ty = Self::get_key_type(&mut conn, key).await?;
+        match ty {
+            RedisType::String => {
+                let value: String = conn.get(key).await?;
+                let mut m = HashMap::new();
+                m.insert(key, value);
+                let value = serde_json::to_string(&m);
+                let value = value?;
+                sender.send(Cow::Owned(value)).await?;
+            }
+            RedisType::List => {
+                let total: isize = conn.llen(key).await?;
+                let size: isize = 100;
+                let iter = OffsetLimitIter::new(total, 100);
+                for x in iter {
+                    let list: Vec<String> = conn.lrange(key, x, x + size).await?;
+                    let list = list
+                        .into_iter()
+                        .map(serde_json::Value::from)
+                        .collect::<Vec<_>>();
+                    let value = serde_json::value::Value::from(list);
+                    let json_str = serde_json::to_string(&value)?;
+                    sender.send(json_str.into()).await?;
+                }
+            }
+            RedisType::Set => {
+                let mut iter = conn.sscan::<_, String>(key).await?.ready_chunks(100);
+                while let Some(s) = iter.next().await {
+                    let json_value = serde_json::value::Value::from(s);
+                    let json_str = serde_json::to_string(&json_value)?;
+                    sender.send(json_str.into()).await?;
+                }
+            }
+
+            RedisType::Hash => {
+                let mut stream: AsyncIter<'_, String> = conn.hscan(key).await?;
+                let mut key = None as Option<String>;
+                while let Some(value) = stream.next().await {
+                    match &key {
+                        Some(key2) => {
+                            let mut m = HashMap::new();
+                            m.insert(key2.clone(), value);
+                            let json_str = serde_json::to_string(&m)?;
+                            sender.send(json_str.into()).await?;
+                            key = None;
+                        }
+                        None => {
+                            key = Some(value);
+                        }
+                    }
+                }
+            }
+            RedisType::Zset => {
+                let mut stream: AsyncIter<'_, String> = conn.zscan(key).await?;
+                let mut zkey = None as Option<String>;
+
+                while let Some(score) = stream.next().await {
+                    match zkey {
+                        Some(zkey2) => {
+                            zkey = None;
+                            let mut m = HashMap::new();
+                            m.insert(zkey2, score);
+                            let json_str = serde_json::to_string(&m)?;
+                            sender.send(json_str.into()).await?;
+                        }
+                        None => {
+                            zkey = Some(score);
+                        }
+                    }
+                }
+            }
+        }
+        anyhow::Ok(())
+    }
     async fn export_table_to_command(
         &self, key: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -205,7 +342,6 @@ impl RedisDB {
             RedisType::List => {
                 let total: isize = conn.llen(key).await?;
                 let size: isize = 100;
-
                 let iter = OffsetLimitIter::new(total, 100);
                 for x in iter {
                     let list: Vec<String> = conn.lrange(key, x, x + size).await?;
@@ -281,8 +417,7 @@ impl CheckConn for RedisDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         let mut conn = self.get_conn().await?;
-        let _e: bool = conn.exists("xxx").await?;
-
+        let _: bool = conn.exists("xxx").await?;
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -290,15 +425,72 @@ impl CheckConn for RedisDB {
 impl FormatSql for RedisDB {
     fn format_sql(&self, _sql: &str) -> anyhow::Result<String> {
         anyhow::bail!(format!(
-            "this backend '{}' don't support format sql",
+            "'{}' don't support format sql",
             self.backend_name()
         ))
     }
 }
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
-    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        anyhow::bail!("duplicate key for redis is not supported")
+    async fn duplicate_table(&self, key: &str, dup: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let ty = Self::get_key_type(&mut conn, key).await?;
+        let mut conn_set = self.get_conn().await?;
+
+        match ty {
+            RedisType::String => {
+                let value: String = conn.get(key).await?;
+                conn_set.set(dup, value).await?;
+            }
+            RedisType::List => {
+                let total: isize = conn.llen(key).await?;
+                let size: isize = 100;
+                let iter = OffsetLimitIter::new(total, 100);
+                for x in iter {
+                    let list: Vec<String> = conn.lrange(key, x, x + size).await?;
+                    conn_set.rpush(dup, list).await?;
+                }
+            }
+            RedisType::Set => {
+                let mut iter = conn.sscan::<_, String>(key).await?.ready_chunks(100);
+                while let Some(set) = iter.next().await {
+                    conn_set.sadd(dup, set).await?;
+                }
+            }
+
+            RedisType::Hash => {
+                let mut stream: AsyncIter<'_, String> = conn.hscan(key).await?;
+                let mut key = None as Option<String>;
+                while let Some(value) = stream.next().await {
+                    match &key {
+                        Some(key2) => {
+                            conn_set.hset(dup, key2, value).await?;
+                            key = None;
+                        }
+                        None => {
+                            key = Some(value);
+                        }
+                    }
+                }
+            }
+            RedisType::Zset => {
+                let mut stream: AsyncIter<'_, String> = conn.zscan(key).await?;
+                let mut zkey = None as Option<String>;
+
+                while let Some(score) = stream.next().await {
+                    match zkey {
+                        Some(zkey2) => {
+                            conn_set.zadd(dup, zkey2, score).await?;
+                            zkey = None;
+                        }
+                        None => {
+                            zkey = Some(score);
+                        }
+                    }
+                }
+            }
+        }
+        anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
@@ -323,13 +515,6 @@ impl DBTrait for RedisDB {
         Box::new(Clone::clone(self))
     }
 
-    async fn show_view(
-        &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize,
-    ) -> anyhow::Result<TableListResp> {
-        anyhow::bail!("redis have no view")
-    }
-
     async fn export_table(
         &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -344,46 +529,30 @@ impl DBTrait for RedisDB {
             ExportKind::Json { pretty } => self.export_table_as_json(key, pretty, sender).await,
             ExportKind::Sql {
                 include_table_schema: _,
-            } => self.export_table_to_command(key, sender.clone()).await,
-            ExportKind::JsonLine => {
-                todo!()
-            }
+            } => self.export_table_to_command(key, sender).await,
+            ExportKind::JsonLine => self.export_table_as_json_line(&key, sender).await,
         }
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let mut conn = self.get_conn().await?;
-        let keys: Vec<String> = conn.keys("*").await?;
-        let mut ret = Vec::with_capacity(keys.len());
-        for k in keys.into_iter() {
-            let typ = Self::get_key_type(&mut conn, k.as_str()).await?;
-            let mut meta = HashMap::new();
-            meta.insert("type".to_string(), typ.to_string());
-            ret.push(ListTable { table: k });
-        }
-        anyhow::Ok(ret)
+        anyhow::bail!("use redis list table")
     }
 
     async fn show_columns(&self, key: &str) -> anyhow::Result<Vec<Field>> {
         let mut conn = self.get_conn().await?;
         let typ = Self::get_key_type(&mut conn, key).await?;
-        let [key_field, value_field] = Self::key_value_fields();
 
         match typ {
-            RedisType::String => anyhow::Ok(vec![value_field]),
-            RedisType::List => anyhow::Ok(vec![value_field]),
-            RedisType::Set => anyhow::Ok(vec![value_field]),
-            RedisType::Hash => anyhow::Ok(vec![key_field, value_field]),
+            RedisType::String => anyhow::Ok(vec![Field::from_name_type("value", "string")]),
+            RedisType::List => anyhow::Ok(vec![Field::from_name_type("list element", "string")]),
+            RedisType::Set => anyhow::Ok(vec![Field::from_name_type("set element", "string")]),
+            RedisType::Hash => anyhow::Ok(vec![
+                Field::from_name_type("key", "string"),
+                Field::from_name_type("value", "string"),
+            ]),
             RedisType::Zset => anyhow::Ok(vec![
-                value_field,
-                Field {
-                    name: "score".to_string(),
-                    typ: "float64".to_string(),
-                    nullable: false,
-                    default_value: None,
-                    is_primary: false,
-                    is_auto_increment: false,
-                },
+                Field::from_name_type("value", "string"),
+                Field::from_name_type("score", "float64"),
             ]),
         }
     }
@@ -496,52 +665,37 @@ impl DBTrait for RedisDB {
     }
 
     async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
-        anyhow::Ok(vec![])
+        anyhow::bail!("don't call redis show index method")
     }
 
     async fn insert(
         &self, _table_name: &str, _values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        anyhow::bail!("insert should not called.")
+        anyhow::bail!("call query sql instread")
     }
 
     async fn update(
         &self, _table_name: &str, _values: HashMap<String, Option<String>>,
         _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        anyhow::bail!("this function should not called.")
+        anyhow::bail!("call query sql instread")
     }
 
     async fn truncate_table(&self, _table_name: &str) -> anyhow::Result<()> {
-        anyhow::bail!("redis doesn't support this.")
+        anyhow::bail!("call query sql instread")
     }
 
     async fn delete(
-        &self, key: &str, _wheres: HashMap<String, Option<String>>,
+        &self, _key: &str, _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-
-        let mut conn = self.get_conn().await?;
-        conn.del(key).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql: format!("DEL {}", key),
-            changes: 1,
-            last_insert_row_id: None,
-            last_insert_id_string: None,
-        })
-    }
-
-    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
-        anyhow::bail!("redis have no view")
+        anyhow::bail!("not impl")
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        self.delete(table, Default::default()).await?;
+        let mut conn = self.get_conn().await?;
+        conn.del(table).await?;
         Ok(())
     }
 
@@ -589,7 +743,6 @@ impl QuerySql for RedisDB {
                 let _ = conn;
             });
         }
-
         anyhow::Ok(())
     }
 
@@ -643,17 +796,16 @@ impl TryFrom<&str> for RedisType {
     }
 }
 
-impl RedisType {
-    fn from_str(s: &str) -> anyhow::Result<Self> {
+impl FromStr for RedisType {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "string" => Ok(Self::String),
             "list" => Ok(Self::List),
             "set" => Ok(Self::Set),
             "hash" => Ok(Self::Hash),
             "zset" => Ok(Self::Zset),
-            _ => {
-                anyhow::bail!(format!("'{}' not a valid type", s))
-            }
+            _ => Err(anyhow::Error::msg(format!("redis type '{}' not handle", s))),
         }
     }
 }
@@ -773,8 +925,10 @@ impl RedisDB {
 #[cfg(test)]
 mod tests {
 
+    use std::time::Duration;
+
     use super::RedisDB;
-    use crate::TEST_HOST;
+    use crate::{db::ExportKind, TEST_HOST};
 
     fn make_test_object() -> RedisDB {
         let x = RedisDB {
@@ -784,6 +938,16 @@ mod tests {
             query_connections: Default::default(),
         };
         x
+    }
+
+    #[tokio::test]
+    async fn test_list_redis_table() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let redis_tables = db.redis_list_table().await.unwrap();
+        println!("redis tables:{:?}", redis_tables);
     }
 
     #[tokio::test]
@@ -810,189 +974,371 @@ mod tests {
         let db = make_test_object();
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
+
     #[tokio::test]
-    async fn test() {
+    async fn test_hash_key() {
         let db = make_test_object();
         let db = &db as &dyn crate::db::DBTrait;
         let query_id = db.open_connection().await.unwrap();
+        let table_name = "hash_value";
 
-        db.delete("string_value", Default::default()).await.unwrap();
-        db.delete("hash_value", Default::default()).await.unwrap();
-        db.delete("list_value", Default::default()).await.unwrap();
-        db.delete("set_value", Default::default()).await.unwrap();
-        db.delete("zset_value", Default::default()).await.unwrap();
-
-        let ret = db
-            .query_sql(query_id.clone(), "set string_value string_value")
-            .await
-            .unwrap();
-        println!("ret:{:?}", ret);
+        let _ = db.drop_table(table_name).await;
 
         let ret = db
             .query_sql(query_id.clone(), "hset hash_value key11111 value2222")
             .await
             .unwrap();
-
-        println!("ret:{:?}", ret);
+        println!("query ret :{:?}", ret);
 
         let ret = db
             .query_sql(query_id.clone(), "hset hash_value key2222 value33333")
             .await
             .unwrap();
+        println!("query ret :{:?}", ret);
+        // export
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
 
-        println!("ret:{:?}", ret);
+            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
+            println!("json:{}", s);
 
-        let ret = db
-            .query_sql(query_id.clone(), "lpush list_value 1")
+            let s = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("json_line:{}", s);
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("sql:{}", s);
+        }
+        let cols = db.show_columns(table_name).await.unwrap();
+        println!("{:?}", cols);
+        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        println!("resp:{:?}", resp);
+        // dup table and test eq
+        let table_name_dup = format!("{}_dup", table_name);
+
+        db.duplicate_table(&table_name, &table_name_dup)
             .await
             .unwrap();
-        db.query_sql(query_id.clone(), "lpush list_value 2")
+        let resp2 = db
+            .show_table(&table_name_dup, None, None, 1, 100)
             .await
             .unwrap();
-        println!("ret:{:?}", ret);
-        let ret = db
-            .query_sql(query_id.clone(), "sadd set_value  1")
-            .await
-            .unwrap();
-        println!("{:?}", ret);
-        let ret = db
-            .query_sql(query_id.clone(), "sadd set_value  2")
-            .await
-            .unwrap();
-        println!("ret:{:?}", ret);
+        assert_eq!(resp, resp2);
+    }
+
+    #[tokio::test]
+    async fn test_zset_key() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let query_id = db.open_connection().await.unwrap();
+        let table_name = "zset_value";
+
+        let _ = db.drop_table(table_name).await;
+
         let ret = db
             .query_sql(query_id.clone(), "zadd zset_value 1 haha")
             .await
             .unwrap();
-        println!("ret:{:?}", ret);
+        println!("query ret :{:?}", ret);
+
         let ret = db
             .query_sql(query_id.clone(), "zadd zset_value 2 xxx")
             .await
             .unwrap();
-        println!("ret:{:?}", ret);
-
-        let redis_list_table = db.redis_list_table().await.unwrap();
-        println!("redis list table:{:?}", redis_list_table);
+        println!("query ret :{:?}", ret);
+        // export
         {
-            let x = db
+            let s = db
                 .export_table_to_string(
-                    "string_value",
-                    crate::db::ExportKind::Sql {
-                        include_table_schema: false,
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
                     },
                 )
                 .await
                 .unwrap();
-            println!("export str is :{}", x);
-            let x = db
-                .export_table_to_string(
-                    "string_value",
-                    crate::db::ExportKind::Json { pretty: true },
-                )
+            println!("csv:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
-            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
 
-            println!("export str is :{}", x);
-            let x = db
-                .export_table_to_string(
-                    "set_value",
-                    crate::db::ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export str is :{}", x);
-            let x = db
-                .export_table_to_string("set_value", crate::db::ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("export str is :{}", x);
-            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
+            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
+            println!("json:{}", s);
 
-            let x = db
+            let s = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("json_line:{}", s);
+            let s = db
                 .export_table_to_string(
-                    "hash_value",
-                    crate::db::ExportKind::Sql {
+                    table_name,
+                    ExportKind::Sql {
                         include_table_schema: false,
                     },
                 )
                 .await
                 .unwrap();
-            println!("export str is :{}", x);
-            let x = db
-                .export_table_to_string("hash_value", crate::db::ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("export str is :{}", x);
-            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
-
-            let x = db
-                .export_table_to_string(
-                    "zset_value",
-                    crate::db::ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export str is :{}", x);
-            let x = db
-                .export_table_to_string("zset_value", crate::db::ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("export str is :{}", x);
-            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
-
-            let x = db
-                .export_table_to_string(
-                    "list_value",
-                    crate::db::ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export str is :{}", x);
-            let x = db
-                .export_table_to_string("list_value", crate::db::ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("export str is :{}", x);
-            let _: serde_json::Value = serde_json::from_str(x.as_str()).unwrap();
+            println!("sql:{}", s);
         }
+        let cols = db.show_columns(table_name).await.unwrap();
+        println!("{:?}", cols);
+        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        println!("resp:{:?}", resp);
+        // dup table and test eq
+        let table_name_dup = format!("{}_dup", table_name);
 
-        let tables = db.list_table().await.unwrap();
-        for table in tables.iter() {
-            println!("table is {:?}", table);
-            let cols = db.show_columns(table.table.as_str()).await.unwrap();
-            println!("columns is {:?}", cols);
-            let table_list = db
-                .show_table(table.table.as_str(), None, None, 1, 100)
-                .await
-                .unwrap();
-            println!("table list is {:?}", table_list);
-            println!()
-        }
+        db.duplicate_table(&table_name, &table_name_dup)
+            .await
+            .unwrap();
+        let resp2 = db
+            .show_table(&table_name_dup, None, None, 1, 100)
+            .await
+            .unwrap();
+        assert_eq!(resp, resp2);
     }
 
     #[tokio::test]
-    async fn test2() {
+    async fn test_set_key() {
         let db = make_test_object();
         let db = &db as &dyn crate::db::DBTrait;
-        let id = db.open_connection().await.unwrap();
-        let ret = db
-            .query_sql(id.clone(), "set test_string_value string_value")
-            .await
-            .unwrap();
-        println!("ret:{:?}", ret);
+        let query_id = db.open_connection().await.unwrap();
+        let table_name = "set_value";
 
-        let _ret = db
-            .query_sql(id.clone(), "set test_string_value key11111")
+        let _ = db.drop_table(table_name).await;
+
+        let ret = db
+            .query_sql(query_id.clone(), "sadd set_value a")
             .await
             .unwrap();
-        db.drop_table("test_string_value").await.unwrap();
+        println!("query ret :{:?}", ret);
+
+        let ret = db
+            .query_sql(query_id.clone(), "sadd set_value b")
+            .await
+            .unwrap();
+        println!("query ret :{:?}", ret);
+        // export
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+
+            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
+            println!("json:{}", s);
+
+            let s = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("json_line:{}", s);
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("sql:{}", s);
+        }
+        let cols = db.show_columns(table_name).await.unwrap();
+        println!("{:?}", cols);
+        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        println!("resp:{:?}", resp);
+        // dup table and test eq
+        let table_name_dup = format!("{}_dup", table_name);
+        let _ = db.drop_table(table_name_dup.as_str()).await;
+        db.duplicate_table(&table_name, &table_name_dup)
+            .await
+            .unwrap();
+        let resp2 = db
+            .show_table(&table_name_dup, None, None, 1, 100)
+            .await
+            .unwrap();
+        assert_eq!(resp, resp2);
+    }
+
+    #[tokio::test]
+    async fn test_list_key() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let query_id = db.open_connection().await.unwrap();
+        let table_name = "list_value";
+
+        let _ = db.drop_table(table_name).await;
+
+        let ret = db
+            .query_sql(query_id.clone(), "lpush list_value a")
+            .await
+            .unwrap();
+        println!("query ret :{:?}", ret);
+
+        let ret = db
+            .query_sql(query_id.clone(), "lpush list_value b")
+            .await
+            .unwrap();
+        println!("query ret :{:?}", ret);
+        // export
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+
+            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
+            println!("json:{}", s);
+
+            let s = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("json_line:{}", s);
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("sql:{}", s);
+        }
+        let cols = db.show_columns(table_name).await.unwrap();
+        println!("{:?}", cols);
+        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        println!("resp:{:?}", resp);
+        // dup table and test eq
+        let table_name_dup = format!("{}_dup", table_name);
+        let _ = db.drop_table(table_name_dup.as_str()).await;
+        db.duplicate_table(&table_name, &table_name_dup)
+            .await
+            .unwrap();
+        let resp2 = db
+            .show_table(&table_name_dup, None, None, 1, 100)
+            .await
+            .unwrap();
+        assert_eq!(resp, resp2);
+    }
+
+    #[tokio::test]
+    async fn test_string_key() {
+        let db = make_test_object();
+        let db = &db as &dyn crate::db::DBTrait;
+        let query_id = db.open_connection().await.unwrap();
+        let table_name = "string_value";
+
+        let _ = db.drop_table(table_name).await;
+
+        let ret = db
+            .query_sql(query_id.clone(), "set string_value string_value")
+            .await
+            .unwrap();
+        println!("query_ret:{:?}", ret);
+
+        // export
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("csv:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+
+            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
+            println!("json:{}", s);
+
+            let s = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("json_line:{}", s);
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("sql:{}", s);
+        }
+        let cols = db.show_columns(table_name).await.unwrap();
+        println!("{:?}", cols);
+        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        println!("resp:{:?}", resp);
+
+        // dup table and test eq
+        let table_name_dup = format!("{}_dup", table_name);
+
+        db.duplicate_table(&table_name, &table_name_dup)
+            .await
+            .unwrap();
+        let resp2 = db
+            .show_table(&table_name_dup, None, None, 1, 100)
+            .await
+            .unwrap();
+        assert_eq!(resp, resp2);
     }
 }
 

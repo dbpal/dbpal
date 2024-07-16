@@ -48,13 +48,19 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
         &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet>;
 
-    async fn list_view(&self) -> anyhow::Result<Vec<ListView>>;
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()>;
+    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+        not_support_features(self.backend_name())
+    }
+    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
     async fn drop_table(&self, table: &str) -> anyhow::Result<()>;
     async fn show_view(
-        &self, view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
+        &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize,
-    ) -> anyhow::Result<TableListResp>;
+    ) -> anyhow::Result<TableListResp> {
+        not_support_features(self.backend_name())
+    }
 
     async fn export_table(
         &self, _table_name: &str, _kind: ExportKind,
@@ -647,7 +653,7 @@ pub enum IndexKind {
     Unique,
     Primary,
 }
-#[derive(Clone, Debug, serde::Serialize, TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub struct QueryResp {
     pub(crate) fields: Vec<Field>,
     pub(crate) data: Vec<Vec<Option<String>>>,
@@ -694,6 +700,13 @@ pub struct TableListResp {
     pub(crate) total: usize,
     pub(crate) data: Vec<Vec<Option<String>>>,
     pub(crate) sql: Option<String>,
+}
+
+/// we don't want to check `sql` somehow can be different
+impl PartialEq for TableListResp {
+    fn eq(&self, other: &Self) -> bool {
+        self.fields == other.fields && self.total == other.total && self.data == other.data
+    }
 }
 
 impl TableListResp {
@@ -754,7 +767,7 @@ impl TableListResp {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub struct Field {
     pub name: String,
     pub typ: String,

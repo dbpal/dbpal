@@ -629,7 +629,7 @@ impl OracleDB {
             }
             let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
             sender.send(Cow::Owned(insert_sql)).await?;
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send("\n".into()).await?;
         }
 
         anyhow::Ok(())
@@ -647,7 +647,7 @@ impl OracleDB {
             let json = encode_row_as_json(&r)?;
             let str = serde_json::to_string(&json)?;
             sender.send(Cow::Owned(str)).await?;
-            sender.send(Cow::Borrowed("\n")).await?;
+            sender.send("\n".into()).await?;
         }
 
         anyhow::Ok(())
