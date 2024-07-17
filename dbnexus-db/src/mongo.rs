@@ -317,7 +317,7 @@ impl Mongo {
         while let Some(item) = stream.next().await {
             let item = item.context("stream doc failed")?;
             if !first {
-                sender.send(Cow::Borrowed(",")).await?;
+                sender.send(",".into()).await?;
             }
             if pretty {
                 sender.send("\n".into()).await?;

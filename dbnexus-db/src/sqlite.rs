@@ -152,7 +152,7 @@ impl SqliteDB {
             let row = row.context("stream returns error")?;
             let value = encode_row_as_json(&row)?;
             if !first {
-                sender.send(Cow::Borrowed(",")).await?;
+                sender.send(",".into()).await?;
             }
             if pretty {
                 sender.send("\n".into()).await?;

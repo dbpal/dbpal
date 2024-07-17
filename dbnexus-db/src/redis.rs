@@ -157,7 +157,7 @@ impl RedisDB {
                     let list: Vec<String> = conn.lrange(key, x, x + size).await?;
                     for l in list.iter() {
                         if !first {
-                            sender.send(Cow::Borrowed(",")).await?;
+                            sender.send(",".into()).await?;
                         }
                         if pretty {
                             sender.send("\n".into()).await?;
@@ -183,7 +183,7 @@ impl RedisDB {
 
                 while let Some(s) = iter.next().await {
                     if !first {
-                        sender.send(Cow::Borrowed(",")).await?;
+                        sender.send(",".into()).await?;
                         if pretty {
                             sender.send("\n".into()).await?;
                         }

@@ -226,11 +226,11 @@ impl MysqlDB {
         if include_table_schema {
             let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
-            sender.send(Cow::Borrowed(";\n")).await?;
+            sender.send(";\n".into()).await?;
 
             for index in ss.indexes.into_iter() {
                 sender.send(Cow::Owned(index)).await?;
-                sender.send(Cow::Borrowed(";\n")).await?;
+                sender.send(";\n".into()).await?;
             }
         }
         let mut conn = self.get_conn().await?;
@@ -298,7 +298,7 @@ impl MysqlDB {
             let row = row?;
             let value = encode_row_as_json(&row)?;
             if !first {
-                sender.send(Cow::Borrowed(",")).await?;
+                sender.send(",".into()).await?;
             }
             if pretty {
                 sender.send("\n".into()).await?;
