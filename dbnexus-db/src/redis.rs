@@ -14,7 +14,8 @@ use crate::completion::{
 };
 use crate::db::{
     create_csv, CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, ListTable,
-    OffsetLimitIter, QueryResp, QuerySql, RedisListTable, SqlExecuteRet, TableListResp,
+    OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, RedisListTable, SqlExecuteRet,
+    TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 use redis::aio::{ConnectionManager, MultiplexedConnection};
@@ -807,6 +808,15 @@ impl FromStr for RedisType {
             "zset" => Ok(Self::Zset),
             _ => Err(anyhow::Error::msg(format!("redis type '{}' not handle", s))),
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl QuerySqlWithoutOpenConn for RedisDB {
+    async fn query_sql(&self, sql: &str) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        let conn = self.get_client().await?;
+        let mut conn = conn.get_multiplexed_async_connection().await?;
+        query_sql(&mut conn, sql).await
     }
 }
 

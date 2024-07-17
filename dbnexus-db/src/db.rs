@@ -427,6 +427,12 @@ pub trait QuerySql {
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 }
+/// api can be more easy used with frontend,reis backend may impl
+/// for more easy usage
+#[async_trait::async_trait]
+pub trait QuerySqlWithoutOpenConn {
+    async fn query_sql(&self, _sql: &str) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
+}
 
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct ListView {
