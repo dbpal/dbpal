@@ -348,6 +348,9 @@ impl DBTrait for SqlServer {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        if self.table_exists(dup).await? {
+            anyhow::bail!(format!("table '{}' already exists", dup));
+        }
         let sql = format!(
             r#"
             SELECT * INTO {dup} FROM {table} 

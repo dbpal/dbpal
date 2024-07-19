@@ -1,17 +1,17 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::time::Duration;
-
 use anyhow::Context;
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Document};
 use mongodb::options::FindOptions;
 use mongodb::results::{DeleteResult, InsertOneResult, UpdateResult};
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::path::Path;
+use std::time::Duration;
 
 use crate::datasource::{self, MongoDataSource};
 use crate::db::{
     CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListView,
-    QueryResp, QuerySql, SqlExecuteRet, TableListResp,
+    MetaValue, QueryResp, QuerySql, ServerMetas, SqlExecuteRet, TableListResp,
 };
 
 #[derive(Clone)]
@@ -292,6 +292,58 @@ impl Mongo {
     }
 }
 
+#[async_trait::async_trait]
+impl ServerMetas for Mongo {
+    async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
+        let admin_db = self.get_conn().await?.database("admin");
+        let server_status = admin_db.run_command(doc! {"serverStatus": 1}, None).await?;
+        // write_bson_s_json_to_file(&server_status, "./test.json");
+        let mut ret = Vec::new();
+
+        {
+            let host = server_status.get_str("host")?.to_string();
+            ret.push(MetaValue::new("host", host));
+        }
+        {
+            let version = server_status.get_str("version")?.to_string();
+            ret.push(MetaValue::new("version", version));
+        }
+        {
+            let process = server_status.get_str("process")?.to_string();
+            ret.push(MetaValue::new("process", process));
+        }
+
+        {
+            let pid = server_status.get("pid").unwrap().to_string();
+            ret.push(MetaValue::new("pid", pid));
+        }
+        {
+            let up_time = server_status.get_i64("uptimeMillis")?;
+            ret.push(MetaValue::new(
+                "upTime",
+                duration_string::DurationString::new(Duration::from_millis(up_time as u64)),
+            ));
+        }
+
+        anyhow::Ok(ret)
+    }
+}
+
+#[allow(dead_code)]
+
+fn write_bson_as_json_to_file(doc: &Document, file: &str) {
+    let json_str = serde_json::to_string(&serde_json::json!(doc)).unwrap();
+
+    let mut op = std::fs::OpenOptions::new();
+    op.truncate(true);
+    op.write(true);
+    op.create(true);
+    use std::io::Write;
+    let mut f = op.open(&Path::new(file)).unwrap();
+
+    f.write(json_str.as_bytes()).unwrap();
+}
+
 impl Mongo {
     async fn export_stream_as_json_line(
         mut stream: mongodb::Cursor<Document>, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -365,6 +417,9 @@ impl Mongo {
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
     async fn duplicate_table(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
+        if self.table_exists(dup).await? {
+            anyhow::bail!(format!("table '{}' already exists", dup));
+        }
         if let Err(err) = self.duplicate_table_impl(&old_table, dup).await {
             if let Err(err) = self.delete_collection(dup).await {
                 log::error!(
@@ -577,7 +632,7 @@ mod tests {
 
     use super::Mongo;
     use crate::datasource::MongoDataSource;
-    use crate::db::DBTrait;
+    use crate::db::{DBTrait, ServerMetas};
     use crate::pool::PoolManager;
     use crate::TEST_HOST;
 
@@ -593,6 +648,13 @@ mod tests {
             pm: PoolManager::default(),
         };
         x
+    }
+
+    #[tokio::test]
+    async fn test_server_metas() {
+        let db = make_test_object();
+        let metas = ServerMetas::show_metas(&db).await.unwrap();
+        println!("{:?}", metas);
     }
     #[tokio::test]
     async fn test_show_index() {

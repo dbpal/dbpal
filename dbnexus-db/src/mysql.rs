@@ -18,8 +18,8 @@ use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, Index, IndexKind, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
-    MetaValue, MultiDBTrait, ProcedureDetail, QueryResp, QuerySql, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
+    MetaValue, MultiDBTrait, ProcedureDetail, QueryResp, QuerySql, ServerMetas, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
 };
 use crate::pool::{NexusPool, PoolManager};
 
@@ -481,6 +481,78 @@ impl FunctionOrProcedure {
 }
 
 #[async_trait::async_trait]
+impl ServerMetas for MysqlDB {
+    async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
+        let mut conn = self.get_conn().await?;
+        let sql = r#"
+            SELECT VERSION();  -- 0 
+            SELECT NOW();   -- 1 
+            SELECT @@version_comment; -- 2 
+            SELECT @@version_compile_os; -- 3
+            SELECT @@version_compile_machine; -- 4 
+            SELECT @@default_storage_engine; -- 5 
+            SELECT @@thread_cache_size; -- 6
+            SELECT @@max_connections; -- 7 
+        "#;
+        let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
+        let mut metas = Vec::with_capacity(8);
+
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            let row = match item {
+                sqlx::Either::Left(_x) => {
+                    // anyhow::bail!(format!("should be sqlrow but result,result:{:?}", x))
+                    // every select contains an MysqlQueryResult . just ignore them.
+                    continue;
+                }
+
+                sqlx::Either::Right(row) => row,
+            };
+            match metas.len() {
+                0 => {
+                    let version: String = row.try_get(0)?;
+                    metas.push(MetaValue::new("server version", version));
+                }
+                1 => {
+                    let now: chrono::DateTime<Utc> = row.try_get(0)?;
+                    metas.push(MetaValue::new("now", now.naive_utc()));
+                }
+                2 => {
+                    let comment: String = row.try_get(0)?;
+                    metas.push(MetaValue::new("server comment", comment));
+                }
+
+                3 => {
+                    let os: String = row.try_get(0)?;
+                    metas.push(MetaValue::new("compile os", os));
+                }
+                4 => {
+                    let machine: String = row.try_get(0)?;
+                    metas.push(MetaValue::new("compile machine", machine));
+                }
+                5 => {
+                    let engine: String = row.try_get(0)?;
+                    metas.push(MetaValue::new("default storage engine", engine));
+                }
+                6 => {
+                    let size: u64 = row.try_get(0)?;
+                    metas.push(MetaValue::new("thread cache size", size));
+                }
+                7 => {
+                    let max: u64 = row.try_get(0)?;
+                    metas.push(MetaValue::new("max connection size", max));
+                }
+                _ => {
+                    anyhow::bail!("count the row number");
+                }
+            }
+        }
+
+        anyhow::Ok(metas)
+    }
+}
+
+#[async_trait::async_trait]
 
 impl DBTrait for MysqlDB {
     async fn list_procedure(&self) -> anyhow::Result<Vec<ListProcedure>> {
@@ -561,6 +633,9 @@ impl DBTrait for MysqlDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        if self.table_exists(dup).await? {
+            anyhow::bail!(format!("table '{}' already exists", dup));
+        }
         let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -1225,6 +1300,12 @@ mod tests {
         db
     }
 
+    #[tokio::test]
+    async fn test_server_metas() {
+        let db = make_test_object();
+        let metas = ServerMetas::show_metas(&db).await.unwrap();
+        println!("{:?}", metas);
+    }
     #[tokio::test]
     async fn test_procedure() {
         let db = make_test_object();

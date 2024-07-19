@@ -78,7 +78,7 @@ export namespace db_apis {
         "page_size": db_apis.Usize;
     };
     export type ListTable = {
-        "table": string;
+        "name": string;
     };
     export type Field = {
         "name": string;

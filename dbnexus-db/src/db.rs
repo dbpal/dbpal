@@ -187,6 +187,10 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
     async fn drop_procedure(&self, _name: &str) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
+    async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
+        let e = self.list_table().await?.iter().any(|x| &x.name == table);
+        anyhow::Ok(e)
+    }
 }
 
 fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
@@ -226,16 +230,25 @@ impl UdfDetail {
 
 pub struct MetaValue {
     name: Cow<'static, str>,
-    value: Box<dyn ToString>,
+    value: Box<dyn ToString + Send + 'static>,
+    desc: Option<Cow<'static, str>>,
 }
+
 impl MetaValue {
-    pub(crate) fn new<T: ToString + 'static>(name: impl Into<Cow<'static, str>>, value: T) -> Self {
+    pub(crate) fn new<T: ToString + Send + 'static>(
+        name: impl Into<Cow<'static, str>>, value: T,
+    ) -> Self {
         Self {
             name: name.into(),
             value: Box::new(value),
+            desc: None,
         }
     }
+    pub(crate) fn with_desc(&mut self, desc: impl Into<Cow<'static, str>>) {
+        self.desc = Some(desc.into());
+    }
 }
+
 #[cfg(test)]
 #[test]
 fn test_new_meta_value() {
@@ -454,19 +467,25 @@ impl From<&str> for ListView {
 
 #[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct ListTable {
-    pub table: String,
+    pub name: String,
 }
 impl From<String> for ListTable {
     fn from(value: String) -> Self {
-        Self { table: value }
+        Self { name: value }
     }
 }
 impl From<&str> for ListTable {
     fn from(value: &str) -> Self {
         Self {
-            table: value.to_string(),
+            name: value.to_string(),
         }
     }
+}
+
+/// get server metas info
+#[async_trait::async_trait]
+pub trait ServerMetas {
+    async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
 }
 
 #[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]

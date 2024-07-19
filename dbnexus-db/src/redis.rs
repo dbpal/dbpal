@@ -13,9 +13,9 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
-    create_csv, CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, ListTable,
-    OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, RedisListTable, SqlExecuteRet,
-    TableListResp,
+    create_csv, CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, ListTable, MetaValue,
+    OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, RedisListTable, ServerMetas,
+    SqlExecuteRet, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 use redis::aio::{ConnectionManager, MultiplexedConnection};
@@ -39,6 +39,16 @@ impl RedisDB {
             read_only,
             query_connections: Default::default(),
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl ServerMetas for RedisDB {
+    async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
+        // TODO get server metas
+        let ret = Vec::new();
+
+        anyhow::Ok(ret)
     }
 }
 
@@ -433,7 +443,17 @@ impl FormatSql for RedisDB {
 }
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
+    async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
+        let mut conn = self.get_conn().await?;
+        let e = conn.exists(table).await?;
+        anyhow::Ok(e)
+    }
+
     async fn duplicate_table(&self, key: &str, dup: &str) -> anyhow::Result<()> {
+        if self.table_exists(dup).await? {
+            anyhow::bail!(format!("table '{}' already exists", dup));
+        }
+
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
         let mut conn_set = self.get_conn().await?;
@@ -938,7 +958,10 @@ mod tests {
     use std::time::Duration;
 
     use super::RedisDB;
-    use crate::{db::ExportKind, TEST_HOST};
+    use crate::{
+        db::{ExportKind, ServerMetas},
+        TEST_HOST,
+    };
 
     fn make_test_object() -> RedisDB {
         let x = RedisDB {
@@ -948,6 +971,13 @@ mod tests {
             query_connections: Default::default(),
         };
         x
+    }
+
+    #[tokio::test]
+    async fn test_server_metas() {
+        let db = make_test_object();
+        let metas = ServerMetas::show_metas(&db).await.unwrap();
+        println!("{:?}", metas);
     }
 
     #[tokio::test]
@@ -1379,7 +1409,7 @@ impl DBListCompletionItem for RedisDB {
             crate::db::DBTrait::list_table(self)
                 .await?
                 .into_iter()
-                .map(|x| x.table)
+                .map(|x| x.name)
                 .collect(),
         )
     }

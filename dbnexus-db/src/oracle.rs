@@ -771,6 +771,9 @@ impl DBTrait for OracleDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        if self.table_exists(dup).await? {
+            anyhow::bail!(format!("table '{}' already exists", dup));
+        }
         let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
 
         let conn = self.get_conn().await?;
@@ -1328,8 +1331,8 @@ mod tests {
         let tables = db.list_table().await.unwrap();
         println!("tables : {:?}", tables);
         for t in tables.iter() {
-            let cols = db.show_columns(&t.table).await.unwrap();
-            println!("table:{} ,cols:{:?}", t.table, cols);
+            let cols = db.show_columns(&t.name).await.unwrap();
+            println!("table:{} ,cols:{:?}", t.name, cols);
         }
     }
 

@@ -103,7 +103,7 @@ impl<T: MultiDBTrait> DBListCompletionItem for T {
 
         x.list_table()
             .await
-            .map(|x| x.into_iter().map(|x| x.table).collect::<Vec<_>>())
+            .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())
     }
 
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
@@ -168,44 +168,36 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
         ret.extend(
             Self::KEY_WORDS
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        name: Cow::Borrowed(*x),
-                        kind: CompletionKind::KeyWord,
-                    }
+                .map(|x| CompletionItem {
+                    name: Cow::Borrowed(*x),
+                    kind: CompletionKind::KeyWord,
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(
             Self::BUILD_IN_FUNCTIONS
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        name: Cow::Borrowed(*x),
-                        kind: CompletionKind::Function,
-                    }
+                .map(|x| CompletionItem {
+                    name: Cow::Borrowed(*x),
+                    kind: CompletionKind::Function,
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(
             Self::TYPES
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        name: Cow::Borrowed(*x),
-                        kind: CompletionKind::Type,
-                    }
+                .map(|x| CompletionItem {
+                    name: Cow::Borrowed(*x),
+                    kind: CompletionKind::Type,
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(
             Self::TEXTS
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        name: Cow::Borrowed(*x),
-                        kind: CompletionKind::Text,
-                    }
+                .map(|x| CompletionItem {
+                    name: Cow::Borrowed(*x),
+                    kind: CompletionKind::Text,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -214,11 +206,9 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
         ret.extend(
             list_db
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        name: Cow::Owned(x.clone()),
-                        kind: CompletionKind::Dbname,
-                    }
+                .map(|x| CompletionItem {
+                    name: Cow::Owned(x.clone()),
+                    kind: CompletionKind::Dbname,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -234,21 +224,17 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                         .list_columns(Some(db.to_string()), t.as_str())
                         .await
                         .unwrap_or(vec![]);
-                    ret.extend(cols.into_iter().map(|x| {
-                        CompletionItem {
-                            name: Cow::Owned(x),
-                            kind: CompletionKind::Column,
-                        }
+                    ret.extend(cols.into_iter().map(|x| CompletionItem {
+                        name: Cow::Owned(x),
+                        kind: CompletionKind::Column,
                     }));
                 }
                 ret.extend(
                     list_tables
                         .into_iter()
-                        .map(|x| {
-                            CompletionItem {
-                                name: Cow::Owned(x),
-                                kind: CompletionKind::TableName,
-                            }
+                        .map(|x| CompletionItem {
+                            name: Cow::Owned(x),
+                            kind: CompletionKind::TableName,
                         })
                         .collect::<Vec<_>>(),
                 );
@@ -257,22 +243,18 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             let list_tables = self.list_table(None).await.unwrap_or(vec![]);
             for t in list_tables.iter() {
                 let cols = self.list_columns(None, t.as_str()).await.unwrap_or(vec![]);
-                ret.extend(cols.into_iter().map(|x| {
-                    CompletionItem {
-                        name: Cow::Owned(x),
-                        kind: CompletionKind::Column,
-                    }
+                ret.extend(cols.into_iter().map(|x| CompletionItem {
+                    name: Cow::Owned(x),
+                    kind: CompletionKind::Column,
                 }));
             }
 
             ret.extend(
                 list_tables
                     .into_iter()
-                    .map(|x| {
-                        CompletionItem {
-                            name: Cow::Owned(x),
-                            kind: CompletionKind::TableName,
-                        }
+                    .map(|x| CompletionItem {
+                        name: Cow::Owned(x),
+                        kind: CompletionKind::TableName,
                     })
                     .collect::<Vec<_>>(),
             );

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
+
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::PgRow;
@@ -15,8 +16,9 @@ use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{CommDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MultiDBTrait, QueryResp,
-    QuerySql, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, MultiDBTrait,
+    QueryResp, QuerySql, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming,
 };
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
@@ -309,6 +311,51 @@ fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTimin
 }
 
 #[async_trait::async_trait]
+
+impl ServerMetas for PostGresDB {
+    async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
+        let mut conn = self.get_conn().await?;
+
+        let mut ret = Vec::new();
+
+        {
+            let row = sqlx::query("SELECT version()")
+                .fetch_one(conn.deref_mut())
+                .await?;
+            let version: String = row.try_get(0)?;
+            ret.push(MetaValue::new("server version", version));
+        }
+        {
+            let row = sqlx::query("SELECT current_user;")
+                .fetch_one(conn.deref_mut())
+                .await?;
+            let version: String = row.try_get(0)?;
+            ret.push(MetaValue::new("current user", version));
+        }
+        // TODO I don't know which settins is import
+        // show them all
+        {
+            let sql = r#"
+                SELECT name, setting, short_desc 
+                FROM pg_settings
+                ORDER BY name;
+                "#;
+            let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                let setting: String = r.try_get(1)?;
+                let desc: String = r.try_get(2)?;
+                let mut meta = MetaValue::new(name, setting);
+                meta.with_desc(desc);
+                ret.push(meta);
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
 impl DBTrait for PostGresDB {
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -332,6 +379,9 @@ impl DBTrait for PostGresDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        if self.table_exists(dup).await? {
+            anyhow::bail!(format!("table '{}' already exists", dup));
+        }
         let sql = format!("CREATE TABLE {dup} AS TABLE {table}");
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -1051,7 +1101,7 @@ mod test {
 
     use super::PostGresDB;
     use crate::datasource::CommDBConfig;
-    use crate::db::{CheckConn, DBTrait, ExportKind};
+    use crate::db::{CheckConn, DBTrait, ExportKind, ServerMetas};
     use crate::pool::PoolManager;
     use crate::{init_log, TEST_HOST};
 
@@ -1069,9 +1119,16 @@ mod test {
             },
             false,
         );
-
         pg
     }
+
+    #[tokio::test]
+    async fn test_server_metas() {
+        let db = make_test_object();
+        let metas = ServerMetas::show_metas(&db).await.unwrap();
+        println!("{:?}", metas);
+    }
+
     #[tokio::test]
     async fn test_check_conn() {
         let db = make_test_object();

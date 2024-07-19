@@ -20,8 +20,9 @@ use crate::completion::{
 use crate::datasource::DBPoolKey;
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryResp,
+    QuerySql, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
 use crate::CANNOT_GET_CONN_ERR;
@@ -376,6 +377,42 @@ impl CheckConn for SqliteDB {
 }
 
 #[async_trait::async_trait]
+
+impl ServerMetas for SqliteDB {
+    async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
+        let mut conn = self.get_conn().await?;
+        let sql = r#"
+            SELECT sqlite_version(); -- 0 
+        "#;
+        let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
+        let mut metas = Vec::with_capacity(8);
+
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            let row = match item {
+                sqlx::Either::Left(_x) => {
+                    // anyhow::bail!(format!("should be sqlrow but result,result:{:?}", x))
+                    // every select contains an MysqlQueryResult . just ignore them.
+                    continue;
+                }
+
+                sqlx::Either::Right(row) => row,
+            };
+            match metas.len() {
+                0 => {
+                    let version: String = row.try_get(0)?;
+                    metas.push(MetaValue::new("version", version));
+                }
+                _ => {
+                    anyhow::bail!("count the row number");
+                }
+            }
+        }
+
+        anyhow::Ok(metas)
+    }
+}
+#[async_trait::async_trait]
 impl DBTrait for SqliteDB {
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -399,6 +436,9 @@ impl DBTrait for SqliteDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        if self.table_exists(dup).await? {
+            anyhow::bail!(format!("table '{}' already exists", dup));
+        }
         let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
         let mut conn = self.get_conn().await.context("can't dup table")?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -1151,7 +1191,7 @@ impl DBListCompletionItem for SqliteDB {
     async fn list_table(&self, _db: Option<String>) -> anyhow::Result<Vec<String>> {
         crate::db::DBTrait::list_table(self)
             .await
-            .map(|x| x.into_iter().map(|x| x.table).collect())
+            .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
@@ -1380,6 +1420,13 @@ mod tests {
         let db = SqliteDB::new(pool_manager, ":memory:".to_string(), false);
 
         db
+    }
+
+    #[tokio::test]
+    async fn test_server_metas() {
+        let db = make_test_object();
+        let metas = ServerMetas::show_metas(&db).await.unwrap();
+        println!("{:?}", metas);
     }
 
     #[tokio::test]
