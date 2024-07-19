@@ -7,6 +7,7 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
+use dbnexus_db::redis::RedisDB;
 
 use crate::storage::{self, App, DBConnectionConfig, UserSettings};
 
@@ -65,12 +66,20 @@ pub async fn list_table(
 pub async fn redis_list_table(
     uuid: String, dbs: tauri::State<'_, App>,
 ) -> Result<RedisListTable, AnyhowErrorFrontend> {
-    dbs.get_one_db(uuid.as_str())
+    let db = dbs
+        .get_one_db(uuid.as_str())
         .await
-        .map_err(|e| e.to_string())?
-        .redis_list_table()
-        .await
-        .map_err(AnyhowErrorFrontend::from)
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => x
+            .redis_list_table()
+            .await
+            .map_err(AnyhowErrorFrontend::from),
+        None => Err(AnyhowErrorFrontend::from(anyhow::Error::msg(format!(
+            "'{}' not a redis",
+            uuid
+        )))),
+    }
 }
 
 #[tauri::command]
@@ -507,7 +516,7 @@ pub async fn mongo_show_table(
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => {
-            x.show_table(table.as_str(), filter, order_by, page, page_size)
+            x.show_collection(table.as_str(), filter, order_by, page, page_size)
                 .await
         }
         None => return Err(format!("db '{}' not mongo", uuid)),
@@ -527,7 +536,7 @@ pub async fn mongo_show_table_docs(
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => {
-            x.show_table_docs(table.as_str(), filter, order_by, page, page_size)
+            x.show_collection_docs(table.as_str(), filter, order_by, page, page_size)
                 .await
         }
         None => return Err(format!("db '{}' not mongo", uuid)),

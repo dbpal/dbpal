@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use dbnexus_db::datasource::{CommDBConfig, MongoDataSource, OracleDBConfig};
+use dbnexus_db::datasource::{MongoDataSource, MysqlDBConfig, OracleDBConfig};
 use dbnexus_db::db::{
     DBTrait, Field, Index, ListTable, ListView, MultiDBTrait, SqlExecuteRet, TableListResp,
 };
@@ -28,25 +28,25 @@ pub enum DBConnectionConfig {
     },
     Mysql {
         #[serde(flatten)]
-        conn: CommDBConfig,
+        conn: MysqlDBConfig,
         read_only: bool,
         name: String,
     },
     MariaDB {
         #[serde(flatten)]
-        conn: CommDBConfig,
+        conn: MysqlDBConfig,
         read_only: bool,
         name: String,
     },
     Postgres {
         #[serde(flatten)]
-        conn: CommDBConfig,
+        conn: MysqlDBConfig,
         read_only: bool,
         name: String,
     },
     SqlServer {
         #[serde(flatten)]
-        conn: CommDBConfig,
+        conn: MysqlDBConfig,
         read_only: bool,
         trust_cert: bool,
         name: String,
@@ -55,7 +55,7 @@ pub enum DBConnectionConfig {
         #[serde(flatten)]
         conn: MongoDataSource,
         read_only: bool,
-        db_name: String,
+        db_name: Option<String>,
         name: String,
     },
     Redis {
@@ -279,7 +279,7 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
             let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mongo::Mongo::new(
                 pm.clone(),
                 conn.clone(),
-                db_name.to_string(),
+                db_name.clone(),
                 *read_only,
             ));
 
@@ -534,7 +534,7 @@ impl Default for UserSettings {
 mod tests {
     use std::collections::HashMap;
 
-    use dbnexus_db::datasource::CommDBConfig;
+    use dbnexus_db::datasource::MysqlDBConfig;
 
     use super::DBNexusConfigs;
     use crate::storage::DBConnectionConfig;
@@ -556,7 +556,7 @@ mod tests {
                 m.insert(
                     "yyyy".to_string(),
                     DBConnectionConfig::Mysql {
-                        conn: CommDBConfig {
+                        conn: MysqlDBConfig {
                             host: "127.0.0.1".to_string(),
                             port: 33,
                             username: "aaa".to_string(),

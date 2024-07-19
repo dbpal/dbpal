@@ -719,8 +719,10 @@ impl DBTrait for RedisDB {
         conn.del(table).await?;
         Ok(())
     }
+}
 
-    async fn redis_list_table(&self) -> anyhow::Result<RedisListTable> {
+impl RedisDB {
+    pub async fn redis_list_table(&self) -> anyhow::Result<RedisListTable> {
         let mut conn = self.get_conn().await?;
         let tables: Vec<String> = conn.keys("*").await?;
         let mut ret = RedisListTable::default();

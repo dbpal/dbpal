@@ -13,7 +13,7 @@ use sqlx::{Column, Postgres, Row};
 use tokio::sync::Mutex;
 
 use crate::completion::DBLexerCompletionBackend;
-use crate::datasource::{CommDBConfig, DBPoolKey};
+use crate::datasource::{DBPoolKey, PGDBConfig};
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, MultiDBTrait,
@@ -33,9 +33,10 @@ impl FormatSql for PostGresDB {
 pub struct PostGresDB {
     /// database name.
     pool: PoolManager,
-    config: CommDBConfig,
+    config: PGDBConfig,
     read_only: bool,
     query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::Postgres>>>>,
+    schema: Option<String>,
 }
 
 #[async_trait::async_trait]
@@ -72,9 +73,8 @@ impl MultiDBTrait for PostGresDB {
     }
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
-        debug_assert!(self.config.db_name.is_none());
         let mut x = Clone::clone(self);
-        x.config.db_name = Some(name.to_owned());
+        x.schema = Some(name.to_owned());
         Ok(Arc::new(x))
     }
 }
@@ -859,12 +859,13 @@ impl PostGresDB {
 }
 
 impl PostGresDB {
-    pub fn new(pool: PoolManager, config: CommDBConfig, read_only: bool) -> Self {
+    pub fn new(pool: PoolManager, config: PGDBConfig, read_only: bool) -> Self {
         Self {
             pool,
             config,
             read_only,
             query_connection: Default::default(),
+            schema: None,
         }
     }
 
@@ -1100,7 +1101,7 @@ mod test {
     use std::ops::DerefMut;
 
     use super::PostGresDB;
-    use crate::datasource::CommDBConfig;
+    use crate::datasource::MysqlDBConfig;
     use crate::db::{CheckConn, DBTrait, ExportKind, ServerMetas};
     use crate::pool::PoolManager;
     use crate::{init_log, TEST_HOST};
@@ -1110,7 +1111,7 @@ mod test {
         let pool_manager = PoolManager::new();
         let pg = PostGresDB::new(
             pool_manager.clone(),
-            CommDBConfig {
+            MysqlDBConfig {
                 host: TEST_HOST.to_string(),
                 port: 5432,
                 username: "postgres".to_string(),

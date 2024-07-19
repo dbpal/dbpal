@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use dashmap::DashMap;
 use mongodb::options::ServerAddress;
@@ -56,9 +56,8 @@ async fn make_pool(db: &DBPoolKey) -> anyhow::Result<crate::pool::NexusPool> {
                 .port(conn.port)
                 .username(&conn.username)
                 .password(&conn.password);
-            if let Some(db) = &conn.db_name {
-                opts = opts.database(&db);
-            }
+
+            opts = opts.database(&conn.db_name);
 
             let pool = sqlx::postgres::PgPool::connect_with(opts).await?;
             anyhow::Ok(Pg(pool))
@@ -75,6 +74,7 @@ async fn make_pool(db: &DBPoolKey) -> anyhow::Result<crate::pool::NexusPool> {
                 host: ds.host.to_string(),
                 port: Some(ds.port),
             }];
+            opts.connect_timeout = ds.connect_timeout.clone().map(Duration::from_millis);
 
             if let Some(_user) = &ds.username_and_password {
                 // TODO
@@ -90,9 +90,8 @@ async fn make_pool(db: &DBPoolKey) -> anyhow::Result<crate::pool::NexusPool> {
             config.host(&c.host);
             config.port(c.port);
             config.authentication(tiberius::AuthMethod::sql_server(&c.username, &c.password));
-            if let Some(db) = &c.db_name {
-                config.database(&db);
-            }
+
+            config.database(&c.db_name);
 
             if *trust_cert {
                 config.trust_cert(); // on production, it is not a good idea to do this

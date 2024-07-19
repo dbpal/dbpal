@@ -6,17 +6,17 @@ pub enum DBPoolKey {
         path: String,
     },
     Mysql {
-        conn: CommDBConfig,
+        conn: MysqlDBConfig,
     },
     PostGres {
-        conn: CommDBConfig,
+        conn: PGDBConfig,
     },
     Redis {
         server: String,
     },
     MongoDB(MongoDataSource),
     SqlServer {
-        config: CommDBConfig,
+        config: SqlServerConfig,
         trust_cert: bool,
     },
     Oracle(OracleDBConfig),
@@ -27,10 +27,10 @@ pub struct MongoDataSource {
     pub host: String,
     pub port: u16,
     pub username_and_password: Option<(String, String)>,
+    /// milliseconds
+    pub connect_timeout: Option<u64>,
 }
 
-/// username password host and port database name
-/// packed together.
 #[derive(
     Debug,
     Clone,
@@ -41,12 +41,49 @@ pub struct MongoDataSource {
     serde::Serialize,
     typescript_type_def::TypeDef,
 )]
-pub struct CommDBConfig {
+pub struct MysqlDBConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
     pub password: String,
     pub db_name: Option<String>,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Deserialize,
+    serde::Serialize,
+    typescript_type_def::TypeDef,
+)]
+pub struct PGDBConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: String,
+    pub db_name: String,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Deserialize,
+    serde::Serialize,
+    typescript_type_def::TypeDef,
+)]
+
+pub struct SqlServerConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: String,
+    pub db_name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, TypeDef)]

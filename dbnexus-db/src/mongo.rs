@@ -1,30 +1,32 @@
 use anyhow::Context;
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Document};
-use mongodb::options::FindOptions;
-use mongodb::results::{DeleteResult, InsertOneResult, UpdateResult};
+use mongodb::options::{FindOptions, SelectionCriteria};
+use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::datasource::{self, MongoDataSource};
 use crate::db::{
-    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListView,
-    MetaValue, QueryResp, QuerySql, ServerMetas, SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind,
+    ListMongoTimeSerialCollection, ListTable, ListView, MetaValue, MultiDBTrait, QueryResp,
+    QuerySql, ServerMetas, SqlExecuteRet, TableListResp,
 };
 
 #[derive(Clone)]
 pub struct Mongo {
     ds: MongoDataSource,
-    dbname: String,
+    dbname: Option<String>,
     pm: crate::pool::PoolManager,
     read_only: bool,
 }
 
 impl Mongo {
     pub fn new(
-        pm: crate::pool::PoolManager, ds: MongoDataSource, dbname: String, read_only: bool,
+        pm: crate::pool::PoolManager, ds: MongoDataSource, dbname: Option<String>, read_only: bool,
     ) -> Self {
         Self {
             ds,
@@ -32,6 +34,21 @@ impl Mongo {
             pm,
             read_only,
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl MultiDBTrait for Mongo {
+    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+        let conn = self.get_conn().await?;
+        let names = conn.list_database_names(None, None).await?;
+        anyhow::Ok(names)
+    }
+
+    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+        let mut x = Clone::clone(self);
+        x.dbname = Some(name.to_string());
+        return anyhow::Ok(Arc::new(x));
     }
 }
 
@@ -198,7 +215,7 @@ impl Mongo {
         anyhow::Ok(ret)
     }
 
-    pub async fn show_table(
+    pub async fn show_collection(
         &self, table: &str, filter: Document, order_by: Document, page: usize, page_size: usize,
     ) -> anyhow::Result<TableListResp> {
         let options = FindOptions::builder()
@@ -230,7 +247,7 @@ impl Mongo {
         anyhow::Ok(TableListResp::new(cols, count as usize, data, None))
     }
 
-    pub async fn show_table_docs(
+    pub async fn show_collection_docs(
         &self, table: &str, filter: Document, order_by: Document, page: usize, page_size: usize,
     ) -> anyhow::Result<DocsAndCount> {
         let options = FindOptions::builder()
@@ -256,6 +273,17 @@ impl Mongo {
         }
         anyhow::Ok(DocsAndCount { docs, count })
     }
+
+    pub async fn run_command(
+        &self, db: &str, cmd: Document, selection_criteria: impl Into<Option<SelectionCriteria>>,
+    ) -> anyhow::Result<Document> {
+        let conn = self.get_conn().await?;
+        let doc = conn
+            .database(db)
+            .run_command(cmd, selection_criteria)
+            .await?;
+        anyhow::Ok(doc)
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -265,7 +293,7 @@ pub struct DocsAndCount {
 }
 
 impl Mongo {
-    async fn duplicate_table_impl(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
+    async fn duplicate_collection_impl(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         let old_table = db.collection::<Document>(old_table);
         let new_table = db.collection::<Document>(dup);
@@ -414,13 +442,50 @@ impl Mongo {
     }
 }
 
+impl Mongo {
+    async fn list_collection_name_by_type(
+        &self, ty: CollectionType,
+    ) -> anyhow::Result<Vec<String>> {
+        let conn = self.get_db().await?;
+        let mut cols = conn.list_collections(None, None).await?;
+        let mut ret = Vec::new();
+
+        while let Some(col) = cols.next().await {
+            let col = col?;
+            if col.collection_type == ty {
+                ret.push(col.name);
+            }
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+impl Mongo {
+    pub async fn show_mongo_time_serial_collection(
+        &self,
+    ) -> anyhow::Result<Vec<ListMongoTimeSerialCollection>> {
+        let ts = self
+            .list_collection_name_by_type(CollectionType::Timeseries)
+            .await?;
+
+        anyhow::Ok(
+            ts.into_iter()
+                .map(ListMongoTimeSerialCollection::from)
+                .collect(),
+        )
+    }
+    pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<()> {
+        self.drop_table(name).await
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
     async fn duplicate_table(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        if let Err(err) = self.duplicate_table_impl(&old_table, dup).await {
+        if let Err(err) = self.duplicate_collection_impl(&old_table, dup).await {
             if let Err(err) = self.delete_collection(dup).await {
                 log::error!(
                     "dup error has happen,but delete old collection failed,err:{:?}",
@@ -433,8 +498,8 @@ impl DBTrait for Mongo {
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let old = format!("{}.{}", self.dbname, old);
-        let new = format!("{}.{}", self.dbname, new);
+        let old = format!("{}.{}", self.dbname.as_ref().unwrap(), old);
+        let new = format!("{}.{}", self.dbname.as_ref().unwrap(), new);
         let cmd = bson::doc! { "renameCollection":  old , "to": new};
         let client = self.get_conn().await?;
         let db = client.database("admin");
@@ -474,15 +539,15 @@ impl DBTrait for Mongo {
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        anyhow::bail!("driver don't have view functions")
+        anyhow::bail!("use mongo special method")
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
-    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
-        anyhow::bail!("driver don't have view functions")
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+        self.drop_table(view_name).await
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
@@ -493,12 +558,17 @@ impl DBTrait for Mongo {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
-        anyhow::bail!("driver don't have view functions")
+        let views = self
+            .list_collection_name_by_type(CollectionType::View)
+            .await?;
+
+        anyhow::Ok(views.into_iter().map(ListView::from).collect())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let db = self.get_db().await?;
-        let tables = db.list_collection_names(None).await?;
+        let tables = self
+            .list_collection_name_by_type(CollectionType::Collection)
+            .await?;
         anyhow::Ok(tables.into_iter().map(ListTable::from).collect())
     }
 
@@ -518,7 +588,7 @@ impl DBTrait for Mongo {
         &self, _table_name: &str, _filter: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        anyhow::bail!("use mongo show_tablee")
+        anyhow::bail!("use mongo special method")
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -604,7 +674,7 @@ impl QuerySql for Mongo {
 impl Mongo {
     async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
         let client = self.get_conn().await.context("get conn failed")?;
-        Ok(client.database(self.dbname.as_str()))
+        Ok(client.database(self.dbname.as_ref().unwrap()))
     }
 
     async fn get_conn(&self) -> anyhow::Result<mongodb::Client> {
@@ -632,7 +702,7 @@ mod tests {
 
     use super::Mongo;
     use crate::datasource::MongoDataSource;
-    use crate::db::{DBTrait, ServerMetas};
+    use crate::db::{DBTrait, MultiDBTrait, ServerMetas};
     use crate::pool::PoolManager;
     use crate::TEST_HOST;
 
@@ -642,12 +712,22 @@ mod tests {
                 host: TEST_HOST.to_string(),
                 port: 27017,
                 username_and_password: None,
+                connect_timeout: None,
             },
             read_only: false,
-            dbname: "test".to_string(),
+            dbname: Some("test".to_string()),
             pm: PoolManager::default(),
         };
         x
+    }
+    #[tokio::test]
+    async fn test_multi_db() {
+        let multi = make_test_object();
+        let dbs = MultiDBTrait::list_db(&multi).await.unwrap();
+        println!("{:?}", dbs);
+        for db in dbs.iter() {
+            let _ = MultiDBTrait::open_db(&multi, db.as_str()).await.unwrap();
+        }
     }
 
     #[tokio::test]
@@ -749,7 +829,7 @@ mod tests {
             .unwrap();
 
         let docs = db
-            .show_table_docs(table_name2, bson::doc! {}, bson::doc! {}, 1, 100)
+            .show_collection_docs(table_name2, bson::doc! {}, bson::doc! {}, 1, 100)
             .await
             .unwrap();
         println!("{:?}", docs);
@@ -811,7 +891,7 @@ mod tests {
         );
 
         let resp = db
-            .show_table(table, doc! {}, doc! {}, 1, 100)
+            .show_collection(table, doc! {}, doc! {}, 1, 100)
             .await
             .unwrap();
         println!("resp:{:?}", resp);

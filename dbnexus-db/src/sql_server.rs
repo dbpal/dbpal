@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
-use crate::datasource::CommDBConfig;
+use crate::datasource::{MysqlDBConfig, SqlServerConfig};
 use crate::db::{
     create_csv, format_data_time_fix_offset, sql_to_sql_seq, sqlformat_format_sql, CheckConn,
     DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView,
@@ -27,7 +27,7 @@ use crate::CANNOT_GET_CONN_ERR;
 
 #[derive(Clone)]
 pub struct SqlServer {
-    config: CommDBConfig,
+    config: SqlServerConfig,
     trust_cert: bool,
     pm: PoolManager,
     read_only: bool,
@@ -40,7 +40,7 @@ impl FormatSql for SqlServer {
 }
 
 impl SqlServer {
-    pub fn new(config: CommDBConfig, trust_cert: bool, pm: PoolManager, read_only: bool) -> Self {
+    pub fn new(config: MysqlDBConfig, trust_cert: bool, pm: PoolManager, read_only: bool) -> Self {
         Self {
             config,
             trust_cert,
@@ -1220,9 +1220,9 @@ impl SqlServer {
             &self.config.username,
             &self.config.password,
         ));
-        if let Some(db) = &self.config.db_name {
-            config.database(&db);
-        }
+
+        config.database(&self.config.db_name);
+
         let tcp = TcpStream::connect(config.get_addr()).await?;
         tcp.set_nodelay(true)?;
         if self.trust_cert {
@@ -1417,7 +1417,7 @@ mod tests {
 
     fn make_test_object() -> SqlServer {
         let pg = SqlServer::new(
-            CommDBConfig {
+            MysqlDBConfig {
                 host: TEST_HOST.to_string(),
                 port: 1433,
                 username: "sa".to_string(),

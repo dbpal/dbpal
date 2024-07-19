@@ -14,7 +14,7 @@ use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
-use crate::datasource::{CommDBConfig, DBPoolKey};
+use crate::datasource::{MysqlDBConfig, DBPoolKey};
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, Index, IndexKind, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
@@ -26,7 +26,7 @@ use crate::pool::{NexusPool, PoolManager};
 #[derive(Clone)]
 pub struct MysqlDB {
     pool: PoolManager,
-    config: CommDBConfig,
+    config: MysqlDBConfig,
     read_only: bool,
 
     query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::MySql>>>>,
@@ -1121,7 +1121,7 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
 }
 
 impl MysqlDB {
-    pub fn new(pool: PoolManager, conn: CommDBConfig, read_only: bool) -> Self {
+    pub fn new(pool: PoolManager, conn: MysqlDBConfig, read_only: bool) -> Self {
         Self {
             pool,
             config: conn,
@@ -1288,7 +1288,7 @@ mod tests {
         let pool_manager = PoolManager::new();
         let db = MysqlDB::new(
             pool_manager,
-            CommDBConfig {
+            MysqlDBConfig {
                 host: TEST_HOST.to_string(),
                 username: "root".to_string(),
                 password: "root".to_string(),

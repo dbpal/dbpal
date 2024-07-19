@@ -17,7 +17,7 @@ use typescript_type_def::TypeDef;
 
 /// A db representation of database
 #[async_trait::async_trait]
-pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
+pub trait DBTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static {
     fn as_any(&self) -> &dyn std::any::Any;
     fn backend_name(&self) -> &str;
 
@@ -143,10 +143,6 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
             return Err(anyhow::Error::msg("this source is readonly"));
         }
         anyhow::Ok(())
-    }
-
-    async fn redis_list_table(&self) -> anyhow::Result<RedisListTable> {
-        anyhow::bail!(format!("'{}' is not a redis.", self.backend_name()))
     }
 
     async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
@@ -475,6 +471,23 @@ impl From<String> for ListTable {
     }
 }
 impl From<&str> for ListTable {
+    fn from(value: &str) -> Self {
+        Self {
+            name: value.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+pub struct ListMongoTimeSerialCollection {
+    pub name: String,
+}
+impl From<String> for ListMongoTimeSerialCollection {
+    fn from(value: String) -> Self {
+        Self { name: value }
+    }
+}
+impl From<&str> for ListMongoTimeSerialCollection {
     fn from(value: &str) -> Self {
         Self {
             name: value.to_string(),
