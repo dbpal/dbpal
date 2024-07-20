@@ -478,23 +478,6 @@ impl From<&str> for ListTable {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
-pub struct ListMongoTimeSerialCollection {
-    pub name: String,
-}
-impl From<String> for ListMongoTimeSerialCollection {
-    fn from(value: String) -> Self {
-        Self { name: value }
-    }
-}
-impl From<&str> for ListMongoTimeSerialCollection {
-    fn from(value: &str) -> Self {
-        Self {
-            name: value.to_string(),
-        }
-    }
-}
-
 /// get server metas info
 #[async_trait::async_trait]
 pub trait ServerMetas {

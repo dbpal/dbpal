@@ -39,6 +39,6 @@ typescript-type-def = "*"
 sqlformat = "*"
 fuzzy-matcher = "*"
 bson = "*"
-duration-string = "0.4.0"
+humantime = "*"
 
 [dev-dependencies]

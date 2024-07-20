@@ -84,6 +84,7 @@ pub struct SqlServerDBConfig {
     pub username: String,
     pub password: String,
     pub db_name: String,
+    pub trust_cert: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, TypeDef)]

@@ -3,29 +3,43 @@
 export default db_apis;
 export namespace db_apis {
     export type U16 = number;
-
-    /**
-     * username password host and port database name
-     * packed together.
-     */
-    export type CommDBConfig = {
+    export type MysqlDBConfig = {
         "host": string;
         "port": db_apis.U16;
         "username": string;
         "password": string;
         "db_name": (string | null);
     };
+    export type PGDBConfig = {
+        "host": string;
+        "port": db_apis.U16;
+        "username": string;
+        "password": string;
+        "db_name": string;
+    };
+    export type SqlServerDBConfig = {
+        "host": string;
+        "port": db_apis.U16;
+        "username": string;
+        "password": string;
+        "db_name": string;
+    };
+    export type U64 = number;
     export type MongoDataSource = {
         "host": string;
         "port": db_apis.U16;
         "username_and_password": ([string, string] | null);
+
+        /**
+         * milliseconds
+         */
+        "connect_timeout": (db_apis.U64 | null);
     };
     export type OracleDBConfig = {
         "username": string;
         "password": string;
         "connect_str": string;
     };
-    export type U64 = number;
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & {
@@ -34,30 +48,32 @@ export namespace db_apis {
         "name": string;
     }) | ({
         "conn_type": "mysql";
-    } & (db_apis.CommDBConfig & {
+    } & (db_apis.MysqlDBConfig & {
         "read_only": boolean;
         "name": string;
     })) | ({
         "conn_type": "mariadb";
-    } & (db_apis.CommDBConfig & {
+    } & (db_apis.MysqlDBConfig & {
         "read_only": boolean;
         "name": string;
     })) | ({
         "conn_type": "postgres";
-    } & (db_apis.CommDBConfig & {
+    } & (db_apis.PGDBConfig & {
         "read_only": boolean;
         "name": string;
+        "schema": (string | null);
     })) | ({
         "conn_type": "sqlserver";
-    } & (db_apis.CommDBConfig & {
+    } & (db_apis.SqlServerDBConfig & {
         "read_only": boolean;
         "trust_cert": boolean;
         "name": string;
+        "schema": (string | null);
     })) | ({
         "conn_type": "mongodb";
     } & (db_apis.MongoDataSource & {
         "read_only": boolean;
-        "db_name": string;
+        "db_name": (string | null);
         "name": string;
     })) | ({
         "conn_type": "redis";

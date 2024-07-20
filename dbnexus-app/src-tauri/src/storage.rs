@@ -51,7 +51,7 @@ pub enum DBConnectionConfig {
         #[serde(flatten)]
         conn: SqlServerDBConfig,
         read_only: bool,
-        trust_cert: bool,
+
         name: String,
         schema: Option<String>,
     },
@@ -252,7 +252,6 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
         DBConnectionConfig::SqlServer {
             conn,
             read_only,
-            trust_cert,
             name: _,
             schema,
         } => match schema {
@@ -260,7 +259,6 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
                 let db: Arc<dyn DBTrait> = Arc::new(
                     dbnexus_db::sql_server::SqlServer::new(
                         conn.clone(),
-                        *trust_cert,
                         *read_only,
                         schema.clone(),
                     )
@@ -273,7 +271,6 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
                 let db: Arc<dyn MultiDBTrait> = Arc::new(
                     dbnexus_db::sql_server::SqlServer::new(
                         conn.clone(),
-                        *trust_cert,
                         *read_only,
                         schema.clone(),
                     )

@@ -27,7 +27,6 @@ use crate::db::{
 pub struct SqlServer {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     config: SqlServerDBConfig,
-    trust_cert: bool,
     read_only: bool,
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
     schema: Option<String>,
@@ -41,21 +40,12 @@ impl FormatSql for SqlServer {
 
 impl SqlServer {
     pub async fn new(
-        c: SqlServerDBConfig, trust_cert: bool, read_only: bool, schema: Option<String>,
+        c: SqlServerDBConfig, read_only: bool, schema: Option<String>,
     ) -> anyhow::Result<Self> {
-        let mut config = tiberius::Config::new();
-        config.host(&c.host);
-        config.port(c.port);
-        config.authentication(tiberius::AuthMethod::sql_server(&c.username, &c.password));
-        config.database(&c.db_name);
-        if trust_cert {
-            config.trust_cert(); // on production, it is not a good idea to do this
-        }
-        let manager = bb8_tiberius::ConnectionManager::new(config);
+        let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
         let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
 
         anyhow::Ok(Self {
-            trust_cert,
             config: c,
             pool,
             read_only,
@@ -63,6 +53,18 @@ impl SqlServer {
             schema,
         })
     }
+}
+
+fn make_config(c: &SqlServerDBConfig) -> tiberius::Config {
+    let mut config = tiberius::Config::new();
+    config.host(&c.host);
+    config.port(c.port);
+    config.authentication(tiberius::AuthMethod::sql_server(&c.username, &c.password));
+    config.database(&c.db_name);
+    if c.trust_cert {
+        config.trust_cert(); // on production, it is not a good idea to do this
+    }
+    config
 }
 
 fn get_column_type_string(c: ColumnType) -> String {
@@ -1246,21 +1248,9 @@ impl SqlServer {
     /// because `query_connections` use in `SqlServer`,
     /// we can't create self reference struct in rust.
     async fn new_tcp_conn(&self) -> anyhow::Result<Connection> {
-        let mut config = tiberius::Config::new();
-        config.host(&self.config.host);
-        config.port(self.config.port);
-        config.authentication(tiberius::AuthMethod::sql_server(
-            &self.config.username,
-            &self.config.password,
-        ));
-
-        config.database(&self.config.db_name);
-
+        let config = make_config(&self.config);
         let tcp = TcpStream::connect(config.get_addr()).await?;
         tcp.set_nodelay(true)?;
-        if self.trust_cert {
-            config.trust_cert(); // on production, it is not a good idea to do this
-        }
 
         let client = tiberius::Client::connect(config, tcp.compat_write()).await?;
         // if let Some(s) = self.schema.as_ref() {
@@ -1464,8 +1454,8 @@ mod tests {
                 username: "sa".to_string(),
                 password: "sfdewRE123".to_string(),
                 db_name: "test".to_string(),
+                trust_cert: true,
             },
-            true,
             false,
             Some("dbo".to_string()),
         )

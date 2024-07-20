@@ -503,6 +503,7 @@ pub async fn mongo_delete(
     }
     .map_err(|e| e.to_string())
 }
+
 #[tauri::command]
 pub async fn mongo_show_table(
     uuid: String, table: String, filter: Vec<u8>, order_by: Vec<u8>, page: usize, page_size: usize,

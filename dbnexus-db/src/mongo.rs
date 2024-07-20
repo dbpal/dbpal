@@ -1,4 +1,5 @@
 use anyhow::Context;
+
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Document};
 use mongodb::options::{FindOptions, SelectionCriteria};
@@ -8,13 +9,30 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+use typescript_type_def::TypeDef;
 
 use crate::datasource::{self, MongoDataSource};
 use crate::db::{
-    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind,
-    ListMongoTimeSerialCollection, ListTable, ListView, MetaValue, MultiDBTrait, QueryResp,
-    QuerySql, ServerMetas, SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListView,
+    MetaValue, MultiDBTrait, QueryResp, QuerySql, ServerMetas, SqlExecuteRet, TableListResp,
 };
+
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+pub struct ListMongoTimeSerialCollection {
+    pub name: String,
+}
+impl From<String> for ListMongoTimeSerialCollection {
+    fn from(value: String) -> Self {
+        Self { name: value }
+    }
+}
+impl From<&str> for ListMongoTimeSerialCollection {
+    fn from(value: &str) -> Self {
+        Self {
+            name: value.to_string(),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Mongo {
@@ -180,7 +198,7 @@ impl FormatSql for Mongo {
 
 impl Mongo {
     /// normal `insert` , `update` ,`delete` works very bad with mongodb
-    /// So i just impl those method on Document
+    /// So i just impl those method on  type`Document`
     pub async fn insert(&self, table: &str, doc: Document) -> anyhow::Result<InsertOneResult> {
         let db = self.get_db().await?;
         let ret = db
@@ -348,9 +366,15 @@ impl ServerMetas for Mongo {
         {
             let up_time = server_status.get_i64("uptimeMillis")?;
             ret.push(MetaValue::new(
-                "upTime",
-                duration_string::DurationString::new(Duration::from_millis(up_time as u64)),
+                "up_time",
+                humantime::format_duration(Duration::from_millis(up_time as u64)),
             ));
+        }
+        let to_string_keys = &["catalogStats", "connections", "storageEngine"];
+        for k in to_string_keys.iter() {
+            if let Some(x) = server_status.get(*k) {
+                ret.push(MetaValue::new(*k, x.to_string()))
+            }
         }
 
         anyhow::Ok(ret)
