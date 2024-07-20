@@ -206,7 +206,7 @@ pub async fn open_schema(
 }
 
 #[tauri::command]
-pub async fn open_kind(
+pub async fn opened_kind(
     uuid: String, dbs: tauri::State<'_, App>,
 ) -> Result<OpendKind, AnyhowErrorFrontend> {
     let kind = dbs

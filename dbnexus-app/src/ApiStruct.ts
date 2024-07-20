@@ -15,14 +15,15 @@ export namespace db_apis {
         "port": db_apis.U16;
         "username": string;
         "password": string;
-        "db_name": string;
+        "db_name": (string | null);
     };
     export type SqlServerDBConfig = {
         "host": string;
         "port": db_apis.U16;
         "username": string;
         "password": string;
-        "db_name": string;
+        "db_name": (string | null);
+        "trust_cert": boolean;
     };
     export type U64 = number;
     export type MongoDataSource = {
@@ -66,7 +67,6 @@ export namespace db_apis {
         "conn_type": "sqlserver";
     } & (db_apis.SqlServerDBConfig & {
         "read_only": boolean;
-        "trust_cert": boolean;
         "name": string;
         "schema": (string | null);
     })) | ({
@@ -213,4 +213,5 @@ export namespace db_apis {
         "def": string;
         "metas": (db_apis.MetaValue)[];
     };
+    export type OpendKind = ("Catelog" | "DataBase" | "Schema");
 }
