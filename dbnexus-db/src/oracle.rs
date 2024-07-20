@@ -627,7 +627,7 @@ impl OracleDB {
             for (d, f) in d.into_iter().zip(cols.iter()) {
                 m.insert(f.name.clone(), d);
             }
-            let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
+            let insert_sql = (self as &dyn DBTrait).insert_sql(None, table_name, &cols, &m)?;
             sender.send(Cow::Owned(insert_sql)).await?;
             sender.send("\n".into()).await?;
         }
@@ -742,7 +742,7 @@ impl CheckConn for OracleDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         let conn = self.get_conn().await?;
-        let _ = block_in_place(|| conn.query("select 1", &[]))?;
+        let _ = block_in_place(|| conn.query("SELECT 1 FROM DUAL", &[]))?;
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -988,7 +988,7 @@ impl DBTrait for OracleDB {
         conn.set_autocommit(true);
 
         let fs = self.show_columns(&table_name).await?;
-        let sql = (self as &dyn DBTrait).insert_sql(table_name, &fs, &values)?;
+        let sql = (self as &dyn DBTrait).insert_sql(None, table_name, &fs, &values)?;
         log::info!("insert sql:{}", sql);
 
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1009,8 +1009,8 @@ impl DBTrait for OracleDB {
         self.can_write()?;
 
         let fs = self.show_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
+        let sql = (self as &dyn crate::db::DBTrait)
+            .update_sql(None, table_name, &fs, &values, &wheres)?;
         let conn = self.get_conn().await?;
 
         let stmt = block_in_place(|| conn.execute(sql.as_str(), &[]))?;
@@ -1042,7 +1042,8 @@ impl DBTrait for OracleDB {
         self.can_write()?;
 
         let fields = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
+        let sql =
+            (self as &dyn crate::db::DBTrait).delete_sql(None, table_name, &fields, &wheres)?;
         let conn = self.get_conn().await?;
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
         let row_count = stmt.row_count()?;

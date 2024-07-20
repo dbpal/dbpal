@@ -501,24 +501,23 @@ pub trait ServerMetas {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
 }
 
-#[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]
-pub struct RedisListTable {
-    pub(crate) string_table: Vec<String>,
-    pub(crate) list_table: Vec<String>,
-    pub(crate) set_table: Vec<String>,
-    pub(crate) hash_table: Vec<String>,
-    pub(crate) zset_table: Vec<String>,
-}
-
 impl dyn DBTrait {
     pub(crate) fn delete_sql(
-        &self, table_name: &str, fs: &Vec<Field>, wheres: &HashMap<String, Option<String>>,
+        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let mut field_by_name = HashMap::new();
         for f in fs.iter() {
             field_by_name.insert(&f.name, f);
         }
-        let mut sql = format!("DELETE FROM {table_name} WHERE ");
+        let mut sql = format!(
+            "DELETE FROM {}{table_name} WHERE ",
+            if let Some(schema) = schema {
+                format!("{}.", schema)
+            } else {
+                "".to_string()
+            }
+        );
         {
             let last = wheres.len() - 1;
             for (index, (k, v)) in wheres.iter().enumerate() {
@@ -544,8 +543,8 @@ impl dyn DBTrait {
     }
 
     pub(crate) fn update_sql(
-        &self, table_name: &str, fs: &Vec<Field>, values: &HashMap<String, Option<String>>,
-        wheres: &HashMap<String, Option<String>>,
+        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         //
 
@@ -553,7 +552,14 @@ impl dyn DBTrait {
         for f in fs.iter() {
             field_by_name.insert(&f.name, f);
         }
-        let mut sql = format!("UPDATE {table_name} SET ");
+        let mut sql = format!(
+            "UPDATE {}{table_name} SET ",
+            if let Some(schema) = schema {
+                format!("{}.", schema)
+            } else {
+                "".to_string()
+            }
+        );
         {
             let last = values.len() - 1;
             for (index, (k, v)) in values.iter().enumerate() {
@@ -601,10 +607,18 @@ impl dyn DBTrait {
     }
 
     pub(crate) fn insert_sql(
-        &self, table_name: &str, fs: &Vec<Field>, values: &HashMap<String, Option<String>>,
+        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         // fields
-        let mut sql = format!("INSERT INTO {table_name}(");
+        let mut sql = format!(
+            "INSERT INTO {}{table_name}(",
+            if let Some(schema) = schema {
+                format!("{}.", schema)
+            } else {
+                "".to_string()
+            }
+        );
         {
             let last = fs.len() - 1;
             for (index, f) in fs.iter().enumerate() {

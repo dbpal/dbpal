@@ -16,7 +16,7 @@ pub enum DBPoolKey {
     },
     MongoDB(MongoDataSource),
     SqlServer {
-        config: SqlServerConfig,
+        config: SqlServerDBConfig,
         trust_cert: bool,
     },
     Oracle(OracleDBConfig),
@@ -78,7 +78,7 @@ pub struct PGDBConfig {
     typescript_type_def::TypeDef,
 )]
 
-pub struct SqlServerConfig {
+pub struct SqlServerDBConfig {
     pub host: String,
     pub port: u16,
     pub username: String,

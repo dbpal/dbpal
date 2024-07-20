@@ -14,7 +14,7 @@ use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
-use crate::datasource::{MysqlDBConfig, DBPoolKey};
+use crate::datasource::{DBPoolKey, MysqlDBConfig};
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, Index, IndexKind, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
@@ -249,7 +249,7 @@ impl MysqlDB {
                     m.insert(f.name.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
+                let insert_sql = (self as &dyn DBTrait).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }
@@ -819,7 +819,8 @@ impl DBTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
+        let sql =
+            (self as &dyn crate::db::DBTrait).delete_sql(None, table_name, &fields, &wheres)?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -885,7 +886,7 @@ impl DBTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).insert_sql(table_name, &fs, &values)?;
+        let s = (self as &dyn crate::db::DBTrait).insert_sql(None, table_name, &fs, &values)?;
 
         let mut conn = self.get_conn().await?;
 
@@ -904,7 +905,8 @@ impl DBTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
+        let s = (self as &dyn crate::db::DBTrait)
+            .update_sql(None, table_name, &fs, &values, &wheres)?;
         let mut conn = self.get_conn().await?;
 
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;

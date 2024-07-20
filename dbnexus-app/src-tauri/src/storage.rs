@@ -4,7 +4,9 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use dbnexus_db::datasource::{MongoDataSource, MysqlDBConfig, OracleDBConfig};
+use dbnexus_db::datasource::{
+    MongoDataSource, MysqlDBConfig, OracleDBConfig, PGDBConfig, SqlServerDBConfig,
+};
 use dbnexus_db::db::{
     DBTrait, Field, Index, ListTable, ListView, MultiDBTrait, SqlExecuteRet, TableListResp,
 };
@@ -40,16 +42,18 @@ pub enum DBConnectionConfig {
     },
     Postgres {
         #[serde(flatten)]
-        conn: MysqlDBConfig,
+        conn: PGDBConfig,
         read_only: bool,
         name: String,
+        schema: Option<String>,
     },
     SqlServer {
         #[serde(flatten)]
-        conn: MysqlDBConfig,
+        conn: SqlServerDBConfig,
         read_only: bool,
         trust_cert: bool,
         name: String,
+        schema: Option<String>,
     },
     MongoDB {
         #[serde(flatten)]
@@ -222,12 +226,14 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
             conn,
             read_only,
             name: _,
-        } => match &conn.db_name {
+            schema,
+        } => match schema {
             Some(_) => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::pg::PostGresDB::new(
                     pm.clone(),
                     conn.clone(),
                     *read_only,
+                    schema.clone(),
                 ));
 
                 anyhow::Ok(DB::One(db))
@@ -237,6 +243,7 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
                     pm.clone(),
                     conn.clone(),
                     *read_only,
+                    schema.clone(),
                 ));
 
                 anyhow::Ok(DB::Multi(db))
@@ -247,13 +254,15 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
             read_only,
             trust_cert,
             name: _,
-        } => match &conn.db_name {
+            schema,
+        } => match schema {
             Some(_) => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::sql_server::SqlServer::new(
                     conn.clone(),
                     *trust_cert,
                     pm.clone(),
                     *read_only,
+                    schema.clone(),
                 ));
 
                 anyhow::Ok(DB::One(db))
@@ -264,6 +273,7 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
                     *trust_cert,
                     pm.clone(),
                     *read_only,
+                    schema.clone(),
                 ));
 
                 anyhow::Ok(DB::Multi(db))

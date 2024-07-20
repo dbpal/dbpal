@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use bson::Document;
 use dbnexus_db::db::{
-    ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, RedisListTable,
-    SqlExecuteRet, TableListResp, TriggerDetail,
+    ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, SqlExecuteRet,
+    TableListResp, TriggerDetail,
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
-use dbnexus_db::redis::RedisDB;
+use dbnexus_db::redis::{RedisDB, RedisListTable};
 
 use crate::storage::{self, App, DBConnectionConfig, UserSettings};
 

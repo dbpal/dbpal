@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
-use crate::datasource::{MysqlDBConfig, SqlServerConfig};
+use crate::datasource::SqlServerDBConfig;
 use crate::db::{
     create_csv, format_data_time_fix_offset, sql_to_sql_seq, sqlformat_format_sql, CheckConn,
     DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView,
@@ -27,11 +27,12 @@ use crate::CANNOT_GET_CONN_ERR;
 
 #[derive(Clone)]
 pub struct SqlServer {
-    config: SqlServerConfig,
+    config: SqlServerDBConfig,
     trust_cert: bool,
     pm: PoolManager,
     read_only: bool,
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
+    schema: Option<String>,
 }
 impl FormatSql for SqlServer {
     fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
@@ -40,13 +41,17 @@ impl FormatSql for SqlServer {
 }
 
 impl SqlServer {
-    pub fn new(config: MysqlDBConfig, trust_cert: bool, pm: PoolManager, read_only: bool) -> Self {
+    pub fn new(
+        config: SqlServerDBConfig, trust_cert: bool, pm: PoolManager, read_only: bool,
+        schema: Option<String>,
+    ) -> Self {
         Self {
             config,
             trust_cert,
             pm,
             read_only,
             query_connections: Default::default(),
+            schema,
         }
     }
 }
@@ -188,10 +193,10 @@ fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<Strin
 }
 
 fn gen_select_sql(
-    table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("SELECT * FROM {table_name}");
+    let mut sql = format!("SELECT * FROM {schema}.{table_name}");
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
@@ -351,9 +356,10 @@ impl DBTrait for SqlServer {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
+        let schema = self.schema.as_ref().unwrap().as_str();
         let sql = format!(
             r#"
-            SELECT * INTO {dup} FROM {table} 
+            SELECT * INTO {schema}.{dup} FROM {schema}.{table} 
         "#
         );
         self.execute_simple_execute(sql.as_str()).await
@@ -516,7 +522,14 @@ impl DBTrait for SqlServer {
         let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let total = SqlServer::query_count(conn, view_name, where_str.clone()).await?;
-        let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
+        let sql = gen_select_sql(
+            self.schema.as_ref().map(|x| x.as_str()).unwrap(),
+            view_name,
+            where_str,
+            order_by,
+            page,
+            page_size,
+        );
 
         let mut stream = conn
             .query(&sql, &[])
@@ -542,7 +555,9 @@ impl DBTrait for SqlServer {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let s = format!("DROP VIEW {view_name}");
+        let schema = self.schema.as_ref().unwrap();
+
+        let s = format!("DROP VIEW {schema}{view_name}");
         let conn = self.get_conn().await?;
         let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
@@ -553,12 +568,11 @@ impl DBTrait for SqlServer {
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         self.can_write()?;
-
-        let s = format!("DROP TABLE {table}");
+        let sql = format!("DROP TABLE {table}");
         let conn = self.get_conn().await?;
         let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
-        conn.execute(s.as_str(), &[]).await?;
+        conn.execute(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 
@@ -688,7 +702,14 @@ impl DBTrait for SqlServer {
         let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
         let total = SqlServer::query_count(conn, table_name, where_str.clone()).await?;
-        let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
+        let sql = gen_select_sql(
+            self.schema.as_ref().map(|x| x.as_str()).unwrap(),
+            table_name,
+            where_str,
+            order_by,
+            page,
+            page_size,
+        );
 
         let mut stream = conn
             .query(&sql, &[])
@@ -772,7 +793,12 @@ impl DBTrait for SqlServer {
         self.can_write()?;
 
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).insert_sql(table_name, &fs, &values)?;
+        let s = (self as &dyn crate::db::DBTrait).insert_sql(
+            self.schema.as_ref().map(|x| x.as_str()),
+            table_name,
+            &fs,
+            &values,
+        )?;
 
         log::trace!("insert sql:{}", s);
 
@@ -795,7 +821,13 @@ impl DBTrait for SqlServer {
         self.can_write()?;
 
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
+        let s = (self as &dyn crate::db::DBTrait).update_sql(
+            self.schema.as_ref().map(|x| x.as_str()),
+            table_name,
+            &fs,
+            &values,
+            &wheres,
+        )?;
         let conn = self.get_conn().await?;
         let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
@@ -845,7 +877,12 @@ impl DBTrait for SqlServer {
         self.can_write()?;
 
         let fields = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
+        let sql = (self as &dyn crate::db::DBTrait).delete_sql(
+            self.schema.as_ref().map(|x| x.as_str()),
+            table_name,
+            &fields,
+            &wheres,
+        )?;
         let conn = self.get_conn().await?;
         let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
         let conn = conn.deref_mut();
@@ -1064,7 +1101,12 @@ impl SqlServer {
                     m.insert(f.name.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
+                let insert_sql = (self as &dyn DBTrait).insert_sql(
+                    self.schema.as_ref().map(|x| x.as_str()),
+                    table_name,
+                    &cols,
+                    &m,
+                )?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }
@@ -1311,6 +1353,13 @@ impl QuerySql for SqlServer {
         anyhow::Ok(ret)
     }
 }
+
+async fn set_current_schema(conn: &mut Connection, schema: &str) -> anyhow::Result<()> {
+    let sql = format!("SET CURRENT_SCHEMA = '{schema}';");
+    conn.execute(sql.as_str(), &[]).await?;
+    anyhow::Ok(())
+}
+
 impl SqlServer {
     async fn get_conn(&self) -> anyhow::Result<bb8::Pool<bb8_tiberius::ConnectionManager>> {
         let p = self
@@ -1320,11 +1369,18 @@ impl SqlServer {
                 trust_cert: self.trust_cert,
             })
             .await?;
-        let p = match p {
+        let conn = match p {
             NexusPool::SqlServer(s) => s,
             _ => unreachable!(),
         };
-        anyhow::Ok(p)
+
+        if let Some(s) = &self.schema {
+            let mut conn = conn.get().await.unwrap();
+            let conn = conn.deref_mut();
+            set_current_schema(conn, s.as_str()).await?;
+        }
+
+        anyhow::Ok(conn)
     }
 
     #[allow(unused)]
@@ -1378,9 +1434,8 @@ impl crate::db::MultiDBTrait for SqlServer {
     }
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
-        debug_assert!(self.config.db_name.is_none());
         let mut x = Clone::clone(self);
-        x.config.db_name = Some(name.to_owned());
+        x.schema = Some(name.to_owned());
         Ok(Arc::new(x))
     }
 }
@@ -1417,16 +1472,17 @@ mod tests {
 
     fn make_test_object() -> SqlServer {
         let pg = SqlServer::new(
-            MysqlDBConfig {
+            SqlServerDBConfig {
                 host: TEST_HOST.to_string(),
                 port: 1433,
                 username: "sa".to_string(),
                 password: "sfdewRE123".to_string(),
-                db_name: Some("test".to_string()),
+                db_name: "test".to_string(),
             },
             true,
             Default::default(),
             false,
+            Some("dbo".to_string()),
         );
 
         pg

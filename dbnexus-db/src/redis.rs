@@ -8,14 +8,15 @@ use std::vec;
 
 use futures_util::StreamExt;
 use tokio::sync::Mutex;
+use typescript_type_def::TypeDef;
 
 use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
     create_csv, CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, ListTable, MetaValue,
-    OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, RedisListTable, ServerMetas,
-    SqlExecuteRet, TableListResp,
+    OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, ServerMetas, SqlExecuteRet,
+    TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
 use redis::aio::{ConnectionManager, MultiplexedConnection};
@@ -40,6 +41,15 @@ impl RedisDB {
             query_connections: Default::default(),
         }
     }
+}
+
+#[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]
+pub struct RedisListTable {
+    pub(crate) string_table: Vec<String>,
+    pub(crate) list_table: Vec<String>,
+    pub(crate) set_table: Vec<String>,
+    pub(crate) hash_table: Vec<String>,
+    pub(crate) zset_table: Vec<String>,
 }
 
 #[async_trait::async_trait]
@@ -985,9 +995,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_redis_table() {
         let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
         tokio::time::sleep(Duration::from_secs(2)).await;
-
         let redis_tables = db.redis_list_table().await.unwrap();
         println!("redis tables:{:?}", redis_tables);
     }
@@ -1080,6 +1088,7 @@ mod tests {
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
+        let _ = db.drop_table(&table_name_dup).await;
 
         db.duplicate_table(&table_name, &table_name_dup)
             .await
@@ -1154,7 +1163,7 @@ mod tests {
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
-
+        let _ = db.drop_table(&table_name_dup).await;
         db.duplicate_table(&table_name, &table_name_dup)
             .await
             .unwrap();
@@ -1372,7 +1381,7 @@ mod tests {
 
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
-
+        let _ = db.drop_table(&table_name_dup).await;
         db.duplicate_table(&table_name, &table_name_dup)
             .await
             .unwrap();

@@ -9,7 +9,7 @@ use anyhow::Context;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::PgRow;
-use sqlx::{Column, Postgres, Row};
+use sqlx::{Column, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
 use crate::completion::DBLexerCompletionBackend;
@@ -61,9 +61,18 @@ impl CheckConn for PostGresDB {
 impl MultiDBTrait for PostGresDB {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(" SELECT datname FROM pg_database WHERE datistemplate = false;")
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let sql = format!(
+            r#"
+        SELECT schema_name 
+            FROM information_schema.schemata
+            WHERE schema_name NOT IN ('information_schema', 'pg_catalog' , 'pg_toast') and 
+            schemata.catalog_name ='{}'
+    "#,
+            self.config.db_name
+        );
+
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -99,7 +108,11 @@ impl PostGresDB {
 
         let mut conn = self.get_conn().await?;
         let cols = DBTrait::show_columns(self, table_name).await?;
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(
+            "SELECT * from {}.{}",
+            self.schema.as_ref().unwrap(),
+            table_name
+        );
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -113,7 +126,12 @@ impl PostGresDB {
                     m.insert(f.name.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
+                let insert_sql = (self as &dyn DBTrait).insert_sql(
+                    self.schema.as_ref().map(|x| x.as_str()),
+                    table_name,
+                    &cols,
+                    &m,
+                )?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }
@@ -143,7 +161,11 @@ impl PostGresDB {
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(
+            "SELECT * from {}.{}",
+            self.schema.as_ref().unwrap(),
+            table_name
+        );
         self.export_query_result_as_json_line(&sql, sender).await
     }
 
@@ -184,7 +206,11 @@ impl PostGresDB {
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(
+            "SELECT * from {}.{}",
+            self.schema.as_ref().unwrap(),
+            table_name
+        );
         self.export_query_result_as_json(&sql, pretty, sender).await
     }
 
@@ -226,17 +252,21 @@ impl PostGresDB {
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(
+            "SELECT * from {}.{}",
+            self.schema.as_ref().unwrap(),
+            table_name
+        );
         self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
             .await
     }
 }
 
 fn gen_show_sql(
-    table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("SELECT * from {table_name}");
+    let mut sql = format!("SELECT * from {schema}.{table_name}");
     if let Some(where_str) = where_str {
         sql.push_str(format!(" where {where_str} ").as_str());
     }
@@ -382,14 +412,19 @@ impl DBTrait for PostGresDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let sql = format!("CREATE TABLE {dup} AS TABLE {table}");
+        let schema = self.schema.as_ref().unwrap();
+
+        let sql = format!("CREATE TABLE {schema}.{dup} AS TABLE {schema}.{table}");
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let sql = format!("ALTER TABLE {old} RENAME TO {new}");
+        let schema = self.schema.as_ref().unwrap();
+        let sql = format!("ALTER TABLE {schema}.{old} RENAME TO {new}");
+        println!("sql:{}", sql);
+
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -449,9 +484,11 @@ impl DBTrait for PostGresDB {
     }
 
     async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        let schema = self.schema.as_ref().unwrap();
+
         let sql = format!(
             r#"table
-         DROP TRIGGER {name} ON {table} 
+         DROP TRIGGER {name} ON {schema}.{table} 
         "#
         );
         let mut conn = self.get_conn().await?;
@@ -567,7 +604,14 @@ impl DBTrait for PostGresDB {
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(view_name, where_str).await?;
 
-        let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
+        let sql = gen_show_sql(
+            self.schema.as_ref().unwrap(),
+            view_name,
+            where_str,
+            order_by,
+            page,
+            page_size,
+        );
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -581,29 +625,35 @@ impl DBTrait for PostGresDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let mut conn = self.get_conn().await?;
-        let sql = format!("DROP VIEW {view_name}");
+        let schema = self.schema.as_ref().unwrap();
+
+        let sql = format!("DROP VIEW {schema}.{view_name}");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         self.can_write()?;
+        let schema = self.schema.as_ref().unwrap();
         let mut conn = self.get_conn().await?;
-        let sql = format!("DROP TABLE {table}");
+        let sql = format!("DROP TABLE {schema}.{table}");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
         let mut conn = self.get_conn().await?;
-
+        let schema = self.schema.as_ref().unwrap();
         let rows = sqlx::query(
-            r#"
+            format!(
+                r#"
         SELECT table_name
         FROM information_schema.tables
         WHERE table_type = 'VIEW'
-          AND table_schema = 'public';
-        "#,
+          AND table_schema = '{schema}';
+        "#
+            )
+            .as_str(),
         )
         .fetch_all(conn.deref_mut())
         .await?;
@@ -621,7 +671,12 @@ impl DBTrait for PostGresDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
+        let sql = (self as &dyn crate::db::DBTrait).delete_sql(
+            self.schema.as_ref().map(|x: &String| x.as_str()),
+            table_name,
+            &fields,
+            &wheres,
+        )?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -634,9 +689,10 @@ impl DBTrait for PostGresDB {
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
+        let schema = self.schema.as_ref().unwrap();
         let s = format!(
             r#"
-            TRUNCATE TABLE {table_name};
+            TRUNCATE TABLE {schema}.{table_name};
         "#
         );
         let mut conn = self.get_conn().await?;
@@ -653,7 +709,13 @@ impl DBTrait for PostGresDB {
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).update_sql(table_name, &fs, &values, &wheres)?;
+        let s = (self as &dyn crate::db::DBTrait).update_sql(
+            self.schema.as_ref().map(|x| x.as_str()),
+            table_name,
+            &fs,
+            &values,
+            &wheres,
+        )?;
         let mut conn = self.get_conn().await?;
 
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
@@ -670,7 +732,12 @@ impl DBTrait for PostGresDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).insert_sql(table_name, &fs, &values)?;
+        let s = (self as &dyn crate::db::DBTrait).insert_sql(
+            self.schema.as_ref().map(|x| x.as_str()),
+            table_name,
+            &fs,
+            &values,
+        )?;
 
         let mut conn = self.get_conn().await?;
 
@@ -687,9 +754,10 @@ impl DBTrait for PostGresDB {
         let sql = format!(
             r#"SELECT table_name
              FROM information_schema.tables
-             WHERE table_type = 'BASE TABLE' AND table_schema = 'public' and table_catalog='{}'
+             WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}'
      "#,
-            self.config.db_name.as_ref().unwrap()
+            self.schema.as_ref().unwrap(),
+            &self.config.db_name
         );
 
         let mut conn = self.get_conn().await?;
@@ -710,9 +778,10 @@ impl DBTrait for PostGresDB {
             r#"
 
             SELECT  column_name , data_type,is_nullable,column_default,udt_name
-            FROM information_schema.columns where table_catalog='{}' and table_name = '{}' ORDER BY ordinal_position
+            FROM information_schema.columns where table_catalog='{}' and table_schema='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
-            self.config.db_name.as_ref().map(|x| x.as_str()).unwrap(),
+            &self.config.db_name,
+            self.schema.as_ref().unwrap(),
             table_name
         );
 
@@ -784,7 +853,14 @@ impl DBTrait for PostGresDB {
         page_size: usize,
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
-        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
+        let sql = gen_show_sql(
+            self.schema.as_ref().unwrap(),
+            table_name,
+            where_str,
+            order_by,
+            page,
+            page_size,
+        );
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -848,7 +924,9 @@ impl DBTrait for PostGresDB {
 impl PostGresDB {
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!("SELECT count(1) from {name} ");
+        let schema = self.schema.as_ref().unwrap();
+
+        let mut s = format!("SELECT count(1) from {schema}.{name} ");
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
@@ -859,13 +937,15 @@ impl PostGresDB {
 }
 
 impl PostGresDB {
-    pub fn new(pool: PoolManager, config: PGDBConfig, read_only: bool) -> Self {
+    pub fn new(
+        pool: PoolManager, config: PGDBConfig, read_only: bool, schema: Option<String>,
+    ) -> Self {
         Self {
             pool,
             config,
             read_only,
             query_connection: Default::default(),
-            schema: None,
+            schema,
         }
     }
 
@@ -881,7 +961,11 @@ impl PostGresDB {
             _ => unreachable!(),
         };
 
-        let conn = pool.acquire().await?;
+        let mut conn = pool.acquire().await?;
+        if let Some(s) = &self.schema {
+            set_current_schema(conn.deref_mut(), s).await?;
+        }
+
         return anyhow::Ok(conn);
     }
 }
@@ -968,11 +1052,20 @@ fn get_pg_type_base_on_data_type_and_udtname(data_type: &str, udt_name: &str) ->
 
     return data_type.to_string();
 }
+
+async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Result<()> {
+    sqlx::query(format!("SET search_path TO {schema}").as_str())
+        .execute(conn)
+        .await?;
+    anyhow::Ok(())
+}
+
 #[async_trait::async_trait]
 impl QuerySql for PostGresDB {
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn().await?;
+
         self.query_connection.lock().await.insert(id, conn);
         anyhow::Ok(id)
     }
@@ -1097,28 +1190,27 @@ async fn get_index_kind(
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-    use std::ops::DerefMut;
-
     use super::PostGresDB;
-    use crate::datasource::MysqlDBConfig;
-    use crate::db::{CheckConn, DBTrait, ExportKind, ServerMetas};
+    use crate::datasource::PGDBConfig;
+    use crate::db::{CheckConn, DBTrait, ExportKind, QuerySql, ServerMetas};
     use crate::pool::PoolManager;
     use crate::{init_log, TEST_HOST};
+    use std::collections::HashMap;
 
     fn make_test_object() -> PostGresDB {
         // list all table and query
         let pool_manager = PoolManager::new();
         let pg = PostGresDB::new(
             pool_manager.clone(),
-            MysqlDBConfig {
+            PGDBConfig {
                 host: TEST_HOST.to_string(),
                 port: 5432,
                 username: "postgres".to_string(),
                 password: "root".to_string(),
-                db_name: Some("test".to_string()),
+                db_name: "test".to_string(),
             },
             false,
+            Some("test".to_string()),
         );
         pg
     }
@@ -1212,23 +1304,22 @@ mod test {
         // init_log();
         let table_name = "test_export";
         let db = make_test_object();
-        let mut conn = db.get_conn().await.unwrap();
-        let rs = vec![
-            r#"drop table if exists test_export;"#,
-            r#"CREATE TABLE test_export (
+
+        let sql = r#"drop table if exists test_export; 
+                CREATE TABLE test_export (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(50),
                 age INT,
                 email VARCHAR(100)
-            );"#,
-            "INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');",
-            "INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');",
-            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
-        ];
-        for s in rs.iter() {
-            sqlx::query(*s).execute(conn.deref_mut()).await.unwrap();
-        }
+            ); 
+             INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');
+             INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');
+             INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');
+             "#;
+        let query_id = db.open_connection().await.unwrap();
+
         let db = &db as &dyn DBTrait;
+        db.query_sql(query_id, sql).await.unwrap();
 
         {
             let s = db
@@ -1281,15 +1372,14 @@ mod test {
     async fn test_show_index() {
         let table_name = "index_test";
         let db = make_test_object();
-        let mut conn = db.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
 
-        let _ =   sqlx::query(format!(
+        let _ = db.drop_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+
+        db.query_sql(query_id, format!(
             r#" create table {table_name} (a int, b int, c int, constraint pk_test primary key(a, b)); "#,
-        ).as_str()) .execute(conn.deref_mut())
-        .await;
+        ).as_str()).await .unwrap()
+        ;
 
         let db = &db as &dyn crate::db::DBTrait;
         let indexes = db.show_indexes(table_name).await.unwrap();
@@ -1309,37 +1399,43 @@ mod test {
     #[tokio::test]
     async fn test_triggers() {
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
         let db_trait = &pg as &dyn DBTrait;
         //
         let _ = db_trait.drop_table("test_create_trigger").await;
-        sqlx::query(
-            r#"
+        let query_id = db_trait.open_connection().await.unwrap();
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
           CREATE TABLE test_create_trigger (
             id SERIAL PRIMARY KEY,
             name VARCHAR(50)
           );
         "#,
-        )
-        .execute(conn.deref_mut())
-        .await
-        .unwrap();
+            )
+            .await
+            .unwrap();
+
         let _ = db_trait.drop_table("test_create_trigger_update").await;
-        sqlx::query(
-            r#"
+
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
             CREATE TABLE test_create_trigger_update (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(50),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-        "#,
-        )
-        .execute(conn.deref_mut())
-        .await
-        .unwrap();
-        // create trigger
-        let _ = sqlx::query(
-            r#"
+    "#,
+            )
+            .await
+            .unwrap();
+
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
             CREATE FUNCTION trigger_insert_test_create_trigger()
             RETURNS TRIGGER AS $$
             BEGIN
@@ -1348,22 +1444,23 @@ mod test {
                 RETURN NEW;
             END;
             $$ LANGUAGE plpgsql;
-        "#,
-        )
-        .execute(conn.deref_mut())
-        .await;
+    "#,
+            )
+            .await
+            .unwrap();
 
-        sqlx::query(
-            r#"
+        db_trait
+            .query_sql(
+                query_id,
+                r#"
             CREATE TRIGGER trigger_insert_test_create_trigger
             AFTER INSERT ON test_create_trigger
             FOR EACH ROW
             EXECUTE FUNCTION trigger_insert_test_create_trigger();
-        "#,
-        )
-        .execute(conn.deref_mut())
-        .await
-        .unwrap();
+    "#,
+            )
+            .await
+            .unwrap();
 
         let triggers = db_trait.list_trigger("test_create_trigger").await.unwrap();
         for tri in triggers.iter() {
@@ -1446,7 +1543,6 @@ mod test {
 
             println!("json line:{}", e);
         }
-        println!("############################################");
 
         {
             let e = db_trait
@@ -1491,27 +1587,27 @@ mod test {
     async fn test_types1() {
         let table_name = "test_types1";
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-            CREATE TABLE {table_name} (
-                id SERIAL PRIMARY KEY,
-                bool_column BOOL,
-                bytea_column BYTEA,
-                char_column CHAR,
-                name_column NAME,
-                int8_column INT8,
-                int2_column INT2,
-                int4_column INT4
-            );"#
+        CREATE TABLE {table_name} (
+            id SERIAL PRIMARY KEY,
+            bool_column BOOL,
+            bytea_column BYTEA,
+            char_column CHAR,
+            name_column NAME,
+            int8_column INT8,
+            int2_column INT2,
+            int4_column INT4
+        );"#
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -1561,28 +1657,28 @@ mod test {
         let table_name = "test_types2";
 
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-            CREATE TABLE {table_name} (
-                id SERIAL PRIMARY KEY,
-                text_column TEXT,
-                oid_column OID,
-                json_column JSON,
-                float4_column FLOAT4,
-                float8_column FLOAT8,
-                macaddr8_column MACADDR8,
-                macaddr8_array_column MACADDR8[]
-            );
-        "#
+        CREATE TABLE {table_name} (
+            id SERIAL PRIMARY KEY,
+            text_column TEXT,
+            oid_column OID,
+            json_column JSON,
+            float4_column FLOAT4,
+            float8_column FLOAT8,
+            macaddr8_column MACADDR8,
+            macaddr8_array_column MACADDR8[]
+        );
+    "#
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -1633,33 +1729,33 @@ mod test {
         let db = &db as &dyn crate::db::MultiDBTrait;
 
         let resp = db.list_db().await.unwrap();
-        assert_eq!(resp, vec!["postgres", "test",]);
+        assert_eq!(resp, vec!["public", "test"]);
     }
     #[tokio::test]
     async fn test_types3() {
         init_log();
         let pg = make_test_object();
         let table_name = "test_types3";
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-            CREATE TABLE {table_name} (
-                macaddr_column MACADDR,
-                inet_column INET,
-                bool_array_column BOOL[],
-                bytea_array_column BYTEA[],
-                char_array_column CHAR[],
-                name_array_column NAME[]
-            );
-        "#
+        CREATE TABLE {table_name} (
+            macaddr_column MACADDR,
+            inet_column INET,
+            bool_array_column BOOL[],
+            bytea_array_column BYTEA[],
+            char_array_column CHAR[],
+            name_array_column NAME[]
+        );
+    "#
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -1707,25 +1803,25 @@ mod test {
 
         let table_name = "test_types4";
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-            CREATE TABLE {table_name} (
-                int2_array_column INT2[],
-                int4_array_column INT4[],
-                text_array_column TEXT[],
-                varchar_array_column VARCHAR[],
-                int8_array_column INT8[]
-            );
-        "#
+        CREATE TABLE {table_name} (
+            int2_array_column INT2[],
+            int4_array_column INT4[],
+            text_array_column TEXT[],
+            varchar_array_column VARCHAR[],
+            int8_array_column INT8[]
+        );
+    "#
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -1765,27 +1861,27 @@ mod test {
         init_log();
         let table_name = "test_types5";
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-            CREATE TABLE {table_name} (
-                path_column PATH,
-                path_array_column PATH[],
-                float4_array_column FLOAT4[],
-                float8_array_column FLOAT8[],
-                macaddr_array_column MACADDR[],
-                inet_array_column INET[],
-                date_column DATE
-            )
-        "#,
+        CREATE TABLE {table_name} (
+            path_column PATH,
+            path_array_column PATH[],
+            float4_array_column FLOAT4[],
+            float8_array_column FLOAT8[],
+            macaddr_array_column MACADDR[],
+            inet_array_column INET[],
+            date_column DATE
+        )
+    "#,
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -1845,27 +1941,27 @@ mod test {
         init_log();
         let table_name = "test_types6";
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-                CREATE TABLE {table_name} (
-                    col_time TIME,
-                    col_timestamp TIMESTAMP,
-                    col_timestamp_array TIMESTAMP[],
-                    col_date_array DATE[],
-                    col_time_array TIME[],
-                    col_timestamptz TIMESTAMPTZ,
-                    col_timestamptz_array TIMESTAMPTZ[]
-                );
-        "#,
+        CREATE TABLE {table_name} (
+            col_time TIME,
+            col_timestamp TIMESTAMP,
+            col_timestamp_array TIMESTAMP[],
+            col_date_array DATE[],
+            col_time_array TIME[],
+            col_timestamptz TIMESTAMPTZ,
+            col_timestamptz_array TIMESTAMPTZ[]
+        );
+"#,
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -1920,25 +2016,24 @@ mod test {
         init_log();
         let table_name = "test_types7";
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-                CREATE TABLE {table_name} (
-                    interval_col INTERVAL,
-                    interval_array_col INTERVAL[],
-                    numeric_array_col NUMERIC[],
-                    timetz_col TIMETZ,
-                    timetz_array_col TIMETZ[]
-                );
-        "#,
+        CREATE TABLE {table_name} (
+            interval_col INTERVAL,
+            interval_array_col INTERVAL[],
+            numeric_array_col NUMERIC[],
+            timetz_col TIMETZ,
+            timetz_array_col TIMETZ[]
+        );
+"#,
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -1980,25 +2075,25 @@ mod test {
         init_log();
         let table_name = "test_types8";
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-                CREATE TABLE {table_name}(
-                    bit_column BIT,
-                    bit_array_column BIT[],
-                    varbit_column VARBIT,
-                    varbit_array_column VARBIT[],
-                    numeric_column NUMERIC
-                  );
-        "#,
+        CREATE TABLE {table_name}(
+            bit_column BIT,
+            bit_array_column BIT[],
+            varbit_column VARBIT,
+            varbit_array_column VARBIT[],
+            numeric_column NUMERIC
+          );
+"#,
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -2031,26 +2126,25 @@ mod test {
         init_log();
         let table_name = "test_types9";
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-                CREATE TABLE {table_name} (
-                    uuid_column UUID,
-                    uuid_array_column UUID[],
-                    jsonb_column JSONB,
-                    jsonb_array_column JSONB[],
-                    int4range_column INT4RANGE,
-                    int4range_array_column INT4RANGE[]
-                  );
-        "#,
+            CREATE TABLE {table_name} (
+                uuid_column UUID,
+                uuid_array_column UUID[],
+                jsonb_column JSONB,
+                jsonb_array_column JSONB[],
+                int4range_column INT4RANGE,
+                int4range_array_column INT4RANGE[]
+              );
+    "#,
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -2102,26 +2196,26 @@ mod test {
         init_log();
         let table_name = "test_types10";
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-                CREATE TABLE {table_name} (
-                    num_range NUMRANGE,
-                    num_range_array NUMRANGE[],
-                    ts_range TSRANGE,
-                    ts_range_array TSRANGE[],
-                    tstz_range TSTZRANGE,
-                    tstz_range_array TSTZRANGE[]
-                );
-        "#,
+            CREATE TABLE {table_name} (
+                num_range NUMRANGE,
+                num_range_array NUMRANGE[],
+                ts_range TSRANGE,
+                ts_range_array TSRANGE[],
+                tstz_range TSTZRANGE,
+                tstz_range_array TSTZRANGE[]
+            );
+    "#,
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 
@@ -2164,29 +2258,29 @@ mod test {
         init_log();
         let table_name = "test_types11";
         let pg = make_test_object();
-        let mut conn = pg.get_conn().await.unwrap();
-        let _ = sqlx::query(format!("drop table {table_name}").as_str())
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+
+        let _ = pg.drop_table(&table_name).await;
+
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
             format!(
                 r#"
-                CREATE TABLE {table_name} (
-                    date_range DATERANGE,
-                    date_range_array DATERANGE[],
-                    int8_range INT8RANGE,
-                    int8_range_array INT8RANGE[],
-                    json_path JSONPATH,
-                    json_path_array JSONPATH[],
-                    money_value MONEY,
-                    money_value_array MONEY[]
-                );
+            CREATE TABLE {table_name} (
+                date_range DATERANGE,
+                date_range_array DATERANGE[],
+                int8_range INT8RANGE,
+                int8_range_array INT8RANGE[],
+                json_path JSONPATH,
+                json_path_array JSONPATH[],
+                money_value MONEY,
+                money_value_array MONEY[]
+            );
 
-        "#,
+    "#,
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
         .unwrap();
 

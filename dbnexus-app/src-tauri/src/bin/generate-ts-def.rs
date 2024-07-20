@@ -5,11 +5,13 @@ use std::io::prelude::*;
 use std::path::Path;
 
 use dbnexus_db::completion::{CompletionItem, CompletionKind};
+use dbnexus_db::datasource::{PGDBConfig, SqlServerDBConfig};
 use dbnexus_db::db::{
     ExportKind, Field, Index, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
-    ProcedureDetail, QueryResp, RedisListTable, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
+    ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfDetail,
 };
+use dbnexus_db::redis::RedisListTable;
 use dvnexus_app_lib::storage;
 use typescript_type_def::{write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef};
 
@@ -21,6 +23,8 @@ fn main() {
         let api = vec![
             &storage::DBConnectionConfig::INFO,
             &storage::UserSettings::INFO,
+            &PGDBConfig::INFO,
+            &SqlServerDBConfig::INFO,
             &ListTable::INFO,
             &Field::INFO,
             &TableListResp::INFO,

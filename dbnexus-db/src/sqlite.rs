@@ -103,7 +103,7 @@ impl SqliteDB {
                     m.insert(f.name.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn DBTrait).insert_sql(table_name, &cols, &m)?;
+                let insert_sql = (self as &dyn DBTrait).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }
@@ -606,7 +606,8 @@ impl DBTrait for SqliteDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::DBTrait).delete_sql(table_name, &fields, &wheres)?;
+        let sql =
+            (self as &dyn crate::db::DBTrait).delete_sql(None, table_name, &fields, &wheres)?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -661,8 +662,8 @@ impl DBTrait for SqliteDB {
         let fields = self.show_columns(table_name).await?;
 
         let mut conn = self.get_conn().await?;
-        let s =
-            (self as &dyn crate::db::DBTrait).update_sql(table_name, &fields, &values, &wheres)?;
+        let s = (self as &dyn crate::db::DBTrait)
+            .update_sql(None, table_name, &fields, &values, &wheres)?;
 
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -678,7 +679,8 @@ impl DBTrait for SqliteDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::DBTrait).insert_sql(table_name, &fields, &values)?;
+        let sql =
+            (self as &dyn crate::db::DBTrait).insert_sql(None, table_name, &fields, &values)?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
