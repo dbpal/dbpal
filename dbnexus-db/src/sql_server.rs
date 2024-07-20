@@ -7,7 +7,7 @@ use std::time::Duration;
 use anyhow::Context;
 use chrono::FixedOffset;
 use futures_core::future::BoxFuture;
-use futures_util::{FutureExt, StreamExt, TryStreamExt};
+use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::tokenizer::Token;
 use tiberius::{Client, ColumnData, ColumnType, FromSql, Row};
 use tokio::net::TcpStream;
@@ -22,18 +22,17 @@ use crate::db::{
     QueryResp, QuerySql, SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEnable,
     TriggerEvent, TriggerTiming,
 };
-use crate::pool::{NexusPool, PoolManager};
-use crate::CANNOT_GET_CONN_ERR;
 
 #[derive(Clone)]
 pub struct SqlServer {
+    pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     config: SqlServerDBConfig,
     trust_cert: bool,
-    pm: PoolManager,
     read_only: bool,
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
     schema: Option<String>,
 }
+
 impl FormatSql for SqlServer {
     fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, None))
@@ -41,18 +40,28 @@ impl FormatSql for SqlServer {
 }
 
 impl SqlServer {
-    pub fn new(
-        config: SqlServerDBConfig, trust_cert: bool, pm: PoolManager, read_only: bool,
-        schema: Option<String>,
-    ) -> Self {
-        Self {
-            config,
+    pub async fn new(
+        c: SqlServerDBConfig, trust_cert: bool, read_only: bool, schema: Option<String>,
+    ) -> anyhow::Result<Self> {
+        let mut config = tiberius::Config::new();
+        config.host(&c.host);
+        config.port(c.port);
+        config.authentication(tiberius::AuthMethod::sql_server(&c.username, &c.password));
+        config.database(&c.db_name);
+        if trust_cert {
+            config.trust_cert(); // on production, it is not a good idea to do this
+        }
+        let manager = bb8_tiberius::ConnectionManager::new(config);
+        let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
+
+        anyhow::Ok(Self {
             trust_cert,
-            pm,
+            config: c,
+            pool,
             read_only,
             query_connections: Default::default(),
             schema,
-        }
+        })
     }
 }
 
@@ -308,8 +317,7 @@ fn test_extract_trigger_detail_from_sql() {
 impl CheckConn for SqlServer {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let _x = conn.query("select 1", &[]).await?;
         anyhow::Ok(ins.elapsed())
@@ -318,8 +326,7 @@ impl CheckConn for SqlServer {
 
 impl SqlServer {
     async fn execute_simple_execute(&self, sql: &str) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut stream = conn.simple_query(sql).await?;
         while let Some(item) = stream.next().await {
@@ -386,8 +393,7 @@ impl DBTrait for SqlServer {
                 AND OBJECT_NAME(t.parent_id) = '{table_name}' -- 指定要查看的表名
         "#
         );
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut stream = conn.simple_query(&sql).await?;
         let mut ret = Vec::new();
@@ -418,8 +424,7 @@ impl DBTrait for SqlServer {
                 AND OBJECT_NAME(t.parent_id) = '{table}' and name ='{name}'
       "#
         );
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut stream = conn.simple_query(&sql).await?;
         let mut result = None;
@@ -462,8 +467,7 @@ impl DBTrait for SqlServer {
          DROP TRIGGER dbo.{name} ON {table};
         "#
         );
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
 
         conn.execute(sql.as_str(), &[])
@@ -518,8 +522,7 @@ impl DBTrait for SqlServer {
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total = SqlServer::query_count(conn, view_name, where_str.clone()).await?;
         let sql = gen_select_sql(
@@ -557,9 +560,8 @@ impl DBTrait for SqlServer {
         self.can_write()?;
         let schema = self.schema.as_ref().unwrap();
 
-        let s = format!("DROP VIEW {schema}{view_name}");
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let s = format!("DROP VIEW {schema}.{view_name}");
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
 
         conn.execute(s.as_str(), &[]).await?;
@@ -569,16 +571,14 @@ impl DBTrait for SqlServer {
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!("DROP TABLE {table}");
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         conn.execute(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut stream = conn
             .query(
@@ -608,8 +608,7 @@ impl DBTrait for SqlServer {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut stream = conn
             .query(
@@ -641,8 +640,7 @@ impl DBTrait for SqlServer {
     }
 
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let mut conn = conn.deref_mut();
         let mut stream = conn
             .query(
@@ -698,8 +696,7 @@ impl DBTrait for SqlServer {
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total = SqlServer::query_count(conn, table_name, where_str.clone()).await?;
         let sql = gen_select_sql(
@@ -750,8 +747,7 @@ impl DBTrait for SqlServer {
         "#
         );
 
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut stream = conn.query(sql.as_str(), &[]).await?;
         let mut ret: HashMap<String, Index> = HashMap::new();
@@ -802,8 +798,7 @@ impl DBTrait for SqlServer {
 
         log::trace!("insert sql:{}", s);
 
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let _r = conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -828,8 +823,7 @@ impl DBTrait for SqlServer {
             &values,
             &wheres,
         )?;
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let r = conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet::from((s, r.rows_affected().iter().sum())))
@@ -864,8 +858,7 @@ impl DBTrait for SqlServer {
             TRUNCATE TABLE {table_name};
         "#
         );
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(())
@@ -883,8 +876,7 @@ impl DBTrait for SqlServer {
             &fields,
             &wheres,
         )?;
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
 
         let r = conn.execute(sql.as_str(), &[]).await?;
@@ -1078,8 +1070,7 @@ impl SqlServer {
                 sender.send(";\n".into()).await?;
             }
         }
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let cols = DBTrait::show_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
@@ -1117,8 +1108,7 @@ impl SqlServer {
     async fn export_query_result_as_json_line(
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
 
         let mut stream = conn.query(sql, &[]).await?;
@@ -1152,8 +1142,7 @@ impl SqlServer {
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
 
         let mut stream = conn.query(sql, &[]).await?;
@@ -1202,8 +1191,7 @@ impl SqlServer {
         &self, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut first = true;
 
@@ -1254,6 +1242,9 @@ impl SqlServer {
 }
 
 impl SqlServer {
+    /// this fn create a `Connection` only use for query connection
+    /// because `query_connections` use in `SqlServer`,
+    /// we can't create self reference struct in rust.
     async fn new_tcp_conn(&self) -> anyhow::Result<Connection> {
         let mut config = tiberius::Config::new();
         config.host(&self.config.host);
@@ -1272,6 +1263,9 @@ impl SqlServer {
         }
 
         let client = tiberius::Client::connect(config, tcp.compat_write()).await?;
+        // if let Some(s) = self.schema.as_ref() {
+        //     set_current_schema(&mut client, s).await?;
+        // }
 
         anyhow::Ok(client)
     }
@@ -1354,32 +1348,23 @@ impl QuerySql for SqlServer {
     }
 }
 
+// todo how to set current schema for sql server
+#[allow(dead_code)]
 async fn set_current_schema(conn: &mut Connection, schema: &str) -> anyhow::Result<()> {
-    let sql = format!("SET CURRENT_SCHEMA = '{schema}';");
-    conn.execute(sql.as_str(), &[]).await?;
+    let sql = format!("SET CURRENT_SCHEMA = '{schema}'");
+    println!("sql:{}", sql);
+    conn.simple_query(sql.as_str()).await.unwrap();
     anyhow::Ok(())
 }
 
 impl SqlServer {
-    async fn get_conn(&self) -> anyhow::Result<bb8::Pool<bb8_tiberius::ConnectionManager>> {
-        let p = self
-            .pm
-            .get(&crate::datasource::DBPoolKey::SqlServer {
-                config: self.config.clone(),
-                trust_cert: self.trust_cert,
-            })
-            .await?;
-        let conn = match p {
-            NexusPool::SqlServer(s) => s,
-            _ => unreachable!(),
-        };
-
-        if let Some(s) = &self.schema {
-            let mut conn = conn.get().await.unwrap();
-            let conn = conn.deref_mut();
-            set_current_schema(conn, s.as_str()).await?;
-        }
-
+    async fn get_conn<'a>(
+        &'a self,
+    ) -> anyhow::Result<bb8::PooledConnection<'a, bb8_tiberius::ConnectionManager>> {
+        let conn = self.pool.get().await?;
+        // if let Some(s) = self.schema.as_ref() {
+        //     set_current_schema(conn.deref_mut(), s).await?;
+        // }
         anyhow::Ok(conn)
     }
 
@@ -1388,8 +1373,7 @@ impl SqlServer {
         &self,
         call_back: impl FnOnce(&mut Client<Compat<TcpStream>>) -> BoxFuture<anyhow::Result<R>>,
     ) -> anyhow::Result<R> {
-        let conn = self.get_conn().await?;
-        let mut conn = conn.get().await.context(CANNOT_GET_CONN_ERR)?;
+        let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         call_back(conn).await
     }
@@ -1410,27 +1394,29 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
 #[async_trait::async_trait]
 impl crate::db::MultiDBTrait for SqlServer {
     async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        self.with_conn(|conn| {
-            async {
-                let mut stream = conn.query("SELECT name FROM sys.databases", &[]).await?;
-                let mut ret = Vec::new();
+        // self.with_conn(|conn| {
+        //     async {
+        //         let mut stream = conn.query("SELECT name FROM sys.databases", &[]).await?;
+        //         let mut ret = Vec::new();
 
-                while let Some(item) = stream.next().await {
-                    let item = item?;
-                    match item {
-                        tiberius::QueryItem::Row(r) => {
-                            let name: Option<&str> = r.try_get(0)?;
-                            ret.push(name.unwrap().to_string());
-                        }
-                        tiberius::QueryItem::Metadata(_) => {}
-                    }
-                }
+        //         while let Some(item) = stream.next().await {
+        //             let item = item?;
+        //             match item {
+        //                 tiberius::QueryItem::Row(r) => {
+        //                     let name: Option<&str> = r.try_get(0)?;
+        //                     ret.push(name.unwrap().to_string());
+        //                 }
+        //                 tiberius::QueryItem::Metadata(_) => {}
+        //             }
+        //         }
 
-                anyhow::Ok(ret)
-            }
-            .boxed()
-        })
-        .await
+        //         anyhow::Ok(ret)
+        //     }
+        //     .boxed()
+        // })
+        // .await
+
+        anyhow::Ok(vec!["dbo".to_string()])
     }
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
@@ -1470,7 +1456,7 @@ mod tests {
     use super::*;
     use crate::{init_log, TEST_HOST};
 
-    fn make_test_object() -> SqlServer {
+    async fn make_test_object() -> SqlServer {
         let pg = SqlServer::new(
             SqlServerDBConfig {
                 host: TEST_HOST.to_string(),
@@ -1480,17 +1466,18 @@ mod tests {
                 db_name: "test".to_string(),
             },
             true,
-            Default::default(),
             false,
             Some("dbo".to_string()),
-        );
+        )
+        .await
+        .unwrap();
 
         pg
     }
 
     #[tokio::test]
     async fn test_rename() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn DBTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_rename").await;
@@ -1522,7 +1509,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_duplicate() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn DBTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_duplicate").await;
@@ -1561,7 +1548,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_triggers() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
         let query_id = db.open_connection().await.unwrap();
         let _ = db.drop_table("test_create_trigger").await;
@@ -1623,7 +1610,7 @@ mod tests {
     #[tokio::test]
     async fn test_query() {
         init_log();
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
         let id = db.open_connection().await.unwrap();
 
@@ -1653,16 +1640,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_database() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::MultiDBTrait;
 
         let resp = db.list_db().await.unwrap();
-        assert_eq!(resp, vec!["master", "tempdb", "model", "msdb", "test"]);
+        assert_eq!(resp, vec!["dbo",]);
     }
 
     #[tokio::test]
     async fn test_view() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
         let _ = db.drop_table("test_view_table").await;
         let _ = db.drop_view("test_view").await;
@@ -1712,7 +1699,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_index() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let _ = db.drop_table("test_index_table").await;
 
         let query_id = db.open_connection().await.unwrap();
@@ -1743,9 +1730,8 @@ mod tests {
     #[tokio::test]
     async fn test_export() {
         let table_name = "test_export";
-        let db = make_test_object();
-        let conn = db.get_conn().await.unwrap();
-        let mut conn = conn.get().await.unwrap();
+        let db = make_test_object().await;
+        let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
         let rs = vec![
             r#"drop table if exists test_export;"#,
@@ -1841,9 +1827,8 @@ mod tests {
     #[tokio::test]
     async fn test_type1() {
         init_log();
-        let db = make_test_object();
-        let conn = db.get_conn().await.unwrap();
-        let mut conn = conn.get().await.unwrap();
+        let db = make_test_object().await;
+        let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
         let table_name = "test_type1";
         let _ = conn.execute(format!("drop table {table_name}"), &[]).await;
@@ -1889,9 +1874,9 @@ mod tests {
     #[tokio::test]
     async fn test_type2() {
         init_log();
-        let db = make_test_object();
-        let conn = db.get_conn().await.unwrap();
-        let mut conn = conn.get().await.unwrap();
+        let db = make_test_object().await;
+        let mut conn = db.get_conn().await.unwrap();
+
         let conn = conn.deref_mut();
         let table_name = "test_type2";
         let _ = conn.execute(format!("drop table {table_name}"), &[]).await;
@@ -1941,10 +1926,8 @@ mod tests {
     #[tokio::test]
     async fn test_type3() {
         init_log();
-        let db = make_test_object();
-        let conn = db.get_conn().await.unwrap();
-        let mut conn = conn.get().await.unwrap();
-
+        let db = make_test_object().await;
+        let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
         let table_name = "test_type3";
         let _ = conn.execute(format!("drop table {table_name}"), &[]).await;
@@ -1997,9 +1980,8 @@ mod tests {
     #[tokio::test]
     async fn test_type4() {
         init_log();
-        let db = make_test_object();
-        let conn = db.get_conn().await.unwrap();
-        let mut conn = conn.get().await.unwrap();
+        let db = make_test_object().await;
+        let mut conn = db.get_conn().await.unwrap();
 
         let conn = conn.deref_mut();
         let table_name = "test_type4";

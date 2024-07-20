@@ -257,25 +257,28 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
             schema,
         } => match schema {
             Some(_) => {
-                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::sql_server::SqlServer::new(
-                    conn.clone(),
-                    *trust_cert,
-                    pm.clone(),
-                    *read_only,
-                    schema.clone(),
-                ));
+                let db: Arc<dyn DBTrait> = Arc::new(
+                    dbnexus_db::sql_server::SqlServer::new(
+                        conn.clone(),
+                        *trust_cert,
+                        *read_only,
+                        schema.clone(),
+                    )
+                    .await?,
+                );
 
                 anyhow::Ok(DB::One(db))
             }
             None => {
-                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::sql_server::SqlServer::new(
-                    conn.clone(),
-                    *trust_cert,
-                    pm.clone(),
-                    *read_only,
-                    schema.clone(),
-                ));
-
+                let db: Arc<dyn MultiDBTrait> = Arc::new(
+                    dbnexus_db::sql_server::SqlServer::new(
+                        conn.clone(),
+                        *trust_cert,
+                        *read_only,
+                        schema.clone(),
+                    )
+                    .await?,
+                );
                 anyhow::Ok(DB::Multi(db))
             }
         },
