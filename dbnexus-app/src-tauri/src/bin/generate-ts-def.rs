@@ -12,7 +12,7 @@ use dbnexus_db::db::{
     TriggerEvent, TriggerTiming, UdfDetail,
 };
 use dbnexus_db::redis::RedisListTable;
-use dvnexus_app_lib::storage;
+use dvnexus_app_lib::storage::{self, OpendKind};
 use typescript_type_def::{write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef};
 
 fn main() {
@@ -45,6 +45,7 @@ fn main() {
             &ListUdf::INFO,
             &ListProcedure::INFO,
             &ProcedureDetail::INFO,
+            &OpendKind::INFO,
         ];
 
         let mut buf = Vec::new();

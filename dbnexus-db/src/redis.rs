@@ -14,7 +14,7 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
-    create_csv, CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, ListTable, MetaValue,
+    create_csv, CheckConn, SchemaTrait, ExportKind, Field, FormatSql, Index, ListTable, MetaValue,
     OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, ServerMetas, SqlExecuteRet,
     TableListResp,
 };
@@ -452,7 +452,7 @@ impl FormatSql for RedisDB {
     }
 }
 #[async_trait::async_trait]
-impl DBTrait for RedisDB {
+impl SchemaTrait for RedisDB {
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
         let mut conn = self.get_conn().await?;
         let e = conn.exists(table).await?;
@@ -542,7 +542,7 @@ impl DBTrait for RedisDB {
         self
     }
 
-    fn clone(&self) -> Box<dyn DBTrait> {
+    fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
 
@@ -1003,7 +1003,7 @@ mod tests {
     #[tokio::test]
     async fn test_rename() {
         let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(
             query_id,
@@ -1028,7 +1028,7 @@ mod tests {
     #[tokio::test]
     async fn test_hash_key() {
         let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "hash_value";
 
@@ -1103,7 +1103,7 @@ mod tests {
     #[tokio::test]
     async fn test_zset_key() {
         let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "zset_value";
 
@@ -1177,7 +1177,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_key() {
         let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "set_value";
 
@@ -1251,7 +1251,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_key() {
         let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "list_value";
 
@@ -1325,7 +1325,7 @@ mod tests {
     #[tokio::test]
     async fn test_string_key() {
         let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "string_value";
 
@@ -1417,7 +1417,7 @@ impl DBListCompletionItem for RedisDB {
 
     async fn list_table(&self, _db: Option<String>) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(
-            crate::db::DBTrait::list_table(self)
+            crate::db::SchemaTrait::list_table(self)
                 .await?
                 .into_iter()
                 .map(|x| x.name)

@@ -8,7 +8,8 @@ use dbnexus_db::datasource::{
     MongoDataSource, MysqlDBConfig, OracleDBConfig, PGDBConfig, SqlServerDBConfig,
 };
 use dbnexus_db::db::{
-    DBTrait, Field, Index, ListTable, ListView, MultiDBTrait, SqlExecuteRet, TableListResp,
+    CatalogTrait, DBTrait, Field, Index, ListTable, ListView, SchemaTrait, SqlExecuteRet,
+    TableListResp,
 };
 use dbnexus_db::pool::PoolManager;
 use tokio::sync::Mutex;
@@ -178,20 +179,21 @@ impl DbConfigLoader for FileJsonSaver {
     }
 }
 
-pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result<DB> {
+/// open a
+pub(crate) async fn open(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result<Open> {
     match config {
         DBConnectionConfig::Sqlite {
             path,
             read_only,
             name: _,
         } => {
-            let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::sqlite::SqliteDB::new(
+            let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::sqlite::SqliteDB::new(
                 pm.clone(),
                 path.clone(),
                 *read_only,
             ));
 
-            anyhow::Ok(DB::One(db))
+            anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Mysql {
             conn,
@@ -204,22 +206,22 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
             name: _,
         } => match &conn.db_name {
             Some(_) => {
+                let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
+                    pm.clone(),
+                    conn.clone(),
+                    *read_only,
+                ));
+
+                anyhow::Ok(Open::Schema(db))
+            }
+            None => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
                     pm.clone(),
                     conn.clone(),
                     *read_only,
                 ));
 
-                anyhow::Ok(DB::One(db))
-            }
-            None => {
-                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
-                    pm.clone(),
-                    conn.clone(),
-                    *read_only,
-                ));
-
-                anyhow::Ok(DB::Multi(db))
+                anyhow::Ok(Open::DataBase(db))
             }
         },
         DBConnectionConfig::Postgres {
@@ -227,58 +229,42 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
             read_only,
             name: _,
             schema,
-        } => match schema {
-            Some(_) => {
-                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::pg::PostGresDB::new(
-                    pm.clone(),
-                    conn.clone(),
-                    *read_only,
-                    schema.clone(),
-                ));
+        } => {
+            let o = Arc::new(dbnexus_db::pg::PostGresDB::new(
+                pm.clone(),
+                conn.clone(),
+                *read_only,
+                schema.clone(),
+            ));
 
-                anyhow::Ok(DB::One(db))
+            if conn.db_name.is_none() {
+                anyhow::Ok(Open::Catelog(o as Arc<dyn CatalogTrait>))
+            } else {
+                match schema {
+                    Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                    None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                }
             }
-            None => {
-                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::pg::PostGresDB::new(
-                    pm.clone(),
-                    conn.clone(),
-                    *read_only,
-                    schema.clone(),
-                ));
-
-                anyhow::Ok(DB::Multi(db))
-            }
-        },
+        }
         DBConnectionConfig::SqlServer {
             conn,
             read_only,
             name: _,
             schema,
-        } => match schema {
-            Some(_) => {
-                let db: Arc<dyn DBTrait> = Arc::new(
-                    dbnexus_db::sql_server::SqlServer::new(
-                        conn.clone(),
-                        *read_only,
-                        schema.clone(),
-                    )
+        } => {
+            let o = Arc::new(
+                dbnexus_db::sql_server::SqlServer::new(conn.clone(), *read_only, schema.clone())
                     .await?,
-                );
-
-                anyhow::Ok(DB::One(db))
+            );
+            if conn.db_name.is_none() {
+                anyhow::Ok(Open::Catelog(o as Arc<dyn CatalogTrait>))
+            } else {
+                match schema {
+                    Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                    None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                }
             }
-            None => {
-                let db: Arc<dyn MultiDBTrait> = Arc::new(
-                    dbnexus_db::sql_server::SqlServer::new(
-                        conn.clone(),
-                        *read_only,
-                        schema.clone(),
-                    )
-                    .await?,
-                );
-                anyhow::Ok(DB::Multi(db))
-            }
-        },
+        }
 
         DBConnectionConfig::MongoDB {
             conn,
@@ -286,27 +272,27 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
             db_name,
             name: _,
         } => {
-            let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mongo::Mongo::new(
+            let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::mongo::Mongo::new(
                 pm.clone(),
                 conn.clone(),
                 db_name.clone(),
                 *read_only,
             ));
 
-            anyhow::Ok(DB::One(db))
+            anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Redis {
             server,
             read_only,
             name: _,
         } => {
-            let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::redis::RedisDB::new(
+            let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::redis::RedisDB::new(
                 pm.clone(),
                 server.to_string(),
                 *read_only,
             ));
 
-            anyhow::Ok(DB::One(db))
+            anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Oracle {
             conn,
@@ -316,6 +302,17 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
             name: _,
         } => match db_name.as_ref() {
             Some(_) => {
+                let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::oracle::OracleDB::new(
+                    conn.clone(),
+                    pm.clone(),
+                    *read_only,
+                    db_name.clone(),
+                    call_timeout.clone().map(Duration::from_millis),
+                ));
+
+                anyhow::Ok(Open::Schema(db))
+            }
+            None => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::oracle::OracleDB::new(
                     conn.clone(),
                     pm.clone(),
@@ -324,34 +321,44 @@ pub(crate) async fn open_db(config: &DBConnectionConfig, pm: PoolManager) -> any
                     call_timeout.clone().map(Duration::from_millis),
                 ));
 
-                anyhow::Ok(DB::One(db))
-            }
-            None => {
-                let db: Arc<dyn MultiDBTrait> = Arc::new(dbnexus_db::oracle::OracleDB::new(
-                    conn.clone(),
-                    pm.clone(),
-                    *read_only,
-                    db_name.clone(),
-                    call_timeout.clone().map(Duration::from_millis),
-                ));
-
-                anyhow::Ok(DB::Multi(db))
+                anyhow::Ok(Open::DataBase(db))
             }
         },
     }
 }
 
+/// opend database variant for front
 #[derive(Clone)]
-pub enum DB {
-    Multi(Arc<dyn dbnexus_db::db::MultiDBTrait>),
-    ///
-    One(Arc<dyn dbnexus_db::db::DBTrait>),
+pub enum Open {
+    Catelog(Arc<dyn dbnexus_db::db::CatalogTrait>),
+    /// database can contains multi database
+    DataBase(Arc<dyn dbnexus_db::db::DBTrait>),
+    /// a schema
+    Schema(Arc<dyn dbnexus_db::db::SchemaTrait>),
+}
+
+impl Open {
+    pub(crate) fn get_open_kind(&self) -> OpendKind {
+        use OpendKind::*;
+        match self {
+            Open::Catelog(_) => Catelog,
+            Open::DataBase(_) => DataBase,
+            Open::Schema(_) => Schema,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize, TypeDef)]
+pub enum OpendKind {
+    Catelog,
+    DataBase,
+    Schema,
 }
 
 /// all the databases
 pub struct App {
     pub(crate) loader: Arc<dyn DbConfigLoader>,
-    dbs: Arc<Mutex<HashMap<String, DB>>>,
+    dbs: Arc<Mutex<HashMap<String, Open>>>,
     pm: PoolManager,
 }
 
@@ -366,7 +373,7 @@ impl App {
 }
 
 impl App {
-    pub async fn open_db(&self, uuid: &str) -> anyhow::Result<DB> {
+    pub async fn open(&self, uuid: &str) -> anyhow::Result<Open> {
         if let Some(x) = self.dbs.lock().await.get(&uuid.to_string()) {
             return anyhow::Ok(x.clone());
         }
@@ -374,12 +381,15 @@ impl App {
             Some(config) => config,
             None => anyhow::bail!(format!("connect '{}' not found", uuid)),
         };
-        let db = open_db(&config, self.pm.clone()).await?;
+        let db = open(&config, self.pm.clone()).await?;
         match &db {
-            DB::Multi(x) => {
+            Open::DataBase(x) => {
                 x.check_conn().await?;
             }
-            DB::One(x) => {
+            Open::Schema(x) => {
+                x.check_conn().await?;
+            }
+            Open::Catelog(x) => {
                 x.check_conn().await?;
             }
         }
@@ -389,13 +399,13 @@ impl App {
         anyhow::Ok(db)
     }
 
-    pub async fn open_db2(&self, uuid: &str, db_name: &str) -> anyhow::Result<DB> {
-        let db = self.open_db(uuid).await?;
+    pub async fn open_db(&self, uuid: &str, db_name: &str) -> anyhow::Result<Open> {
+        let db = self.open(uuid).await?;
         match db {
-            DB::Multi(x) => {
+            Open::Catelog(x) => {
                 let x = x.open_db(db_name).await?;
                 x.check_conn().await?;
-                let db = DB::One(x.clone());
+                let db = Open::DataBase(x.clone());
                 self.dbs
                     .lock()
                     .await
@@ -403,7 +413,24 @@ impl App {
                 anyhow::Ok(db)
             }
 
-            DB::One(_) => anyhow::bail!("this is not a multi database"),
+            _ => anyhow::bail!("this is not a catalog"),
+        }
+    }
+    pub async fn open_schema(&self, uuid: &str, db_name: &str) -> anyhow::Result<Open> {
+        let db = self.open(uuid).await?;
+        match db {
+            Open::DataBase(x) => {
+                let x = x.open_schema(db_name).await?;
+                x.check_conn().await?;
+                let db = Open::Schema(x.clone());
+                self.dbs
+                    .lock()
+                    .await
+                    .insert(format!("{}-{}", uuid, db_name), db.clone());
+                anyhow::Ok(db)
+            }
+
+            _ => anyhow::bail!("this is not a database"),
         }
     }
 
@@ -438,12 +465,12 @@ impl App {
     }
 
     pub async fn list_table(&self, uuid: &str) -> anyhow::Result<Vec<ListTable>> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.list_table().await
     }
 
     pub async fn show_columns(&self, uuid: &str, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.show_columns(table_name).await
     }
 
@@ -451,20 +478,20 @@ impl App {
         &self, uuid: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>,
         page: usize, page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.show_table(table_name, where_str, order_by, page, page_size)
             .await
     }
 
     pub async fn show_indexes(&self, uuid: &str, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.show_indexes(table_name).await
     }
 
     pub async fn insert(
         &self, uuid: &str, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.insert(table_name, values).await
     }
 
@@ -472,34 +499,34 @@ impl App {
         &self, uuid: &str, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.update(table_name, values, wheres).await
     }
 
     pub async fn truncate_table(&self, uuid: &str, table_name: &str) -> anyhow::Result<()> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.truncate_table(table_name).await
     }
 
     pub async fn delete(
         &self, uuid: &str, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.delete(table_name, wheres).await
     }
 
     pub async fn list_view(&self, uuid: &str) -> anyhow::Result<Vec<ListView>> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.list_view().await
     }
 
     pub async fn drop_view(&self, uuid: &str, view_name: &str) -> anyhow::Result<()> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.drop_view(view_name).await
     }
 
     pub async fn drop_table(&self, uuid: &str, table_name: &str) -> anyhow::Result<()> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.drop_table(table_name).await
     }
 
@@ -507,19 +534,19 @@ impl App {
         &self, uuid: &str, view_name: &str, where_str: Option<&str>, order_by: Option<&str>,
         page: usize, page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        let db = self.get_one_db(uuid).await?;
+        let db = self.get_schema(uuid).await?;
         db.show_view(view_name, where_str, order_by, page, page_size)
             .await
     }
 
-    pub async fn get_one_db(&self, uuid: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
-        match self.get_db(uuid).await? {
-            DB::Multi(_) => anyhow::bail!(format!("this '{}' a multi", uuid)),
-            DB::One(x) => anyhow::Ok(x.clone()),
+    pub async fn get_schema(&self, uuid: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
+        match self.get_opened(uuid).await? {
+            Open::Schema(x) => anyhow::Ok(x.clone()),
+            _ => anyhow::bail!(format!("this '{}' a multi", uuid)),
         }
     }
 
-    pub async fn get_db(&self, uuid: &str) -> anyhow::Result<DB> {
+    pub async fn get_opened(&self, uuid: &str) -> anyhow::Result<Open> {
         let db = self.dbs.lock().await.get(uuid).map(|x| x.clone());
         let x = match db {
             Some(x) => x,

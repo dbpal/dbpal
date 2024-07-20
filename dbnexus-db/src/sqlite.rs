@@ -19,7 +19,7 @@ use crate::completion::{
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
-    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
+    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, SchemaTrait, ExportKind,
     Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryResp,
     QuerySql, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
     TriggerTiming,
@@ -78,7 +78,7 @@ impl SqliteDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
+            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
             sender.send("\n".into()).await?;
 
@@ -88,7 +88,7 @@ impl SqliteDB {
             }
         }
         let mut conn = self.get_conn().await?;
-        let cols = DBTrait::show_columns(self, table_name).await?;
+        let cols = SchemaTrait::show_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
@@ -103,7 +103,7 @@ impl SqliteDB {
                     m.insert(f.name.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn DBTrait).insert_sql(None, table_name, &cols, &m)?;
+                let insert_sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }
@@ -413,7 +413,7 @@ impl ServerMetas for SqliteDB {
     }
 }
 #[async_trait::async_trait]
-impl DBTrait for SqliteDB {
+impl SchemaTrait for SqliteDB {
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -549,7 +549,7 @@ impl DBTrait for SqliteDB {
         self.create_table_or_view_sql(view_name, "view").await
     }
 
-    fn clone(&self) -> Box<dyn DBTrait> {
+    fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
 
@@ -607,7 +607,7 @@ impl DBTrait for SqliteDB {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
         let sql =
-            (self as &dyn crate::db::DBTrait).delete_sql(None, table_name, &fields, &wheres)?;
+            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -662,7 +662,7 @@ impl DBTrait for SqliteDB {
         let fields = self.show_columns(table_name).await?;
 
         let mut conn = self.get_conn().await?;
-        let s = (self as &dyn crate::db::DBTrait)
+        let s = (self as &dyn crate::db::SchemaTrait)
             .update_sql(None, table_name, &fields, &values, &wheres)?;
 
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
@@ -680,7 +680,7 @@ impl DBTrait for SqliteDB {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
         let sql =
-            (self as &dyn crate::db::DBTrait).insert_sql(None, table_name, &fields, &values)?;
+            (self as &dyn crate::db::SchemaTrait).insert_sql(None, table_name, &fields, &values)?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -1191,7 +1191,7 @@ impl DBListCompletionItem for SqliteDB {
     }
 
     async fn list_table(&self, _db: Option<String>) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::list_table(self)
+        crate::db::SchemaTrait::list_table(self)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
@@ -1203,7 +1203,7 @@ impl DBListCompletionItem for SqliteDB {
     async fn list_columns(
         &self, _db: Option<String>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        crate::db::DBTrait::show_columns(self, table_name)
+        crate::db::SchemaTrait::show_columns(self, table_name)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
@@ -1440,7 +1440,7 @@ mod tests {
 
     async fn test_rename() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
             .query_sql(
@@ -1468,7 +1468,7 @@ mod tests {
 
     async fn test_duplicate() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
             .query_sql(
@@ -1496,7 +1496,7 @@ mod tests {
     async fn test_triggers() {
         let db = make_test_object();
         let mut conn = db.get_conn().await.unwrap();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         sqlx::query(
             r#"
             CREATE TABLE test_create_trigger (
@@ -1569,7 +1569,7 @@ mod tests {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
         {
             let s = db
                 .export_table_to_string(
@@ -1680,7 +1680,7 @@ mod tests {
         // .unwrap();
         let table_name = "test_table";
 
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("text_col".to_string(), Some("Some text".to_string()));
         values.insert("real_col".to_string(), Some("3.14".to_string()));

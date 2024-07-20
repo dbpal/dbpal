@@ -9,7 +9,7 @@ use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 
-use crate::storage::{self, App, DBConnectionConfig, UserSettings};
+use crate::storage::{self, App, DBConnectionConfig, OpendKind, UserSettings};
 
 #[tauri::command]
 pub async fn add_config(
@@ -44,9 +44,9 @@ pub async fn update_config(
 }
 
 #[tauri::command]
-pub async fn open_db(uuid: String, dbs: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
+pub async fn open(uuid: String, dbs: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
     log::info!("open db:{}", uuid);
-    dbs.open_db(uuid.as_str())
+    dbs.open(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
         .map(|_| ())
@@ -67,7 +67,7 @@ pub async fn redis_list_table(
     uuid: String, dbs: tauri::State<'_, App>,
 ) -> Result<RedisListTable, AnyhowErrorFrontend> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<RedisDB>() {
@@ -196,10 +196,32 @@ pub async fn show_view(
 }
 
 #[tauri::command]
-pub async fn open_db2(
+pub async fn open_schema(
     uuid: String, db_name: String, dbs: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    dbs.open_db2(uuid.as_str(), db_name.as_str())
+    dbs.open_schema(uuid.as_str(), db_name.as_str())
+        .await
+        .map(|_| ())
+        .map_err(AnyhowErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn open_kind(
+    uuid: String, dbs: tauri::State<'_, App>,
+) -> Result<OpendKind, AnyhowErrorFrontend> {
+    let kind = dbs
+        .get_opened(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?
+        .get_open_kind();
+    Ok(kind)
+}
+
+#[tauri::command]
+pub async fn open_db(
+    uuid: String, db_name: String, dbs: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    dbs.open_db(uuid.as_str(), db_name.as_str())
         .await
         .map(|_| ())
         .map_err(AnyhowErrorFrontend::from)
@@ -211,13 +233,14 @@ pub async fn query_sql(
 ) -> Result<Vec<Result<QueryResp, String>>, AnyhowErrorFrontend> {
     let sql = sql.as_str();
     let db = dbs
-        .open_db(uuid.as_str())
+        .open(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
 
     let result = match db {
-        crate::storage::DB::Multi(x) => x.query_sql(id, sql).await,
-        crate::storage::DB::One(x) => x.query_sql(id, sql).await,
+        crate::storage::Open::DataBase(x) => x.query_sql(id, sql).await,
+        crate::storage::Open::Schema(x) => x.query_sql(id, sql).await,
+        crate::storage::Open::Catelog(x) => x.query_sql(id, sql).await,
     };
 
     result.map_err(AnyhowErrorFrontend::from)
@@ -226,13 +249,11 @@ pub async fn query_sql(
 pub async fn query_sql_open_connection(
     uuid: String, dbs: tauri::State<'_, App>,
 ) -> Result<uuid::Uuid, AnyhowErrorFrontend> {
-    let db = dbs
-        .open_db(uuid.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = dbs.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
-        crate::storage::DB::Multi(x) => x.open_connection().await,
-        crate::storage::DB::One(x) => x.open_connection().await,
+        crate::storage::Open::DataBase(x) => x.open_connection().await,
+        crate::storage::Open::Schema(x) => x.open_connection().await,
+        crate::storage::Open::Catelog(x) => x.open_connection().await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
@@ -240,13 +261,11 @@ pub async fn query_sql_open_connection(
 pub async fn query_sql_re_connection(
     uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
-    let db = dbs
-        .open_db(uuid.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = dbs.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
-        crate::storage::DB::Multi(x) => x.re_connect(id).await,
-        crate::storage::DB::One(x) => x.re_connect(id).await,
+        crate::storage::Open::DataBase(x) => x.re_connect(id).await,
+        crate::storage::Open::Schema(x) => x.re_connect(id).await,
+        crate::storage::Open::Catelog(x) => x.re_connect(id).await,
     };
     result.map_err(|e| e.to_string())
 }
@@ -254,13 +273,11 @@ pub async fn query_sql_re_connection(
 pub async fn query_sql_close_connection(
     uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    let db = dbs
-        .open_db(uuid.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = dbs.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
-        crate::storage::DB::Multi(x) => x.close_connection(id).await,
-        crate::storage::DB::One(x) => x.close_connection(id).await,
+        crate::storage::Open::DataBase(x) => x.close_connection(id).await,
+        crate::storage::Open::Schema(x) => x.close_connection(id).await,
+        crate::storage::Open::Catelog(x) => x.close_connection(id).await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
@@ -301,7 +318,7 @@ pub async fn export_table(
     dbs: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     db.export_table_to_file(table_name.as_str(), filepath.as_str(), kind)
@@ -312,10 +329,14 @@ pub async fn export_table(
 pub async fn format_sql(
     uuid: String, sql: String, dbs: tauri::State<'_, App>,
 ) -> Result<String, String> {
-    let db = dbs.get_db(uuid.as_str()).await.map_err(|e| e.to_string())?;
+    let db = dbs
+        .get_opened(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
     let ret = match db {
-        crate::storage::DB::Multi(x) => x.format_sql(sql.as_str()),
-        crate::storage::DB::One(x) => x.format_sql(sql.as_str()),
+        crate::storage::Open::DataBase(x) => x.format_sql(sql.as_str()),
+        crate::storage::Open::Schema(x) => x.format_sql(sql.as_str()),
+        crate::storage::Open::Catelog(x) => x.format_sql(sql.as_str()),
     };
     ret.map_err(|e| e.to_string())
 }
@@ -327,12 +348,13 @@ pub async fn test_connection(
     u64, // milliseconds
     AnyhowErrorFrontend,
 > {
-    let db = storage::open_db(&config, Default::default())
+    let db = storage::open(&config, Default::default())
         .await
         .map_err(|e| e.to_string())?;
     match db {
-        storage::DB::Multi(x) => x.check_conn().await,
-        storage::DB::One(x) => x.check_conn().await,
+        storage::Open::DataBase(x) => x.check_conn().await,
+        storage::Open::Schema(x) => x.check_conn().await,
+        storage::Open::Catelog(x) => x.check_conn().await,
     }
     .map_err(AnyhowErrorFrontend::from)
     .map(|d| d.as_millis() as u64)
@@ -343,7 +365,7 @@ pub async fn oracle_query_set_autocommit(
     uuid: String, id: uuid::Uuid, commit: bool, dbs: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
@@ -362,7 +384,7 @@ pub async fn oracle_query_autocommit(
     uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<bool, AnyhowErrorFrontend> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
@@ -381,7 +403,7 @@ pub async fn oracle_query_commit(
     uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
@@ -394,7 +416,7 @@ pub async fn oracle_query_rollback(
     uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
@@ -408,7 +430,7 @@ pub async fn list_trigger(
     uuid: String, table: String, dbs: tauri::State<'_, App>,
 ) -> Result<Vec<ListTrigger>, String> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
 
@@ -420,7 +442,7 @@ pub async fn show_trigger(
     uuid: String, table: String, name: String, dbs: tauri::State<'_, App>,
 ) -> Result<TriggerDetail, String> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
 
@@ -433,7 +455,7 @@ pub async fn rename_table(
     uuid: String, old: String, new: String, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
 
@@ -445,7 +467,7 @@ pub async fn duplicate_table(
     uuid: String, from: String, to: String, dbs: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
 
@@ -461,7 +483,7 @@ pub async fn mongo_insert(
     let doc = parse_bson_doc(doc.as_slice())?;
 
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
@@ -478,7 +500,7 @@ pub async fn mongo_update(
     let query = parse_bson_doc(query.as_slice())?;
 
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
@@ -494,7 +516,7 @@ pub async fn mongo_delete(
     let query = parse_bson_doc(query.as_slice())?;
 
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
@@ -512,7 +534,7 @@ pub async fn mongo_show_table(
     let filter = parse_bson_doc(filter.as_slice())?;
     let order_by = parse_bson_doc(order_by.as_slice())?;
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
@@ -532,7 +554,7 @@ pub async fn mongo_show_table_docs(
     let filter = parse_bson_doc(filter.as_slice())?;
     let order_by = parse_bson_doc(order_by.as_slice())?;
     let db = dbs
-        .get_one_db(uuid.as_str())
+        .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<Mongo>() {

@@ -56,8 +56,9 @@ async fn make_pool(db: &DBPoolKey) -> anyhow::Result<crate::pool::NexusPool> {
                 .port(conn.port)
                 .username(&conn.username)
                 .password(&conn.password);
-
-            opts = opts.database(&conn.db_name);
+            if let Some(db) = &conn.db_name {
+                opts = opts.database(db);
+            }
 
             let pool = sqlx::postgres::PgPool::connect_with(opts).await?;
             anyhow::Ok(Pg(pool))

@@ -13,7 +13,7 @@ use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{DBPoolKey, OracleDBConfig};
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, Index, IndexKind, ListTable, ListView, MultiDBTrait, QueryResp, QuerySql,
+    Field, FormatSql, Index, IndexKind, ListTable, ListView, QueryResp, QuerySql, SchemaTrait,
     SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
 };
 use crate::pool::{NexusPool, PoolManager};
@@ -607,7 +607,7 @@ impl OracleDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
+            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
             sender.send(";\n".into()).await?;
             for index in ss.indexes.into_iter() {
@@ -616,7 +616,7 @@ impl OracleDB {
             }
         }
         let conn = self.get_conn().await?;
-        let cols = DBTrait::show_columns(self, table_name).await?;
+        let cols = SchemaTrait::show_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
@@ -627,7 +627,7 @@ impl OracleDB {
             for (d, f) in d.into_iter().zip(cols.iter()) {
                 m.insert(f.name.clone(), d);
             }
-            let insert_sql = (self as &dyn DBTrait).insert_sql(None, table_name, &cols, &m)?;
+            let insert_sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
             sender.send(Cow::Owned(insert_sql)).await?;
             sender.send("\n".into()).await?;
         }
@@ -748,7 +748,7 @@ impl CheckConn for OracleDB {
 }
 
 #[async_trait::async_trait]
-impl DBTrait for OracleDB {
+impl SchemaTrait for OracleDB {
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -894,7 +894,7 @@ impl DBTrait for OracleDB {
         "oracle"
     }
 
-    fn clone(&self) -> Box<dyn DBTrait> {
+    fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
 
@@ -988,7 +988,7 @@ impl DBTrait for OracleDB {
         conn.set_autocommit(true);
 
         let fs = self.show_columns(&table_name).await?;
-        let sql = (self as &dyn DBTrait).insert_sql(None, table_name, &fs, &values)?;
+        let sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &fs, &values)?;
         log::info!("insert sql:{}", sql);
 
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1009,7 +1009,7 @@ impl DBTrait for OracleDB {
         self.can_write()?;
 
         let fs = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::DBTrait)
+        let sql = (self as &dyn crate::db::SchemaTrait)
             .update_sql(None, table_name, &fs, &values, &wheres)?;
         let conn = self.get_conn().await?;
 
@@ -1043,7 +1043,7 @@ impl DBTrait for OracleDB {
 
         let fields = self.show_columns(table_name).await?;
         let sql =
-            (self as &dyn crate::db::DBTrait).delete_sql(None, table_name, &fields, &wheres)?;
+            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
         let conn = self.get_conn().await?;
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
         let row_count = stmt.row_count()?;
@@ -1103,8 +1103,8 @@ impl DBTrait for OracleDB {
     }
 }
 #[async_trait::async_trait]
-impl MultiDBTrait for OracleDB {
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+impl DBTrait for OracleDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let rows = block_in_place(|| conn.query(r#"SELECT USERNAME FROM DBA_USERS"#, &[]))?;
         let mut ret = Vec::new();
@@ -1116,7 +1116,7 @@ impl MultiDBTrait for OracleDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.db_name = Some(name.to_string());
         anyhow::Ok(Arc::new(x))
@@ -1173,7 +1173,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_rename() {
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("TEST_RENAME").await;
         let _ = db_trait.drop_table("TEST_RENAME2").await;
@@ -1207,7 +1207,7 @@ mod tests {
         init_log();
 
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("TEST_DUPLICATE").await;
         let _ = db_trait.drop_table("TEST_DUPLICATE2").await;
@@ -1255,7 +1255,7 @@ mod tests {
     async fn test_view() {
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().await.unwrap();
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
         let _ = db.drop_table("TEST_VIEW_TABLE").await;
         let _ = db.drop_view("PRODUCT_VIEW").await;
 
@@ -1294,7 +1294,7 @@ mod tests {
     async fn test_show_indexes() {
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().await.unwrap();
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
         let table_name = "TEST_INDEXES";
         let _ = db.drop_table(&table_name).await;
         conn.execute(
@@ -1319,16 +1319,16 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_multidb_trait() {
         let db = make_test_object(None);
-        let db = &db as &dyn MultiDBTrait;
-        let dbs = db.list_db().await.unwrap();
+        let db = &db as &dyn DBTrait;
+        let dbs = db.list_schema().await.unwrap();
         println!("dbs : {:?}", dbs);
-        db.open_db("SYSTEM").await.unwrap();
+        db.open_schema("SYSTEM").await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_tables() {
         let db = make_test_object(Some("APPQOSSYS".to_string()));
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
         let tables = db.list_table().await.unwrap();
         println!("tables : {:?}", tables);
         for t in tables.iter() {
@@ -1341,7 +1341,7 @@ mod tests {
     async fn test_query_sql() {
         let db = make_test_object(Some("SYSTEM".to_string()));
 
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         // get query_uuid
         let query_uuid = db_trait.open_connection().await.unwrap();
         // test auto commit
@@ -1385,7 +1385,7 @@ mod tests {
         let db = make_test_object(Some("SYSTEM".to_string()));
         let mut conn = db.get_conn().await.unwrap();
         conn.set_autocommit(true);
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
         let _ = db.drop_table(&table_name).await;
 
         conn.execute(
@@ -1473,7 +1473,7 @@ mod tests {
         let db = make_test_object(Some("SYSTEM".to_string()));
         let mut conn = db.get_conn().await.unwrap();
         conn.set_autocommit(true);
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
         let _ = db.drop_table(&table_name).await;
 
         conn.execute(
@@ -1556,7 +1556,7 @@ mod tests {
         let db = make_test_object(Some("SYSTEM".to_string()));
         let mut conn = db.get_conn().await.unwrap();
         conn.set_autocommit(true);
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
         let _ = db.drop_table(&table_name).await;
 
         conn.execute(

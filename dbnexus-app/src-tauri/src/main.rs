@@ -11,8 +11,8 @@ mod storage;
 use handlers::{
     add_config, delete, delete_config, drop_table, drop_view, duplicate_table, export_table,
     format_sql, get_user_settings, insert, list_all_config, list_table, list_trigger, list_view,
-    mongo_delete, mongo_insert, mongo_show_table, mongo_show_table_docs, mongo_update, open_db,
-    open_db2, oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
+    mongo_delete, mongo_insert, mongo_show_table, mongo_show_table_docs, mongo_update, open,
+    open_db, open_schema, oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
     oracle_query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
     query_sql_re_connection, redis_list_table, rename_table, save_user_settings, show_columns,
     show_indexes, show_table, show_trigger, show_view, test_connection, truncate_table, update,
@@ -53,7 +53,7 @@ async fn main() {
             drop_table,
             show_view,
             query_sql,
-            open_db2,
+            open_schema,
             get_user_settings,
             save_user_settings,
             list_all_config,
@@ -76,7 +76,9 @@ async fn main() {
             mongo_insert,
             mongo_update,
             mongo_show_table,
-            mongo_show_table_docs
+            mongo_show_table_docs,
+            open_db,
+            open,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

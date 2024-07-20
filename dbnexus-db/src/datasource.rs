@@ -64,7 +64,13 @@ pub struct PGDBConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
-    pub db_name: String,
+    pub db_name: Option<String>,
+}
+
+impl PGDBConfig {
+    pub(crate) fn db_str(&self) -> &str {
+        self.db_name.as_ref().expect("must be some").as_str()
+    }
 }
 
 #[derive(
@@ -83,8 +89,14 @@ pub struct SqlServerDBConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
-    pub db_name: String,
+    pub db_name: Option<String>,
     pub trust_cert: bool,
+}
+impl SqlServerDBConfig {
+    #[allow(dead_code)]
+    pub(crate) fn db_str(&self) -> &str {
+        self.db_name.as_ref().expect("must be some").as_str()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, TypeDef)]

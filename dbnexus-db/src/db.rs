@@ -15,9 +15,9 @@ use sqlparser::tokenizer::{Location, Token};
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
 
-/// A db representation of database
+/// A db representation of schema
 #[async_trait::async_trait]
-pub trait DBTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static {
+pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static {
     fn as_any(&self) -> &dyn std::any::Any;
     fn backend_name(&self) -> &str;
 
@@ -125,7 +125,7 @@ pub trait DBTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static {
         anyhow::Ok(())
     }
 
-    fn clone(&self) -> Box<dyn DBTrait>;
+    fn clone(&self) -> Box<dyn SchemaTrait>;
     async fn create_table_and_index_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
@@ -228,6 +228,11 @@ pub struct MetaValue {
     name: Cow<'static, str>,
     value: Box<dyn ToString + Send + 'static>,
     desc: Option<Cow<'static, str>>,
+}
+#[async_trait::async_trait]
+pub trait CatalogTrait: Send + Sync + 'static + QuerySql + FormatSql + CheckConn {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>>;
+    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
 }
 
 impl MetaValue {
@@ -369,7 +374,7 @@ pub struct CreateTableAndIndexSql {
     /// this can be empty
     pub indexes: Vec<String>,
 }
-impl dyn DBTrait {
+impl dyn SchemaTrait {
     #[allow(unused)]
     pub async fn export_table_to_string(
         &self, table_name: &str, kind: ExportKind,
@@ -420,9 +425,9 @@ impl dyn DBTrait {
 }
 
 #[async_trait::async_trait]
-pub trait MultiDBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
-    async fn list_db(&self) -> anyhow::Result<Vec<String>>;
-    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
+pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
+    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
 }
 
 #[async_trait::async_trait]
@@ -484,7 +489,7 @@ pub trait ServerMetas {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
 }
 
-impl dyn DBTrait {
+impl dyn SchemaTrait {
     pub(crate) fn delete_sql(
         &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
         wheres: &HashMap<String, Option<String>>,

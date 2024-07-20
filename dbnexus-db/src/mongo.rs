@@ -14,7 +14,7 @@ use typescript_type_def::TypeDef;
 use crate::datasource::{self, MongoDataSource};
 use crate::db::{
     CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListView,
-    MetaValue, MultiDBTrait, QueryResp, QuerySql, ServerMetas, SqlExecuteRet, TableListResp,
+    MetaValue, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
 };
 
 #[derive(Debug, Clone, serde::Serialize, TypeDef)]
@@ -56,14 +56,14 @@ impl Mongo {
 }
 
 #[async_trait::async_trait]
-impl MultiDBTrait for Mongo {
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+impl DBTrait for Mongo {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let names = conn.list_database_names(None, None).await?;
         anyhow::Ok(names)
     }
 
-    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.dbname = Some(name.to_string());
         return anyhow::Ok(Arc::new(x));
@@ -504,7 +504,7 @@ impl Mongo {
 }
 
 #[async_trait::async_trait]
-impl DBTrait for Mongo {
+impl SchemaTrait for Mongo {
     async fn duplicate_table(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
@@ -542,7 +542,7 @@ impl DBTrait for Mongo {
         "mongodb"
     }
 
-    fn clone(&self) -> Box<dyn DBTrait> {
+    fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
 
@@ -726,7 +726,7 @@ mod tests {
 
     use super::Mongo;
     use crate::datasource::MongoDataSource;
-    use crate::db::{DBTrait, MultiDBTrait, ServerMetas};
+    use crate::db::{DBTrait, SchemaTrait, ServerMetas};
     use crate::pool::PoolManager;
     use crate::TEST_HOST;
 
@@ -747,10 +747,10 @@ mod tests {
     #[tokio::test]
     async fn test_multi_db() {
         let multi = make_test_object();
-        let dbs = MultiDBTrait::list_db(&multi).await.unwrap();
+        let dbs = DBTrait::list_schema(&multi).await.unwrap();
         println!("{:?}", dbs);
         for db in dbs.iter() {
-            let _ = MultiDBTrait::open_db(&multi, db.as_str()).await.unwrap();
+            let _ = DBTrait::open_schema(&multi, db.as_str()).await.unwrap();
         }
     }
 
@@ -796,7 +796,7 @@ mod tests {
             .await
             .unwrap();
 
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let json = db_trait
             .export_table_to_string(&table, crate::db::ExportKind::Json { pretty: true })
             .await
@@ -816,7 +816,7 @@ mod tests {
 
     async fn test_rename() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let table_name = "test_rename";
         let table_name2 = "test_rename2";
 
@@ -836,7 +836,7 @@ mod tests {
 
     async fn test_dup() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let table_name = "test_dup";
         let table_name2 = "test_dup2";
 

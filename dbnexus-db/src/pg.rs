@@ -15,10 +15,10 @@ use tokio::sync::Mutex;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::{DBPoolKey, PGDBConfig};
 use crate::db::{
-    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, MultiDBTrait,
-    QueryResp, QuerySql, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming,
+    create_csv, sqlformat_format_sql, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait,
+    ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEvent, TriggerTiming,
 };
 use crate::pg_format::*;
 use crate::pool::{NexusPool, PoolManager};
@@ -58,8 +58,8 @@ impl CheckConn for PostGresDB {
 }
 
 #[async_trait::async_trait]
-impl MultiDBTrait for PostGresDB {
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+impl DBTrait for PostGresDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
             r#"
@@ -68,7 +68,7 @@ impl MultiDBTrait for PostGresDB {
             WHERE schema_name NOT IN ('information_schema', 'pg_catalog' , 'pg_toast') and 
             schemata.catalog_name ='{}'
     "#,
-            self.config.db_name
+            self.config.db_str()
         );
 
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
@@ -81,7 +81,7 @@ impl MultiDBTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.schema = Some(name.to_owned());
         Ok(Arc::new(x))
@@ -107,7 +107,7 @@ impl PostGresDB {
         }
 
         let mut conn = self.get_conn().await?;
-        let cols = DBTrait::show_columns(self, table_name).await?;
+        let cols = SchemaTrait::show_columns(self, table_name).await?;
         let sql = format!(
             "SELECT * from {}.{}",
             self.schema.as_ref().unwrap(),
@@ -126,7 +126,7 @@ impl PostGresDB {
                     m.insert(f.name.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn DBTrait).insert_sql(
+                let insert_sql = (self as &dyn SchemaTrait).insert_sql(
                     self.schema.as_ref().map(|x| x.as_str()),
                     table_name,
                     &cols,
@@ -386,7 +386,7 @@ impl ServerMetas for PostGresDB {
 }
 
 #[async_trait::async_trait]
-impl DBTrait for PostGresDB {
+impl SchemaTrait for PostGresDB {
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -590,7 +590,7 @@ impl DBTrait for PostGresDB {
         })
     }
 
-    fn clone(&self) -> Box<dyn DBTrait> {
+    fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
 
@@ -671,7 +671,7 @@ impl DBTrait for PostGresDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::DBTrait).delete_sql(
+        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
             self.schema.as_ref().map(|x: &String| x.as_str()),
             table_name,
             &fields,
@@ -709,7 +709,7 @@ impl DBTrait for PostGresDB {
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).update_sql(
+        let s = (self as &dyn crate::db::SchemaTrait).update_sql(
             self.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -732,7 +732,7 @@ impl DBTrait for PostGresDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).insert_sql(
+        let s = (self as &dyn crate::db::SchemaTrait).insert_sql(
             self.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -757,7 +757,7 @@ impl DBTrait for PostGresDB {
              WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}'
      "#,
             self.schema.as_ref().unwrap(),
-            &self.config.db_name
+            &self.config.db_str()
         );
 
         let mut conn = self.get_conn().await?;
@@ -780,7 +780,7 @@ impl DBTrait for PostGresDB {
             SELECT  column_name , data_type,is_nullable,column_default,udt_name
             FROM information_schema.columns where table_catalog='{}' and table_schema='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
-            &self.config.db_name,
+            &self.config.db_str(),
             self.schema.as_ref().unwrap(),
             table_name
         );
@@ -1188,14 +1188,46 @@ async fn get_index_kind(
     }
 }
 
+#[async_trait::async_trait]
+
+impl CatalogTrait for PostGresDB {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query("SELECT datname FROM pg_database")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+        let mut x = Clone::clone(self);
+        x.config.db_name = Some(name.to_string());
+        anyhow::Ok(Arc::new(x))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::PostGresDB;
     use crate::datasource::PGDBConfig;
-    use crate::db::{CheckConn, DBTrait, ExportKind, QuerySql, ServerMetas};
+    use crate::db::CatalogTrait;
+    use crate::db::{CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas};
     use crate::pool::PoolManager;
     use crate::{init_log, TEST_HOST};
     use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn test_list_database() {
+        let db = make_test_object();
+        let dbs = CatalogTrait::list_database(&db).await.unwrap();
+        println!("{:?}", dbs);
+        assert_eq!(dbs, vec!["postgres", "test", "template1", "template0"]);
+    }
 
     fn make_test_object() -> PostGresDB {
         // list all table and query
@@ -1207,7 +1239,7 @@ mod test {
                 port: 5432,
                 username: "postgres".to_string(),
                 password: "root".to_string(),
-                db_name: "test".to_string(),
+                db_name: Some("test".to_string()),
             },
             false,
             Some("test".to_string()),
@@ -1232,7 +1264,7 @@ mod test {
 
     async fn test_rename() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_rename").await;
         let _ = db_trait.drop_table("test_rename2").await;
@@ -1263,7 +1295,7 @@ mod test {
 
     async fn test_duplicate() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_duplicate").await;
         let _ = db_trait.drop_table("test_duplicate2").await;
@@ -1318,7 +1350,7 @@ mod test {
              "#;
         let query_id = db.open_connection().await.unwrap();
 
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
         db.query_sql(query_id, sql).await.unwrap();
 
         {
@@ -1381,7 +1413,7 @@ mod test {
         ).as_str()).await .unwrap()
         ;
 
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let indexes = db.show_indexes(table_name).await.unwrap();
         println!("{:?}", indexes);
     }
@@ -1391,7 +1423,7 @@ mod test {
         // list all table and query
         let pg = make_test_object();
 
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
     }
@@ -1399,7 +1431,7 @@ mod test {
     #[tokio::test]
     async fn test_triggers() {
         let pg = make_test_object();
-        let db_trait = &pg as &dyn DBTrait;
+        let db_trait = &pg as &dyn SchemaTrait;
         //
         let _ = db_trait.drop_table("test_create_trigger").await;
         let query_id = db_trait.open_connection().await.unwrap();
@@ -1475,7 +1507,7 @@ mod test {
     async fn test_epxort() {
         let db = make_test_object();
 
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let table_name = "test_export_table";
 
@@ -1620,7 +1652,7 @@ mod test {
         //         (TRUE, E'\\x00', 'C', 'Mike', 0, 30, 0);
         // "#,
         // ).execute(conn.deref_mut() ).await.unwrap();
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
         let mut values = HashMap::new();
         values.insert("bool_column".to_string(), Some("true".to_string()));
         values.insert(
@@ -1709,7 +1741,7 @@ mod test {
             "macaddr8_array_column".to_string(),
             Some("{08:00:2b:01:02:03:04:06, 08:00:2b:01:02:03:04:07}".to_string()),
         );
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
         pg.insert(table_name, values).await.unwrap();
 
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
@@ -1724,11 +1756,11 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_list_database() {
+    async fn test_list_schema() {
         let db = make_test_object();
-        let db = &db as &dyn crate::db::MultiDBTrait;
+        let db = &db as &dyn crate::db::DBTrait;
 
-        let resp = db.list_db().await.unwrap();
+        let resp = db.list_schema().await.unwrap();
         assert_eq!(resp, vec!["public", "test"]);
     }
     #[tokio::test]
@@ -1759,7 +1791,7 @@ mod test {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert(
@@ -1842,7 +1874,7 @@ mod test {
             Some("{c,d}".to_string()),
         );
         values.insert("int8_array_column".to_string(), Some("{1,100}".to_string()));
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
         pg.insert(table_name, values).await.unwrap();
 
         let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
@@ -1897,7 +1929,7 @@ mod test {
         // ::MACADDR, '08:00:2b:04:05:06'::MACADDR],         ARRAY['192.168.0.1'
         // ::INET, '10.0.0.1'::INET], '2022-01-01'::DATE);         "#,
         //         ).execute(conn.deref_mut()).await.unwrap();
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert(
@@ -1965,7 +1997,7 @@ mod test {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert("col_time".to_string(), Some("10:00:00".to_string()));
@@ -2037,7 +2069,7 @@ mod test {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert(
@@ -2097,7 +2129,7 @@ mod test {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert("bit_column".to_string(), Some("1".to_string()));
@@ -2148,7 +2180,7 @@ mod test {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert(
@@ -2219,7 +2251,7 @@ mod test {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert("num_range".to_string(), Some("[1,10)".to_string()));
@@ -2284,7 +2316,7 @@ mod test {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn DBTrait;
+        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert(

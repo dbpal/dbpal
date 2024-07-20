@@ -17,10 +17,10 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::SqlServerDBConfig;
 use crate::db::{
-    create_csv, format_data_time_fix_offset, sql_to_sql_seq, sqlformat_format_sql, CheckConn,
-    DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView,
-    QueryResp, QuerySql, SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming,
+    create_csv, format_data_time_fix_offset, sql_to_sql_seq, sqlformat_format_sql, CatalogTrait,
+    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger,
+    ListView, QueryResp, QuerySql, SchemaTrait, SqlExecuteRet, SqlSeq, TableListResp,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
 };
 
 #[derive(Clone)]
@@ -60,7 +60,10 @@ fn make_config(c: &SqlServerDBConfig) -> tiberius::Config {
     config.host(&c.host);
     config.port(c.port);
     config.authentication(tiberius::AuthMethod::sql_server(&c.username, &c.password));
-    config.database(&c.db_name);
+    if let Some(db) = &c.db_name {
+        config.database(db);
+    }
+
     if c.trust_cert {
         config.trust_cert(); // on production, it is not a good idea to do this
     }
@@ -339,7 +342,7 @@ impl SqlServer {
 }
 
 #[async_trait::async_trait]
-impl DBTrait for SqlServer {
+impl SchemaTrait for SqlServer {
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -512,7 +515,7 @@ impl DBTrait for SqlServer {
         "sqlserver"
     }
 
-    fn clone(&self) -> Box<dyn DBTrait> {
+    fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
 
@@ -791,7 +794,7 @@ impl DBTrait for SqlServer {
         self.can_write()?;
 
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).insert_sql(
+        let s = (self as &dyn crate::db::SchemaTrait).insert_sql(
             self.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -818,7 +821,7 @@ impl DBTrait for SqlServer {
         self.can_write()?;
 
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).update_sql(
+        let s = (self as &dyn crate::db::SchemaTrait).update_sql(
             self.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -872,7 +875,7 @@ impl DBTrait for SqlServer {
         self.can_write()?;
 
         let fields = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::DBTrait).delete_sql(
+        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
             self.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fields,
@@ -1063,7 +1066,7 @@ impl SqlServer {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
+            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
             sender.send(";\n".into()).await?;
 
@@ -1074,7 +1077,7 @@ impl SqlServer {
         }
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let cols = DBTrait::show_columns(self, table_name).await?;
+        let cols = SchemaTrait::show_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
 
         let mut stream = conn.query(sql.as_str(), &[]).await?.try_chunks(100);
@@ -1094,7 +1097,7 @@ impl SqlServer {
                     m.insert(f.name.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn DBTrait).insert_sql(
+                let insert_sql = (self as &dyn SchemaTrait).insert_sql(
                     self.schema.as_ref().map(|x| x.as_str()),
                     table_name,
                     &cols,
@@ -1382,8 +1385,8 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
 }
 
 #[async_trait::async_trait]
-impl crate::db::MultiDBTrait for SqlServer {
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+impl crate::db::DBTrait for SqlServer {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         // self.with_conn(|conn| {
         //     async {
         //         let mut stream = conn.query("SELECT name FROM sys.databases", &[]).await?;
@@ -1409,7 +1412,7 @@ impl crate::db::MultiDBTrait for SqlServer {
         anyhow::Ok(vec!["dbo".to_string()])
     }
 
-    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.schema = Some(name.to_owned());
         Ok(Arc::new(x))
@@ -1440,6 +1443,40 @@ impl AutoCompletionTrait for SqlServer {
     }
 }
 
+#[async_trait::async_trait]
+impl CatalogTrait for SqlServer {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        let mut conn = self.get_conn().await?;
+        let mut stream = conn
+            .deref_mut()
+            .simple_query(
+                r#"
+            SELECT name 
+            FROM sys.databases
+        "#,
+            )
+            .await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let name: Option<&str> = row.get(0);
+                    ret.push(name.expect("db name can be null").to_owned());
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+        let mut x = Clone::clone(self);
+        x.config.db_name = Some(name.to_string());
+        anyhow::Ok(Arc::new(x))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1453,7 +1490,7 @@ mod tests {
                 port: 1433,
                 username: "sa".to_string(),
                 password: "sfdewRE123".to_string(),
-                db_name: "test".to_string(),
+                db_name: Some("test".to_string()),
                 trust_cert: true,
             },
             false,
@@ -1466,9 +1503,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_list_database() {
+        let db = make_test_object().await;
+        let dbs = CatalogTrait::list_database(&db).await.unwrap();
+        println!("{:?}", dbs);
+        assert_eq!(dbs, vec!["master", "tempdb", "model", "msdb", "test"]);
+    }
+
+    #[tokio::test]
     async fn test_rename() {
         let db = make_test_object().await;
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_rename").await;
         let _ = db_trait.drop_table("test_rename2").await;
@@ -1500,7 +1545,7 @@ mod tests {
 
     async fn test_duplicate() {
         let db = make_test_object().await;
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_duplicate").await;
         let _ = db_trait.drop_table("test_duplicate2").await;
@@ -1539,7 +1584,7 @@ mod tests {
     #[tokio::test]
     async fn test_triggers() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let _ = db.drop_table("test_create_trigger").await;
         let _ = db.drop_table("test_create_trigger_update").await;
@@ -1601,7 +1646,7 @@ mod tests {
     async fn test_query() {
         init_log();
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let id = db.open_connection().await.unwrap();
 
         let ret = db
@@ -1629,18 +1674,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_database() {
+    async fn test_list_schema() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::MultiDBTrait;
+        let db = &db as &dyn crate::db::DBTrait;
 
-        let resp = db.list_db().await.unwrap();
+        let resp = db.list_schema().await.unwrap();
         assert_eq!(resp, vec!["dbo",]);
     }
 
     #[tokio::test]
     async fn test_view() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let _ = db.drop_table("test_view_table").await;
         let _ = db.drop_view("test_view").await;
         let conn_id = db.open_connection().await.unwrap();
@@ -1710,7 +1755,7 @@ mod tests {
             .await
             .unwrap();
 
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         std::thread::sleep(Duration::from_secs(1));
         let indexes = db.show_indexes("test_index_table").await.unwrap();
         println!("indexes:{:?}", indexes);
@@ -1738,7 +1783,7 @@ mod tests {
         for s in rs.iter() {
             conn.execute(*s, &[]).await.unwrap();
         }
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
 
         {
             let s = db
@@ -1841,7 +1886,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values = HashMap::new();
         values.insert("col_tinyint".to_string(), Some("1".to_string()));
         values.insert("col_smallint".to_string(), Some("100".to_string()));
@@ -1890,7 +1935,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values = HashMap::new();
         values.insert("bit_column".to_string(), Some("1".to_string()));
         values.insert("nvarchar_column".to_string(), Some("b".to_string()));
@@ -1940,7 +1985,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values = HashMap::new();
         values.insert("BinaryColumn".to_string(), Some("0x0123456789".to_string()));
         values.insert("VarBinaryColumn".to_string(), Some("0xABCDEF".to_string()));
@@ -1996,7 +2041,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values = HashMap::new();
         values.insert(
             "XmlData".to_string(),

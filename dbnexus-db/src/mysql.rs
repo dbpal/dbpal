@@ -18,7 +18,7 @@ use crate::datasource::{DBPoolKey, MysqlDBConfig};
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, Index, IndexKind, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
-    MetaValue, MultiDBTrait, ProcedureDetail, QueryResp, QuerySql, ServerMetas, SqlExecuteRet,
+    MetaValue, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
     TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
 };
 use crate::pool::{NexusPool, PoolManager};
@@ -224,7 +224,7 @@ impl MysqlDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = DBTrait::create_table_and_index_sql(self, table_name).await?;
+            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
             sender.send(";\n".into()).await?;
 
@@ -234,7 +234,7 @@ impl MysqlDB {
             }
         }
         let mut conn = self.get_conn().await?;
-        let cols = DBTrait::show_columns(self, table_name).await?;
+        let cols = SchemaTrait::show_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
@@ -249,7 +249,8 @@ impl MysqlDB {
                     m.insert(f.name.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn DBTrait).insert_sql(None, table_name, &cols, &m)?;
+                let insert_sql =
+                    (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }
@@ -554,7 +555,7 @@ impl ServerMetas for MysqlDB {
 
 #[async_trait::async_trait]
 
-impl DBTrait for MysqlDB {
+impl SchemaTrait for MysqlDB {
     async fn list_procedure(&self) -> anyhow::Result<Vec<ListProcedure>> {
         let mut conn = self.get_conn().await?;
 
@@ -753,7 +754,7 @@ impl DBTrait for MysqlDB {
         "mysql"
     }
 
-    fn clone(&self) -> Box<dyn DBTrait> {
+    fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
 
@@ -820,7 +821,7 @@ impl DBTrait for MysqlDB {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
         let sql =
-            (self as &dyn crate::db::DBTrait).delete_sql(None, table_name, &fields, &wheres)?;
+            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -886,7 +887,7 @@ impl DBTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait).insert_sql(None, table_name, &fs, &values)?;
+        let s = (self as &dyn crate::db::SchemaTrait).insert_sql(None, table_name, &fs, &values)?;
 
         let mut conn = self.get_conn().await?;
 
@@ -905,7 +906,7 @@ impl DBTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::DBTrait)
+        let s = (self as &dyn crate::db::SchemaTrait)
             .update_sql(None, table_name, &fs, &values, &wheres)?;
         let mut conn = self.get_conn().await?;
 
@@ -1161,8 +1162,8 @@ impl MysqlDB {
 }
 
 #[async_trait::async_trait]
-impl MultiDBTrait for MysqlDB {
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
+impl DBTrait for MysqlDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query("show databases")
             .fetch_all(conn.deref_mut())
@@ -1176,7 +1177,7 @@ impl MultiDBTrait for MysqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
+    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         debug_assert!(self.config.db_name.is_none());
         let mut x = Clone::clone(self);
         x.config.db_name = Some(name.to_owned());
@@ -1311,7 +1312,7 @@ mod tests {
     #[tokio::test]
     async fn test_procedure() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let f = "test_procedure";
 
@@ -1349,7 +1350,7 @@ mod tests {
     #[tokio::test]
     async fn test_udf() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let f = "test_function";
 
@@ -1381,7 +1382,7 @@ mod tests {
     #[tokio::test]
     async fn test_rename() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_rename").await;
         let _ = db_trait.drop_table("test_rename2").await;
@@ -1413,7 +1414,7 @@ mod tests {
 
     async fn test_duplicate() {
         let db = make_test_object();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_duplicate").await;
         let _ = db_trait.drop_table("test_duplicate2").await;
@@ -1460,7 +1461,7 @@ mod tests {
     async fn test_triggers() {
         let db = make_test_object();
         let mut _conn = db.get_conn().await.unwrap();
-        let db_trait = &db as &dyn DBTrait;
+        let db_trait = &db as &dyn SchemaTrait;
 
         let _ = db_trait.drop_table("test_create_trigger").await;
         let _ = db_trait.drop_table("test_create_trigger_update").await;
@@ -1638,7 +1639,7 @@ mod tests {
         for s in rs.iter() {
             sqlx::query(*s).execute(conn.deref_mut()).await.unwrap();
         }
-        let db = &db as &dyn DBTrait;
+        let db = &db as &dyn SchemaTrait;
 
         {
             let s = db
@@ -1794,7 +1795,7 @@ mod tests {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("tinyint_col".to_string(), Some("1".to_string()));
         values.insert("boolean_col".to_string(), Some("false".to_string()));
@@ -1838,7 +1839,7 @@ mod tests {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("u8_col".to_string(), Some("1".to_string()));
         values.insert("u16_col".to_string(), Some("2".to_string()));
@@ -1883,7 +1884,7 @@ mod tests {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("varchar_col".to_string(), Some("x".to_string()));
         values.insert("char_col".to_string(), Some("y".to_string()));
@@ -1902,7 +1903,7 @@ mod tests {
     async fn test_types4() {
         let table_name = "test_types4";
         let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let _ = db.drop_table(table_name).await;
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(
@@ -1939,9 +1940,9 @@ mod tests {
     #[tokio::test]
     async fn test_list_database() {
         let db = make_test_object();
-        let db = &db as &dyn crate::db::MultiDBTrait;
+        let db = &db as &dyn crate::db::DBTrait;
 
-        let resp = db.list_db().await.unwrap();
+        let resp = db.list_schema().await.unwrap();
         assert_eq!(
             resp,
             vec![
@@ -1958,7 +1959,7 @@ mod tests {
     async fn test_query() {
         init_log();
         let db = make_test_object();
-        let db = &db as &dyn crate::db::DBTrait;
+        let db = &db as &dyn crate::db::SchemaTrait;
         let id = db.open_connection().await.unwrap();
 
         let ret = db.query_sql(id.clone(), "begin").await.unwrap();
