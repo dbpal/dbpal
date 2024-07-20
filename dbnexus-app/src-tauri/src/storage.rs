@@ -327,7 +327,7 @@ pub(crate) async fn open(config: &DBConnectionConfig, pm: PoolManager) -> anyhow
     }
 }
 
-/// opend database variant for front
+/// opend database variant for frontend
 #[derive(Clone)]
 pub enum Open {
     Catelog(Arc<dyn dbnexus_db::db::CatalogTrait>),
@@ -358,7 +358,7 @@ pub enum OpendKind {
 /// all the databases
 pub struct App {
     pub(crate) loader: Arc<dyn DbConfigLoader>,
-    dbs: Arc<Mutex<HashMap<String, Open>>>,
+    opens: Arc<Mutex<HashMap<String, Open>>>,
     pm: PoolManager,
 }
 
@@ -366,7 +366,7 @@ impl App {
     pub fn new(loader: Arc<dyn DbConfigLoader>) -> Self {
         Self {
             loader,
-            dbs: Default::default(),
+            opens: Default::default(),
             pm: Default::default(),
         }
     }
@@ -374,7 +374,7 @@ impl App {
 
 impl App {
     pub async fn open(&self, uuid: &str) -> anyhow::Result<Open> {
-        if let Some(x) = self.dbs.lock().await.get(&uuid.to_string()) {
+        if let Some(x) = self.opens.lock().await.get(&uuid.to_string()) {
             return anyhow::Ok(x.clone());
         }
         let config = match self.loader.get_config_cloned(uuid).await? {
@@ -394,7 +394,7 @@ impl App {
             }
         }
 
-        self.dbs.lock().await.insert(uuid.to_string(), db.clone());
+        self.opens.lock().await.insert(uuid.to_string(), db.clone());
 
         anyhow::Ok(db)
     }
@@ -406,7 +406,7 @@ impl App {
                 let x = x.open_db(db_name).await?;
                 x.check_conn().await?;
                 let db = Open::DataBase(x.clone());
-                self.dbs
+                self.opens
                     .lock()
                     .await
                     .insert(format!("{}-{}", uuid, db_name), db.clone());
@@ -423,7 +423,7 @@ impl App {
                 let x = x.open_schema(db_name).await?;
                 x.check_conn().await?;
                 let db = Open::Schema(x.clone());
-                self.dbs
+                self.opens
                     .lock()
                     .await
                     .insert(format!("{}-{}", uuid, db_name), db.clone());
@@ -454,13 +454,13 @@ impl App {
 
     async fn delete_prefix_dbs(&self, uuid: &str) {
         let mut v = Vec::new();
-        for k in self.dbs.lock().await.keys() {
+        for k in self.opens.lock().await.keys() {
             if k.starts_with(uuid) {
                 v.push(k.clone());
             }
         }
         for k in v.into_iter() {
-            self.dbs.lock().await.remove(&k);
+            self.opens.lock().await.remove(&k);
         }
     }
 
@@ -547,7 +547,7 @@ impl App {
     }
 
     pub async fn get_opened(&self, uuid: &str) -> anyhow::Result<Open> {
-        let db = self.dbs.lock().await.get(uuid).map(|x| x.clone());
+        let db = self.opens.lock().await.get(uuid).map(|x| x.clone());
         let x = match db {
             Some(x) => x,
             None => anyhow::bail!("db '{}' not found", uuid),

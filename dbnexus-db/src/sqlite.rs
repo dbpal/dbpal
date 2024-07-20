@@ -19,9 +19,9 @@ use crate::completion::{
 };
 use crate::datasource::DBPoolKey;
 use crate::db::{
-    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, SchemaTrait, ExportKind,
-    Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryResp,
-    QuerySql, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, ExportKind, Field,
+    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
     TriggerTiming,
 };
 use crate::pool::{NexusPool, PoolManager};
@@ -103,7 +103,8 @@ impl SqliteDB {
                     m.insert(f.name.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
+                let insert_sql =
+                    (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }

@@ -13,40 +13,40 @@ use crate::storage::{self, App, DBConnectionConfig, OpendKind, UserSettings};
 
 #[tauri::command]
 pub async fn add_config(
-    config: DBConnectionConfig, dbs: tauri::State<'_, App>,
+    config: DBConnectionConfig, app: tauri::State<'_, App>,
 ) -> Result<String, AnyhowErrorFrontend> {
     let uuid = uuid::Uuid::new_v4().to_string();
 
     log::info!("add config:{} {:?}", uuid, config);
-    dbs.add_config(uuid.as_str(), config)
+    app.add_config(uuid.as_str(), config)
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     Ok(uuid)
 }
 #[tauri::command]
 pub async fn delete_config(
-    uuid: String, dbs: tauri::State<'_, App>,
+    uuid: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     log::info!("del config:{}", uuid);
-    dbs.delete_config(uuid.as_str())
+    app.delete_config(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn update_config(
-    uuid: String, config: DBConnectionConfig, dbs: tauri::State<'_, App>,
+    uuid: String, config: DBConnectionConfig, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     log::info!("update config:{} {:?}", uuid, config);
-    dbs.update_config(uuid.as_str(), config)
+    app.update_config(uuid.as_str(), config)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
-pub async fn open(uuid: String, dbs: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
+pub async fn open(uuid: String, app: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
     log::info!("open db:{}", uuid);
-    dbs.open(uuid.as_str())
+    app.open(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
         .map(|_| ())
@@ -54,19 +54,19 @@ pub async fn open(uuid: String, dbs: tauri::State<'_, App>) -> Result<(), Anyhow
 
 #[tauri::command]
 pub async fn list_table(
-    uuid: String, dbs: tauri::State<'_, App>,
+    uuid: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<ListTable>, AnyhowErrorFrontend> {
     log::info!("show table db:{}", uuid);
-    dbs.list_table(uuid.as_str())
+    app.list_table(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn redis_list_table(
-    uuid: String, dbs: tauri::State<'_, App>,
+    uuid: String, app: tauri::State<'_, App>,
 ) -> Result<RedisListTable, AnyhowErrorFrontend> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -84,9 +84,9 @@ pub async fn redis_list_table(
 
 #[tauri::command]
 pub async fn show_columns(
-    uuid: String, table_name: String, dbs: tauri::State<'_, App>,
+    uuid: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Field>, AnyhowErrorFrontend> {
-    dbs.show_columns(uuid.as_str(), &table_name)
+    app.show_columns(uuid.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
@@ -94,9 +94,9 @@ pub async fn show_columns(
 #[tauri::command]
 pub async fn show_table(
     uuid: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, dbs: tauri::State<'_, App>,
+    page_size: usize, app: tauri::State<'_, App>,
 ) -> Result<TableListResp, AnyhowErrorFrontend> {
-    dbs.show_table(
+    app.show_table(
         uuid.as_str(),
         &table_name,
         where_str,
@@ -110,9 +110,9 @@ pub async fn show_table(
 
 #[tauri::command]
 pub async fn show_indexes(
-    uuid: String, table_name: String, dbs: tauri::State<'_, App>,
+    uuid: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Index>, AnyhowErrorFrontend> {
-    dbs.show_indexes(uuid.as_str(), &table_name)
+    app.show_indexes(uuid.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
@@ -120,9 +120,9 @@ pub async fn show_indexes(
 #[tauri::command]
 pub async fn insert(
     uuid: String, table_name: String, values: HashMap<String, Option<String>>,
-    dbs: tauri::State<'_, App>,
+    app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, AnyhowErrorFrontend> {
-    dbs.insert(uuid.as_str(), &table_name, values)
+    app.insert(uuid.as_str(), &table_name, values)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
@@ -130,60 +130,60 @@ pub async fn insert(
 #[tauri::command]
 pub async fn update(
     uuid: String, table_name: String, values: HashMap<String, Option<String>>,
-    wheres: HashMap<String, Option<String>>, dbs: tauri::State<'_, App>,
+    wheres: HashMap<String, Option<String>>, app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, AnyhowErrorFrontend> {
-    dbs.update(uuid.as_str(), &table_name, values, wheres)
+    app.update(uuid.as_str(), &table_name, values, wheres)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn truncate_table(
-    uuid: String, table_name: String, dbs: tauri::State<'_, App>,
+    uuid: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    dbs.truncate_table(uuid.as_str(), &table_name)
+    app.truncate_table(uuid.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn delete(
     uuid: String, table_name: String, wheres: HashMap<String, Option<String>>,
-    dbs: tauri::State<'_, App>,
+    app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, AnyhowErrorFrontend> {
-    dbs.delete(uuid.as_str(), &table_name, wheres)
+    app.delete(uuid.as_str(), &table_name, wheres)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn list_view(
-    uuid: String, dbs: tauri::State<'_, App>,
+    uuid: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<ListView>, AnyhowErrorFrontend> {
-    dbs.list_view(uuid.as_str())
+    app.list_view(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn drop_view(
-    uuid: String, view_name: String, dbs: tauri::State<'_, App>,
+    uuid: String, view_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    dbs.drop_view(uuid.as_str(), &view_name)
+    app.drop_view(uuid.as_str(), &view_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn drop_table(
-    uuid: String, table_name: String, dbs: tauri::State<'_, App>,
+    uuid: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    dbs.drop_table(uuid.as_str(), &table_name)
+    app.drop_table(uuid.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn show_view(
     uuid: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, dbs: tauri::State<'_, App>,
+    page_size: usize, app: tauri::State<'_, App>,
 ) -> Result<TableListResp, AnyhowErrorFrontend> {
-    dbs.show_view(
+    app.show_view(
         uuid.as_str(),
         &view_name,
         where_str,
@@ -197,9 +197,9 @@ pub async fn show_view(
 
 #[tauri::command]
 pub async fn open_schema(
-    uuid: String, db_name: String, dbs: tauri::State<'_, App>,
+    uuid: String, db_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    dbs.open_schema(uuid.as_str(), db_name.as_str())
+    app.open_schema(uuid.as_str(), db_name.as_str())
         .await
         .map(|_| ())
         .map_err(AnyhowErrorFrontend::from)
@@ -207,9 +207,9 @@ pub async fn open_schema(
 
 #[tauri::command]
 pub async fn opened_kind(
-    uuid: String, dbs: tauri::State<'_, App>,
+    uuid: String, app: tauri::State<'_, App>,
 ) -> Result<OpendKind, AnyhowErrorFrontend> {
-    let kind = dbs
+    let kind = app
         .get_opened(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?
@@ -219,9 +219,9 @@ pub async fn opened_kind(
 
 #[tauri::command]
 pub async fn open_db(
-    uuid: String, db_name: String, dbs: tauri::State<'_, App>,
+    uuid: String, db_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    dbs.open_db(uuid.as_str(), db_name.as_str())
+    app.open_db(uuid.as_str(), db_name.as_str())
         .await
         .map(|_| ())
         .map_err(AnyhowErrorFrontend::from)
@@ -229,10 +229,10 @@ pub async fn open_db(
 
 #[tauri::command]
 pub async fn query_sql(
-    uuid: String, id: uuid::Uuid, sql: String, dbs: tauri::State<'_, App>,
+    uuid: String, id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Result<QueryResp, String>>, AnyhowErrorFrontend> {
     let sql = sql.as_str();
-    let db = dbs
+    let db = app
         .open(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
@@ -247,9 +247,9 @@ pub async fn query_sql(
 }
 #[tauri::command]
 pub async fn query_sql_open_connection(
-    uuid: String, dbs: tauri::State<'_, App>,
+    uuid: String, app: tauri::State<'_, App>,
 ) -> Result<uuid::Uuid, AnyhowErrorFrontend> {
-    let db = dbs.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
+    let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
         crate::storage::Open::DataBase(x) => x.open_connection().await,
         crate::storage::Open::Schema(x) => x.open_connection().await,
@@ -259,9 +259,9 @@ pub async fn query_sql_open_connection(
 }
 #[tauri::command]
 pub async fn query_sql_re_connection(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
+    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), String> {
-    let db = dbs.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
+    let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
         crate::storage::Open::DataBase(x) => x.re_connect(id).await,
         crate::storage::Open::Schema(x) => x.re_connect(id).await,
@@ -271,9 +271,9 @@ pub async fn query_sql_re_connection(
 }
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
+    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    let db = dbs.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
+    let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
         crate::storage::Open::DataBase(x) => x.close_connection(id).await,
         crate::storage::Open::Schema(x) => x.close_connection(id).await,
@@ -284,9 +284,9 @@ pub async fn query_sql_close_connection(
 
 #[tauri::command]
 pub async fn save_user_settings(
-    user_settings: UserSettings, dbs: tauri::State<'_, App>,
+    user_settings: UserSettings, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    dbs.loader
+    app.loader
         .save_user_settings(user_settings)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -294,9 +294,9 @@ pub async fn save_user_settings(
 
 #[tauri::command]
 pub async fn get_user_settings(
-    dbs: tauri::State<'_, App>,
+    app: tauri::State<'_, App>,
 ) -> Result<UserSettings, AnyhowErrorFrontend> {
-    dbs.loader
+    app.loader
         .get_user_settings_cloned()
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -304,9 +304,9 @@ pub async fn get_user_settings(
 
 #[tauri::command]
 pub async fn list_all_config(
-    dbs: tauri::State<'_, App>,
+    app: tauri::State<'_, App>,
 ) -> Result<HashMap<String /* uuid */, DBConnectionConfig>, AnyhowErrorFrontend> {
-    dbs.loader
+    app.loader
         .list_all_configs_cloned()
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -315,9 +315,9 @@ pub async fn list_all_config(
 #[tauri::command]
 pub async fn export_table(
     uuid: String, table_name: String, filepath: String, kind: ExportKind,
-    dbs: tauri::State<'_, App>,
+    app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -327,9 +327,9 @@ pub async fn export_table(
 }
 #[tauri::command]
 pub async fn format_sql(
-    uuid: String, sql: String, dbs: tauri::State<'_, App>,
+    uuid: String, sql: String, app: tauri::State<'_, App>,
 ) -> Result<String, String> {
-    let db = dbs
+    let db = app
         .get_opened(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -362,9 +362,9 @@ pub async fn test_connection(
 
 #[tauri::command]
 pub async fn oracle_query_set_autocommit(
-    uuid: String, id: uuid::Uuid, commit: bool, dbs: tauri::State<'_, App>,
+    uuid: String, id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -381,9 +381,9 @@ pub async fn oracle_query_set_autocommit(
 }
 #[tauri::command]
 pub async fn oracle_query_autocommit(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
+    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<bool, AnyhowErrorFrontend> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -400,9 +400,9 @@ pub async fn oracle_query_autocommit(
 }
 #[tauri::command]
 pub async fn oracle_query_commit(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
+    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), String> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -413,9 +413,9 @@ pub async fn oracle_query_commit(
 }
 #[tauri::command]
 pub async fn oracle_query_rollback(
-    uuid: String, id: uuid::Uuid, dbs: tauri::State<'_, App>,
+    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), String> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -427,9 +427,9 @@ pub async fn oracle_query_rollback(
 
 #[tauri::command]
 pub async fn list_trigger(
-    uuid: String, table: String, dbs: tauri::State<'_, App>,
+    uuid: String, table: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<ListTrigger>, String> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -439,9 +439,9 @@ pub async fn list_trigger(
 
 #[tauri::command]
 pub async fn show_trigger(
-    uuid: String, table: String, name: String, dbs: tauri::State<'_, App>,
+    uuid: String, table: String, name: String, app: tauri::State<'_, App>,
 ) -> Result<TriggerDetail, String> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -452,9 +452,9 @@ pub async fn show_trigger(
 }
 #[tauri::command]
 pub async fn rename_table(
-    uuid: String, old: String, new: String, dbs: tauri::State<'_, App>,
+    uuid: String, old: String, new: String, app: tauri::State<'_, App>,
 ) -> Result<(), String> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -464,9 +464,9 @@ pub async fn rename_table(
 
 #[tauri::command]
 pub async fn duplicate_table(
-    uuid: String, from: String, to: String, dbs: tauri::State<'_, App>,
+    uuid: String, from: String, to: String, app: tauri::State<'_, App>,
 ) -> Result<(), String> {
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -478,11 +478,11 @@ pub async fn duplicate_table(
 
 #[tauri::command]
 pub async fn mongo_insert(
-    uuid: String, table: String, doc: Vec<u8>, dbs: tauri::State<'_, App>,
+    uuid: String, table: String, doc: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<mongodb::results::InsertOneResult, String> {
     let doc = parse_bson_doc(doc.as_slice())?;
 
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -494,12 +494,12 @@ pub async fn mongo_insert(
 }
 #[tauri::command]
 pub async fn mongo_update(
-    uuid: String, table: String, update: Vec<u8>, query: Vec<u8>, dbs: tauri::State<'_, App>,
+    uuid: String, table: String, update: Vec<u8>, query: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<mongodb::results::UpdateResult, String> {
     let update = parse_bson_doc(update.as_slice())?;
     let query = parse_bson_doc(query.as_slice())?;
 
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -511,11 +511,11 @@ pub async fn mongo_update(
 }
 #[tauri::command]
 pub async fn mongo_delete(
-    uuid: String, table: String, query: Vec<u8>, dbs: tauri::State<'_, App>,
+    uuid: String, table: String, query: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<mongodb::results::DeleteResult, String> {
     let query = parse_bson_doc(query.as_slice())?;
 
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -529,11 +529,11 @@ pub async fn mongo_delete(
 #[tauri::command]
 pub async fn mongo_show_table(
     uuid: String, table: String, filter: Vec<u8>, order_by: Vec<u8>, page: usize, page_size: usize,
-    dbs: tauri::State<'_, App>,
+    app: tauri::State<'_, App>,
 ) -> Result<TableListResp, String> {
     let filter = parse_bson_doc(filter.as_slice())?;
     let order_by = parse_bson_doc(order_by.as_slice())?;
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
@@ -549,11 +549,11 @@ pub async fn mongo_show_table(
 #[tauri::command]
 pub async fn mongo_show_table_docs(
     uuid: String, table: String, filter: Vec<u8>, order_by: Vec<u8>, page: usize, page_size: usize,
-    dbs: tauri::State<'_, App>,
+    app: tauri::State<'_, App>,
 ) -> Result<DocsAndCount, String> {
     let filter = parse_bson_doc(filter.as_slice())?;
     let order_by = parse_bson_doc(order_by.as_slice())?;
-    let db = dbs
+    let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;

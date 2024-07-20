@@ -2,23 +2,13 @@ use typescript_type_def::TypeDef;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DBPoolKey {
-    Sqlite {
-        path: String,
-    },
-    Mysql {
-        conn: MysqlDBConfig,
-    },
-    PostGres {
-        conn: PGDBConfig,
-    },
-    Redis {
-        server: String,
-    },
+    Sqlite { path: String },
+    Mysql { conn: MysqlDBConfig },
+    PostGres { conn: PGDBConfig },
+    Redis { server: String },
     MongoDB(MongoDataSource),
-    SqlServer {
-        config: SqlServerDBConfig,
-        trust_cert: bool,
-    },
+    // sql server don't use pool
+    // SqlServer { config: SqlServerDBConfig },
     Oracle(OracleDBConfig),
 }
 

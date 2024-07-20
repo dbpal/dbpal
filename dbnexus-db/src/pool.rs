@@ -83,25 +83,6 @@ async fn make_pool(db: &DBPoolKey) -> anyhow::Result<crate::pool::NexusPool> {
             let client = mongodb::Client::with_options(opts)?;
             anyhow::Ok(MongoDB(client))
         }
-        DBPoolKey::SqlServer {
-            config: _,
-            trust_cert: _,
-        } => {
-            // let mut config = tiberius::Config::new();
-            // config.host(&c.host);
-            // config.port(c.port);
-            // config.authentication(tiberius::AuthMethod::sql_server(&c.username, &c.password));
-            // config.database(&c.db_name);
-            // if *trust_cert {
-            //     config.trust_cert(); // on production, it is not a good idea to do this
-            // }
-            // let manager = bb8_tiberius::ConnectionManager::new(config);
-            // let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
-            // anyhow::Ok(SqlServer(pool))
-
-            unreachable!()
-        }
-
         DBPoolKey::Oracle(config) => {
             let pool = oracle::pool::PoolBuilder::new(
                 &config.username,
@@ -122,6 +103,5 @@ pub enum NexusPool {
     Pg(PgPool),
     MongoDB(mongodb::Client),
     Redis(redis::aio::ConnectionManager),
-    SqlServer(bb8::Pool<bb8_tiberius::ConnectionManager>),
     Oracle(oracle::pool::Pool),
 }
