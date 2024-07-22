@@ -14,13 +14,12 @@ pub mod pg;
 pub mod pg_format;
 pub mod redis;
 
-pub mod pool;
-
 pub mod sql_server;
 pub mod sqlite;
 
 lazy_static! {
-    static ref TEST_HOST: String = std::env::var("NEXUS_TEST_HOST").unwrap_or("127.0.0.1".to_string());
+    static ref TEST_HOST: String =
+        std::env::var("NEXUS_TEST_HOST").unwrap_or("127.0.0.1".to_string());
 }
 
 struct SimpleLogger;

@@ -5,18 +5,19 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use oracle::pool::Pool;
 use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
 use crate::completion::DBLexerCompletionBackend;
-use crate::datasource::{DBPoolKey, OracleDBConfig};
+use crate::datasource::OracleDBConfig;
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, Index, IndexKind, ListTable, ListView, QueryResp, QuerySql, SchemaTrait,
     SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
 };
-use crate::pool::{NexusPool, PoolManager};
+
 impl FormatSql for OracleDB {
     fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, None))
@@ -24,8 +25,7 @@ impl FormatSql for OracleDB {
 }
 #[derive(Clone)]
 pub struct OracleDB {
-    config: OracleDBConfig,
-    pm: PoolManager,
+    pool: Pool,
     read_only: bool,
     db_name: Option<String>,
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
@@ -34,17 +34,20 @@ pub struct OracleDB {
 
 impl OracleDB {
     pub fn new(
-        config: OracleDBConfig, pm: PoolManager, read_only: bool, db_name: Option<String>,
+        config: OracleDBConfig, read_only: bool, db_name: Option<String>,
         call_timeout: Option<Duration>,
-    ) -> Self {
-        Self {
-            config,
-            pm,
+    ) -> anyhow::Result<Self> {
+        let pool =
+            oracle::pool::PoolBuilder::new(&config.username, &config.password, &config.connect_str)
+                .max_connections(20)
+                .build()?;
+        anyhow::Ok(Self {
+            pool,
             read_only,
             db_name,
             query_connections: Default::default(),
             call_timeout,
-        }
+        })
     }
 }
 
@@ -1125,12 +1128,7 @@ impl DBTrait for OracleDB {
 
 impl OracleDB {
     async fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
-        let pool = match self.pm.get(&DBPoolKey::Oracle(self.config.clone())).await? {
-            NexusPool::Oracle(p) => p.clone(),
-            _ => unreachable!(),
-        };
-
-        let mut conn: oracle::Connection = block_in_place(|| pool.get())?;
+        let mut conn: oracle::Connection = block_in_place(|| self.pool.get())?;
         match &self.db_name {
             Some(db_name) => {
                 let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
@@ -1155,18 +1153,17 @@ mod tests {
     use super::*;
     use crate::{init_log, TEST_HOST};
     fn make_test_object(db_name: Option<String>) -> OracleDB {
-        let x = OracleDB {
-            pm: Default::default(),
-            read_only: false,
-            config: OracleDBConfig {
+        let x = OracleDB::new(
+            OracleDBConfig {
                 username: "system".to_string(),
                 password: "root".to_string(),
                 connect_str: format!("//{}/ORCL", *TEST_HOST),
             },
+            false,
             db_name,
-            query_connections: Default::default(),
-            call_timeout: None,
-        };
+            None,
+        )
+        .unwrap();
         x
     }
 

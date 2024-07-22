@@ -2,7 +2,7 @@ use anyhow::Context;
 
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Document};
-use mongodb::options::{FindOptions, SelectionCriteria};
+use mongodb::options::{FindOptions, SelectionCriteria, ServerAddress};
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use typescript_type_def::TypeDef;
 
-use crate::datasource::{self, MongoDataSource};
+use crate::datasource::MongoDataSource;
 use crate::db::{
     CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListView,
     MetaValue, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
@@ -36,22 +36,32 @@ impl From<&str> for ListMongoTimeSerialCollection {
 
 #[derive(Clone)]
 pub struct Mongo {
-    ds: MongoDataSource,
+    client: mongodb::Client,
     dbname: Option<String>,
-    pm: crate::pool::PoolManager,
     read_only: bool,
 }
 
 impl Mongo {
     pub fn new(
-        pm: crate::pool::PoolManager, ds: MongoDataSource, dbname: Option<String>, read_only: bool,
-    ) -> Self {
-        Self {
-            ds,
-            dbname,
-            pm,
-            read_only,
+        ds: MongoDataSource, dbname: Option<String>, read_only: bool,
+    ) -> anyhow::Result<Self> {
+        let mut opts = mongodb::options::ClientOptions::default();
+        opts.hosts = vec![ServerAddress::Tcp {
+            host: ds.host.to_string(),
+            port: Some(ds.port),
+        }];
+        opts.connect_timeout = ds.connect_timeout.clone().map(Duration::from_millis);
+
+        if let Some(_user) = &ds.username_and_password {
+            // TODO
         }
+        let client = mongodb::Client::with_options(opts)?;
+
+        anyhow::Ok(Self {
+            client,
+            dbname,
+            read_only,
+        })
     }
 }
 
@@ -702,15 +712,7 @@ impl Mongo {
     }
 
     async fn get_conn(&self) -> anyhow::Result<mongodb::Client> {
-        let client = self
-            .pm
-            .get(&datasource::DBPoolKey::MongoDB(self.ds.clone()))
-            .await?;
-        let client = match client {
-            crate::pool::NexusPool::MongoDB(x) => x.clone(),
-            _ => unreachable!(),
-        };
-        anyhow::Ok(client)
+        anyhow::Ok(self.client.clone())
     }
 }
 
@@ -725,24 +727,25 @@ mod tests {
     use bson::{doc, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
 
     use super::Mongo;
+
     use crate::datasource::MongoDataSource;
     use crate::db::{DBTrait, SchemaTrait, ServerMetas};
-    use crate::pool::PoolManager;
+
     use crate::TEST_HOST;
 
     fn make_test_object() -> Mongo {
-        let x = Mongo {
-            ds: MongoDataSource {
+        let x = Mongo::new(
+            MongoDataSource {
                 host: TEST_HOST.to_string(),
                 port: 27017,
                 username_and_password: None,
                 connect_timeout: None,
             },
-            read_only: false,
-            dbname: Some("test".to_string()),
-            pm: PoolManager::default(),
-        };
-        x
+            Some("test".to_string()),
+            false,
+        );
+
+        x.unwrap()
     }
     #[tokio::test]
     async fn test_multi_db() {

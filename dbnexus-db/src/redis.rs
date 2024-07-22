@@ -14,11 +14,11 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
-    create_csv, CheckConn, SchemaTrait, ExportKind, Field, FormatSql, Index, ListTable, MetaValue,
-    OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, ServerMetas, SqlExecuteRet,
-    TableListResp,
+    create_csv, CheckConn, ExportKind, Field, FormatSql, Index, ListTable, MetaValue,
+    OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas,
+    SqlExecuteRet, TableListResp,
 };
-use crate::pool::{NexusPool, PoolManager};
+
 use redis::aio::{ConnectionManager, MultiplexedConnection};
 use redis::{AsyncCommands, AsyncIter, Value};
 
@@ -27,19 +27,21 @@ use redis::{AsyncCommands, AsyncIter, Value};
 #[derive(Clone)]
 pub struct RedisDB {
     server: String,
-    pm: PoolManager,
+    m: ConnectionManager,
     read_only: bool,
     query_connections: Arc<Mutex<HashMap<uuid::Uuid, MultiplexedConnection>>>,
 }
 
 impl RedisDB {
-    pub fn new(pm: PoolManager, server: String, read_only: bool) -> Self {
-        Self {
+    pub async fn new(server: String, read_only: bool) -> anyhow::Result<Self> {
+        let client = redis::Client::open(server.as_str())?;
+        let m = redis::aio::ConnectionManager::new(client).await?;
+        anyhow::Ok(Self {
             server,
-            pm,
+            m,
             read_only,
             query_connections: Default::default(),
-        }
+        })
     }
 }
 
@@ -950,17 +952,7 @@ impl RedisDB {
     }
 
     async fn get_conn(&self) -> anyhow::Result<redis::aio::ConnectionManager> {
-        let m = match self
-            .pm
-            .get(&crate::datasource::DBPoolKey::Redis {
-                server: self.server.clone(),
-            })
-            .await?
-        {
-            NexusPool::Redis(x) => x.clone(),
-            _ => unreachable!(),
-        };
-        anyhow::Ok(m)
+        anyhow::Ok(self.m.clone())
     }
 }
 
@@ -975,26 +967,24 @@ mod tests {
         TEST_HOST,
     };
 
-    fn make_test_object() -> RedisDB {
-        let x = RedisDB {
-            server: format!("redis://{}/", *TEST_HOST),
-            pm: Default::default(),
-            read_only: false,
-            query_connections: Default::default(),
-        };
+    async fn make_test_object() -> RedisDB {
+        let x = RedisDB::new(format!("redis://{}/", *TEST_HOST), false)
+            .await
+            .unwrap();
+
         x
     }
 
     #[tokio::test]
     async fn test_server_metas() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
 
     #[tokio::test]
     async fn test_list_redis_table() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         tokio::time::sleep(Duration::from_secs(2)).await;
         let redis_tables = db.redis_list_table().await.unwrap();
         println!("redis tables:{:?}", redis_tables);
@@ -1002,7 +992,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rename() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(
@@ -1021,13 +1011,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_conn() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_hash_key() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "hash_value";
@@ -1102,7 +1092,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_zset_key() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "zset_value";
@@ -1176,7 +1166,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_key() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "set_value";
@@ -1250,7 +1240,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_key() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "list_value";
@@ -1324,7 +1314,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_string_key() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "string_value";

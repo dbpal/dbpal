@@ -1,17 +1,5 @@
 use typescript_type_def::TypeDef;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum DBPoolKey {
-    Sqlite { path: String },
-    Mysql { conn: MysqlDBConfig },
-    PostGres { conn: PGDBConfig },
-    Redis { server: String },
-    MongoDB(MongoDataSource),
-    // sql server don't use pool
-    // SqlServer { config: SqlServerDBConfig },
-    Oracle(OracleDBConfig),
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct MongoDataSource {
     pub host: String,

@@ -348,9 +348,7 @@ pub async fn test_connection(
     u64, // milliseconds
     AnyhowErrorFrontend,
 > {
-    let db = storage::open(&config, Default::default())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = storage::open(&config).await.map_err(|e| e.to_string())?;
     match db {
         storage::Open::DataBase(x) => x.check_conn().await,
         storage::Open::Schema(x) => x.check_conn().await,

@@ -13,7 +13,7 @@ use sqlx::{Column, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
 use crate::completion::DBLexerCompletionBackend;
-use crate::datasource::{DBPoolKey, PGDBConfig};
+use crate::datasource::PGDBConfig;
 use crate::db::{
     create_csv, sqlformat_format_sql, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait,
     ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue,
@@ -21,7 +21,7 @@ use crate::db::{
     TriggerEvent, TriggerTiming,
 };
 use crate::pg_format::*;
-use crate::pool::{NexusPool, PoolManager};
+
 impl FormatSql for PostGresDB {
     fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, None))
@@ -31,8 +31,8 @@ impl FormatSql for PostGresDB {
 /// postgres version of pg.
 #[derive(Clone)]
 pub struct PostGresDB {
-    /// database name.
-    pool: PoolManager,
+ 
+    pool: sqlx::PgPool,
     config: PGDBConfig,
     read_only: bool,
     query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::Postgres>>>>,
@@ -937,31 +937,31 @@ impl PostGresDB {
 }
 
 impl PostGresDB {
-    pub fn new(
-        pool: PoolManager, config: PGDBConfig, read_only: bool, schema: Option<String>,
-    ) -> Self {
-        Self {
+    pub async fn new(
+        conn: PGDBConfig, read_only: bool, schema: Option<String>,
+    ) -> anyhow::Result<Self> {
+        let mut opts = sqlx::postgres::PgConnectOptions::new();
+        opts = opts
+            .host(&conn.host)
+            .port(conn.port)
+            .username(&conn.username)
+            .password(&conn.password);
+        if let Some(db) = &conn.db_name {
+            opts = opts.database(db);
+        }
+
+        let pool = sqlx::postgres::PgPool::connect_with(opts).await?;
+        anyhow::Ok(Self {
             pool,
-            config,
+            config: conn,
             read_only,
             query_connection: Default::default(),
             schema,
-        }
+        })
     }
 
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<Postgres>> {
-        let pool = match self
-            .pool
-            .get(&DBPoolKey::PostGres {
-                conn: self.config.clone(),
-            })
-            .await?
-        {
-            NexusPool::Pg(p) => p.clone(),
-            _ => unreachable!(),
-        };
-
-        let mut conn = pool.acquire().await?;
+        let mut conn = self.pool.acquire().await?;
         if let Some(s) = &self.schema {
             set_current_schema(conn.deref_mut(), s).await?;
         }
@@ -1217,23 +1217,20 @@ mod test {
     use crate::datasource::PGDBConfig;
     use crate::db::CatalogTrait;
     use crate::db::{CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas};
-    use crate::pool::PoolManager;
+
     use crate::{init_log, TEST_HOST};
     use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_list_database() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
         assert_eq!(dbs, vec!["postgres", "test", "template1", "template0"]);
     }
 
-    fn make_test_object() -> PostGresDB {
-        // list all table and query
-        let pool_manager = PoolManager::new();
+    async fn make_test_object() -> PostGresDB {
         let pg = PostGresDB::new(
-            pool_manager.clone(),
             PGDBConfig {
                 host: TEST_HOST.to_string(),
                 port: 5432,
@@ -1243,27 +1240,29 @@ mod test {
             },
             false,
             Some("test".to_string()),
-        );
+        )
+        .await
+        .unwrap();
         pg
     }
 
     #[tokio::test]
     async fn test_server_metas() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
 
     #[tokio::test]
     async fn test_check_conn() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         CheckConn::check_conn(&db).await.unwrap();
     }
 
     #[tokio::test]
 
     async fn test_rename() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_rename").await;
@@ -1294,7 +1293,7 @@ mod test {
     #[tokio::test]
 
     async fn test_duplicate() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_duplicate").await;
@@ -1335,7 +1334,7 @@ mod test {
     async fn test_export() {
         // init_log();
         let table_name = "test_export";
-        let db = make_test_object();
+        let db = make_test_object().await;
 
         let sql = r#"drop table if exists test_export; 
                 CREATE TABLE test_export (
@@ -1403,7 +1402,7 @@ mod test {
     #[tokio::test]
     async fn test_show_index() {
         let table_name = "index_test";
-        let db = make_test_object();
+        let db = make_test_object().await;
 
         let _ = db.drop_table(table_name).await;
         let query_id = db.open_connection().await.unwrap();
@@ -1421,7 +1420,7 @@ mod test {
     #[tokio::test]
     async fn test() {
         // list all table and query
-        let pg = make_test_object();
+        let pg = make_test_object().await;
 
         let pg = &pg as &dyn SchemaTrait;
         let table = pg.list_table().await.unwrap();
@@ -1430,7 +1429,7 @@ mod test {
 
     #[tokio::test]
     async fn test_triggers() {
-        let pg = make_test_object();
+        let pg = make_test_object().await;
         let db_trait = &pg as &dyn SchemaTrait;
         //
         let _ = db_trait.drop_table("test_create_trigger").await;
@@ -1505,7 +1504,7 @@ mod test {
     }
     #[tokio::test]
     async fn test_epxort() {
-        let db = make_test_object();
+        let db = make_test_object().await;
 
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
@@ -1618,7 +1617,7 @@ mod test {
     #[tokio::test]
     async fn test_types1() {
         let table_name = "test_types1";
-        let pg = make_test_object();
+        let pg = make_test_object().await;
 
         let _ = pg.drop_table(&table_name).await;
 
@@ -1688,7 +1687,7 @@ mod test {
         init_log();
         let table_name = "test_types2";
 
-        let pg = make_test_object();
+        let pg = make_test_object().await;
 
         let _ = pg.drop_table(&table_name).await;
 
@@ -1757,7 +1756,7 @@ mod test {
 
     #[tokio::test]
     async fn test_list_schema() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
 
         let resp = db.list_schema().await.unwrap();
@@ -1766,7 +1765,7 @@ mod test {
     #[tokio::test]
     async fn test_types3() {
         init_log();
-        let pg = make_test_object();
+        let pg = make_test_object().await;
         let table_name = "test_types3";
 
         let _ = pg.drop_table(&table_name).await;
@@ -1834,7 +1833,7 @@ mod test {
         init_log();
 
         let table_name = "test_types4";
-        let pg = make_test_object();
+        let pg = make_test_object().await;
 
         let _ = pg.drop_table(&table_name).await;
 
@@ -1892,7 +1891,7 @@ mod test {
     async fn test_types5() {
         init_log();
         let table_name = "test_types5";
-        let pg = make_test_object();
+        let pg = make_test_object().await;
 
         let _ = pg.drop_table(&table_name).await;
 
@@ -1972,7 +1971,7 @@ mod test {
     async fn test_types6() {
         init_log();
         let table_name = "test_types6";
-        let pg = make_test_object();
+        let pg = make_test_object().await;
 
         let _ = pg.drop_table(&table_name).await;
 
@@ -2047,7 +2046,7 @@ mod test {
     async fn test_types7() {
         init_log();
         let table_name = "test_types7";
-        let pg = make_test_object();
+        let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name).await;
 
         let query_id = pg.open_connection().await.unwrap();
@@ -2106,7 +2105,7 @@ mod test {
     async fn test_types8() {
         init_log();
         let table_name = "test_types8";
-        let pg = make_test_object();
+        let pg = make_test_object().await;
 
         let _ = pg.drop_table(&table_name).await;
 
@@ -2157,7 +2156,7 @@ mod test {
     async fn test_types9() {
         init_log();
         let table_name = "test_types9";
-        let pg = make_test_object();
+        let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name).await;
 
         let query_id = pg.open_connection().await.unwrap();
@@ -2227,7 +2226,7 @@ mod test {
     async fn test_types10() {
         init_log();
         let table_name = "test_types10";
-        let pg = make_test_object();
+        let pg = make_test_object().await;
 
         let _ = pg.drop_table(&table_name).await;
 
@@ -2289,7 +2288,7 @@ mod test {
     async fn test_types11() {
         init_log();
         let table_name = "test_types11";
-        let pg = make_test_object();
+        let pg = make_test_object().await;
 
         let _ = pg.drop_table(&table_name).await;
 

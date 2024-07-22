@@ -11,7 +11,7 @@ use dbnexus_db::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, ListView, SchemaTrait, SqlExecuteRet,
     TableListResp,
 };
-use dbnexus_db::pool::PoolManager;
+
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -180,18 +180,15 @@ impl DbConfigLoader for FileJsonSaver {
 }
 
 /// open a
-pub(crate) async fn open(config: &DBConnectionConfig, pm: PoolManager) -> anyhow::Result<Open> {
+pub(crate) async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
     match config {
         DBConnectionConfig::Sqlite {
             path,
             read_only,
             name: _,
         } => {
-            let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::sqlite::SqliteDB::new(
-                pm.clone(),
-                path.clone(),
-                *read_only,
-            ));
+            let db: Arc<dyn SchemaTrait> =
+                Arc::new(dbnexus_db::sqlite::SqliteDB::new(path.clone(), *read_only).await?);
 
             anyhow::Ok(Open::Schema(db))
         }
@@ -206,20 +203,14 @@ pub(crate) async fn open(config: &DBConnectionConfig, pm: PoolManager) -> anyhow
             name: _,
         } => match &conn.db_name {
             Some(_) => {
-                let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
-                    pm.clone(),
-                    conn.clone(),
-                    *read_only,
-                ));
+                let db: Arc<dyn SchemaTrait> =
+                    Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone(), *read_only).await?);
 
                 anyhow::Ok(Open::Schema(db))
             }
             None => {
-                let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::mysql::MysqlDB::new(
-                    pm.clone(),
-                    conn.clone(),
-                    *read_only,
-                ));
+                let db: Arc<dyn DBTrait> =
+                    Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone(), *read_only).await?);
 
                 anyhow::Ok(Open::DataBase(db))
             }
@@ -230,12 +221,9 @@ pub(crate) async fn open(config: &DBConnectionConfig, pm: PoolManager) -> anyhow
             name: _,
             schema,
         } => {
-            let o = Arc::new(dbnexus_db::pg::PostGresDB::new(
-                pm.clone(),
-                conn.clone(),
-                *read_only,
-                schema.clone(),
-            ));
+            let o = Arc::new(
+                dbnexus_db::pg::PostGresDB::new(conn.clone(), *read_only, schema.clone()).await?,
+            );
 
             if conn.db_name.is_none() {
                 anyhow::Ok(Open::Catelog(o as Arc<dyn CatalogTrait>))
@@ -273,11 +261,10 @@ pub(crate) async fn open(config: &DBConnectionConfig, pm: PoolManager) -> anyhow
             name: _,
         } => {
             let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::mongo::Mongo::new(
-                pm.clone(),
                 conn.clone(),
                 db_name.clone(),
                 *read_only,
-            ));
+            )?);
 
             anyhow::Ok(Open::Schema(db))
         }
@@ -286,11 +273,8 @@ pub(crate) async fn open(config: &DBConnectionConfig, pm: PoolManager) -> anyhow
             read_only,
             name: _,
         } => {
-            let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::redis::RedisDB::new(
-                pm.clone(),
-                server.to_string(),
-                *read_only,
-            ));
+            let db: Arc<dyn SchemaTrait> =
+                Arc::new(dbnexus_db::redis::RedisDB::new(server.to_string(), *read_only).await?);
 
             anyhow::Ok(Open::Schema(db))
         }
@@ -304,22 +288,20 @@ pub(crate) async fn open(config: &DBConnectionConfig, pm: PoolManager) -> anyhow
             Some(_) => {
                 let db: Arc<dyn SchemaTrait> = Arc::new(dbnexus_db::oracle::OracleDB::new(
                     conn.clone(),
-                    pm.clone(),
                     *read_only,
                     db_name.clone(),
                     call_timeout.clone().map(Duration::from_millis),
-                ));
+                )?);
 
                 anyhow::Ok(Open::Schema(db))
             }
             None => {
                 let db: Arc<dyn DBTrait> = Arc::new(dbnexus_db::oracle::OracleDB::new(
                     conn.clone(),
-                    pm.clone(),
                     *read_only,
                     db_name.clone(),
                     call_timeout.clone().map(Duration::from_millis),
-                ));
+                )?);
 
                 anyhow::Ok(Open::DataBase(db))
             }
@@ -359,7 +341,6 @@ pub enum OpendKind {
 pub struct App {
     pub(crate) loader: Arc<dyn DbConfigLoader>,
     opens: Arc<Mutex<HashMap<String, Open>>>,
-    pm: PoolManager,
 }
 
 impl App {
@@ -367,7 +348,6 @@ impl App {
         Self {
             loader,
             opens: Default::default(),
-            pm: Default::default(),
         }
     }
 }
@@ -381,7 +361,7 @@ impl App {
             Some(config) => config,
             None => anyhow::bail!(format!("connect '{}' not found", uuid)),
         };
-        let db = open(&config, self.pm.clone()).await?;
+        let db = open(&config).await?;
         match &db {
             Open::DataBase(x) => {
                 x.check_conn().await?;

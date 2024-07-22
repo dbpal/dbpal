@@ -17,24 +17,24 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, CompletionKind, DBLexerCompletionBackend,
     DBListCompletionItem,
 };
-use crate::datasource::DBPoolKey;
+
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, ExportKind, Field,
     FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryResp, QuerySql,
     SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
     TriggerTiming,
 };
-use crate::pool::{NexusPool, PoolManager};
+
 use crate::CANNOT_GET_CONN_ERR;
 impl FormatSql for SqliteDB {
     fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, None))
     }
 }
+
 #[derive(Clone)]
 pub struct SqliteDB {
-    pool: PoolManager,
-    path: String,
+    pool: sqlx::SqlitePool,
     read_only: bool,
     query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::Sqlite>>>>,
 }
@@ -998,13 +998,14 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
 }
 
 impl SqliteDB {
-    pub fn new(pool: PoolManager, path: String, read_only: bool) -> Self {
-        Self {
-            path,
+    pub async fn new(path: String, read_only: bool) -> anyhow::Result<Self> {
+        let pool = sqlx::sqlite::SqlitePool::connect(path.as_str()).await?;
+
+        anyhow::Ok(Self {
             pool,
             read_only,
             query_connection: Default::default(),
-        }
+        })
     }
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
@@ -1019,18 +1020,7 @@ impl SqliteDB {
     }
 
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<sqlx::Sqlite>> {
-        let pool = match self
-            .pool
-            .get(&DBPoolKey::Sqlite {
-                path: self.path.clone(),
-            })
-            .await?
-        {
-            NexusPool::Sqlite(p) => p.clone(),
-            _ => unreachable!(),
-        };
-
-        let conn = pool.acquire().await.context(CANNOT_GET_CONN_ERR)?;
+        let conn = self.pool.acquire().await.context(CANNOT_GET_CONN_ERR)?;
         return anyhow::Ok(conn);
     }
 }
@@ -1236,12 +1226,8 @@ impl crate::completion::DBLexerCompletionBackend for SqliteDB {
 #[tokio::test]
 async fn test_auto_completion() {
     use crate::completion::DBLexerCompletionBackend;
-    let s = SqliteDB {
-        pool: Default::default(),
-        path: ":memory:".to_string(),
-        read_only: false,
-        query_connection: Default::default(),
-    };
+    let s = SqliteDB::new(":memory:".to_string(), false).await.unwrap();
+
     let mut conn = s.get_conn().await.unwrap();
     sqlx::query(
         r#"
@@ -1418,29 +1404,27 @@ mod tests {
     use crate::init_log;
 
     // this test no need clean up, we use memory sqlite db.
-    fn make_test_object() -> SqliteDB {
-        let pool_manager = PoolManager::new();
-        let db = SqliteDB::new(pool_manager, ":memory:".to_string(), false);
-
+    async fn make_test_object() -> SqliteDB {
+        let db = SqliteDB::new(":memory:".to_string(), false).await.unwrap();
         db
     }
 
     #[tokio::test]
     async fn test_server_metas() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
 
     #[tokio::test]
     async fn test_check_conn() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
     #[tokio::test]
 
     async fn test_rename() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
@@ -1468,7 +1452,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_duplicate() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
@@ -1495,7 +1479,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_triggers() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn SchemaTrait;
         sqlx::query(
@@ -1550,7 +1534,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_export_table() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let table_name = "Persons";
         sqlx::query(
@@ -1650,7 +1634,7 @@ mod tests {
     #[tokio::test]
     async fn test_standard() {
         init_log();
-        let db = make_test_object();
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         sqlx::query(
             r#"

@@ -14,18 +14,17 @@ use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
-use crate::datasource::{DBPoolKey, MysqlDBConfig};
+use crate::datasource::MysqlDBConfig;
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, Index, IndexKind, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
     MetaValue, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
     TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
 };
-use crate::pool::{NexusPool, PoolManager};
 
 #[derive(Clone)]
 pub struct MysqlDB {
-    pool: PoolManager,
+    pool: sqlx::MySqlPool,
     config: MysqlDBConfig,
     read_only: bool,
 
@@ -1124,13 +1123,24 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
 }
 
 impl MysqlDB {
-    pub fn new(pool: PoolManager, conn: MysqlDBConfig, read_only: bool) -> Self {
-        Self {
+    pub async fn new(conn: MysqlDBConfig, read_only: bool) -> anyhow::Result<Self> {
+        let mut opts = sqlx::mysql::MySqlConnectOptions::new();
+        opts = opts
+            .host(&conn.host)
+            .port(conn.port)
+            .username(&conn.username)
+            .password(&conn.password);
+        if let Some(db) = &conn.db_name {
+            opts = opts.database(&db);
+        }
+        let pool = sqlx::mysql::MySqlPool::connect_with(opts).await?;
+
+        anyhow::Ok(Self {
             pool,
             config: conn,
             read_only,
             query_connection: Default::default(),
-        }
+        })
     }
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
@@ -1145,18 +1155,7 @@ impl MysqlDB {
     }
 
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<sqlx::MySql>> {
-        let pool = match self
-            .pool
-            .get(&&DBPoolKey::Mysql {
-                conn: self.config.clone(),
-            })
-            .await?
-        {
-            NexusPool::Mysql(p) => p.clone(),
-            _ => unreachable!(),
-        };
-
-        let conn = pool.acquire().await?;
+        let conn = self.pool.acquire().await?;
         return anyhow::Ok(conn);
     }
 }
@@ -1287,10 +1286,8 @@ mod tests {
     use super::*;
     use crate::{init_log, TEST_HOST};
     // this test no need clean up, we use memory sqlite db.
-    fn make_test_object() -> MysqlDB {
-        let pool_manager = PoolManager::new();
+    async fn make_test_object() -> MysqlDB {
         let db = MysqlDB::new(
-            pool_manager,
             MysqlDBConfig {
                 host: TEST_HOST.to_string(),
                 username: "root".to_string(),
@@ -1299,19 +1296,21 @@ mod tests {
                 db_name: Some("test".to_string()),
             },
             false,
-        );
+        )
+        .await
+        .unwrap();
         db
     }
 
     #[tokio::test]
     async fn test_server_metas() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
     #[tokio::test]
     async fn test_procedure() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let f = "test_procedure";
@@ -1349,7 +1348,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_udf() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let f = "test_function";
@@ -1381,7 +1380,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_rename() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_rename").await;
@@ -1413,7 +1412,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_duplicate() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_duplicate").await;
@@ -1453,13 +1452,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_conn() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_triggers() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let mut _conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn SchemaTrait;
 
@@ -1525,7 +1524,7 @@ mod tests {
     }
     #[tokio::test]
     async fn show_build_in_fns() {
-        let oj = make_test_object();
+        let oj = make_test_object().await;
         let mut conn = oj.get_conn().await.unwrap();
 
         let rows = sqlx::query("SHOW FUNCTION STATUS;")
@@ -1557,7 +1556,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_completion() {
-        let mut s = make_test_object();
+        let mut s = make_test_object().await;
         s.config.db_name = None;
 
         println!("#############################################");
@@ -1622,7 +1621,7 @@ mod tests {
     async fn test_export() {
         // init_log();
         let table_name = "test_export";
-        let db = make_test_object();
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let rs = vec![
             r#"drop table if exists test_export;"#,
@@ -1737,7 +1736,7 @@ mod tests {
     async fn test_index() {
         init_log();
         let table_name = "test_index";
-        let db = make_test_object();
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -1772,7 +1771,7 @@ mod tests {
 
         let table_name = "test_types1";
 
-        let db = make_test_object();
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -1816,7 +1815,7 @@ mod tests {
 
         let table_name = "test_types2";
 
-        let db = make_test_object();
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -1860,7 +1859,7 @@ mod tests {
 
         let table_name = "test_types3";
 
-        let db = make_test_object();
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -1902,7 +1901,7 @@ mod tests {
     #[tokio::test]
     async fn test_types4() {
         let table_name = "test_types4";
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let _ = db.drop_table(table_name).await;
         let query_id = db.open_connection().await.unwrap();
@@ -1939,7 +1938,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_list_database() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
 
         let resp = db.list_schema().await.unwrap();
@@ -1958,7 +1957,7 @@ mod tests {
     #[tokio::test]
     async fn test_query() {
         init_log();
-        let db = make_test_object();
+        let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let id = db.open_connection().await.unwrap();
 
