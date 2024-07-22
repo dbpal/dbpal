@@ -84,6 +84,7 @@ impl DBTrait for PostGresDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.schema = Some(name.to_owned());
+        x.query_connection = Default::default();
         Ok(Arc::new(x))
     }
 }
@@ -1201,9 +1202,7 @@ impl CatalogTrait for PostGresDB {
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
         config.db_name = Some(name.to_owned());
-
         let x = Self::new(config, self.read_only, None).await?;
-
         anyhow::Ok(Arc::new(x))
     }
 }

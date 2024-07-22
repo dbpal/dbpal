@@ -20,8 +20,8 @@ use crate::datasource::SqlServerDBConfig;
 use crate::db::{
     create_csv, format_data_time_fix_offset, sql_to_sql_seq, sqlformat_format_sql, CatalogTrait,
     CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger,
-    ListView, QueryResp, QuerySql, SchemaTrait, SqlExecuteRet, SqlSeq, TableListResp,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    ListView, MetaValue, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, SqlSeq,
+    TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
 };
 
 #[derive(Clone)]
@@ -39,6 +39,123 @@ impl FormatSql for SqlServer {
     }
 }
 
+#[async_trait::async_trait]
+impl ServerMetas for SqlServer {
+    async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
+        let mut conn = self.get_conn().await?;
+        let mut ret = Vec::new();
+
+        let mut stream = conn
+            .simple_query(
+                r#"
+                SELECT
+                    'MachineName' AS [Property],
+                    CAST(SERVERPROPERTY('MachineName') AS nvarchar(50)) AS [Value]
+                UNION ALL
+                SELECT
+                    'InstanceName',
+                    CAST(SERVERPROPERTY('InstanceName') AS nvarchar(50))
+                UNION ALL 
+                SELECT
+                    'ComputerNamePhysicalNetBIOS',
+                    CAST(SERVERPROPERTY('ComputerNamePhysicalNetBIOS') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'PhysicalMemoryInKilobytes',
+                    CAST(SERVERPROPERTY('PhysicalMemoryInKilobytes') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'ProcessorCount',
+                    CAST(SERVERPROPERTY('ProcessorCount') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'ProcessorCore',
+                    CAST(SERVERPROPERTY('ProcessorCore') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'ProcessorCoreCount',
+                    CAST(SERVERPROPERTY('ProcessorCoreCount') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'IsClustered',
+                    CAST(SERVERPROPERTY('IsClustered') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'IsHadrEnabled',
+                    CAST(SERVERPROPERTY('IsHadrEnabled') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'HadrManagerStatus',
+                    CAST(SERVERPROPERTY('HadrManagerStatus') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'ProductVersion',
+                    CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'ProductLevel',
+                    CAST(SERVERPROPERTY('ProductLevel') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'Edition',
+                    CAST(SERVERPROPERTY('Edition') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'EngineEdition',
+                    CAST(SERVERPROPERTY('EngineEdition') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'ProductUpdateLevel',
+                    CAST(SERVERPROPERTY('ProductUpdateLevel') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'ProductUpdateReference',
+                    CAST(SERVERPROPERTY('ProductUpdateReference') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'InstanceDefaultDataPath',
+                    CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'InstanceDefaultLogPath',
+                    CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'SqlCharSet',
+                    CAST(SERVERPROPERTY('SqlCharSet') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'SqlCollation',
+                    CAST(SERVERPROPERTY('SqlCollation') AS nvarchar(50))
+                UNION ALL
+                SELECT
+                    'SqlSortOrder',
+                    CAST(SERVERPROPERTY('SqlSortOrder') AS nvarchar(50))
+            "#,
+            )
+            .await?;
+        let mut rows = Vec::new();
+
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(r) => {
+                    rows.push(r);
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+        let metas = encode_rows(&rows)?;
+        for m in metas.iter() {
+            ret.push(MetaValue::new_opt(
+                m.get(0).unwrap().as_ref().unwrap().to_string(),
+                (&m[1]).clone(),
+            ));
+        }
+
+        anyhow::Ok(ret)
+    }
+}
 impl SqlServer {
     pub async fn new(
         c: SqlServerDBConfig, read_only: bool, schema: Option<String>,
@@ -1418,6 +1535,7 @@ impl crate::db::DBTrait for SqlServer {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.schema = Some(name.to_owned());
+        x.query_connections = Default::default();
         Ok(Arc::new(x))
     }
 }
@@ -1504,6 +1622,12 @@ mod tests {
         .unwrap();
 
         pg
+    }
+    #[tokio::test]
+    async fn test_server_metas() {
+        let db = make_test_object().await;
+        let metas = ServerMetas::show_metas(&db).await.unwrap();
+        println!("{:?}", metas);
     }
 
     #[tokio::test]

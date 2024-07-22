@@ -1134,6 +1134,7 @@ impl DBTrait for OracleDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.schema_name = Some(name.to_string());
+        x.query_connections = Default::default();
         anyhow::Ok(Arc::new(x))
     }
 }

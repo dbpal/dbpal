@@ -226,7 +226,7 @@ impl UdfDetail {
 
 pub struct MetaValue {
     name: Cow<'static, str>,
-    value: Box<dyn ToString + Send + 'static>,
+    value: Option<Box<dyn ToString + Send + 'static>>,
     desc: Option<Cow<'static, str>>,
 }
 #[async_trait::async_trait]
@@ -241,10 +241,20 @@ impl MetaValue {
     ) -> Self {
         Self {
             name: name.into(),
-            value: Box::new(value),
+            value: Some(Box::new(value)),
             desc: None,
         }
     }
+    pub(crate) fn new_opt<T: ToString + Send + 'static>(
+        name: impl Into<Cow<'static, str>>, value: Option<T>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            value: value.map(|x| Box::new(x) as Box<dyn ToString + Send + 'static>),
+            desc: None,
+        }
+    }
+
     pub(crate) fn with_desc(&mut self, desc: impl Into<Cow<'static, str>>) {
         self.desc = Some(desc.into());
     }
@@ -315,7 +325,11 @@ impl serde::Serialize for MetaValue {
     {
         let mut s = serializer.serialize_struct("MetaValue", 2)?;
         s.serialize_field("name", &self.name)?;
-        s.serialize_field("value", &self.value.to_string())?;
+        match &self.value {
+            Some(value) => s.serialize_field("value", &value.to_string())?,
+            None => s.serialize_field("value", "")?,
+        }
+
         s.end()
     }
 }
@@ -326,11 +340,15 @@ impl std::fmt::Debug for MetaValue {
         #[allow(dead_code)]
         pub struct MetaValue {
             name: Cow<'static, str>,
-            value: String,
+            value: Option<String>,
         }
+
         let m = MetaValue {
             name: self.name.clone(),
-            value: self.value.to_string(),
+            value: match &self.value {
+                Some(x) => Some(x.to_string()),
+                None => None,
+            },
         };
         write!(f, "{:?}", m)
     }
