@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 
+use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::PgRow;
@@ -31,11 +32,10 @@ impl FormatSql for PostGresDB {
 /// postgres version of pg.
 #[derive(Clone)]
 pub struct PostGresDB {
- 
     pool: sqlx::PgPool,
     config: PGDBConfig,
     read_only: bool,
-    query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::Postgres>>>>,
+    query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     schema: Option<String>,
 }
 
@@ -1066,38 +1066,32 @@ impl QuerySql for PostGresDB {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn().await?;
 
-        self.query_connection.lock().await.insert(id, conn);
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        if let Some(x) = self.query_connection.lock().await.remove(&id) {
-            tokio::spawn(async move {
-                let _ = x.close();
-            });
-        }
         let conn = self.get_conn().await?;
-        self.query_connection.lock().await.insert(id, conn);
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        let x = self.query_connection.lock().await.remove(&id);
-        if let Some(x) = x {
-            x.close().await?;
-        }
+        self.query_connection.remove(&id);
         anyhow::Ok(())
     }
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut conn = self.query_connection.lock().await;
-        let conn = conn.get_mut(&id);
+        let conn = self.query_connection.get(&id);
         let conn = match conn {
-            Some(x) => x,
+            Some(x) => x.clone(),
             None => anyhow::bail!("id '{}' have no connection", id),
         };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
         let mut ret = Vec::new();
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
@@ -1205,8 +1199,11 @@ impl CatalogTrait for PostGresDB {
     }
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
-        let mut x = Clone::clone(self);
-        x.config.db_name = Some(name.to_string());
+        let mut config = self.config.clone();
+        config.db_name = Some(name.to_owned());
+
+        let x = Self::new(config, self.read_only, None).await?;
+
         anyhow::Ok(Arc::new(x))
     }
 }

@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use chrono::FixedOffset;
+use dashmap::DashMap;
 use futures_core::future::BoxFuture;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::tokenizer::Token;
@@ -28,7 +29,7 @@ pub struct SqlServer {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     config: SqlServerDBConfig,
     read_only: bool,
-    query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
+    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     schema: Option<String>,
 }
 
@@ -1271,30 +1272,32 @@ impl QuerySql for SqlServer {
         let conn = self.new_tcp_conn().await?;
 
         let id = uuid::Uuid::new_v4();
-        self.query_connections.lock().await.insert(id.clone(), conn);
+        self.query_connections
+            .insert(id.clone(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         let conn = self.new_tcp_conn().await?;
-        self.query_connections.lock().await.insert(id.clone(), conn);
+        self.query_connections
+            .insert(id.clone(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_connections.lock().await.remove(&id);
+        self.query_connections.remove(&id);
         anyhow::Ok(())
     }
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut conns = self.query_connections.lock().await;
-
-        let conn = match conns.get_mut(&id) {
-            Some(x) => x,
+        let conn = match self.query_connections.get(&id) {
+            Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", id)),
         };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
 
         let mut ret = Vec::with_capacity(0);
 
@@ -1471,8 +1474,9 @@ impl CatalogTrait for SqlServer {
         anyhow::Ok(ret)
     }
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
-        let mut x = Clone::clone(self);
-        x.config.db_name = Some(name.to_string());
+        let mut config = self.config.clone();
+        config.db_name = Some(name.to_owned());
+        let x = Self::new(config, self.read_only, None).await?;
         anyhow::Ok(Arc::new(x))
     }
 }

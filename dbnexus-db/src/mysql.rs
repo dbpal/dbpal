@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use chrono::Utc;
+use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
@@ -28,7 +29,7 @@ pub struct MysqlDB {
     config: MysqlDBConfig,
     read_only: bool,
 
-    query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::MySql>>>>,
+    query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
 }
 
 fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
@@ -1178,8 +1179,9 @@ impl DBTrait for MysqlDB {
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         debug_assert!(self.config.db_name.is_none());
-        let mut x = Clone::clone(self);
-        x.config.db_name = Some(name.to_owned());
+        let mut config = self.config.clone();
+        config.db_name = Some(name.to_owned());
+        let x = Self::new(self.config.clone(), self.read_only).await?;
         Ok(Arc::new(x))
     }
 }
@@ -1189,38 +1191,35 @@ impl QuerySql for MysqlDB {
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn().await?;
-        self.query_connection.lock().await.insert(id, conn);
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        if let Some(x) = self.query_connection.lock().await.remove(&id) {
-            tokio::spawn(async move {
-                let _ = x.close();
-            });
-        }
+        self.query_connection.remove(&id);
+
         let conn = self.get_conn().await?;
-        self.query_connection.lock().await.insert(id, conn);
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        let x = self.query_connection.lock().await.remove(&id);
-        if let Some(x) = x {
-            x.close().await?;
-        }
+        self.query_connection.remove(&id);
         anyhow::Ok(())
     }
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut conn = self.query_connection.lock().await;
-        let conn = conn.get_mut(&id);
+        let conn = self.query_connection.get(&id);
         let conn = match conn {
-            Some(x) => x,
+            Some(x) => x.clone(),
             None => anyhow::bail!("id '{}' have no connection", id),
         };
+
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
         let mut ret = Vec::new();
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 

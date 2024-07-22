@@ -1083,18 +1083,14 @@ pub(crate) fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result
         "NUMERIC[]" => single_quote_str,
         "TIMETZ" | "TIME WITH TIME ZONE" => single_quote_str,
         "TIMETZ[]" => single_quote_str,
-        "BIT" => {
-            value
-                .map(|x| format!("B'{x}'"))
-                .unwrap_or("null".to_string())
-        }
+        "BIT" => value
+            .map(|x| format!("B'{x}'"))
+            .unwrap_or("null".to_string()),
 
         "BIT[]" => single_quote_str,
-        "VARBIT" | "BIT VARYING" => {
-            value
-                .map(|x| format!("B'{x}'"))
-                .unwrap_or("null".to_string())
-        }
+        "VARBIT" | "BIT VARYING" => value
+            .map(|x| format!("B'{x}'"))
+            .unwrap_or("null".to_string()),
         "VARBIT[]" => single_quote_str,
         "NUMERIC" => default_str,
         "RECORD" => default_str,

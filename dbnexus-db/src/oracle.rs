@@ -1,10 +1,12 @@
 /// notice oracle sql 不能带有分号
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use dashmap::DashMap;
 use oracle::pool::Pool;
 use oracle::{Connection, Row};
 use tokio::sync::Mutex;
@@ -27,14 +29,14 @@ impl FormatSql for OracleDB {
 pub struct OracleDB {
     pool: Pool,
     read_only: bool,
-    db_name: Option<String>,
-    query_connections: Arc<Mutex<HashMap<uuid::Uuid, Connection>>>,
+    schema_name: Option<String>,
+    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     call_timeout: Option<Duration>,
 }
 
 impl OracleDB {
     pub fn new(
-        config: OracleDBConfig, read_only: bool, db_name: Option<String>,
+        config: OracleDBConfig, read_only: bool, schema_name: Option<String>,
         call_timeout: Option<Duration>,
     ) -> anyhow::Result<Self> {
         let pool =
@@ -44,7 +46,7 @@ impl OracleDB {
         anyhow::Ok(Self {
             pool,
             read_only,
-            db_name,
+            schema_name,
             query_connections: Default::default(),
             call_timeout,
         })
@@ -66,14 +68,14 @@ impl OracleDB {
     async fn with_query_connection<R>(
         &self, id: uuid::Uuid, f: impl FnOnce(&mut Connection) -> anyhow::Result<R>,
     ) -> anyhow::Result<R> {
-        let mut guard = self.query_connections.lock().await;
-        let conn = match guard.get_mut(&id) {
-            Some(x) => x,
+        let conn = match self.query_connections.get(&id) {
+            Some(x) => x.clone(),
             None => {
                 anyhow::bail!(format!("id '{}' not found", id));
             }
         };
-        block_in_place(|| f(conn))
+        let mut lock = conn.lock().await;
+        block_in_place(|| f(&mut lock))
     }
 
     // a list of set function
@@ -119,23 +121,25 @@ impl QuerySql for OracleDB {
         let id = uuid::Uuid::new_v4();
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
-        self.query_connections.lock().await.insert(id.clone(), conn);
+        self.query_connections
+            .insert(id.clone(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        if let Some(x) = self.query_connections.lock().await.remove(&id) {
-            tokio::spawn(async move { x.close() });
+        if let Some((_, conn)) = self.query_connections.remove(&id) {
+            tokio::spawn(async move { conn.lock().await.close() });
         }
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
-        self.query_connections.lock().await.insert(id.clone(), conn);
+        self.query_connections
+            .insert(id.clone(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        if let Some(x) = self.query_connections.lock().await.remove(&id) {
-            tokio::spawn(async move { x.close() });
+        if let Some((_, x)) = self.query_connections.remove(&id) {
+            tokio::spawn(async move { x.lock().await.close() });
         }
         anyhow::Ok(())
     }
@@ -152,11 +156,13 @@ impl QuerySql for OracleDB {
                 }]
             }
         };
-        let mut conns = self.query_connections.lock().await;
-        let conn = match conns.get_mut(&id) {
-            Some(x) => x,
+
+        let conn = match self.query_connections.get(&id) {
+            Some(x) => x.clone(),
             None => anyhow::bail!(format!("conn  '{}' id not found", id)),
         };
+        let mut lock = conn.lock().await;
+        let conn = lock.deref_mut();
 
         let mut ret = Vec::new();
 
@@ -379,7 +385,7 @@ fn encode_rows(
 
 impl OracleDB {
     fn db_name_unchecked(&self) -> &String {
-        self.db_name.as_ref().unwrap()
+        self.schema_name.as_ref().unwrap()
     }
 }
 
@@ -740,6 +746,12 @@ impl OracleDB {
     }
 }
 
+impl OracleDB {
+    fn schema_str(&self) -> &str {
+        self.schema_name.as_ref().expect("must be some").as_str()
+    }
+}
+
 #[async_trait::async_trait]
 impl CheckConn for OracleDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
@@ -799,7 +811,7 @@ impl SchemaTrait for OracleDB {
         let indexes = self.show_indexes(&table_name).await?;
         let mut indexes_sql = Vec::new();
         for i in indexes.iter() {
-            let s = create_index_sql(&conn, &i.name, self.db_name.as_deref().unwrap())?;
+            let s = create_index_sql(&conn, &i.name, self.schema_str())?;
             indexes_sql.push(s);
         }
         anyhow::Ok(CreateTableAndIndexSql {
@@ -843,7 +855,7 @@ impl SchemaTrait for OracleDB {
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let sql = format!(
             "SELECT COLUMN_NAME, DATA_TYPE , NULLABLE ,DATA_DEFAULT FROM DBA_TAB_COLUMNS WHERE OWNER = '{}' AND TABLE_NAME = '{table_name}'",
-            self.db_name.as_ref().unwrap()
+            self.schema_str(),
         );
         let mut ret = Vec::new();
         let conn = self.get_conn().await?;
@@ -908,7 +920,7 @@ impl SchemaTrait for OracleDB {
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"SELECT TABLE_NAME FROM DBA_TABLES WHERE OWNER = '{}'"#,
-            self.db_name.as_ref().unwrap()
+            self.schema_str()
         );
         let conn = self.get_conn().await?;
         let result = block_in_place(|| conn.query(&sql, &[]))?;
@@ -1064,7 +1076,7 @@ impl SchemaTrait for OracleDB {
             r#"
         SELECT VIEW_NAME   FROM all_views WHERE OWNER  = '{}'
             "#,
-            self.db_name.as_deref().unwrap()
+            self.schema_str()
         );
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
@@ -1121,7 +1133,7 @@ impl DBTrait for OracleDB {
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
-        x.db_name = Some(name.to_string());
+        x.schema_name = Some(name.to_string());
         anyhow::Ok(Arc::new(x))
     }
 }
@@ -1129,7 +1141,7 @@ impl DBTrait for OracleDB {
 impl OracleDB {
     async fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
         let mut conn: oracle::Connection = block_in_place(|| self.pool.get())?;
-        match &self.db_name {
+        match &self.schema_name {
             Some(db_name) => {
                 let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
                 block_in_place(|| conn.execute(&sql, &[]))?;

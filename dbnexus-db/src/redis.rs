@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use dashmap::DashMap;
 use futures_util::StreamExt;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
@@ -29,7 +30,7 @@ pub struct RedisDB {
     server: String,
     m: ConnectionManager,
     read_only: bool,
-    query_connections: Arc<Mutex<HashMap<uuid::Uuid, MultiplexedConnection>>>,
+    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
 }
 
 impl RedisDB {
@@ -761,40 +762,38 @@ impl QuerySql for RedisDB {
         let id = uuid::Uuid::new_v4();
         let client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
-        self.query_connections.lock().await.insert(id.clone(), conn);
+        self.query_connections
+            .insert(id.clone(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         let client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
-        self.query_connections.lock().await.insert(id.clone(), conn);
+        self.query_connections
+            .insert(id.clone(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        if let Some(conn) = self.query_connections.lock().await.remove(&id) {
-            tokio::spawn(async move {
-                let _ = conn;
-            });
-        }
+        self.query_connections.remove(&id);
         anyhow::Ok(())
     }
 
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut lock = self.query_connections.lock().await;
-        let conn = match lock.get_mut(&id) {
-            Some(x) => x,
+        let conn = match self.query_connections.get(&id) {
+            Some(x) => x.clone(),
             None => {
                 anyhow::bail!(format!("can't find connection for id '{}'", id))
             }
         };
-
-        query_sql(conn, sql).await
+        let mut lock = conn.lock().await;
+        query_sql(&mut lock, sql).await
     }
 }
+
 impl RedisDB {
     async fn get_key_type(conn: &mut ConnectionManager, key: &str) -> anyhow::Result<RedisType> {
         let ty: String = conn.key_type(key).await?;

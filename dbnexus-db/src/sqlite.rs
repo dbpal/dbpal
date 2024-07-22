@@ -5,13 +5,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
+use dashmap::DashMap;
+use futures_util::lock::Mutex;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::ast::{ColumnOption, Expr, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::PoolConnection;
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Row, SqliteConnection, TypeInfo};
-use tokio::sync::Mutex;
 
 use crate::completion::{
     AutoCompletionTrait, CompletionItem, CompletionKind, DBLexerCompletionBackend,
@@ -36,7 +37,8 @@ impl FormatSql for SqliteDB {
 pub struct SqliteDB {
     pool: sqlx::SqlitePool,
     read_only: bool,
-    query_connection: Arc<Mutex<HashMap<uuid::Uuid, PoolConnection<sqlx::Sqlite>>>>,
+
+    query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
 }
 
 impl SqliteDB {
@@ -1092,12 +1094,15 @@ impl QuerySql for SqliteDB {
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut conn = self.query_connection.lock().await;
-        let conn = conn.get_mut(&id);
+        let conn = self.query_connection.get(&id);
         let conn = match conn {
-            Some(x) => x,
+            Some(x) => x.clone(),
             None => anyhow::bail!("id '{}' have no connection", id),
         };
+
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
         let mut ret = Vec::new();
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
@@ -1136,26 +1141,19 @@ impl QuerySql for SqliteDB {
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn().await?;
-        self.query_connection.lock().await.insert(id, conn);
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        if let Some(x) = self.query_connection.lock().await.remove(&id) {
-            tokio::spawn(async move {
-                let _ = x.close();
-            });
-        }
+        if let Some((_, _x)) = self.query_connection.remove(&id) {}
         let conn = self.get_conn().await?;
-        self.query_connection.lock().await.insert(id, conn);
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        let x = self.query_connection.lock().await.remove(&id);
-        if let Some(x) = x {
-            x.close().await?;
-        }
+        if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
     }
 }
