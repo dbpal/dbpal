@@ -265,7 +265,7 @@ impl MetaValue {
 fn test_new_meta_value() {
     let x = MetaValue::new("name", 1);
     assert_eq!(
-        "MetaValue { name: \"name\", value: \"1\" }",
+        "MetaValue { name: \"name\", value: Some(\"1\") }",
         format!("{:?}", x)
     );
 }

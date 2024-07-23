@@ -28,7 +28,6 @@ pub struct MysqlDB {
     pool: sqlx::MySqlPool,
     config: MysqlDBConfig,
     read_only: bool,
-
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
 }
 
@@ -1178,7 +1177,6 @@ impl DBTrait for MysqlDB {
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        debug_assert!(self.config.db_name.is_none());
         let mut config = self.config.clone();
         config.db_name = Some(name.to_owned());
         let x = Self::new(self.config.clone(), self.read_only).await?;
@@ -1555,8 +1553,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_completion() {
-        let mut s = make_test_object().await;
-        s.config.db_name = None;
+        let s = make_test_object().await;
 
         println!("#############################################");
         {
