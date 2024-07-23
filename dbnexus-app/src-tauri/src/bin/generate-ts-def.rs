@@ -7,9 +7,9 @@ use std::path::Path;
 use dbnexus_db::completion::{CompletionItem, CompletionKind};
 use dbnexus_db::datasource::{PGDBConfig, SqlServerDBConfig};
 use dbnexus_db::db::{
-    ExportKind, Field, Index, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
-    ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfDetail,
+    ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListProcedure, ListTable,
+    ListTrigger, ListUdf, ListView, ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
 };
 use dbnexus_db::redis::RedisListTable;
 use dvnexus_app_lib::storage::{self, OpendKind};
@@ -46,6 +46,8 @@ fn main() {
             &ListProcedure::INFO,
             &ProcedureDetail::INFO,
             &OpendKind::INFO,
+            &FormatSqlOpts::INFO,
+            &FormatSqlOptsIndent::INFO,
         ];
 
         let mut buf = Vec::new();

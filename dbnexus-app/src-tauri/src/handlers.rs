@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use bson::Document;
 use dbnexus_db::db::{
-    ExportKind, Field, Index, ListTable, ListTrigger, ListView, QueryResp, SqlExecuteRet,
-    TableListResp, TriggerDetail,
+    ExportKind, Field, FormatSqlOpts, Index, ListTable, ListTrigger, ListView, QueryResp,
+    SqlExecuteRet, TableListResp, TriggerDetail,
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
@@ -327,16 +327,16 @@ pub async fn export_table(
 }
 #[tauri::command]
 pub async fn format_sql(
-    uuid: String, sql: String, app: tauri::State<'_, App>,
+    uuid: String, sql: String, opts: Option<FormatSqlOpts>, app: tauri::State<'_, App>,
 ) -> Result<String, String> {
     let db = app
         .get_opened(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db {
-        crate::storage::Open::DataBase(x) => x.format_sql(sql.as_str()),
-        crate::storage::Open::Schema(x) => x.format_sql(sql.as_str()),
-        crate::storage::Open::Catelog(x) => x.format_sql(sql.as_str()),
+        crate::storage::Open::DataBase(x) => x.format_sql(sql.as_str(), opts),
+        crate::storage::Open::Schema(x) => x.format_sql(sql.as_str(), opts),
+        crate::storage::Open::Catelog(x) => x.format_sql(sql.as_str(), opts),
     };
     ret.map_err(|e| e.to_string())
 }

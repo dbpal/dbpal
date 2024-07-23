@@ -16,13 +16,13 @@ use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::OracleDBConfig;
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, Index, IndexKind, ListTable, ListView, QueryLog, QueryResp, QuerySql,
-    SchemaTrait, SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
+    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListView, QueryLog, QueryResp,
+    QuerySql, SchemaTrait, SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
 };
 
 impl FormatSql for OracleDB {
-    fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, None))
+    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
+        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
     }
 }
 #[derive(Clone)]

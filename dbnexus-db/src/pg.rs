@@ -16,16 +16,13 @@ use tokio::sync::Mutex;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::PGDBConfig;
 use crate::db::{
-    create_csv, sqlformat_format_sql, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait,
-    ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue,
-    QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, sqlformat_format_sql, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming
 };
 use crate::pg_format::*;
 
 impl FormatSql for PostGresDB {
-    fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, None))
+    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
+        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
     }
 }
 

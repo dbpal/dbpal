@@ -19,9 +19,10 @@ use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBa
 use crate::datasource::SqlServerDBConfig;
 use crate::db::{
     create_csv, format_data_time_fix_offset, sql_to_sql_seq, sqlformat_format_sql, CatalogTrait,
-    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListTrigger,
-    ListView, MetaValue, QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    SqlSeq, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable,
+    ListTrigger, ListView, MetaValue, QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+    SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent,
+    TriggerTiming,
 };
 
 #[derive(Clone)]
@@ -34,8 +35,8 @@ pub struct SqlServer {
 }
 
 impl FormatSql for SqlServer {
-    fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, None))
+    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
+        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
     }
 }
 

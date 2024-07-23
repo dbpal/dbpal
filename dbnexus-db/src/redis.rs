@@ -15,9 +15,9 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
-    create_csv, CheckConn, ExportKind, Field, FormatSql, Index, ListTable, MetaValue,
-    OffsetLimitIter, QueryLog, QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp,
+    create_csv, CheckConn, ExportKind, Field, FormatSql, FormatSqlOpts, Index, ListTable,
+    MetaValue, OffsetLimitIter, QueryLog, QueryResp, QuerySql, QuerySqlWithoutOpenConn,
+    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
 };
 
 use redis::aio::{ConnectionManager, MultiplexedConnection};
@@ -447,7 +447,7 @@ impl CheckConn for RedisDB {
 }
 
 impl FormatSql for RedisDB {
-    fn format_sql(&self, _sql: &str) -> anyhow::Result<String> {
+    fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::bail!(format!(
             "'{}' don't support format sql",
             self.backend_name()

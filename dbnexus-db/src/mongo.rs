@@ -13,8 +13,9 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource::MongoDataSource;
 use crate::db::{
-    CheckConn, DBTrait, ExportKind, Field, FormatSql, Index, IndexKind, ListTable, ListView,
-    MetaValue, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
+    CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable,
+    ListView, MetaValue, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    TableListResp,
 };
 
 #[derive(Debug, Clone, serde::Serialize, TypeDef)]
@@ -198,7 +199,7 @@ impl CheckConn for Mongo {
 }
 
 impl FormatSql for Mongo {
-    fn format_sql(&self, _sql: &str) -> anyhow::Result<String> {
+    fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::bail!(format!(
             "'{}' don't support format sql",
             self.backend_name()

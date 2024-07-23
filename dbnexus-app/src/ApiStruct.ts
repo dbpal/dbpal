@@ -214,4 +214,19 @@ export namespace db_apis {
         "metas": (db_apis.MetaValue)[];
     };
     export type OpendKind = ("Catelog" | "DataBase" | "Schema");
+    export type U8 = number;
+    export type FormatSqlOptsIndent = (({
+        "ident": "spaces";
+    } & db_apis.U8) | {
+        "ident": "tabs";
+    });
+
+    /**
+     * almost copied from https://docs.rs/sqlformat/0.2.4/sqlformat/struct.FormatOptions.html
+     */
+    export type FormatSqlOpts = {
+        "indent": db_apis.FormatSqlOptsIndent;
+        "uppercase": boolean;
+        "lines_between_queries": db_apis.U8;
+    };
 }

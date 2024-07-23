@@ -378,8 +378,37 @@ impl From<String> for ListUdf {
     }
 }
 
+/// almost copied from https://docs.rs/sqlformat/0.2.4/sqlformat/struct.FormatOptions.html
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TypeDef)]
+pub struct FormatSqlOpts {
+    pub indent: FormatSqlOptsIndent,
+    pub uppercase: bool,
+    pub lines_between_queries: u8,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TypeDef)]
+#[serde(tag = "ident", rename_all = "lowercase")]
+pub enum FormatSqlOptsIndent {
+    Spaces(u8),
+    Tabs,
+}
+
+impl Into<sqlformat::FormatOptions> for FormatSqlOpts {
+    fn into(self) -> sqlformat::FormatOptions {
+        sqlformat::FormatOptions {
+            indent: match self.indent {
+                FormatSqlOptsIndent::Spaces(x) => sqlformat::Indent::Spaces(x),
+                FormatSqlOptsIndent::Tabs => sqlformat::Indent::Tabs,
+            },
+            uppercase: self.uppercase,
+            lines_between_queries: self.lines_between_queries,
+        }
+    }
+}
+
 pub trait FormatSql {
-    fn format_sql(&self, sql: &str) -> anyhow::Result<String>;
+    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String>;
 }
 #[async_trait::async_trait]
 

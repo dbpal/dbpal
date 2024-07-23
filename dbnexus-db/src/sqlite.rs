@@ -21,15 +21,15 @@ use crate::completion::{
 
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, ExportKind, Field,
-    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryLog, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming,
+    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue,
+    QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEvent, TriggerTiming,
 };
 
 use crate::CANNOT_GET_CONN_ERR;
 impl FormatSql for SqliteDB {
-    fn format_sql(&self, sql: &str) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, None))
+    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
+        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
     }
 }
 
