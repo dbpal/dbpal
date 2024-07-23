@@ -19,8 +19,8 @@ use crate::datasource::MysqlDBConfig;
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, Index, IndexKind, ListProcedure, ListTable, ListTrigger, ListUdf, ListView,
-    MetaValue, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
+    MetaValue, ProcedureDetail, QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
 };
 
 #[derive(Clone)]
@@ -1202,6 +1202,8 @@ impl QuerySql for MysqlDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        QueryLog::remove(&id);
+
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }
@@ -1209,6 +1211,7 @@ impl QuerySql for MysqlDB {
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        let mut query_log = QueryLog::get_guard(id, sql);
         let conn = self.query_connection.get(&id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1249,6 +1252,7 @@ impl QuerySql for MysqlDB {
                 }
             }
         }
+        query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
 }

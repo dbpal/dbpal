@@ -1,11 +1,14 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+
 use std::ops::Deref;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
+use dashmap::DashMap;
+
 use line_index::{LineCol, TextSize};
 use serde::ser::SerializeStruct;
 use serde::Serializer;
@@ -458,7 +461,15 @@ pub trait QuerySql {
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
+    async fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        let logs = QueryLog::get_instance()
+            .get(&id)
+            .map(|x| x.lock().unwrap().clone().logs)
+            .unwrap_or(vec![]);
+        anyhow::Ok(logs)
+    }
 }
+
 /// api can be more easy used with frontend,reis backend may impl
 /// for more easy usage
 #[async_trait::async_trait]
@@ -505,6 +516,89 @@ impl From<&str> for ListTable {
 #[async_trait::async_trait]
 pub trait ServerMetas {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
+}
+
+/// get current timestamp
+pub fn timestamp() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now();
+    let timestamp = now
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs();
+    timestamp
+}
+#[derive(Clone, Debug, serde::Serialize, TypeDef, Default)]
+pub struct QueryLog {
+    logs: Vec<QueryLogEvent>,
+}
+
+/// use single instance to manage this.
+impl QueryLog {
+    fn get_instance() -> Arc<DashMap<uuid::Uuid, Arc<Mutex<QueryLog>>>> {
+        static LOGS: std::sync::OnceLock<Arc<DashMap<uuid::Uuid, Arc<Mutex<QueryLog>>>>> =
+            std::sync::OnceLock::new();
+        LOGS.get_or_init(|| Default::default()).clone()
+    }
+
+    pub(crate) fn get_guard(id: uuid::Uuid, sql: impl Into<String>) -> QueryLogGuard {
+        let log = QueryLog::get_instance().entry(id).or_default().clone();
+        QueryLogGuard::new(sql, log)
+    }
+
+    pub(crate) fn remove(id: &uuid::Uuid) {
+        QueryLog::get_instance().remove(id);
+    }
+}
+
+impl QueryLog {
+    pub(crate) fn append(&mut self, sql: impl Into<String>, success: bool) {
+        self.logs.push(QueryLogEvent::new(sql, success));
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, TypeDef)]
+pub struct QueryLogEvent {
+    timestamp: u64,
+    sql: String,
+    success: bool,
+}
+
+impl QueryLogEvent {
+    pub(crate) fn new(sql: impl Into<String>, success: bool) -> Self {
+        Self {
+            timestamp: timestamp(),
+            sql: sql.into(),
+            success,
+        }
+    }
+}
+
+pub struct QueryLogGuard {
+    success: bool,
+    sql: String,
+    dest: Arc<std::sync::Mutex<QueryLog>>,
+}
+
+impl QueryLogGuard {
+    fn new(sql: impl Into<String>, dest: Arc<std::sync::Mutex<QueryLog>>) -> Self {
+        Self {
+            success: Default::default(),
+            sql: sql.into(),
+            dest,
+        }
+    }
+    pub(crate) fn set_success(&mut self, success: bool) {
+        self.success = success;
+    }
+}
+impl Drop for QueryLogGuard {
+    fn drop(&mut self) {
+        self.dest
+            .lock()
+            .unwrap()
+            .append(self.sql.clone(), self.success)
+    }
 }
 
 impl dyn SchemaTrait {

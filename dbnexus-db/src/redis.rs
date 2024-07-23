@@ -16,8 +16,8 @@ use crate::completion::{
 };
 use crate::db::{
     create_csv, CheckConn, ExportKind, Field, FormatSql, Index, ListTable, MetaValue,
-    OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas,
-    SqlExecuteRet, TableListResp,
+    OffsetLimitIter, QueryLog, QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait,
+    ServerMetas, SqlExecuteRet, TableListResp,
 };
 
 use redis::aio::{ConnectionManager, MultiplexedConnection};
@@ -776,6 +776,8 @@ impl QuerySql for RedisDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        QueryLog::remove(&id);
+
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
@@ -783,6 +785,7 @@ impl QuerySql for RedisDB {
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        let mut query_log = QueryLog::get_guard(id, sql);
         let conn = match self.query_connections.get(&id) {
             Some(x) => x.clone(),
             None => {
@@ -790,7 +793,13 @@ impl QuerySql for RedisDB {
             }
         };
         let mut lock = conn.lock().await;
-        query_sql(&mut lock, sql).await
+
+        let ret = query_sql(&mut lock, sql).await;
+        query_log.set_success(match &ret {
+            Ok(x) => x.iter().all(|x| x.is_ok()),
+            Err(_) => false,
+        });
+        ret
     }
 }
 
