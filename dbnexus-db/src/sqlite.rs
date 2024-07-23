@@ -21,8 +21,8 @@ use crate::completion::{
 
 use crate::db::{
     create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, ExportKind, Field,
-    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    FormatSql, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryLog, QueryResp,
+    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
     TriggerTiming,
 };
 
@@ -37,7 +37,6 @@ impl FormatSql for SqliteDB {
 pub struct SqliteDB {
     pool: sqlx::SqlitePool,
     read_only: bool,
-
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
 }
 
@@ -1094,6 +1093,8 @@ impl QuerySql for SqliteDB {
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        let mut query_log = QueryLog::get_guard(id, sql);
+
         let conn = self.query_connection.get(&id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1135,6 +1136,7 @@ impl QuerySql for SqliteDB {
                 }
             }
         }
+        query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
 
@@ -1153,6 +1155,8 @@ impl QuerySql for SqliteDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        QueryLog::remove(&id);
+
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
     }
@@ -1627,6 +1631,15 @@ mod tests {
                 .unwrap();
             println!("json_line:{}", s);
         }
+    }
+    #[tokio::test]
+    async fn test_querylog() {
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        db.query_sql(query_id, "select 1").await.unwrap();
+        let event = db.get_query_log(query_id).await.unwrap();
+        println!("{:?}", event);
+        assert_eq!(event.len(), 1);
     }
 
     #[tokio::test]
