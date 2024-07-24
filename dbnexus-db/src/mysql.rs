@@ -1281,38 +1281,23 @@ impl MysqlDB {
 }
 
 #[cfg(test)]
-mod tests {
-
+pub(crate) mod test_fns {
     use std::collections::HashSet;
 
     use super::*;
-    use crate::{init_log, TEST_HOST};
+    use crate::init_log;
     // this test no need clean up, we use memory sqlite db.
-    async fn make_test_object() -> MysqlDB {
-        let db = MysqlDB::new(
-            MysqlDBConfig {
-                host: TEST_HOST.to_string(),
-                username: "root".to_string(),
-                password: "root".to_string(),
-                port: 3306,
-                db_name: Some("test".to_string()),
-            },
-            false,
-        )
-        .await
-        .unwrap();
+    pub(crate) async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
+        let db = MysqlDB::new(config, false).await.unwrap();
         db
     }
 
-    #[tokio::test]
-    async fn test_server_metas() {
-        let db = make_test_object().await;
+    pub(crate) async fn test_server_metas(db: MysqlDB) {
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
-    #[tokio::test]
-    async fn test_procedure() {
-        let db = make_test_object().await;
+
+    pub(crate) async fn test_procedure(db: MysqlDB) {
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let f = "test_procedure";
@@ -1348,9 +1333,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_udf() {
-        let db = make_test_object().await;
+    pub(crate) async fn test_udf(db: MysqlDB) {
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let f = "test_function";
@@ -1380,9 +1363,8 @@ mod tests {
             println!("details:{:?}", details);
         }
     }
-    #[tokio::test]
-    async fn test_rename() {
-        let db = make_test_object().await;
+
+    pub(crate) async fn test_rename(db: MysqlDB) {
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_rename").await;
@@ -1411,10 +1393,7 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
-
-    async fn test_duplicate() {
-        let db = make_test_object().await;
+    pub(crate) async fn test_duplicate(db: MysqlDB) {
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
         let _ = db_trait.drop_table("test_duplicate").await;
@@ -1452,15 +1431,11 @@ mod tests {
         assert_eq!(resp.data.len(), 5);
     }
 
-    #[tokio::test]
-    async fn test_check_conn() {
-        let db = make_test_object().await;
+    pub(crate) async fn test_check_conn(db: MysqlDB) {
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
 
-    #[tokio::test]
-    async fn test_triggers() {
-        let db = make_test_object().await;
+    pub(crate) async fn test_triggers(db: MysqlDB) {
         let mut _conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn SchemaTrait;
 
@@ -1524,10 +1499,9 @@ mod tests {
             db_trait.drop_trigger(table, &t.name).await.unwrap();
         }
     }
-    #[tokio::test]
-    async fn show_build_in_fns() {
-        let oj = make_test_object().await;
-        let mut conn = oj.get_conn().await.unwrap();
+
+    pub(crate) async fn show_build_in_fns(db: MysqlDB) {
+        let mut conn = db.get_conn().await.unwrap();
 
         let rows = sqlx::query("SHOW FUNCTION STATUS;")
             .fetch_all(conn.deref_mut())
@@ -1556,14 +1530,11 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_completion() {
-        let s = make_test_object().await;
-
+    pub(crate) async fn test_completion(db: MysqlDB) {
         println!("#############################################");
         {
             let completion = AutoCompletionTrait::auto_completion(
-                &s,
+                &db,
                 "sel  * from",
                 sqlparser::tokenizer::Location { line: 1, column: 4 },
             )
@@ -1575,7 +1546,7 @@ mod tests {
         println!("#############################################");
         {
             let completion = AutoCompletionTrait::auto_completion(
-                &s,
+                &db,
                 "cou  xxxx",
                 sqlparser::tokenizer::Location { line: 1, column: 4 },
             )
@@ -1586,7 +1557,7 @@ mod tests {
         println!("#############################################");
         {
             let completion = AutoCompletionTrait::auto_completion(
-                &s,
+                &db,
                 "nul",
                 sqlparser::tokenizer::Location { line: 1, column: 4 },
             )
@@ -1597,7 +1568,7 @@ mod tests {
         println!("#############################################");
         {
             let completion = AutoCompletionTrait::auto_completion(
-                &s,
+                &db,
                 "emai  dddd",
                 sqlparser::tokenizer::Location { line: 1, column: 4 },
             )
@@ -1608,7 +1579,7 @@ mod tests {
         println!("#############################################");
         {
             let completion = AutoCompletionTrait::auto_completion(
-                &s,
+                &db,
                 "use 1111",
                 sqlparser::tokenizer::Location { line: 1, column: 4 },
             )
@@ -1618,11 +1589,10 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_export() {
+    pub(crate) async fn test_export(db: MysqlDB) {
         // init_log();
         let table_name = "test_export";
-        let db = make_test_object().await;
+
         let mut conn = db.get_conn().await.unwrap();
         let rs = vec![
             r#"drop table if exists test_export;"#,
@@ -1733,11 +1703,10 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_index() {
+    pub(crate) async fn test_index(db: MysqlDB) {
         init_log();
         let table_name = "test_index";
-        let db = make_test_object().await;
+
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -1766,13 +1735,12 @@ mod tests {
         let indexes = db.show_indexes(table_name).await.unwrap();
         println!("{:?}", indexes);
     }
-    #[tokio::test]
-    async fn test_types1() {
+
+    pub(crate) async fn test_types1(db: MysqlDB) {
         init_log();
 
         let table_name = "test_types1";
 
-        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -1810,13 +1778,11 @@ mod tests {
         println!("{:?}", cols);
     }
 
-    #[tokio::test]
-    async fn test_types2() {
+    pub(crate) async fn test_types2(db: MysqlDB) {
         init_log();
 
         let table_name = "test_types2";
 
-        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -1854,13 +1820,11 @@ mod tests {
         println!("{:?}", cols);
     }
 
-    #[tokio::test]
-    async fn test_types3() {
+    pub(crate) async fn test_types3(db: MysqlDB) {
         init_log();
 
         let table_name = "test_types3";
 
-        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let _ = sqlx::query(&format!("drop table {table_name}"))
             .execute(conn.deref_mut())
@@ -1899,10 +1863,9 @@ mod tests {
         println!("{:?}", cols);
     }
 
-    #[tokio::test]
-    async fn test_types4() {
+    pub(crate) async fn test_types4(db: MysqlDB) {
         let table_name = "test_types4";
-        let db = make_test_object().await;
+
         let db = &db as &dyn crate::db::SchemaTrait;
         let _ = db.drop_table(table_name).await;
         let query_id = db.open_connection().await.unwrap();
@@ -1937,9 +1900,8 @@ mod tests {
         let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("{:?}", cols);
     }
-    #[tokio::test]
-    async fn test_list_database() {
-        let db = make_test_object().await;
+
+    pub(crate) async fn test_list_database(db: MysqlDB) {
         let db = &db as &dyn crate::db::DBTrait;
 
         let resp = db.list_schema().await.unwrap();
@@ -1955,10 +1917,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_query() {
+    pub(crate) async fn test_query(db: MysqlDB) {
         init_log();
-        let db = make_test_object().await;
+
         let db = &db as &dyn crate::db::SchemaTrait;
         let id = db.open_connection().await.unwrap();
 
@@ -1996,6 +1957,90 @@ mod tests {
         db.query_sql(id.clone(), "commit").await.unwrap();
 
         println!("begin ret:{:?}", ret);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_fns::{self, make_test_object};
+    use crate::{datasource::MysqlDBConfig, TEST_HOST};
+
+    pub(crate) fn make_config() -> MysqlDBConfig {
+        MysqlDBConfig {
+            host: TEST_HOST.to_string(),
+            username: "root".to_string(),
+            password: "root".to_string(),
+            port: 3306,
+            db_name: Some("test".to_string()),
+        }
+    }
+    #[tokio::test]
+    async fn test_duplicate() {
+        test_fns::test_duplicate(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_server_metas() {
+        test_fns::test_server_metas(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_procedure() {
+        test_fns::test_procedure(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_index() {
+        test_fns::test_index(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_check_conn() {
+        test_fns::test_check_conn(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_export() {
+        test_fns::test_export(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_rename() {
+        test_fns::test_rename(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_udf() {
+        test_fns::test_udf(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_completion() {
+        test_fns::test_completion(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_types1() {
+        test_fns::test_types1(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_types2() {
+        test_fns::test_types2(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_types3() {
+        test_fns::test_types3(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_types4() {
+        test_fns::test_types4(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_triggers() {
+        test_fns::test_triggers(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_list_database() {
+        test_fns::test_list_database(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_query() {
+        test_fns::test_query(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn show_build_in_fns() {
+        test_fns::show_build_in_fns(make_test_object(make_config()).await).await;
     }
 }
 

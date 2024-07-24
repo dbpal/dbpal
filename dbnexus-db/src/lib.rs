@@ -7,6 +7,7 @@ pub mod completion;
 pub mod datasource;
 pub mod db;
 
+pub mod mariadb;
 pub mod mongo;
 pub mod mysql;
 pub mod oracle;
