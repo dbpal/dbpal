@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
+use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
 use std::sync::{Arc, Mutex};
@@ -524,19 +525,78 @@ impl From<&str> for ListView {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, TypeDef)]
 pub struct ListTable {
     pub name: String,
+    pub size: Option<HumanSize>,
 }
-impl From<String> for ListTable {
-    fn from(value: String) -> Self {
-        Self { name: value }
+
+/// humansize formatted string.
+pub struct HumanSize(Box<dyn humansize::ToF64 + Send + 'static>);
+
+impl serde::Serialize for HumanSize {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
     }
 }
+
+impl Display for HumanSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            humansize::format_size_i(
+                self.0.as_ref().to_f64(),
+                &humansize::FormatSizeOptions::default()
+            )
+        )
+    }
+}
+
+impl TypeDef for HumanSize {
+    const INFO: typescript_type_def::type_expr::TypeInfo =
+        typescript_type_def::type_expr::TypeInfo::Native(
+            typescript_type_def::type_expr::NativeTypeInfo {
+                r#ref: typescript_type_def::type_expr::TypeExpr::Name(
+                    typescript_type_def::type_expr::TypeName {
+                        path: &[],
+                        name: typescript_type_def::type_expr::Ident("string"),
+                        generic_args: &[],
+                    },
+                ),
+            },
+        );
+}
+
+impl Debug for HumanSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl HumanSize {
+    fn new<T: humansize::ToF64 + Send + 'static>(t: T) -> Self {
+        Self(Box::new(t) as Box<dyn humansize::ToF64 + Send + 'static>)
+    }
+}
+
+impl From<String> for ListTable {
+    fn from(value: String) -> Self {
+        Self {
+            name: value,
+            size: None,
+        }
+    }
+}
+
 impl From<&str> for ListTable {
     fn from(value: &str) -> Self {
         Self {
             name: value.to_string(),
+            size: None,
         }
     }
 }

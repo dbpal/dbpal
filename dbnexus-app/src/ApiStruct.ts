@@ -95,6 +95,7 @@ export namespace db_apis {
     };
     export type ListTable = {
         "name": string;
+        "size": (string | null);
     };
     export type Field = {
         "name": string;

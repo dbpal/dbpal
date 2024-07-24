@@ -40,5 +40,6 @@ sqlformat = "*"
 fuzzy-matcher = "*"
 bson = "*"
 humantime = "*"
+humansize = "*"
 
 [dev-dependencies]
