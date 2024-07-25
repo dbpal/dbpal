@@ -922,7 +922,7 @@ impl SchemaTrait for MysqlDB {
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let mut conn = self.get_conn().await?;
         let s = format!(
-            r#"SELECT table_name
+            r#"SELECT table_name ,data_length
         FROM information_schema.tables
         WHERE table_schema = '{}';"#,
             self.config.db_name.as_ref().map(|x| x.as_str()).unwrap()
@@ -931,9 +931,11 @@ impl SchemaTrait for MysqlDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let table_name: String = r.get(0);
-            ret.push(table_name);
+            let size: Option<u64> = r.get(1);
+            ret.push(ListTable::new(table_name, size));
         }
-        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+
+        anyhow::Ok(ret)
     }
 
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {

@@ -16,7 +16,10 @@ use tokio::sync::Mutex;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::PGDBConfig;
 use crate::db::{
-    create_csv, sqlformat_format_sql, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming
+    create_csv, sqlformat_format_sql, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait,
+    ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger,
+    ListView, MetaValue, QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::pg_format::*;
 
@@ -765,10 +768,18 @@ impl SchemaTrait for PostGresDB {
 
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
-            let s: String = r.get(0);
-            ret.push(s);
+            let table: String = r.get(0);
+            let sql = format!(
+                "SELECT pg_relation_size('{}') AS table_size;",
+                table.as_str()
+            );
+            let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+            let size: Option<i64> = row.get(0);
+            let t = ListTable::new(table, size);
+            ret.push(t);
         }
-        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+
+        anyhow::Ok(ret)
     }
 
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -988,13 +999,10 @@ fn get_rows_types(rows: &Vec<PgRow>) -> Vec<Field> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_output_bytes() {
-        let x = output_bytes(&[98, 126]);
-        assert_eq!(x, "0x627E")
-    }
+#[test]
+fn test_output_bytes() {
+    let x = output_bytes(&[98, 126]);
+    assert_eq!(x, "0x627E")
 }
 
 ///
@@ -1052,7 +1060,7 @@ fn get_pg_type_base_on_data_type_and_udtname(data_type: &str, udt_name: &str) ->
 }
 
 async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Result<()> {
-    sqlx::query(format!("SET search_path TO {schema}").as_str())
+    sqlx::query(format!("SET search_path TO {schema},public").as_str())
         .execute(conn)
         .await?;
     anyhow::Ok(())
@@ -1209,7 +1217,7 @@ impl CatalogTrait for PostGresDB {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::PostGresDB;
     use crate::datasource::PGDBConfig;
     use crate::db::CatalogTrait;
@@ -1415,7 +1423,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test() {
+    async fn test_list_table() {
         // list all table and query
         let pg = make_test_object().await;
 

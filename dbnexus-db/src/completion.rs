@@ -21,55 +21,6 @@ pub struct CompletionItem {
     pub kind: CompletionKind,
 }
 
-impl typescript_type_def::TypeDef for CompletionItem {
-    const INFO: typescript_type_def::type_expr::TypeInfo =
-        typescript_type_def::type_expr::TypeInfo::Defined(
-            typescript_type_def::type_expr::DefinedTypeInfo {
-                def: typescript_type_def::type_expr::TypeDefinition {
-                    docs: None,
-                    path: &[],
-                    name: typescript_type_def::type_expr::Ident("CompletionItem"),
-                    generic_vars: &[],
-                    def: typescript_type_def::type_expr::TypeExpr::Object(
-                        typescript_type_def::type_expr::TypeObject {
-                            docs: None,
-                            index_signature: None,
-                            fields: &[
-                                typescript_type_def::type_expr::ObjectField {
-                                    docs: None,
-                                    name: typescript_type_def::type_expr::TypeString {
-                                        docs: None,
-                                        value: "name",
-                                    },
-                                    optional: false,
-                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
-                                        typescript_type_def::type_expr::TypeName::ident(
-                                            typescript_type_def::type_expr::Ident("string"),
-                                        ),
-                                    ),
-                                },
-                                typescript_type_def::type_expr::ObjectField {
-                                    docs: None,
-                                    name: typescript_type_def::type_expr::TypeString {
-                                        docs: None,
-                                        value: "kind",
-                                    },
-                                    optional: false,
-                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
-                                        typescript_type_def::type_expr::TypeName::ident(
-                                            typescript_type_def::type_expr::Ident("CompletionKind"),
-                                        ),
-                                    ),
-                                },
-                            ],
-                        },
-                    ),
-                },
-                generic_args: &[],
-            },
-        );
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
 pub enum CompletionKind {
     KeyWord,

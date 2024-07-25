@@ -1990,6 +1990,15 @@ mod tests {
             println!("csv:{}", s);
         }
     }
+    #[tokio::test]
+    async fn test_list_table() {
+        // list all table and query
+        let pg = make_test_object().await;
+
+        let pg = &pg as &dyn SchemaTrait;
+        let table = pg.list_table().await.unwrap();
+        println!("{:?}", table);
+    }
 
     #[tokio::test]
     async fn test_type1() {

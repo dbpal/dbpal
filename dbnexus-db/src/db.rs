@@ -273,54 +273,6 @@ fn test_new_meta_value() {
         format!("{:?}", x)
     );
 }
-impl typescript_type_def::TypeDef for MetaValue {
-    const INFO: typescript_type_def::type_expr::TypeInfo =
-        typescript_type_def::type_expr::TypeInfo::Defined(
-            typescript_type_def::type_expr::DefinedTypeInfo {
-                def: typescript_type_def::type_expr::TypeDefinition {
-                    docs: None,
-                    path: &[],
-                    name: typescript_type_def::type_expr::Ident("MetaValue"),
-                    generic_vars: &[],
-                    def: typescript_type_def::type_expr::TypeExpr::Object(
-                        typescript_type_def::type_expr::TypeObject {
-                            docs: None,
-                            index_signature: None,
-                            fields: &[
-                                typescript_type_def::type_expr::ObjectField {
-                                    docs: None,
-                                    name: typescript_type_def::type_expr::TypeString {
-                                        docs: None,
-                                        value: "name",
-                                    },
-                                    optional: false,
-                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
-                                        typescript_type_def::type_expr::TypeName::ident(
-                                            typescript_type_def::type_expr::Ident("string"),
-                                        ),
-                                    ),
-                                },
-                                typescript_type_def::type_expr::ObjectField {
-                                    docs: None,
-                                    name: typescript_type_def::type_expr::TypeString {
-                                        docs: None,
-                                        value: "value",
-                                    },
-                                    optional: false,
-                                    r#type: typescript_type_def::type_expr::TypeExpr::Name(
-                                        typescript_type_def::type_expr::TypeName::ident(
-                                            typescript_type_def::type_expr::Ident("string"),
-                                        ),
-                                    ),
-                                },
-                            ],
-                        },
-                    ),
-                },
-                generic_args: &[],
-            },
-        );
-}
 
 impl serde::Serialize for MetaValue {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -556,21 +508,6 @@ impl Display for HumanSize {
     }
 }
 
-impl TypeDef for HumanSize {
-    const INFO: typescript_type_def::type_expr::TypeInfo =
-        typescript_type_def::type_expr::TypeInfo::Native(
-            typescript_type_def::type_expr::NativeTypeInfo {
-                r#ref: typescript_type_def::type_expr::TypeExpr::Name(
-                    typescript_type_def::type_expr::TypeName {
-                        path: &[],
-                        name: typescript_type_def::type_expr::Ident("string"),
-                        generic_args: &[],
-                    },
-                ),
-            },
-        );
-}
-
 impl Debug for HumanSize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
@@ -588,6 +525,17 @@ impl From<String> for ListTable {
         Self {
             name: value,
             size: None,
+        }
+    }
+}
+
+impl ListTable {
+    pub(crate) fn new<T: humansize::ToF64 + Send + 'static>(
+        name: impl Into<String>, t: Option<T>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            size: t.map(|x| HumanSize::new(x)),
         }
     }
 }
