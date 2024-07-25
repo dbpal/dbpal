@@ -13,8 +13,8 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource::MongoDataSource;
 use crate::db::{
-    CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable,
-    ListView, MetaValue, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
+    ListTable, ListView, MetaValue, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
     TableListResp,
 };
 
@@ -63,6 +63,12 @@ impl Mongo {
             dbname,
             read_only,
         })
+    }
+}
+
+impl BackendName for Mongo {
+    fn backend_name(&self) -> &str {
+        "mongo"
     }
 }
 
@@ -547,10 +553,6 @@ impl SchemaTrait for Mongo {
 
     fn read_only(&self) -> bool {
         self.read_only
-    }
-
-    fn backend_name(&self) -> &str {
-        "mongodb"
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {

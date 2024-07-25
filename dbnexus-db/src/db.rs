@@ -19,11 +19,14 @@ use sqlparser::tokenizer::{Location, Token};
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
 
+pub trait BackendName {
+    fn backend_name(&self) -> &str;
+}
+
 /// A db representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static {
     fn as_any(&self) -> &dyn std::any::Any;
-    fn backend_name(&self) -> &str;
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
@@ -434,7 +437,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
 }
 
 #[async_trait::async_trait]
-pub trait QuerySql {
+pub trait QuerySql: BackendName + Send + Sync + 'static {
     async fn query_sql(
         &self, query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
@@ -449,6 +452,9 @@ pub trait QuerySql {
             .map(|x| x.lock().unwrap().clone().logs)
             .unwrap_or(vec![]);
         anyhow::Ok(logs)
+    }
+    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
+        not_support_features(self.backend_name())
     }
 }
 
@@ -1469,4 +1475,50 @@ pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOption
 #[test]
 fn test_sqlformat_format_sql() {
     assert_eq!(sqlformat_format_sql("select 1", None), "select\n  1");
+}
+
+pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> anyhow::Result<bool> {
+    let ss = sqlparser::parser::Parser::parse_sql(dialect, sql)?;
+    for s in ss.iter() {
+        let x = match s {
+            Statement::Truncate {
+                table_name: _,
+                partitions: _,
+                table: _,
+            } => true,
+            Statement::Drop {
+                object_type: _,
+                if_exists: _,
+                names: _,
+                cascade: _,
+                restrict: _,
+                purge: _,
+                temporary: _,
+            } => true,
+            Statement::DropFunction {
+                if_exists: _,
+                func_desc: _,
+                option: _,
+            } => true,
+            Statement::DropSecret {
+                if_exists: _,
+                temporary: _,
+                name: _,
+                storage_specifier: _,
+            } => true,
+            Statement::Delete(x) => {
+                if x.selection.is_none() {
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        };
+        if x {
+            return anyhow::Ok(true);
+        }
+    }
+
+    anyhow::Ok(false)
 }

@@ -17,11 +17,11 @@ use tokio::sync::Mutex;
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::MysqlDBConfig;
 use crate::db::{
-    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListProcedure, ListTable, ListTrigger,
-    ListUdf, ListView, MetaValue, ProcedureDetail, QueryLog, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfDetail,
+    create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql, BackendName, CheckConn,
+    CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
+    ListProcedure, ListTable, ListTrigger, ListUdf, ListView, MetaValue, ProcedureDetail, QueryLog,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfDetail,
 };
 
 #[derive(Clone)]
@@ -553,6 +553,12 @@ impl ServerMetas for MysqlDB {
     }
 }
 
+impl BackendName for MysqlDB {
+    fn backend_name(&self) -> &str {
+        "mysql"
+    }
+}
+
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
@@ -748,10 +754,6 @@ impl SchemaTrait for MysqlDB {
         let s: String = row.try_get(1)?;
 
         anyhow::Ok(s)
-    }
-
-    fn backend_name(&self) -> &str {
-        "mysql"
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -1194,6 +1196,9 @@ impl QuerySql for MysqlDB {
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
+    }
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::MySqlDialect {})
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {

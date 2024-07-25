@@ -15,9 +15,10 @@ use tokio::task::block_in_place;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::OracleDBConfig;
 use crate::db::{
-    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListView, QueryLog, QueryResp,
-    QuerySql, SchemaTrait, SqlExecuteRet, SqlKind, SqlSeq, TableListResp,
+    create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql, BackendName, CheckConn,
+    CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
+    ListTable, ListView, QueryLog, QueryResp, QuerySql, SchemaTrait, SqlExecuteRet, SqlKind,
+    SqlSeq, TableListResp,
 };
 
 impl FormatSql for OracleDB {
@@ -117,6 +118,9 @@ const QUERY_AUTO_COMMIT: bool = true;
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
+    }
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let mut conn = self.get_conn().await?;
@@ -908,10 +912,6 @@ impl SchemaTrait for OracleDB {
         self.read_only
     }
 
-    fn backend_name(&self) -> &str {
-        "oracle"
-    }
-
     fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
@@ -1118,6 +1118,12 @@ impl SchemaTrait for OracleDB {
         let cols = infer_schema_by_result(&rows, true)?;
         let data = encode_rows(rows, true)?;
         anyhow::Ok(TableListResp::new(cols, total as usize, data, sql))
+    }
+}
+
+impl BackendName for OracleDB {
+    fn backend_name(&self) -> &str {
+        "oracle"
     }
 }
 #[async_trait::async_trait]

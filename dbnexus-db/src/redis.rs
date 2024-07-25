@@ -15,8 +15,8 @@ use crate::completion::{
     AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
 };
 use crate::db::{
-    create_csv, CheckConn, ExportKind, Field, FormatSql, FormatSqlOpts, Index, ListTable,
-    MetaValue, OffsetLimitIter, QueryLog, QueryResp, QuerySql, QuerySqlWithoutOpenConn,
+    create_csv, BackendName, CheckConn, ExportKind, Field, FormatSql, FormatSqlOpts, Index,
+    ListTable, MetaValue, OffsetLimitIter, QueryLog, QueryResp, QuerySql, QuerySqlWithoutOpenConn,
     SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
 };
 
@@ -454,6 +454,12 @@ impl FormatSql for RedisDB {
         ))
     }
 }
+
+impl BackendName for RedisDB {
+    fn backend_name(&self) -> &str {
+        "redis"
+    }
+}
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -535,10 +541,6 @@ impl SchemaTrait for RedisDB {
 
     fn read_only(&self) -> bool {
         self.read_only
-    }
-
-    fn backend_name(&self) -> &str {
-        "redis"
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

@@ -18,11 +18,11 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::SqlServerDBConfig;
 use crate::db::{
-    create_csv, format_data_time_fix_offset, sql_to_sql_seq, sqlformat_format_sql, CatalogTrait,
-    CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable,
-    ListTrigger, ListView, MetaValue, QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    SqlExecuteRet, SqlSeq, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming,
+    create_csv, format_data_time_fix_offset, is_dangerous_sql_by_parser, sql_to_sql_seq,
+    sqlformat_format_sql, BackendName, CatalogTrait, CheckConn, DBTrait, ExportKind, Field,
+    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue,
+    QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, SqlSeq, TableListResp,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
 };
 
 #[derive(Clone)]
@@ -460,6 +460,12 @@ impl SqlServer {
     }
 }
 
+impl BackendName for SqlServer {
+    fn backend_name(&self) -> &str {
+        "sqlserver"
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for SqlServer {
     async fn export_query_result(
@@ -628,10 +634,6 @@ impl SchemaTrait for SqlServer {
 
     fn read_only(&self) -> bool {
         self.read_only
-    }
-
-    fn backend_name(&self) -> &str {
-        "sqlserver"
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -1386,6 +1388,9 @@ impl SqlServer {
 type Connection = Client<Compat<TcpStream>>;
 #[async_trait::async_trait]
 impl QuerySql for SqlServer {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
+    }
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let conn = self.new_tcp_conn().await?;
 

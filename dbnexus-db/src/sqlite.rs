@@ -20,10 +20,10 @@ use crate::completion::{
 };
 
 use crate::db::{
-    create_csv, sqlformat_format_sql, CheckConn, CreateTableAndIndexSql, ExportKind, Field,
-    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue,
-    QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql, BackendName, CheckConn,
+    CreateTableAndIndexSql, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
+    ListTable, ListTrigger, ListView, MetaValue, QueryLog, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 
 use crate::CANNOT_GET_CONN_ERR;
@@ -414,6 +414,12 @@ impl ServerMetas for SqliteDB {
         anyhow::Ok(metas)
     }
 }
+
+impl BackendName for SqliteDB {
+    fn backend_name(&self) -> &str {
+        "sqlite"
+    }
+}
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
     async fn export_query_result(
@@ -504,10 +510,6 @@ impl SchemaTrait for SqliteDB {
 
     fn read_only(&self) -> bool {
         self.read_only
-    }
-
-    fn backend_name(&self) -> &str {
-        "sqlite"
     }
 
     async fn create_table_and_index_sql(
@@ -1138,6 +1140,10 @@ impl QuerySql for SqliteDB {
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
+    }
+
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {

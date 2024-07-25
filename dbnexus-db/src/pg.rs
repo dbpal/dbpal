@@ -16,10 +16,11 @@ use tokio::sync::Mutex;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::PGDBConfig;
 use crate::db::{
-    create_csv, sqlformat_format_sql, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait,
-    ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger,
-    ListView, MetaValue, QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql, BackendName, CatalogTrait,
+    CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index,
+    IndexKind, ListTable, ListTrigger, ListView, MetaValue, QueryLog, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming,
 };
 use crate::pg_format::*;
 
@@ -527,10 +528,6 @@ impl SchemaTrait for PostGresDB {
 
     fn read_only(&self) -> bool {
         self.read_only
-    }
-
-    fn backend_name(&self) -> &str {
-        "postgres"
     }
 
     /// FIXME 如果一个主键是自增的只能得到类型
@@ -1068,6 +1065,9 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
 
 #[async_trait::async_trait]
 impl QuerySql for PostGresDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::PostgreSqlDialect {})
+    }
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn().await?;
@@ -1189,6 +1189,12 @@ async fn get_index_kind(
         _ => {
             anyhow::bail!(format!("the sql is not a create index"))
         }
+    }
+}
+
+impl BackendName for PostGresDB {
+    fn backend_name(&self) -> &str {
+        "postgres"
     }
 }
 
