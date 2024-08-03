@@ -71,6 +71,12 @@ impl<T: DBTrait> DBListCompletionItem for T {
     }
 }
 
+pub fn in_pos(
+    pos: sqlparser::tokenizer::Location, t: sqlparser::tokenizer::Location, len: impl Into<u64>,
+) -> bool {
+    pos.line == t.line && (pos.column >= t.column && pos.column <= (t.column + len.into()))
+}
+
 #[async_trait::async_trait]
 
 pub trait DBLexerCompletionBackend: DBListCompletionItem {
@@ -103,10 +109,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                     continue;
                 }
             }
-            if pos.line == t.location.line
-                && (pos.column >= t.location.column
-                    && pos.column <= (t.location.column + pattern.len() as u64))
-            {
+            if in_pos(pos, t.location, pattern.len() as u64) {
                 // matched
                 return anyhow::Ok(match_pattern_and_sort(all_item, pattern.as_str()));
             }

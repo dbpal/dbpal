@@ -1,24 +1,30 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
+use std::future::Future;
+use std::pin::Pin;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+use std::task::Poll;
 use std::time::Duration;
 use std::vec;
 
-use dashmap::DashMap;
-use futures_util::StreamExt;
-use tokio::sync::Mutex;
-use typescript_type_def::TypeDef;
-
 use crate::completion::{
-    AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend, DBListCompletionItem,
+    in_pos, match_pattern_and_sort, AutoCompletionTrait, CompletionItem, CompletionKind,
+    DBListCompletionItem,
 };
 use crate::db::{
     create_csv, BackendName, CheckConn, ExportKind, Field, FormatSql, FormatSqlOpts, Index,
     ListTable, MetaValue, OffsetLimitIter, QueryLog, QueryResp, QuerySql, QuerySqlWithoutOpenConn,
     SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
 };
+use dashmap::DashMap;
+use futures_core::future::BoxFuture;
+use futures_util::FutureExt;
+use futures_util::StreamExt;
+use sqlparser::tokenizer::{Token, TokenWithLocation};
+use tokio::sync::Mutex;
+use typescript_type_def::TypeDef;
 
 use redis::aio::{ConnectionManager, MultiplexedConnection};
 use redis::{AsyncCommands, AsyncIter, Value};
@@ -82,6 +88,7 @@ impl RedisDB {
                     .send(create_csv(&vec![vec![Some(value)]], delimiter).into())
                     .await?;
             }
+
             RedisType::List => {
                 let total: isize = conn.llen(key).await?;
                 let size: isize = 100;
@@ -977,6 +984,7 @@ mod tests {
 
     use super::RedisDB;
     use crate::{
+        completion::AutoCompletionTrait,
         db::{ExportKind, ServerMetas},
         TEST_HOST,
     };
@@ -985,10 +993,21 @@ mod tests {
         let db = RedisDB::new(format!("redis://{}/", *TEST_HOST), false)
             .await
             .unwrap();
-
         db
     }
 
+    #[tokio::test]
+    async fn test_auto_completion() {
+        let db = make_test_object().await;
+        let items = db
+            .auto_completion(
+                "append str  ",
+                sqlparser::tokenizer::Location { line: 1, column: 9 },
+            )
+            .await
+            .unwrap();
+        println!("{:?}", items);
+    }
     #[tokio::test]
     async fn test_server_metas() {
         let db = make_test_object().await;
@@ -1027,6 +1046,27 @@ mod tests {
     async fn test_check_conn() {
         let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_check_alot_of_key() {
+        let db = make_test_object().await;
+        crate::db::CheckConn::check_conn(&db).await.unwrap();
+        // let query_id = db.open_connection().await.unwrap();
+
+        // for i in 0..100000 {
+        //     db.query_sql(
+        //         query_id,
+        //         format!("set test_alot_of_key{} {}", i, i).as_str(),
+        //     )
+        //     .await
+        //     .unwrap();
+
+        //     println!("{}", i);
+        // }
+        let now = std::time::Instant::now();
+        let x = db.redis_list_table().await.unwrap();
+        println!("{:?} {}", now.elapsed(), x.string_table.len());
     }
 
     #[tokio::test]
@@ -1403,15 +1443,531 @@ impl AutoCompletionTrait for RedisDB {
     async fn auto_completion(
         &self, sql: &str, pos: sqlparser::tokenizer::Location,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        DBLexerCompletionBackend::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::GenericDialect,
-            pos,
-        )
-        .await
+        let tokens =
+            sqlparser::tokenizer::Tokenizer::new(&RedisDialet {}, sql).tokenize_with_location()?;
+        if tokens.len() == 0 {
+            anyhow::bail!("a empty line");
+        }
+        let tokens = tokens
+            .into_iter()
+            .filter(|x| match &x.token {
+                Token::Whitespace(_) => false,
+                _ => true,
+            })
+            .collect::<Vec<_>>();
+        let command = match &tokens[0].token {
+            Token::Word(word) => {
+                if in_pos(pos, tokens[0].location, word.value.len() as u64) {
+                    // we are auto completion on command.
+                    let x = match_pattern_and_sort(
+                        static_redis_command_completion_items(),
+                        &word.value,
+                    );
+                    return anyhow::Ok(x);
+                }
+                word.value.clone()
+            }
+            _ => {
+                anyhow::bail!("first token must be a command")
+            }
+        };
+        for (token, f) in tokens
+            .iter()
+            .skip(
+                1, // skip command
+            )
+            .zip(
+                self.make_auto_completion_fn_by_command(&command, &tokens[1..])?
+                    .into_iter(),
+            )
+        {
+            println!("{:?}", token);
+
+            match &token.token {
+                Token::Word(word) => {
+                    if in_pos(pos, token.location, word.value.len() as u64) {
+                        let item = f.await;
+                        return item.map(|item| match_pattern_and_sort(item, &word.value));
+                    }
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+        anyhow::Ok(vec![])
     }
 }
+
+impl RedisDB {
+    async fn completion_keys(
+        &self, pattern: &str, kind: Option<RedisType>,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut conn = self.get_conn().await?;
+        let keys: Vec<String> = conn.keys(format!("{}*", pattern)).await?;
+        let mut ret = Vec::new();
+        for key in keys.into_iter() {
+            let type_matched = match kind {
+                Some(ty2) => {
+                    let ty = Self::get_key_type(&mut conn, &key).await?;
+                    ty == ty2
+                }
+                None => true,
+            };
+            if type_matched {
+                ret.push(CompletionItem {
+                    name: key.into(),
+                    kind: CompletionKind::TableName,
+                })
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
+    fn make_auto_completion_fn_by_command(
+        &self, command: &str, tokens: &[TokenWithLocation],
+    ) -> anyhow::Result<Vec<BoxFuture<'_, anyhow::Result<Vec<CompletionItem>>>>> {
+        let patterns: Vec<Option<&str>> = tokens
+            .iter()
+            .map(|x| match &x.token {
+                Token::Word(s) => Some(s.value.as_str()),
+                _ => None,
+            })
+            .collect();
+        /// dummy auto completion don't return anything
+        #[derive(Clone, Copy, Debug)]
+        struct Dummy {}
+        impl Future for Dummy {
+            type Output = anyhow::Result<Vec<CompletionItem>>;
+            fn poll(self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+                Poll::Ready(anyhow::Ok(vec![]))
+            }
+        }
+        let dummy = Box::pin(Dummy {});
+
+        let fns: Vec<BoxFuture<'_, anyhow::Result<Vec<CompletionItem>>>> = match command
+            .to_uppercase()
+            .as_str()
+        {
+            "APPEND" | "SET" => {
+                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                match key {
+                    Some(key) => {
+                        let key = key.to_string();
+                        vec![async move {
+                                self.completion_keys(&key, Some(RedisType::String)).await
+                            }
+                            .boxed()]
+                    }
+                    None => vec![dummy.clone()],
+                }
+            }
+            "BGREWRITEAOF" => {
+                vec![async move {
+                    anyhow::Ok(vec![
+                        CompletionItem {
+                            name: "SCHEDULE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "FORCE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "SCHEDULE FORCE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                    ])
+                }
+                .boxed()]
+            }
+            "BGSAVE" => {
+                vec![async move {
+                    anyhow::Ok(vec![
+                        CompletionItem {
+                            name: "SCHEDULE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "FORCE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "SCHEDULE FORCE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "SCHEDULE CRON".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "SCHEDULE INTERVAL".into(),
+                            kind: CompletionKind::Text,
+                        },
+                    ])
+                }
+                .boxed()]
+            }
+            "BITCOUNT" => {
+                // TODO
+                vec![]
+            }
+            "BITFIELD" => {
+                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                match key {
+                    Some(key) => {
+                        let key = key.to_string();
+                        vec![async move { self.completion_keys(&key, None).await }.boxed()]
+                    }
+                    None => vec![dummy.clone()],
+                }
+            }
+            "BITOP" => {
+                let mut vs = vec![async move {
+                    anyhow::Ok(vec![
+                        CompletionItem {
+                            name: "AND".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "OR".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "XOR".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "NOT".into(),
+                            kind: CompletionKind::Text,
+                        },
+                    ])
+                }
+                .boxed()];
+                let x = patterns
+                    .iter()
+                    .skip(1)
+                    .map(|x| match x {
+                        Some(key) => {
+                            let key = key.to_string();
+                            async move { self.completion_keys(&key, None).await }.boxed()
+                        }
+                        None => dummy.clone(),
+                    })
+                    .collect::<Vec<_>>();
+
+                vs.extend(x.into_iter());
+                vs
+            }
+            "BITPOS" => {
+                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                match key {
+                    Some(key) => {
+                        let key = key.to_string();
+                        vec![async move { self.completion_keys(&key, None).await }.boxed()]
+                    }
+                    None => vec![dummy.clone()],
+                }
+            }
+
+            "BLPOP" | "BRPOP" => {
+                let x = (&patterns[..patterns.len() - 1  // last one is timeout 
+                    ])
+                    .iter()
+                    .map(|x| match x {
+                        Some(key) => {
+                            let key = key.to_string();
+                            async move { self.completion_keys(&key, Some(RedisType::List)).await }
+                                .boxed()
+                        }
+                        None => dummy.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                x
+            }
+            "BRPOPLPUSH" => {
+                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                let key = match key {
+                    Some(key) => {
+                        let key = key.to_string();
+                        async move { self.completion_keys(&key, Some(RedisType::List)).await }
+                            .boxed()
+                    }
+                    None => dummy.clone(),
+                };
+                let key2 = patterns.get(1).map(|x| x.clone()).flatten();
+
+                let key2 = match key2 {
+                    Some(key) => {
+                        let key = key.to_string();
+                        async move { self.completion_keys(&key, Some(RedisType::List)).await }
+                            .boxed()
+                    }
+                    None => dummy.clone(),
+                };
+                vec![key, key2]
+            }
+            "CLIENT" => {
+                vec![async move {
+                    anyhow::Ok(vec![
+                        // 客户端连接管理
+                        CompletionItem {
+                            name: "CONNECT".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "DISCONNECT".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "KILL".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "LIST".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        // 客户端信息获取
+                        CompletionItem {
+                            name: "GETNAME".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "ID".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "ADDR".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "PORT".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        //  客户端连接配置
+                        CompletionItem {
+                            name: "SETNAME".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "PAUSE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "REPLY".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        // 客户端连接监控
+                        CompletionItem {
+                            name: "LIST".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "TRACKING".into(),
+                            kind: CompletionKind::Text,
+                        },
+                    ])
+                }
+                .boxed()]
+            }
+            "CLUSTER" => {
+                vec![async move {
+                    anyhow::Ok(vec![
+                        //集群创建和配置
+                        CompletionItem {
+                            name: "CREATE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "MEET".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "ADDSLOTS".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "REPLICATE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        // 集群状态查询
+                        CompletionItem {
+                            name: "NODES".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "INFO".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "KEYSLOT".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "COUNTKEYSINSLOT".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        // 集群维护和修复
+                        CompletionItem {
+                            name: "FAILOVER".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "FORGET".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "FLUSHSLOTS".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "RESET".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        // 集群扩展和缩容
+                        CompletionItem {
+                            name: "ADDSLOTS".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "DELSLOTS".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "SETSLOT".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        // 其他集群操作
+                        CompletionItem {
+                            name: "SAVECONFIG".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "SLOTS".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "TALK".into(),
+                            kind: CompletionKind::Text,
+                        },
+                    ])
+                }
+                .boxed()]
+            }
+            "CONFIG" => {
+                vec![async move {
+                    anyhow::Ok(vec![
+                        CompletionItem {
+                            name: "GET".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "SET".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "RESETSTAT".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            name: "REWRITE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                    ])
+                }
+                .boxed()]
+            }
+            "DECR" | "DECRBY" => {
+                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                match key {
+                    Some(key) => {
+                        let key = key.to_string();
+                        vec![async move { self.completion_keys(&key, Some(RedisType::String )).await }.boxed()]
+                    }
+                    None => vec![dummy.clone()],
+                }
+            }
+
+            "DEL" => {
+                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                match key {
+                    Some(key) => {
+                        let key = key.to_string();
+                        vec![async move { self.completion_keys(&key, None).await }.boxed()]
+                    }
+                    None => vec![dummy.clone()],
+                }
+            }
+            "DUMP" => {
+                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                match key {
+                    Some(key) => {
+                        let key = key.to_string();
+                        vec![async move { self.completion_keys(&key, None).await }.boxed()]
+                    }
+                    None => vec![dummy.clone()],
+                }
+            }
+            "EXISTS" => {
+                let x = patterns
+                    .iter()
+                    .map(|x| match x {
+                        Some(key) => {
+                            let key = key.to_string();
+                            async move { self.completion_keys(&key, Some(RedisType::List)).await }
+                                .boxed()
+                        }
+                        None => dummy.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                x
+            }
+
+            "EXPIRE" | "EXPIREAT" => {
+                let mut count = 0;
+                let x = patterns
+                    .iter()
+                    .map(|x| {
+                        let x = match x {
+                            Some(key) if count % 2 == 0 => {
+                                let key = key.to_string();
+                                async move {
+                                        self.completion_keys(&key, Some(RedisType::List)).await
+                                    }
+                                    .boxed()
+                            }
+                            _ => dummy.clone(),
+                        };
+                        count += 1;
+                        x
+                    })
+                    .collect::<Vec<_>>();
+                x
+            }
+
+            _ => {
+                vec![]
+            }
+        };
+        anyhow::Ok(fns)
+    }
+}
+
+#[derive(Debug)]
+pub struct RedisDialet {}
+
+impl sqlparser::dialect::Dialect for RedisDialet {
+    /// Determine if a character is a valid start character for an unquoted identifier
+    fn is_identifier_start(&self, ch: char) -> bool {
+        ch.is_alphabetic() || ch == ':' || ch == '$' || ch == '/' || ch.is_numeric() || ch == '.'
+    }
+
+    /// Determine if a character is a valid unquoted identifier character
+    fn is_identifier_part(&self, ch: char) -> bool {
+        self.is_identifier_start(ch)
+    }
+}
+
 #[async_trait::async_trait]
 
 impl DBListCompletionItem for RedisDB {
@@ -1439,30 +1995,46 @@ impl DBListCompletionItem for RedisDB {
         anyhow::Ok(vec![])
     }
 }
-#[async_trait::async_trait]
-impl DBLexerCompletionBackend for RedisDB {
-    type Dialect = sqlparser::dialect::GenericDialect;
 
-    const BUILD_IN_FUNCTIONS: &'static [&'static str] = REDIS_COMMANDS;
-    const KEY_WORDS: &'static [&'static str] = &[];
-    const TEXTS: &'static [&'static str] = &[
-        "NX",
-        "XX",
-        "EX",
-        "PX",
-        "CH",
-        "INCR",
-        "DECR",
-        "WITHSCORES",
-        "LIMIT",
-        "ALPHA",
-        "STORE",
-        "BY",
-        "RESETSTAT",
-        "RESET",
-        "REWRITE",
-    ];
-    const TYPES: &'static [&'static str] = &[];
+// #[async_trait::async_trait]
+// impl DBLexerCompletionBackend for RedisDB {
+//     type Dialect = sqlparser::dialect::GenericDialect;
+
+//     const BUILD_IN_FUNCTIONS: &'static [&'static str] = REDIS_COMMANDS;
+//     const KEY_WORDS: &'static [&'static str] = &[];
+//     const TEXTS: &'static [&'static str] = &[
+//         "NX",
+//         "XX",
+//         "EX",
+//         "PX",
+//         "CH",
+//         "INCR",
+//         "DECR",
+//         "WITHSCORES",
+//         "LIMIT",
+//         "ALPHA",
+//         "STORE",
+//         "BY",
+//         "RESETSTAT",
+//         "RESET",
+//         "REWRITE",
+//     ];
+//     const TYPES: &'static [&'static str] = &[];
+// }
+
+fn static_redis_command_completion_items() -> Vec<CompletionItem> {
+    static ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
+    ITEMS
+        .get_or_init(|| {
+            REDIS_COMMANDS
+                .iter()
+                .map(|x| CompletionItem {
+                    name: (*x).into(),
+                    kind: CompletionKind::KeyWord,
+                })
+                .collect::<Vec<_>>()
+        })
+        .clone()
 }
 
 const REDIS_COMMANDS: &'static [&'static str] = &[
@@ -1478,40 +2050,11 @@ const REDIS_COMMANDS: &'static [&'static str] = &[
     "BLPOP",
     "BRPOP",
     "BRPOPLPUSH",
-    "CLIENT_GETNAME",
-    "CLIENT_ID",
-    "CLIENT_KILL",
-    "CLIENT_LIST",
-    "CLIENT_PAUSE",
-    "CLIENT_REPLY",
-    "CLIENT_SETNAME",
-    "CLUSTER_ADDSLOTS",
-    "CLUSTER_COUNT_FAILURE_REPORTS",
-    "CLUSTER_COUNTKEYSINSLOT",
-    "CLUSTER_DELSLOTS",
-    "CLUSTER_FAILOVER",
-    "CLUSTER_FORGET",
-    "CLUSTER_GETKEYSINSLOT",
-    "CLUSTER_INFO",
-    "CLUSTER_KEYSLOT",
-    "CLUSTER_MEET",
-    "CLUSTER_MYID",
-    "CLUSTER_NODES",
-    "CLUSTER_REPLICATE",
-    "CLUSTER_RESET",
-    "CLUSTER_SAVECONFIG",
-    "CLUSTER_SET_CONFIG_EPOCH",
-    "CLUSTER_SETSLOT",
-    "CLUSTER_SLAVES",
-    "CLUSTER_SLOTS",
-    "COMMAND",
-    "CONFIG_GET",
-    "CONFIG_REWRITE",
-    "CONFIG_SET",
-    "CONFIG_RESETSTAT",
+    "CLIENT",
+    "CLUSTER",
+    "CONFIG",
     "DBSIZE",
-    "DEBUG_OBJECT",
-    "DEBUG_SEGFAULT",
+    "DEBUG",
     "DECR",
     "DECRBY",
     "DEL",
