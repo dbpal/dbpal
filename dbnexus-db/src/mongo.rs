@@ -2,7 +2,7 @@ use anyhow::Context;
 
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Document};
-use mongodb::options::{FindOptions, SelectionCriteria, ServerAddress};
+use mongodb::options::ServerAddress;
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -76,7 +76,7 @@ impl BackendName for Mongo {
 impl DBTrait for Mongo {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
-        let names = conn.list_database_names(None, None).await?;
+        let names = conn.list_database_names().await?;
         anyhow::Ok(names)
     }
 
@@ -197,7 +197,7 @@ impl CheckConn for Mongo {
         let ins = std::time::Instant::now();
         let db = self.get_db().await?;
         let _ping_result = db
-            .run_command(bson::doc! {"ping": 1}, None)
+            .run_command(bson::doc! {"ping": 1})
             .await
             .context("ping failed")?;
         anyhow::Ok(ins.elapsed())
@@ -220,7 +220,7 @@ impl Mongo {
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(table)
-            .insert_one(doc, None)
+            .insert_one(doc)
             .await
             .context("insert failed")?;
         anyhow::Ok(ret)
@@ -233,7 +233,7 @@ impl Mongo {
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(table)
-            .update_many(query, update, None)
+            .update_many(query, update)
             .await
             .context("update failed")?;
         anyhow::Ok(ret)
@@ -244,33 +244,28 @@ impl Mongo {
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(table)
-            .delete_many(query, None)
+            .delete_many(query)
             .await
             .context("delete failed")?;
         anyhow::Ok(ret)
     }
 
     pub async fn show_collection(
-        &self, table: &str, filter: Document, order_by: Document, page: usize, page_size: usize,
+        &self, table: &str, filter: Document,
     ) -> anyhow::Result<TableListResp> {
-        let options = FindOptions::builder()
-            .skip(Some(((page - 1) * page_size) as u64))
-            .limit(page_size as i64)
-            .sort(order_by)
-            .build();
         let db = self.get_db().await?;
         let count = db
             .collection::<u64>(table)
-            .count_documents(filter.clone(), None)
+            .count_documents(filter.clone())
             .await
             .context("query total count failed")?;
         let mut stream = db
             .collection::<Document>(table)
-            .find(filter, options)
+            .find(filter)
             .await
             .context("get query stream")?;
 
-        let mut docs = Vec::with_capacity(page_size);
+        let mut docs = Vec::new();
         while let Some(item) = stream.next().await {
             let item = item.context("list doc failed")?;
             docs.push(item);
@@ -283,25 +278,20 @@ impl Mongo {
     }
 
     pub async fn show_collection_docs(
-        &self, table: &str, filter: Document, order_by: Document, page: usize, page_size: usize,
+        &self, table: &str, filter: Document,
     ) -> anyhow::Result<DocsAndCount> {
-        let options = FindOptions::builder()
-            .skip(Some(((page - 1) * page_size) as u64))
-            .limit(page_size as i64)
-            .sort(order_by)
-            .build();
         let db = self.get_db().await?;
         let count = db
             .collection::<u64>(table)
-            .count_documents(filter.clone(), None)
+            .count_documents(filter.clone())
             .await
             .context("query docs count failed")?;
         let mut stream = db
             .collection::<Document>(table)
-            .find(filter, options)
+            .find(filter)
             .await
             .context("get query result")?;
-        let mut docs = Vec::with_capacity(page_size);
+        let mut docs = Vec::new();
         while let Some(item) = stream.next().await {
             let item = item.context("list doc failed")?;
             docs.push(item);
@@ -309,14 +299,9 @@ impl Mongo {
         anyhow::Ok(DocsAndCount { docs, count })
     }
 
-    pub async fn run_command(
-        &self, db: &str, cmd: Document, selection_criteria: impl Into<Option<SelectionCriteria>>,
-    ) -> anyhow::Result<Document> {
+    pub async fn run_command(&self, db: &str, cmd: Document) -> anyhow::Result<Document> {
         let conn = self.get_conn().await?;
-        let doc = conn
-            .database(db)
-            .run_command(cmd, selection_criteria)
-            .await?;
+        let doc = conn.database(db).run_command(cmd).await?;
         anyhow::Ok(doc)
     }
 }
@@ -333,13 +318,13 @@ impl Mongo {
         let old_table = db.collection::<Document>(old_table);
         let new_table = db.collection::<Document>(dup);
         let mut stream = old_table
-            .find(None, None)
+            .find(doc! {})
             .await
             .context("query duplicate table failed")?;
         while let Some(doc) = stream.next().await {
             let d = doc.context("get doc failed")?;
             new_table
-                .insert_one(d, None)
+                .insert_one(d)
                 .await
                 .context("insert to new table failed")?;
         }
@@ -348,7 +333,7 @@ impl Mongo {
     async fn delete_collection(&self, collection_name: &str) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         db.collection::<bson::Document>(collection_name)
-            .drop(None)
+            .drop()
             .await
             .context("drop collection failed")?;
         anyhow::Ok(())
@@ -359,7 +344,7 @@ impl Mongo {
 impl ServerMetas for Mongo {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let admin_db = self.get_conn().await?.database("admin");
-        let server_status = admin_db.run_command(doc! {"serverStatus": 1}, None).await?;
+        let server_status = admin_db.run_command(doc! {"serverStatus": 1}).await?;
         // write_bson_s_json_to_file(&server_status, "./test.json");
         let mut ret = Vec::new();
 
@@ -466,7 +451,7 @@ impl Mongo {
         let db = self.get_db().await?;
         let stream = db
             .collection::<Document>(table_name)
-            .find(None, None)
+            .find(doc! {})
             .await
             .context("execute query stream failed")?;
         Self::export_stream_as_json(stream, pretty, sender).await
@@ -475,10 +460,7 @@ impl Mongo {
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
-        let stream = db
-            .collection::<Document>(table_name)
-            .find(None, None)
-            .await?;
+        let stream = db.collection::<Document>(table_name).find(doc! {}).await?;
         Self::export_stream_as_json_line(stream, sender).await
     }
 }
@@ -488,7 +470,7 @@ impl Mongo {
         &self, ty: CollectionType,
     ) -> anyhow::Result<Vec<String>> {
         let conn = self.get_db().await?;
-        let mut cols = conn.list_collections(None, None).await?;
+        let mut cols = conn.list_collections().await?;
         let mut ret = Vec::new();
 
         while let Some(col) = cols.next().await {
@@ -545,7 +527,7 @@ impl SchemaTrait for Mongo {
         let client = self.get_conn().await?;
         let db = client.database("admin");
 
-        db.run_command(cmd, None)
+        db.run_command(cmd)
             .await
             .context("run rename command failed")?;
         anyhow::Ok(())
@@ -590,7 +572,7 @@ impl SchemaTrait for Mongo {
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let conn = self.get_db().await?;
-        conn.collection::<Document>(table).drop(None).await?;
+        conn.collection::<Document>(table).drop().await?;
         anyhow::Ok(())
     }
 
@@ -611,7 +593,7 @@ impl SchemaTrait for Mongo {
 
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let db = self.get_db().await?;
-        let value: Option<Document> = db.collection(table_name).find_one(None, None).await?;
+        let value: Option<Document> = db.collection(table_name).find_one(doc! {}).await?;
         if value.is_none() {
             return anyhow::Ok(vec![]);
         }
@@ -630,10 +612,7 @@ impl SchemaTrait for Mongo {
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let db = self.get_db().await?;
-        let mut stream = db
-            .collection::<Document>(table_name)
-            .list_indexes(None)
-            .await?;
+        let mut stream = db.collection::<Document>(table_name).list_indexes().await?;
         let mut ret = Vec::new();
         while let Some(index_model) = stream.next().await {
             let index_model = index_model?;
@@ -674,7 +653,7 @@ impl SchemaTrait for Mongo {
 
         let db = self.get_db().await?;
         db.collection::<Document>(table_name)
-            .delete_many(doc! {}, None)
+            .delete_many(doc! {})
             .await?;
 
         anyhow::Ok(())
@@ -831,7 +810,7 @@ mod tests {
         let database = db.get_db().await.unwrap();
         let c = database.collection::<Document>(&table_name);
         let d = bson::doc! {"name" : 123};
-        c.insert_one(d, None).await.unwrap();
+        c.insert_one(d).await.unwrap();
 
         db_trait
             .rename_table(table_name, table_name2)
@@ -851,7 +830,7 @@ mod tests {
         let database = db.get_db().await.unwrap();
         let c = database.collection::<Document>(&table_name);
         let d = bson::doc! {"name" : 123};
-        c.insert_one(d, None).await.unwrap();
+        c.insert_one(d).await.unwrap();
 
         db_trait
             .duplicate_table(table_name, table_name2)
@@ -859,7 +838,7 @@ mod tests {
             .unwrap();
 
         let docs = db
-            .show_collection_docs(table_name2, bson::doc! {}, bson::doc! {}, 1, 100)
+            .show_collection_docs(table_name2, bson::doc! {})
             .await
             .unwrap();
         println!("{:?}", docs);
@@ -920,10 +899,7 @@ mod tests {
             0
         );
 
-        let resp = db
-            .show_collection(table, doc! {}, doc! {}, 1, 100)
-            .await
-            .unwrap();
+        let resp = db.show_collection(table, doc! {}).await.unwrap();
         println!("resp:{:?}", resp);
 
         let table_list = db.list_table().await.unwrap();

@@ -299,6 +299,7 @@ impl RedisDB {
                     let value = serde_json::value::Value::from(list);
                     let json_str = serde_json::to_string(&value)?;
                     sender.send(json_str.into()).await?;
+                    sender.send("\n".into()).await?;
                 }
             }
             RedisType::Set => {
@@ -307,6 +308,7 @@ impl RedisDB {
                     let json_value = serde_json::value::Value::from(s);
                     let json_str = serde_json::to_string(&json_value)?;
                     sender.send(json_str.into()).await?;
+                    sender.send("\n".into()).await?;
                 }
             }
 
@@ -320,6 +322,7 @@ impl RedisDB {
                             m.insert(key2.clone(), value);
                             let json_str = serde_json::to_string(&m)?;
                             sender.send(json_str.into()).await?;
+                            sender.send("\n".into()).await?;
                             key = None;
                         }
                         None => {
@@ -340,6 +343,7 @@ impl RedisDB {
                             m.insert(zkey2, score);
                             let json_str = serde_json::to_string(&m)?;
                             sender.send(json_str.into()).await?;
+                            sender.send("\n".into()).await?;
                         }
                         None => {
                             zkey = Some(score);
@@ -978,11 +982,11 @@ mod tests {
     };
 
     async fn make_test_object() -> RedisDB {
-        let x = RedisDB::new(format!("redis://{}/", *TEST_HOST), false)
+        let db = RedisDB::new(format!("redis://{}/", *TEST_HOST), false)
             .await
             .unwrap();
 
-        x
+        db
     }
 
     #[tokio::test]

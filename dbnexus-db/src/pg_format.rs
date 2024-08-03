@@ -2,7 +2,8 @@ use chrono::FixedOffset;
 use sqlx::postgres::types::{PgInterval, PgMoney, PgRange, PgTimeTz};
 use sqlx::postgres::{PgRow, PgValueRef};
 use sqlx::types::BigDecimal;
-use sqlx::{Row, TypeInfo, ValueRef};
+use sqlx::Column;
+use sqlx::{Row, ValueRef};
 
 use crate::db::{format_data_time_fix_offset, Field};
 
@@ -100,14 +101,14 @@ pub(crate) fn encode_row_as_json(
     let mut values = serde_json::Map::new();
 
     for c in 0..r.columns().len() {
-        let col_info = r.column(c) as &dyn sqlx::Column<Database = sqlx::Postgres>;
+        let col_info = r.column(c);
 
         let err = Err(anyhow::Error::msg(format!(
             "type '{}' not supported",
             col_info.type_info(),
         ))) as anyhow::Result<serde_json::Map<String, serde_json::Value>>;
 
-        let v = match col_info.type_info().name().to_uppercase().as_str() {
+        let v = match col_info.type_info().to_string().to_uppercase().as_str() {
             "BOOL" => {
                 let value: Option<bool> = r.get(c);
                 value.map(serde_json::Value::from)
@@ -671,9 +672,7 @@ pub(crate) fn encode_rows(rows: &Vec<PgRow>) -> anyhow::Result<Vec<Vec<Option<St
         let mut values = Vec::with_capacity(r.columns().len());
         for c in 0..r.len() {
             let col = r.column(c);
-            let ty = (col as &dyn sqlx::Column<Database = sqlx::postgres::Postgres>)
-                .type_info()
-                .to_string();
+            let ty = col.type_info().to_string();
             let value = r.try_get_raw(c)?;
             let default_str = if value.is_null() {
                 None

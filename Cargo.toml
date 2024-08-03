@@ -15,10 +15,10 @@ dbnexus-core = { path = "dbnexus-core" }
 dbnexus-db = { path = "dbnexus-db" }
 
 # crates.io dependencies
-serde_jsonserde_json = "1.0"
+serde_json = "1.0"
 tauri = { version = "1.6", features = ["shell-open"] }
 async-trait = "0.1"
-sqlx = { version = "0.7.4", features = [
+sqlx = { version = "0.8.0", features = [
     "runtime-tokio",
     "postgres",
     "sqlite",
@@ -38,7 +38,7 @@ redis = { version = "*", features = [
     "connection-manager",
 ] }
 
-dashmap = "5.5.3"
+dashmap = "6.0.1"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 serde = "1.0"
@@ -46,10 +46,9 @@ hex = "0.4.3"
 mac_address = "1.1.5"
 ipnetwork = "0.20.0"
 chrono = "0.4.34"
-bit-vec = "0.6.3"
+bit-vec = "*"
 
-serde_json = "1"
-sqlparser = "0.47.0"
+sqlparser = "0.49.0"
 lazy_static = "1.4.0"
 line-index = "0.1.1"
 log = "0.4.21"
@@ -57,8 +56,13 @@ log = "0.4.21"
 
 futures-util = "*"
 futures-core = "*"
-mongodb = { version = "2.8.1", features = ["tokio-runtime"] }
-tiberius = { version = "*", features = ["chrono", "rust_decimal", "tds73"] }
+mongodb = { version = "3.0.1", features = [] }
+tiberius = { version = "0.12.3", default-features = false, features = [
+    "chrono",
+    "rust_decimal",
+    "tds73",
+    "rustls",
+] }
 tokio-util = "*"
 rust_decimal = "*"
 bb8-tiberius = "*"

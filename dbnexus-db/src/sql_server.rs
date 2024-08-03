@@ -1516,28 +1516,6 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
 #[async_trait::async_trait]
 impl crate::db::DBTrait for SqlServer {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        // self.with_conn(|conn| {
-        //     async {
-        //         let mut stream = conn.query("SELECT name FROM sys.databases", &[]).await?;
-        //         let mut ret = Vec::new();
-
-        //         while let Some(item) = stream.next().await {
-        //             let item = item?;
-        //             match item {
-        //                 tiberius::QueryItem::Row(r) => {
-        //                     let name: Option<&str> = r.try_get(0)?;
-        //                     ret.push(name.unwrap().to_string());
-        //                 }
-        //                 tiberius::QueryItem::Metadata(_) => {}
-        //             }
-        //         }
-
-        //         anyhow::Ok(ret)
-        //     }
-        //     .boxed()
-        // })
-        // .await
-
         anyhow::Ok(vec!["dbo".to_string()])
     }
 
@@ -1679,7 +1657,6 @@ mod tests {
     }
 
     #[tokio::test]
-
     async fn test_duplicate() {
         let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;

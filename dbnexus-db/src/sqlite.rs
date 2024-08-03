@@ -1037,40 +1037,8 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
 
     let s = ss.get(0).unwrap();
     match s {
-        Statement::CreateTable {
-            or_replace: _,
-            temporary: _,
-            external: _,
-            global: _,
-            if_not_exists: _,
-            transient: _,
-            name: _,
-            columns,
-            constraints: _,
-            hive_distribution: _,
-            hive_formats: _,
-            table_properties: _,
-            with_options: _,
-            file_format: _,
-            location: _,
-            query: _,
-            without_rowid: _,
-            like: _,
-            clone: _,
-            engine: _,
-            comment: _,
-            auto_increment_offset: _,
-            default_charset: _,
-            collation: _,
-            on_commit: _,
-            on_cluster: _,
-            order_by: _,
-            partition_by: _,
-            cluster_by: _,
-            options: _,
-            strict: _,
-        } => {
-            for c in columns.iter() {
+        Statement::CreateTable(create_table) => {
+            for c in create_table.columns.iter() {
                 if c.options.iter().any(|x| match &x.option {
                     ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
                         Token::Word(w) => {
@@ -1346,21 +1314,10 @@ fn extract_index(sql: &str) -> anyhow::Result<Option<(Option<String>, Vec<String
     let s = ss.get(0).unwrap();
 
     match s {
-        Statement::CreateIndex {
-            name,
-            table_name: _,
-            using: _,
-            columns,
-            unique: _,
-            concurrently: _,
-            if_not_exists: _,
-            include: _,
-            nulls_distinct: _,
-            predicate: _,
-        } => {
-            let name = name.clone().map(|x| x.to_string());
-            let mut on = Vec::with_capacity(columns.len());
-            for c in columns.iter() {
+        Statement::CreateIndex(create_index) => {
+            let name = create_index.name.clone().map(|x| x.to_string());
+            let mut on = Vec::with_capacity(create_index.columns.len());
+            for c in create_index.columns.iter() {
                 match &c.expr {
                     Expr::Identifier(x) => {
                         on.push(x.to_string());

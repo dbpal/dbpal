@@ -982,10 +982,9 @@ fn get_rows_types(rows: &Vec<PgRow>) -> Vec<Field> {
     }
     let mut ret = Vec::with_capacity(rows[0].columns().len());
     for c in rows[0].columns().iter() {
-        let column = c as &dyn sqlx::Column<Database = sqlx::Postgres>;
         ret.push(Field {
-            name: column.name().to_string(),
-            typ: column.type_info().to_string(),
+            name: c.name().to_string(),
+            typ: c.type_info().to_string(),
             nullable: true,
             default_value: None,
             is_primary: false,
@@ -1167,22 +1166,11 @@ async fn get_index_kind(
     use sqlparser::ast::Statement;
 
     match s {
-        Statement::CreateIndex {
-            name: _,
-            table_name: _,
-            using: _,
-            columns: _,
-            unique,
-            concurrently: _,
-            if_not_exists: _,
-            include: _,
-            nulls_distinct: _,
-            predicate: _,
-        } => {
-            if *unique {
+        Statement::CreateIndex(create_index) => {
+            if create_index.unique {
                 anyhow::Ok(IndexKind::Unique)
             } else {
-                anyhow::Ok(IndexKind::Unique)
+                anyhow::Ok(IndexKind::Normal)
             }
         }
 

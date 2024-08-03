@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bson::Document;
+use bson::{doc, Document};
 use dbnexus_db::db::{
     ExportKind, Field, FormatSqlOpts, Index, ListTable, ListTrigger, ListView, QueryResp,
     SqlExecuteRet, TableListResp, TriggerDetail,
@@ -526,40 +526,30 @@ pub async fn mongo_delete(
 
 #[tauri::command]
 pub async fn mongo_show_table(
-    uuid: String, table: String, filter: Vec<u8>, order_by: Vec<u8>, page: usize, page_size: usize,
-    app: tauri::State<'_, App>,
+    uuid: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<TableListResp, String> {
     let filter = parse_bson_doc(filter.as_slice())?;
-    let order_by = parse_bson_doc(order_by.as_slice())?;
     let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => {
-            x.show_collection(table.as_str(), filter, order_by, page, page_size)
-                .await
-        }
+        Some(x) => x.show_collection(table.as_str(), filter).await,
         None => return Err(format!("db '{}' not mongo", uuid)),
     }
     .map_err(|e| e.to_string())
 }
 #[tauri::command]
 pub async fn mongo_show_table_docs(
-    uuid: String, table: String, filter: Vec<u8>, order_by: Vec<u8>, page: usize, page_size: usize,
-    app: tauri::State<'_, App>,
+    uuid: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<DocsAndCount, String> {
     let filter = parse_bson_doc(filter.as_slice())?;
-    let order_by = parse_bson_doc(order_by.as_slice())?;
     let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => {
-            x.show_collection_docs(table.as_str(), filter, order_by, page, page_size)
-                .await
-        }
+        Some(x) => x.show_collection_docs(table.as_str(), filter).await,
         None => return Err(format!("db '{}' not mongo", uuid)),
     }
     .map_err(|e| e.to_string())?;

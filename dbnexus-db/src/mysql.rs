@@ -38,7 +38,7 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
     }
     let mut ret = Vec::with_capacity(rows[0].columns().len());
     for c in rows[0].columns().iter() {
-        let column = c as &dyn sqlx::Column<Database = sqlx::MySql>;
+        let column = c;
         ret.push(Field {
             name: column.name().to_string(),
             typ: column.type_info().to_string(),
@@ -79,9 +79,7 @@ fn encode_row_as_json(row: &MySqlRow) -> anyhow::Result<serde_json::Value> {
 
     for c in 0..row.columns().len() {
         let col = row.column(c);
-        let ty = (col as &dyn sqlx::Column<Database = sqlx::mysql::MySql>)
-            .type_info()
-            .name();
+        let ty = col.type_info().name();
 
         let v = match ty.to_uppercase().as_str() {
             "BOOLEAN" | "BOOL" => {
@@ -964,12 +962,12 @@ impl SchemaTrait for MysqlDB {
         let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
-            let name: String = r.get(0);
-            let ty: String = r.get(1);
-            let null: String = r.get(2);
-            let key: Option<String> = r.get(3);
+            let name: String = r.try_get(0)?;
+            let ty: String = r.try_get(1)?;
+            let null: String = r.try_get(2)?;
+            let key: Option<String> = r.try_get(3)?;
             let default_value: Option<String> = r.try_get(4)?;
-            let extra: String = r.get(5);
+            let extra: String = r.try_get(5)?;
 
             ret.push(Field::new(
                 name,
@@ -1037,9 +1035,7 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
         let mut values = Vec::with_capacity(r.len());
         for c in 0..r.len() {
             let col = r.column(c);
-            let ty = (col as &dyn sqlx::Column<Database = sqlx::mysql::MySql>)
-                .type_info()
-                .name();
+            let ty = col.type_info().name();
 
             let v = match ty.to_uppercase().as_str() {
                 "BOOLEAN" | "BOOL" => {
