@@ -24,6 +24,7 @@ use crate::db::{
     QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, SqlSeq, TableListResp,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
 };
+use crate::MemoryLimit;
 
 #[derive(Clone)]
 pub struct SqlServer {

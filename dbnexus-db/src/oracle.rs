@@ -20,6 +20,7 @@ use crate::db::{
     ListTable, ListView, QueryLog, QueryResp, QuerySql, SchemaTrait, SqlExecuteRet, SqlKind,
     SqlSeq, TableListResp,
 };
+use crate::MemoryLimit;
 
 impl FormatSql for OracleDB {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {

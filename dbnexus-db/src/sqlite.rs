@@ -26,7 +26,7 @@ use crate::db::{
     ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 
-use crate::CANNOT_GET_CONN_ERR;
+use crate::{MemoryLimit, CANNOT_GET_CONN_ERR};
 impl FormatSql for SqliteDB {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))

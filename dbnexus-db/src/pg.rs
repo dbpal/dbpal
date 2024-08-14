@@ -22,7 +22,7 @@ use crate::db::{
     SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
     TriggerTiming,
 };
-use crate::pg_format::*;
+use crate::{pg_format::*, MemoryLimit};
 
 impl FormatSql for PostGresDB {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
