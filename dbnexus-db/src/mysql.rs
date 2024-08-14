@@ -23,6 +23,7 @@ use crate::db::{
     QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
     TriggerEvent, TriggerTiming, UdfDetail,
 };
+use crate::MemoryLimit;
 
 #[derive(Clone)]
 pub struct MysqlDB {
@@ -1227,9 +1228,10 @@ impl QuerySql for MysqlDB {
 
         let mut ret = Vec::new();
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
-
         let mut rows = Vec::new();
+
         while let Some(item) = stream.next().await {
+            MemoryLimit::exceed_error()?;
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {

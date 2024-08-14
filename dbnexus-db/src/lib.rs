@@ -1,4 +1,7 @@
-use std::sync::Once;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Once,
+};
 
 use lazy_static::lazy_static;
 use log::{Level, LevelFilter, Metadata, Record};
@@ -50,3 +53,32 @@ pub fn init_log() {
 }
 
 const CANNOT_GET_CONN_ERR: &str = "can't get conneciton";
+
+pub struct MemoryLimit;
+
+#[allow(dead_code)]
+impl MemoryLimit {
+    pub fn instance() -> &'static AtomicUsize {
+        // default to 200M
+        static SIZE: AtomicUsize = AtomicUsize::new(200 * 1024 * 1024);
+        &SIZE
+    }
+    pub fn get_limit() -> usize {
+        Self::instance().load(Ordering::Relaxed)
+    }
+    pub fn set_limit(x: usize) {
+        Self::instance().store(x, Ordering::Relaxed)
+    }
+    pub fn exceed() -> bool {
+        memory_stats::memory_stats()
+            .map(|usage| usage.physical_mem > Self::get_limit())
+            .unwrap_or(false)
+    }
+
+    pub fn exceed_error<T>() -> anyhow::Result<T> {
+        Err(anyhow::Error::msg(format!(
+            "exceed max memory of {}",
+            Self::get_limit()
+        )))
+    }
+}

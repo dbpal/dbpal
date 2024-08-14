@@ -1105,6 +1105,7 @@ impl QuerySql for PostGresDB {
 
         let mut rows = Vec::new();
         while let Some(item) = stream.next().await {
+            MemoryLimit::exceed_error()?;
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {

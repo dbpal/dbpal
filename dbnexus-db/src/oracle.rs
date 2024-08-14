@@ -174,11 +174,13 @@ impl QuerySql for OracleDB {
         let mut ret = Vec::new();
 
         for seq in ss.iter() {
+            MemoryLimit::exceed_error()?;
             log::trace!("oracle query sql:{}", seq);
             match seq.kind {
                 SqlKind::Query => {
                     match block_in_place(|| conn.query(&seq.sql, &[])) {
                         Ok(rows) => {
+                            MemoryLimit::exceed_error()?;
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows, false)?;
                             let data = encode_rows(rows, false)?;
