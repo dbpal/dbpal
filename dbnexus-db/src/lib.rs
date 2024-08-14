@@ -75,10 +75,14 @@ impl MemoryLimit {
             .unwrap_or(false)
     }
 
-    pub fn exceed_error<T>() -> anyhow::Result<T> {
-        Err(anyhow::Error::msg(format!(
-            "exceed max memory of {}",
-            Self::get_limit()
-        )))
+    pub fn exceed_error() -> anyhow::Result<()> {
+        if Self::exceed() {
+            Err(anyhow::Error::msg(format!(
+                "exceed max memory of {}",
+                Self::get_limit()
+            )))
+        } else {
+            Ok(())
+        }
     }
 }
