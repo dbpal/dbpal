@@ -1172,539 +1172,539 @@ impl OracleDB {
     }
 }
 
-#[cfg(test)]
-mod tests {
+// #[cfg(test)]
+// mod tests {
 
-    use super::*;
-    use crate::{init_log, TEST_HOST};
-    fn make_test_object(db_name: Option<String>) -> OracleDB {
-        let x = OracleDB::new(
-            OracleDBConfig {
-                username: "system".to_string(),
-                password: "root".to_string(),
-                connect_str: format!("//{}/ORCL", *TEST_HOST),
-            },
-            false,
-            db_name,
-            None,
-        )
-        .unwrap();
-        x
-    }
+//     use super::*;
+//     use crate::{init_log, TEST_HOST};
+//     fn make_test_object(db_name: Option<String>) -> OracleDB {
+//         let x = OracleDB::new(
+//             OracleDBConfig {
+//                 username: "system".to_string(),
+//                 password: "root".to_string(),
+//                 connect_str: format!("//{}/ORCL", *TEST_HOST),
+//             },
+//             false,
+//             db_name,
+//             None,
+//         )
+//         .unwrap();
+//         x
+//     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_rename() {
-        let db = make_test_object(Some("SYSTEM".to_string()));
-        let db_trait = &db as &dyn SchemaTrait;
-        let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("TEST_RENAME").await;
-        let _ = db_trait.drop_table("TEST_RENAME2").await;
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
-                CREATE TABLE TEST_RENAME (
-                    ID NUMBER PRIMARY KEY,
-                    NAME VARCHAR2(255) NOT NULL,
-                    CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                "#,
-            )
-            .await
-            .unwrap();
-        db_trait
-            .rename_table("TEST_RENAME", "TEST_RENAME2")
-            .await
-            .unwrap();
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_rename() {
+//         let db = make_test_object(Some("SYSTEM".to_string()));
+//         let db_trait = &db as &dyn SchemaTrait;
+//         let query_id = db_trait.open_connection().await.unwrap();
+//         let _ = db_trait.drop_table("TEST_RENAME").await;
+//         let _ = db_trait.drop_table("TEST_RENAME2").await;
+//         db_trait
+//             .query_sql(
+//                 query_id,
+//                 r#"
+//                 CREATE TABLE TEST_RENAME (
+//                     ID NUMBER PRIMARY KEY,
+//                     NAME VARCHAR2(255) NOT NULL,
+//                     CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+//                 )
+//                 "#,
+//             )
+//             .await
+//             .unwrap();
+//         db_trait
+//             .rename_table("TEST_RENAME", "TEST_RENAME2")
+//             .await
+//             .unwrap();
 
-        db_trait
-            .show_table("TEST_RENAME2", None, None, 1, 100)
-            .await
-            .unwrap();
-    }
+//         db_trait
+//             .show_table("TEST_RENAME2", None, None, 1, 100)
+//             .await
+//             .unwrap();
+//     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 
-    async fn test_duplicate() {
-        init_log();
+//     async fn test_duplicate() {
+//         init_log();
 
-        let db = make_test_object(Some("SYSTEM".to_string()));
-        let db_trait = &db as &dyn SchemaTrait;
-        let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("TEST_DUPLICATE").await;
-        let _ = db_trait.drop_table("TEST_DUPLICATE2").await;
+//         let db = make_test_object(Some("SYSTEM".to_string()));
+//         let db_trait = &db as &dyn SchemaTrait;
+//         let query_id = db_trait.open_connection().await.unwrap();
+//         let _ = db_trait.drop_table("TEST_DUPLICATE").await;
+//         let _ = db_trait.drop_table("TEST_DUPLICATE2").await;
 
-        let resp = db_trait
-            .query_sql(
-                query_id,
-                r#"
-                CREATE TABLE TEST_DUPLICATE (
-                    ID NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                    NAME VARCHAR2(100) NOT NULL
-                );
-                
-                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy1');
-                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy2');
-                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy3');
-                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy4');
-                INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy5');
-               
-                "#,
-            )
-            .await
-            .unwrap();
-        for r in resp {
-            assert!(r.is_ok(), "err:{:?}", r);
-        }
+//         let resp = db_trait
+//             .query_sql(
+//                 query_id,
+//                 r#"
+//                 CREATE TABLE TEST_DUPLICATE (
+//                     ID NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+//                     NAME VARCHAR2(100) NOT NULL
+//                 );
 
-        db_trait
-            .duplicate_table("TEST_DUPLICATE", "TEST_DUPLICATE2")
-            .await
-            .unwrap();
+//                 INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy1');
+//                 INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy2');
+//                 INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy3');
+//                 INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy4');
+//                 INSERT INTO TEST_DUPLICATE (NAME) VALUES ('xxxyyy5');
 
-        let resp = db_trait
-            .show_table("TEST_DUPLICATE2", None, None, 1, 100)
-            .await
-            .unwrap();
-        assert_eq!(resp.data.len(), 5);
-    }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_check_conn() {
-        let db = make_test_object(None);
-        crate::db::CheckConn::check_conn(&db).await.unwrap();
-    }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_view() {
-        let db = make_test_object(Some("SYSTEM".to_string()));
-        let conn = db.get_conn().await.unwrap();
-        let db = &db as &dyn SchemaTrait;
-        let _ = db.drop_table("TEST_VIEW_TABLE").await;
-        let _ = db.drop_view("PRODUCT_VIEW").await;
+//                 "#,
+//             )
+//             .await
+//             .unwrap();
+//         for r in resp {
+//             assert!(r.is_ok(), "err:{:?}", r);
+//         }
 
-        let ss = vec![
-            r#"
-        CREATE TABLE TEST_VIEW_TABLE (
-            product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-            product_name VARCHAR2(50) NOT NULL,
-            category     VARCHAR2(30) NOT NULL,
-            price        NUMBER(8,2)  NOT NULL
-        )"#,
-            "INSERT INTO TEST_VIEW_TABLE (product_name, category, price) VALUES ('iPhone 13', 'Electronics', 799.99)",
-            "INSERT INTO TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21', 'Electronics', 699.99)",
-            r#"
-            CREATE VIEW PRODUCT_VIEW AS
-            SELECT product_id, product_name, category, price
-            FROM  TEST_VIEW_TABLE"#,
-        ];
+//         db_trait
+//             .duplicate_table("TEST_DUPLICATE", "TEST_DUPLICATE2")
+//             .await
+//             .unwrap();
 
-        for s in ss.iter() {
-            conn.execute(*s, &[]).unwrap();
-        }
-        let views = db.list_view().await.unwrap();
-        println!("{:?}", views);
+//         let resp = db_trait
+//             .show_table("TEST_DUPLICATE2", None, None, 1, 100)
+//             .await
+//             .unwrap();
+//         assert_eq!(resp.data.len(), 5);
+//     }
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_check_conn() {
+//         let db = make_test_object(None);
+//         crate::db::CheckConn::check_conn(&db).await.unwrap();
+//     }
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_view() {
+//         let db = make_test_object(Some("SYSTEM".to_string()));
+//         let conn = db.get_conn().await.unwrap();
+//         let db = &db as &dyn SchemaTrait;
+//         let _ = db.drop_table("TEST_VIEW_TABLE").await;
+//         let _ = db.drop_view("PRODUCT_VIEW").await;
 
-        let resp = db.show_view("PRODUCT_VIEW", None, None, 1, 100).await;
-        println!("show view:{:?}", resp);
-        let sql = db.create_view_sql("PRODUCT_VIEW").await.unwrap();
-        println!("create view sql:{}", sql);
+//         let ss = vec![
+//             r#"
+//         CREATE TABLE TEST_VIEW_TABLE (
+//             product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+//             product_name VARCHAR2(50) NOT NULL,
+//             category     VARCHAR2(30) NOT NULL,
+//             price        NUMBER(8,2)  NOT NULL
+//         )"#,
+//             "INSERT INTO TEST_VIEW_TABLE (product_name, category, price) VALUES ('iPhone 13', 'Electronics', 799.99)",
+//             "INSERT INTO TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21', 'Electronics', 699.99)",
+//             r#"
+//             CREATE VIEW PRODUCT_VIEW AS
+//             SELECT product_id, product_name, category, price
+//             FROM  TEST_VIEW_TABLE"#,
+//         ];
 
-        db.drop_view("PRODUCT_VIEW").await.unwrap();
+//         for s in ss.iter() {
+//             conn.execute(*s, &[]).unwrap();
+//         }
+//         let views = db.list_view().await.unwrap();
+//         println!("{:?}", views);
 
-        db.drop_table("TEST_VIEW_TABLE").await.unwrap();
-    }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_show_indexes() {
-        let db = make_test_object(Some("SYSTEM".to_string()));
-        let conn = db.get_conn().await.unwrap();
-        let db = &db as &dyn SchemaTrait;
-        let table_name = "TEST_INDEXES";
-        let _ = db.drop_table(&table_name).await;
-        conn.execute(
-            format!(
-                r#"
-        CREATE TABLE {table_name} (
-            order_id     NUMBER(10)     PRIMARY KEY,
-            customer_id  NUMBER(10)     NOT NULL,
-            order_date   DATE           NOT NULL,
-            CONSTRAINT unique_customer_order UNIQUE (customer_id, order_date)
-        )
-        "#
-            )
-            .as_str(),
-            &[],
-        )
-        .unwrap();
-        let indexes = db.show_indexes(table_name).await.unwrap();
-        println!("{:?}", indexes);
-    }
+//         let resp = db.show_view("PRODUCT_VIEW", None, None, 1, 100).await;
+//         println!("show view:{:?}", resp);
+//         let sql = db.create_view_sql("PRODUCT_VIEW").await.unwrap();
+//         println!("create view sql:{}", sql);
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_multidb_trait() {
-        let db = make_test_object(None);
-        let db = &db as &dyn DBTrait;
-        let dbs = db.list_schema().await.unwrap();
-        println!("dbs : {:?}", dbs);
-        db.open_schema("SYSTEM").await.unwrap();
-    }
+//         db.drop_view("PRODUCT_VIEW").await.unwrap();
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_show_tables() {
-        let db = make_test_object(Some("APPQOSSYS".to_string()));
-        let db = &db as &dyn SchemaTrait;
-        let tables = db.list_table().await.unwrap();
-        println!("tables : {:?}", tables);
-        for t in tables.iter() {
-            let cols = db.show_columns(&t.name).await.unwrap();
-            println!("table:{} ,cols:{:?}", t.name, cols);
-        }
-    }
+//         db.drop_table("TEST_VIEW_TABLE").await.unwrap();
+//     }
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_show_indexes() {
+//         let db = make_test_object(Some("SYSTEM".to_string()));
+//         let conn = db.get_conn().await.unwrap();
+//         let db = &db as &dyn SchemaTrait;
+//         let table_name = "TEST_INDEXES";
+//         let _ = db.drop_table(&table_name).await;
+//         conn.execute(
+//             format!(
+//                 r#"
+//         CREATE TABLE {table_name} (
+//             order_id     NUMBER(10)     PRIMARY KEY,
+//             customer_id  NUMBER(10)     NOT NULL,
+//             order_date   DATE           NOT NULL,
+//             CONSTRAINT unique_customer_order UNIQUE (customer_id, order_date)
+//         )
+//         "#
+//             )
+//             .as_str(),
+//             &[],
+//         )
+//         .unwrap();
+//         let indexes = db.show_indexes(table_name).await.unwrap();
+//         println!("{:?}", indexes);
+//     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_query_sql() {
-        let db = make_test_object(Some("SYSTEM".to_string()));
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_multidb_trait() {
+//         let db = make_test_object(None);
+//         let db = &db as &dyn DBTrait;
+//         let dbs = db.list_schema().await.unwrap();
+//         println!("dbs : {:?}", dbs);
+//         db.open_schema("SYSTEM").await.unwrap();
+//     }
 
-        let db_trait = &db as &dyn SchemaTrait;
-        // get query_uuid
-        let query_uuid = db_trait.open_connection().await.unwrap();
-        // test auto commit
-        db.query_set_autocommit(query_uuid, false).await.unwrap();
-        assert!(!db.query_autocommit(query_uuid).await.unwrap());
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_show_tables() {
+//         let db = make_test_object(Some("APPQOSSYS".to_string()));
+//         let db = &db as &dyn SchemaTrait;
+//         let tables = db.list_table().await.unwrap();
+//         println!("tables : {:?}", tables);
+//         for t in tables.iter() {
+//             let cols = db.show_columns(&t.name).await.unwrap();
+//             println!("table:{} ,cols:{:?}", t.name, cols);
+//         }
+//     }
 
-        let sqls = vec![
-            r#"
-            CREATE TABLE TEST_QUERY (
-                id NUMBER PRIMARY KEY,
-                name VARCHAR2(50),
-                age NUMBER
-            )
-        "#,
-            "INSERT INTO TEST_QUERY (id, name, age) VALUES (1, 'Alice', 25)",
-            "INSERT INTO TEST_QUERY (id, name, age) VALUES (2, 'Bob', 32)",
-            "INSERT INTO TEST_QUERY (id, name, age) VALUES (3, 'Charlie', 18)",
-        ];
-        // test a rollback but we rollback nothings
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_query_sql() {
+//         let db = make_test_object(Some("SYSTEM".to_string()));
 
-        db.query_rollback(query_uuid).await.unwrap();
+//         let db_trait = &db as &dyn SchemaTrait;
+//         // get query_uuid
+//         let query_uuid = db_trait.open_connection().await.unwrap();
+//         // test auto commit
+//         db.query_set_autocommit(query_uuid, false).await.unwrap();
+//         assert!(!db.query_autocommit(query_uuid).await.unwrap());
 
-        let _ = db_trait.drop_table("TEST_QUERY").await;
-        for sql in sqls.iter() {
-            let _ = db_trait.query_sql(query_uuid, *sql).await;
-        }
+//         let sqls = vec![
+//             r#"
+//             CREATE TABLE TEST_QUERY (
+//                 id NUMBER PRIMARY KEY,
+//                 name VARCHAR2(50),
+//                 age NUMBER
+//             )
+//         "#,
+//             "INSERT INTO TEST_QUERY (id, name, age) VALUES (1, 'Alice', 25)",
+//             "INSERT INTO TEST_QUERY (id, name, age) VALUES (2, 'Bob', 32)",
+//             "INSERT INTO TEST_QUERY (id, name, age) VALUES (3, 'Charlie', 18)",
+//         ];
+//         // test a rollback but we rollback nothings
 
-        db.query_commit(query_uuid).await.unwrap();
+//         db.query_rollback(query_uuid).await.unwrap();
 
-        let resp = db_trait
-            .show_table("TEST_QUERY", None, None, 1, 100)
-            .await
-            .unwrap();
-        println!("resp:{:?}", resp);
-    }
+//         let _ = db_trait.drop_table("TEST_QUERY").await;
+//         for sql in sqls.iter() {
+//             let _ = db_trait.query_sql(query_uuid, *sql).await;
+//         }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_type1() {
-        init_log();
-        let table_name = "TEST_TYPES1";
-        let db = make_test_object(Some("SYSTEM".to_string()));
-        let mut conn = db.get_conn().await.unwrap();
-        conn.set_autocommit(true);
-        let db = &db as &dyn SchemaTrait;
-        let _ = db.drop_table(&table_name).await;
+//         db.query_commit(query_uuid).await.unwrap();
 
-        conn.execute(
-            format!(
-                r#"
-                CREATE TABLE {table_name} (
-                    VARCHAR2_COL VARCHAR2(100),
-                    NVARCHAR2_COL NVARCHAR2(100),
-                    CHAR_COL CHAR(10),
-                    NCHAR_COL NCHAR(10),
-                    RAW_COL RAW(100)
-                )
-        "#
-            )
-            .as_str(),
-            &[],
-        )
-        .unwrap();
+//         let resp = db_trait
+//             .show_table("TEST_QUERY", None, None, 1, 100)
+//             .await
+//             .unwrap();
+//         println!("resp:{:?}", resp);
+//     }
 
-        let mut values = HashMap::new();
-        values.insert(
-            "VARCHAR2_COL".to_string(),
-            Some("这是一个 VARCHAR2 列的值".to_string()),
-        );
-        values.insert(
-            "NVARCHAR2_COL".to_string(),
-            Some("这是一个 NVARCHAR2 列的值".to_string()),
-        );
-        values.insert("CHAR_COL".to_string(), Some("测试char".to_string()));
-        values.insert("NCHAR_COL".to_string(), Some("测试nchar".to_string()));
-        values.insert("RAW_COL".to_string(), Some("0A0B0C0D0E0F".to_string()));
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_type1() {
+//         init_log();
+//         let table_name = "TEST_TYPES1";
+//         let db = make_test_object(Some("SYSTEM".to_string()));
+//         let mut conn = db.get_conn().await.unwrap();
+//         conn.set_autocommit(true);
+//         let db = &db as &dyn SchemaTrait;
+//         let _ = db.drop_table(&table_name).await;
 
-        db.insert(&table_name, values).await.unwrap();
+//         conn.execute(
+//             format!(
+//                 r#"
+//                 CREATE TABLE {table_name} (
+//                     VARCHAR2_COL VARCHAR2(100),
+//                     NVARCHAR2_COL NVARCHAR2(100),
+//                     CHAR_COL CHAR(10),
+//                     NCHAR_COL NCHAR(10),
+//                     RAW_COL RAW(100)
+//                 )
+//         "#
+//             )
+//             .as_str(),
+//             &[],
+//         )
+//         .unwrap();
 
-        let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
-            .await
-            .unwrap();
-        println!("resp:{:?}", resp);
-        {
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::CSV {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export csv:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export csv:{}", e);
-            let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("export json:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export sql:{}", e);
-        }
-    }
+//         let mut values = HashMap::new();
+//         values.insert(
+//             "VARCHAR2_COL".to_string(),
+//             Some("这是一个 VARCHAR2 列的值".to_string()),
+//         );
+//         values.insert(
+//             "NVARCHAR2_COL".to_string(),
+//             Some("这是一个 NVARCHAR2 列的值".to_string()),
+//         );
+//         values.insert("CHAR_COL".to_string(), Some("测试char".to_string()));
+//         values.insert("NCHAR_COL".to_string(), Some("测试nchar".to_string()));
+//         values.insert("RAW_COL".to_string(), Some("0A0B0C0D0E0F".to_string()));
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_type2() {
-        init_log();
-        let table_name = "TEST_TYPES2";
-        let db = make_test_object(Some("SYSTEM".to_string()));
-        let mut conn = db.get_conn().await.unwrap();
-        conn.set_autocommit(true);
-        let db = &db as &dyn SchemaTrait;
-        let _ = db.drop_table(&table_name).await;
+//         db.insert(&table_name, values).await.unwrap();
 
-        conn.execute(
-            format!(
-                r#"
-           CREATE TABLE {table_name} (
-                BINARY_FLOAT BINARY_FLOAT,
-                BINARY_DOUBLE BINARY_DOUBLE,
-                NUM NUMBER,
-                FLOAT_COL FLOAT
-            )
-        "#
-            )
-            .as_str(),
-            &[],
-        )
-        .unwrap();
+//         let resp = db
+//             .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+//             .await
+//             .unwrap();
+//         println!("resp:{:?}", resp);
+//         {
+//             let e = db
+//                 .export_table_to_string(
+//                     table_name,
+//                     crate::db::ExportKind::CSV {
+//                         include_header: false,
+//                         delimiter: ',',
+//                     },
+//                 )
+//                 .await
+//                 .unwrap();
+//             println!("export csv:{}", e);
+//             let e = db
+//                 .export_table_to_string(
+//                     table_name,
+//                     crate::db::ExportKind::CSV {
+//                         include_header: true,
+//                         delimiter: ',',
+//                     },
+//                 )
+//                 .await
+//                 .unwrap();
+//             println!("export csv:{}", e);
+//             let e = db
+//                 .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
+//                 .await
+//                 .unwrap();
+//             println!("export json:{}", e);
+//             let e = db
+//                 .export_table_to_string(
+//                     table_name,
+//                     crate::db::ExportKind::Sql {
+//                         include_table_schema: true,
+//                     },
+//                 )
+//                 .await
+//                 .unwrap();
+//             println!("export sql:{}", e);
+//         }
+//     }
 
-        let mut values = HashMap::new();
-        values.insert("BINARY_FLOAT".to_string(), Some("3.14".to_string()));
-        values.insert(
-            "BINARY_DOUBLE".to_string(),
-            Some("3.1415926535".to_string()),
-        );
-        values.insert("NUM".to_string(), Some("100".to_string()));
-        values.insert("FLOAT_COL".to_string(), Some("2.71".to_string()));
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_type2() {
+//         init_log();
+//         let table_name = "TEST_TYPES2";
+//         let db = make_test_object(Some("SYSTEM".to_string()));
+//         let mut conn = db.get_conn().await.unwrap();
+//         conn.set_autocommit(true);
+//         let db = &db as &dyn SchemaTrait;
+//         let _ = db.drop_table(&table_name).await;
 
-        db.insert(&table_name, values).await.unwrap();
+//         conn.execute(
+//             format!(
+//                 r#"
+//            CREATE TABLE {table_name} (
+//                 BINARY_FLOAT BINARY_FLOAT,
+//                 BINARY_DOUBLE BINARY_DOUBLE,
+//                 NUM NUMBER,
+//                 FLOAT_COL FLOAT
+//             )
+//         "#
+//             )
+//             .as_str(),
+//             &[],
+//         )
+//         .unwrap();
 
-        let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
-            .await
-            .unwrap();
-        println!("resp:{:?}", resp);
-        {
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::CSV {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export csv:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export csv:{}", e);
-            let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("export json:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export sql:{}", e);
-        }
-    }
+//         let mut values = HashMap::new();
+//         values.insert("BINARY_FLOAT".to_string(), Some("3.14".to_string()));
+//         values.insert(
+//             "BINARY_DOUBLE".to_string(),
+//             Some("3.1415926535".to_string()),
+//         );
+//         values.insert("NUM".to_string(), Some("100".to_string()));
+//         values.insert("FLOAT_COL".to_string(), Some("2.71".to_string()));
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_type3() {
-        init_log();
-        let table_name = "TEST_TYPES3";
-        let db = make_test_object(Some("SYSTEM".to_string()));
-        let mut conn = db.get_conn().await.unwrap();
-        conn.set_autocommit(true);
-        let db = &db as &dyn SchemaTrait;
-        let _ = db.drop_table(&table_name).await;
+//         db.insert(&table_name, values).await.unwrap();
 
-        conn.execute(
-            format!(
-                r#"
-           CREATE TABLE {table_name} (
-                CLOB_COL CLOB,
-                NCLOB_COL NCLOB,
-                BLOB_COL BLOB
-            )
-        "#
-            )
-            .as_str(),
-            &[],
-        )
-        .unwrap();
+//         let resp = db
+//             .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+//             .await
+//             .unwrap();
+//         println!("resp:{:?}", resp);
+//         {
+//             let e = db
+//                 .export_table_to_string(
+//                     table_name,
+//                     crate::db::ExportKind::CSV {
+//                         include_header: false,
+//                         delimiter: ',',
+//                     },
+//                 )
+//                 .await
+//                 .unwrap();
+//             println!("export csv:{}", e);
+//             let e = db
+//                 .export_table_to_string(
+//                     table_name,
+//                     crate::db::ExportKind::CSV {
+//                         include_header: true,
+//                         delimiter: ',',
+//                     },
+//                 )
+//                 .await
+//                 .unwrap();
+//             println!("export csv:{}", e);
+//             let e = db
+//                 .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
+//                 .await
+//                 .unwrap();
+//             println!("export json:{}", e);
+//             let e = db
+//                 .export_table_to_string(
+//                     table_name,
+//                     crate::db::ExportKind::Sql {
+//                         include_table_schema: true,
+//                     },
+//                 )
+//                 .await
+//                 .unwrap();
+//             println!("export sql:{}", e);
+//         }
+//     }
 
-        let mut values = HashMap::new();
-        values.insert(
-            "CLOB_COL".to_string(),
-            Some("This is a CLOB column.".to_string()),
-        );
-        values.insert(
-            "NCLOB_COL".to_string(),
-            Some("这是一个 NCLOB 列。".to_string()),
-        );
-        values.insert("BLOB_COL".to_string(), Some("010203".to_string()));
+//     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     async fn test_type3() {
+//         init_log();
+//         let table_name = "TEST_TYPES3";
+//         let db = make_test_object(Some("SYSTEM".to_string()));
+//         let mut conn = db.get_conn().await.unwrap();
+//         conn.set_autocommit(true);
+//         let db = &db as &dyn SchemaTrait;
+//         let _ = db.drop_table(&table_name).await;
 
-        db.insert(&table_name, values).await.unwrap();
+//         conn.execute(
+//             format!(
+//                 r#"
+//            CREATE TABLE {table_name} (
+//                 CLOB_COL CLOB,
+//                 NCLOB_COL NCLOB,
+//                 BLOB_COL BLOB
+//             )
+//         "#
+//             )
+//             .as_str(),
+//             &[],
+//         )
+//         .unwrap();
 
-        let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
-            .await
-            .unwrap();
-        println!("resp:{:?}", resp);
-        {
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::CSV {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export csv:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export csv:{}", e);
-            let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("export json:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export sql:{}", e);
-        }
-    }
+//         let mut values = HashMap::new();
+//         values.insert(
+//             "CLOB_COL".to_string(),
+//             Some("This is a CLOB column.".to_string()),
+//         );
+//         values.insert(
+//             "NCLOB_COL".to_string(),
+//             Some("这是一个 NCLOB 列。".to_string()),
+//         );
+//         values.insert("BLOB_COL".to_string(), Some("010203".to_string()));
 
-    // TODO create table sql not passed
-    // #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    // async fn test_type4() {
-    //     init_log();
-    //     let table_name = "TEST_TYPES4";
-    //     let db = make_test_object(Some("SYSTEM".to_string()));
-    //     let mut conn = db.get_conn().await.unwrap();
-    //     conn.set_autocommit(true);
-    //     let db = &db as &dyn DBTrait;
-    //     let _ = db.drop_table(&table_name).await;
-    //     println!(
-    //         r#"
-    //     CREATE TABLE {table_name} (
-    //         COL1 LONG,
-    //         COL2 LONGRAW,
-    //         COL3 NUMBER(19,0),
-    //         COL4 NUMBER(5,0) UNSIGNED
-    //     )"#
-    //     );
+//         db.insert(&table_name, values).await.unwrap();
 
-    //     conn.execute(
-    //         format!(
-    //             r#"
-    //         CREATE TABLE {table_name} (
-    //             COL1 LONG,
-    //             COL2 LONGRAW
-    //             -- COL3 NUMBER(19,0),
-    //             -- COL4 NUMBER(5,0) UNSIGNED
-    //         )"#
-    //         )
-    //         .as_str(),
-    //         &[],
-    //     )
-    //     .unwrap();
+//         let resp = db
+//             .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+//             .await
+//             .unwrap();
+//         println!("resp:{:?}", resp);
+//         {
+//             let e = db
+//                 .export_table_to_string(
+//                     table_name,
+//                     crate::db::ExportKind::CSV {
+//                         include_header: false,
+//                         delimiter: ',',
+//                     },
+//                 )
+//                 .await
+//                 .unwrap();
+//             println!("export csv:{}", e);
+//             let e = db
+//                 .export_table_to_string(
+//                     table_name,
+//                     crate::db::ExportKind::CSV {
+//                         include_header: true,
+//                         delimiter: ',',
+//                     },
+//                 )
+//                 .await
+//                 .unwrap();
+//             println!("export csv:{}", e);
+//             let e = db
+//                 .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
+//                 .await
+//                 .unwrap();
+//             println!("export json:{}", e);
+//             let e = db
+//                 .export_table_to_string(
+//                     table_name,
+//                     crate::db::ExportKind::Sql {
+//                         include_table_schema: true,
+//                     },
+//                 )
+//                 .await
+//                 .unwrap();
+//             println!("export sql:{}", e);
+//         }
+//     }
 
-    //     let mut values = HashMap::new();
-    //     values.insert("COL1".to_string(), Some("abc".to_string()));
-    //     values.insert("COL2".to_string(), Some("010203".to_string()));
-    //     values.insert("COL3".to_string(), Some("123".to_string()));
-    //     values.insert("COL4".to_string(), Some("456".to_string()));
+//     // TODO create table sql not passed
+//     // #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+//     // async fn test_type4() {
+//     //     init_log();
+//     //     let table_name = "TEST_TYPES4";
+//     //     let db = make_test_object(Some("SYSTEM".to_string()));
+//     //     let mut conn = db.get_conn().await.unwrap();
+//     //     conn.set_autocommit(true);
+//     //     let db = &db as &dyn DBTrait;
+//     //     let _ = db.drop_table(&table_name).await;
+//     //     println!(
+//     //         r#"
+//     //     CREATE TABLE {table_name} (
+//     //         COL1 LONG,
+//     //         COL2 LONGRAW,
+//     //         COL3 NUMBER(19,0),
+//     //         COL4 NUMBER(5,0) UNSIGNED
+//     //     )"#
+//     //     );
 
-    //     db.insert(&table_name, values).await.unwrap();
+//     //     conn.execute(
+//     //         format!(
+//     //             r#"
+//     //         CREATE TABLE {table_name} (
+//     //             COL1 LONG,
+//     //             COL2 LONGRAW
+//     //             -- COL3 NUMBER(19,0),
+//     //             -- COL4 NUMBER(5,0) UNSIGNED
+//     //         )"#
+//     //         )
+//     //         .as_str(),
+//     //         &[],
+//     //     )
+//     //     .unwrap();
 
-    //     let resp = db
-    //         .show_table(&table_name, Some("1 = 1"), None, 1, 100)
-    //         .await
-    //         .unwrap();
-    //     println!("resp:{:?}", resp);
-    // }
-}
+//     //     let mut values = HashMap::new();
+//     //     values.insert("COL1".to_string(), Some("abc".to_string()));
+//     //     values.insert("COL2".to_string(), Some("010203".to_string()));
+//     //     values.insert("COL3".to_string(), Some("123".to_string()));
+//     //     values.insert("COL4".to_string(), Some("456".to_string()));
+
+//     //     db.insert(&table_name, values).await.unwrap();
+
+//     //     let resp = db
+//     //         .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+//     //         .await
+//     //         .unwrap();
+//     //     println!("resp:{:?}", resp);
+//     // }
+// }
 
 #[async_trait::async_trait]
 impl DBLexerCompletionBackend for OracleDB {

@@ -1596,7 +1596,7 @@ mod tests {
     use crate::{init_log, TEST_HOST};
 
     async fn make_test_object() -> SqlServer {
-        let pg = SqlServer::new(
+        let ss = SqlServer::new(
             SqlServerDBConfig {
                 host: TEST_HOST.to_string(),
                 port: 1433,
@@ -1610,11 +1610,20 @@ mod tests {
         )
         .await
         .unwrap();
-
-        pg
+        ss
     }
+    // when I test via `cargo test`
+    // sometimes I have this error
+    // ERROR - Transaction (Process ID 76) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. code=1205
+    // maybe I need mutex to run one test a time.
+    fn test_lock() -> &'static Mutex<()> {
+        static MUTEX: Mutex<()> = Mutex::const_new(());
+        &MUTEX
+    }
+
     #[tokio::test]
     async fn test_server_metas() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
@@ -1622,6 +1631,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_database() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
@@ -1630,6 +1640,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rename() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
@@ -1661,6 +1672,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicate() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
@@ -1700,6 +1712,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_triggers() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
@@ -1761,6 +1774,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_query() {
+        let _guard = test_lock().lock().await;
         init_log();
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
@@ -1792,6 +1806,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_schema() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
 
@@ -1801,6 +1816,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_view() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let _ = db.drop_table("test_view_table").await;
@@ -1851,6 +1867,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_index() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let _ = db.drop_table("test_index_table").await;
 
@@ -1881,6 +1898,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_export() {
+        let _guard = test_lock().lock().await;
         let table_name = "test_export";
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
@@ -1977,6 +1995,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_list_table() {
+        let _guard = test_lock().lock().await;
         // list all table and query
         let pg = make_test_object().await;
 
@@ -1987,6 +2006,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_type1() {
+        let _guard = test_lock().lock().await;
         init_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
@@ -2034,6 +2054,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_type2() {
+        let _guard = test_lock().lock().await;
         init_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
@@ -2086,6 +2107,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_type3() {
+        let _guard = test_lock().lock().await;
         init_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
@@ -2140,6 +2162,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_type4() {
+        let _guard = test_lock().lock().await;
         init_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
