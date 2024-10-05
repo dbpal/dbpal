@@ -899,14 +899,11 @@ async fn query_sql(
             .arg(args)
             .query_async(conn)
             .await
-            .map(|x| encode_value(&x));
+            .map(|x| encode_response_value(&x));
 
         match v {
             Ok(x) => {
-                ret.push(Ok(QueryResp::result(
-                    "result",
-                    x.into_iter().map(|x| Some(x)).collect(),
-                )));
+                ret.push(Ok(QueryResp::result("result", vec![Some(x)])));
             }
 
             Err(x) => ret.push(Err(x.to_string())),
@@ -914,55 +911,27 @@ async fn query_sql(
     }
     anyhow::Ok(ret)
 }
-fn encode_hashmap(v: &HashMap<String, String>) -> Vec<String> {
-    vec![format!("{:?}", v)]
-}
-fn encode_hashset(v: &HashSet<String>) -> Vec<String> {
-    vec![format!("{:?}", v)]
-}
 
-fn encode_value(v: &Value) -> Vec<String> {
+/// some
+fn encode_response_value(v: &Value) -> String {
     match v {
-        Value::Nil => vec!["(nil)".to_string()],
-        Value::Int(x) => vec![format!("integer({})", x)],
-        Value::Data(bs) => {
-            let m: Result<HashMap<String, String>, _> = redis::from_redis_value(v);
-            match m {
-                Ok(x) => return encode_hashmap(&x),
-                Err(_) => {}
-            }
-            let m: Result<HashSet<String>, _> = redis::from_redis_value(v);
-            match m {
-                Ok(x) => return encode_hashset(&x),
-                Err(_) => {}
-            }
-            let m: Result<Vec<String>, _> = redis::from_redis_value(v);
-            match m {
-                Ok(x) => return x,
-                Err(_) => {}
-            }
-            let m: Result<String, _> = redis::from_redis_value(v);
-            match m {
-                Ok(x) => return vec![x],
-                Err(_) => {}
-            }
-            return vec![format!(
-                "unkownn object:0x{}",
-                hex::encode_upper(bs.as_slice())
-            )];
+        Value::Nil => "(nil)".to_string(),
+        Value::Int(x) => format!("integer({})", x),
+        Value::Double(x) => format!("double({})", x),
+        Value::Boolean(x) => format!("bool({})", x),
+        Value::BigNumber(x) => format!("big_number({})", x),
+        Value::ServerError(s) => {
+            format!(
+                "error(code:{},detail:{})",
+                s.code(),
+                s.details().unwrap_or("")
+            )
         }
-        Value::Bulk(x) => {
-            let data: Vec<_> = x.iter().map(|x| encode_value(&x)).collect();
-            let mut ret = Vec::new();
-            for d in data.into_iter() {
-                for d in d.into_iter() {
-                    ret.push(d);
-                }
-            }
-            ret
+        Value::Okay => "(ok)".to_string(),
+        _ => {
+            log::error!("redis response not handle,resp:{:?}", v);
+            "unhandle response".to_string()
         }
-        Value::Status(x) => vec![format!("status({})", x)],
-        Value::Okay => vec!["(ok)".to_string()],
     }
 }
 
@@ -1944,7 +1913,6 @@ impl RedisDB {
                     .collect::<Vec<_>>();
                 x
             }
-
             _ => {
                 vec![]
             }
@@ -1995,32 +1963,6 @@ impl DBListCompletionItem for RedisDB {
         anyhow::Ok(vec![])
     }
 }
-
-// #[async_trait::async_trait]
-// impl DBLexerCompletionBackend for RedisDB {
-//     type Dialect = sqlparser::dialect::GenericDialect;
-
-//     const BUILD_IN_FUNCTIONS: &'static [&'static str] = REDIS_COMMANDS;
-//     const KEY_WORDS: &'static [&'static str] = &[];
-//     const TEXTS: &'static [&'static str] = &[
-//         "NX",
-//         "XX",
-//         "EX",
-//         "PX",
-//         "CH",
-//         "INCR",
-//         "DECR",
-//         "WITHSCORES",
-//         "LIMIT",
-//         "ALPHA",
-//         "STORE",
-//         "BY",
-//         "RESETSTAT",
-//         "RESET",
-//         "REWRITE",
-//     ];
-//     const TYPES: &'static [&'static str] = &[];
-// }
 
 fn static_redis_command_completion_items() -> Vec<CompletionItem> {
     static ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
