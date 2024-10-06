@@ -1277,7 +1277,7 @@ impl MysqlDB {
             // let db: String = r.get(0);
             let name: String = r.get(1);
             ret.push(CompletionItem {
-                name: Cow::Owned(name),
+                item: Cow::Owned(name),
                 kind: crate::completion::CompletionKind::Function,
             });
         }

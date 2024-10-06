@@ -78,9 +78,13 @@ export namespace db_apis {
     })) | ({
         "conn_type": "redis";
     } & {
-        "server": string;
+        "host": string;
+        "port": (db_apis.U16 | null);
+        "username": (string | null);
+        "password": (string | null);
         "read_only": boolean;
         "name": string;
+        "db": (string | null);
     }) | ({
         "conn_type": "oracle";
     } & (db_apis.OracleDBConfig & {
@@ -227,7 +231,7 @@ export namespace db_apis {
      */
     export type FormatSqlOpts = {
         "indent": db_apis.FormatSqlOptsIndent;
-        "uppercase": boolean;
+        "uppercase": (boolean | null);
         "lines_between_queries": db_apis.U8;
     };
 }

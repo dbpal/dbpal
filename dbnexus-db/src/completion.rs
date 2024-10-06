@@ -17,7 +17,7 @@ pub trait AutoCompletionTrait {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct CompletionItem {
-    pub name: Cow<'static, str>,
+    pub item: Cow<'static, str>,
     pub kind: CompletionKind,
 }
 
@@ -123,7 +123,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             Self::KEY_WORDS
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Borrowed(*x),
+                    item: Cow::Borrowed(*x),
                     kind: CompletionKind::KeyWord,
                 })
                 .collect::<Vec<_>>(),
@@ -132,7 +132,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             Self::BUILD_IN_FUNCTIONS
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Borrowed(*x),
+                    item: Cow::Borrowed(*x),
                     kind: CompletionKind::Function,
                 })
                 .collect::<Vec<_>>(),
@@ -141,7 +141,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             Self::TYPES
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Borrowed(*x),
+                    item: Cow::Borrowed(*x),
                     kind: CompletionKind::Type,
                 })
                 .collect::<Vec<_>>(),
@@ -150,7 +150,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             Self::TEXTS
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Borrowed(*x),
+                    item: Cow::Borrowed(*x),
                     kind: CompletionKind::Text,
                 })
                 .collect::<Vec<_>>(),
@@ -161,7 +161,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             list_db
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Owned(x.clone()),
+                    item: Cow::Owned(x.clone()),
                     kind: CompletionKind::Dbname,
                 })
                 .collect::<Vec<_>>(),
@@ -179,7 +179,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                         .await
                         .unwrap_or(vec![]);
                     ret.extend(cols.into_iter().map(|x| CompletionItem {
-                        name: Cow::Owned(x),
+                        item: Cow::Owned(x),
                         kind: CompletionKind::Column,
                     }));
                 }
@@ -187,7 +187,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                     list_tables
                         .into_iter()
                         .map(|x| CompletionItem {
-                            name: Cow::Owned(x),
+                            item: Cow::Owned(x),
                             kind: CompletionKind::TableName,
                         })
                         .collect::<Vec<_>>(),
@@ -198,7 +198,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             for t in list_tables.iter() {
                 let cols = self.list_columns(None, t.as_str()).await.unwrap_or(vec![]);
                 ret.extend(cols.into_iter().map(|x| CompletionItem {
-                    name: Cow::Owned(x),
+                    item: Cow::Owned(x),
                     kind: CompletionKind::Column,
                 }));
             }
@@ -207,7 +207,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                 list_tables
                     .into_iter()
                     .map(|x| CompletionItem {
-                        name: Cow::Owned(x),
+                        item: Cow::Owned(x),
                         kind: CompletionKind::TableName,
                     })
                     .collect::<Vec<_>>(),
@@ -228,14 +228,14 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
     let mut names = HashSet::new();
 
     for item in items.into_iter() {
-        if names.contains(&item.name.to_lowercase()) {
+        if names.contains(&item.item.to_lowercase()) {
             // don't handle already handled.
             continue;
         }
 
-        let m = matcher.fuzzy_match(&item.name, pattern);
+        let m = matcher.fuzzy_match(&item.item, pattern);
         if let Some(s) = m {
-            names.insert(item.name.to_lowercase());
+            names.insert(item.item.to_lowercase());
 
             matched.push(AndScore { item, score: s });
         }

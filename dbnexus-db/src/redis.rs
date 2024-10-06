@@ -22,7 +22,7 @@ use dashmap::DashMap;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
 use futures_util::StreamExt;
-use sqlparser::tokenizer::{Token, TokenWithLocation};
+use sqlparser::tokenizer::Token;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -915,6 +915,7 @@ impl QuerySql for RedisDB {
 impl RedisDB {
     async fn get_key_type(conn: &mut ConnectionManager, key: &str) -> anyhow::Result<RedisType> {
         let ty: String = conn.key_type(key).await?;
+        log::trace!("key:{} type:{}", key, ty);
         RedisType::from_str(&ty)
     }
 }
@@ -1078,9 +1079,16 @@ mod tests {
     };
 
     async fn make_test_object() -> RedisDB {
-        let db = RedisDB::new(TEST_HOST.to_string(), None, None, None, None, false)
-            .await
-            .unwrap();
+        let db = RedisDB::new(
+            TEST_HOST.to_string(),
+            None,
+            None,
+            None,
+            Some("db0".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
         db
     }
 
@@ -1116,6 +1124,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
     #[tokio::test]
     async fn test_list_redis_table() {
+        init_log();
         let db = make_test_object().await;
         tokio::time::sleep(Duration::from_secs(2)).await;
         let redis_tables = db.redis_list_table().await.unwrap();
@@ -1608,13 +1617,15 @@ impl AutoCompletionTrait for RedisDB {
                 anyhow::bail!("first token must be a command")
             }
         };
+
+        let patterns: Vec<String> = tokens.iter().map(|x| x.to_string()).collect();
         for (token, f) in tokens
             .iter()
             .skip(
                 1, // skip command
             )
             .zip(
-                self.make_auto_completion_fn_by_command(&command, &tokens[1..])?
+                self.make_auto_completion_fn_by_command(&command, &patterns)?
                     .into_iter(),
             )
         {
@@ -1652,24 +1663,32 @@ impl RedisDB {
             };
             if type_matched {
                 ret.push(CompletionItem {
-                    name: key.into(),
+                    item: key.into(),
                     kind: CompletionKind::TableName,
                 })
             }
         }
         anyhow::Ok(ret)
     }
+    async fn completion_hash_keys(&self, key: &str) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut conn = self.get_conn().await?;
+        let keys: Vec<String> = conn.hkeys(key).await?;
+        anyhow::Ok(
+            keys.into_iter()
+                .map(|x| CompletionItem {
+                    kind: CompletionKind::Column,
+                    item: x.into(),
+                })
+                .collect(),
+        )
+    }
 
-    fn make_auto_completion_fn_by_command(
-        &self, command: &str, tokens: &[TokenWithLocation],
-    ) -> anyhow::Result<Vec<BoxFuture<'_, anyhow::Result<Vec<CompletionItem>>>>> {
-        let patterns: Vec<Option<&str>> = tokens
-            .iter()
-            .map(|x| match &x.token {
-                Token::Word(s) => Some(s.value.as_str()),
-                _ => None,
-            })
-            .collect();
+    fn make_auto_completion_fn_by_command<'a, 'b>(
+        &'b self, command: &str, patterns: &'a [String],
+    ) -> anyhow::Result<Vec<BoxFuture<'a, anyhow::Result<Vec<CompletionItem>>>>>
+    where
+        'b: 'a,
+    {
         /// dummy auto completion don't return anything
         #[derive(Clone, Copy, Debug)]
         struct Dummy {}
@@ -1686,31 +1705,30 @@ impl RedisDB {
             .as_str()
         {
             "APPEND" | "SET" => {
-                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                let key = patterns.get(0);
                 match key {
                     Some(key) => {
-                        let key = key.to_string();
-                        vec![async move {
-                                self.completion_keys(&key, Some(RedisType::String)).await
-                            }
-                            .boxed()]
+                        vec![
+                        async move { self.completion_keys(&key, Some(RedisType::String)).await }
+                            .boxed(),
+                    ]
                     }
-                    None => vec![dummy.clone()],
+                    None => vec![],
                 }
             }
             "BGREWRITEAOF" => {
                 vec![async move {
                     anyhow::Ok(vec![
                         CompletionItem {
-                            name: "SCHEDULE".into(),
+                            item: "SCHEDULE".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "FORCE".into(),
+                            item: "FORCE".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "SCHEDULE FORCE".into(),
+                            item: "SCHEDULE FORCE".into(),
                             kind: CompletionKind::Text,
                         },
                     ])
@@ -1721,23 +1739,23 @@ impl RedisDB {
                 vec![async move {
                     anyhow::Ok(vec![
                         CompletionItem {
-                            name: "SCHEDULE".into(),
+                            item: "SCHEDULE".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "FORCE".into(),
+                            item: "FORCE".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "SCHEDULE FORCE".into(),
+                            item: "SCHEDULE FORCE".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "SCHEDULE CRON".into(),
+                            item: "SCHEDULE CRON".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "SCHEDULE INTERVAL".into(),
+                            item: "SCHEDULE INTERVAL".into(),
                             kind: CompletionKind::Text,
                         },
                     ])
@@ -1749,7 +1767,7 @@ impl RedisDB {
                 vec![]
             }
             "BITFIELD" => {
-                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                let key = patterns.get(0);
                 match key {
                     Some(key) => {
                         let key = key.to_string();
@@ -1758,23 +1776,24 @@ impl RedisDB {
                     None => vec![dummy.clone()],
                 }
             }
+
             "BITOP" => {
                 let mut vs = vec![async move {
                     anyhow::Ok(vec![
                         CompletionItem {
-                            name: "AND".into(),
+                            item: "AND".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "OR".into(),
+                            item: "OR".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "XOR".into(),
+                            item: "XOR".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "NOT".into(),
+                            item: "NOT".into(),
                             kind: CompletionKind::Text,
                         },
                     ])
@@ -1783,20 +1802,14 @@ impl RedisDB {
                 let x = patterns
                     .iter()
                     .skip(1)
-                    .map(|x| match x {
-                        Some(key) => {
-                            let key = key.to_string();
-                            async move { self.completion_keys(&key, None).await }.boxed()
-                        }
-                        None => dummy.clone(),
-                    })
+                    .map(|x| async move { self.completion_keys(&x, None).await }.boxed())
                     .collect::<Vec<_>>();
 
                 vs.extend(x.into_iter());
                 vs
             }
             "BITPOS" => {
-                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                let key = patterns.get(0);
                 match key {
                     Some(key) => {
                         let key = key.to_string();
@@ -1810,19 +1823,16 @@ impl RedisDB {
                 let x = (&patterns[..patterns.len() - 1  // last one is timeout 
                     ])
                     .iter()
-                    .map(|x| match x {
-                        Some(key) => {
-                            let key = key.to_string();
-                            async move { self.completion_keys(&key, Some(RedisType::List)).await }
-                                .boxed()
-                        }
-                        None => dummy.clone(),
+                    .map(|key| {
+                        async move { self.completion_keys(&key, Some(RedisType::List)).await }
+                            .boxed()
                     })
                     .collect::<Vec<_>>();
                 x
             }
+
             "BRPOPLPUSH" => {
-                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                let key = patterns.get(0);
                 let key = match key {
                     Some(key) => {
                         let key = key.to_string();
@@ -1831,7 +1841,7 @@ impl RedisDB {
                     }
                     None => dummy.clone(),
                 };
-                let key2 = patterns.get(1).map(|x| x.clone()).flatten();
+                let key2 = patterns.get(1);
 
                 let key2 = match key2 {
                     Some(key) => {
@@ -1848,58 +1858,58 @@ impl RedisDB {
                     anyhow::Ok(vec![
                         // 客户端连接管理
                         CompletionItem {
-                            name: "CONNECT".into(),
+                            item: "CONNECT".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "DISCONNECT".into(),
+                            item: "DISCONNECT".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "KILL".into(),
+                            item: "KILL".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "LIST".into(),
+                            item: "LIST".into(),
                             kind: CompletionKind::Text,
                         },
                         // 客户端信息获取
                         CompletionItem {
-                            name: "GETNAME".into(),
+                            item: "GETNAME".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "ID".into(),
+                            item: "ID".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "ADDR".into(),
+                            item: "ADDR".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "PORT".into(),
+                            item: "PORT".into(),
                             kind: CompletionKind::Text,
                         },
                         //  客户端连接配置
                         CompletionItem {
-                            name: "SETNAME".into(),
+                            item: "SETNAME".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "PAUSE".into(),
+                            item: "PAUSE".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "REPLY".into(),
+                            item: "REPLY".into(),
                             kind: CompletionKind::Text,
                         },
                         // 客户端连接监控
                         CompletionItem {
-                            name: "LIST".into(),
+                            item: "LIST".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "TRACKING".into(),
+                            item: "TRACKING".into(),
                             kind: CompletionKind::Text,
                         },
                     ])
@@ -1911,79 +1921,79 @@ impl RedisDB {
                     anyhow::Ok(vec![
                         //集群创建和配置
                         CompletionItem {
-                            name: "CREATE".into(),
+                            item: "CREATE".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "MEET".into(),
+                            item: "MEET".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "ADDSLOTS".into(),
+                            item: "ADDSLOTS".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "REPLICATE".into(),
+                            item: "REPLICATE".into(),
                             kind: CompletionKind::Text,
                         },
                         // 集群状态查询
                         CompletionItem {
-                            name: "NODES".into(),
+                            item: "NODES".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "INFO".into(),
+                            item: "INFO".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "KEYSLOT".into(),
+                            item: "KEYSLOT".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "COUNTKEYSINSLOT".into(),
+                            item: "COUNTKEYSINSLOT".into(),
                             kind: CompletionKind::Text,
                         },
                         // 集群维护和修复
                         CompletionItem {
-                            name: "FAILOVER".into(),
+                            item: "FAILOVER".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "FORGET".into(),
+                            item: "FORGET".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "FLUSHSLOTS".into(),
+                            item: "FLUSHSLOTS".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "RESET".into(),
+                            item: "RESET".into(),
                             kind: CompletionKind::Text,
                         },
                         // 集群扩展和缩容
                         CompletionItem {
-                            name: "ADDSLOTS".into(),
+                            item: "ADDSLOTS".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "DELSLOTS".into(),
+                            item: "DELSLOTS".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "SETSLOT".into(),
+                            item: "SETSLOT".into(),
                             kind: CompletionKind::Text,
                         },
                         // 其他集群操作
                         CompletionItem {
-                            name: "SAVECONFIG".into(),
+                            item: "SAVECONFIG".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "SLOTS".into(),
+                            item: "SLOTS".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "TALK".into(),
+                            item: "TALK".into(),
                             kind: CompletionKind::Text,
                         },
                     ])
@@ -1994,19 +2004,19 @@ impl RedisDB {
                 vec![async move {
                     anyhow::Ok(vec![
                         CompletionItem {
-                            name: "GET".into(),
+                            item: "GET".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "SET".into(),
+                            item: "SET".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "RESETSTAT".into(),
+                            item: "RESETSTAT".into(),
                             kind: CompletionKind::Text,
                         },
                         CompletionItem {
-                            name: "REWRITE".into(),
+                            item: "REWRITE".into(),
                             kind: CompletionKind::Text,
                         },
                     ])
@@ -2014,7 +2024,7 @@ impl RedisDB {
                 .boxed()]
             }
             "DECR" | "DECRBY" => {
-                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                let key = patterns.get(0);
                 match key {
                     Some(key) => {
                         let key = key.to_string();
@@ -2025,7 +2035,7 @@ impl RedisDB {
             }
 
             "DEL" => {
-                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                let key = patterns.get(0);
                 match key {
                     Some(key) => {
                         let key = key.to_string();
@@ -2035,7 +2045,7 @@ impl RedisDB {
                 }
             }
             "DUMP" => {
-                let key = patterns.get(0).map(|x| x.clone()).flatten();
+                let key = patterns.get(0);
                 match key {
                     Some(key) => {
                         let key = key.to_string();
@@ -2047,13 +2057,9 @@ impl RedisDB {
             "EXISTS" => {
                 let x = patterns
                     .iter()
-                    .map(|x| match x {
-                        Some(key) => {
-                            let key = key.to_string();
-                            async move { self.completion_keys(&key, Some(RedisType::List)).await }
-                                .boxed()
-                        }
-                        None => dummy.clone(),
+                    .map(|key| {
+                        async move { self.completion_keys(&key, Some(RedisType::List)).await }
+                            .boxed()
                     })
                     .collect::<Vec<_>>();
                 x
@@ -2063,23 +2069,789 @@ impl RedisDB {
                 let mut count = 0;
                 let x = patterns
                     .iter()
-                    .map(|x| {
-                        let x = match x {
-                            Some(key) if count % 2 == 0 => {
-                                let key = key.to_string();
-                                async move {
-                                        self.completion_keys(&key, Some(RedisType::List)).await
-                                    }
-                                    .boxed()
-                            }
-                            _ => dummy.clone(),
-                        };
+                    .map(|key| {
+                        let x =
+                            async move { self.completion_keys(&key, Some(RedisType::List)).await }
+                                .boxed();
                         count += 1;
                         x
                     })
                     .collect::<Vec<_>>();
                 x
             }
+            "GEOADD" | "GEODIST" | "GEOHASH" | "GEOPOS" | "GEORADIUS" | "GEORADIUSBYMEMBER" => {
+                // geo data use zset to store.
+                if patterns.len() > 0 {
+                    vec![async move {
+                        self.completion_keys(&patterns[0], Some(RedisType::Zset))
+                            .await
+                    }
+                    .boxed()]
+                } else {
+                    vec![]
+                }
+            }
+            "GET" | "GETBIT" | "GETRANGE" | "GETSET" => {
+                if patterns.len() > 0 {
+                    vec![async move {
+                        self.completion_keys(&patterns[0], Some(RedisType::String))
+                            .await
+                    }
+                    .boxed()]
+                } else {
+                    vec![]
+                }
+            }
+            "HDEL" | "HEXISTS" | "HGET" => patterns
+                .iter()
+                .enumerate()
+                .map(|(index, p)| match index {
+                    0 => {
+                        // suggest hash key
+                        async move { self.completion_keys(p, Some(RedisType::Hash)).await }.boxed()
+                    }
+                    1 => {
+                        let key = &patterns[0];
+
+                        // hash key store in pattern[0]
+                        async move { self.completion_hash_keys(key.as_str()).await }.boxed()
+                    }
+                    _ => dummy.clone(),
+                })
+                .collect(),
+            "HGETALL" => {
+                if patterns.len() > 0 {
+                    vec![async move {
+                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                            .await
+                    }
+                    .boxed()]
+                } else {
+                    vec![]
+                }
+            }
+            "HINCRBY" | "HINCRBYFLOAT" => {
+                patterns
+                    .iter()
+                    .enumerate()
+                    .map(|(index, p)| match index {
+                        0 => {
+                            async move { self.completion_keys(p, Some(RedisType::Hash)).await }
+                                .boxed()
+
+                            // suggest hash key
+                        }
+                        1 => {
+                            let key = &patterns[0];
+
+                            // hash key store in pattern[0]
+                            async move { self.completion_hash_keys(key.as_str()).await }.boxed()
+                        }
+                        _ => dummy.clone(),
+                    })
+                    .collect()
+            }
+            "HKEYS" | "HLEN" => {
+                if patterns.len() > 0 {
+                    vec![async move {
+                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                            .await
+                    }
+                    .boxed()]
+                } else {
+                    vec![]
+                }
+            }
+            "HMGET" => {
+                // get key first.
+                let hash_keys: Arc<Mutex<Option<Vec<CompletionItem>>>> = Default::default();
+                let hash_keys: Vec<_> = (0..patterns.len()).map(|_| hash_keys.clone()).collect();
+
+                patterns
+                    .iter()
+                    .enumerate()
+                    .zip(hash_keys.into_iter())
+                    .map(|((index, p), hash_keys)| match index {
+                        0 => {
+                            async move { self.completion_keys(&p, Some(RedisType::Hash)).await }
+                                .boxed()
+                            // suggest hash key
+                        }
+                        _ => {
+                            // hash key store in pattern[0]
+                            async move {
+                                let mut hash_keys = hash_keys.lock().await;
+                                if hash_keys.is_none() {
+                                    *hash_keys =
+                                        Some(self.completion_hash_keys(&patterns[0]).await?);
+                                }
+
+                                anyhow::Ok(hash_keys.clone().unwrap_or(vec![]))
+                                    as anyhow::Result<Vec<CompletionItem>>
+                            }
+                            .boxed()
+                        }
+                    })
+                    .collect()
+            }
+            "HMSET" | "HSET" => {
+                if patterns.len() > 0 {
+                    let mut ret = vec![async move {
+                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                            .await
+                    }
+                    .boxed()];
+                    let hash_keys: Arc<Mutex<Option<Vec<CompletionItem>>>> = Default::default();
+                    let hash_keys: Vec<_> =
+                        (0..patterns.len() - 1).map(|_| hash_keys.clone()).collect();
+                    let mut count = 0;
+                    patterns.iter().skip(1).zip(hash_keys.into_iter()).for_each(
+                        |(_p, hash_keys)| {
+                            let x = if count % 2 == 0 {
+                                async move {
+                                    let mut hash_keys = hash_keys.lock().await;
+                                    if hash_keys.is_none() {
+                                        *hash_keys =
+                                            Some(self.completion_hash_keys(&patterns[0]).await?);
+                                    }
+
+                                    anyhow::Ok(hash_keys.clone().unwrap_or(vec![]))
+                                        as anyhow::Result<Vec<CompletionItem>>
+                                }
+                                .boxed()
+                            } else {
+                                dummy.clone()
+                            };
+                            ret.push(x);
+                            count += 1;
+                        },
+                    );
+                    ret
+                } else {
+                    vec![]
+                }
+            }
+            "HSCAN" => {
+                if patterns.len() > 0 {
+                    let ret = vec![async move {
+                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                            .await
+                    }
+                    .boxed()];
+                    ret
+                } else {
+                    vec![]
+                }
+            }
+            "HSETNX" => {
+                if patterns.len() > 0 {
+                    let ret = vec![async move {
+                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                            .await
+                    }
+                    .boxed()];
+                    ret
+                } else {
+                    vec![]
+                }
+            }
+            "HSTRLEN" => {
+                let mut ret = Vec::new();
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                if patterns.len() > 1 {
+                    ret.push(async move { self.completion_hash_keys(&patterns[0]).await }.boxed());
+                }
+                ret
+            }
+            "HVALS" => {
+                let mut ret = Vec::new();
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "INCR" | "INCRBY" | "INCRBYFLOAT" => {
+                let mut ret = Vec::new();
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::String))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "INFO" => {
+                vec![async move {
+                    anyhow::Ok(vec![
+                        CompletionItem {
+                            item: "SERVER".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            item: "MEMORY".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            item: "PERSISTENCE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            item: "STATS".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        //
+                        CompletionItem {
+                            item: "REPLICATION".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            item: "CLIENTS".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            item: "CPU".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            item: "COMMANDSTATS".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        //
+                        CompletionItem {
+                            item: "CLUSTER".into(),
+                            kind: CompletionKind::Text,
+                        },
+                        CompletionItem {
+                            item: "KEYSPACE".into(),
+                            kind: CompletionKind::Text,
+                        },
+                    ])
+                }
+                .boxed()]
+            }
+            "KEYS" => {
+                vec![]
+            }
+            "LASTSAVE" => {
+                vec![]
+            }
+            "LINDEX" | "LINSERT" | "LLEN" | "LPOP" | "LPUSH" | "LPUSHX" | "LRANGE" | "LREM"
+            | "LSET" | "LTRIM" => {
+                let mut ret = Vec::new();
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::List))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+
+            "MGET" => patterns
+                .iter()
+                .map(|p| {
+                    async move {
+                        self.completion_keys(p.as_str(), Some(RedisType::String))
+                            .await
+                    }
+                    .boxed()
+                })
+                .collect(),
+            "MOVE" => {
+                let mut ret = Vec::new();
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::List))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "MSET" => {
+                let mut count = 0;
+                patterns
+                    .iter()
+                    .map(|key| {
+                        let x = if count % 2 == 0 {
+                            async move { self.completion_keys(&key, Some(RedisType::String)).await }
+                                .boxed()
+                        } else {
+                            dummy.clone()
+                        };
+                        count += 1;
+                        x
+                    })
+                    .collect()
+            }
+            "MSETNX" => {
+                //但它的特点是在所有指定的键都不存在的情况下，才会执行设置操作。
+                // 所以不需要提醒数据库的key
+                vec![]
+            }
+            "OBJECT" => {
+                let mut ret = Vec::with_capacity(2);
+
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            anyhow::Ok(vec![
+                                CompletionItem {
+                                    item: "ENCODING".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                                CompletionItem {
+                                    item: "IDLETIME".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                                CompletionItem {
+                                    item: "REFCOUNT".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                            ])
+                        }
+                        .boxed(),
+                    );
+                }
+                if patterns.len() > 1 {
+                    ret.push(async move { self.completion_keys(&patterns[1], None).await }.boxed());
+                }
+                ret
+            }
+            "PERSIST" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "PEXPIRE" | "PEXPIREAT" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "PFADD" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "PFCOUNT" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "PFMERGE" => {
+                let mut ret = Vec::with_capacity(2);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                if patterns.len() > 1 {
+                    ret.push(async move { self.completion_keys(&patterns[1], None).await }.boxed());
+                }
+
+                ret
+            }
+            "PING" => {
+                //
+                vec![]
+            }
+            "PSETEX" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "PTTL" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "PUBLISH" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "RANDOMKEY" => {
+                //
+                vec![]
+            }
+            "READONLY" => {
+                //
+                vec![]
+            }
+            "READWRITE" => {
+                vec![]
+            }
+            "RENAME" | "RENAMENX" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "RESTORE" | "RESTORE_ASKING" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "RPOP" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::List))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+
+            "RPOPLPUSH" => {
+                let mut ret = Vec::with_capacity(2);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::List))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                if patterns.len() > 1 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[1], Some(RedisType::List))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+
+                ret
+            }
+
+            "RPUSH" | "RPUSHX" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::List))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SADD" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Set))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SCARD" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Set))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SCRIPT" => {
+                let mut ret = Vec::with_capacity(2);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            anyhow::Ok(vec![
+                                CompletionItem {
+                                    item: "LOAD".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                                CompletionItem {
+                                    item: "EXISTS".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                                CompletionItem {
+                                    item: "FLUSH".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                                CompletionItem {
+                                    item: "KILL".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                                CompletionItem {
+                                    item: "DEBUG".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                            ])
+                        }
+                        .boxed(),
+                    );
+                }
+
+                ret
+            }
+            "SDIFF" => patterns
+                .iter()
+                .map(|p| {
+                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                })
+                .collect(),
+            "SDIFFSTORE" => patterns
+                .iter()
+                .map(|p| {
+                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                })
+                .collect(),
+
+            "SETBIT" | "SETEX" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::String))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SETNX" => {
+                //
+                vec![]
+            }
+            "SETRANGE" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::String))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SINTER" => patterns
+                .iter()
+                .map(|p| {
+                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                })
+                .collect(),
+            "SINTERSTORE" => patterns
+                .iter()
+                .map(|p| {
+                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                })
+                .collect(),
+            "SISMEMBER" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Set))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SLOWLOG" => {
+                let mut ret = Vec::with_capacity(2);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            anyhow::Ok(vec![
+                                CompletionItem {
+                                    item: "GET".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                                CompletionItem {
+                                    item: "LEN".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                                CompletionItem {
+                                    item: "RESET".into(),
+                                    kind: CompletionKind::Text,
+                                },
+                            ])
+                        }
+                        .boxed(),
+                    );
+                }
+
+                ret
+            }
+            "SMEMBERS" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Set))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SMOVE" => {
+                let mut ret = Vec::with_capacity(2);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Set))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                if patterns.len() > 1 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[1], Some(RedisType::Set))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+
+                ret
+            }
+            "SORT" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "SPOP" | "SRANDMEMBER" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Set))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SREM" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Set))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SSCAN" => {
+                // TODO
+                vec![]
+            }
+            "STRLEN" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::String))
+                                .await
+                        }
+                        .boxed(),
+                    );
+                }
+                ret
+            }
+            "SUNION" => patterns
+                .iter()
+                .map(|p| {
+                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                })
+                .collect(),
+            "SUNIONSTORE" => patterns
+                .iter()
+                .map(|p| {
+                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                })
+                .collect(),
+            "TOUCH" => patterns
+                .iter()
+                .map(|p| async move { self.completion_keys(&p, None).await }.boxed())
+                .collect(),
+            "TTL" | "TYPE" => {
+                let mut ret = Vec::with_capacity(1);
+                if patterns.len() > 0 {
+                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                }
+                ret
+            }
+            "UNLINK" => patterns
+                .iter()
+                .map(|p| async move { self.completion_keys(&p, None).await }.boxed())
+                .collect(),
+            "WATCH" => patterns
+                .iter()
+                .map(|p| async move { self.completion_keys(&p, None).await }.boxed())
+                .collect(),
+
             _ => {
                 vec![]
             }
@@ -2110,7 +2882,7 @@ fn static_redis_command_completion_items() -> Vec<CompletionItem> {
             REDIS_COMMANDS
                 .iter()
                 .map(|x| CompletionItem {
-                    name: (*x).into(),
+                    item: (*x).into(),
                     kind: CompletionKind::KeyWord,
                 })
                 .collect::<Vec<_>>()
@@ -2193,7 +2965,6 @@ const REDIS_COMMANDS: &'static [&'static str] = &[
     "LTRIM",
     "MGET",
     "MIGRATE",
-    "MONITOR",
     "MOVE",
     "MSET",
     "MSETNX",
@@ -2207,14 +2978,8 @@ const REDIS_COMMANDS: &'static [&'static str] = &[
     "PFMERGE",
     "PING",
     "PSETEX",
-    "PSUBSCRIBE",
-    "PUBSUB_CHANNELS",
-    "PUBSUB_NUMPAT",
-    "PUBSUB_NUMSUB",
     "PTTL",
     "PUBLISH",
-    "PUNSUBSCRIBE",
-    "QUIT",
     "RANDOMKEY",
     "READONLY",
     "READWRITE",
@@ -2231,13 +2996,9 @@ const REDIS_COMMANDS: &'static [&'static str] = &[
     "SAVE",
     "SCAN",
     "SCARD",
-    "SCRIPT_EXISTS",
-    "SCRIPT_FLUSH",
-    "SCRIPT_KILL",
-    "SCRIPT_LOAD",
+    "SCRIPT",
     "SDIFF",
     "SDIFFSTORE",
-    "SELECT",
     "SET",
     "SETBIT",
     "SETEX",
@@ -2248,9 +3009,7 @@ const REDIS_COMMANDS: &'static [&'static str] = &[
     "SINTERSTORE",
     "SISMEMBER",
     "SLAVEOF",
-    "SLOWLOG_GET",
-    "SLOWLOG_LEN",
-    "SLOWLOG_RESET",
+    "SLOWLOG",
     "SMEMBERS",
     "SMOVE",
     "SORT",
@@ -2259,7 +3018,6 @@ const REDIS_COMMANDS: &'static [&'static str] = &[
     "SREM",
     "SSCAN",
     "STRLEN",
-    "SUBSCRIBE",
     "SUNION",
     "SUNIONSTORE",
     "SYNC",
@@ -2267,7 +3025,6 @@ const REDIS_COMMANDS: &'static [&'static str] = &[
     "TOUCH",
     "TTL",
     "TYPE",
-    "UNSUBSCRIBE",
     "UNLINK",
     "UNWATCH",
     "WAIT",
