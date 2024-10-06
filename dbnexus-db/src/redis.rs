@@ -471,6 +471,7 @@ impl BackendName for RedisDB {
         "redis"
     }
 }
+
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -491,7 +492,7 @@ impl SchemaTrait for RedisDB {
         match ty {
             RedisType::String => {
                 let value: String = conn.get(key).await?;
-                conn_set.set(dup, value).await?;
+                let _: () = conn_set.set(dup, value).await?;
             }
             RedisType::List => {
                 let total: isize = conn.llen(key).await?;
@@ -499,13 +500,13 @@ impl SchemaTrait for RedisDB {
                 let iter = OffsetLimitIter::new(total, 100);
                 for x in iter {
                     let list: Vec<String> = conn.lrange(key, x, x + size).await?;
-                    conn_set.rpush(dup, list).await?;
+                    let _: () = conn_set.rpush(dup, list).await?;
                 }
             }
             RedisType::Set => {
                 let mut iter = conn.sscan::<_, String>(key).await?.ready_chunks(100);
                 while let Some(set) = iter.next().await {
-                    conn_set.sadd(dup, set).await?;
+                    let _: () = conn_set.sadd(dup, set).await?;
                 }
             }
 
@@ -515,7 +516,7 @@ impl SchemaTrait for RedisDB {
                 while let Some(value) = stream.next().await {
                     match &key {
                         Some(key2) => {
-                            conn_set.hset(dup, key2, value).await?;
+                            let _: () = conn_set.hset(dup, key2, value).await?;
                             key = None;
                         }
                         None => {
@@ -531,7 +532,7 @@ impl SchemaTrait for RedisDB {
                 while let Some(score) = stream.next().await {
                     match zkey {
                         Some(zkey2) => {
-                            conn_set.zadd(dup, zkey2, score).await?;
+                            let _: () = conn_set.zadd(dup, zkey2, score).await?;
                             zkey = None;
                         }
                         None => {
@@ -546,7 +547,7 @@ impl SchemaTrait for RedisDB {
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        conn.rename(old, new).await?;
+        let _: () = conn.rename(old, new).await?;
         anyhow::Ok(())
     }
 
@@ -741,8 +742,8 @@ impl SchemaTrait for RedisDB {
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let mut conn = self.get_conn().await?;
-        conn.del(table).await?;
+        let mut conn: ConnectionManager = self.get_conn().await?;
+        conn.del::<_, ()>(table).await?;
         Ok(())
     }
 }
