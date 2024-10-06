@@ -1810,8 +1810,11 @@ mod tests {
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
 
-        let resp = db.list_schema().await.unwrap();
-        assert_eq!(resp, vec!["dbo",]);
+        let dbnames = db.list_schema().await.unwrap();
+        assert_eq!(dbnames, vec!["dbo",]);
+        for dbname in dbnames.iter() {
+            db.open_schema(&dbname).await.unwrap();
+        }
     }
 
     #[tokio::test]

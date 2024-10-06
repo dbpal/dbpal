@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use std::future::Future;
+
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
@@ -11,12 +12,11 @@ use std::vec;
 
 use crate::completion::{
     in_pos, match_pattern_and_sort, AutoCompletionTrait, CompletionItem, CompletionKind,
-    DBListCompletionItem,
 };
 use crate::db::{
-    create_csv, BackendName, CheckConn, ExportKind, Field, FormatSql, FormatSqlOpts, Index,
-    ListTable, MetaValue, OffsetLimitIter, QueryLog, QueryResp, QuerySql, QuerySqlWithoutOpenConn,
-    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
+    create_csv, BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts,
+    Index, ListTable, MetaValue, OffsetLimitIter, QueryLog, QueryResp, QuerySql,
+    QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
 };
 use dashmap::DashMap;
 use futures_core::future::BoxFuture;
@@ -33,18 +33,89 @@ use redis::{AsyncCommands, AsyncIter, Value};
 
 #[derive(Clone)]
 pub struct RedisDB {
-    server: String,
+    username: Option<String>,
+    password: Option<String>,
+    host: String,
+    port: Option<u16>,
+    db: Option<String>,
     m: ConnectionManager,
     read_only: bool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
 }
 
 impl RedisDB {
-    pub async fn new(server: String, read_only: bool) -> anyhow::Result<Self> {
-        let client = redis::Client::open(server.as_str())?;
+    fn self_make_conn_string(&self) -> String {
+        Self::make_conn_string(
+            &self.host,
+            self.port,
+            self.username.as_ref().map(|x| x.as_str()),
+            self.password.as_ref().map(|x| x.as_str()),
+            self.db.as_ref().map(|x| x.as_str()),
+        )
+    }
+    fn make_conn_string(
+        host: &str, port: Option<u16>, username: Option<&str>, password: Option<&str>,
+        db: Option<&str>,
+    ) -> String {
+        let mut ret = "redis://".to_owned();
+        match &username {
+            Some(username) => {
+                ret.push_str(&username);
+                match &password {
+                    Some(pass) => {
+                        ret.push_str(format!(":{}", pass).as_str());
+                    }
+                    None => {}
+                }
+                ret.push('@');
+            }
+            None => {}
+        }
+        // host and port
+        ret.push_str(host);
+        match port {
+            Some(port) => {
+                ret.push_str(format!(":{}", port).as_str());
+            }
+            None => {}
+        }
+        match &db {
+            Some(db) => {
+                ret.push_str(format!("/{}", &db[2..]).as_str());
+            }
+            None => {
+                ret.push_str("/");
+            }
+        }
+        ret
+    }
+
+    pub async fn new(
+        host: impl Into<String>, port: Option<u16>, username: impl Into<Option<String>>,
+        password: impl Into<Option<String>>, db: impl Into<Option<String>>, read_only: bool,
+    ) -> anyhow::Result<Self> {
+        let host = host.into();
+        let username = username.into();
+        let password: Option<String> = password.into();
+        let db: Option<String> = db.into();
+
+        let conn_str = Self::make_conn_string(
+            &host,
+            port,
+            username.as_ref().map(|x| x.as_str()),
+            password.as_ref().map(|x| x.as_str()),
+            db.as_ref().map(|x| x.as_str()),
+        );
+        log::info!("connect to redis var:{:?}", conn_str);
+
+        let client = redis::Client::open(conn_str.as_str())?;
         let m = redis::aio::ConnectionManager::new(client).await?;
         anyhow::Ok(Self {
-            server,
+            db,
+            host,
+            username,
+            password,
+            port,
             m,
             read_only,
             query_connections: Default::default(),
@@ -66,11 +137,10 @@ impl ServerMetas for RedisDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         // TODO get server metas
         let ret = Vec::new();
-
         anyhow::Ok(ret)
     }
 }
-
+// export impl
 impl RedisDB {
     async fn export_table_as_csv(
         &self, key: &str, include_header: bool, delimiter: char,
@@ -769,6 +839,31 @@ impl RedisDB {
 }
 
 #[async_trait::async_trait]
+impl DBTrait for RedisDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        let mut conn = self.get_conn().await?;
+        let r: String = redis::cmd("info")
+            .arg("keyspace")
+            .query_async(&mut conn)
+            .await?;
+
+        extract_db_from_info_key_space(&r)
+    }
+    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
+        let db = Self::new(
+            self.host.clone(),
+            self.port,
+            self.username.clone(),
+            self.password.clone(),
+            Some(name.to_string()),
+            self.read_only,
+        )
+        .await?;
+        anyhow::Ok(Arc::new(db))
+    }
+}
+
+#[async_trait::async_trait]
 impl QuerySql for RedisDB {
     /// redis have no transaction any connection is fine
     /// so connection management for redis is dummy
@@ -938,7 +1033,7 @@ fn encode_response_value(v: &Value) -> String {
 
 impl RedisDB {
     async fn get_client(&self) -> anyhow::Result<redis::Client> {
-        let client = redis::Client::open(self.server.as_str())?;
+        let client = redis::Client::open(self.self_make_conn_string().as_str())?;
         anyhow::Ok(client)
     }
 
@@ -947,23 +1042,57 @@ impl RedisDB {
     }
 }
 
+/*
+extract database from those vec result.
+
+```# Keyspace
+db0:keys=12,expires=0,avg_ttl=0
+db1:keys=1,expires=0,avg_ttl=0
+```
+*/
+fn extract_db_from_info_key_space(result: &str) -> anyhow::Result<Vec<String>> {
+    let mut ret = Vec::new();
+    for r in result.lines().skip(1) {
+        match r.find(":") {
+            Some(index) => {
+                ret.push(r[0..index].to_string());
+            }
+            None => {
+                anyhow::bail!("the result of INFO KEYSPACE have changed")
+            }
+        }
+    }
+    anyhow::Ok(ret)
+}
+
 #[cfg(test)]
 mod tests {
 
     use std::time::Duration;
 
-    use super::RedisDB;
+    use super::{extract_db_from_info_key_space, RedisDB};
     use crate::{
         completion::AutoCompletionTrait,
         db::{ExportKind, ServerMetas},
-        TEST_HOST,
+        init_log, TEST_HOST,
     };
 
     async fn make_test_object() -> RedisDB {
-        let db = RedisDB::new(format!("redis://{}/", *TEST_HOST), false)
+        let db = RedisDB::new(TEST_HOST.to_string(), None, None, None, None, false)
             .await
             .unwrap();
         db
+    }
+
+    #[test]
+    fn test_extract_db_from_info_key_space() {
+        let r = extract_db_from_info_key_space(
+            r#"# Keyspace
+db0:keys=12,expires=0,avg_ttl=0
+db1:keys=1,expires=0,avg_ttl=0"#,
+        )
+        .unwrap();
+        assert_eq!(r, vec!["db0".to_string(), "db1".to_string()]);
     }
 
     #[tokio::test]
@@ -1017,6 +1146,41 @@ mod tests {
         let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
+    #[test]
+    fn test_make_conn_string() {
+        assert_eq!(
+            RedisDB::make_conn_string("127.0.0.1", Some(111), None, None, None),
+            "redis://127.0.0.1:111/"
+        );
+        assert_eq!(
+            RedisDB::make_conn_string("127.0.0.1", None, None, None, None),
+            "redis://127.0.0.1/"
+        );
+        assert_eq!(
+            RedisDB::make_conn_string("127.0.0.1", None, Some("aaa"), Some("bbb"), None),
+            "redis://aaa:bbb@127.0.0.1/"
+        );
+        assert_eq!(
+            RedisDB::make_conn_string("127.0.0.1", None, Some("aaa"), None, None),
+            "redis://aaa@127.0.0.1/"
+        );
+
+        assert_eq!(
+            RedisDB::make_conn_string("127.0.0.1", None, Some("aaa"), None, Some("db1")),
+            "redis://aaa@127.0.0.1/1"
+        );
+    }
+    #[tokio::test]
+    async fn test_list_schema() {
+        init_log();
+        let db = make_test_object().await;
+        let db = &db as &dyn crate::db::DBTrait;
+
+        let dbnames = db.list_schema().await.unwrap();
+        for dbname in dbnames.iter() {
+            db.open_schema(&dbname).await.unwrap();
+        }
+    }
 
     #[tokio::test]
     async fn test_check_alot_of_key() {
@@ -1036,7 +1200,7 @@ mod tests {
         // }
         let now = std::time::Instant::now();
         let x = db.redis_list_table().await.unwrap();
-        println!("{:?} {}", now.elapsed(), x.string_table.len());
+        println!("used{:?} key_len:{}", now.elapsed(), x.string_table.len());
     }
 
     #[tokio::test]
@@ -1425,6 +1589,9 @@ impl AutoCompletionTrait for RedisDB {
                 _ => true,
             })
             .collect::<Vec<_>>();
+        if tokens.len() == 0 {
+            anyhow::bail!("no tokens");
+        }
         let command = match &tokens[0].token {
             Token::Word(word) => {
                 if in_pos(pos, tokens[0].location, word.value.len() as u64) {
@@ -1452,7 +1619,6 @@ impl AutoCompletionTrait for RedisDB {
             )
         {
             println!("{:?}", token);
-
             match &token.token {
                 Token::Word(word) => {
                     if in_pos(pos, token.location, word.value.len() as u64) {
@@ -1934,34 +2100,6 @@ impl sqlparser::dialect::Dialect for RedisDialet {
     /// Determine if a character is a valid unquoted identifier character
     fn is_identifier_part(&self, ch: char) -> bool {
         self.is_identifier_start(ch)
-    }
-}
-
-#[async_trait::async_trait]
-
-impl DBListCompletionItem for RedisDB {
-    fn is_multi_db(&self) -> bool {
-        false
-    }
-
-    async fn list_table(&self, _db: Option<String>) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(
-            crate::db::SchemaTrait::list_table(self)
-                .await?
-                .into_iter()
-                .map(|x| x.name)
-                .collect(),
-        )
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_columns(
-        &self, _db: Option<String>, _table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
     }
 }
 
