@@ -246,4 +246,120 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
 }
 
 #[cfg(test)]
-mod tests {}
+pub(crate) mod completion_test {
+
+    use super::{AutoCompletionTrait, CompletionItem};
+
+    /// test if completion items contains a centains string
+    /// use in test to see if completion is ok.
+    /// this fn not returns just panic if not contains.
+    pub fn test_completion_items_contains(items: &[CompletionItem], name: &str) {
+        assert!(
+            items.iter().any(|x| x.item.eq_ignore_ascii_case(name)),
+            "items:{:?},expect:{:?}",
+            items,
+            name
+        )
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn test_test_completion_items_contains() {
+        use crate::completion::CompletionKind;
+
+        use super::CompletionItem;
+
+        test_completion_items_contains(
+            &[CompletionItem {
+                item: "aaa".into(),
+                kind: CompletionKind::Text,
+            }],
+            "aaa",
+        );
+    }
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub(crate) struct CompletionOneTest {
+        pub(crate) sql: String,
+        pub(crate) tests: Vec<(u64, Vec<String>)>,
+    }
+
+    pub(crate) fn parse_auto_completion_test_file(s: &str) -> Vec<CompletionOneTest> {
+        let x: Vec<_> = s.lines().collect();
+        x.chunks(2)
+            .map(|x| {
+                let cmd = &x[0];
+                let e = &x[1];
+                let es = e.split(";");
+                let es = es
+                    .map(|x| {
+                        let es = x.split(" ");
+                        let mut es = es.filter(|x| !x.is_empty()).collect::<Vec<_>>().into_iter();
+                        let col = es.next().unwrap().parse::<u64>().unwrap();
+                        let es = es.map(|x| x.to_string()).collect::<Vec<_>>();
+                        (col, es)
+                    })
+                    .collect::<Vec<_>>();
+
+                CompletionOneTest {
+                    sql: cmd.to_string(),
+                    tests: es,
+                }
+            })
+            .collect()
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn test_parse_auto_completion_test_file() {
+        let x = parse_auto_completion_test_file(
+            r#"append str
+1 append ; 11 str
+select xxxx
+1 select ; 4 xxxx
+"#,
+        );
+
+        assert_eq!(
+            x,
+            vec![
+                CompletionOneTest {
+                    sql: "append str".to_string(),
+                    tests: vec![
+                        (1, vec!["append".to_string()]),
+                        (11, vec!["str".to_string()])
+                    ]
+                },
+                CompletionOneTest {
+                    sql: "select xxxx".to_string(),
+                    tests: vec![
+                        (1, vec!["select".to_string()]),
+                        (4, vec!["xxxx".to_string()])
+                    ]
+                }
+            ]
+        );
+    }
+
+    pub(crate) async fn test_file_auto_completion(content: &str, db: &dyn AutoCompletionTrait) {
+        let items = parse_auto_completion_test_file(&content);
+        for item in items.iter() {
+            log::trace!("########completion on {:?}", item.sql);
+            for i in item.tests.iter() {
+                log::trace!("on pos:{}", i.0);
+                let items = db
+                    .auto_completion(
+                        &item.sql,
+                        sqlparser::tokenizer::Location {
+                            line: 1,
+                            column: i.0 as u64,
+                        },
+                    )
+                    .await
+                    .unwrap();
+                for should in i.1.iter() {
+                    test_completion_items_contains(&items[..], &should);
+                }
+            }
+        }
+    }
+}
