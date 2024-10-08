@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use typescript_type_def::TypeDef;
 
-use crate::datasource::MongoDataSource;
+use crate::datasource_config::MongoConfig;
 use crate::db::{
     BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
     ListTable, ListView, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
@@ -44,9 +44,7 @@ pub struct Mongo {
 }
 
 impl Mongo {
-    pub fn new(
-        ds: MongoDataSource, dbname: Option<String>, read_only: bool,
-    ) -> anyhow::Result<Self> {
+    pub fn new(ds: MongoConfig, dbname: Option<String>, read_only: bool) -> anyhow::Result<Self> {
         let mut opts = mongodb::options::ClientOptions::default();
         opts.hosts = vec![ServerAddress::Tcp {
             host: ds.host.to_string(),
@@ -716,14 +714,14 @@ mod tests {
 
     use super::Mongo;
 
-    use crate::datasource::MongoDataSource;
+    use crate::datasource_config::MongoConfig;
     use crate::db::{DBTrait, SchemaTrait, ServerMetas};
 
     use crate::TEST_HOST;
 
     fn make_test_object() -> Mongo {
         let x = Mongo::new(
-            MongoDataSource {
+            MongoConfig {
                 host: TEST_HOST.to_string(),
                 port: 27017,
                 username_and_password: None,

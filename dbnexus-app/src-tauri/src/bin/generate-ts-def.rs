@@ -5,7 +5,9 @@ use std::io::prelude::*;
 use std::path::Path;
 
 use dbnexus_db::completion::{CompletionItem, CompletionKind};
-use dbnexus_db::datasource::{PGDBConfig, SqlServerDBConfig};
+use dbnexus_db::datasource_config::{
+    MongoConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
+};
 use dbnexus_db::db::{
     ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListProcedure, ListTable,
     ListTrigger, ListUdf, ListView, ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp,
@@ -49,6 +51,9 @@ fn main() {
             &OpendKind::INFO,
             &FormatSqlOpts::INFO,
             &FormatSqlOptsIndent::INFO,
+            &RedisDBConfig::INFO,
+            &MysqlDBConfig::INFO,
+            &MongoConfig::INFO,
         ];
 
         let mut buf = Vec::new();

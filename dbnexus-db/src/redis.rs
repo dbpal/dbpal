@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use crate::datasource::RedisDBConfig;
+use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, ListTable,
     OffsetLimitIter, QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas,
@@ -1197,7 +1197,7 @@ mod tests {
     use super::{extract_db_from_info_key_space, split_info_colon, RedisDB};
     use crate::{
         completion::completion_test::test_file_auto_completion,
-        datasource::RedisDBConfig,
+        datasource_config::RedisDBConfig,
         db::{ExportKind, ServerMetas},
         init_log, TEST_HOST,
     };

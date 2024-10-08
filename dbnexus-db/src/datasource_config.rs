@@ -1,7 +1,7 @@
 use typescript_type_def::TypeDef;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
-pub struct MongoDataSource {
+pub struct MongoConfig {
     pub host: String,
     pub port: u16,
     pub username_and_password: Option<(String, String)>,

@@ -26,7 +26,7 @@ export namespace db_apis {
         "trust_cert": boolean;
     };
     export type U64 = number;
-    export type MongoDataSource = {
+    export type MongoConfig = {
         "host": string;
         "port": db_apis.U16;
         "username_and_password": ([string, string] | null);
@@ -35,6 +35,13 @@ export namespace db_apis {
          * milliseconds
          */
         "connect_timeout": (db_apis.U64 | null);
+    };
+    export type RedisDBConfig = {
+        "host": string;
+        "port": (db_apis.U16 | null);
+        "username": (string | null);
+        "password": (string | null);
+        "db": (string | null);
     };
     export type OracleDBConfig = {
         "username": string;
@@ -71,20 +78,15 @@ export namespace db_apis {
         "schema": (string | null);
     })) | ({
         "conn_type": "mongodb";
-    } & (db_apis.MongoDataSource & {
+    } & (db_apis.MongoConfig & {
         "read_only": boolean;
         "db_name": (string | null);
         "name": string;
     })) | ({
         "conn_type": "redis";
     } & {
-        "host": string;
-        "port": (db_apis.U16 | null);
-        "username": (string | null);
-        "password": (string | null);
         "read_only": boolean;
-        "name": string;
-        "db": (string | null);
+        "config": db_apis.RedisDBConfig;
     }) | ({
         "conn_type": "oracle";
     } & (db_apis.OracleDBConfig & {
@@ -199,7 +201,7 @@ export namespace db_apis {
         "name": string;
         "kind": CompletionKind;
     };
-    export type CompletionKind = ("KeyWord" | "Function" | "Dbname" | "TableName" | "Column" | "Text" | "Type");
+    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Dbname" | "TableName" | "Column" | "Text" | "Type");
     export type QueryResp = {
         "fields": (db_apis.Field)[];
         "data": (((string | null))[])[];

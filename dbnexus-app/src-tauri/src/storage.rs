@@ -4,8 +4,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use dbnexus_db::datasource::{
-    MongoDataSource, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
+use dbnexus_db::datasource_config::{
+    MongoConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
 };
 use dbnexus_db::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, ListView, SchemaTrait, SqlExecuteRet,
@@ -58,7 +58,7 @@ pub enum DBConnectionConfig {
     },
     MongoDB {
         #[serde(flatten)]
-        conn: MongoDataSource,
+        conn: MongoConfig,
         read_only: bool,
         db_name: Option<String>,
         name: String,
@@ -550,7 +550,7 @@ impl Default for UserSettings {
 mod tests {
     use std::collections::HashMap;
 
-    use dbnexus_db::datasource::MysqlDBConfig;
+    use dbnexus_db::datasource_config::MysqlDBConfig;
 
     use super::DBNexusConfigs;
     use crate::storage::DBConnectionConfig;

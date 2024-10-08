@@ -16,7 +16,8 @@ use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
-use crate::datasource::SqlServerDBConfig;
+
+use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     format_data_time_fix_offset, sqlformat_format_sql, BackendName, CatalogTrait, CheckConn,
     DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger,

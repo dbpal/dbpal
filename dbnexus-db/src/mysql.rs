@@ -15,7 +15,8 @@ use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
-use crate::datasource::MysqlDBConfig;
+
+use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     sqlformat_format_sql, BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListProcedure, ListTable, ListTrigger,
@@ -1970,7 +1971,7 @@ pub(crate) mod test_fns {
 #[cfg(test)]
 mod tests {
     use super::test_fns::{self, make_test_object};
-    use crate::{datasource::MysqlDBConfig, TEST_HOST};
+    use crate::{datasource_config::MysqlDBConfig, TEST_HOST};
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {

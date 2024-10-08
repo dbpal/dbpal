@@ -13,7 +13,8 @@ use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
 use crate::completion::DBLexerCompletionBackend;
-use crate::datasource::OracleDBConfig;
+
+use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     sqlformat_format_sql, BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
     Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListView, QueryResp, QuerySql,

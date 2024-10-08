@@ -14,7 +14,7 @@ use sqlx::{Column, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
 use crate::completion::DBLexerCompletionBackend;
-use crate::datasource::PGDBConfig;
+use crate::datasource_config::PGDBConfig;
 use crate::db::{
     sqlformat_format_sql, BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait,
     ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger,
@@ -1215,7 +1215,7 @@ impl CatalogTrait for PostGresDB {
 #[cfg(test)]
 mod tests {
     use super::PostGresDB;
-    use crate::datasource::PGDBConfig;
+    use crate::datasource_config::PGDBConfig;
     use crate::db::CatalogTrait;
     use crate::db::{CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas};
 

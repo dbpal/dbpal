@@ -7,7 +7,7 @@ use lazy_static::lazy_static;
 use log::{Level, LevelFilter, Metadata, Record};
 
 pub mod completion;
-pub mod datasource;
+pub mod datasource_config;
 pub mod db;
 pub mod meta_value;
 
