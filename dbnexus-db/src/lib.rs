@@ -17,6 +17,7 @@ pub mod oracle;
 pub mod pg;
 pub mod pg_format;
 pub mod redis;
+pub mod redis_completion;
 pub mod typedef;
 
 pub mod sql_server;

@@ -17,7 +17,7 @@ pub trait AutoCompletionTrait {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct CompletionItem {
-    pub name: Cow<'static, str>,
+    pub item: Cow<'static, str>,
     pub kind: CompletionKind,
 }
 
@@ -123,7 +123,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             Self::KEY_WORDS
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Borrowed(*x),
+                    item: Cow::Borrowed(*x),
                     kind: CompletionKind::KeyWord,
                 })
                 .collect::<Vec<_>>(),
@@ -132,7 +132,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             Self::BUILD_IN_FUNCTIONS
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Borrowed(*x),
+                    item: Cow::Borrowed(*x),
                     kind: CompletionKind::Function,
                 })
                 .collect::<Vec<_>>(),
@@ -141,7 +141,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             Self::TYPES
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Borrowed(*x),
+                    item: Cow::Borrowed(*x),
                     kind: CompletionKind::Type,
                 })
                 .collect::<Vec<_>>(),
@@ -150,7 +150,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             Self::TEXTS
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Borrowed(*x),
+                    item: Cow::Borrowed(*x),
                     kind: CompletionKind::Text,
                 })
                 .collect::<Vec<_>>(),
@@ -161,7 +161,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             list_db
                 .iter()
                 .map(|x| CompletionItem {
-                    name: Cow::Owned(x.clone()),
+                    item: Cow::Owned(x.clone()),
                     kind: CompletionKind::Dbname,
                 })
                 .collect::<Vec<_>>(),
@@ -179,7 +179,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                         .await
                         .unwrap_or(vec![]);
                     ret.extend(cols.into_iter().map(|x| CompletionItem {
-                        name: Cow::Owned(x),
+                        item: Cow::Owned(x),
                         kind: CompletionKind::Column,
                     }));
                 }
@@ -187,7 +187,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                     list_tables
                         .into_iter()
                         .map(|x| CompletionItem {
-                            name: Cow::Owned(x),
+                            item: Cow::Owned(x),
                             kind: CompletionKind::TableName,
                         })
                         .collect::<Vec<_>>(),
@@ -198,7 +198,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             for t in list_tables.iter() {
                 let cols = self.list_columns(None, t.as_str()).await.unwrap_or(vec![]);
                 ret.extend(cols.into_iter().map(|x| CompletionItem {
-                    name: Cow::Owned(x),
+                    item: Cow::Owned(x),
                     kind: CompletionKind::Column,
                 }));
             }
@@ -207,7 +207,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                 list_tables
                     .into_iter()
                     .map(|x| CompletionItem {
-                        name: Cow::Owned(x),
+                        item: Cow::Owned(x),
                         kind: CompletionKind::TableName,
                     })
                     .collect::<Vec<_>>(),
@@ -228,14 +228,14 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
     let mut names = HashSet::new();
 
     for item in items.into_iter() {
-        if names.contains(&item.name.to_lowercase()) {
+        if names.contains(&item.item.to_lowercase()) {
             // don't handle already handled.
             continue;
         }
 
-        let m = matcher.fuzzy_match(&item.name, pattern);
+        let m = matcher.fuzzy_match(&item.item, pattern);
         if let Some(s) = m {
-            names.insert(item.name.to_lowercase());
+            names.insert(item.item.to_lowercase());
 
             matched.push(AndScore { item, score: s });
         }
@@ -246,4 +246,120 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
 }
 
 #[cfg(test)]
-mod tests {}
+pub(crate) mod completion_test {
+
+    use super::{AutoCompletionTrait, CompletionItem};
+
+    /// test if completion items contains a centains string
+    /// use in test to see if completion is ok.
+    /// this fn not returns just panic if not contains.
+    pub fn test_completion_items_contains(items: &[CompletionItem], name: &str) {
+        assert!(
+            items.iter().any(|x| x.item.eq_ignore_ascii_case(name)),
+            "items:{:?},expect:{:?}",
+            items,
+            name
+        )
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn test_test_completion_items_contains() {
+        use crate::completion::CompletionKind;
+
+        use super::CompletionItem;
+
+        test_completion_items_contains(
+            &[CompletionItem {
+                item: "aaa".into(),
+                kind: CompletionKind::Text,
+            }],
+            "aaa",
+        );
+    }
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub(crate) struct CompletionOneTest {
+        pub(crate) sql: String,
+        pub(crate) tests: Vec<(u64, Vec<String>)>,
+    }
+
+    pub(crate) fn parse_auto_completion_test_file(s: &str) -> Vec<CompletionOneTest> {
+        let x: Vec<_> = s.lines().collect();
+        x.chunks(2)
+            .map(|x| {
+                let cmd = &x[0];
+                let e = &x[1];
+                let es = e.split(";");
+                let es = es
+                    .map(|x| {
+                        let es = x.split(" ");
+                        let mut es = es.filter(|x| !x.is_empty()).collect::<Vec<_>>().into_iter();
+                        let col = es.next().unwrap().parse::<u64>().unwrap();
+                        let es = es.map(|x| x.to_string()).collect::<Vec<_>>();
+                        (col, es)
+                    })
+                    .collect::<Vec<_>>();
+
+                CompletionOneTest {
+                    sql: cmd.to_string(),
+                    tests: es,
+                }
+            })
+            .collect()
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn test_parse_auto_completion_test_file() {
+        let x = parse_auto_completion_test_file(
+            r#"append str
+1 append ; 11 str
+select xxxx
+1 select ; 4 xxxx
+"#,
+        );
+
+        assert_eq!(
+            x,
+            vec![
+                CompletionOneTest {
+                    sql: "append str".to_string(),
+                    tests: vec![
+                        (1, vec!["append".to_string()]),
+                        (11, vec!["str".to_string()])
+                    ]
+                },
+                CompletionOneTest {
+                    sql: "select xxxx".to_string(),
+                    tests: vec![
+                        (1, vec!["select".to_string()]),
+                        (4, vec!["xxxx".to_string()])
+                    ]
+                }
+            ]
+        );
+    }
+
+    pub(crate) async fn test_file_auto_completion(content: &str, db: &dyn AutoCompletionTrait) {
+        let items = parse_auto_completion_test_file(&content);
+        for item in items.iter() {
+            log::trace!("########completion on {:?}", item.sql);
+            for i in item.tests.iter() {
+                log::trace!("on pos:{}", i.0);
+                let items = db
+                    .auto_completion(
+                        &item.sql,
+                        sqlparser::tokenizer::Location {
+                            line: 1,
+                            column: i.0 as u64,
+                        },
+                    )
+                    .await
+                    .unwrap();
+                for should in i.1.iter() {
+                    test_completion_items_contains(&items[..], &should);
+                }
+            }
+        }
+    }
+}

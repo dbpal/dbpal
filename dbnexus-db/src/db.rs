@@ -339,7 +339,7 @@ impl From<String> for ListUdf {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TypeDef)]
 pub struct FormatSqlOpts {
     pub indent: FormatSqlOptsIndent,
-    pub uppercase: bool,
+    pub uppercase: Option<bool>,
     pub lines_between_queries: u8,
 }
 
@@ -350,8 +350,8 @@ pub enum FormatSqlOptsIndent {
     Tabs,
 }
 
-impl Into<sqlformat::FormatOptions> for FormatSqlOpts {
-    fn into(self) -> sqlformat::FormatOptions {
+impl Into<sqlformat::FormatOptions<'static>> for FormatSqlOpts {
+    fn into(self) -> sqlformat::FormatOptions<'static> {
         sqlformat::FormatOptions {
             indent: match self.indent {
                 FormatSqlOptsIndent::Spaces(x) => sqlformat::Indent::Spaces(x),
@@ -359,6 +359,7 @@ impl Into<sqlformat::FormatOptions> for FormatSqlOpts {
             },
             uppercase: self.uppercase,
             lines_between_queries: self.lines_between_queries,
+            ignore_case_convert: None,
         }
     }
 }
@@ -1225,6 +1226,7 @@ fn is_statement_absolute_query(s: &Statement) -> bool {
             describe_alias: _,
             table_name: _,
             hive_format: _,
+            has_table_keyword: _,
         } => true,
         Statement::Explain {
             describe_alias: _,
@@ -1468,7 +1470,7 @@ fn test_off_iter() {
 
 /// format sql routine for crate `sqlformat`.
 pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
-    sqlformat::format(sql, &sqlformat::QueryParams::None, op.unwrap_or_default())
+    sqlformat::format(sql, &sqlformat::QueryParams::None, &op.unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -1482,9 +1484,12 @@ pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> an
     for s in ss.iter() {
         let x = match s {
             Statement::Truncate {
-                table_name: _,
                 partitions: _,
                 table: _,
+                table_names: _,
+                only: _,
+                identity: _,
+                cascade: _,
             } => true,
             Statement::Drop {
                 object_type: _,

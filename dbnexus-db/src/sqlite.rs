@@ -1192,7 +1192,7 @@ impl crate::completion::DBLexerCompletionBackend for SqliteDB {
         PRAGMA_ITEMS
             .iter()
             .map(|x| CompletionItem {
-                name: Cow::Borrowed(*x),
+                item: Cow::Borrowed(*x),
                 kind: CompletionKind::Text,
             })
             .collect()

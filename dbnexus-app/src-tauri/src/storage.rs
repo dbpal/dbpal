@@ -64,9 +64,13 @@ pub enum DBConnectionConfig {
         name: String,
     },
     Redis {
-        server: String,
+        host: String,
+        port: Option<u16>,
+        username: Option<String>,
+        password: Option<String>,
         read_only: bool,
         name: String,
+        db: Option<String>,
     },
     Oracle {
         #[serde(flatten)]
@@ -269,14 +273,30 @@ pub(crate) async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Redis {
-            server,
+            host,
+            port,
             read_only,
             name: _,
+            username,
+            password,
+            db,
         } => {
-            let db: Arc<dyn SchemaTrait> =
-                Arc::new(dbnexus_db::redis::RedisDB::new(server.to_string(), *read_only).await?);
+            let redis = dbnexus_db::redis::RedisDB::new(
+                host.to_string(),
+                port.clone(),
+                username.clone(),
+                password.clone(),
+                db.clone(),
+                *read_only,
+            )
+            .await?;
 
-            anyhow::Ok(Open::Schema(db))
+            let db = match db {
+                Some(_) => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
+                None => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
+            };
+
+            anyhow::Ok(db)
         }
         DBConnectionConfig::Oracle {
             conn,
