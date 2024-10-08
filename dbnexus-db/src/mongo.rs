@@ -53,9 +53,14 @@ impl Mongo {
         }];
         opts.connect_timeout = ds.connect_timeout.clone().map(Duration::from_millis);
 
-        if let Some(_user) = &ds.username_and_password {
-            // TODO
+        if let Some((user, pass)) = &ds.username_and_password {
+            let b = mongodb::options::Credential::builder();
+            let b = b.username(Some(user.to_owned()));
+            let b = b.password(Some(pass.to_owned()));
+            let x = b.build();
+            opts.credential = Some(x);
         }
+
         let client = mongodb::Client::with_options(opts)?;
 
         anyhow::Ok(Self {
