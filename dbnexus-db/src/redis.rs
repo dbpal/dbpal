@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use crate::datasource::RedisDBConfig;
 use crate::db::{
     create_csv, BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts,
     Index, ListTable, MetaValue, OffsetLimitIter, QueryLog, QueryResp, QuerySql,
@@ -15,6 +16,7 @@ use crate::db::{
 
 use dashmap::DashMap;
 use futures_util::StreamExt;
+
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -25,89 +27,21 @@ use redis::{AsyncCommands, AsyncIter, Value};
 
 #[derive(Clone)]
 pub struct RedisDB {
-    username: Option<String>,
-    password: Option<String>,
-    host: String,
-    port: Option<u16>,
-    db: Option<String>,
+    config: RedisDBConfig,
     m: ConnectionManager,
     read_only: bool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
 }
 
 impl RedisDB {
-    fn self_make_conn_string(&self) -> String {
-        Self::make_conn_string(
-            &self.host,
-            self.port,
-            self.username.as_ref().map(|x| x.as_str()),
-            self.password.as_ref().map(|x| x.as_str()),
-            self.db.as_ref().map(|x| x.as_str()),
-        )
-    }
-    fn make_conn_string(
-        host: &str, port: Option<u16>, username: Option<&str>, password: Option<&str>,
-        db: Option<&str>,
-    ) -> String {
-        let mut ret = "redis://".to_owned();
-        match &username {
-            Some(username) => {
-                ret.push_str(&username);
-                match &password {
-                    Some(pass) => {
-                        ret.push_str(format!(":{}", pass).as_str());
-                    }
-                    None => {}
-                }
-                ret.push('@');
-            }
-            None => {}
-        }
-        // host and port
-        ret.push_str(host);
-        match port {
-            Some(port) => {
-                ret.push_str(format!(":{}", port).as_str());
-            }
-            None => {}
-        }
-        match &db {
-            Some(db) => {
-                ret.push_str(format!("/{}", &db[2..]).as_str());
-            }
-            None => {
-                ret.push_str("/");
-            }
-        }
-        ret
-    }
-
-    pub async fn new(
-        host: impl Into<String>, port: Option<u16>, username: impl Into<Option<String>>,
-        password: impl Into<Option<String>>, db: impl Into<Option<String>>, read_only: bool,
-    ) -> anyhow::Result<Self> {
-        let host = host.into();
-        let username = username.into();
-        let password: Option<String> = password.into();
-        let db: Option<String> = db.into();
-
-        let conn_str = Self::make_conn_string(
-            &host,
-            port,
-            username.as_ref().map(|x| x.as_str()),
-            password.as_ref().map(|x| x.as_str()),
-            db.as_ref().map(|x| x.as_str()),
-        );
+    pub async fn new(config: RedisDBConfig, read_only: bool) -> anyhow::Result<Self> {
+        let conn_str = config.make_conn_string();
         log::info!("connect to redis var:{:?}", conn_str);
 
         let client = redis::Client::open(conn_str.as_str())?;
         let m = redis::aio::ConnectionManager::new(client).await?;
         anyhow::Ok(Self {
-            db,
-            host,
-            username,
-            password,
-            port,
+            config,
             m,
             read_only,
             query_connections: Default::default(),
@@ -868,15 +802,10 @@ impl DBTrait for RedisDB {
         extract_db_from_info_key_space(&r)
     }
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        let db = Self::new(
-            self.host.clone(),
-            self.port,
-            self.username.clone(),
-            self.password.clone(),
-            Some(name.to_string()),
-            self.read_only,
-        )
-        .await?;
+        let mut config = self.config.clone();
+        config.db = Some(name.to_owned());
+
+        let db = Self::new(config, self.read_only).await?;
         anyhow::Ok(Arc::new(db))
     }
 }
@@ -1015,7 +944,7 @@ async fn query_sql(
             .arg(args)
             .query_async(conn)
             .await
-            .map(|x| encode_response_value(&x, get_cmd_type_hint(&c[..])));
+            .map(|x| encode_response_value(&x, RedisValueEncodeHit::from_cmd(&c[..])));
 
         match v {
             Ok(x) => {
@@ -1054,28 +983,30 @@ enum RedisValueEncodeHit {
     None,
 }
 
-fn get_cmd_type_hint(cmd: &[String]) -> Option<RedisValueEncodeHit> {
-    if cmd
-        .get(0)
-        .map(|x| x.eq_ignore_ascii_case("HGETALL"))
-        .unwrap_or(false)
-    {
-        return Some(RedisValueEncodeHit::Hash);
-    }
-    if cmd
-        .get(0)
-        .map(|x| x.eq_ignore_ascii_case("ZRANGE"))
-        .unwrap_or(false)
-        && cmd
-            .last()
-            .map(|x| x.eq_ignore_ascii_case("WITHSCORES"))
+impl RedisValueEncodeHit {
+    fn from_cmd(cmd: &[String]) -> Option<Self> {
+        if cmd
+            .get(0)
+            .map(|x| x.eq_ignore_ascii_case("HGETALL"))
             .unwrap_or(false)
-    {
-        return Some(RedisValueEncodeHit::Zset);
+        {
+            return Some(Self::Hash);
+        }
+        if cmd
+            .get(0)
+            .map(|x| x.eq_ignore_ascii_case("ZRANGE"))
+            .unwrap_or(false)
+            && cmd
+                .last()
+                .map(|x| x.eq_ignore_ascii_case("WITHSCORES"))
+                .unwrap_or(false)
+        {
+            return Some(Self::Zset);
+        }
+        None
     }
-
-    None
 }
+
 fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHit>) -> QueryResp {
     match v {
         Value::Set(vs) => {
@@ -1174,7 +1105,7 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
 
 impl RedisDB {
     async fn get_client(&self) -> anyhow::Result<redis::Client> {
-        let client = redis::Client::open(self.self_make_conn_string().as_str())?;
+        let client = redis::Client::open(self.config.make_conn_string().as_str())?;
         anyhow::Ok(client)
     }
 
@@ -1214,17 +1145,20 @@ mod tests {
     use super::{extract_db_from_info_key_space, RedisDB};
     use crate::{
         completion::completion_test::test_file_auto_completion,
+        datasource::RedisDBConfig,
         db::{ExportKind, ServerMetas},
         init_log, TEST_HOST,
     };
 
     async fn make_test_object() -> RedisDB {
         let db = RedisDB::new(
-            TEST_HOST.to_string(),
-            None,
-            None,
-            None,
-            Some("db0".to_string()),
+            RedisDBConfig {
+                host: TEST_HOST.to_string(),
+                port: None,
+                username: None,
+                password: None,
+                db: Some("db0".to_string()),
+            },
             false,
         )
         .await
@@ -1316,30 +1250,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
-    #[test]
-    fn test_make_conn_string() {
-        assert_eq!(
-            RedisDB::make_conn_string("127.0.0.1", Some(111), None, None, None),
-            "redis://127.0.0.1:111/"
-        );
-        assert_eq!(
-            RedisDB::make_conn_string("127.0.0.1", None, None, None, None),
-            "redis://127.0.0.1/"
-        );
-        assert_eq!(
-            RedisDB::make_conn_string("127.0.0.1", None, Some("aaa"), Some("bbb"), None),
-            "redis://aaa:bbb@127.0.0.1/"
-        );
-        assert_eq!(
-            RedisDB::make_conn_string("127.0.0.1", None, Some("aaa"), None, None),
-            "redis://aaa@127.0.0.1/"
-        );
 
-        assert_eq!(
-            RedisDB::make_conn_string("127.0.0.1", None, Some("aaa"), None, Some("db1")),
-            "redis://aaa@127.0.0.1/1"
-        );
-    }
     #[tokio::test]
     async fn test_list_schema() {
         init_log();

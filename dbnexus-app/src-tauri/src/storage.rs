@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dbnexus_db::datasource::{
-    MongoDataSource, MysqlDBConfig, OracleDBConfig, PGDBConfig, SqlServerDBConfig,
+    MongoDataSource, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
 };
 use dbnexus_db::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, ListView, SchemaTrait, SqlExecuteRet,
@@ -64,13 +64,8 @@ pub enum DBConnectionConfig {
         name: String,
     },
     Redis {
-        host: String,
-        port: Option<u16>,
-        username: Option<String>,
-        password: Option<String>,
         read_only: bool,
-        name: String,
-        db: Option<String>,
+        config: RedisDBConfig,
     },
     Oracle {
         #[serde(flatten)]
@@ -272,26 +267,10 @@ pub(crate) async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 
             anyhow::Ok(Open::Schema(db))
         }
-        DBConnectionConfig::Redis {
-            host,
-            port,
-            read_only,
-            name: _,
-            username,
-            password,
-            db,
-        } => {
-            let redis = dbnexus_db::redis::RedisDB::new(
-                host.to_string(),
-                port.clone(),
-                username.clone(),
-                password.clone(),
-                db.clone(),
-                *read_only,
-            )
-            .await?;
+        DBConnectionConfig::Redis { read_only, config } => {
+            let redis = dbnexus_db::redis::RedisDB::new(config.clone(), *read_only).await?;
 
-            let db = match db {
+            let db = match &config.db {
                 Some(_) => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
                 None => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
             };
