@@ -54,6 +54,8 @@ pub fn init_log() {
 
 const CANNOT_GET_CONN_ERR: &str = "can't get conneciton";
 
+/// limit memory when doing some operation
+/// like select a lot of data from database.
 pub struct MemoryLimit;
 
 #[allow(dead_code)]
