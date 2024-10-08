@@ -16,11 +16,13 @@ use crate::completion::DBLexerCompletionBackend;
 
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
-    sqlformat_format_sql, BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListView, QueryResp, QuerySql,
-    SchemaTrait, SqlExecuteRet, TableListResp,
+    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
+    FormatSqlOpts, Index, IndexKind, ListTable, ListView, QueryResp, QuerySql, SchemaTrait,
+    SqlExecuteRet, TableListResp,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, SqlKind, SqlSeq};
+use crate::helper::{
+    create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql, SqlKind, SqlSeq,
+};
 use crate::query_log::QueryLog;
 use crate::MemoryLimit;
 

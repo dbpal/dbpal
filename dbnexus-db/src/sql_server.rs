@@ -19,12 +19,14 @@ use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBa
 
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
-    format_data_time_fix_offset, sqlformat_format_sql, BackendName, CatalogTrait, CheckConn,
-    DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger,
-    ListView, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    format_data_time_fix_offset, BackendName, CatalogTrait, CheckConn, DBTrait, ExportKind, Field,
+    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp,
+    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, SqlKind, SqlSeq};
+use crate::helper::{
+    create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql, SqlKind, SqlSeq,
+};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use crate::MemoryLimit;
@@ -378,67 +380,6 @@ fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent
     let event = event.unwrap();
 
     anyhow::Ok(TriggerEvent::try_from(event.as_str())?)
-}
-
-#[cfg(test)]
-#[test]
-fn test_extract_trigger_base_on_lexer() {
-    {
-        let sql = "after insert";
-        assert_eq!(
-            extract_trigger_event_base_on_lexer(sql).unwrap(),
-            TriggerEvent::Insert
-        );
-    }
-    {
-        let sql = "after update";
-        assert_eq!(
-            extract_trigger_event_base_on_lexer(sql).unwrap(),
-            TriggerEvent::Update
-        );
-    }
-    {
-        let sql = "after delete";
-        assert_eq!(
-            extract_trigger_event_base_on_lexer(sql).unwrap(),
-            TriggerEvent::Delete
-        );
-    }
-
-    // error cases
-    {
-        let sql = "xxx";
-        assert!(extract_trigger_event_base_on_lexer(sql).is_err());
-    }
-    {
-        let sql = "yyy";
-        assert!(extract_trigger_event_base_on_lexer(sql).is_err());
-    }
-}
-
-fn extract_trigger_event_from_sql(sql: &str) -> anyhow::Result<TriggerEvent> {
-    extract_trigger_event_base_on_lexer(sql)
-}
-
-#[cfg(test)]
-#[test]
-fn test_extract_trigger_detail_from_sql() {
-    {
-        let x = extract_trigger_event_from_sql(
-            r#"
-             CREATE TRIGGER tr_test_create_trigger_insert
-            ON test_create_trigger
-            AFTER INSERT
-            AS
-            BEGIN
-                INSERT INTO test_create_trigger_update (id, email)
-                SELECT id, 'test@example.com' FROM inserted
-            END
-        "#,
-        )
-        .unwrap();
-        assert_eq!(x, TriggerEvent::Insert);
-    }
 }
 
 #[async_trait::async_trait]
@@ -1017,6 +958,22 @@ impl SchemaTrait for SqlServer {
             last_insert_id_string: None,
         })
     }
+    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+
+        let sql = format!("ENABLE TRIGGER {name} ON {table}");
+        conn.execute(sql.as_str(), &[]).await?;
+        anyhow::Ok(())
+    }
+    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+
+        let sql = format!("DISABLE TRIGGER {name} ON {table}");
+        conn.execute(sql.as_str(), &[]).await?;
+        anyhow::Ok(())
+    }
 }
 
 impl SqlServer {
@@ -1476,6 +1433,10 @@ impl QuerySql for SqlServer {
     }
 }
 
+fn extract_trigger_event_from_sql(sql: &str) -> anyhow::Result<TriggerEvent> {
+    extract_trigger_event_base_on_lexer(sql)
+}
+
 // todo how to set current schema for sql server
 #[allow(dead_code)]
 async fn set_current_schema(conn: &mut Connection, schema: &str) -> anyhow::Result<()> {
@@ -1615,6 +1576,62 @@ mod tests {
         .unwrap();
         ss
     }
+
+    #[test]
+    fn test_extract_trigger_base_on_lexer() {
+        {
+            let sql = "after insert";
+            assert_eq!(
+                extract_trigger_event_base_on_lexer(sql).unwrap(),
+                TriggerEvent::Insert
+            );
+        }
+        {
+            let sql = "after update";
+            assert_eq!(
+                extract_trigger_event_base_on_lexer(sql).unwrap(),
+                TriggerEvent::Update
+            );
+        }
+        {
+            let sql = "after delete";
+            assert_eq!(
+                extract_trigger_event_base_on_lexer(sql).unwrap(),
+                TriggerEvent::Delete
+            );
+        }
+
+        // error cases
+        {
+            let sql = "xxx";
+            assert!(extract_trigger_event_base_on_lexer(sql).is_err());
+        }
+        {
+            let sql = "yyy";
+            assert!(extract_trigger_event_base_on_lexer(sql).is_err());
+        }
+    }
+
+    #[test]
+    fn test_extract_trigger_detail_from_sql() {
+        {
+            let x = extract_trigger_event_from_sql(
+                r#"
+             CREATE TRIGGER tr_test_create_trigger_insert
+            ON test_create_trigger
+            AFTER INSERT
+            AS
+            BEGIN
+                INSERT INTO test_create_trigger_update (id, email)
+                SELECT id, 'test@example.com' FROM inserted
+            END
+        "#,
+            )
+            .unwrap();
+            assert_eq!(x, TriggerEvent::Insert);
+        }
+    }
+
     // when I test via `cargo test`
     // sometimes I have this error
     // ERROR - Transaction (Process ID 76) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. code=1205
@@ -1771,6 +1788,13 @@ mod tests {
                 .show_trigger("test_create_trigger", &tri.name)
                 .await
                 .unwrap();
+            db.disable_trigger("test_create_trigger", &tri.name)
+                .await
+                .unwrap();
+            db.enable_trigger("test_create_trigger", &tri.name)
+                .await
+                .unwrap();
+
             println!("trigger:{} details:{:?}", tri.name, detail);
         }
     }

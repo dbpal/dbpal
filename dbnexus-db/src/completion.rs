@@ -264,7 +264,6 @@ pub(crate) mod completion_test {
         )
     }
 
-    #[cfg(test)]
     #[test]
     fn test_test_completion_items_contains() {
         use crate::completion::CompletionKind;
@@ -310,7 +309,6 @@ pub(crate) mod completion_test {
             .collect()
     }
 
-    #[cfg(test)]
     #[test]
     fn test_parse_auto_completion_test_file() {
         let x = parse_auto_completion_test_file(

@@ -16,12 +16,12 @@ use tokio::sync::Mutex;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    sqlformat_format_sql, BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait,
-    ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger,
+    BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter,
+    ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListUdf,
     ListView, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use crate::{pg_format::*, MemoryLimit};
@@ -390,6 +390,91 @@ impl ServerMetas for PostGresDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
+        let sql = format!(
+            r#"
+            SELECT  
+                p.proname AS function_name
+            FROM pg_catalog.pg_proc p
+                JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = '{}'  -- 替换为您要查询的模式名称
+            ORDER BY p.proname;
+        "#,
+            self.schema.as_ref().unwrap()
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(ListUdf { name });
+        }
+
+        anyhow::Ok(ret)
+    }
+    async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
+        let sql = format!(
+            r#"
+            SELECT  
+                pg_catalog.pg_get_function_result(p.oid) AS result_type,
+                pg_catalog.pg_get_function_arguments(p.oid) AS arguments,
+                pg_get_functiondef(p.oid) AS function_definition
+            FROM pg_catalog.pg_proc p
+                JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE p.proname = '{name}' and n.nspname ='{}';  -- 替换为您要查询的函数名称
+       "#,
+            self.schema.as_ref().unwrap()
+        );
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+        let result_type: String = row.try_get(0)?;
+        let arguments: String = row.try_get(1)?;
+        let function_definition: String = row.try_get(2)?;
+        anyhow::Ok(UdfDetail::new(
+            function_definition,
+            vec![
+                MetaValue::new("result_type", result_type),
+                MetaValue::new("arguments", arguments),
+            ],
+        ))
+    }
+    async fn drop_udf(
+        &self, name: &str, extra: Option<DropUdfExtraParameter>,
+    ) -> anyhow::Result<()> {
+        let parameters = match &extra {
+            Some(x) => match x {
+                DropUdfExtraParameter::PostGres { parameters } => parameters,
+                _ => {
+                    anyhow::bail!("must be a postgres parameter")
+                }
+            },
+            None => anyhow::bail!("postgres need extra parameters to drop udf."),
+        };
+
+        let sql = format!(
+            "DROP FUNCTION IF EXISTS {}.{}({})",
+            self.schema.as_ref().unwrap(),
+            name,
+            parameters
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let sql = format!("ALTER TABLE {table} DISABLE TRIGGER {name}");
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let sql = format!("ALTER TABLE {table} ENABLE TRIGGER {name}");
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1216,7 +1301,7 @@ impl CatalogTrait for PostGresDB {
 mod tests {
     use super::PostGresDB;
     use crate::datasource_config::PGDBConfig;
-    use crate::db::CatalogTrait;
+    use crate::db::{CatalogTrait, DropUdfExtraParameter};
     use crate::db::{CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas};
 
     use crate::{init_log, TEST_HOST};
@@ -1429,6 +1514,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_udf() {
+        let pg = make_test_object().await;
+        let query_id = pg.open_connection().await.unwrap();
+        pg.query_sql(
+            query_id,
+            r#"
+            CREATE OR REPLACE FUNCTION test_udf(a INT, b INT)
+            RETURNS INT AS $$
+            BEGIN
+                RETURN a + b;
+            END;
+            $$ LANGUAGE plpgsql;
+        "#,
+        )
+        .await
+        .unwrap();
+
+        let list = pg.list_udf().await.unwrap();
+        for l in list.iter() {
+            let details = pg.show_udf(&l.name).await.unwrap();
+            println!("name:{} , udf:{:?}", l.name, details);
+            if l.name == "test_udf" {
+                pg.drop_udf(
+                    &l.name,
+                    Some(DropUdfExtraParameter::PostGres {
+                        parameters: "a integer, b integer".to_string(),
+                    }),
+                )
+                .await
+                .unwrap();
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn test_triggers() {
         let pg = make_test_object().await;
         let db_trait = &pg as &dyn SchemaTrait;
@@ -1500,6 +1620,17 @@ mod tests {
                 .show_trigger("test_create_trigger", tri.name.as_str())
                 .await
                 .unwrap();
+
+            // disable trigger and enable trigger test.
+            db_trait
+                .disable_trigger("test_create_trigger", &tri.name)
+                .await
+                .unwrap();
+            db_trait
+                .enable_trigger("test_create_trigger", &tri.name)
+                .await
+                .unwrap();
+
             println!("details:{:?}", detail);
         }
     }

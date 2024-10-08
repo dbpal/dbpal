@@ -365,3 +365,59 @@ pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> an
 
     anyhow::Ok(false)
 }
+
+pub struct OffsetLimitIter<Index = usize> {
+    pub(crate) total: Index,
+    pub(crate) offset: Index,
+    pub(crate) size: Index,
+}
+
+impl<T: Default> OffsetLimitIter<T> {
+    pub(crate) fn new(total: T, size: T) -> Self {
+        Self {
+            offset: Default::default(),
+            total,
+            size,
+        }
+    }
+}
+
+impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
+    for OffsetLimitIter<T>
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset < self.total {
+            let offset = self.offset;
+            self.offset += self.size;
+            Some(offset)
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_off_iter() {
+    assert_eq!(
+        OffsetLimitIter::new(9, 3).collect::<Vec<_>>(),
+        vec![0, 3, 6]
+    );
+    assert_eq!(
+        OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
+        vec![0, 4, 8]
+    );
+}
+
+/// format sql routine for crate `sqlformat`.
+pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
+    sqlformat::format(sql, &sqlformat::QueryParams::None, &op.unwrap_or_default())
+}
+
+#[cfg(test)]
+#[test]
+fn test_sqlformat_format_sql() {
+    assert_eq!(sqlformat_format_sql("select 1", None), "select\n  1");
+}

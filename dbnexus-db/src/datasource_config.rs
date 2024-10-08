@@ -152,7 +152,7 @@ impl SqlServerDBConfig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
 pub struct OracleDBConfig {
     pub username: String,
     pub password: String,

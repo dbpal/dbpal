@@ -18,12 +18,12 @@ use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBa
 
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
-    sqlformat_format_sql, BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
+    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter, ExportKind,
     Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListProcedure, ListTable, ListTrigger,
     ListUdf, ListView, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas,
     SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use crate::MemoryLimit;
@@ -604,7 +604,9 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(UdfDetail::new(def, metas))
     }
 
-    async fn drop_udf(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_udf(
+        &self, name: &str, _extra: Option<DropUdfExtraParameter>,
+    ) -> anyhow::Result<()> {
         let sql = format!("DROP FUNCTION {name}");
         let mut conn = self.get_conn().await?;
         conn.execute(sqlx::raw_sql(&sql)).await?;
@@ -1346,7 +1348,7 @@ pub(crate) mod test_fns {
         let query_id = db_trait.open_connection().await.unwrap();
         let f = "test_function";
 
-        let _ = db_trait.drop_udf(f).await;
+        let _ = db_trait.drop_udf(f, None).await;
 
         let resp = db_trait
             .query_sql(

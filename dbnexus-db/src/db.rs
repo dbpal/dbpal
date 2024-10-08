@@ -175,7 +175,10 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
     async fn show_udf(&self, _name: &str) -> anyhow::Result<UdfDetail> {
         not_support_features(self.backend_name())
     }
-    async fn drop_udf(&self, _name: &str) -> anyhow::Result<()> {
+
+    async fn drop_udf(
+        &self, _name: &str, _extra: Option<DropUdfExtraParameter>,
+    ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
 
@@ -189,9 +192,21 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
         not_support_features(self.backend_name())
     }
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
-        let e = self.list_table().await?.iter().any(|x| &x.name == table);
+        let e = self
+            .list_table()
+            .await?
+            .iter()
+            .any(|x| x.name.eq_ignore_ascii_case(table));
         anyhow::Ok(e)
     }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "drop_udf_extra_paramter", rename_all = "lowercase")]
+pub enum DropUdfExtraParameter {
+    PostGres {
+        parameters: String, // a integer , b integer
+    },
 }
 
 fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
@@ -874,37 +889,6 @@ impl ExportKind {
     }
 }
 
-pub struct OffsetLimitIter<Index = usize> {
-    pub(crate) total: Index,
-    pub(crate) offset: Index,
-    pub(crate) size: Index,
-}
-
-impl<T: Default> OffsetLimitIter<T> {
-    pub(crate) fn new(total: T, size: T) -> Self {
-        Self {
-            offset: Default::default(),
-            total,
-            size,
-        }
-    }
-}
-
-impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
-    for OffsetLimitIter<T>
-{
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.offset < self.total {
-            let offset = self.offset;
-            self.offset += self.size;
-            Some(offset)
-        } else {
-            None
-        }
-    }
-}
 #[derive(Debug, serde::Serialize, TypeDef)]
 pub struct TriggerDetail {
     pub(crate) timing: TriggerTiming,
@@ -990,28 +974,4 @@ pub enum TriggerTiming {
     After,
     /// sql server have this timing but I am not quit understand.
     InsteadOf,
-}
-
-#[cfg(test)]
-#[test]
-fn test_off_iter() {
-    assert_eq!(
-        OffsetLimitIter::new(9, 3).collect::<Vec<_>>(),
-        vec![0, 3, 6]
-    );
-    assert_eq!(
-        OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
-        vec![0, 4, 8]
-    );
-}
-
-/// format sql routine for crate `sqlformat`.
-pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
-    sqlformat::format(sql, &sqlformat::QueryParams::None, &op.unwrap_or_default())
-}
-
-#[cfg(test)]
-#[test]
-fn test_sqlformat_format_sql() {
-    assert_eq!(sqlformat_format_sql("select 1", None), "select\n  1");
 }

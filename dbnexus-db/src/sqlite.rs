@@ -20,13 +20,12 @@ use crate::completion::{
 };
 
 use crate::db::{
-    sqlformat_format_sql, BackendName, CheckConn, CreateTableAndIndexSql, ExportKind, Field,
-    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming,
+    BackendName, CheckConn, CreateTableAndIndexSql, ExportKind, Field, FormatSql, FormatSqlOpts,
+    Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use crate::{MemoryLimit, CANNOT_GET_CONN_ERR};
