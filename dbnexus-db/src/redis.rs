@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use std::str::FromStr;
+use std::str::{from_utf8, FromStr};
 use std::sync::Arc;
 
 use std::time::Duration;
@@ -971,13 +971,12 @@ async fn query_sql(
     let mut commands = Vec::new();
     for line in sql.lines() {
         let v: Vec<_> = line.split(" ").collect();
-        let mut v2 = Vec::new();
-        for c in v.iter() {
-            let c = (*c).trim().to_string();
-            if !c.is_empty() {
-                v2.push(c);
-            }
-        }
+        let v2 = v
+            .iter()
+            .map(|x| x.trim().to_owned())
+            .filter(|v| !v.is_empty())
+            .collect::<Vec<_>>();
+
         if !v2.is_empty() {
             commands.push(v2);
         }
@@ -989,11 +988,11 @@ async fn query_sql(
             .arg(args)
             .query_async(conn)
             .await
-            .map(|x| encode_response_value(&x));
+            .map(|x| encode_response_value(&x, get_cmd_type_hint(&c[..])));
 
         match v {
             Ok(x) => {
-                ret.push(Ok(QueryResp::result("result", vec![Some(x)])));
+                ret.push(Ok(x));
             }
 
             Err(x) => ret.push(Err(x.to_string())),
@@ -1002,26 +1001,147 @@ async fn query_sql(
     anyhow::Ok(ret)
 }
 
-/// some
-fn encode_response_value(v: &Value) -> String {
+/// redis only support limited nested value.
+/// if hit this fn should somehow always return string.
+/// right ???
+fn encode_response_value_to_string(v: &Value) -> String {
     match v {
-        Value::Nil => "(nil)".to_string(),
-        Value::Int(x) => format!("integer({})", x),
-        Value::Double(x) => format!("double({})", x),
-        Value::Boolean(x) => format!("bool({})", x),
-        Value::BigNumber(x) => format!("big_number({})", x),
-        Value::ServerError(s) => {
-            format!(
-                "error(code:{},detail:{})",
-                s.code(),
-                s.details().unwrap_or("")
-            )
+        Value::Int(v) => v.to_string(),
+        Value::BulkString(x) => match from_utf8(x.as_slice()) {
+            Ok(x) => x.to_owned(),
+            Err(_) => format!("0x{}", hex::encode(x.as_slice())),
+        },
+        Value::SimpleString(x) => x.to_owned(),
+        Value::Double(d) => d.to_string(),
+        Value::Boolean(x) => x.to_string(),
+        Value::BigNumber(v) => v.to_string(),
+        _ => format!("{:?}", v),
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+enum RedisValueEncodeHit {
+    Hash,
+    Zset,
+    #[default]
+    None,
+}
+
+fn get_cmd_type_hint(cmd: &[String]) -> Option<RedisValueEncodeHit> {
+    if cmd
+        .get(0)
+        .map(|x| x.eq_ignore_ascii_case("HGETALL"))
+        .unwrap_or(false)
+    {
+        return Some(RedisValueEncodeHit::Hash);
+    }
+    if cmd
+        .get(0)
+        .map(|x| x.eq_ignore_ascii_case("ZRANGE"))
+        .unwrap_or(false)
+        && cmd
+            .last()
+            .map(|x| x.eq_ignore_ascii_case("WITHSCORES"))
+            .unwrap_or(false)
+    {
+        return Some(RedisValueEncodeHit::Zset);
+    }
+
+    None
+}
+fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHit>) -> QueryResp {
+    match v {
+        Value::Set(vs) => {
+            // a set
+            let result: Vec<_> = vs
+                .iter()
+                .map(|x| encode_response_value_to_string(x))
+                .map(Some)
+                .collect();
+            QueryResp::result("set", result)
         }
-        Value::Okay => "(ok)".to_string(),
-        _ => {
-            log::error!("redis response not handle,resp:{:?}", v);
-            "unhandle response".to_string()
+        Value::Array(vs) => {
+            let array_type_notice = array_type_notice.unwrap_or_default();
+            match array_type_notice {
+                RedisValueEncodeHit::Hash => {
+                    let data = vs
+                        .chunks(2)
+                        .map(|x| {
+                            vec![
+                                Some(encode_response_value_to_string(&x[0])),
+                                Some(encode_response_value_to_string(&x[1])),
+                            ]
+                        })
+                        .collect::<Vec<_>>();
+                    let fields = vec![
+                        Field::from_name_type("key", ""),
+                        Field::from_name_type("value", ""),
+                    ];
+                    QueryResp::new(fields, data)
+                }
+
+                RedisValueEncodeHit::Zset => {
+                    let data = vs
+                        .chunks(2)
+                        .map(|x| {
+                            vec![
+                                Some(encode_response_value_to_string(&x[0])),
+                                Some(encode_response_value_to_string(&x[1])),
+                            ]
+                        })
+                        .collect::<Vec<_>>();
+                    let fields = vec![
+                        Field::from_name_type("value", ""),
+                        Field::from_name_type("score", ""),
+                    ];
+                    QueryResp::new(fields, data)
+                }
+                RedisValueEncodeHit::None => {
+                    let result: Vec<_> = vs
+                        .iter()
+                        .map(|x| encode_response_value_to_string(x))
+                        .map(Some)
+                        .collect();
+                    QueryResp::result("array", result)
+                }
+            }
         }
+
+        Value::SimpleString(x) => QueryResp::result("result", vec![Some(x.to_string())]),
+        Value::BulkString(_x) => {
+            QueryResp::result("result", vec![Some(encode_response_value_to_string(v))])
+        }
+        Value::Map(x) => {
+            let fields = vec![
+                Field::from_name_type("key", "string"),
+                Field::from_name_type("value", ""),
+            ];
+            let data = x
+                .iter()
+                .map(|x| {
+                    vec![
+                        Some(encode_response_value_to_string(&x.0)),
+                        Some(encode_response_value_to_string(&x.1)),
+                    ]
+                })
+                .collect::<Vec<_>>();
+
+            QueryResp::new(fields, data)
+        }
+        Value::Attribute {
+            data,
+            attributes: _, // TODO how to handle this???
+        } => encode_response_value(&data, array_type_notice),
+        Value::VerbatimString { format, text } => {
+            let fields = vec![
+                Field::from_name_type("format", ""),
+                Field::from_name_type("value", ""),
+            ];
+            let data = vec![vec![Some(format.to_string()), Some(text.clone())]];
+            QueryResp::new(fields, data)
+        }
+
+        _ => QueryResp::result("result", vec![Some(format!("{:?}", v))]),
     }
 }
 
@@ -1288,6 +1408,30 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         assert_eq!(resp, resp2);
+    }
+
+    #[tokio::test]
+    async fn test_query_sql() {
+        let db = make_test_object().await;
+        let db = &db as &dyn crate::db::SchemaTrait;
+        let query_id = db.open_connection().await.unwrap();
+        let resp = db.query_sql(query_id, "keys *").await.unwrap();
+        println!("key*:{:?}", resp);
+        let resp = db
+            .query_sql(query_id, "LRANGE list_value 0 -1")
+            .await
+            .unwrap();
+        println!("all list:{:?}", resp);
+        let resp = db.query_sql(query_id, "HGETALL hash_value").await.unwrap();
+        println!("all hash:{:?}", resp);
+        let resp = db.query_sql(query_id, "SMEMBERS set_value").await.unwrap();
+        println!("all set:{:?}", resp);
+
+        let resp = db
+            .query_sql(query_id, "ZRANGE zset_value 0 -1 WITHSCORES")
+            .await
+            .unwrap();
+        println!("all zset:{:?}", resp);
     }
 
     #[tokio::test]
