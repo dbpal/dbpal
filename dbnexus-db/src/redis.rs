@@ -12,6 +12,7 @@ use crate::db::{
     Index, ListTable, MetaValue, OffsetLimitIter, QueryLog, QueryResp, QuerySql,
     QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
 };
+
 use dashmap::DashMap;
 use futures_util::StreamExt;
 use tokio::sync::Mutex;
@@ -533,6 +534,32 @@ impl BackendName for RedisDB {
     }
 }
 
+impl RedisDB {
+    pub async fn zset_range_by_score(
+        &self, key: &str, min: Option<f64>, max: Option<f64>, page: isize, page_count: isize,
+    ) -> anyhow::Result<TableListResp> {
+        let mut conn = self.get_conn().await?;
+        let offset = (page - 1) * page_count;
+        let total: usize = conn.zcount(key, min, max).await?;
+        let res: Vec<String> = conn
+            .zrangebyscore_limit_withscores(key, min, max, offset, page_count)
+            .await?;
+        let data: Vec<_> = res
+            .chunks(2)
+            .map(|x| vec![Some(x[0].clone()), Some(x[1].clone())])
+            .collect();
+
+        anyhow::Ok(TableListResp::new(
+            vec![
+                Field::from_name_type("key", "string"),
+                Field::from_name_type("value", "string"),
+            ],
+            total,
+            data,
+            None,
+        ))
+    }
+}
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -1228,6 +1255,17 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         let db = make_test_object().await;
         test_file_auto_completion(&content, &db).await;
+    }
+
+    #[tokio::test]
+    async fn test_zrange_score() {
+        init_log();
+        let db = make_test_object().await;
+        let resp = db
+            .zset_range_by_score("zset_value", Some(1f64), Some(100f64), 1, 100)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
     }
 
     #[tokio::test]
