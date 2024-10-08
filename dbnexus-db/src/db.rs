@@ -4,20 +4,18 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
-use dashmap::DashMap;
 
-use line_index::{LineCol, TextSize};
-use serde::ser::SerializeStruct;
 use serde::Serializer;
-use sqlparser::ast::Statement;
-use sqlparser::dialect::Dialect;
-use sqlparser::tokenizer::{Location, Token};
+
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
+
+use crate::meta_value::MetaValue;
+use crate::query_log::{QueryLog, QueryLogEvent};
 
 pub trait BackendName {
     fn backend_name(&self) -> &str;
@@ -227,90 +225,10 @@ impl UdfDetail {
         Self { metas, def }
     }
 }
-
-/// meta value can used in various place.
-#[derive()]
-
-pub struct MetaValue {
-    name: Cow<'static, str>,
-    value: Option<Box<dyn ToString + Send + 'static>>,
-    desc: Option<Cow<'static, str>>,
-}
 #[async_trait::async_trait]
 pub trait CatalogTrait: Send + Sync + 'static + QuerySql + FormatSql + CheckConn {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
-}
-
-impl MetaValue {
-    pub(crate) fn new<T: ToString + Send + 'static>(
-        name: impl Into<Cow<'static, str>>, value: T,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            value: Some(Box::new(value)),
-            desc: None,
-        }
-    }
-    pub(crate) fn new_opt<T: ToString + Send + 'static>(
-        name: impl Into<Cow<'static, str>>, value: Option<T>,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            value: value.map(|x| Box::new(x) as Box<dyn ToString + Send + 'static>),
-            desc: None,
-        }
-    }
-
-    pub(crate) fn with_desc(&mut self, desc: impl Into<Cow<'static, str>>) {
-        self.desc = Some(desc.into());
-    }
-}
-
-#[cfg(test)]
-#[test]
-fn test_new_meta_value() {
-    let x = MetaValue::new("name", 1);
-    assert_eq!(
-        "MetaValue { name: \"name\", value: Some(\"1\") }",
-        format!("{:?}", x)
-    );
-}
-
-impl serde::Serialize for MetaValue {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("MetaValue", 2)?;
-        s.serialize_field("name", &self.name)?;
-        match &self.value {
-            Some(value) => s.serialize_field("value", &value.to_string())?,
-            None => s.serialize_field("value", "")?,
-        }
-
-        s.end()
-    }
-}
-
-impl std::fmt::Debug for MetaValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        #[derive(Debug)]
-        #[allow(dead_code)]
-        pub struct MetaValue {
-            name: Cow<'static, str>,
-            value: Option<String>,
-        }
-
-        let m = MetaValue {
-            name: self.name.clone(),
-            value: match &self.value {
-                Some(x) => Some(x.to_string()),
-                None => None,
-            },
-        };
-        write!(f, "{:?}", m)
-    }
 }
 #[derive(Debug, serde::Serialize, TypeDef, Clone)]
 pub struct ListProcedure {
@@ -367,8 +285,8 @@ impl Into<sqlformat::FormatOptions<'static>> for FormatSqlOpts {
 pub trait FormatSql {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String>;
 }
-#[async_trait::async_trait]
 
+#[async_trait::async_trait]
 pub trait CheckConn {
     /// Duration is basic `select 1` execution time.
     async fn check_conn(&self) -> anyhow::Result<Duration>;
@@ -561,89 +479,6 @@ impl From<&str> for ListTable {
 #[async_trait::async_trait]
 pub trait ServerMetas {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
-}
-
-/// get current timestamp
-pub fn timestamp() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let now = SystemTime::now();
-    let timestamp = now
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs();
-    timestamp
-}
-#[derive(Clone, Debug, serde::Serialize, TypeDef, Default)]
-pub struct QueryLog {
-    logs: Vec<QueryLogEvent>,
-}
-
-/// use single instance to manage this.
-impl QueryLog {
-    fn get_instance() -> Arc<DashMap<uuid::Uuid, Arc<Mutex<QueryLog>>>> {
-        static LOGS: std::sync::OnceLock<Arc<DashMap<uuid::Uuid, Arc<Mutex<QueryLog>>>>> =
-            std::sync::OnceLock::new();
-        LOGS.get_or_init(|| Default::default()).clone()
-    }
-
-    pub(crate) fn get_guard(id: uuid::Uuid, sql: impl Into<String>) -> QueryLogGuard {
-        let log = QueryLog::get_instance().entry(id).or_default().clone();
-        QueryLogGuard::new(sql, log)
-    }
-
-    pub(crate) fn remove(id: &uuid::Uuid) {
-        QueryLog::get_instance().remove(id);
-    }
-}
-
-impl QueryLog {
-    pub(crate) fn append(&mut self, sql: impl Into<String>, success: bool) {
-        self.logs.push(QueryLogEvent::new(sql, success));
-    }
-}
-
-#[derive(Clone, Debug, serde::Serialize, TypeDef)]
-pub struct QueryLogEvent {
-    timestamp: u64,
-    sql: String,
-    success: bool,
-}
-
-impl QueryLogEvent {
-    pub(crate) fn new(sql: impl Into<String>, success: bool) -> Self {
-        Self {
-            timestamp: timestamp(),
-            sql: sql.into(),
-            success,
-        }
-    }
-}
-
-pub struct QueryLogGuard {
-    success: bool,
-    sql: String,
-    dest: Arc<std::sync::Mutex<QueryLog>>,
-}
-
-impl QueryLogGuard {
-    fn new(sql: impl Into<String>, dest: Arc<std::sync::Mutex<QueryLog>>) -> Self {
-        Self {
-            success: Default::default(),
-            sql: sql.into(),
-            dest,
-        }
-    }
-    pub(crate) fn set_success(&mut self, success: bool) {
-        self.success = success;
-    }
-}
-impl Drop for QueryLogGuard {
-    fn drop(&mut self) {
-        self.dest
-            .lock()
-            .unwrap()
-            .append(self.sql.clone(), self.success)
-    }
 }
 
 impl dyn SchemaTrait {
@@ -1011,235 +846,6 @@ impl Field {
     }
 }
 
-/// front can execute a sequence of sql.
-/// this represent a single query and a kind.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SqlSeq {
-    pub sql: String,
-    pub kind: SqlKind,
-}
-impl SqlSeq {
-    pub fn new(sql: impl Into<String>, kind: SqlKind) -> Self {
-        let sql = sql.into();
-        Self { sql, kind }
-    }
-}
-
-impl std::fmt::Display for SqlSeq {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "kind:{:?} sql:{}", self.kind, self.sql)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SqlKind {
-    Query,
-    Execution,
-    /// start transaction.
-    Begin,
-    /// commit
-    Commit,
-    /// rollback
-    Rollback,
-}
-
-impl SqlKind {
-    pub(crate) fn get_from_statement(s: &Statement) -> anyhow::Result<Self> {
-        let x = if is_statement_begin(s) {
-            SqlKind::Begin
-        } else if is_statement_commit(s) {
-            SqlKind::Commit
-        } else if is_statement_rollback(s)? {
-            SqlKind::Rollback
-        } else if is_statement_absolute_query(s) {
-            SqlKind::Query
-        } else {
-            SqlKind::Execution
-        };
-
-        anyhow::Ok(x)
-    }
-
-    pub(crate) fn get_from_sql(sql: &str) -> anyhow::Result<Self> {
-        let t = sql.to_uppercase();
-        if t.starts_with("BEGIN") || (t.starts_with("START") && t.contains("TRANSACTION")) {
-            return anyhow::Ok(SqlKind::Begin);
-        }
-        if t.starts_with("COMMIT") {
-            return anyhow::Ok(SqlKind::Commit);
-        }
-        if t.starts_with("ROLLBACK") {
-            return anyhow::Ok(SqlKind::Rollback);
-        }
-
-        anyhow::Ok(
-            if t.starts_with("SELECT") || t.starts_with("SHOW") || t.starts_with("EXPLAIN") {
-                SqlKind::Query
-            } else {
-                SqlKind::Execution
-            },
-        )
-    }
-}
-
-/// cut statement into smaller base on statement or semi_colon.
-pub fn sql_to_sql_seq(
-    sql: &str, dialect: &dyn Dialect,
-    statement_kind_stmt: impl Fn(&Statement) -> anyhow::Result<SqlKind>,
-    statement_kind_sql: impl Fn(&str) -> anyhow::Result<SqlKind>,
-) -> anyhow::Result<Vec<SqlSeq>> {
-    fn get_sql(
-        lineindex: &line_index::LineIndex, sql: &str, start: Location, end: Option<Location>,
-    ) -> String {
-        let start_offset = lineindex
-            .offset(LineCol {
-                line: (start.line - 1) as u32,
-                col: (start.column - 1) as u32,
-            })
-            .unwrap();
-
-        let start_offset = usize::from(start_offset);
-
-        let end_offset = end
-            .map(|x| {
-                {
-                    lineindex.offset(LineCol {
-                        line: (x.line - 1) as u32,
-                        col: (x.column - 1) as u32,
-                    })
-                }
-                .unwrap()
-            })
-            .unwrap_or(TextSize::from(sql.len() as u32));
-        let end_offset = usize::from(end_offset);
-
-        let s = sql[start_offset..end_offset].to_string();
-        s.trim().to_string()
-    }
-
-    /// cut statement into smaller base on statement.
-    fn cut_sql_to_each_statement_ast(
-        sql: &str, dialect: &dyn Dialect,
-        statement_kind: impl Fn(&Statement) -> anyhow::Result<SqlKind>,
-    ) -> anyhow::Result<Vec<SqlSeq>> {
-        let lines = line_index::LineIndex::new(sql);
-        let parser = sqlparser::parser::Parser::new(dialect);
-        let mut parser = parser.try_with_sql(sql)?;
-        let mut ret = Vec::new();
-        while parser.peek_token().token != Token::EOF {
-            while Token::SemiColon == parser.peek_token() {
-                parser.next_token();
-            }
-            if parser.peek_token() == Token::EOF {
-                break;
-            }
-            let start = parser.peek_token();
-            let stmt = parser.parse_statement()?;
-            let kind = statement_kind(&stmt)?;
-            let sql = get_sql(&lines, sql, start.location, {
-                let t = parser.peek_token();
-                if t.token == Token::EOF {
-                    None
-                } else {
-                    Some(t.location)
-                }
-            });
-            ret.push(SqlSeq::new(sql, kind));
-        }
-        anyhow::Ok(ret)
-    }
-    match cut_sql_to_each_statement_ast(sql, dialect, statement_kind_stmt) {
-        Ok(x) => return Ok(x),
-        Err(_) => {}
-    }
-    // cut sql by semicolon
-    fn cut_sql_to_each_statement_semi_colon(
-        sql: &str, dialect: &dyn Dialect, statement_kind: impl Fn(&str) -> anyhow::Result<SqlKind>,
-    ) -> anyhow::Result<Vec<SqlSeq>> {
-        let lines = line_index::LineIndex::new(sql);
-        let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql).tokenize_with_location()?;
-        if tokens.len() == 0 {
-            anyhow::bail!("empty sql.");
-        }
-
-        let mut start = &tokens[0];
-        let mut ret = Vec::new();
-        for index in 1..tokens.len() {
-            let t = &tokens[index];
-            if t.token == Token::SemiColon || t.token == Token::EOF {
-                let sql = get_sql(
-                    &lines,
-                    sql,
-                    start.location,
-                    if t.token == Token::EOF {
-                        None
-                    } else {
-                        Some(t.location)
-                    },
-                );
-                let kind = statement_kind(sql.as_str())?;
-                if sql != ";" && !sql.is_empty() {
-                    ret.push(SqlSeq::new(sql, kind));
-                }
-                if index + 1 < tokens.len() {
-                    start = &tokens[index + 1];
-                }
-            }
-        }
-        anyhow::Ok(ret)
-    }
-    cut_sql_to_each_statement_semi_colon(sql, dialect, statement_kind_sql)
-}
-
-fn is_statement_absolute_query(s: &Statement) -> bool {
-    match s {
-        Statement::Query(_) => true,
-        Statement::Fetch {
-            name: _,
-            direction: _,
-            into: _,
-        } => true,
-        Statement::ShowFunctions { filter: _ } => true,
-        Statement::ShowVariable { variable: _ } => true,
-        Statement::ShowVariables {
-            filter: _,
-            global: _,
-            session: _,
-        } => true,
-        Statement::ShowCreate {
-            obj_type: _,
-            obj_name: _,
-        } => true,
-        Statement::ShowColumns {
-            extended: _,
-            full: _,
-            table_name: _,
-            filter: _,
-        } => true,
-        Statement::ShowTables {
-            extended: _,
-            full: _,
-            db_name: _,
-            filter: _,
-        } => true,
-        Statement::ShowCollation { filter: _ } => true,
-        Statement::ExplainTable {
-            describe_alias: _,
-            table_name: _,
-            hive_format: _,
-            has_table_keyword: _,
-        } => true,
-        Statement::Explain {
-            describe_alias: _,
-            analyze: _,
-            verbose: _,
-            statement: _,
-            format: _,
-        } => true,
-        _ => false,
-    }
-}
-
 pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
     format!("{} {}", x.naive_local(), x.offset())
 }
@@ -1265,77 +871,6 @@ pub enum ExportKind {
 impl ExportKind {
     pub(crate) fn cannot_query_result_export_as_sql() -> anyhow::Result<()> {
         anyhow::bail!("cannot export sql result as sql")
-    }
-}
-
-/// create csv file list of string
-/// each line of line separator
-pub(crate) fn create_csv(ds: &Vec<Vec<Option<String>>>, delimiter: char) -> String {
-    let mut s = String::new();
-    for d in ds.iter() {
-        let mut s2 = String::new();
-        let last = d.len() - 1;
-        for (index, x) in d.iter().enumerate() {
-            if let Some(x) = x {
-                s2.push_str(&escape_csv(x, delimiter));
-            }
-
-            if index != last {
-                s2.push(delimiter);
-            }
-        }
-        s.push_str(s2.as_str());
-        s.push_str("\n");
-    }
-    s
-}
-
-fn escape_csv(s: &str, delimiter: char) -> Cow<'_, str> {
-    if s.contains(delimiter) {
-        let s = s.replace("\"", "\\\"");
-        Cow::Owned(format!("\"{}\"", s))
-    } else {
-        Cow::Borrowed(s)
-    }
-}
-
-#[cfg(test)]
-#[test]
-fn test_escape_csv() {
-    assert_eq!(escape_csv("\" aaaa,", ','), "\"\\\" aaaa,\"");
-}
-
-fn is_statement_begin(s: &Statement) -> bool {
-    match s {
-        Statement::StartTransaction {
-            modes: _,
-            begin: _,
-            modifier: _,
-        } => true,
-        _ => false,
-    }
-}
-
-fn is_statement_commit(s: &Statement) -> bool {
-    match s {
-        Statement::Commit { chain: _ } => true,
-        _ => false,
-    }
-}
-
-fn is_statement_rollback(s: &Statement) -> anyhow::Result<bool> {
-    match s {
-        Statement::Rollback {
-            chain: _,
-            savepoint,
-        } => {
-            if savepoint.is_some() {
-                anyhow::bail!("save point is not supported")
-            } else {
-                anyhow::Ok(true)
-            }
-        }
-        _ => anyhow::Ok(false),
     }
 }
 
@@ -1479,53 +1014,4 @@ pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOption
 #[test]
 fn test_sqlformat_format_sql() {
     assert_eq!(sqlformat_format_sql("select 1", None), "select\n  1");
-}
-
-pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> anyhow::Result<bool> {
-    let ss = sqlparser::parser::Parser::parse_sql(dialect, sql)?;
-    for s in ss.iter() {
-        let x = match s {
-            Statement::Truncate {
-                partitions: _,
-                table: _,
-                table_names: _,
-                only: _,
-                identity: _,
-                cascade: _,
-            } => true,
-            Statement::Drop {
-                object_type: _,
-                if_exists: _,
-                names: _,
-                cascade: _,
-                restrict: _,
-                purge: _,
-                temporary: _,
-            } => true,
-            Statement::DropFunction {
-                if_exists: _,
-                func_desc: _,
-                option: _,
-            } => true,
-            Statement::DropSecret {
-                if_exists: _,
-                temporary: _,
-                name: _,
-                storage_specifier: _,
-            } => true,
-            Statement::Delete(x) => {
-                if x.selection.is_none() {
-                    true
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        };
-        if x {
-            return anyhow::Ok(true);
-        }
-    }
-
-    anyhow::Ok(false)
 }

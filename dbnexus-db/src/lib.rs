@@ -9,19 +9,21 @@ use log::{Level, LevelFilter, Metadata, Record};
 pub mod completion;
 pub mod datasource;
 pub mod db;
+pub mod meta_value;
 
+pub mod helper;
 pub mod mariadb;
 pub mod mongo;
 pub mod mysql;
 pub mod oracle;
 pub mod pg;
 pub mod pg_format;
+pub mod query_log;
 pub mod redis;
 pub mod redis_completion;
-pub mod typedef;
-
 pub mod sql_server;
 pub mod sqlite;
+pub mod typedef;
 
 lazy_static! {
     static ref TEST_HOST: String =

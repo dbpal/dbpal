@@ -18,12 +18,14 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 use crate::datasource::SqlServerDBConfig;
 use crate::db::{
-    create_csv, format_data_time_fix_offset, is_dangerous_sql_by_parser, sql_to_sql_seq,
-    sqlformat_format_sql, BackendName, CatalogTrait, CheckConn, DBTrait, ExportKind, Field,
-    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListView, MetaValue,
-    QueryLog, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, SqlSeq, TableListResp,
+    format_data_time_fix_offset, sqlformat_format_sql, BackendName, CatalogTrait, CheckConn,
+    DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger,
+    ListView, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
 };
+use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, SqlKind, SqlSeq};
+use crate::meta_value::MetaValue;
+use crate::query_log::QueryLog;
 use crate::MemoryLimit;
 
 #[derive(Clone)]
@@ -1511,8 +1513,8 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| crate::db::SqlKind::get_from_statement(s),
-        |x| crate::db::SqlKind::get_from_sql(x),
+        |s| SqlKind::get_from_statement(s),
+        |x| SqlKind::get_from_sql(x),
     )
 }
 

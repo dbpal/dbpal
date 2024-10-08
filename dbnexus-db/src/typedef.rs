@@ -6,10 +6,7 @@ use typescript_type_def::{
     TypeDef,
 };
 
-use crate::{
-    completion::CompletionItem,
-    db::{HumanSize, MetaValue},
-};
+use crate::{completion::CompletionItem, db::HumanSize, meta_value::MetaValue};
 
 impl TypeDef for CompletionItem {
     const INFO: TypeInfo = TypeInfo::Defined(DefinedTypeInfo {

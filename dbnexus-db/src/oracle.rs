@@ -15,11 +15,12 @@ use tokio::task::block_in_place;
 use crate::completion::DBLexerCompletionBackend;
 use crate::datasource::OracleDBConfig;
 use crate::db::{
-    create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql, BackendName, CheckConn,
-    CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
-    ListTable, ListView, QueryLog, QueryResp, QuerySql, SchemaTrait, SqlExecuteRet, SqlKind,
-    SqlSeq, TableListResp,
+    sqlformat_format_sql, BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
+    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListView, QueryResp, QuerySql,
+    SchemaTrait, SqlExecuteRet, TableListResp,
 };
+use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, SqlKind, SqlSeq};
+use crate::query_log::QueryLog;
 use crate::MemoryLimit;
 
 impl FormatSql for OracleDB {
@@ -58,7 +59,7 @@ impl OracleDB {
 fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
     // TODO use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::GenericDialect {};
-    crate::db::sql_to_sql_seq(
+    sql_to_sql_seq(
         sql,
         &dialect,
         |s| SqlKind::get_from_statement(s),
