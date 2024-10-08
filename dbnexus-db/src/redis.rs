@@ -61,20 +61,41 @@ pub struct RedisListTable {
 #[async_trait::async_trait]
 impl ServerMetas for RedisDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
-        // TODO get server metas
-        let ret = Vec::new();
+        let mut ret = Vec::new();
+        let mut conn = self.get_conn().await?;
+        let info: String = redis::cmd("info").query_async(&mut conn).await?;
+        for m in info.lines() {
+            if m.is_empty() {
+                continue;
+            }
+            if m.starts_with("#") {
+                // this comments.
+                continue;
+            }
+            let (name, value) = split_info_colon(m)?;
+            ret.push(MetaValue::new(name, value));
+        }
         anyhow::Ok(ret)
     }
 }
+
+fn split_info_colon(info: &str) -> anyhow::Result<(String, String)> {
+    match info.find(":") {
+        Some(index) => {
+            return anyhow::Ok((
+                (&info[..index]).to_string(),
+                (&info[index + 1..]).to_string(),
+            ))
+        }
+        None => anyhow::bail!("info should contains ':'"),
+    }
+}
+
 // export impl
 impl RedisDB {
     async fn export_table_as_csv(
-        &self, key: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, key: &str, delimiter: char, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        if include_header {
-            anyhow::bail!("redis have no header")
-        }
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
         match ty {
@@ -593,8 +614,10 @@ impl SchemaTrait for RedisDB {
                 include_header,
                 delimiter,
             } => {
-                self.export_table_as_csv(key, include_header, delimiter, sender)
-                    .await
+                if include_header {
+                    anyhow::bail!("redis have no header")
+                }
+                self.export_table_as_csv(key, delimiter, sender).await
             }
             ExportKind::Json { pretty } => self.export_table_as_json(key, pretty, sender).await,
             ExportKind::Sql {
@@ -812,11 +835,30 @@ impl DBTrait for RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(get_command_from_sql(sql).iter().any(|x| {
+            x.first()
+                .map(|x| {
+                    x.eq_ignore_ascii_case("FLUSHDB")
+                        || x.eq_ignore_ascii_case("FLUSHALL")
+                        || x.eq_ignore_ascii_case("DEL")
+                        || x.eq_ignore_ascii_case("CONFIG")
+                        || x.eq_ignore_ascii_case("SHUTDOWN")
+                        || x.eq_ignore_ascii_case("DEBUG")
+                        || x.eq_ignore_ascii_case("REPLICAOF")
+                        || x.eq_ignore_ascii_case("SWAPDB")
+                        || x.eq_ignore_ascii_case("EVAL")
+                        || x.eq_ignore_ascii_case("EVALSHA")
+                })
+                .unwrap_or(false)
+        }))
+    }
+
     /// redis have no transaction any connection is fine
     /// so connection management for redis is dummy
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
-        let client = self.get_client().await?;
+        let client: redis::Client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
         self.query_connections
             .insert(id.clone(), Arc::new(Mutex::new(conn)));
@@ -921,9 +963,9 @@ impl QuerySqlWithoutOpenConn for RedisDB {
     }
 }
 
-async fn query_sql(
-    conn: &mut redis::aio::MultiplexedConnection, sql: &str,
-) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+/// splite sql by line and whitespace
+/// to list of commmands and args
+fn get_command_from_sql(sql: &str) -> Vec<Vec<String>> {
     let mut commands = Vec::new();
     for line in sql.lines() {
         let v: Vec<_> = line.split(" ").collect();
@@ -937,6 +979,13 @@ async fn query_sql(
             commands.push(v2);
         }
     }
+    commands
+}
+
+async fn query_sql(
+    conn: &mut redis::aio::MultiplexedConnection, sql: &str,
+) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+    let commands = get_command_from_sql(sql);
     let mut ret = Vec::new();
     for c in commands.iter() {
         let args = &c[1..];
@@ -1142,7 +1191,7 @@ mod tests {
 
     use std::{path::Path, time::Duration};
 
-    use super::{extract_db_from_info_key_space, RedisDB};
+    use super::{extract_db_from_info_key_space, split_info_colon, RedisDB};
     use crate::{
         completion::completion_test::test_file_auto_completion,
         datasource::RedisDBConfig,
@@ -1603,6 +1652,14 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         assert_eq!(resp, resp2);
+    }
+
+    #[test]
+    fn test_split_info_colon() {
+        assert_eq!(
+            split_info_colon("loading:0").unwrap(),
+            ("loading".to_string(), "0".to_string())
+        );
     }
 
     #[tokio::test]

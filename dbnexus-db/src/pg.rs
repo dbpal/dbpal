@@ -105,7 +105,7 @@ impl PostGresDB {
             //     sender.send(Cow::Owned(index)).await?;
             //     sender.send(";\n".into()).await?;
             // }
-            anyhow::bail!("export create table have bug")
+            anyhow::bail!("export create table script not supported now.")
         }
 
         let mut conn = self.get_conn().await?;
@@ -382,7 +382,6 @@ impl ServerMetas for PostGresDB {
                 ret.push(meta);
             }
         }
-
         anyhow::Ok(ret)
     }
 }

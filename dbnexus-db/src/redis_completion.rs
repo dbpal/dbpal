@@ -1386,7 +1386,7 @@ fn static_redis_command_completion_items() -> Vec<CompletionItem> {
                 .iter()
                 .map(|x| CompletionItem {
                     item: (*x).into(),
-                    kind: CompletionKind::KeyWord,
+                    kind: CompletionKind::Command,
                 })
                 .collect::<Vec<_>>()
         })

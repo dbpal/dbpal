@@ -370,6 +370,7 @@ pub trait FormatSql {
 #[async_trait::async_trait]
 
 pub trait CheckConn {
+    /// Duration is basic `select 1` execution time.
     async fn check_conn(&self) -> anyhow::Result<Duration>;
 }
 /// create table and all index sql.
@@ -1247,6 +1248,7 @@ pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
 #[serde(tag = "export_kind", rename_all = "lowercase")]
 pub enum ExportKind {
     CSV {
+        // include
         include_header: bool,
         delimiter: char,
     },

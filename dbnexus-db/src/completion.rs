@@ -23,6 +23,8 @@ pub struct CompletionItem {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
 pub enum CompletionKind {
+    // commnad right now use by redis
+    Command,
     KeyWord,
     Function,
     Dbname,
