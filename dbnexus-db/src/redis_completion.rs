@@ -24,7 +24,7 @@ impl RedisDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         log::trace!("completion on keys pattern:{}", pattern);
         let mut conn = self.get_conn().await?;
-        let keys: Vec<String> = conn.keys(format!("{}*", pattern)).await?;
+        let keys: Vec<String> = conn.keys(format!("*{}*", pattern)).await?;
         let mut ret = Vec::new();
         for key in keys.into_iter() {
             let type_matched = match kind {
@@ -43,6 +43,7 @@ impl RedisDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn completion_hash_keys(&self, key: &str) -> anyhow::Result<Vec<CompletionItem>> {
         let mut conn = self.get_conn().await?;
         let keys: Vec<String> = conn.hkeys(key).await?;

@@ -61,6 +61,14 @@ pub struct RedisListTable {
     pub(crate) zset_table: Vec<String>,
 }
 
+impl RedisDB {
+    /// used for frond end to query keys match in pattern
+    pub async fn redis_match_keys(&self, pattern: &str) -> anyhow::Result<Vec<String>> {
+        let mut conn = self.get_conn().await?;
+        anyhow::Ok(conn.keys(pattern).await?)
+    }
+}
+
 #[async_trait::async_trait]
 impl ServerMetas for RedisDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
@@ -1664,7 +1672,11 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             ("loading".to_string(), "0".to_string())
         );
     }
-
+    #[tokio::test]
+    async fn test_redis_match_keys() {
+        let db = make_test_object().await;
+        db.redis_match_keys("*").await.unwrap();
+    }
     #[tokio::test]
     async fn test_string_key() {
         let db = make_test_object().await;

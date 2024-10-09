@@ -142,6 +142,10 @@ export namespace db_apis {
          */
         "last_insert_id_string": (string | null);
     };
+
+    /**
+     * named staff maybe used for view udf etc...
+     */
     export type NamedStaff = {
         "name": string;
     };
@@ -168,11 +172,11 @@ export namespace db_apis {
         "hash_table": (string)[];
         "zset_table": (string)[];
     };
-    export type TriggerTiming = ("Before" | "After" |
-        /**
-         * sql server have this timing but I am not quit understand.
-         */
-        "InsteadOf");
+    export type TriggerTiming = ("Before" | "After" | 
+    /**
+     * sql server have this timing but I am not quit understand.
+     */
+"InsteadOf");
     export type TriggerEvent = ("Insert" | "Update" | "Delete");
     export type TriggerEnable = (({
         "kind": "postgres";
@@ -194,9 +198,6 @@ export namespace db_apis {
         "enable": (db_apis.TriggerEnable | null);
         "metas": (db_apis.MetaValue)[];
     };
-    export type NamedStaff = {
-        "name": string;
-    };
     export type CompletionItem = {
         "name": string;
         "kind": CompletionKind;
@@ -209,12 +210,6 @@ export namespace db_apis {
     export type UdfDetail = {
         "def": string;
         "metas": (db_apis.MetaValue)[];
-    };
-    export type NamedStaff = {
-        "name": string;
-    };
-    export type ListProcedure = {
-        "name": string;
     };
     export type ProcedureDetail = {
         "def": string;

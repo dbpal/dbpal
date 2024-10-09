@@ -14,8 +14,8 @@ use dbnexus_db::db::{
     TriggerEvent, TriggerTiming, UdfDetail,
 };
 
+use dbnexus_db::app::{self, OpendKind};
 use dbnexus_db::redis::RedisListTable;
-use dvnexus_app_lib::storage::{self, OpendKind};
 use typescript_type_def::{write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef};
 
 fn main() {
@@ -24,8 +24,8 @@ fn main() {
 
     let ts_module = {
         let api = vec![
-            &storage::DBConnectionConfig::INFO,
-            &storage::UserSettings::INFO,
+            &app::DBConnectionConfig::INFO,
+            &app::UserSettings::INFO,
             &PGDBConfig::INFO,
             &SqlServerDBConfig::INFO,
             &ListTable::INFO,
@@ -40,12 +40,10 @@ fn main() {
             &TriggerEvent::INFO,
             &TriggerTiming::INFO,
             &TriggerEnable::INFO,
-            &NamedStaff::INFO,
             &CompletionItem::INFO,
             &CompletionKind::INFO,
             &QueryResp::INFO,
             &UdfDetail::INFO,
-            &NamedStaff::INFO,
             &ProcedureDetail::INFO,
             &OpendKind::INFO,
             &FormatSqlOpts::INFO,

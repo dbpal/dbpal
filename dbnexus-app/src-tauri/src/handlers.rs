@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bson::{doc, Document};
+use dbnexus_db::app::{self, App, DBConnectionConfig, Open, OpendKind, UserSettings};
 use dbnexus_db::db::{
     ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, QueryResp, SqlExecuteRet,
     TableListResp, TriggerDetail,
@@ -8,8 +9,6 @@ use dbnexus_db::db::{
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
-
-use crate::storage::{self, App, DBConnectionConfig, OpendKind, UserSettings};
 
 #[tauri::command]
 pub async fn add_config(
@@ -73,6 +72,26 @@ pub async fn redis_list_table(
     match db.as_any().downcast_ref::<RedisDB>() {
         Some(x) => x
             .redis_list_table()
+            .await
+            .map_err(AnyhowErrorFrontend::from),
+        None => Err(AnyhowErrorFrontend::from(anyhow::Error::msg(format!(
+            "'{}' not a redis",
+            uuid
+        )))),
+    }
+}
+
+#[tauri::command]
+pub async fn redis_match_keys(
+    uuid: String, pattern: String, app: tauri::State<'_, App>,
+) -> Result<Vec<String>, AnyhowErrorFrontend> {
+    let db = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => x
+            .redis_match_keys(pattern.as_str())
             .await
             .map_err(AnyhowErrorFrontend::from),
         None => Err(AnyhowErrorFrontend::from(anyhow::Error::msg(format!(
@@ -238,9 +257,9 @@ pub async fn query_sql(
         .map_err(AnyhowErrorFrontend::from)?;
 
     let result = match db {
-        crate::storage::Open::DataBase(x) => x.query_sql(id, sql).await,
-        crate::storage::Open::Schema(x) => x.query_sql(id, sql).await,
-        crate::storage::Open::Catelog(x) => x.query_sql(id, sql).await,
+        Open::DataBase(x) => x.query_sql(id, sql).await,
+        Open::Schema(x) => x.query_sql(id, sql).await,
+        Open::Catelog(x) => x.query_sql(id, sql).await,
     };
 
     result.map_err(AnyhowErrorFrontend::from)
@@ -251,9 +270,9 @@ pub async fn query_sql_open_connection(
 ) -> Result<uuid::Uuid, AnyhowErrorFrontend> {
     let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
-        crate::storage::Open::DataBase(x) => x.open_connection().await,
-        crate::storage::Open::Schema(x) => x.open_connection().await,
-        crate::storage::Open::Catelog(x) => x.open_connection().await,
+        Open::DataBase(x) => x.open_connection().await,
+        Open::Schema(x) => x.open_connection().await,
+        Open::Catelog(x) => x.open_connection().await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
@@ -263,9 +282,9 @@ pub async fn query_sql_re_connection(
 ) -> Result<(), String> {
     let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
-        crate::storage::Open::DataBase(x) => x.re_connect(id).await,
-        crate::storage::Open::Schema(x) => x.re_connect(id).await,
-        crate::storage::Open::Catelog(x) => x.re_connect(id).await,
+        Open::DataBase(x) => x.re_connect(id).await,
+        Open::Schema(x) => x.re_connect(id).await,
+        app::Open::Catelog(x) => x.re_connect(id).await,
     };
     result.map_err(|e| e.to_string())
 }
@@ -275,9 +294,9 @@ pub async fn query_sql_close_connection(
 ) -> Result<(), AnyhowErrorFrontend> {
     let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
-        crate::storage::Open::DataBase(x) => x.close_connection(id).await,
-        crate::storage::Open::Schema(x) => x.close_connection(id).await,
-        crate::storage::Open::Catelog(x) => x.close_connection(id).await,
+        Open::DataBase(x) => x.close_connection(id).await,
+        Open::Schema(x) => x.close_connection(id).await,
+        Open::Catelog(x) => x.close_connection(id).await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
@@ -334,9 +353,9 @@ pub async fn format_sql(
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db {
-        crate::storage::Open::DataBase(x) => x.format_sql(sql.as_str(), opts),
-        crate::storage::Open::Schema(x) => x.format_sql(sql.as_str(), opts),
-        crate::storage::Open::Catelog(x) => x.format_sql(sql.as_str(), opts),
+        Open::DataBase(x) => x.format_sql(sql.as_str(), opts),
+        Open::Schema(x) => x.format_sql(sql.as_str(), opts),
+        Open::Catelog(x) => x.format_sql(sql.as_str(), opts),
     };
     ret.map_err(|e| e.to_string())
 }
@@ -348,11 +367,11 @@ pub async fn test_connection(
     u64, // milliseconds
     AnyhowErrorFrontend,
 > {
-    let db = storage::open(&config).await.map_err(|e| e.to_string())?;
+    let db = app::open(&config).await.map_err(|e| e.to_string())?;
     match db {
-        storage::Open::DataBase(x) => x.check_conn().await,
-        storage::Open::Schema(x) => x.check_conn().await,
-        storage::Open::Catelog(x) => x.check_conn().await,
+        app::Open::DataBase(x) => x.check_conn().await,
+        app::Open::Schema(x) => x.check_conn().await,
+        app::Open::Catelog(x) => x.check_conn().await,
     }
     .map_err(AnyhowErrorFrontend::from)
     .map(|d| d.as_millis() as u64)

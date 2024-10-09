@@ -11,6 +11,7 @@ pub mod datasource_config;
 pub mod db;
 pub mod meta_value;
 
+pub mod app;
 pub mod helper;
 pub mod mariadb;
 pub mod mongo;
