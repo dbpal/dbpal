@@ -4,7 +4,6 @@ use serde::ser::SerializeStruct;
 use serde::Serializer;
 /// meta value can used in various place.
 #[derive()]
-
 pub struct MetaValue {
     name: Cow<'static, str>,
     value: Option<Box<dyn ToString + Send + 'static>>,
@@ -34,16 +33,6 @@ impl MetaValue {
     pub(crate) fn with_desc(&mut self, desc: impl Into<Cow<'static, str>>) {
         self.desc = Some(desc.into());
     }
-}
-
-#[cfg(test)]
-#[test]
-fn test_new_meta_value() {
-    let x = MetaValue::new("name", 1);
-    assert_eq!(
-        "MetaValue { name: \"name\", value: Some(\"1\") }",
-        format!("{:?}", x)
-    );
 }
 
 impl serde::Serialize for MetaValue {
@@ -79,5 +68,19 @@ impl std::fmt::Debug for MetaValue {
             },
         };
         write!(f, "{:?}", m)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_meta_value() {
+        let x = MetaValue::new("name", 1);
+        assert_eq!(
+            "MetaValue { name: \"name\", value: Some(\"1\") }",
+            format!("{:?}", x)
+        );
     }
 }

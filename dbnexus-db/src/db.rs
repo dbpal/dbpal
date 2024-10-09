@@ -398,7 +398,7 @@ pub struct ListTable {
 }
 
 /// humansize formatted string.
-pub struct HumanSize(Box<dyn humansize::ToF64 + Send + 'static>);
+pub struct HumanSize(pub(crate) Box<dyn humansize::ToF64 + Send + 'static>);
 
 impl serde::Serialize for HumanSize {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -733,7 +733,13 @@ impl TableListResp {
     #[allow(dead_code)]
     fn check(&self) {
         for x in self.data.iter() {
-            assert_eq!(x.len(), self.fields.len());
+            debug_assert_eq!(
+                x.len(),
+                self.fields.len(),
+                "fileds:{:?},data:{:?}",
+                self.fields,
+                self.data
+            );
         }
     }
 }

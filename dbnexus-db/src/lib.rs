@@ -17,6 +17,7 @@ pub mod mongo;
 pub mod mysql;
 pub mod oracle;
 pub mod pg;
+pub mod pg_completion;
 pub mod pg_format;
 pub mod query_log;
 pub mod redis;

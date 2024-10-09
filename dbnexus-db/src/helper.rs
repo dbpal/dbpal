@@ -40,28 +40,21 @@ pub enum SqlKind {
 }
 fn is_statement_begin(s: &Statement) -> bool {
     match s {
-        Statement::StartTransaction {
-            modes: _,
-            begin: _,
-            modifier: _,
-        } => true,
+        Statement::StartTransaction { .. } => true,
         _ => false,
     }
 }
 
 fn is_statement_commit(s: &Statement) -> bool {
     match s {
-        Statement::Commit { chain: _ } => true,
+        Statement::Commit { .. } => true,
         _ => false,
     }
 }
 
 fn is_statement_rollback(s: &Statement) -> anyhow::Result<bool> {
     match s {
-        Statement::Rollback {
-            chain: _,
-            savepoint,
-        } => {
+        Statement::Rollback { savepoint, .. } => {
             if savepoint.is_some() {
                 anyhow::bail!("save point is not supported")
             } else {
@@ -85,7 +78,6 @@ impl SqlKind {
         } else {
             SqlKind::Execution
         };
-
         anyhow::Ok(x)
     }
 
@@ -100,7 +92,6 @@ impl SqlKind {
         if t.starts_with("ROLLBACK") {
             return anyhow::Ok(SqlKind::Rollback);
         }
-
         anyhow::Ok(
             if t.starts_with("SELECT") || t.starts_with("SHOW") || t.starts_with("EXPLAIN") {
                 SqlKind::Query
@@ -223,48 +214,16 @@ pub fn sql_to_sql_seq(
 fn is_statement_absolute_query(s: &Statement) -> bool {
     match s {
         Statement::Query(_) => true,
-        Statement::Fetch {
-            name: _,
-            direction: _,
-            into: _,
-        } => true,
+        Statement::Fetch { .. } => true,
         Statement::ShowFunctions { filter: _ } => true,
         Statement::ShowVariable { variable: _ } => true,
-        Statement::ShowVariables {
-            filter: _,
-            global: _,
-            session: _,
-        } => true,
-        Statement::ShowCreate {
-            obj_type: _,
-            obj_name: _,
-        } => true,
-        Statement::ShowColumns {
-            extended: _,
-            full: _,
-            table_name: _,
-            filter: _,
-        } => true,
-        Statement::ShowTables {
-            extended: _,
-            full: _,
-            db_name: _,
-            filter: _,
-        } => true,
+        Statement::ShowVariables { .. } => true,
+        Statement::ShowCreate { .. } => true,
+        Statement::ShowColumns { .. } => true,
+        Statement::ShowTables { .. } => true,
         Statement::ShowCollation { filter: _ } => true,
-        Statement::ExplainTable {
-            describe_alias: _,
-            table_name: _,
-            hive_format: _,
-            has_table_keyword: _,
-        } => true,
-        Statement::Explain {
-            describe_alias: _,
-            analyze: _,
-            verbose: _,
-            statement: _,
-            format: _,
-        } => true,
+        Statement::ExplainTable { .. } => true,
+        Statement::Explain { .. } => true,
         _ => false,
     }
 }
@@ -280,7 +239,6 @@ pub(crate) fn create_csv(ds: &Vec<Vec<Option<String>>>, delimiter: char) -> Stri
             if let Some(x) = x {
                 s2.push_str(&escape_csv(x, delimiter));
             }
-
             if index != last {
                 s2.push(delimiter);
             }
@@ -300,17 +258,11 @@ fn escape_csv(s: &str, delimiter: char) -> Cow<'_, str> {
     }
 }
 
-#[cfg(test)]
-#[test]
-fn test_escape_csv() {
-    assert_eq!(escape_csv("\" aaaa,", ','), "\"\\\" aaaa,\"");
-}
-
 /// get current timestamp
 pub fn current_timestamp() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let now = SystemTime::now();
-    let timestamp = now
+    let timestamp: u64 = now
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
         .as_secs();
@@ -321,34 +273,10 @@ pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> an
     let ss = sqlparser::parser::Parser::parse_sql(dialect, sql)?;
     for s in ss.iter() {
         let x = match s {
-            Statement::Truncate {
-                partitions: _,
-                table: _,
-                table_names: _,
-                only: _,
-                identity: _,
-                cascade: _,
-            } => true,
-            Statement::Drop {
-                object_type: _,
-                if_exists: _,
-                names: _,
-                cascade: _,
-                restrict: _,
-                purge: _,
-                temporary: _,
-            } => true,
-            Statement::DropFunction {
-                if_exists: _,
-                func_desc: _,
-                option: _,
-            } => true,
-            Statement::DropSecret {
-                if_exists: _,
-                temporary: _,
-                name: _,
-                storage_specifier: _,
-            } => true,
+            Statement::Truncate { .. } => true,
+            Statement::Drop { .. } => true,
+            Statement::DropFunction { .. } => true,
+            Statement::DropSecret { .. } => true,
             Statement::Delete(x) => {
                 if x.selection.is_none() {
                     true
@@ -362,7 +290,6 @@ pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> an
             return anyhow::Ok(true);
         }
     }
-
     anyhow::Ok(false)
 }
 
@@ -397,27 +324,33 @@ impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
         }
     }
 }
-
-#[cfg(test)]
-#[test]
-fn test_off_iter() {
-    assert_eq!(
-        OffsetLimitIter::new(9, 3).collect::<Vec<_>>(),
-        vec![0, 3, 6]
-    );
-    assert_eq!(
-        OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
-        vec![0, 4, 8]
-    );
-}
-
 /// format sql routine for crate `sqlformat`.
 pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
     sqlformat::format(sql, &sqlformat::QueryParams::None, &op.unwrap_or_default())
 }
 
 #[cfg(test)]
-#[test]
-fn test_sqlformat_format_sql() {
-    assert_eq!(sqlformat_format_sql("select 1", None), "select\n  1");
+mod tests {
+    use super::*;
+    #[test]
+    fn test_off_iter() {
+        assert_eq!(
+            OffsetLimitIter::new(9, 3).collect::<Vec<_>>(),
+            vec![0, 3, 6]
+        );
+        assert_eq!(
+            OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
+            vec![0, 4, 8]
+        );
+    }
+
+    #[test]
+    fn test_sqlformat_format_sql() {
+        assert_eq!(sqlformat_format_sql("select 1", None), "select\n  1");
+    }
+
+    #[test]
+    fn test_escape_csv() {
+        assert_eq!(escape_csv("\" aaaa,", ','), "\"\\\" aaaa,\"");
+    }
 }

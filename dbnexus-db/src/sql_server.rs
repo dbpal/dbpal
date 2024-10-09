@@ -21,8 +21,9 @@ use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     format_data_time_fix_offset, BackendName, CatalogTrait, CheckConn, DBTrait,
     DropUdfExtraParameter, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
+    ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfDetail,
 };
 use crate::helper::{
     create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql, SqlKind, SqlSeq,
@@ -169,7 +170,6 @@ impl SqlServer {
     ) -> anyhow::Result<Self> {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
         let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
-
         anyhow::Ok(Self {
             config: c,
             pool,
@@ -1077,6 +1077,80 @@ impl SchemaTrait for SqlServer {
 
         anyhow::Ok(())
     }
+
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = r#"
+            SELECT 
+                ROUTINE_NAME 
+            FROM 
+                INFORMATION_SCHEMA.ROUTINES 
+            WHERE 
+                ROUTINE_TYPE = 'PROCEDURE';
+            "#;
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut resp = conn.simple_query(sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = resp.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    ret.push(NamedStaff::from(name.unwrap_or_default().to_string()));
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+    async fn show_procedure(&self, name: &str) -> anyhow::Result<ProcedureDetail> {
+        let sql = format!(
+            r#"
+            SELECT 
+                p.create_date AS CreationDate,
+                p.modify_date AS LastModified,
+                m.definition AS ProcedureDefinition
+                FROM 
+                    sys.procedures p
+                JOIN 
+                    sys.sql_modules m ON p.object_id = m.object_id
+                WHERE 
+                    p.name = '{name}';
+        "#
+        );
+
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut resp = conn.simple_query(&sql).await?;
+
+        while let Some(item) = resp.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let create_date: Option<chrono::NaiveDateTime> = row.try_get(0)?;
+                    let modify_date: Option<chrono::NaiveDateTime> = row.try_get(1)?;
+                    let def: Option<&str> = row.try_get(2)?;
+                    return anyhow::Ok(ProcedureDetail::new(
+                        def.unwrap_or_default().to_string(),
+                        vec![
+                            MetaValue::new("create_date", create_date.unwrap_or_default()),
+                            MetaValue::new("modify_date", modify_date.unwrap_or_default()),
+                        ],
+                    ));
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::bail!("query precedure contains no result.")
+    }
+    async fn drop_procedure(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!(" DROP PROCEDURE dbo.{name}");
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        conn.execute(&sql, &[]).await?;
+        anyhow::Ok(())
+    }
 }
 
 impl SqlServer {
@@ -1679,6 +1753,41 @@ mod tests {
         .unwrap();
         ss
     }
+
+    #[tokio::test]
+    async fn test_procedure() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db.drop_procedure("test_procedure").await;
+        db.query_sql(
+            query_id,
+            r#"
+            CREATE PROCEDURE dbo.test_procedure
+                @EmployeeID INT
+            AS
+            BEGIN
+                SET NOCOUNT ON;  -- 防止影响行计数的消息
+
+                SELECT 
+                    Name, 
+                    Position
+                FROM 
+                    Employees
+                WHERE 
+                    EmployeeID = @EmployeeID;
+            END;
+        "#,
+        )
+        .await
+        .unwrap();
+        let list = db.list_procedure().await.unwrap();
+        for l in list.iter() {
+            let details = db.show_procedure(&l.name).await.unwrap();
+            println!("udf:{},details:{:?}", l.name, details);
+        }
+    }
+
     #[tokio::test]
     async fn test_udf() {
         let _guard = test_lock().lock().await;
