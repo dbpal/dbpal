@@ -893,10 +893,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dbnexus-core"
-version = "0.0.0"
-
-[[package]]
 name = "dbnexus-db"
 version = "0.0.0"
 dependencies = [

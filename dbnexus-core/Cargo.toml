@@ -1,9 +1,0 @@
-[package]
-name = "dbnexus-core"
-version.workspace = true
-edition.workspace = true
-homepage.workspace = true
-repository.workspace = true
-license.workspace = true
-
-[dependencies]
