@@ -57,10 +57,10 @@ impl RedisDB {
     }
 
     fn make_auto_completion_fn_by_command<'a, 'b>(
-        &'b self, command: &str, patterns: &'a [String],
-    ) -> anyhow::Result<Vec<BoxFuture<'a, anyhow::Result<Vec<CompletionItem>>>>>
+        &'a self, command: &str, patterns: &'b [String],
+    ) -> anyhow::Result<Vec<BoxFuture<'b, anyhow::Result<Vec<CompletionItem>>>>>
     where
-        'b: 'a,
+        'a: 'b,
     {
         /// dummy auto completion don't return anything
         #[derive(Clone, Copy, Debug)]
