@@ -23,6 +23,7 @@ pub mod query_log;
 pub mod redis;
 pub mod redis_completion;
 pub mod sql_server;
+pub mod sql_server_completion;
 pub mod sqlite;
 pub mod typedef;
 

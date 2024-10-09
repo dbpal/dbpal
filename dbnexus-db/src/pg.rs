@@ -1386,9 +1386,9 @@ mod tests {
         println!("{:?}", dbs);
         assert_eq!(dbs, vec!["postgres", "test", "template1", "template0"]);
     }
-    #[tokio::test]
     // test on empty table query can still have column info
-
+    #[ignore = "sqlx don't return column info on empty result, see https://github.com/launchbadge/sqlx/issues/3552"]
+    #[tokio::test]
     async fn empty_type_and_column_info() {
         let db = make_test_object().await;
         let table = "empty_table";
