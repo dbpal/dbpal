@@ -21,8 +21,8 @@ use crate::completion::{
 
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, ExportKind, Field, FormatSql, FormatSqlOpts,
-    Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
@@ -466,7 +466,7 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
             SELECT name 
@@ -486,7 +486,7 @@ impl SchemaTrait for SqliteDB {
             ret.push(name);
         }
 
-        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
@@ -563,7 +563,7 @@ impl SchemaTrait for SqliteDB {
         self
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(
             r#"
@@ -581,7 +581,7 @@ impl SchemaTrait for SqliteDB {
             ret.push(name);
         }
 
-        anyhow::Ok(ret.into_iter().map(ListView::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {

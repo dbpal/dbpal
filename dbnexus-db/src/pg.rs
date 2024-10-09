@@ -17,9 +17,9 @@ use crate::completion::DBLexerCompletionBackend;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter,
-    ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListUdf,
-    ListView, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
+    ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfDetail,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
@@ -390,7 +390,7 @@ impl ServerMetas for PostGresDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
-    async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
             SELECT  
@@ -407,7 +407,7 @@ impl SchemaTrait for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
-            ret.push(ListUdf { name });
+            ret.push(NamedStaff { name });
         }
 
         anyhow::Ok(ret)
@@ -444,6 +444,7 @@ impl SchemaTrait for PostGresDB {
         let parameters = match &extra {
             Some(x) => match x {
                 DropUdfExtraParameter::PostGres { parameters } => parameters,
+                #[allow(unreachable_patterns)]
                 _ => {
                     anyhow::bail!("must be a postgres parameter")
                 }
@@ -518,7 +519,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
              SELECT tgname 
@@ -535,7 +536,7 @@ impl SchemaTrait for PostGresDB {
             let name: String = r.get(0);
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
@@ -725,7 +726,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
         let schema = self.schema.as_ref().unwrap();
         let rows = sqlx::query(
@@ -747,7 +748,7 @@ impl SchemaTrait for PostGresDB {
             let view_name: String = r.get(0);
             ret.push(view_name);
         }
-        anyhow::Ok(ret.into_iter().map(ListView::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn delete(

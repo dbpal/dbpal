@@ -17,7 +17,7 @@ use crate::completion::DBLexerCompletionBackend;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
-    FormatSqlOpts, Index, IndexKind, ListTable, ListView, QueryResp, QuerySql, SchemaTrait,
+    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
     SqlExecuteRet, TableListResp,
 };
 use crate::helper::{
@@ -1080,7 +1080,7 @@ impl SchemaTrait for OracleDB {
         })
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let conn = self.get_conn().await?;
         let sql = format!(
             r#"
@@ -1095,7 +1095,7 @@ impl SchemaTrait for OracleDB {
             let name: String = r.get(0)?;
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(ListView::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {

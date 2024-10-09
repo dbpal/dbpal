@@ -19,9 +19,9 @@ use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBa
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter, ExportKind,
-    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListProcedure, ListTable, ListTrigger,
-    ListUdf, ListView, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
+    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfDetail,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
@@ -564,13 +564,13 @@ impl BackendName for MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
-    async fn list_procedure(&self) -> anyhow::Result<Vec<ListProcedure>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Procedure
             .query_list(conn.deref_mut(), self.config.db_name.as_ref().unwrap())
             .await?;
-        anyhow::Ok(ret.into_iter().map(ListProcedure::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
     async fn show_procedure(&self, name: &str) -> anyhow::Result<ProcedureDetail> {
         let mut conn = self.get_conn().await?;
@@ -613,13 +613,13 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Function
             .query_list(conn.deref_mut(), self.config.db_name.as_ref().unwrap())
             .await?;
-        anyhow::Ok(ret.into_iter().map(ListUdf::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn export_query_result(
@@ -681,7 +681,7 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
             SELECT TRIGGER_NAME
@@ -700,7 +700,7 @@ impl SchemaTrait for MysqlDB {
             let name: String = r.get(0);
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn export_table(
@@ -802,7 +802,7 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
         SELECT table_name FROM information_schema.tables WHERE table_type = 'VIEW' AND table_schema = '{}';
@@ -816,7 +816,7 @@ impl SchemaTrait for MysqlDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
-            ret.push(ListView::from(name));
+            ret.push(NamedStaff::from(name));
         }
         anyhow::Ok(ret)
     }

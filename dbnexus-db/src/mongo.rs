@@ -9,32 +9,14 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use typescript_type_def::TypeDef;
 
 use crate::datasource_config::MongoConfig;
 use crate::db::{
     BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
-    ListTable, ListView, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
     TableListResp,
 };
 use crate::meta_value::MetaValue;
-
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
-pub struct ListMongoTimeSerialCollection {
-    pub name: String,
-}
-impl From<String> for ListMongoTimeSerialCollection {
-    fn from(value: String) -> Self {
-        Self { name: value }
-    }
-}
-impl From<&str> for ListMongoTimeSerialCollection {
-    fn from(value: &str) -> Self {
-        Self {
-            name: value.to_string(),
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct Mongo {
@@ -488,18 +470,12 @@ impl Mongo {
 }
 
 impl Mongo {
-    pub async fn show_mongo_time_serial_collection(
-        &self,
-    ) -> anyhow::Result<Vec<ListMongoTimeSerialCollection>> {
+    pub async fn show_mongo_time_serial_collection(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let ts = self
             .list_collection_name_by_type(CollectionType::Timeseries)
             .await?;
 
-        anyhow::Ok(
-            ts.into_iter()
-                .map(ListMongoTimeSerialCollection::from)
-                .collect(),
-        )
+        anyhow::Ok(ts.into_iter().map(NamedStaff::from).collect())
     }
     pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<()> {
         self.drop_table(name).await
@@ -580,12 +556,12 @@ impl SchemaTrait for Mongo {
         anyhow::Ok(())
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let views = self
             .list_collection_name_by_type(CollectionType::View)
             .await?;
 
-        anyhow::Ok(views.into_iter().map(ListView::from).collect())
+        anyhow::Ok(views.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {

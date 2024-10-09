@@ -142,7 +142,7 @@ export namespace db_apis {
          */
         "last_insert_id_string": (string | null);
     };
-    export type ListView = {
+    export type NamedStaff = {
         "name": string;
     };
     export type ExportKind = (({
@@ -168,11 +168,11 @@ export namespace db_apis {
         "hash_table": (string)[];
         "zset_table": (string)[];
     };
-    export type TriggerTiming = ("Before" | "After" | 
-    /**
-     * sql server have this timing but I am not quit understand.
-     */
-"InsteadOf");
+    export type TriggerTiming = ("Before" | "After" |
+        /**
+         * sql server have this timing but I am not quit understand.
+         */
+        "InsteadOf");
     export type TriggerEvent = ("Insert" | "Update" | "Delete");
     export type TriggerEnable = (({
         "kind": "postgres";
@@ -194,7 +194,7 @@ export namespace db_apis {
         "enable": (db_apis.TriggerEnable | null);
         "metas": (db_apis.MetaValue)[];
     };
-    export type ListTrigger = {
+    export type NamedStaff = {
         "name": string;
     };
     export type CompletionItem = {
@@ -210,7 +210,7 @@ export namespace db_apis {
         "def": string;
         "metas": (db_apis.MetaValue)[];
     };
-    export type ListUdf = {
+    export type NamedStaff = {
         "name": string;
     };
     export type ListProcedure = {

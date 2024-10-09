@@ -53,7 +53,7 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
         &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet>;
 
-    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         not_support_features(self.backend_name())
     }
     async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
@@ -150,7 +150,7 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
         anyhow::Ok(())
     }
 
-    async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+    async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
         not_support_features(self.backend_name())
     }
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
@@ -169,7 +169,7 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<ListUdf>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         not_support_features(self.backend_name())
     }
     async fn show_udf(&self, _name: &str) -> anyhow::Result<UdfDetail> {
@@ -182,7 +182,7 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
         not_support_features(self.backend_name())
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<ListProcedure>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
         not_support_features(self.backend_name())
     }
     async fn show_procedure(&self, _name: &str) -> anyhow::Result<ProcedureDetail> {
@@ -245,25 +245,16 @@ pub trait CatalogTrait: Send + Sync + 'static + QuerySql + FormatSql + CheckConn
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
 }
+
+/// named staff maybe used for view udf etc...
 #[derive(Debug, serde::Serialize, TypeDef, Clone)]
-pub struct ListProcedure {
-    pub(crate) name: String,
+pub struct NamedStaff {
+    pub name: String,
 }
 
-impl From<String> for ListProcedure {
+impl From<String> for NamedStaff {
     fn from(value: String) -> Self {
-        ListProcedure { name: value }
-    }
-}
-
-#[derive(Debug, serde::Serialize, TypeDef, Clone)]
-pub struct ListUdf {
-    pub(crate) name: String,
-}
-
-impl From<String> for ListUdf {
-    fn from(value: String) -> Self {
-        ListUdf { name: value }
+        NamedStaff { name: value }
     }
 }
 
@@ -398,24 +389,6 @@ pub trait QuerySql: BackendName + Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait QuerySqlWithoutOpenConn {
     async fn query_sql(&self, _sql: &str) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
-}
-
-#[derive(Clone, Debug, serde::Serialize, TypeDef)]
-pub struct ListView {
-    pub name: String,
-}
-
-impl From<String> for ListView {
-    fn from(value: String) -> Self {
-        let value = value.into();
-        Self { name: value }
-    }
-}
-impl From<&str> for ListView {
-    fn from(value: &str) -> Self {
-        let value = value.to_string();
-        Self { name: value }
-    }
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
@@ -959,15 +932,6 @@ impl TryFrom<&str> for TriggerEvent {
     }
 }
 
-impl From<String> for ListTrigger {
-    fn from(value: String) -> Self {
-        Self { name: value }
-    }
-}
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
-pub struct ListTrigger {
-    pub name: String,
-}
 #[derive(Debug, Clone, Copy, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub enum TriggerTiming {
     Before,

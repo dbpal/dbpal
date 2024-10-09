@@ -20,8 +20,8 @@ use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBa
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     format_data_time_fix_offset, BackendName, CatalogTrait, CheckConn, DBTrait, ExportKind, Field,
-    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, ListTrigger, ListView, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
+    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
     TriggerEvent, TriggerTiming,
 };
 use crate::helper::{
@@ -456,7 +456,7 @@ impl SchemaTrait for SqlServer {
         self.execute_simple_execute(&sql).await
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<ListTrigger>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
             SELECT 
@@ -482,7 +482,7 @@ impl SchemaTrait for SqlServer {
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-        anyhow::Ok(ret.into_iter().map(ListTrigger::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
@@ -648,7 +648,7 @@ impl SchemaTrait for SqlServer {
         anyhow::Ok(())
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<ListView>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut stream = conn
@@ -675,7 +675,7 @@ impl SchemaTrait for SqlServer {
                 }
             }
         }
-        anyhow::Ok(ret.into_iter().map(ListView::from).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {

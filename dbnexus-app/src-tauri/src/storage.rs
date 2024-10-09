@@ -8,7 +8,7 @@ use dbnexus_db::datasource_config::{
     MongoConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
 };
 use dbnexus_db::db::{
-    CatalogTrait, DBTrait, Field, Index, ListTable, ListView, SchemaTrait, SqlExecuteRet,
+    CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
     TableListResp,
 };
 
@@ -494,7 +494,7 @@ impl App {
         db.delete(table_name, wheres).await
     }
 
-    pub async fn list_view(&self, uuid: &str) -> anyhow::Result<Vec<ListView>> {
+    pub async fn list_view(&self, uuid: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let db = self.get_schema(uuid).await?;
         db.list_view().await
     }

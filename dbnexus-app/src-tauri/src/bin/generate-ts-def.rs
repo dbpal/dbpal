@@ -9,9 +9,9 @@ use dbnexus_db::datasource_config::{
     MongoConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
 };
 use dbnexus_db::db::{
-    ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListProcedure, ListTable,
-    ListTrigger, ListUdf, ListView, ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
+    ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfDetail,
 };
 
 use dbnexus_db::redis::RedisListTable;
@@ -33,20 +33,19 @@ fn main() {
             &TableListResp::INFO,
             &Index::INFO,
             &SqlExecuteRet::INFO,
-            &ListView::INFO,
+            &NamedStaff::INFO,
             &ExportKind::INFO,
             &RedisListTable::INFO,
             &TriggerDetail::INFO,
             &TriggerEvent::INFO,
             &TriggerTiming::INFO,
             &TriggerEnable::INFO,
-            &ListTrigger::INFO,
+            &NamedStaff::INFO,
             &CompletionItem::INFO,
             &CompletionKind::INFO,
             &QueryResp::INFO,
             &UdfDetail::INFO,
-            &ListUdf::INFO,
-            &ListProcedure::INFO,
+            &NamedStaff::INFO,
             &ProcedureDetail::INFO,
             &OpendKind::INFO,
             &FormatSqlOpts::INFO,

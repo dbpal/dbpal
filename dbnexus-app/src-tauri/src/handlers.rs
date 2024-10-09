@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use bson::{doc, Document};
 use dbnexus_db::db::{
-    ExportKind, Field, FormatSqlOpts, Index, ListTable, ListTrigger, ListView, QueryResp,
-    SqlExecuteRet, TableListResp, TriggerDetail,
+    ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, QueryResp, SqlExecuteRet,
+    TableListResp, TriggerDetail,
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
@@ -157,7 +157,7 @@ pub async fn delete(
 #[tauri::command]
 pub async fn list_view(
     uuid: String, app: tauri::State<'_, App>,
-) -> Result<Vec<ListView>, AnyhowErrorFrontend> {
+) -> Result<Vec<NamedStaff>, AnyhowErrorFrontend> {
     app.list_view(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -426,7 +426,7 @@ pub async fn oracle_query_rollback(
 #[tauri::command]
 pub async fn list_trigger(
     uuid: String, table: String, app: tauri::State<'_, App>,
-) -> Result<Vec<ListTrigger>, String> {
+) -> Result<Vec<NamedStaff>, String> {
     let db = app
         .get_schema(uuid.as_str())
         .await
