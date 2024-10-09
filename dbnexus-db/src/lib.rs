@@ -16,6 +16,7 @@ pub mod helper;
 pub mod mariadb;
 pub mod mongo;
 pub mod mysql;
+pub mod mysql_completion;
 pub mod oracle;
 pub mod pg;
 pub mod pg_completion;
