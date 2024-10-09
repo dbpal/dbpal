@@ -19,10 +19,10 @@ use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBa
 
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
-    format_data_time_fix_offset, BackendName, CatalogTrait, CheckConn, DBTrait, ExportKind, Field,
-    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming,
+    format_data_time_fix_offset, BackendName, CatalogTrait, CheckConn, DBTrait,
+    DropUdfExtraParameter, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
+    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
 };
 use crate::helper::{
     create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql, SqlKind, SqlSeq,
@@ -974,6 +974,109 @@ impl SchemaTrait for SqlServer {
         conn.execute(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
+
+    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"
+            SELECT 
+                name AS FunctionName
+            FROM 
+                sys.objects
+            WHERE 
+                type IN ('FN', 'IF', 'TF') AND  SCHEMA_NAME(schema_id) = 'dbo';
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.query(sql.as_str(), &[]).await?;
+        let mut ret = Vec::new();
+
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    ret.push(NamedStaff::from(name.unwrap().to_owned()));
+                }
+
+                tiberius::QueryItem::Metadata(_result_metadata) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+    async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
+        let sql = format!(
+            r#"
+        SELECT 
+            o.type_desc AS FunctionType,
+            o.create_date,
+            o.modify_date
+        FROM 
+            sys.objects AS o
+        WHERE 
+            o.name = '{name}'  -- 替换为你的函数名
+            AND o.type IN ('FN', 'IF', 'TF');  -- FN: 标量函数, IF: 内联表值函数, TF: 多语句表值函数
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut resp = conn.simple_query(&sql).await?;
+        let mut metas = Vec::with_capacity(3);
+
+        while let Some(item) = resp.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let type_desc: Option<&str> = row.try_get(0)?;
+                    let create_date: Option<chrono::NaiveDateTime> = row.try_get(1)?;
+                    let modify_date: Option<chrono::NaiveDateTime> = row.try_get(2)?;
+                    metas.push(MetaValue::new(
+                        "type_desc",
+                        type_desc.unwrap_or_default().to_string(),
+                    ));
+                    metas.push(MetaValue::new(
+                        "create_date",
+                        create_date.unwrap_or_default(),
+                    ));
+                    metas.push(MetaValue::new(
+                        "modify_date",
+                        modify_date.unwrap_or_default(),
+                    ));
+                }
+                tiberius::QueryItem::Metadata(_result_metadata) => {}
+            }
+        }
+        drop(resp);
+        let sql = format!(
+            "  SELECT 
+                OBJECT_DEFINITION(OBJECT_ID('dbo.{name}')) AS FunctionDefinition; "
+        );
+        let mut resp = conn.simple_query(&sql).await?;
+
+        while let Some(item) = resp.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let def: Option<&str> = row.try_get(0)?;
+                    return anyhow::Ok(UdfDetail::new(def.unwrap_or_default().to_string(), metas));
+                }
+                tiberius::QueryItem::Metadata(_result_metadata) => {}
+            }
+        }
+        anyhow::bail!("query udf defition failed, no result.")
+    }
+
+    async fn drop_udf(
+        &self, name: &str, _extra: Option<DropUdfExtraParameter>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("DROP FUNCTION dbo.{name}");
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        conn.execute(sql.as_str(), &[]).await?;
+
+        anyhow::Ok(())
+    }
 }
 
 impl SqlServer {
@@ -1575,6 +1678,34 @@ mod tests {
         .await
         .unwrap();
         ss
+    }
+    #[tokio::test]
+    async fn test_udf() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db.drop_udf("test_udf", None).await;
+        db.query_sql(
+            query_id,
+            r#"
+            CREATE FUNCTION dbo.test_udf
+            (
+                @input INT
+            )
+            RETURNS INT
+            AS
+            BEGIN
+                RETURN @input * @input;
+            END;
+        "#,
+        )
+        .await
+        .unwrap();
+        let list = db.list_udf().await.unwrap();
+        for l in list.iter() {
+            let details = db.show_udf(&l.name).await.unwrap();
+            println!("udf:{},details:{:?}", l.name, details);
+        }
     }
 
     #[test]
