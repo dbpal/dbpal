@@ -122,6 +122,9 @@ message DBConnectionConfig {
   }
 }
 
-service AppService {
+service ConfigService {
   rpc add_config(DBConnectionConfig) returns (google.protobuf.Empty);
 }
+service CatelogService {}
+service DatabaseService {}
+service SchemaService {}

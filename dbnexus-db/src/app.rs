@@ -339,6 +339,7 @@ pub enum OpendKind {
 }
 
 /// all the databases
+#[derive(Clone)]
 pub struct App {
     pub loader: Arc<dyn DbConfigLoader>,
     opens: Arc<Mutex<HashMap<String, Open>>>,
