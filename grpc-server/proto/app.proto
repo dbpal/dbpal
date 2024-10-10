@@ -1,0 +1,127 @@
+syntax = "proto3";
+
+package app;
+import "google/protobuf/empty.proto";
+service MyService {
+  rpc SayHello(HelloRequest) returns (HelloResponse);
+  rpc ReturnErr(HelloRequest) returns (HelloResponse);
+}
+
+message HelloRequest { string name = 1; }
+
+message HelloResponse { string message = 1; }
+
+message MysqlDBConfig {
+  string host = 1;
+  uint32 port = 2; // Protobuf 中没有 u16，因此使用 uint32
+  string username = 3;
+  string password = 4;
+  optional string db_name = 5; // 可选字段将由 Protobuf 处理
+}
+message RedisDBConfig {
+  string host = 1;
+  optional uint32 port = 2;     // 使用 uint32 表示无符号整数
+  optional string username = 3; // 可选字段
+  optional string password = 4; // 可选字段
+  optional string db = 5;       // 可选字段
+}
+message MongoConfig {
+  string host = 1;
+  uint32 port = 2;                     // 使用 uint32 表示无符号整数
+  optional string username = 3;        // 可选字段
+  optional string password = 4;        // 可选字段
+  optional uint64 connect_timeout = 5; // 毫秒
+}
+
+message PGDbConfig {
+  string host = 1;
+  uint32 port = 2; // 使用 uint32 表示无符号整数
+  string username = 3;
+  string password = 4;
+  optional string db_name = 5; // 可选字段
+}
+
+message SqlServerDbConfig {
+  string host = 1;
+  uint32 port = 2; // 使用 uint32 表示无符号整数
+  string username = 3;
+  string password = 4;
+  optional string db_name = 5; // 可选字段
+  bool trust_cert = 6;
+}
+
+message OracleDbConfig {
+  string username = 1;
+  string password = 2;
+  string connect_str = 3;
+}
+
+message DBConnectionConfig {
+  message SqliteConfig {
+    string path = 1;
+    bool read_only = 2;
+    string name = 3;
+  }
+
+  message MysqlConfig {
+    MysqlDBConfig conn = 1; // 假设 MysqlDbConfig 已经定义
+    bool read_only = 2;
+    string name = 3;
+  }
+
+  message MariaDBConfig {
+    MysqlDBConfig conn = 1; // 假设 MysqlDbConfig 已经定义
+    bool read_only = 2;
+    string name = 3;
+  }
+
+  message PostgresConfig {
+    PGDbConfig conn = 1; // 假设 PGDbConfig 已经定义
+    bool read_only = 2;
+    string name = 3;
+    optional string schema = 4; // 可选字段
+  }
+
+  message SqlServerConfig {
+    SqlServerDbConfig conn = 1; // 假设 SqlServerDbConfig 已经定义
+    bool read_only = 2;
+    string name = 3;
+    optional string schema = 4; // 可选字段
+  }
+
+  message MongoDBConfig {
+    MongoConfig conn = 1; // 假设 MongoConfig 已经定义
+    bool read_only = 2;
+    optional string db_name = 3; // 可选字段
+    string name = 4;
+  }
+
+  message RedisConfig {
+    bool read_only = 1;
+    RedisDBConfig config = 2; // 假设 RedisDbConfig 已经定义
+    string name = 3;
+  }
+
+  message OracleConfig {
+    OracleDbConfig conn = 1; // 假设 OracleDbConfig 已经定义
+    bool read_only = 2;
+    optional string db_name = 3;      // 可选字段
+    optional uint64 call_timeout = 4; // 毫秒
+    string name = 5;
+  }
+
+  oneof config {
+    SqliteConfig sqlite = 1;
+    MysqlConfig mysql = 2;
+    MariaDBConfig mariadb = 3;
+    PostgresConfig postgres = 4;
+    SqlServerConfig sqlserver = 5;
+    MongoDBConfig mongo = 6;
+    RedisConfig redis = 7;
+    OracleConfig oracle = 8;
+  }
+}
+
+service AppService {
+  rpc add_config(DBConnectionConfig) returns (google.protobuf.Empty);
+}
