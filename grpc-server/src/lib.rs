@@ -1,9 +1,6 @@
-pub mod app {
-    use db_connection_config::{
-        MongoDbConfig, MysqlConfig, OracleConfig, PostgresConfig, RedisConfig, SqlServerConfig,
-        SqliteConfig,
-    };
-    use dbnexus_db::{app, datasource_config};
+pub mod app_grpc_def {
+
+    use dbnexus_db::{app as applib, datasource_config};
 
     tonic::include_proto!("app");
 
@@ -91,6 +88,7 @@ pub mod app {
                 connect_timeout,
                 username,
                 password,
+                db,
             } = value;
             MongoConfig {
                 host,
@@ -98,6 +96,7 @@ pub mod app {
                 username,
                 password,
                 connect_timeout,
+                db,
             }
         }
     }
@@ -110,6 +109,7 @@ pub mod app {
                 username,
                 password,
                 connect_timeout,
+                db,
             } = self;
             datasource_config::MongoConfig {
                 host,
@@ -117,6 +117,7 @@ pub mod app {
                 username,
                 password,
                 connect_timeout,
+                db,
             }
         }
     }
@@ -129,6 +130,7 @@ pub mod app {
                 username,
                 password,
                 db_name,
+                schema,
             } = value;
             PgDbConfig {
                 host,
@@ -136,6 +138,7 @@ pub mod app {
                 username,
                 password,
                 db_name,
+                schema,
             }
         }
     }
@@ -148,6 +151,7 @@ pub mod app {
                 username,
                 password,
                 db_name,
+                schema,
             } = self;
             datasource_config::PGDbConfig {
                 host,
@@ -155,6 +159,7 @@ pub mod app {
                 username,
                 password,
                 db_name,
+                schema,
             }
         }
     }
@@ -167,6 +172,7 @@ pub mod app {
                 password,
                 db_name,
                 trust_cert,
+                schema,
             } = value;
             SqlServerDbConfig {
                 host,
@@ -175,6 +181,7 @@ pub mod app {
                 password,
                 db_name,
                 trust_cert,
+                schema,
             }
         }
     }
@@ -188,6 +195,7 @@ pub mod app {
                 password,
                 db_name,
                 trust_cert,
+                schema,
             } = self;
             datasource_config::SqlServerDbConfig {
                 host,
@@ -196,6 +204,7 @@ pub mod app {
                 password,
                 db_name,
                 trust_cert,
+                schema,
             }
         }
     }
@@ -206,11 +215,15 @@ pub mod app {
                 username,
                 password,
                 connect_str,
+                schema,
+                call_timeout,
             } = value;
             OracleDbConfig {
                 username,
                 password,
                 connect_str,
+                schema,
+                call_timeout,
             }
         }
     }
@@ -221,142 +234,154 @@ pub mod app {
                 username,
                 password,
                 connect_str,
+                schema,
+                call_timeout,
             } = self;
             datasource_config::OracleDbConfig {
                 username,
                 password,
                 connect_str,
+                schema,
+                call_timeout,
             }
         }
     }
-    impl From<app::DBConnectionConfig> for DbConnectionConfig {
-        fn from(value: app::DBConnectionConfig) -> Self {
+
+    impl From<applib::DBConnectionConfig> for DbConnectionConfig {
+        fn from(value: applib::DBConnectionConfig) -> Self {
             match value {
-                app::DBConnectionConfig::Sqlite {
+                applib::DBConnectionConfig::Sqlite {
                     path,
                     read_only,
                     name,
                 } => Self {
-                    config: Some(db_connection_config::Config::Sqlite(SqliteConfig {
-                        path,
-                        read_only,
-                        name,
-                    })),
+                    config: Some(db_connection_config::Config::Sqlite(
+                        db_connection_config::SqliteConfig {
+                            path,
+                            read_only,
+                            name,
+                        },
+                    )),
                 },
-                app::DBConnectionConfig::Mysql {
+                applib::DBConnectionConfig::Mysql {
                     conn,
                     read_only,
                     name,
                 } => Self {
-                    config: Some(db_connection_config::Config::Mysql(MysqlConfig {
-                        conn: Some(conn.into()),
-                        read_only,
-                        name,
-                    })),
+                    config: Some(db_connection_config::Config::Mysql(
+                        db_connection_config::MysqlConfig {
+                            conn: Some(conn.into()),
+                            read_only,
+                            name,
+                        },
+                    )),
                 },
-                app::DBConnectionConfig::MariaDB {
+                applib::DBConnectionConfig::MariaDB {
                     conn,
                     read_only,
                     name,
                 } => Self {
-                    config: Some(db_connection_config::Config::Mysql(MysqlConfig {
-                        conn: Some(conn.into()),
-                        read_only,
-                        name,
-                    })),
+                    config: Some(db_connection_config::Config::Mysql(
+                        db_connection_config::MysqlConfig {
+                            conn: Some(conn.into()),
+                            read_only,
+                            name,
+                        },
+                    )),
                 },
-                app::DBConnectionConfig::Postgres {
+                applib::DBConnectionConfig::Postgres {
                     conn,
                     read_only,
                     name,
-                    schema,
                 } => Self {
-                    config: Some(db_connection_config::Config::Postgres(PostgresConfig {
-                        conn: Some(conn.into()),
-                        read_only,
-                        name,
-                        schema,
-                    })),
+                    config: Some(db_connection_config::Config::Postgres(
+                        db_connection_config::PostgresConfig {
+                            conn: Some(conn.into()),
+                            read_only,
+                            name,
+                        },
+                    )),
                 },
-                app::DBConnectionConfig::SqlServer {
+                applib::DBConnectionConfig::SqlServer {
                     conn,
                     read_only,
                     name,
-                    schema,
                 } => Self {
-                    config: Some(db_connection_config::Config::Sqlserver(SqlServerConfig {
-                        conn: Some(conn.into()),
-                        read_only,
-                        name,
-                        schema,
-                    })),
+                    config: Some(db_connection_config::Config::Sqlserver(
+                        db_connection_config::SqlServerConfig {
+                            conn: Some(conn.into()),
+                            read_only,
+                            name,
+                        },
+                    )),
                 },
 
-                app::DBConnectionConfig::Mongo {
+                applib::DBConnectionConfig::Mongo {
                     conn,
                     read_only,
-                    db_name,
+
                     name,
                 } => Self {
-                    config: Some(db_connection_config::Config::Mongo(MongoDbConfig {
-                        conn: Some(conn.into()),
-                        read_only,
-                        db_name,
-                        name,
-                    })),
+                    config: Some(db_connection_config::Config::Mongo(
+                        db_connection_config::MongoDbConfig {
+                            conn: Some(conn.into()),
+                            read_only,
+                            name,
+                        },
+                    )),
                 },
-                app::DBConnectionConfig::Redis {
+                applib::DBConnectionConfig::Redis {
                     read_only,
                     config,
                     name,
                 } => Self {
-                    config: Some(db_connection_config::Config::Redis(RedisConfig {
-                        config: Some(config.into()),
-                        read_only,
-                        name,
-                    })),
+                    config: Some(db_connection_config::Config::Redis(
+                        db_connection_config::RedisConfig {
+                            config: Some(config.into()),
+                            read_only,
+                            name,
+                        },
+                    )),
                 },
-                app::DBConnectionConfig::Oracle {
+                applib::DBConnectionConfig::Oracle {
                     conn,
                     read_only,
-                    db_name,
-                    call_timeout,
                     name,
                 } => Self {
-                    config: Some(db_connection_config::Config::Oracle(OracleConfig {
-                        conn: Some(conn.into()),
-                        read_only,
-                        name,
-                        db_name,
-                        call_timeout,
-                    })),
+                    config: Some(db_connection_config::Config::Oracle(
+                        db_connection_config::OracleConfig {
+                            conn: Some(conn.into()),
+                            read_only,
+                            name,
+                        },
+                    )),
                 },
             }
         }
     }
 
-    impl Into<app::DBConnectionConfig> for DbConnectionConfig {
-        fn into(self) -> app::DBConnectionConfig {
+    impl Into<applib::DBConnectionConfig> for DbConnectionConfig {
+        fn into(self) -> applib::DBConnectionConfig {
             match self.config.unwrap() {
                 db_connection_config::Config::Sqlite(sqlite_config) => {
-                    let SqliteConfig {
+                    let db_connection_config::SqliteConfig {
                         path,
                         read_only,
                         name,
                     } = sqlite_config;
-                    app::DBConnectionConfig::Sqlite {
+                    applib::DBConnectionConfig::Sqlite {
                         path,
                         read_only,
                         name,
                     }
                 }
                 db_connection_config::Config::Mysql(mysql_config) => {
-                    let MysqlConfig {
+                    let db_connection_config::MysqlConfig {
                         conn,
                         read_only,
                         name,
                     } = mysql_config;
-                    app::DBConnectionConfig::Mysql {
+                    applib::DBConnectionConfig::Mysql {
                         conn: conn.unwrap().into(),
                         read_only,
                         name,

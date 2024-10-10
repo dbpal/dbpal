@@ -8,6 +8,7 @@ pub struct MongoConfig {
     pub password: Option<String>,
     /// milliseconds
     pub connect_timeout: Option<u64>,
+    pub db: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
@@ -128,6 +129,7 @@ pub struct PGDbConfig {
     pub username: String,
     pub password: String,
     pub db_name: Option<String>,
+    pub schema: Option<String>,
 }
 
 impl PGDbConfig {
@@ -145,6 +147,7 @@ pub struct SqlServerDbConfig {
     pub password: String,
     pub db_name: Option<String>,
     pub trust_cert: bool,
+    pub schema: Option<String>,
 }
 impl SqlServerDbConfig {
     #[allow(dead_code)]
@@ -158,4 +161,6 @@ pub struct OracleDbConfig {
     pub username: String,
     pub password: String,
     pub connect_str: String,
+    pub schema: Option<String>,
+    pub call_timeout: Option<u64>,
 }

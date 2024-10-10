@@ -41,10 +41,7 @@ pub struct OracleDB {
 }
 
 impl OracleDB {
-    pub fn new(
-        config: OracleDbConfig, read_only: bool, schema_name: Option<String>,
-        call_timeout: Option<Duration>,
-    ) -> anyhow::Result<Self> {
+    pub fn new(config: OracleDbConfig, read_only: bool) -> anyhow::Result<Self> {
         let pool =
             oracle::pool::PoolBuilder::new(&config.username, &config.password, &config.connect_str)
                 .max_connections(20)
@@ -52,9 +49,9 @@ impl OracleDB {
         anyhow::Ok(Self {
             pool,
             read_only,
-            schema_name,
+            schema_name: config.schema.clone(),
             query_connections: Default::default(),
-            call_timeout,
+            call_timeout: config.call_timeout.clone().map(Duration::from_millis),
         })
     }
 }

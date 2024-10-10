@@ -26,7 +26,7 @@ pub struct Mongo {
 }
 
 impl Mongo {
-    pub fn new(ds: MongoConfig, dbname: Option<String>, read_only: bool) -> anyhow::Result<Self> {
+    pub fn new(ds: MongoConfig, read_only: bool) -> anyhow::Result<Self> {
         let mut opts = mongodb::options::ClientOptions::default();
         opts.hosts = vec![ServerAddress::Tcp {
             host: ds.host.to_string(),
@@ -46,7 +46,7 @@ impl Mongo {
 
         anyhow::Ok(Self {
             client,
-            dbname,
+            dbname: ds.db.clone(),
             read_only,
         })
     }
@@ -703,8 +703,8 @@ mod tests {
                 username: None,
                 password: None,
                 connect_timeout: None,
+                db: Some("test".to_string()),
             },
-            Some("test".to_string()),
             false,
         );
 

@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
-use app::my_service_server::{MyService, MyServiceServer};
-use app::{HelloRequest, HelloResponse};
+use app_grpc_def::my_service_server::{MyService, MyServiceServer};
+use app_grpc_def::{HelloRequest, HelloResponse};
 use dbnexus_db::app::{App, DbConfigLoader, FileJsonSaver};
 use dbnexus_db::init_log;
-use grpc_server::app::catelog_service_server::{CatelogService, CatelogServiceServer};
-use grpc_server::app::config_service_server::{ConfigService, ConfigServiceServer};
-use grpc_server::app::database_service_server::{DatabaseService, DatabaseServiceServer};
-use grpc_server::app::schema_service_server::{SchemaService, SchemaServiceServer};
-use grpc_server::app::{self, DbConnectionConfig};
+use grpc_server::app_grpc_def::catelog_service_server::{CatelogService, CatelogServiceServer};
+use grpc_server::app_grpc_def::config_service_server::{ConfigService, ConfigServiceServer};
+use grpc_server::app_grpc_def::database_service_server::{DatabaseService, DatabaseServiceServer};
+use grpc_server::app_grpc_def::schema_service_server::{SchemaService, SchemaServiceServer};
+use grpc_server::app_grpc_def::{self, DbConnectionConfig};
 use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
 

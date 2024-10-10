@@ -38,7 +38,6 @@ pub struct SqlServer {
     config: SqlServerDbConfig,
     read_only: bool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
-    schema: Option<String>,
 }
 
 impl FormatSql for SqlServer {
@@ -165,9 +164,7 @@ impl ServerMetas for SqlServer {
     }
 }
 impl SqlServer {
-    pub async fn new(
-        c: SqlServerDbConfig, read_only: bool, schema: Option<String>,
-    ) -> anyhow::Result<Self> {
+    pub async fn new(c: SqlServerDbConfig, read_only: bool) -> anyhow::Result<Self> {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
         let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
         anyhow::Ok(Self {
@@ -175,7 +172,6 @@ impl SqlServer {
             pool,
             read_only,
             query_connections: Default::default(),
-            schema,
         })
     }
 }
@@ -394,7 +390,7 @@ impl SchemaTrait for SqlServer {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let schema = self.schema.as_ref().unwrap().as_str();
+        let schema = self.config.schema.as_ref().unwrap().as_str();
         let sql = format!(
             r#"
             SELECT * INTO {schema}.{dup} FROM {schema}.{table} 
@@ -553,7 +549,7 @@ impl SchemaTrait for SqlServer {
         let conn = conn.deref_mut();
         let total = SqlServer::query_count(conn, view_name, where_str.clone()).await?;
         let sql = gen_select_sql(
-            self.schema.as_ref().map(|x| x.as_str()).unwrap(),
+            self.config.schema.as_ref().map(|x| x.as_str()).unwrap(),
             view_name,
             where_str,
             order_by,
@@ -582,7 +578,7 @@ impl SchemaTrait for SqlServer {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.schema.as_ref().unwrap();
+        let schema = self.config.schema.as_ref().unwrap();
 
         let s = format!("DROP VIEW {schema}.{view_name}");
         let mut conn = self.get_conn().await?;
@@ -724,7 +720,7 @@ impl SchemaTrait for SqlServer {
         let conn = conn.deref_mut();
         let total = SqlServer::query_count(conn, table_name, where_str.clone()).await?;
         let sql = gen_select_sql(
-            self.schema.as_ref().map(|x| x.as_str()).unwrap(),
+            self.config.schema.as_ref().map(|x| x.as_str()).unwrap(),
             table_name,
             where_str,
             order_by,
@@ -814,7 +810,7 @@ impl SchemaTrait for SqlServer {
 
         let fs = self.show_columns(table_name).await?;
         let s = (self as &dyn crate::db::SchemaTrait).insert_sql(
-            self.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &values,
@@ -841,7 +837,7 @@ impl SchemaTrait for SqlServer {
 
         let fs = self.show_columns(table_name).await?;
         let s = (self as &dyn crate::db::SchemaTrait).update_sql(
-            self.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &values,
@@ -895,7 +891,7 @@ impl SchemaTrait for SqlServer {
 
         let fields = self.show_columns(table_name).await?;
         let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
-            self.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fields,
             &wheres,
@@ -1310,7 +1306,7 @@ impl SqlServer {
                 }
 
                 let insert_sql = (self as &dyn SchemaTrait).insert_sql(
-                    self.schema.as_ref().map(|x| x.as_str()),
+                    self.config.schema.as_ref().map(|x| x.as_str()),
                     table_name,
                     &cols,
                     &m,
@@ -1468,7 +1464,7 @@ impl SqlServer {
         tcp.set_nodelay(true)?;
 
         let client = tiberius::Client::connect(config, tcp.compat_write()).await?;
-        // if let Some(s) = self.schema.as_ref() {
+        // if let Some(s) = self.config.schema.as_ref() {
         //     set_current_schema(&mut client, s).await?;
         // }
 
@@ -1581,7 +1577,7 @@ impl SqlServer {
         &'a self,
     ) -> anyhow::Result<bb8::PooledConnection<'a, bb8_tiberius::ConnectionManager>> {
         let conn = self.pool.get().await?;
-        // if let Some(s) = self.schema.as_ref() {
+        // if let Some(s) = self.config.schema.as_ref() {
         //     set_current_schema(conn.deref_mut(), s).await?;
         // }
         anyhow::Ok(conn)
@@ -1618,7 +1614,7 @@ impl crate::db::DBTrait for SqlServer {
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
-        x.schema = Some(name.to_owned());
+        x.config.schema = Some(name.to_owned());
         x.query_connections = Default::default();
         Ok(Arc::new(x))
     }
@@ -1669,7 +1665,7 @@ impl CatalogTrait for SqlServer {
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
         config.db_name = Some(name.to_owned());
-        let x = Self::new(config, self.read_only, None).await?;
+        let x = Self::new(config, self.read_only).await?;
         anyhow::Ok(Arc::new(x))
     }
 }
@@ -1689,9 +1685,9 @@ mod tests {
                 password: "sfdewRE123".to_string(),
                 db_name: Some("test".to_string()),
                 trust_cert: true,
+                schema: Some("dbo".to_string()),
             },
             false,
-            Some("dbo".to_string()),
         )
         .await
         .unwrap();

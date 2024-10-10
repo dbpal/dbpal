@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::datasource_config::{
     MongoConfig, MysqlDbConfig, OracleDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
@@ -46,21 +45,17 @@ pub enum DBConnectionConfig {
         conn: PGDbConfig,
         read_only: bool,
         name: String,
-        schema: Option<String>,
     },
     SqlServer {
         #[serde(flatten)]
         conn: SqlServerDbConfig,
         read_only: bool,
-
         name: String,
-        schema: Option<String>,
     },
     Mongo {
         #[serde(flatten)]
         conn: MongoConfig,
         read_only: bool,
-        db_name: Option<String>,
         name: String,
     },
     Redis {
@@ -72,9 +67,6 @@ pub enum DBConnectionConfig {
         #[serde(flatten)]
         conn: OracleDbConfig,
         read_only: bool,
-        db_name: Option<String>,
-        // milliseond
-        call_timeout: Option<u64>,
         name: String,
     },
 }
@@ -219,16 +211,13 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             conn,
             read_only,
             name: _,
-            schema,
         } => {
-            let o = Arc::new(
-                crate::pg::PostGresDB::new(conn.clone(), *read_only, schema.clone()).await?,
-            );
+            let o = Arc::new(crate::pg::PostGresDB::new(conn.clone(), *read_only).await?);
 
             if conn.db_name.is_none() {
                 anyhow::Ok(Open::Catelog(o as Arc<dyn CatalogTrait>))
             } else {
-                match schema {
+                match &conn.schema {
                     Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
                     None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
                 }
@@ -238,15 +227,12 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             conn,
             read_only,
             name: _,
-            schema,
         } => {
-            let o = Arc::new(
-                crate::sql_server::SqlServer::new(conn.clone(), *read_only, schema.clone()).await?,
-            );
+            let o = Arc::new(crate::sql_server::SqlServer::new(conn.clone(), *read_only).await?);
             if conn.db_name.is_none() {
                 anyhow::Ok(Open::Catelog(o as Arc<dyn CatalogTrait>))
             } else {
-                match schema {
+                match &conn.schema {
                     Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
                     None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
                 }
@@ -256,15 +242,11 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
         DBConnectionConfig::Mongo {
             conn,
             read_only,
-            db_name,
             name: _,
         } => {
-            let db: Arc<dyn SchemaTrait> = Arc::new(crate::mongo::Mongo::new(
-                conn.clone(),
-                db_name.clone(),
-                *read_only,
-            )?);
-
+            let db: Arc<dyn SchemaTrait> =
+                Arc::new(crate::mongo::Mongo::new(conn.clone(), *read_only)?);
+            // TODO maybe database trait
             anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Redis {
@@ -282,27 +264,17 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
         DBConnectionConfig::Oracle {
             conn,
             read_only,
-            db_name,
-            call_timeout,
             name: _,
-        } => match db_name.as_ref() {
+        } => match conn.schema.as_ref() {
             Some(_) => {
-                let db: Arc<dyn SchemaTrait> = Arc::new(crate::oracle::OracleDB::new(
-                    conn.clone(),
-                    *read_only,
-                    db_name.clone(),
-                    call_timeout.clone().map(Duration::from_millis),
-                )?);
+                let db: Arc<dyn SchemaTrait> =
+                    Arc::new(crate::oracle::OracleDB::new(conn.clone(), *read_only)?);
 
                 anyhow::Ok(Open::Schema(db))
             }
             None => {
-                let db: Arc<dyn DBTrait> = Arc::new(crate::oracle::OracleDB::new(
-                    conn.clone(),
-                    *read_only,
-                    db_name.clone(),
-                    call_timeout.clone().map(Duration::from_millis),
-                )?);
+                let db: Arc<dyn DBTrait> =
+                    Arc::new(crate::oracle::OracleDB::new(conn.clone(), *read_only)?);
 
                 anyhow::Ok(Open::DataBase(db))
             }
