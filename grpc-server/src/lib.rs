@@ -12,6 +12,7 @@ pub mod app_grpc_def {
                 username,
                 password,
                 db_name,
+                read_only,
             } = value;
             MysqlDbConfig {
                 host,
@@ -19,6 +20,7 @@ pub mod app_grpc_def {
                 username,
                 password,
                 db_name,
+                read_only,
             }
         }
     }
@@ -31,6 +33,7 @@ pub mod app_grpc_def {
                 username,
                 password,
                 db_name,
+                read_only,
             } = self;
             datasource_config::MysqlDbConfig {
                 host,
@@ -38,6 +41,7 @@ pub mod app_grpc_def {
                 username,
                 password,
                 db_name,
+                read_only,
             }
         }
     }
@@ -50,6 +54,7 @@ pub mod app_grpc_def {
                 username,
                 password,
                 db,
+                read_only,
             } = value;
             RedisDbConfig {
                 host,
@@ -57,6 +62,7 @@ pub mod app_grpc_def {
                 username,
                 password,
                 db,
+                read_only,
             }
         }
     }
@@ -69,6 +75,7 @@ pub mod app_grpc_def {
                 username,
                 password,
                 db,
+                read_only,
             } = self;
             datasource_config::RedisDbConfig {
                 host,
@@ -76,6 +83,7 @@ pub mod app_grpc_def {
                 username,
                 password,
                 db,
+                read_only,
             }
         }
     }
@@ -89,6 +97,7 @@ pub mod app_grpc_def {
                 username,
                 password,
                 db,
+                read_only,
             } = value;
             MongoConfig {
                 host,
@@ -97,6 +106,7 @@ pub mod app_grpc_def {
                 password,
                 connect_timeout,
                 db,
+                read_only,
             }
         }
     }
@@ -110,6 +120,7 @@ pub mod app_grpc_def {
                 password,
                 connect_timeout,
                 db,
+                read_only,
             } = self;
             datasource_config::MongoConfig {
                 host,
@@ -118,6 +129,7 @@ pub mod app_grpc_def {
                 password,
                 connect_timeout,
                 db,
+                read_only,
             }
         }
     }
@@ -131,6 +143,7 @@ pub mod app_grpc_def {
                 password,
                 db_name,
                 schema,
+                read_only,
             } = value;
             PgDbConfig {
                 host,
@@ -139,6 +152,7 @@ pub mod app_grpc_def {
                 password,
                 db_name,
                 schema,
+                read_only,
             }
         }
     }
@@ -152,6 +166,7 @@ pub mod app_grpc_def {
                 password,
                 db_name,
                 schema,
+                read_only,
             } = self;
             datasource_config::PGDbConfig {
                 host,
@@ -160,6 +175,7 @@ pub mod app_grpc_def {
                 password,
                 db_name,
                 schema,
+                read_only,
             }
         }
     }
@@ -173,6 +189,7 @@ pub mod app_grpc_def {
                 db_name,
                 trust_cert,
                 schema,
+                read_only,
             } = value;
             SqlServerDbConfig {
                 host,
@@ -182,6 +199,7 @@ pub mod app_grpc_def {
                 db_name,
                 trust_cert,
                 schema,
+                read_only,
             }
         }
     }
@@ -196,6 +214,7 @@ pub mod app_grpc_def {
                 db_name,
                 trust_cert,
                 schema,
+                read_only,
             } = self;
             datasource_config::SqlServerDbConfig {
                 host,
@@ -205,6 +224,7 @@ pub mod app_grpc_def {
                 db_name,
                 trust_cert,
                 schema,
+                read_only,
             }
         }
     }
@@ -217,6 +237,7 @@ pub mod app_grpc_def {
                 connect_str,
                 schema,
                 call_timeout,
+                read_only,
             } = value;
             OracleDbConfig {
                 username,
@@ -224,6 +245,7 @@ pub mod app_grpc_def {
                 connect_str,
                 schema,
                 call_timeout,
+                read_only,
             }
         }
     }
@@ -236,6 +258,7 @@ pub mod app_grpc_def {
                 connect_str,
                 schema,
                 call_timeout,
+                read_only,
             } = self;
             datasource_config::OracleDbConfig {
                 username,
@@ -243,6 +266,7 @@ pub mod app_grpc_def {
                 connect_str,
                 schema,
                 call_timeout,
+                read_only,
             }
         }
     }
@@ -258,100 +282,69 @@ pub mod app_grpc_def {
                     config: Some(db_connection_config::Config::Sqlite(
                         db_connection_config::SqliteConfig {
                             path,
-                            read_only,
                             name,
+                            read_only,
                         },
                     )),
                 },
-                applib::DBConnectionConfig::Mysql {
-                    conn,
-                    read_only,
-                    name,
-                } => Self {
+                applib::DBConnectionConfig::Mysql { conn, name } => Self {
                     config: Some(db_connection_config::Config::Mysql(
                         db_connection_config::MysqlConfig {
                             conn: Some(conn.into()),
-                            read_only,
+
                             name,
                         },
                     )),
                 },
-                applib::DBConnectionConfig::MariaDB {
-                    conn,
-                    read_only,
-                    name,
-                } => Self {
+                applib::DBConnectionConfig::MariaDB { conn, name } => Self {
                     config: Some(db_connection_config::Config::Mysql(
                         db_connection_config::MysqlConfig {
                             conn: Some(conn.into()),
-                            read_only,
+
                             name,
                         },
                     )),
                 },
-                applib::DBConnectionConfig::Postgres {
-                    conn,
-                    read_only,
-                    name,
-                } => Self {
+                applib::DBConnectionConfig::Postgres { conn, name } => Self {
                     config: Some(db_connection_config::Config::Postgres(
                         db_connection_config::PostgresConfig {
                             conn: Some(conn.into()),
-                            read_only,
                             name,
                         },
                     )),
                 },
-                applib::DBConnectionConfig::SqlServer {
-                    conn,
-                    read_only,
-                    name,
-                } => Self {
+                applib::DBConnectionConfig::SqlServer { conn, name } => Self {
                     config: Some(db_connection_config::Config::Sqlserver(
                         db_connection_config::SqlServerConfig {
                             conn: Some(conn.into()),
-                            read_only,
+
                             name,
                         },
                     )),
                 },
 
-                applib::DBConnectionConfig::Mongo {
-                    conn,
-                    read_only,
-
-                    name,
-                } => Self {
+                applib::DBConnectionConfig::Mongo { conn, name } => Self {
                     config: Some(db_connection_config::Config::Mongo(
                         db_connection_config::MongoDbConfig {
                             conn: Some(conn.into()),
-                            read_only,
+
                             name,
                         },
                     )),
                 },
-                applib::DBConnectionConfig::Redis {
-                    read_only,
-                    config,
-                    name,
-                } => Self {
+                applib::DBConnectionConfig::Redis { config, name } => Self {
                     config: Some(db_connection_config::Config::Redis(
                         db_connection_config::RedisConfig {
                             config: Some(config.into()),
-                            read_only,
                             name,
                         },
                     )),
                 },
-                applib::DBConnectionConfig::Oracle {
-                    conn,
-                    read_only,
-                    name,
-                } => Self {
+                applib::DBConnectionConfig::Oracle { conn, name } => Self {
                     config: Some(db_connection_config::Config::Oracle(
                         db_connection_config::OracleConfig {
                             conn: Some(conn.into()),
-                            read_only,
+
                             name,
                         },
                     )),
@@ -366,24 +359,19 @@ pub mod app_grpc_def {
                 db_connection_config::Config::Sqlite(sqlite_config) => {
                     let db_connection_config::SqliteConfig {
                         path,
-                        read_only,
                         name,
+                        read_only,
                     } = sqlite_config;
                     applib::DBConnectionConfig::Sqlite {
                         path,
-                        read_only,
                         name,
+                        read_only,
                     }
                 }
                 db_connection_config::Config::Mysql(mysql_config) => {
-                    let db_connection_config::MysqlConfig {
-                        conn,
-                        read_only,
-                        name,
-                    } = mysql_config;
+                    let db_connection_config::MysqlConfig { conn, name } = mysql_config;
                     applib::DBConnectionConfig::Mysql {
                         conn: conn.unwrap().into(),
-                        read_only,
                         name,
                     }
                 }

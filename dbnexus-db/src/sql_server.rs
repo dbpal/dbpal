@@ -36,7 +36,7 @@ use crate::MemoryLimit;
 pub struct SqlServer {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     config: SqlServerDbConfig,
-    read_only: bool,
+
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
 }
 
@@ -164,13 +164,12 @@ impl ServerMetas for SqlServer {
     }
 }
 impl SqlServer {
-    pub async fn new(c: SqlServerDbConfig, read_only: bool) -> anyhow::Result<Self> {
+    pub async fn new(c: SqlServerDbConfig) -> anyhow::Result<Self> {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
         let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
         anyhow::Ok(Self {
             config: c,
             pool,
-            read_only,
             query_connections: Default::default(),
         })
     }
@@ -530,7 +529,7 @@ impl SchemaTrait for SqlServer {
     }
 
     fn read_only(&self) -> bool {
-        self.read_only
+        self.config.read_only
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -1665,7 +1664,7 @@ impl CatalogTrait for SqlServer {
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
         config.db_name = Some(name.to_owned());
-        let x = Self::new(config, self.read_only).await?;
+        let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
 }
@@ -1674,21 +1673,19 @@ impl CatalogTrait for SqlServer {
 mod tests {
 
     use super::*;
-    use crate::{init_log, TEST_HOST};
+    use crate::{enable_test_log, TEST_HOST};
 
     async fn make_test_object() -> SqlServer {
-        let ss = SqlServer::new(
-            SqlServerDbConfig {
-                host: TEST_HOST.to_string(),
-                port: 1433,
-                username: "sa".to_string(),
-                password: "sfdewRE123".to_string(),
-                db_name: Some("test".to_string()),
-                trust_cert: true,
-                schema: Some("dbo".to_string()),
-            },
-            false,
-        )
+        let ss = SqlServer::new(SqlServerDbConfig {
+            host: TEST_HOST.to_string(),
+            port: 1433,
+            username: "sa".to_string(),
+            password: "sfdewRE123".to_string(),
+            db_name: Some("test".to_string()),
+            trust_cert: true,
+            schema: Some("dbo".to_string()),
+            read_only: false,
+        })
         .await
         .unwrap();
         ss
@@ -1982,7 +1979,7 @@ mod tests {
     #[tokio::test]
     async fn test_query() {
         let _guard = test_lock().lock().await;
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let id = db.open_connection().await.unwrap();
@@ -2217,7 +2214,7 @@ mod tests {
     #[tokio::test]
     async fn test_type1() {
         let _guard = test_lock().lock().await;
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
@@ -2265,7 +2262,7 @@ mod tests {
     #[tokio::test]
     async fn test_type2() {
         let _guard = test_lock().lock().await;
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
 
@@ -2318,7 +2315,7 @@ mod tests {
     #[tokio::test]
     async fn test_type3() {
         let _guard = test_lock().lock().await;
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
@@ -2373,7 +2370,7 @@ mod tests {
     #[tokio::test]
     async fn test_type4() {
         let _guard = test_lock().lock().await;
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
 

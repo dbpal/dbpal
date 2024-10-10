@@ -10,6 +10,7 @@ mod tests {
             password: "root".to_string(),
             port: 3307,
             db_name: Some("test".to_string()),
+            read_only: false,
         }
     }
     #[tokio::test]

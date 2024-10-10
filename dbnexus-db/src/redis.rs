@@ -34,12 +34,12 @@ use redis::{AsyncCommands, AsyncIter, Value};
 pub struct RedisDB {
     config: RedisDbConfig,
     m: ConnectionManager,
-    read_only: bool,
+
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
 }
 
 impl RedisDB {
-    pub async fn new(config: RedisDbConfig, read_only: bool) -> anyhow::Result<Self> {
+    pub async fn new(config: RedisDbConfig) -> anyhow::Result<Self> {
         let conn_str = config.make_conn_string();
         log::info!("connect to redis var:{:?}", conn_str);
 
@@ -48,7 +48,6 @@ impl RedisDB {
         anyhow::Ok(Self {
             config,
             m,
-            read_only,
             query_connections: Default::default(),
         })
     }
@@ -608,7 +607,7 @@ impl SchemaTrait for RedisDB {
     }
 
     fn read_only(&self) -> bool {
-        self.read_only
+        self.config.read_only
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -841,7 +840,7 @@ impl DBTrait for RedisDB {
         let mut config = self.config.clone();
         config.db = Some(name.to_owned());
 
-        let db = Self::new(config, self.read_only).await?;
+        let db = Self::new(config).await?;
         anyhow::Ok(Arc::new(db))
     }
 }
@@ -983,6 +982,9 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
     let dialet = RedisDialet {};
 
     for line in sql.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialet, line).tokenize()?;
         let c = tokens
             .iter()
@@ -1001,6 +1003,7 @@ async fn query_sql(
     conn: &mut redis::aio::MultiplexedConnection, sql: &str,
 ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
     let commands = get_command_from_sql(sql)?;
+    log::trace!("cmd is:{:?}", commands);
     let mut ret = Vec::new();
     for c in commands.iter() {
         let args = &c[1..];
@@ -1211,20 +1214,18 @@ mod tests {
         completion::completion_test::test_file_auto_completion,
         datasource_config::RedisDbConfig,
         db::{ExportKind, ServerMetas},
-        init_log, TEST_HOST,
+        enable_test_log, TEST_HOST,
     };
 
     async fn make_test_object() -> RedisDB {
-        let db = RedisDB::new(
-            RedisDbConfig {
-                host: TEST_HOST.to_string(),
-                port: None,
-                username: None,
-                password: None,
-                db: Some("db0".to_string()),
-            },
-            false,
-        )
+        let db = RedisDB::new(RedisDbConfig {
+            host: TEST_HOST.to_string(),
+            port: None,
+            username: None,
+            password: None,
+            db: Some("db0".to_string()),
+            read_only: false,
+        })
         .await
         .unwrap();
         db
@@ -1244,7 +1245,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     #[ignore = "should run by hand."]
     async fn test_auto_completion() {
-        init_log();
+        enable_test_log();
         let manifest_dir =
             std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
@@ -1257,7 +1258,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
     #[tokio::test]
     async fn test_zrange_score() {
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         let resp = db
             .zset_range_by_score("zset_value", Some(1f64), Some(100f64), 1, 100)
@@ -1268,7 +1269,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
     #[tokio::test]
     async fn test_auto_completion_xxx() {
-        init_log();
+        enable_test_log();
         let content = r#"SSCAN set
 1 SSCAN ; 10 set_value"#;
         let db = make_test_object().await;
@@ -1283,7 +1284,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
     #[tokio::test]
     async fn test_list_redis_table() {
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         tokio::time::sleep(Duration::from_secs(2)).await;
         let redis_tables = db.redis_list_table().await.unwrap();
@@ -1292,6 +1293,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
     #[tokio::test]
     async fn test_rename() {
+        enable_test_log();
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
@@ -1317,7 +1319,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
     #[tokio::test]
     async fn test_list_schema() {
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
 

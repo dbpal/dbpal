@@ -50,7 +50,7 @@ impl log::Log for SimpleLogger {
 }
 const LOGGER: SimpleLogger = SimpleLogger;
 
-pub fn init_log() {
+pub fn enable_test_log() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         log::set_logger(&LOGGER)

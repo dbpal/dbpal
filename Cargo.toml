@@ -74,3 +74,5 @@ uuid = { version = "*", features = ["v4"] }
 typescript-type-def = "0.5.11"
 sqlformat = "0.3.0"
 bson = { version = "*" }
+
+env_logger = "0.11.5"

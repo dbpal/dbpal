@@ -36,7 +36,6 @@ impl FormatSql for PostGresDB {
 pub struct PostGresDB {
     pool: sqlx::PgPool,
     config: PGDbConfig,
-    read_only: bool,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
 }
 
@@ -603,7 +602,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     fn read_only(&self) -> bool {
-        self.read_only
+        self.config.read_only
     }
 
     /// FIXME 如果一个主键是自增的只能得到类型
@@ -1019,7 +1018,7 @@ impl PostGresDB {
 }
 
 impl PostGresDB {
-    pub async fn new(conn: PGDbConfig, read_only: bool) -> anyhow::Result<Self> {
+    pub async fn new(conn: PGDbConfig) -> anyhow::Result<Self> {
         let mut opts = sqlx::postgres::PgConnectOptions::new();
         opts = opts
             .host(&conn.host)
@@ -1034,7 +1033,6 @@ impl PostGresDB {
         anyhow::Ok(Self {
             pool,
             config: conn,
-            read_only,
             query_connection: Default::default(),
         })
     }
@@ -1279,7 +1277,7 @@ impl CatalogTrait for PostGresDB {
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
         config.db_name = Some(name.to_owned());
-        let x = Self::new(config, self.read_only).await?;
+        let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
 }
@@ -1355,21 +1353,19 @@ mod tests {
     use crate::db::{CatalogTrait, DropUdfExtraParameter, QueryResp};
     use crate::db::{CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas};
 
-    use crate::{init_log, TEST_HOST};
+    use crate::{enable_test_log, TEST_HOST};
     use std::collections::HashMap;
 
     async fn make_test_object() -> PostGresDB {
-        let pg = PostGresDB::new(
-            PGDbConfig {
-                host: TEST_HOST.to_string(),
-                port: 5432,
-                username: "postgres".to_string(),
-                password: "root".to_string(),
-                db_name: Some("test".to_string()),
-                schema: Some("test".to_string()),
-            },
-            false,
-        )
+        let pg = PostGresDB::new(PGDbConfig {
+            host: TEST_HOST.to_string(),
+            port: 5432,
+            username: "postgres".to_string(),
+            password: "root".to_string(),
+            db_name: Some("test".to_string()),
+            schema: Some("test".to_string()),
+            read_only: false,
+        })
         .await
         .unwrap();
         pg
@@ -1414,7 +1410,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_materialized_view() {
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         let _ = db.drop_materialized_view("test_material_view").await;
         let _ = db.drop_table("test_material_view_table").await;
@@ -1934,7 +1930,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types2() {
-        init_log();
+        enable_test_log();
         let table_name = "test_types2";
 
         let pg = make_test_object().await;
@@ -2014,7 +2010,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_types3() {
-        init_log();
+        enable_test_log();
         let pg = make_test_object().await;
         let table_name = "test_types3";
 
@@ -2080,7 +2076,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types4() {
-        init_log();
+        enable_test_log();
 
         let table_name = "test_types4";
         let pg = make_test_object().await;
@@ -2139,7 +2135,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types5() {
-        init_log();
+        enable_test_log();
         let table_name = "test_types5";
         let pg = make_test_object().await;
 
@@ -2219,7 +2215,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types6() {
-        init_log();
+        enable_test_log();
         let table_name = "test_types6";
         let pg = make_test_object().await;
 
@@ -2294,7 +2290,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types7() {
-        init_log();
+        enable_test_log();
         let table_name = "test_types7";
         let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name).await;
@@ -2353,7 +2349,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types8() {
-        init_log();
+        enable_test_log();
         let table_name = "test_types8";
         let pg = make_test_object().await;
 
@@ -2404,7 +2400,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types9() {
-        init_log();
+        enable_test_log();
         let table_name = "test_types9";
         let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name).await;
@@ -2474,7 +2470,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types10() {
-        init_log();
+        enable_test_log();
         let table_name = "test_types10";
         let pg = make_test_object().await;
 
@@ -2536,7 +2532,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types11() {
-        init_log();
+        enable_test_log();
         let table_name = "test_types11";
         let pg = make_test_object().await;
 

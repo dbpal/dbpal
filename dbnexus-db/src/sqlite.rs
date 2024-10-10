@@ -1369,7 +1369,7 @@ fn gen_show_sql(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::init_log;
+    use crate::enable_test_log;
 
     // this test no need clean up, we use memory sqlite db.
     async fn make_test_object() -> SqliteDB {
@@ -1610,7 +1610,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_standard() {
-        init_log();
+        enable_test_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         sqlx::query(

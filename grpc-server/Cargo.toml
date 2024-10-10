@@ -16,3 +16,4 @@ dbnexus-db.workspace = true
 uuid.workspace = true
 anyhow.workspace = true
 bytes = "*"
+env_logger.workspace = true

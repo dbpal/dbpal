@@ -9,6 +9,7 @@ pub struct MongoConfig {
     /// milliseconds
     pub connect_timeout: Option<u64>,
     pub db: Option<String>,
+    pub read_only: bool,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
@@ -18,6 +19,7 @@ pub struct MysqlDbConfig {
     pub username: String,
     pub password: String,
     pub db_name: Option<String>,
+    pub read_only: bool,
 }
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
 pub struct RedisDbConfig {
@@ -26,6 +28,7 @@ pub struct RedisDbConfig {
     pub username: Option<String>,
     pub password: Option<String>,
     pub db: Option<String>,
+    pub read_only: bool,
 }
 impl RedisDbConfig {
     #[allow(dead_code)]
@@ -39,6 +42,7 @@ impl RedisDbConfig {
             username,
             password,
             db,
+            read_only: false,
         }
     }
     pub(crate) fn make_conn_string(&self) -> String {
@@ -130,6 +134,7 @@ pub struct PGDbConfig {
     pub password: String,
     pub db_name: Option<String>,
     pub schema: Option<String>,
+    pub read_only: bool,
 }
 
 impl PGDbConfig {
@@ -148,6 +153,7 @@ pub struct SqlServerDbConfig {
     pub db_name: Option<String>,
     pub trust_cert: bool,
     pub schema: Option<String>,
+    pub read_only: bool,
 }
 impl SqlServerDbConfig {
     #[allow(dead_code)]
@@ -163,4 +169,5 @@ pub struct OracleDbConfig {
     pub connect_str: String,
     pub schema: Option<String>,
     pub call_timeout: Option<u64>,
+    pub read_only: bool,
 }

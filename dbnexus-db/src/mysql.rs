@@ -30,7 +30,7 @@ use crate::MemoryLimit;
 pub struct MysqlDB {
     pool: sqlx::MySqlPool,
     config: MysqlDbConfig,
-    read_only: bool,
+
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
 }
 
@@ -727,7 +727,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     fn read_only(&self) -> bool {
-        self.read_only
+        self.config.read_only
     }
 
     async fn create_table_and_index_sql(
@@ -1128,7 +1128,7 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
 }
 
 impl MysqlDB {
-    pub async fn new(conn: MysqlDbConfig, read_only: bool) -> anyhow::Result<Self> {
+    pub async fn new(conn: MysqlDbConfig) -> anyhow::Result<Self> {
         let mut opts = sqlx::mysql::MySqlConnectOptions::new();
         opts = opts
             .host(&conn.host)
@@ -1143,7 +1143,6 @@ impl MysqlDB {
         anyhow::Ok(Self {
             pool,
             config: conn,
-            read_only,
             query_connection: Default::default(),
         })
     }
@@ -1184,7 +1183,7 @@ impl DBTrait for MysqlDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
         config.db_name = Some(name.to_owned());
-        let x = Self::new(self.config.clone(), self.read_only).await?;
+        let x = Self::new(self.config.clone()).await?;
         Ok(Arc::new(x))
     }
 }
@@ -1271,10 +1270,10 @@ pub(crate) mod test_fns {
     use std::collections::HashSet;
 
     use super::*;
-    use crate::{completion::AutoCompletionTrait, init_log};
+    use crate::{completion::AutoCompletionTrait, enable_test_log};
     // this test no need clean up, we use memory sqlite db.
     pub(crate) async fn make_test_object(config: MysqlDbConfig) -> MysqlDB {
-        let db = MysqlDB::new(config, false).await.unwrap();
+        let db = MysqlDB::new(config).await.unwrap();
         db
     }
 
@@ -1690,7 +1689,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_index(db: MysqlDB) {
-        init_log();
+        enable_test_log();
         let table_name = "test_index";
 
         let mut conn = db.get_conn().await.unwrap();
@@ -1723,7 +1722,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_types1(db: MysqlDB) {
-        init_log();
+        enable_test_log();
 
         let table_name = "test_types1";
 
@@ -1765,7 +1764,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_types2(db: MysqlDB) {
-        init_log();
+        enable_test_log();
 
         let table_name = "test_types2";
 
@@ -1807,7 +1806,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_types3(db: MysqlDB) {
-        init_log();
+        enable_test_log();
 
         let table_name = "test_types3";
 
@@ -1904,7 +1903,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_query(db: MysqlDB) {
-        init_log();
+        enable_test_log();
 
         let db = &db as &dyn crate::db::SchemaTrait;
         let id = db.open_connection().await.unwrap();
@@ -1958,6 +1957,7 @@ mod tests {
             password: "root".to_string(),
             port: 3306,
             db_name: Some("test".to_string()),
+            read_only: false,
         }
     }
     #[tokio::test]

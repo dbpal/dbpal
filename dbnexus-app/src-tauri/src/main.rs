@@ -3,10 +3,7 @@
 
 use std::sync::Arc;
 
-use dbnexus_db::{
-    app::{App, DbConfigLoader, FileJsonSaver},
-    init_log,
-};
+use dbnexus_db::app::{App, DbConfigLoader, FileJsonSaver};
 
 mod handlers;
 
@@ -29,7 +26,7 @@ async fn greet(name: String) -> Result<String, String> {
 
 #[tokio::main]
 async fn main() {
-    init_log();
+    env_logger::init();
 
     let loader: Arc<dyn DbConfigLoader> = Arc::new(FileJsonSaver::new("dbnexus.json").unwrap());
     let app = App::new(loader);

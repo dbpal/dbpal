@@ -31,42 +31,35 @@ pub enum DBConnectionConfig {
     Mysql {
         #[serde(flatten)]
         conn: MysqlDbConfig,
-        read_only: bool,
         name: String,
     },
     MariaDB {
         #[serde(flatten)]
         conn: MysqlDbConfig,
-        read_only: bool,
         name: String,
     },
     Postgres {
         #[serde(flatten)]
         conn: PGDbConfig,
-        read_only: bool,
         name: String,
     },
     SqlServer {
         #[serde(flatten)]
         conn: SqlServerDbConfig,
-        read_only: bool,
         name: String,
     },
     Mongo {
         #[serde(flatten)]
         conn: MongoConfig,
-        read_only: bool,
         name: String,
     },
     Redis {
         name: String,
-        read_only: bool,
         config: RedisDbConfig,
     },
     Oracle {
         #[serde(flatten)]
         conn: OracleDbConfig,
-        read_only: bool,
         name: String,
     },
 }
@@ -184,35 +177,23 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 
             anyhow::Ok(Open::Schema(db))
         }
-        DBConnectionConfig::Mysql {
-            conn,
-            read_only,
-            name: _,
-        }
-        | DBConnectionConfig::MariaDB {
-            conn,
-            read_only,
-            name: _,
-        } => match &conn.db_name {
+        DBConnectionConfig::Mysql { conn, name: _ }
+        | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db_name {
             Some(_) => {
                 let db: Arc<dyn SchemaTrait> =
-                    Arc::new(crate::mysql::MysqlDB::new(conn.clone(), *read_only).await?);
+                    Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
 
                 anyhow::Ok(Open::Schema(db))
             }
             None => {
                 let db: Arc<dyn DBTrait> =
-                    Arc::new(crate::mysql::MysqlDB::new(conn.clone(), *read_only).await?);
+                    Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
 
                 anyhow::Ok(Open::DataBase(db))
             }
         },
-        DBConnectionConfig::Postgres {
-            conn,
-            read_only,
-            name: _,
-        } => {
-            let o = Arc::new(crate::pg::PostGresDB::new(conn.clone(), *read_only).await?);
+        DBConnectionConfig::Postgres { conn, name: _ } => {
+            let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
 
             if conn.db_name.is_none() {
                 anyhow::Ok(Open::Catelog(o as Arc<dyn CatalogTrait>))
@@ -223,12 +204,8 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
                 }
             }
         }
-        DBConnectionConfig::SqlServer {
-            conn,
-            read_only,
-            name: _,
-        } => {
-            let o = Arc::new(crate::sql_server::SqlServer::new(conn.clone(), *read_only).await?);
+        DBConnectionConfig::SqlServer { conn, name: _ } => {
+            let o = Arc::new(crate::sql_server::SqlServer::new(conn.clone()).await?);
             if conn.db_name.is_none() {
                 anyhow::Ok(Open::Catelog(o as Arc<dyn CatalogTrait>))
             } else {
@@ -239,20 +216,13 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             }
         }
 
-        DBConnectionConfig::Mongo {
-            conn,
-            read_only,
-            name: _,
-        } => {
-            let db: Arc<dyn SchemaTrait> =
-                Arc::new(crate::mongo::Mongo::new(conn.clone(), *read_only)?);
+        DBConnectionConfig::Mongo { conn, name: _ } => {
+            let db: Arc<dyn SchemaTrait> = Arc::new(crate::mongo::Mongo::new(conn.clone())?);
             // TODO maybe database trait
             anyhow::Ok(Open::Schema(db))
         }
-        DBConnectionConfig::Redis {
-            read_only, config, ..
-        } => {
-            let redis = crate::redis::RedisDB::new(config.clone(), *read_only).await?;
+        DBConnectionConfig::Redis { config, .. } => {
+            let redis = crate::redis::RedisDB::new(config.clone()).await?;
 
             let db = match &config.db {
                 Some(_) => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
@@ -261,20 +231,15 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 
             anyhow::Ok(db)
         }
-        DBConnectionConfig::Oracle {
-            conn,
-            read_only,
-            name: _,
-        } => match conn.schema.as_ref() {
+        DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
             Some(_) => {
                 let db: Arc<dyn SchemaTrait> =
-                    Arc::new(crate::oracle::OracleDB::new(conn.clone(), *read_only)?);
+                    Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
 
                 anyhow::Ok(Open::Schema(db))
             }
             None => {
-                let db: Arc<dyn DBTrait> =
-                    Arc::new(crate::oracle::OracleDB::new(conn.clone(), *read_only)?);
+                let db: Arc<dyn DBTrait> = Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
 
                 anyhow::Ok(Open::DataBase(db))
             }
@@ -553,8 +518,8 @@ mod tests {
                             username: "aaa".to_string(),
                             password: "bbb".to_string(),
                             db_name: None,
+                            read_only: false,
                         },
-                        read_only: false,
                         name: "haha".to_string(),
                     },
                 );

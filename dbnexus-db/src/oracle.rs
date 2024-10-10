@@ -41,14 +41,14 @@ pub struct OracleDB {
 }
 
 impl OracleDB {
-    pub fn new(config: OracleDbConfig, read_only: bool) -> anyhow::Result<Self> {
+    pub fn new(config: OracleDbConfig) -> anyhow::Result<Self> {
         let pool =
             oracle::pool::PoolBuilder::new(&config.username, &config.password, &config.connect_str)
                 .max_connections(20)
                 .build()?;
         anyhow::Ok(Self {
             pool,
-            read_only,
+            read_only: config.read_only,
             schema_name: config.schema.clone(),
             query_connections: Default::default(),
             call_timeout: config.call_timeout.clone().map(Duration::from_millis),

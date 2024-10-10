@@ -17,6 +17,7 @@ message MysqlDBConfig {
   string username = 3;
   string password = 4;
   optional string db_name = 5; // 可选字段将由 Protobuf 处理
+  bool read_only = 6;
 }
 message RedisDBConfig {
   string host = 1;
@@ -24,6 +25,7 @@ message RedisDBConfig {
   optional string username = 3; // 可选字段
   optional string password = 4; // 可选字段
   optional string db = 5;       // 可选字段
+  bool read_only = 6;
 }
 message MongoConfig {
   string host = 1;
@@ -32,6 +34,7 @@ message MongoConfig {
   optional string password = 4;        // 可选字段
   optional uint64 connect_timeout = 5; // 毫秒
   optional string db = 6;
+  bool read_only = 7;
 }
 
 message PGDbConfig {
@@ -41,6 +44,7 @@ message PGDbConfig {
   string password = 4;
   optional string db_name = 5; // 可选字段
   optional string schema = 6;  // 可选字段
+  bool read_only = 7;
 }
 
 message SqlServerDbConfig {
@@ -51,6 +55,7 @@ message SqlServerDbConfig {
   optional string db_name = 5; // 可选字段
   bool trust_cert = 6;
   optional string schema = 7;
+  bool read_only = 8;
 }
 
 message OracleDbConfig {
@@ -59,55 +64,49 @@ message OracleDbConfig {
   string connect_str = 3;
   optional string schema = 4;
   optional uint64 call_timeout = 5; // 毫秒
+  bool read_only = 6;
 }
 
 message DBConnectionConfig {
   message SqliteConfig {
     string path = 1;
-    bool read_only = 2;
-    string name = 3;
+    string name = 2;
+    bool read_only = 3;
   }
 
   message MysqlConfig {
     MysqlDBConfig conn = 1; // 假设 MysqlDbConfig 已经定义
-    bool read_only = 2;
-    string name = 3;
+    string name = 2;
   }
 
   message MariaDBConfig {
     MysqlDBConfig conn = 1; // 假设 MysqlDbConfig 已经定义
-    bool read_only = 2;
-    string name = 3;
+    string name = 2;
   }
 
   message PostgresConfig {
     PGDbConfig conn = 1; // 假设 PGDbConfig 已经定义
-    bool read_only = 2;
-    string name = 3;
+    string name = 2;
   }
 
   message SqlServerConfig {
     SqlServerDbConfig conn = 1; // 假设 SqlServerDbConfig 已经定义
-    bool read_only = 2;
-    string name = 3;
+    string name = 2;
   }
 
   message MongoDBConfig {
     MongoConfig conn = 1; // 假设 MongoConfig 已经定义
-    bool read_only = 2;
-    string name = 3;
+    string name = 2;
   }
 
   message RedisConfig {
-    bool read_only = 1;
-    RedisDBConfig config = 2; // 假设 RedisDbConfig 已经定义
-    string name = 3;
+    RedisDBConfig config = 1;
+    string name = 2;
   }
 
   message OracleConfig {
     OracleDbConfig conn = 1; // 假设 OracleDbConfig 已经定义
-    bool read_only = 2;
-    string name = 3;
+    string name = 2;
   }
 
   oneof config {

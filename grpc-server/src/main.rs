@@ -3,7 +3,7 @@ use std::sync::Arc;
 use app_grpc_def::my_service_server::{MyService, MyServiceServer};
 use app_grpc_def::{HelloRequest, HelloResponse};
 use dbnexus_db::app::{App, DbConfigLoader, FileJsonSaver};
-use dbnexus_db::init_log;
+use dbnexus_db::enable_test_log;
 use grpc_server::app_grpc_def::catelog_service_server::{CatelogService, CatelogServiceServer};
 use grpc_server::app_grpc_def::config_service_server::{ConfigService, ConfigServiceServer};
 use grpc_server::app_grpc_def::database_service_server::{DatabaseService, DatabaseServiceServer};
@@ -84,7 +84,7 @@ fn anyhow_error_to_status(err: anyhow::Error) -> Status {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init_log();
+    env_logger::init();
 
     let addr = "[::1]:50051".parse()?;
     let my_service = MyServiceImpl::default();
