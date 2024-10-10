@@ -16,10 +16,12 @@ use crate::db::{
 use crate::helper::{create_csv, OffsetLimitIter};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
+use crate::redis_completion::RedisDialet;
 
 use dashmap::DashMap;
 use futures_util::StreamExt;
 
+use sqlparser::tokenizer::Token;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -847,7 +849,7 @@ impl DBTrait for RedisDB {
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        anyhow::Ok(get_command_from_sql(sql).iter().any(|x| {
+        anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
             x.first()
                 .map(|x| {
                     x.eq_ignore_ascii_case("FLUSHDB")
@@ -976,27 +978,29 @@ impl QuerySqlWithoutOpenConn for RedisDB {
 
 /// splite sql by line and whitespace
 /// to list of commmands and args
-fn get_command_from_sql(sql: &str) -> Vec<Vec<String>> {
+fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
     let mut commands = Vec::new();
-    for line in sql.lines() {
-        let v: Vec<_> = line.split(" ").collect();
-        let v2 = v
-            .iter()
-            .map(|x| x.trim().to_owned())
-            .filter(|v| !v.is_empty())
-            .collect::<Vec<_>>();
+    let dialet = RedisDialet {};
 
-        if !v2.is_empty() {
-            commands.push(v2);
-        }
+    for line in sql.lines() {
+        let tokens = sqlparser::tokenizer::Tokenizer::new(&dialet, line).tokenize()?;
+        let c = tokens
+            .iter()
+            .filter(|x| match x {
+                Token::Whitespace(_) => false,
+                _ => true,
+            })
+            .map(|x| x.to_string())
+            .collect();
+        commands.push(c);
     }
-    commands
+    anyhow::Ok(commands)
 }
 
 async fn query_sql(
     conn: &mut redis::aio::MultiplexedConnection, sql: &str,
 ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-    let commands = get_command_from_sql(sql);
+    let commands = get_command_from_sql(sql)?;
     let mut ret = Vec::new();
     for c in commands.iter() {
         let args = &c[1..];

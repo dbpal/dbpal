@@ -36,5 +36,5 @@ custom-protocol = ["tauri/custom-protocol"]
 
 
 [lib]
-name = "dvnexus_app_lib"
+name = "dbnexus_app_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
