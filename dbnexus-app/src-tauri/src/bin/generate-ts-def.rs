@@ -6,7 +6,7 @@ use std::path::Path;
 
 use dbnexus_db::completion::{CompletionItem, CompletionKind};
 use dbnexus_db::datasource_config::{
-    MongoConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
+    MongoConfig, MysqlDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
 };
 use dbnexus_db::db::{
     ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListTable, NamedStaff,
@@ -26,8 +26,8 @@ fn main() {
         let api = vec![
             &app::DBConnectionConfig::INFO,
             &app::UserSettings::INFO,
-            &PGDBConfig::INFO,
-            &SqlServerDBConfig::INFO,
+            &PGDbConfig::INFO,
+            &SqlServerDbConfig::INFO,
             &ListTable::INFO,
             &Field::INFO,
             &TableListResp::INFO,
@@ -48,8 +48,8 @@ fn main() {
             &OpendKind::INFO,
             &FormatSqlOpts::INFO,
             &FormatSqlOptsIndent::INFO,
-            &RedisDBConfig::INFO,
-            &MysqlDBConfig::INFO,
+            &RedisDbConfig::INFO,
+            &MysqlDbConfig::INFO,
             &MongoConfig::INFO,
         ];
 

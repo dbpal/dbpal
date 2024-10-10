@@ -32,10 +32,10 @@ async fn main() {
     init_log();
 
     let loader: Arc<dyn DbConfigLoader> = Arc::new(FileJsonSaver::new("dbnexus.json").unwrap());
-    let dbs = App::new(loader);
+    let app = App::new(loader);
 
     tauri::Builder::default()
-        .manage(dbs)
+        .manage(app)
         .invoke_handler(tauri::generate_handler![
             greet,
             add_config,

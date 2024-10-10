@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use crate::datasource_config::RedisDBConfig;
+use crate::datasource_config::RedisDbConfig;
 use crate::db::{
     BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, ListTable,
     QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet,
@@ -32,14 +32,14 @@ use redis::{AsyncCommands, AsyncIter, Value};
 
 #[derive(Clone)]
 pub struct RedisDB {
-    config: RedisDBConfig,
+    config: RedisDbConfig,
     m: ConnectionManager,
     read_only: bool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
 }
 
 impl RedisDB {
-    pub async fn new(config: RedisDBConfig, read_only: bool) -> anyhow::Result<Self> {
+    pub async fn new(config: RedisDbConfig, read_only: bool) -> anyhow::Result<Self> {
         let conn_str = config.make_conn_string();
         log::info!("connect to redis var:{:?}", conn_str);
 
@@ -1209,14 +1209,14 @@ mod tests {
     use super::{extract_db_from_info_key_space, split_info_colon, RedisDB};
     use crate::{
         completion::completion_test::test_file_auto_completion,
-        datasource_config::RedisDBConfig,
+        datasource_config::RedisDbConfig,
         db::{ExportKind, ServerMetas},
         init_log, TEST_HOST,
     };
 
     async fn make_test_object() -> RedisDB {
         let db = RedisDB::new(
-            RedisDBConfig {
+            RedisDbConfig {
                 host: TEST_HOST.to_string(),
                 port: None,
                 username: None,

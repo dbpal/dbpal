@@ -14,7 +14,7 @@ use tokio::task::block_in_place;
 
 use crate::completion::DBLexerCompletionBackend;
 
-use crate::datasource_config::OracleDBConfig;
+use crate::datasource_config::OracleDbConfig;
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
     FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
@@ -42,7 +42,7 @@ pub struct OracleDB {
 
 impl OracleDB {
     pub fn new(
-        config: OracleDBConfig, read_only: bool, schema_name: Option<String>,
+        config: OracleDbConfig, read_only: bool, schema_name: Option<String>,
         call_timeout: Option<Duration>,
     ) -> anyhow::Result<Self> {
         let pool =

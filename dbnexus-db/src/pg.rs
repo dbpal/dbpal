@@ -13,7 +13,7 @@ use sqlx::postgres::PgRow;
 use sqlx::{Column, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
-use crate::datasource_config::PGDBConfig;
+use crate::datasource_config::PGDbConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter,
     ExportKind, Field, FormatSql, FormatSqlOpts, HumanSize, Index, IndexKind, ListTable,
@@ -35,7 +35,7 @@ impl FormatSql for PostGresDB {
 #[derive(Clone)]
 pub struct PostGresDB {
     pool: sqlx::PgPool,
-    config: PGDBConfig,
+    config: PGDbConfig,
     read_only: bool,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     schema: Option<String>,
@@ -1021,7 +1021,7 @@ impl PostGresDB {
 
 impl PostGresDB {
     pub async fn new(
-        conn: PGDBConfig, read_only: bool, schema: Option<String>,
+        conn: PGDbConfig, read_only: bool, schema: Option<String>,
     ) -> anyhow::Result<Self> {
         let mut opts = sqlx::postgres::PgConnectOptions::new();
         opts = opts
@@ -1355,7 +1355,7 @@ impl PostGresDB {
 #[cfg(test)]
 mod tests {
     use super::PostGresDB;
-    use crate::datasource_config::PGDBConfig;
+    use crate::datasource_config::PGDbConfig;
     use crate::db::{CatalogTrait, DropUdfExtraParameter, QueryResp};
     use crate::db::{CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas};
 
@@ -1364,7 +1364,7 @@ mod tests {
 
     async fn make_test_object() -> PostGresDB {
         let pg = PostGresDB::new(
-            PGDBConfig {
+            PGDbConfig {
                 host: TEST_HOST.to_string(),
                 port: 5432,
                 username: "postgres".to_string(),

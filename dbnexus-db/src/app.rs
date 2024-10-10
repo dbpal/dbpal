@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::datasource_config::{
-    MongoConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
+    MongoConfig, MysqlDbConfig, OracleDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
 };
 use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
@@ -31,32 +31,32 @@ pub enum DBConnectionConfig {
     },
     Mysql {
         #[serde(flatten)]
-        conn: MysqlDBConfig,
+        conn: MysqlDbConfig,
         read_only: bool,
         name: String,
     },
     MariaDB {
         #[serde(flatten)]
-        conn: MysqlDBConfig,
+        conn: MysqlDbConfig,
         read_only: bool,
         name: String,
     },
     Postgres {
         #[serde(flatten)]
-        conn: PGDBConfig,
+        conn: PGDbConfig,
         read_only: bool,
         name: String,
         schema: Option<String>,
     },
     SqlServer {
         #[serde(flatten)]
-        conn: SqlServerDBConfig,
+        conn: SqlServerDbConfig,
         read_only: bool,
 
         name: String,
         schema: Option<String>,
     },
-    MongoDB {
+    Mongo {
         #[serde(flatten)]
         conn: MongoConfig,
         read_only: bool,
@@ -64,12 +64,13 @@ pub enum DBConnectionConfig {
         name: String,
     },
     Redis {
+        name: String,
         read_only: bool,
-        config: RedisDBConfig,
+        config: RedisDbConfig,
     },
     Oracle {
         #[serde(flatten)]
-        conn: OracleDBConfig,
+        conn: OracleDbConfig,
         read_only: bool,
         db_name: Option<String>,
         // milliseond
@@ -252,7 +253,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             }
         }
 
-        DBConnectionConfig::MongoDB {
+        DBConnectionConfig::Mongo {
             conn,
             read_only,
             db_name,
@@ -266,7 +267,9 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 
             anyhow::Ok(Open::Schema(db))
         }
-        DBConnectionConfig::Redis { read_only, config } => {
+        DBConnectionConfig::Redis {
+            read_only, config, ..
+        } => {
             let redis = crate::redis::RedisDB::new(config.clone(), *read_only).await?;
 
             let db = match &config.db {
@@ -549,7 +552,7 @@ impl Default for UserSettings {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::datasource_config::MysqlDBConfig;
+    use crate::datasource_config::MysqlDbConfig;
 
     use super::DBNexusConfigs;
     use crate::app::DBConnectionConfig;
@@ -571,7 +574,7 @@ mod tests {
                 m.insert(
                     "yyyy".to_string(),
                     DBConnectionConfig::Mysql {
-                        conn: MysqlDBConfig {
+                        conn: MysqlDbConfig {
                             host: "127.0.0.1".to_string(),
                             port: 33,
                             username: "aaa".to_string(),

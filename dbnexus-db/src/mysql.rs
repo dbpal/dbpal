@@ -14,7 +14,7 @@ use sqlx::Executor;
 use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
-use crate::datasource_config::MysqlDBConfig;
+use crate::datasource_config::MysqlDbConfig;
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter, ExportKind,
     Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
@@ -29,7 +29,7 @@ use crate::MemoryLimit;
 #[derive(Clone)]
 pub struct MysqlDB {
     pool: sqlx::MySqlPool,
-    config: MysqlDBConfig,
+    config: MysqlDbConfig,
     read_only: bool,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
 }
@@ -1128,7 +1128,7 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
 }
 
 impl MysqlDB {
-    pub async fn new(conn: MysqlDBConfig, read_only: bool) -> anyhow::Result<Self> {
+    pub async fn new(conn: MysqlDbConfig, read_only: bool) -> anyhow::Result<Self> {
         let mut opts = sqlx::mysql::MySqlConnectOptions::new();
         opts = opts
             .host(&conn.host)
@@ -1273,7 +1273,7 @@ pub(crate) mod test_fns {
     use super::*;
     use crate::{completion::AutoCompletionTrait, init_log};
     // this test no need clean up, we use memory sqlite db.
-    pub(crate) async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
+    pub(crate) async fn make_test_object(config: MysqlDbConfig) -> MysqlDB {
         let db = MysqlDB::new(config, false).await.unwrap();
         db
     }
@@ -1949,10 +1949,10 @@ pub(crate) mod test_fns {
 #[cfg(test)]
 mod tests {
     use super::test_fns::{self, make_test_object};
-    use crate::{datasource_config::MysqlDBConfig, TEST_HOST};
+    use crate::{datasource_config::MysqlDbConfig, TEST_HOST};
 
-    pub(crate) fn make_config() -> MysqlDBConfig {
-        MysqlDBConfig {
+    pub(crate) fn make_config() -> MysqlDbConfig {
+        MysqlDbConfig {
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: "root".to_string(),

@@ -34,10 +34,10 @@ impl Mongo {
         }];
         opts.connect_timeout = ds.connect_timeout.clone().map(Duration::from_millis);
 
-        if let Some((user, pass)) = &ds.username_and_password {
+        if let Some(user) = &ds.username {
             let b = mongodb::options::Credential::builder();
             let b = b.username(Some(user.to_owned()));
-            let b = b.password(Some(pass.to_owned()));
+            let b = b.password(Some(ds.password.as_deref().unwrap_or("").to_owned()));
             let x = b.build();
             opts.credential = Some(x);
         }
@@ -700,7 +700,8 @@ mod tests {
             MongoConfig {
                 host: TEST_HOST.to_string(),
                 port: 27017,
-                username_and_password: None,
+                username: None,
+                password: None,
                 connect_timeout: None,
             },
             Some("test".to_string()),

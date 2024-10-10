@@ -4,13 +4,14 @@ use typescript_type_def::TypeDef;
 pub struct MongoConfig {
     pub host: String,
     pub port: u16,
-    pub username_and_password: Option<(String, String)>,
+    pub username: Option<String>,
+    pub password: Option<String>,
     /// milliseconds
     pub connect_timeout: Option<u64>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
-pub struct MysqlDBConfig {
+pub struct MysqlDbConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
@@ -18,14 +19,14 @@ pub struct MysqlDBConfig {
     pub db_name: Option<String>,
 }
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
-pub struct RedisDBConfig {
+pub struct RedisDbConfig {
     pub host: String,
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
     pub db: Option<String>,
 }
-impl RedisDBConfig {
+impl RedisDbConfig {
     #[allow(dead_code)]
     fn new(
         host: String, port: Option<u16>, username: Option<String>, password: Option<String>,
@@ -78,15 +79,15 @@ impl RedisDBConfig {
 #[test]
 fn test_redis_make_conn_string() {
     assert_eq!(
-        RedisDBConfig::new("127.0.0.1".to_string(), Some(111), None, None, None).make_conn_string(),
+        RedisDbConfig::new("127.0.0.1".to_string(), Some(111), None, None, None).make_conn_string(),
         "redis://127.0.0.1:111/"
     );
     assert_eq!(
-        RedisDBConfig::new("127.0.0.1".to_string(), None, None, None, None).make_conn_string(),
+        RedisDbConfig::new("127.0.0.1".to_string(), None, None, None, None).make_conn_string(),
         "redis://127.0.0.1/"
     );
     assert_eq!(
-        RedisDBConfig::new(
+        RedisDbConfig::new(
             "127.0.0.1".to_string(),
             None,
             Some("aaa".to_owned()),
@@ -97,7 +98,7 @@ fn test_redis_make_conn_string() {
         "redis://aaa:bbb@127.0.0.1/"
     );
     assert_eq!(
-        RedisDBConfig::new(
+        RedisDbConfig::new(
             "127.0.0.1".to_string(),
             None,
             Some("aaa".to_owned()),
@@ -109,7 +110,7 @@ fn test_redis_make_conn_string() {
     );
 
     assert_eq!(
-        RedisDBConfig::new(
+        RedisDbConfig::new(
             "127.0.0.1".to_string(),
             None,
             Some("aaa".to_owned()),
@@ -121,7 +122,7 @@ fn test_redis_make_conn_string() {
     );
 }
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
-pub struct PGDBConfig {
+pub struct PGDbConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
@@ -129,7 +130,7 @@ pub struct PGDBConfig {
     pub db_name: Option<String>,
 }
 
-impl PGDBConfig {
+impl PGDbConfig {
     pub(crate) fn db_str(&self) -> &str {
         self.db_name.as_ref().expect("must be some").as_str()
     }
@@ -137,7 +138,7 @@ impl PGDBConfig {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
 
-pub struct SqlServerDBConfig {
+pub struct SqlServerDbConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
@@ -145,7 +146,7 @@ pub struct SqlServerDBConfig {
     pub db_name: Option<String>,
     pub trust_cert: bool,
 }
-impl SqlServerDBConfig {
+impl SqlServerDbConfig {
     #[allow(dead_code)]
     pub(crate) fn db_str(&self) -> &str {
         self.db_name.as_ref().expect("must be some").as_str()
@@ -153,7 +154,7 @@ impl SqlServerDBConfig {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
-pub struct OracleDBConfig {
+pub struct OracleDbConfig {
     pub username: String,
     pub password: String,
     pub connect_str: String,

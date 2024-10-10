@@ -17,7 +17,7 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 
-use crate::datasource_config::SqlServerDBConfig;
+use crate::datasource_config::SqlServerDbConfig;
 use crate::db::{
     format_data_time_fix_offset, BackendName, CatalogTrait, CheckConn, DBTrait,
     DropUdfExtraParameter, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
@@ -35,7 +35,7 @@ use crate::MemoryLimit;
 #[derive(Clone)]
 pub struct SqlServer {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
-    config: SqlServerDBConfig,
+    config: SqlServerDbConfig,
     read_only: bool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     schema: Option<String>,
@@ -166,7 +166,7 @@ impl ServerMetas for SqlServer {
 }
 impl SqlServer {
     pub async fn new(
-        c: SqlServerDBConfig, read_only: bool, schema: Option<String>,
+        c: SqlServerDbConfig, read_only: bool, schema: Option<String>,
     ) -> anyhow::Result<Self> {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
         let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
@@ -180,7 +180,7 @@ impl SqlServer {
     }
 }
 
-fn make_config(c: &SqlServerDBConfig) -> tiberius::Config {
+fn make_config(c: &SqlServerDbConfig) -> tiberius::Config {
     let mut config = tiberius::Config::new();
     config.host(&c.host);
     config.port(c.port);
@@ -1682,7 +1682,7 @@ mod tests {
 
     async fn make_test_object() -> SqlServer {
         let ss = SqlServer::new(
-            SqlServerDBConfig {
+            SqlServerDbConfig {
                 host: TEST_HOST.to_string(),
                 port: 1433,
                 username: "sa".to_string(),
