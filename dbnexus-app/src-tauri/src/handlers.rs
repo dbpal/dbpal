@@ -8,7 +8,7 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
-use dbnexus_db::redis::{RedisDB, RedisListTable};
+use dbnexus_db::redis::RedisListTable;
 
 #[tauri::command]
 pub async fn add_config(
@@ -65,40 +65,17 @@ pub async fn list_table(
 pub async fn redis_list_table(
     uuid: String, app: tauri::State<'_, App>,
 ) -> Result<RedisListTable, AnyhowErrorFrontend> {
-    let db = app
-        .get_schema(uuid.as_str())
+    app.redis_list_table(&uuid)
         .await
-        .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<RedisDB>() {
-        Some(x) => x
-            .redis_list_table()
-            .await
-            .map_err(AnyhowErrorFrontend::from),
-        None => Err(AnyhowErrorFrontend::from(anyhow::Error::msg(format!(
-            "'{}' not a redis",
-            uuid
-        )))),
-    }
+        .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn redis_match_keys(
     uuid: String, pattern: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<String>, AnyhowErrorFrontend> {
-    let db = app
-        .get_schema(uuid.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<RedisDB>() {
-        Some(x) => x
-            .redis_match_keys(pattern.as_str())
-            .await
-            .map_err(AnyhowErrorFrontend::from),
-        None => Err(AnyhowErrorFrontend::from(anyhow::Error::msg(format!(
-            "'{}' not a redis",
-            uuid
-        )))),
-    }
+    let keys = app.redis_match_keys(&uuid, &pattern).await?;
+    Ok(keys)
 }
 
 #[tauri::command]
@@ -248,7 +225,7 @@ pub async fn open_db(
 
 #[tauri::command]
 pub async fn query_sql(
-    uuid: String, id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
+    uuid: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Result<QueryResp, String>>, AnyhowErrorFrontend> {
     let sql = sql.as_str();
     let db = app
@@ -257,9 +234,9 @@ pub async fn query_sql(
         .map_err(AnyhowErrorFrontend::from)?;
 
     let result = match db {
-        Open::DataBase(x) => x.query_sql(id, sql).await,
-        Open::Schema(x) => x.query_sql(id, sql).await,
-        Open::Catelog(x) => x.query_sql(id, sql).await,
+        Open::DataBase(x) => x.query_sql(query_id, sql).await,
+        Open::Schema(x) => x.query_sql(query_id, sql).await,
+        Open::Catalog(x) => x.query_sql(query_id, sql).await,
     };
 
     result.map_err(AnyhowErrorFrontend::from)
@@ -272,31 +249,31 @@ pub async fn query_sql_open_connection(
     let result = match db {
         Open::DataBase(x) => x.open_connection().await,
         Open::Schema(x) => x.open_connection().await,
-        Open::Catelog(x) => x.open_connection().await,
+        Open::Catalog(x) => x.open_connection().await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn query_sql_re_connection(
-    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
+    uuid: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), String> {
     let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
-        Open::DataBase(x) => x.re_connect(id).await,
-        Open::Schema(x) => x.re_connect(id).await,
-        app::Open::Catelog(x) => x.re_connect(id).await,
+        Open::DataBase(x) => x.re_connect(query_id).await,
+        Open::Schema(x) => x.re_connect(query_id).await,
+        app::Open::Catalog(x) => x.re_connect(query_id).await,
     };
     result.map_err(|e| e.to_string())
 }
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
+    uuid: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
-        Open::DataBase(x) => x.close_connection(id).await,
-        Open::Schema(x) => x.close_connection(id).await,
-        Open::Catelog(x) => x.close_connection(id).await,
+        Open::DataBase(x) => x.close_connection(query_id).await,
+        Open::Schema(x) => x.close_connection(query_id).await,
+        Open::Catalog(x) => x.close_connection(query_id).await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
@@ -355,7 +332,7 @@ pub async fn format_sql(
     let ret = match db {
         Open::DataBase(x) => x.format_sql(sql.as_str(), opts),
         Open::Schema(x) => x.format_sql(sql.as_str(), opts),
-        Open::Catelog(x) => x.format_sql(sql.as_str(), opts),
+        Open::Catalog(x) => x.format_sql(sql.as_str(), opts),
     };
     ret.map_err(|e| e.to_string())
 }
@@ -371,7 +348,7 @@ pub async fn test_connection(
     match db {
         app::Open::DataBase(x) => x.check_conn().await,
         app::Open::Schema(x) => x.check_conn().await,
-        app::Open::Catelog(x) => x.check_conn().await,
+        app::Open::Catalog(x) => x.check_conn().await,
     }
     .map_err(AnyhowErrorFrontend::from)
     .map(|d| d.as_millis() as u64)

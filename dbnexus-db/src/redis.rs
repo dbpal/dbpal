@@ -55,11 +55,11 @@ impl RedisDB {
 
 #[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]
 pub struct RedisListTable {
-    pub(crate) string_table: Vec<String>,
-    pub(crate) list_table: Vec<String>,
-    pub(crate) set_table: Vec<String>,
-    pub(crate) hash_table: Vec<String>,
-    pub(crate) zset_table: Vec<String>,
+    pub string_tables: Vec<String>,
+    pub list_tables: Vec<String>,
+    pub set_tables: Vec<String>,
+    pub hash_tables: Vec<String>,
+    pub zset_tables: Vec<String>,
 }
 
 impl RedisDB {
@@ -814,11 +814,11 @@ impl RedisDB {
         for table in tables.into_iter() {
             let typ = Self::get_key_type(&mut conn, table.as_str()).await?;
             match typ {
-                RedisType::String => ret.string_table.push(table),
-                RedisType::List => ret.list_table.push(table),
-                RedisType::Set => ret.set_table.push(table),
-                RedisType::Hash => ret.hash_table.push(table),
-                RedisType::Zset => ret.zset_table.push(table),
+                RedisType::String => ret.string_tables.push(table),
+                RedisType::List => ret.list_tables.push(table),
+                RedisType::Set => ret.set_tables.push(table),
+                RedisType::Hash => ret.hash_tables.push(table),
+                RedisType::Zset => ret.zset_tables.push(table),
             }
         }
         anyhow::Ok(ret)
@@ -1347,7 +1347,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // }
         let now = std::time::Instant::now();
         let x = db.redis_list_table().await.unwrap();
-        println!("used{:?} key_len:{}", now.elapsed(), x.string_table.len());
+        println!("used{:?} key_len:{}", now.elapsed(), x.string_tables.len());
     }
 
     #[tokio::test]

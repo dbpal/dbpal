@@ -172,11 +172,11 @@ export namespace db_apis {
         "hash_table": (string)[];
         "zset_table": (string)[];
     };
-    export type TriggerTiming = ("Before" | "After" | 
-    /**
-     * sql server have this timing but I am not quit understand.
-     */
-"InsteadOf");
+    export type TriggerTiming = ("Before" | "After" |
+        /**
+         * sql server have this timing but I am not quit understand.
+         */
+        "InsteadOf");
     export type TriggerEvent = ("Insert" | "Update" | "Delete");
     export type TriggerEnable = (({
         "kind": "postgres";
@@ -215,7 +215,7 @@ export namespace db_apis {
         "def": string;
         "metas": (db_apis.MetaValue)[];
     };
-    export type OpendKind = ("Catelog" | "DataBase" | "Schema");
+    export type OpendKind = ("Catalog" | "DataBase" | "Schema");
     export type U8 = number;
     export type FormatSqlOptsIndent = (({
         "ident": "spaces";

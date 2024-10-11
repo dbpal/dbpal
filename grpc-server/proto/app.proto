@@ -100,7 +100,7 @@ message DBConnectionConfig {
   }
 
   message RedisConfig {
-    RedisDBConfig config = 1;
+    RedisDBConfig conn = 1;
     string name = 2;
   }
 
@@ -121,9 +121,259 @@ message DBConnectionConfig {
   }
 }
 
-service ConfigService {
-  rpc add_config(DBConnectionConfig) returns (google.protobuf.Empty);
+message UpdateConfig {
+  string uuid = 1;
+  DBConnectionConfig config = 2;
 }
-service CatelogService {}
-service DatabaseService {}
-service SchemaService {}
+message AddConfigResp { string uuid = 1; }
+message DelConfigReq { string uuid = 1; }
+
+message ListAllConfigResp { map<string, DBConnectionConfig> items = 1; }
+message TestConnResp { uint64 ping_value = 1; }
+service ConfigService {
+  rpc Add(DBConnectionConfig) returns (AddConfigResp);
+  rpc Update(UpdateConfig) returns (google.protobuf.Empty);
+  rpc Del(DelConfigReq) returns (google.protobuf.Empty);
+  rpc ListAll(google.protobuf.Empty) returns (ListAllConfigResp);
+  rpc open(OnlyUuidReq) returns (google.protobuf.Empty);
+  rpc TestConn(OnlyUuidReq) returns (TestConnResp);
+}
+
+message OnlyUuidReq { string uuid = 1; }
+/// general database service
+/// maybe a catelog, database or schema
+/// because of those trait share a lot of
+/// common behavior
+
+message ListTableResp { repeated ListTableRespItem tables = 1; }
+message ListTableRespItem {
+  string name = 1;
+  string size = 2;
+}
+message RedisListTableResp {
+  repeated string string_tables = 1;
+  repeated string list_tables = 2;
+  repeated string set_tables = 3;
+  repeated string zset_tables = 4;
+  repeated string hash_tables = 5;
+}
+
+message UuidAndName {
+  string uuid = 1;
+  // maybe table view name staff.
+  // uuid and name can locate a lot of things.
+  string name = 2;
+}
+
+message Field {
+  string name = 1;
+  string typ = 2;
+  bool nullable = 3;
+  optional string default_value = 4;
+  bool is_primary = 5;
+  bool is_auto_increment = 6;
+}
+
+message ShowColumnsResp { repeated Field columns = 1; }
+
+message RedisMatchKeysResp { repeated string keys = 1; }
+message TableViewListReq {
+  string uuid = 1;
+  string table_name = 2;
+  optional string where_str = 3;
+  optional string order_by = 4;
+  uint64 page = 5;
+  uint64 page_size = 6;
+}
+
+message TableListResp {
+  repeated Field fields = 1; // List of fields
+  uint64 total = 2;          // Total number of records
+  repeated Row data = 3; // List of rows, each row is a list of optional strings
+  optional string sql = 4; // SQL query string
+}
+
+message Row {
+  repeated RowData values = 1; // List of optional string values
+}
+
+enum IndexKind {
+  NORMAL = 0;  // Normal index
+  UNIQUE = 1;  // Unique index
+  PRIMARY = 2; // Primary index
+}
+
+message Index {
+  string name = 1;        // Name of the index
+  IndexKind kind = 2;     // Type of index
+  repeated string on = 3; // List of columns the index is on
+}
+
+message RowData { optional string data = 1; }
+
+message ShowIndexResp { repeated Index indexes = 1; }
+
+message String2OptionString {
+  map<string, String2OptionStringValue> values = 1;
+}
+message String2OptionStringValue { optional string value = 1; }
+
+message InsertReq {
+  string uuid = 1;
+  string table_name = 2;
+  String2OptionString values = 3;
+}
+message SqlExecuteRet {
+  string sql = 1;     // The executed SQL statement
+  uint64 changes = 2; // Number of changes made by the SQL statement
+  optional int64 last_insert_row_id =
+      3; // ID of the last inserted row (optional)
+  optional string last_insert_id_string =
+      4; // Last inserted ID as a string (optional, for databases like MongoDB)
+}
+message UpdateReq {
+  string uuid = 1;
+  string table_name = 2;
+  String2OptionString values = 3;
+  String2OptionString wheres = 4;
+}
+message DeleteReq {
+  string uuid = 1;
+  string table_name = 2;
+  String2OptionString wheres = 4;
+}
+
+message NamedStaff {
+  string name = 1; // Name of the staff member
+}
+
+message NamedStaffVec { repeated NamedStaff named = 1; }
+message OpendKindResp { OpendKind kind = 1; }
+
+enum OpendKind {
+  CATELOG = 0;  // Catalog kind
+  DATABASE = 1; // Database kind
+  SCHEMA = 2;   // Schema kind
+}
+
+message StringResp { string value = 1; }
+message QuerySqlReq {
+  string uuid = 1;
+  string sql = 2;
+  string query_id = 3;
+}
+
+message QuerySqlResp { repeated QueryRespOrErr results = 1; }
+
+message QueryResp {
+  repeated Field fields = 1;
+  repeated Row data = 2;
+}
+
+message QueryRespOrErr {
+  oneof result {
+    Err err = 1;
+    QueryResp resp = 2;
+  }
+}
+
+message Err { string err = 1; }
+
+message UuidAndQueryID {
+  string uuid = 1;
+  string query_id = 2;
+}
+message UserSettings {
+  uint32 page_size = 1; // Size of the page
+}
+
+message FormatSqlReq {
+  string uuid = 1;
+  string sql = 2;
+}
+
+enum TriggerTiming {
+  BEFORE = 0;     // Before trigger timing
+  AFTER = 1;      // After trigger timing
+  INSTEAD_OF = 2; // Instead of trigger timing
+}
+
+enum TriggerEvent {
+  INSERT = 0; // Insert event
+  UPDATE = 1; // Update event
+  DELETE = 2; // Delete event
+}
+
+message TriggerEnable {
+  oneof enable {
+    TriggerEnablePostgres postgres = 1;
+    bool just_enable = 2;
+  }
+}
+
+message TriggerEnablePostgres { optional string enable = 1; }
+message ShowTriggerReq {
+  string uuid = 1;
+  string table = 2;
+  string name = 3;
+}
+
+message TriggerDetail {
+  TriggerTiming timing = 1;     // Trigger timing (Before, After, InsteadOf)
+  TriggerEvent event = 2;       // Trigger event (Insert, Update, Delete)
+  string sql = 3;               // SQL statement for the trigger
+  TriggerEnable enable = 4;     // Trigger enable options (optional)
+  repeated MetaValue metas = 5; // List of metadata values
+}
+message MetaValue {
+  string name = 1;
+  optional string value = 2;
+  optional string desc = 3;
+}
+message RenameTableReq {
+  string uuid = 1;
+  string old_table = 2;
+  string new_table = 3;
+}
+
+message DuplicateTableReq {
+  string uuid = 1;
+  string table = 2;
+  string dup = 3;
+}
+
+message UuidAndPattern {
+  string uuid = 1;
+  string pattern = 2;
+}
+service DatabaseService {
+  rpc ListTable(OnlyUuidReq) returns (ListTableResp);
+  rpc RedisListTable(OnlyUuidReq) returns (RedisListTableResp);
+  rpc RedisMatchKeys(UuidAndPattern) returns (RedisMatchKeysResp);
+  rpc ShowColumns(UuidAndName) returns (ShowColumnsResp);
+  rpc ShowTalbe(TableViewListReq) returns (TableListResp);
+  rpc ShowIndex(UuidAndName) returns (ShowIndexResp);
+  rpc Insert(InsertReq) returns (SqlExecuteRet);
+  rpc Update(UpdateReq) returns (SqlExecuteRet);
+  rpc TruncateTable(UuidAndName) returns (google.protobuf.Empty);
+  rpc Delete(DeleteReq) returns (SqlExecuteRet);
+  rpc ListView(OnlyUuidReq) returns (NamedStaffVec);
+  rpc DropView(UuidAndName) returns (google.protobuf.Empty);
+  rpc DropTable(UuidAndName) returns (google.protobuf.Empty);
+  rpc ShowView(TableViewListReq) returns (TableListResp);
+  rpc OpenSchema(UuidAndName) returns (google.protobuf.Empty);
+  rpc OpenDB(UuidAndName) returns (google.protobuf.Empty);
+  rpc OpenedKind(OnlyUuidReq) returns (OpendKindResp);
+  rpc QuerySql(QuerySqlReq) returns (QuerySqlResp);
+  rpc QuerySqlOpenConnection(OnlyUuidReq) returns (StringResp);
+  rpc QuerySqlCloseConnection(UuidAndQueryID) returns (google.protobuf.Empty);
+  rpc QuerySqlCloseReConnection(UuidAndQueryID) returns (google.protobuf.Empty);
+  rpc SaveUserSettings(UserSettings) returns (google.protobuf.Empty);
+  rpc GetUserSettings(google.protobuf.Empty) returns (UserSettings);
+  rpc ExportTable(UuidAndName) returns (google.protobuf.Empty);
+  rpc FormatSql(FormatSqlReq) returns (StringResp);
+  rpc ListTrigger(UuidAndName) returns (NamedStaffVec);
+  rpc ShowTrigger(ShowTriggerReq) returns (TriggerDetail);
+  rpc RenameTable(RenameTableReq) returns (google.protobuf.Empty);
+  rpc DuplicateTable(DuplicateTableReq) returns (google.protobuf.Empty);
+}

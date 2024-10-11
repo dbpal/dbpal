@@ -655,9 +655,9 @@ impl From<u64> for SqlExecuteRet {
 }
 #[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct Index {
-    pub(crate) name: String,
-    pub(crate) kind: IndexKind,
-    pub(crate) on: Vec<String>,
+    pub name: String,
+    pub kind: IndexKind,
+    pub on: Vec<String>,
 }
 
 impl Index {
@@ -675,8 +675,8 @@ pub enum IndexKind {
 }
 #[derive(Clone, Debug, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub struct QueryResp {
-    pub(crate) fields: Vec<Field>,
-    pub(crate) data: Vec<Vec<Option<String>>>,
+    pub fields: Vec<Field>,
+    pub data: Vec<Vec<Option<String>>>,
 }
 impl QueryResp {
     pub(crate) fn new(fields: Vec<Field>, data: Vec<Vec<Option<String>>>) -> Self {
@@ -716,10 +716,10 @@ impl QueryResp {
 
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct TableListResp {
-    pub(crate) fields: Vec<Field>,
-    pub(crate) total: usize,
-    pub(crate) data: Vec<Vec<Option<String>>>,
-    pub(crate) sql: Option<String>,
+    pub fields: Vec<Field>,
+    pub total: usize,
+    pub data: Vec<Vec<Option<String>>>,
+    pub sql: Option<String>,
 }
 
 /// we don't want to check `sql` somehow can be different
@@ -870,11 +870,11 @@ impl ExportKind {
 
 #[derive(Debug, serde::Serialize, TypeDef)]
 pub struct TriggerDetail {
-    pub(crate) timing: TriggerTiming,
-    pub(crate) event: TriggerEvent,
-    pub(crate) sql: String,
-    pub(crate) enable: Option<TriggerEnable>,
-    pub(crate) metas: Vec<MetaValue>,
+    pub timing: TriggerTiming,
+    pub event: TriggerEvent,
+    pub sql: String,
+    pub enable: Option<TriggerEnable>,
+    pub metas: Vec<MetaValue>,
 }
 
 impl PartialEq for TriggerDetail {

@@ -5,9 +5,9 @@ use serde::Serializer;
 /// meta value can used in various place.
 #[derive()]
 pub struct MetaValue {
-    name: Cow<'static, str>,
-    value: Option<Box<dyn ToString + Send + 'static>>,
-    desc: Option<Cow<'static, str>>,
+    pub name: Cow<'static, str>,
+    pub value: Option<Box<dyn ToString + Send + 'static>>,
+    pub desc: Option<Cow<'static, str>>,
 }
 
 impl MetaValue {

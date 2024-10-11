@@ -10,6 +10,7 @@ use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
     TableListResp,
 };
+use crate::redis::{RedisDB, RedisListTable};
 
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
@@ -55,7 +56,7 @@ pub enum DBConnectionConfig {
     },
     Redis {
         name: String,
-        config: RedisDbConfig,
+        conn: RedisDbConfig,
     },
     Oracle {
         #[serde(flatten)]
@@ -196,7 +197,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
 
             if conn.db_name.is_none() {
-                anyhow::Ok(Open::Catelog(o as Arc<dyn CatalogTrait>))
+                anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>))
             } else {
                 match &conn.schema {
                     Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
@@ -207,7 +208,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
         DBConnectionConfig::SqlServer { conn, name: _ } => {
             let o = Arc::new(crate::sql_server::SqlServer::new(conn.clone()).await?);
             if conn.db_name.is_none() {
-                anyhow::Ok(Open::Catelog(o as Arc<dyn CatalogTrait>))
+                anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>))
             } else {
                 match &conn.schema {
                     Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
@@ -218,13 +219,13 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 
         DBConnectionConfig::Mongo { conn, name: _ } => {
             let db: Arc<dyn SchemaTrait> = Arc::new(crate::mongo::Mongo::new(conn.clone())?);
-            // TODO maybe database trait
+
             anyhow::Ok(Open::Schema(db))
         }
-        DBConnectionConfig::Redis { config, .. } => {
-            let redis = crate::redis::RedisDB::new(config.clone()).await?;
+        DBConnectionConfig::Redis { conn, .. } => {
+            let redis = crate::redis::RedisDB::new(conn.clone()).await?;
 
-            let db = match &config.db {
+            let db = match &conn.db {
                 Some(_) => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
                 None => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
             };
@@ -250,7 +251,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 /// opend database variant for frontend
 #[derive(Clone)]
 pub enum Open {
-    Catelog(Arc<dyn crate::db::CatalogTrait>),
+    Catalog(Arc<dyn crate::db::CatalogTrait>),
     /// database can contains multi database
     DataBase(Arc<dyn crate::db::DBTrait>),
     /// a schema
@@ -261,7 +262,7 @@ impl Open {
     pub fn get_open_kind(&self) -> OpendKind {
         use OpendKind::*;
         match self {
-            Open::Catelog(_) => Catelog,
+            Open::Catalog(_) => Catalog,
             Open::DataBase(_) => DataBase,
             Open::Schema(_) => Schema,
         }
@@ -270,7 +271,7 @@ impl Open {
 
 #[derive(Debug, Clone, Copy, serde::Serialize, TypeDef)]
 pub enum OpendKind {
-    Catelog,
+    Catalog,
     DataBase,
     Schema,
 }
@@ -308,7 +309,7 @@ impl App {
             Open::Schema(x) => {
                 x.check_conn().await?;
             }
-            Open::Catelog(x) => {
+            Open::Catalog(x) => {
                 x.check_conn().await?;
             }
         }
@@ -321,7 +322,7 @@ impl App {
     pub async fn open_db(&self, uuid: &str, db_name: &str) -> anyhow::Result<Open> {
         let db = self.open(uuid).await?;
         match db {
-            Open::Catelog(x) => {
+            Open::Catalog(x) => {
                 let x = x.open_db(db_name).await?;
                 x.check_conn().await?;
                 let db = Open::DataBase(x.clone());
@@ -473,11 +474,27 @@ impl App {
         };
         anyhow::Ok(x)
     }
+
+    pub async fn redis_list_table(&self, uuid: &str) -> anyhow::Result<RedisListTable> {
+        let db = self.get_schema(uuid).await?;
+        match db.as_any().downcast_ref::<RedisDB>() {
+            Some(x) => x.redis_list_table().await,
+            None => anyhow::bail!(format!("'{}' not a redis", uuid)),
+        }
+    }
+
+    pub async fn redis_match_keys(&self, uuid: &str, pattern: &str) -> anyhow::Result<Vec<String>> {
+        let db = self.get_schema(uuid).await?;
+        match db.as_any().downcast_ref::<RedisDB>() {
+            Some(x) => x.redis_match_keys(pattern).await,
+            None => anyhow::bail!(format!("'{}' not a redis", uuid)),
+        }
+    }
 }
 
 #[derive(Clone, serde::Deserialize, serde::Serialize, Debug, TypeDef)]
 pub struct UserSettings {
-    page_size: usize,
+    pub page_size: usize,
 }
 
 impl Default for UserSettings {
