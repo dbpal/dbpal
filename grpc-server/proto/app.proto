@@ -312,7 +312,7 @@ message TriggerEnable {
 }
 
 message TriggerEnablePostgres { optional string enable = 1; }
-message ShowTriggerReq {
+message CommonriggerReq {
   string uuid = 1;
   string table = 2;
   string name = 3;
@@ -346,6 +346,84 @@ message UuidAndPattern {
   string uuid = 1;
   string pattern = 2;
 }
+message ExportTableReq {
+  string uuid = 1;
+  string table_name = 2;
+  string filepath = 3;
+  ExportKind kind = 4;
+}
+message ExportQueryResultReq {
+  string uuid = 1;
+  string sql = 2;
+  string filepath = 3;
+  ExportKind kind = 4;
+}
+
+message ExportKind {
+  oneof kind {
+    ExportKindCsv csv = 1;
+    ExportKindJson json = 2;
+    ExportKindJsonLine json_line = 3;
+    ExportKindSql sql = 4;
+  }
+}
+
+message ExportKindCsv {
+  bool include_header = 1;
+  string delimiter = 2; // using string for char representation
+}
+
+message ExportKindJson { bool pretty = 1; }
+
+message ExportKindJsonLine {}
+
+message ExportKindSql { bool include_table_schema = 1; }
+message UdfDetail {
+  string def = 1;               // Definition of the SQL.
+  repeated MetaValue metas = 2; // List of MetaValue.
+}
+
+message DropUdfExtraParameter {
+  oneof parameter_type { DropUdfExtraParameterPostGres postgres = 1; }
+}
+
+message DropUdfExtraParameterPostGres {
+  string parameters = 1; // e.g., "a integer, b integer"
+}
+message DropUdfReq {
+  string uuid = 1;
+  string name = 2;
+  optional DropUdfExtraParameter extra = 3;
+}
+
+message ProcedureDetail {
+  string def = 1;               // Definition of the SQL.
+  repeated MetaValue metas = 2; // List of MetaValue.
+}
+message AutoCompletionReq {
+  string uuid = 1;
+  string sql = 2;
+  uint32 line = 3;
+  uint32 col = 4;
+}
+enum CompletionKind {
+  SchemaName = 0; // Default value for unknown completion kind
+  COMMAND = 1;    // Command used by Redis
+  KEYWORD = 2;    // Keyword
+  FUNCTION = 3;   // Function
+  DBNAME = 4;     // Database name
+  TABLENAME = 5;  // Table name
+  COLUMN = 6;     // Column
+  TEXT = 7;       // Text
+  TYPE = 8;       // Type
+}
+
+message AutoCompletionItem {
+  string item = 1;
+  CompletionKind ck = 2;
+}
+
+message AutoCompletionResp { repeated AutoCompletionItem items = 1; }
 service DatabaseService {
   rpc ListTable(OnlyUuidReq) returns (ListTableResp);
   rpc RedisListTable(OnlyUuidReq) returns (RedisListTableResp);
@@ -370,10 +448,22 @@ service DatabaseService {
   rpc QuerySqlCloseReConnection(UuidAndQueryID) returns (google.protobuf.Empty);
   rpc SaveUserSettings(UserSettings) returns (google.protobuf.Empty);
   rpc GetUserSettings(google.protobuf.Empty) returns (UserSettings);
-  rpc ExportTable(UuidAndName) returns (google.protobuf.Empty);
+  rpc ExportTable(ExportTableReq) returns (google.protobuf.Empty);
   rpc FormatSql(FormatSqlReq) returns (StringResp);
   rpc ListTrigger(UuidAndName) returns (NamedStaffVec);
-  rpc ShowTrigger(ShowTriggerReq) returns (TriggerDetail);
+  rpc ShowTrigger(CommonriggerReq) returns (TriggerDetail);
+  rpc EnableTrigger(CommonriggerReq) returns (google.protobuf.Empty);
+  rpc DisableTrigger(CommonriggerReq) returns (google.protobuf.Empty);
   rpc RenameTable(RenameTableReq) returns (google.protobuf.Empty);
   rpc DuplicateTable(DuplicateTableReq) returns (google.protobuf.Empty);
+  rpc ExportQueryResultToFile(ExportQueryResultReq)
+      returns (google.protobuf.Empty);
+  rpc ListUdf(OnlyUuidReq) returns (NamedStaffVec);
+  rpc ShowUdf(UuidAndName) returns (UdfDetail);
+  rpc DropUdf(DropUdfReq) returns (google.protobuf.Empty);
+
+  rpc ListProcedure(OnlyUuidReq) returns (NamedStaffVec);
+  rpc ShowProcedure(UuidAndName) returns (ProcedureDetail);
+  rpc DropProcedure(UuidAndName) returns (google.protobuf.Empty);
+  rpc DoAutoCompletion(AutoCompletionReq) returns (AutoCompletionResp);
 }

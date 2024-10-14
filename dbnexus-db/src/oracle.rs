@@ -12,13 +12,13 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::completion::DBLexerCompletionBackend;
+use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
 
 use crate::datasource_config::OracleDbConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
-    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
-    SqlExecuteRet, TableListResp,
+    not_support_features, BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
+    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
+    SchemaTrait, SqlExecuteRet, TableListResp,
 };
 use crate::helper::{
     create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql, SqlKind, SqlSeq,
@@ -1128,6 +1128,14 @@ impl SchemaTrait for OracleDB {
 impl BackendName for OracleDB {
     fn backend_name(&self) -> &str {
         "oracle"
+    }
+}
+#[async_trait::async_trait]
+impl AutoCompletionTrait for OracleDB {
+    async fn auto_completion(
+        &self, sql: &str, line: u32, col: u32,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        not_support_features(self.backend_name())
     }
 }
 #[async_trait::async_trait]

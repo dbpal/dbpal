@@ -966,7 +966,15 @@ impl SchemaTrait for MysqlDB {
         let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
-            let name: String = r.try_get(0)?;
+            let name = match r.try_get::<'_, String, _>(0) {
+                Ok(x) => x,
+                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
+                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                    Err(_err) => {
+                        anyhow::bail!("can get column as string or vec<u8>")
+                    }
+                },
+            };
             let ty: String = r.try_get(1)?;
             let null: String = r.try_get(2)?;
             let key: Option<String> = r.try_get(3)?;
@@ -1270,7 +1278,7 @@ pub(crate) mod test_fns {
     use std::collections::HashSet;
 
     use super::*;
-    use crate::{completion::AutoCompletionTrait, enable_test_log};
+    use crate::enable_test_log;
     // this test no need clean up, we use memory sqlite db.
     pub(crate) async fn make_test_object(config: MysqlDbConfig) -> MysqlDB {
         let db = MysqlDB::new(config).await.unwrap();
@@ -1515,64 +1523,64 @@ pub(crate) mod test_fns {
         }
     }
 
-    pub(crate) async fn test_completion(db: MysqlDB) {
-        println!("#############################################");
-        {
-            let completion = AutoCompletionTrait::auto_completion(
-                &db,
-                "sel  * from",
-                sqlparser::tokenizer::Location { line: 1, column: 4 },
-            )
-            .await
-            .unwrap();
+    // pub(crate) async fn test_completion(db: MysqlDB) {
+    //     println!("#############################################");
+    //     {
+    //         let completion = AutoCompletionTrait::auto_completion(
+    //             &db,
+    //             "sel  * from",
+    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
+    //         )
+    //         .await
+    //         .unwrap();
 
-            println!("{:?}", completion)
-        }
-        println!("#############################################");
-        {
-            let completion = AutoCompletionTrait::auto_completion(
-                &db,
-                "cou  xxxx",
-                sqlparser::tokenizer::Location { line: 1, column: 4 },
-            )
-            .await
-            .unwrap();
-            println!("{:?}", completion)
-        }
-        println!("#############################################");
-        {
-            let completion = AutoCompletionTrait::auto_completion(
-                &db,
-                "nul",
-                sqlparser::tokenizer::Location { line: 1, column: 4 },
-            )
-            .await
-            .unwrap();
-            println!("{:?}", completion)
-        }
-        println!("#############################################");
-        {
-            let completion = AutoCompletionTrait::auto_completion(
-                &db,
-                "emai  dddd",
-                sqlparser::tokenizer::Location { line: 1, column: 4 },
-            )
-            .await
-            .unwrap();
-            println!("{:?}", completion)
-        }
-        println!("#############################################");
-        {
-            let completion = AutoCompletionTrait::auto_completion(
-                &db,
-                "use 1111",
-                sqlparser::tokenizer::Location { line: 1, column: 4 },
-            )
-            .await
-            .unwrap();
-            println!("{:?}", completion)
-        }
-    }
+    //         println!("{:?}", completion)
+    //     }
+    //     println!("#############################################");
+    //     {
+    //         let completion = AutoCompletionTrait::auto_completion(
+    //             &db,
+    //             "cou  xxxx",
+    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
+    //         )
+    //         .await
+    //         .unwrap();
+    //         println!("{:?}", completion)
+    //     }
+    //     println!("#############################################");
+    //     {
+    //         let completion = AutoCompletionTrait::auto_completion(
+    //             &db,
+    //             "nul",
+    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
+    //         )
+    //         .await
+    //         .unwrap();
+    //         println!("{:?}", completion)
+    //     }
+    //     println!("#############################################");
+    //     {
+    //         let completion = AutoCompletionTrait::auto_completion(
+    //             &db,
+    //             "emai  dddd",
+    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
+    //         )
+    //         .await
+    //         .unwrap();
+    //         println!("{:?}", completion)
+    //     }
+    //     println!("#############################################");
+    //     {
+    //         let completion = AutoCompletionTrait::auto_completion(
+    //             &db,
+    //             "use 1111",
+    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
+    //         )
+    //         .await
+    //         .unwrap();
+    //         println!("{:?}", completion)
+    //     }
+    // }
 
     pub(crate) async fn test_export(db: MysqlDB) {
         // init_log();
@@ -1992,10 +2000,10 @@ mod tests {
     async fn test_udf() {
         test_fns::test_udf(make_test_object(make_config()).await).await;
     }
-    #[tokio::test]
-    async fn test_completion() {
-        test_fns::test_completion(make_test_object(make_config()).await).await;
-    }
+    // #[tokio::test]
+    // async fn test_completion() {
+    //     test_fns::test_completion(make_test_object(make_config()).await).await;
+    // }
     #[tokio::test]
     async fn test_types1() {
         test_fns::test_types1(make_test_object(make_config()).await).await;

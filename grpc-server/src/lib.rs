@@ -2,7 +2,11 @@ pub mod app_grpc_def {
 
     use std::{collections::HashMap, hash::Hash};
 
-    use dbnexus_db::{app as applib, datasource_config, db, meta_value, redis};
+    use dbnexus_db::{
+        app as applib,
+        completion::{self},
+        datasource_config, db, meta_value, redis,
+    };
 
     include!("../proto_generated/app.rs");
 
@@ -700,6 +704,75 @@ pub mod app_grpc_def {
                 });
 
             ListAllConfigResp { items: m }
+        }
+    }
+    impl Into<db::ExportKind> for ExportKind {
+        fn into(self) -> db::ExportKind {
+            let value = self.kind.unwrap();
+            match value {
+                export_kind::Kind::Csv(x) => db::ExportKind::CSV {
+                    include_header: x.include_header,
+                    delimiter: x.delimiter.chars().next().unwrap(),
+                },
+                export_kind::Kind::Json(x) => db::ExportKind::Json { pretty: x.pretty },
+                export_kind::Kind::JsonLine(_) => db::ExportKind::JsonLine,
+                export_kind::Kind::Sql(x) => db::ExportKind::Sql {
+                    include_table_schema: x.include_table_schema,
+                },
+            }
+        }
+    }
+    impl From<db::UdfDetail> for UdfDetail {
+        fn from(value: db::UdfDetail) -> Self {
+            let db::UdfDetail { def, metas } = value;
+            Self {
+                def,
+                metas: metas.into_iter().map(|x| x.into()).collect(),
+            }
+        }
+    }
+    impl From<db::ProcedureDetail> for ProcedureDetail {
+        fn from(value: db::ProcedureDetail) -> Self {
+            let db::ProcedureDetail { def, metas } = value;
+            Self {
+                def,
+                metas: metas.into_iter().map(|x| x.into()).collect(),
+            }
+        }
+    }
+    impl Into<db::DropUdfExtraParameter> for DropUdfExtraParameter {
+        fn into(self) -> db::DropUdfExtraParameter {
+            match self.parameter_type.unwrap() {
+                drop_udf_extra_parameter::ParameterType::Postgres(x) => {
+                    db::DropUdfExtraParameter::PostGres {
+                        parameters: x.parameters,
+                    }
+                }
+            }
+        }
+    }
+    impl From<completion::CompletionKind> for CompletionKind {
+        fn from(value: completion::CompletionKind) -> Self {
+            match value {
+                completion::CompletionKind::Column => Self::Column,
+                completion::CompletionKind::Dbname => Self::Dbname,
+                completion::CompletionKind::SchemaName => Self::SchemaName,
+                completion::CompletionKind::KeyWord => Self::Keyword,
+                completion::CompletionKind::Text => Self::Text,
+                completion::CompletionKind::TableName => Self::Tablename,
+                completion::CompletionKind::Type => Self::Type,
+                completion::CompletionKind::Function => Self::Function,
+                completion::CompletionKind::Command => Self::Command,
+            }
+        }
+    }
+    impl From<completion::CompletionItem> for AutoCompletionItem {
+        fn from(value: completion::CompletionItem) -> Self {
+            let completion::CompletionItem { item, kind } = value;
+            Self {
+                item: item.to_string(),
+                ck: CompletionKind::from(kind) as i32,
+            }
         }
     }
 }

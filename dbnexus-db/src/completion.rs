@@ -11,7 +11,7 @@ use crate::db::DBTrait;
 #[async_trait::async_trait]
 pub trait AutoCompletionTrait {
     async fn auto_completion(
-        &self, sql: &str, pos: sqlparser::tokenizer::Location,
+        &self, sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>>;
 }
 
@@ -28,6 +28,7 @@ pub enum CompletionKind {
     KeyWord,
     Function,
     Dbname,
+    SchemaName,
     TableName,
     Column,
     Text,
@@ -346,16 +347,7 @@ select xxxx
             log::trace!("########completion on {:?}", item.sql);
             for i in item.tests.iter() {
                 log::trace!("on pos:{}", i.0);
-                let items = db
-                    .auto_completion(
-                        &item.sql,
-                        sqlparser::tokenizer::Location {
-                            line: 1,
-                            column: i.0 as u64,
-                        },
-                    )
-                    .await
-                    .unwrap();
+                let items = db.auto_completion(&item.sql, 1, i.0 as u32).await.unwrap();
                 for should in i.1.iter() {
                     test_completion_items_contains(&items[..], &should);
                 }

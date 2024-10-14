@@ -1296,7 +1296,7 @@ impl RedisDB {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for RedisDB {
     async fn auto_completion(
-        &self, sql: &str, pos: sqlparser::tokenizer::Location,
+        &self, sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let tokens =
             sqlparser::tokenizer::Tokenizer::new(&RedisDialet {}, sql).tokenize_with_location()?;
@@ -1313,6 +1313,10 @@ impl AutoCompletionTrait for RedisDB {
         if tokens.len() == 0 {
             anyhow::bail!("no tokens");
         }
+        let pos = sqlparser::tokenizer::Location {
+            line: line as u64,
+            column: col as u64,
+        };
         let command = match &tokens[0].token {
             Token::Word(word) => {
                 if in_pos(pos, tokens[0].location, word.value.len() as u64) {

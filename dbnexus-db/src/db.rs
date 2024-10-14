@@ -14,6 +14,7 @@ use serde::Serializer;
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
 
+use crate::completion::AutoCompletionTrait;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLog, QueryLogEvent};
 
@@ -209,7 +210,7 @@ pub enum DropUdfExtraParameter {
     },
 }
 
-fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
+pub(crate) fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
     anyhow::bail!(format!(
         "this backend '{}' don't support this feature",
         name
@@ -219,8 +220,8 @@ fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
 #[derive(Debug, serde::Serialize, TypeDef)]
 pub struct ProcedureDetail {
     // definition of the sql.
-    def: String,
-    metas: Vec<MetaValue>,
+    pub def: String,
+    pub metas: Vec<MetaValue>,
 }
 impl ProcedureDetail {
     pub(crate) fn new(def: String, metas: Vec<MetaValue>) -> Self {
@@ -231,8 +232,8 @@ impl ProcedureDetail {
 #[derive(Debug, serde::Serialize, TypeDef)]
 pub struct UdfDetail {
     // definition of the sql.
-    def: String,
-    metas: Vec<MetaValue>,
+    pub def: String,
+    pub metas: Vec<MetaValue>,
 }
 
 impl UdfDetail {
@@ -241,7 +242,9 @@ impl UdfDetail {
     }
 }
 #[async_trait::async_trait]
-pub trait CatalogTrait: Send + Sync + 'static + QuerySql + FormatSql + CheckConn {
+pub trait CatalogTrait:
+    Send + Sync + 'static + QuerySql + FormatSql + CheckConn + AutoCompletionTrait
+{
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
 }
@@ -363,7 +366,7 @@ pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql {
 }
 
 #[async_trait::async_trait]
-pub trait QuerySql: BackendName + Send + Sync + 'static {
+pub trait QuerySql: BackendName + Send + Sync + 'static + AutoCompletionTrait {
     async fn query_sql(
         &self, query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;

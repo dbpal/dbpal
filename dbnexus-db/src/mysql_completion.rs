@@ -44,15 +44,16 @@ impl MysqlDB {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for MysqlDB {
     async fn auto_completion(
-        &self, sql: &str, pos: sqlparser::tokenizer::Location,
+        &self, sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        DBLexerCompletionBackend::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::MySqlDialect {},
-            pos,
-        )
-        .await
+        // DBLexerCompletionBackend::do_auto_completion(
+        //     self,
+        //     sql,
+        //     &sqlparser::dialect::MySqlDialect {},
+        //     pos,
+        // )
+        // .await
+        unimplemented!()
     }
 }
 

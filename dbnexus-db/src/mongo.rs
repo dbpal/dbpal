@@ -10,11 +10,12 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::completion::{AutoCompletionTrait, CompletionItem};
 use crate::datasource_config::MongoConfig;
 use crate::db::{
-    BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp,
+    not_support_features, BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql,
+    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, SqlExecuteRet, TableListResp,
 };
 use crate::meta_value::MetaValue;
 
@@ -57,7 +58,14 @@ impl BackendName for Mongo {
         "mongo"
     }
 }
-
+#[async_trait::async_trait]
+impl AutoCompletionTrait for Mongo {
+    async fn auto_completion(
+        &self, sql: &str, line: u32, col: u32,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        not_support_features(self.backend_name())
+    }
+}
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {

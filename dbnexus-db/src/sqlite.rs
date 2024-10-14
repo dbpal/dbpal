@@ -15,7 +15,7 @@ use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Row, SqliteConnection, TypeInfo};
 
 use crate::completion::{
-    AutoCompletionTrait, CompletionItem, CompletionKind, DBLexerCompletionBackend,
+    AutoCompletionTrait, CompletionItem, CompletionKind,
     DBListCompletionItem,
 };
 
@@ -1142,15 +1142,16 @@ impl QuerySql for SqliteDB {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for SqliteDB {
     async fn auto_completion(
-        &self, sql: &str, pos: sqlparser::tokenizer::Location,
+        &self, sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        DBLexerCompletionBackend::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::SQLiteDialect {},
-            pos,
-        )
-        .await
+        // DBLexerCompletionBackend::do_auto_completion(
+        //     self,
+        //     sql,
+        //     &sqlparser::dialect::SQLiteDialect {},
+        //     pos,
+        // )
+        // .await
+        unimplemented!()
     }
 }
 

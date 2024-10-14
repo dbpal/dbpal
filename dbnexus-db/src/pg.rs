@@ -13,6 +13,7 @@ use sqlx::postgres::PgRow;
 use sqlx::{Column, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
+use crate::completion::{AutoCompletionTrait, CompletionItem};
 use crate::datasource_config::PGDbConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter,
@@ -1255,6 +1256,15 @@ async fn get_index_kind(
 impl BackendName for PostGresDB {
     fn backend_name(&self) -> &str {
         "postgres"
+    }
+}
+
+#[async_trait::async_trait]
+impl AutoCompletionTrait for PostGresDB {
+    async fn auto_completion(
+        &self, sql: &str, line: u32, col: u32,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        unimplemented!()
     }
 }
 

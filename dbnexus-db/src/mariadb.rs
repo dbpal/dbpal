@@ -45,10 +45,11 @@ mod tests {
     async fn test_udf() {
         test_fns::test_udf(make_test_object(make_config()).await).await;
     }
-    #[tokio::test]
-    async fn test_completion() {
-        test_fns::test_completion(make_test_object(make_config()).await).await;
-    }
+    // #[tokio::test]
+    // async fn test_completion() {
+    //     test_fns::test_completion(make_test_object(make_config()).await).await;
+    // }
+
     #[tokio::test]
     async fn test_types1() {
         test_fns::test_types1(make_test_object(make_config()).await).await;

@@ -15,7 +15,7 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
+use crate::completion::{AutoCompletionTrait, CompletionItem};
 
 use crate::datasource_config::SqlServerDbConfig;
 use crate::db::{
@@ -1622,15 +1622,16 @@ impl crate::db::DBTrait for SqlServer {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for SqlServer {
     async fn auto_completion(
-        &self, sql: &str, pos: sqlparser::tokenizer::Location,
+        &self, _sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        DBLexerCompletionBackend::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::MsSqlDialect {},
-            pos,
-        )
-        .await
+        // DBLexerCompletionBackend::do_auto_completion(
+        //     self,
+        //     sql,
+        //     &sqlparser::dialect::MsSqlDialect {},
+        //     pos,
+        // )
+        // .await
+        unimplemented!()
     }
 }
 

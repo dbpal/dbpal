@@ -585,7 +585,7 @@ pub struct TriggerEnablePostgres {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ShowTriggerReq {
+pub struct CommonriggerReq {
     #[prost(string, tag = "1")]
     pub uuid: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -649,6 +649,153 @@ pub struct UuidAndPattern {
     pub uuid: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub pattern: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExportTableReq {
+    #[prost(string, tag = "1")]
+    pub uuid: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub table_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub filepath: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "4")]
+    pub kind: ::core::option::Option<ExportKind>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExportQueryResultReq {
+    #[prost(string, tag = "1")]
+    pub uuid: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub sql: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub filepath: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "4")]
+    pub kind: ::core::option::Option<ExportKind>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExportKind {
+    #[prost(oneof = "export_kind::Kind", tags = "1, 2, 3, 4")]
+    pub kind: ::core::option::Option<export_kind::Kind>,
+}
+/// Nested message and enum types in `ExportKind`.
+pub mod export_kind {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Kind {
+        #[prost(message, tag = "1")]
+        Csv(super::ExportKindCsv),
+        #[prost(message, tag = "2")]
+        Json(super::ExportKindJson),
+        #[prost(message, tag = "3")]
+        JsonLine(super::ExportKindJsonLine),
+        #[prost(message, tag = "4")]
+        Sql(super::ExportKindSql),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExportKindCsv {
+    #[prost(bool, tag = "1")]
+    pub include_header: bool,
+    /// using string for char representation
+    #[prost(string, tag = "2")]
+    pub delimiter: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExportKindJson {
+    #[prost(bool, tag = "1")]
+    pub pretty: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExportKindJsonLine {}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExportKindSql {
+    #[prost(bool, tag = "1")]
+    pub include_table_schema: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UdfDetail {
+    /// Definition of the SQL.
+    #[prost(string, tag = "1")]
+    pub def: ::prost::alloc::string::String,
+    /// List of MetaValue.
+    #[prost(message, repeated, tag = "2")]
+    pub metas: ::prost::alloc::vec::Vec<MetaValue>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DropUdfExtraParameter {
+    #[prost(oneof = "drop_udf_extra_parameter::ParameterType", tags = "1")]
+    pub parameter_type: ::core::option::Option<drop_udf_extra_parameter::ParameterType>,
+}
+/// Nested message and enum types in `DropUdfExtraParameter`.
+pub mod drop_udf_extra_parameter {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum ParameterType {
+        #[prost(message, tag = "1")]
+        Postgres(super::DropUdfExtraParameterPostGres),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DropUdfExtraParameterPostGres {
+    /// e.g., "a integer, b integer"
+    #[prost(string, tag = "1")]
+    pub parameters: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DropUdfReq {
+    #[prost(string, tag = "1")]
+    pub uuid: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "3")]
+    pub extra: ::core::option::Option<DropUdfExtraParameter>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ProcedureDetail {
+    /// Definition of the SQL.
+    #[prost(string, tag = "1")]
+    pub def: ::prost::alloc::string::String,
+    /// List of MetaValue.
+    #[prost(message, repeated, tag = "2")]
+    pub metas: ::prost::alloc::vec::Vec<MetaValue>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AutoCompletionReq {
+    #[prost(string, tag = "1")]
+    pub uuid: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub sql: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "3")]
+    pub line: u32,
+    #[prost(uint32, tag = "4")]
+    pub col: u32,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AutoCompletionItem {
+    #[prost(string, tag = "1")]
+    pub item: ::prost::alloc::string::String,
+    #[prost(enumeration = "CompletionKind", tag = "2")]
+    pub ck: i32,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AutoCompletionResp {
+    #[prost(message, repeated, tag = "1")]
+    pub items: ::prost::alloc::vec::Vec<AutoCompletionItem>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -774,6 +921,62 @@ impl TriggerEvent {
             "INSERT" => Some(Self::Insert),
             "UPDATE" => Some(Self::Update),
             "DELETE" => Some(Self::Delete),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum CompletionKind {
+    /// Default value for unknown completion kind
+    SchemaName = 0,
+    /// Command used by Redis
+    Command = 1,
+    /// Keyword
+    Keyword = 2,
+    /// Function
+    Function = 3,
+    /// Database name
+    Dbname = 4,
+    /// Table name
+    Tablename = 5,
+    /// Column
+    Column = 6,
+    /// Text
+    Text = 7,
+    /// Type
+    Type = 8,
+}
+impl CompletionKind {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            CompletionKind::SchemaName => "SchemaName",
+            CompletionKind::Command => "COMMAND",
+            CompletionKind::Keyword => "KEYWORD",
+            CompletionKind::Function => "FUNCTION",
+            CompletionKind::Dbname => "DBNAME",
+            CompletionKind::Tablename => "TABLENAME",
+            CompletionKind::Column => "COLUMN",
+            CompletionKind::Text => "TEXT",
+            CompletionKind::Type => "TYPE",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "SchemaName" => Some(Self::SchemaName),
+            "COMMAND" => Some(Self::Command),
+            "KEYWORD" => Some(Self::Keyword),
+            "FUNCTION" => Some(Self::Function),
+            "DBNAME" => Some(Self::Dbname),
+            "TABLENAME" => Some(Self::Tablename),
+            "COLUMN" => Some(Self::Column),
+            "TEXT" => Some(Self::Text),
+            "TYPE" => Some(Self::Type),
             _ => None,
         }
     }
@@ -1720,7 +1923,7 @@ pub mod database_service_client {
         }
         pub async fn export_table(
             &mut self,
-            request: impl tonic::IntoRequest<super::UuidAndName>,
+            request: impl tonic::IntoRequest<super::ExportTableReq>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
             self.inner
                 .ready()
@@ -1786,7 +1989,7 @@ pub mod database_service_client {
         }
         pub async fn show_trigger(
             &mut self,
-            request: impl tonic::IntoRequest<super::ShowTriggerReq>,
+            request: impl tonic::IntoRequest<super::CommonriggerReq>,
         ) -> std::result::Result<tonic::Response<super::TriggerDetail>, tonic::Status> {
             self.inner
                 .ready()
@@ -1804,6 +2007,50 @@ pub mod database_service_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("app.DatabaseService", "ShowTrigger"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn enable_trigger(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CommonriggerReq>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/EnableTrigger",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("app.DatabaseService", "EnableTrigger"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn disable_trigger(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CommonriggerReq>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/DisableTrigger",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("app.DatabaseService", "DisableTrigger"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn rename_table(
@@ -1848,6 +2095,190 @@ pub mod database_service_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("app.DatabaseService", "DuplicateTable"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn export_query_result_to_file(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ExportQueryResultReq>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/ExportQueryResultToFile",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("app.DatabaseService", "ExportQueryResultToFile"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_udf(
+            &mut self,
+            request: impl tonic::IntoRequest<super::OnlyUuidReq>,
+        ) -> std::result::Result<tonic::Response<super::NamedStaffVec>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/ListUdf",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("app.DatabaseService", "ListUdf"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn show_udf(
+            &mut self,
+            request: impl tonic::IntoRequest<super::UuidAndName>,
+        ) -> std::result::Result<tonic::Response<super::UdfDetail>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/ShowUdf",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("app.DatabaseService", "ShowUdf"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn drop_udf(
+            &mut self,
+            request: impl tonic::IntoRequest<super::DropUdfReq>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/DropUdf",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("app.DatabaseService", "DropUdf"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_procedure(
+            &mut self,
+            request: impl tonic::IntoRequest<super::OnlyUuidReq>,
+        ) -> std::result::Result<tonic::Response<super::NamedStaffVec>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/ListProcedure",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("app.DatabaseService", "ListProcedure"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn show_procedure(
+            &mut self,
+            request: impl tonic::IntoRequest<super::UuidAndName>,
+        ) -> std::result::Result<
+            tonic::Response<super::ProcedureDetail>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/ShowProcedure",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("app.DatabaseService", "ShowProcedure"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn drop_procedure(
+            &mut self,
+            request: impl tonic::IntoRequest<super::UuidAndName>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/DropProcedure",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("app.DatabaseService", "DropProcedure"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn do_auto_completion(
+            &mut self,
+            request: impl tonic::IntoRequest<super::AutoCompletionReq>,
+        ) -> std::result::Result<
+            tonic::Response<super::AutoCompletionResp>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/app.DatabaseService/DoAutoCompletion",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("app.DatabaseService", "DoAutoCompletion"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -2590,7 +3021,7 @@ pub mod database_service_server {
         ) -> std::result::Result<tonic::Response<super::UserSettings>, tonic::Status>;
         async fn export_table(
             &self,
-            request: tonic::Request<super::UuidAndName>,
+            request: tonic::Request<super::ExportTableReq>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
         async fn format_sql(
             &self,
@@ -2602,8 +3033,16 @@ pub mod database_service_server {
         ) -> std::result::Result<tonic::Response<super::NamedStaffVec>, tonic::Status>;
         async fn show_trigger(
             &self,
-            request: tonic::Request<super::ShowTriggerReq>,
+            request: tonic::Request<super::CommonriggerReq>,
         ) -> std::result::Result<tonic::Response<super::TriggerDetail>, tonic::Status>;
+        async fn enable_trigger(
+            &self,
+            request: tonic::Request<super::CommonriggerReq>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
+        async fn disable_trigger(
+            &self,
+            request: tonic::Request<super::CommonriggerReq>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
         async fn rename_table(
             &self,
             request: tonic::Request<super::RenameTableReq>,
@@ -2612,6 +3051,41 @@ pub mod database_service_server {
             &self,
             request: tonic::Request<super::DuplicateTableReq>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
+        async fn export_query_result_to_file(
+            &self,
+            request: tonic::Request<super::ExportQueryResultReq>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
+        async fn list_udf(
+            &self,
+            request: tonic::Request<super::OnlyUuidReq>,
+        ) -> std::result::Result<tonic::Response<super::NamedStaffVec>, tonic::Status>;
+        async fn show_udf(
+            &self,
+            request: tonic::Request<super::UuidAndName>,
+        ) -> std::result::Result<tonic::Response<super::UdfDetail>, tonic::Status>;
+        async fn drop_udf(
+            &self,
+            request: tonic::Request<super::DropUdfReq>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
+        async fn list_procedure(
+            &self,
+            request: tonic::Request<super::OnlyUuidReq>,
+        ) -> std::result::Result<tonic::Response<super::NamedStaffVec>, tonic::Status>;
+        async fn show_procedure(
+            &self,
+            request: tonic::Request<super::UuidAndName>,
+        ) -> std::result::Result<tonic::Response<super::ProcedureDetail>, tonic::Status>;
+        async fn drop_procedure(
+            &self,
+            request: tonic::Request<super::UuidAndName>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
+        async fn do_auto_completion(
+            &self,
+            request: tonic::Request<super::AutoCompletionReq>,
+        ) -> std::result::Result<
+            tonic::Response<super::AutoCompletionResp>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct DatabaseServiceServer<T: DatabaseService> {
@@ -3718,7 +4192,7 @@ pub mod database_service_server {
                     struct ExportTableSvc<T: DatabaseService>(pub Arc<T>);
                     impl<
                         T: DatabaseService,
-                    > tonic::server::UnaryService<super::UuidAndName>
+                    > tonic::server::UnaryService<super::ExportTableReq>
                     for ExportTableSvc<T> {
                         type Response = ();
                         type Future = BoxFuture<
@@ -3727,7 +4201,7 @@ pub mod database_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::UuidAndName>,
+                            request: tonic::Request<super::ExportTableReq>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -3854,7 +4328,7 @@ pub mod database_service_server {
                     struct ShowTriggerSvc<T: DatabaseService>(pub Arc<T>);
                     impl<
                         T: DatabaseService,
-                    > tonic::server::UnaryService<super::ShowTriggerReq>
+                    > tonic::server::UnaryService<super::CommonriggerReq>
                     for ShowTriggerSvc<T> {
                         type Response = super::TriggerDetail;
                         type Future = BoxFuture<
@@ -3863,7 +4337,7 @@ pub mod database_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::ShowTriggerReq>,
+                            request: tonic::Request<super::CommonriggerReq>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -3880,6 +4354,98 @@ pub mod database_service_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = ShowTriggerSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/EnableTrigger" => {
+                    #[allow(non_camel_case_types)]
+                    struct EnableTriggerSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::CommonriggerReq>
+                    for EnableTriggerSvc<T> {
+                        type Response = ();
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CommonriggerReq>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                (*inner).enable_trigger(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = EnableTriggerSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/DisableTrigger" => {
+                    #[allow(non_camel_case_types)]
+                    struct DisableTriggerSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::CommonriggerReq>
+                    for DisableTriggerSvc<T> {
+                        type Response = ();
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CommonriggerReq>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                (*inner).disable_trigger(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = DisableTriggerSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -3972,6 +4538,365 @@ pub mod database_service_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = DuplicateTableSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/ExportQueryResultToFile" => {
+                    #[allow(non_camel_case_types)]
+                    struct ExportQueryResultToFileSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::ExportQueryResultReq>
+                    for ExportQueryResultToFileSvc<T> {
+                        type Response = ();
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ExportQueryResultReq>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                (*inner).export_query_result_to_file(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = ExportQueryResultToFileSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/ListUdf" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListUdfSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::OnlyUuidReq> for ListUdfSvc<T> {
+                        type Response = super::NamedStaffVec;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::OnlyUuidReq>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move { (*inner).list_udf(request).await };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = ListUdfSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/ShowUdf" => {
+                    #[allow(non_camel_case_types)]
+                    struct ShowUdfSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::UuidAndName> for ShowUdfSvc<T> {
+                        type Response = super::UdfDetail;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::UuidAndName>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move { (*inner).show_udf(request).await };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = ShowUdfSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/DropUdf" => {
+                    #[allow(non_camel_case_types)]
+                    struct DropUdfSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::DropUdfReq> for DropUdfSvc<T> {
+                        type Response = ();
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::DropUdfReq>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move { (*inner).drop_udf(request).await };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = DropUdfSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/ListProcedure" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListProcedureSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::OnlyUuidReq>
+                    for ListProcedureSvc<T> {
+                        type Response = super::NamedStaffVec;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::OnlyUuidReq>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                (*inner).list_procedure(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = ListProcedureSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/ShowProcedure" => {
+                    #[allow(non_camel_case_types)]
+                    struct ShowProcedureSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::UuidAndName>
+                    for ShowProcedureSvc<T> {
+                        type Response = super::ProcedureDetail;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::UuidAndName>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                (*inner).show_procedure(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = ShowProcedureSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/DropProcedure" => {
+                    #[allow(non_camel_case_types)]
+                    struct DropProcedureSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::UuidAndName>
+                    for DropProcedureSvc<T> {
+                        type Response = ();
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::UuidAndName>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                (*inner).drop_procedure(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = DropProcedureSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/app.DatabaseService/DoAutoCompletion" => {
+                    #[allow(non_camel_case_types)]
+                    struct DoAutoCompletionSvc<T: DatabaseService>(pub Arc<T>);
+                    impl<
+                        T: DatabaseService,
+                    > tonic::server::UnaryService<super::AutoCompletionReq>
+                    for DoAutoCompletionSvc<T> {
+                        type Response = super::AutoCompletionResp;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::AutoCompletionReq>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                (*inner).do_auto_completion(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = DoAutoCompletionSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
