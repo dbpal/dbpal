@@ -504,7 +504,7 @@ impl dyn SchemaTrait {
                 if f.is_none() {
                     anyhow::bail!("field  '{}' not found", k);
                 }
-                if contains_pri && !f.unwrap().is_auto_increment {
+                if contains_pri && !f.unwrap().is_primary {
                     continue;
                 }
                 sql.push_str(
@@ -551,6 +551,7 @@ impl dyn SchemaTrait {
                 if f.is_none() {
                     anyhow::bail!("field '{}' not found", k);
                 }
+
                 sql.push_str(
                     format!(
                         "{} = {}",
@@ -571,6 +572,9 @@ impl dyn SchemaTrait {
                 let f = field_by_name.get(k);
                 if f.is_none() {
                     anyhow::bail!("field  '{}' not found", k);
+                }
+                if contains_pri && !f.unwrap().is_primary {
+                    continue;
                 }
                 sql.push_str(
                     format!(

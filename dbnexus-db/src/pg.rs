@@ -1262,7 +1262,7 @@ impl BackendName for PostGresDB {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for PostGresDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self, _sql: &str, _line: u32, _col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         unimplemented!()
     }
@@ -1920,9 +1920,10 @@ mod tests {
         values.insert("int2_column".to_string(), Some("2".to_string()));
         values.insert("int4_column".to_string(), Some("100".to_string()));
         pg.insert(table_name, values.clone()).await.unwrap();
-        let mut wheres = HashMap::new();
+        let mut wheres = values.clone();
         wheres.insert("id".to_string(), Some("1".to_string()));
-        pg.update(table_name, values, wheres).await.unwrap();
+        let update_ret = pg.update(table_name, values, wheres).await.unwrap();
+        println!("update ret:{:?}", update_ret);
         let x = pg
             .show_table("test_types1", None, None, 1, 100)
             .await

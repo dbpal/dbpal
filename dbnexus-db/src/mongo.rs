@@ -61,7 +61,7 @@ impl BackendName for Mongo {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for Mongo {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self, _sql: &str, _line: u32, _col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         not_support_features(self.backend_name())
     }

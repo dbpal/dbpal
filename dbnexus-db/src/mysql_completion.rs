@@ -44,7 +44,7 @@ impl MysqlDB {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for MysqlDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self, _sql: &str, _line: u32, _col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         // DBLexerCompletionBackend::do_auto_completion(
         //     self,
