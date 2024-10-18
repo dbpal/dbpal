@@ -439,8 +439,6 @@ service DatabaseService {
   rpc DropView(UuidAndName) returns (google.protobuf.Empty);
   rpc DropTable(UuidAndName) returns (google.protobuf.Empty);
   rpc ShowView(TableViewListReq) returns (TableListResp);
-  rpc OpenSchema(UuidAndName) returns (google.protobuf.Empty);
-  rpc OpenDB(UuidAndName) returns (google.protobuf.Empty);
   rpc OpenedKind(OnlyUuidReq) returns (OpendKindResp);
   rpc QuerySql(QuerySqlReq) returns (QuerySqlResp);
   rpc QuerySqlOpenConnection(OnlyUuidReq) returns (StringResp);

@@ -350,51 +350,6 @@ impl DatabaseService for DatabaseServiceImpl {
         Ok(Response::new(resp.into()))
     }
 
-    async fn open_schema(
-        &self, request: tonic::Request<UuidAndName>,
-    ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
-        let request = request.into_inner();
-        let open = self
-            .app
-            .get_opened(&request.uuid)
-            .await
-            .map_err(anyhow_error_to_status)?;
-
-        match open {
-            Open::DataBase(arc) => {
-                arc.open_schema(&request.name)
-                    .await
-                    .map_err(anyhow_error_to_status)?;
-            }
-            _ => {
-                return Err(Status::new(Code::InvalidArgument, "this is not a database"));
-            }
-        }
-
-        Ok(Response::new(()))
-    }
-    async fn open_db(
-        &self, request: tonic::Request<UuidAndName>,
-    ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
-        let request = request.into_inner();
-        let open = self
-            .app
-            .get_opened(&request.uuid)
-            .await
-            .map_err(anyhow_error_to_status)?;
-
-        match open {
-            Open::Catalog(arc) => {
-                arc.open_db(&request.name)
-                    .await
-                    .map_err(anyhow_error_to_status)?;
-            }
-            _ => {
-                return Err(Status::new(Code::InvalidArgument, "this is not a catalog"));
-            }
-        }
-        Ok(Response::new(()))
-    }
     async fn opened_kind(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<OpendKindResp>, tonic::Status> {
@@ -880,7 +835,7 @@ fn anyhow_error_to_status(err: anyhow::Error) -> Status {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let addr = "[::1]:50051".parse()?;
+    let addr = "127.0.0.1:50051".parse()?;
     let my_service = MyServiceImpl::default();
     let loader: Arc<dyn DbConfigLoader> = Arc::new(FileJsonSaver::new("dbnexus.json").unwrap());
     let app = App::new(loader);

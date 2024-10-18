@@ -1717,50 +1717,6 @@ pub mod database_service_client {
                 .insert(GrpcMethod::new("app.DatabaseService", "ShowView"));
             self.inner.unary(req, path, codec).await
         }
-        pub async fn open_schema(
-            &mut self,
-            request: impl tonic::IntoRequest<super::UuidAndName>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/app.DatabaseService/OpenSchema",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("app.DatabaseService", "OpenSchema"));
-            self.inner.unary(req, path, codec).await
-        }
-        pub async fn open_db(
-            &mut self,
-            request: impl tonic::IntoRequest<super::UuidAndName>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/app.DatabaseService/OpenDB",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("app.DatabaseService", "OpenDB"));
-            self.inner.unary(req, path, codec).await
-        }
         pub async fn opened_kind(
             &mut self,
             request: impl tonic::IntoRequest<super::OnlyUuidReq>,
@@ -2983,14 +2939,6 @@ pub mod database_service_server {
             &self,
             request: tonic::Request<super::TableViewListReq>,
         ) -> std::result::Result<tonic::Response<super::TableListResp>, tonic::Status>;
-        async fn open_schema(
-            &self,
-            request: tonic::Request<super::UuidAndName>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
-        async fn open_db(
-            &self,
-            request: tonic::Request<super::UuidAndName>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
         async fn opened_kind(
             &self,
             request: tonic::Request<super::OnlyUuidReq>,
@@ -3772,93 +3720,6 @@ pub mod database_service_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = ShowViewSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/app.DatabaseService/OpenSchema" => {
-                    #[allow(non_camel_case_types)]
-                    struct OpenSchemaSvc<T: DatabaseService>(pub Arc<T>);
-                    impl<
-                        T: DatabaseService,
-                    > tonic::server::UnaryService<super::UuidAndName>
-                    for OpenSchemaSvc<T> {
-                        type Response = ();
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::UuidAndName>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move { (*inner).open_schema(request).await };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let inner = inner.0;
-                        let method = OpenSchemaSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/app.DatabaseService/OpenDB" => {
-                    #[allow(non_camel_case_types)]
-                    struct OpenDBSvc<T: DatabaseService>(pub Arc<T>);
-                    impl<
-                        T: DatabaseService,
-                    > tonic::server::UnaryService<super::UuidAndName> for OpenDBSvc<T> {
-                        type Response = ();
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::UuidAndName>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move { (*inner).open_db(request).await };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let inner = inner.0;
-                        let method = OpenDBSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

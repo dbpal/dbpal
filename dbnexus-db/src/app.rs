@@ -460,6 +460,74 @@ impl App {
     }
 
     pub async fn get_schema(&self, uuid: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
+        if !self.opens.lock().await.contains_key(uuid) {
+            let db_uuids: Vec<_> = uuid.split("~").collect();
+            match db_uuids.len() {
+                1 => {
+                    // nothing
+                    // the frontend should open database
+                    // for themself.
+                }
+                2 => {
+                    // trying to open
+                    match self.get_opened(db_uuids[0]).await? {
+                        Open::Catalog(c) => {
+                            let db = c.open_db(db_uuids[1]).await?;
+                            self.opens.lock().await.insert(
+                                format!("{}~{}", db_uuids[0], db_uuids[1]),
+                                Open::DataBase(db),
+                            );
+                        }
+                        Open::DataBase(d) => {
+                            let s = d.open_schema(db_uuids[1]).await?;
+                            self.opens.lock().await.insert(
+                                format!("{}~{}", db_uuids[0], db_uuids[1]),
+                                Open::Schema(s),
+                            );
+                        }
+                        _ => anyhow::bail!("already a schema not a nest struct."),
+                    }
+                }
+
+                3 => {
+                    let db_uuid = format!("{}~{}", db_uuids[0], db_uuids[1]);
+                    match self.get_opened(db_uuids[0]).await? {
+                        Open::Catalog(c) => {
+                            if self.opens.lock().await.contains_key(&db_uuid) {
+                                match self.get_opened(&db_uuid).await? {
+                                    Open::DataBase(db) => {
+                                        let schema = db.open_schema(db_uuids[2]).await?;
+                                        self.opens
+                                            .lock()
+                                            .await
+                                            .insert(uuid.to_string(), Open::Schema(schema));
+                                    }
+                                    _ => anyhow::bail!("this should a database"),
+                                }
+                            } else {
+                                let db = c.open_db(db_uuids[1]).await?;
+                                self.opens
+                                    .lock()
+                                    .await
+                                    .insert(db_uuid, Open::DataBase(db.clone()));
+                                let schema = db.open_schema(db_uuids[2]).await?;
+                                self.opens
+                                    .lock()
+                                    .await
+                                    .insert(uuid.to_string(), Open::Schema(schema));
+                            }
+                        }
+                        _ => {
+                            anyhow::bail!("must be a catalog open")
+                        }
+                    }
+                }
+                _ => {
+                    unreachable!()
+                }
+            }
+        }
+
         match self.get_opened(uuid).await? {
             Open::Schema(x) => anyhow::Ok(x.clone()),
             _ => anyhow::bail!(format!("this '{}' a multi", uuid)),

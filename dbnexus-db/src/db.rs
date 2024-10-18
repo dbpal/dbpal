@@ -10,7 +10,6 @@ use std::time::Duration;
 use chrono::{DateTime, FixedOffset};
 
 use serde::Serializer;
-
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
 
@@ -481,6 +480,12 @@ impl dyn SchemaTrait {
         for f in fs.iter() {
             field_by_name.insert(&f.name, f);
         }
+
+        // if contains primary key should use primary key to delete
+        // otherwise should use all value
+        // to delete.
+        let contains_pri = fs.iter().any(|x| x.is_primary);
+
         let mut sql = format!(
             "DELETE FROM {}{table_name} WHERE ",
             if let Some(schema) = schema {
@@ -489,24 +494,30 @@ impl dyn SchemaTrait {
                 "".to_string()
             }
         );
+
         {
-            let last = wheres.len() - 1;
-            for (index, (k, v)) in wheres.iter().enumerate() {
+            let mut first = true;
+            for (k, v) in wheres.iter() {
                 let f = field_by_name.get(k);
+                let f = f.map(|x| *x);
+
                 if f.is_none() {
                     anyhow::bail!("field  '{}' not found", k);
                 }
+                if contains_pri && !f.unwrap().is_auto_increment {
+                    continue;
+                }
                 sql.push_str(
                     format!(
-                        "{} = {}",
+                        "{} {} = {}",
+                        if !first { "AND" } else { "" },
                         k,
-                        self.put_value_in_sql(*f.unwrap(), v.as_ref().map(|x| x.as_str()))?
+                        self.put_value_in_sql(f.unwrap(), v.as_ref().map(|x| x.as_str()))?
                     )
                     .as_str(),
                 );
-                if index != last {
-                    sql.push_str(" AND ")
-                }
+
+                first = false;
             }
         }
         log::info!("delete sql:{}", sql);
@@ -523,6 +534,8 @@ impl dyn SchemaTrait {
         for f in fs.iter() {
             field_by_name.insert(&f.name, f);
         }
+        let contains_pri = fs.iter().any(|x| x.is_primary);
+
         let mut sql = format!(
             "UPDATE {}{table_name} SET ",
             if let Some(schema) = schema {
@@ -553,23 +566,22 @@ impl dyn SchemaTrait {
         }
         sql.push_str(" WHERE ");
         {
-            let last = wheres.len() - 1;
-            for (index, (k, v)) in wheres.iter().enumerate() {
+            let mut first = true;
+            for (k, v) in wheres.iter() {
                 let f = field_by_name.get(k);
                 if f.is_none() {
                     anyhow::bail!("field  '{}' not found", k);
                 }
                 sql.push_str(
                     format!(
-                        "{} = {}",
+                        "{} {} = {}",
+                        if !first { "AND" } else { "" },
                         k,
                         self.put_value_in_sql(*f.unwrap(), v.as_ref().map(|x| x.as_str()))?
                     )
                     .as_str(),
                 );
-                if index != last {
-                    sql.push_str(" ABD ")
-                }
+                first = false;
             }
         }
         log::info!("update sql:{}", sql);

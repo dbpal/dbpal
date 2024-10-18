@@ -192,16 +192,6 @@ pub async fn show_view(
 }
 
 #[tauri::command]
-pub async fn open_schema(
-    uuid: String, db_name: String, app: tauri::State<'_, App>,
-) -> Result<(), AnyhowErrorFrontend> {
-    app.open_schema(uuid.as_str(), db_name.as_str())
-        .await
-        .map(|_| ())
-        .map_err(AnyhowErrorFrontend::from)
-}
-
-#[tauri::command]
 pub async fn opened_kind(
     uuid: String, app: tauri::State<'_, App>,
 ) -> Result<OpendKind, AnyhowErrorFrontend> {
@@ -211,16 +201,6 @@ pub async fn opened_kind(
         .map_err(AnyhowErrorFrontend::from)?
         .get_open_kind();
     Ok(kind)
-}
-
-#[tauri::command]
-pub async fn open_db(
-    uuid: String, db_name: String, app: tauri::State<'_, App>,
-) -> Result<(), AnyhowErrorFrontend> {
-    app.open_db(uuid.as_str(), db_name.as_str())
-        .await
-        .map(|_| ())
-        .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
