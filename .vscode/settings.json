@@ -23,5 +23,8 @@
   "http.proxy": "http://127.0.0.1:7890",
   "https.proxy": "https://127.0.0.1:7890",
   "http.proxyStrictSSL": false,
-  "rust-analyzer.checkOnSave": true
+  "rust-analyzer.checkOnSave": true,
+  "rust-analyzer.cargo.features": [
+    "random-sleep"
+  ]
 }

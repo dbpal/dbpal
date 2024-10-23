@@ -42,6 +42,6 @@ bson = "*"
 humantime = "*"
 humansize = "*"
 memory-stats = "1.2.0"
-
+rand = "*"
 
 [dev-dependencies]

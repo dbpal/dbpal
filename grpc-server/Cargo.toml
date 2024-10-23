@@ -17,3 +17,6 @@ uuid.workspace = true
 anyhow.workspace = true
 bytes = "*"
 env_logger.workspace = true
+
+[features]
+random-sleep = []

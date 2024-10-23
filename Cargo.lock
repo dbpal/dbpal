@@ -1050,6 +1050,7 @@ dependencies = [
  "mongodb",
  "oracle",
  "pg_interval",
+ "rand 0.7.3",
  "redis",
  "rust_decimal",
  "serde",

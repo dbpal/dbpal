@@ -28,7 +28,6 @@ pub mod sql_server;
 pub mod sql_server_completion;
 pub mod sqlite;
 pub mod typedef;
-
 lazy_static! {
     static ref TEST_HOST: String =
         std::env::var("NEXUS_TEST_HOST").unwrap_or("127.0.0.1".to_string());
@@ -94,4 +93,16 @@ impl MemoryLimit {
             Ok(())
         }
     }
+}
+
+pub async fn random_sleep_impl() {
+    let duration = {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let millis = rng.gen_range(500, 3000);
+        let duration = std::time::Duration::from_millis(millis);
+        duration
+    };
+
+    tokio::time::sleep(duration).await
 }

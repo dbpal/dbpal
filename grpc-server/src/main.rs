@@ -55,6 +55,8 @@ impl ConfigService for ConfigServiceImpl {
     async fn add(
         &self, request: Request<DbConnectionConfig>,
     ) -> Result<Response<AddConfigResp>, Status> {
+        random_sleep().await;
+
         let request: DbConnectionConfig = request.into_inner();
         let id = uuid::Uuid::new_v4();
         self.app
@@ -68,6 +70,7 @@ impl ConfigService for ConfigServiceImpl {
     async fn update(
         &self, request: tonic::Request<UpdateConfig>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         self.app
             .update_config(&request.uuid, request.config.clone().unwrap().into())
@@ -80,6 +83,7 @@ impl ConfigService for ConfigServiceImpl {
     async fn del(
         &self, request: tonic::Request<DelConfigReq>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         self.app
             .delete_config(&request.uuid)
@@ -90,6 +94,7 @@ impl ConfigService for ConfigServiceImpl {
     async fn list_all(
         &self, _request: tonic::Request<()>,
     ) -> std::result::Result<tonic::Response<ListAllConfigResp>, tonic::Status> {
+        random_sleep().await;
         let resp = self
             .app
             .loader
@@ -102,6 +107,7 @@ impl ConfigService for ConfigServiceImpl {
     async fn open(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         self.app
             .open(&request.uuid)
@@ -112,6 +118,7 @@ impl ConfigService for ConfigServiceImpl {
     async fn test_conn(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<TestConnResp>, tonic::Status> {
+        random_sleep().await;
         let request: OnlyUuidReq = request.into_inner();
         let ping_value = match self
             .app
@@ -147,6 +154,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn list_table(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<ListTableResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let resp = self
             .app
@@ -162,6 +170,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn redis_list_table(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<RedisListTableResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let resp = self
             .app
@@ -174,6 +183,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn redis_match_keys(
         &self, request: tonic::Request<UuidAndPattern>,
     ) -> std::result::Result<tonic::Response<RedisMatchKeysResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let resp = self
             .app
@@ -185,6 +195,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn show_columns(
         &self, request: tonic::Request<UuidAndName>,
     ) -> std::result::Result<tonic::Response<ShowColumnsResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let resp = self
             .app
@@ -200,6 +211,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn show_talbe(
         &self, request: tonic::Request<TableViewListReq>,
     ) -> std::result::Result<tonic::Response<TableListResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let resp = self
             .app
@@ -219,6 +231,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn show_index(
         &self, request: tonic::Request<UuidAndName>,
     ) -> std::result::Result<tonic::Response<ShowIndexResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let resp = self
             .app
@@ -233,6 +246,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn insert(
         &self, request: tonic::Request<InsertReq>,
     ) -> std::result::Result<tonic::Response<SqlExecuteRet>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let InsertReq {
             uuid,
@@ -251,6 +265,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn update(
         &self, request: tonic::Request<UpdateReq>,
     ) -> std::result::Result<tonic::Response<SqlExecuteRet>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let UpdateReq {
             uuid,
@@ -273,6 +288,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn truncate_table(
         &self, request: tonic::Request<UuidAndName>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let resp = self
             .app
@@ -284,6 +300,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn delete(
         &self, request: tonic::Request<DeleteReq>,
     ) -> std::result::Result<tonic::Response<SqlExecuteRet>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let DeleteReq {
             uuid,
@@ -301,6 +318,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn list_view(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<NamedStaffVec>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let resp = self
             .app
@@ -312,6 +330,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn drop_view(
         &self, request: tonic::Request<UuidAndName>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         self.app
             .drop_view(&request.uuid, &request.name)
@@ -323,6 +342,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn drop_table(
         &self, request: tonic::Request<UuidAndName>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         self.app
             .drop_table(&request.uuid, &request.name)
@@ -334,6 +354,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn show_view(
         &self, request: tonic::Request<TableViewListReq>,
     ) -> std::result::Result<tonic::Response<TableListResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let resp = self
             .app
@@ -353,6 +374,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn opened_kind(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<OpendKindResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -368,6 +390,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn query_sql(
         &self, request: tonic::Request<QuerySqlReq>,
     ) -> std::result::Result<tonic::Response<QuerySqlResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -405,6 +428,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn query_sql_open_connection(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<StringResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -433,6 +457,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn query_sql_close_connection(
         &self, request: tonic::Request<UuidAndQueryId>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -461,6 +486,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn query_sql_close_re_connection(
         &self, request: tonic::Request<UuidAndQueryId>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -489,6 +515,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn save_user_settings(
         &self, request: tonic::Request<UserSettings>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         self.app
             .loader
@@ -501,6 +528,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn get_user_settings(
         &self, _request: tonic::Request<()>,
     ) -> std::result::Result<tonic::Response<UserSettings>, tonic::Status> {
+        random_sleep().await;
         let resp = self
             .app
             .loader
@@ -513,6 +541,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn export_table(
         &self, request: tonic::Request<ExportTableReq>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -537,6 +566,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn format_sql(
         &self, request: tonic::Request<FormatSqlReq>,
     ) -> std::result::Result<tonic::Response<StringResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -554,6 +584,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn list_trigger(
         &self, request: tonic::Request<UuidAndName>,
     ) -> std::result::Result<tonic::Response<NamedStaffVec>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -571,6 +602,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn show_trigger(
         &self, request: tonic::Request<CommonriggerReq>,
     ) -> std::result::Result<tonic::Response<TriggerDetail>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -588,6 +620,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn enable_trigger(
         &self, request: tonic::Request<CommonriggerReq>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -605,6 +638,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn disable_trigger(
         &self, request: tonic::Request<CommonriggerReq>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
         let open = self
             .app
@@ -622,6 +656,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn rename_table(
         &self, request: tonic::Request<RenameTableReq>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -640,6 +675,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn duplicate_table(
         &self, request: tonic::Request<DuplicateTableReq>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -658,6 +694,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn export_query_result_to_file(
         &self, request: tonic::Request<ExportQueryResultReq>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -682,6 +719,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn list_udf(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<NamedStaffVec>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -700,6 +738,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn show_udf(
         &self, request: tonic::Request<UuidAndName>,
     ) -> std::result::Result<tonic::Response<UdfDetail>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -717,6 +756,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn drop_udf(
         &self, request: tonic::Request<DropUdfReq>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -738,6 +778,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn list_procedure(
         &self, request: tonic::Request<OnlyUuidReq>,
     ) -> std::result::Result<tonic::Response<NamedStaffVec>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -755,6 +796,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn show_procedure(
         &self, request: tonic::Request<UuidAndName>,
     ) -> std::result::Result<tonic::Response<ProcedureDetail>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -772,6 +814,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn drop_procedure(
         &self, request: tonic::Request<UuidAndName>,
     ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -790,6 +833,7 @@ impl DatabaseService for DatabaseServiceImpl {
     async fn do_auto_completion(
         &self, request: tonic::Request<AutoCompletionReq>,
     ) -> std::result::Result<tonic::Response<AutoCompletionResp>, tonic::Status> {
+        random_sleep().await;
         let request = request.into_inner();
 
         let open = self
@@ -852,4 +896,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     Ok(())
+}
+
+async fn random_sleep() {
+    #[cfg(feature = "random-sleep")]
+    dbnexus_db::random_sleep_impl().await
 }
