@@ -83,10 +83,8 @@ function MainListItems() {
 export const secondaryListItems = (
   <React.Fragment>
 
-    <ListItemButton>
-      <ListItemIcon>
-        <Airplay />
-      </ListItemIcon>
+    <ListItemButton sx={{ pl: 4 }}>
+
       <Grid>
         <ListItemText primary="MySQL" />
         <ListItemText secondary="localhost:3660" />
@@ -94,20 +92,18 @@ export const secondaryListItems = (
 
     </ListItemButton>
 
-    <ListItemButton>
-      <ListItemIcon>
-        <Airplay />
-      </ListItemIcon>
+    <ListItemButton sx={{ pl: 4 }}>
+
       <Grid>
         <ListItemText primary="MySQL" />
         <ListItemText secondary="localhost:3660" />
       </Grid>
     </ListItemButton>
 
-    <ListItemButton>
-      <ListItemIcon>
+    <ListItemButton sx={{ pl: 4 }}>
+      {/* <ListItemIcon>
         <Airplay />
-      </ListItemIcon>
+      </ListItemIcon> */}
       <Grid>
         <ListItemText primary="MySQL" />
         <ListItemText secondary="localhost:3660" />

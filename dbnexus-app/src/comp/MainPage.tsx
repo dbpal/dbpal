@@ -12,33 +12,20 @@ import IconButton from '@mui/material/IconButton';
 import Badge from '@mui/material/Badge';
 import Container from '@mui/material/Container';
 import Grid from '@mui/material/Grid';
-import Paper from '@mui/material/Paper';
 import Link from '@mui/material/Link';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import MainListItems, { secondaryListItems } from './listItems';
-import Chart from './Chart';
-import Deposits from './Deposits';
-import Orders from './Orders';
+import MainListItems, { secondaryListItems } from './List';
 import NavBar from './Nav';
 import DatabaseConnectionForm from './DatabaseConnectionForm';
 import { darkTheme } from './theme';
 import { useState } from 'react';
 import { Switch } from '@mui/material';
-
-function Copyright(props: any) {
-  return (
-    <Typography variant="body2" color="text.secondary" align="center" {...props}>
-      {'Copyright © '}
-      <Link color="inherit" href="https://mui.com/">
-        Your Website
-      </Link>{' '}
-      {new Date().getFullYear()}
-      {'.'}
-    </Typography>
-  );
-}
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import DatabaseTable from './DatabaseTable';
+import { WidthFull } from '@mui/icons-material';
+import DataList from './DataList';
 
 const drawerWidth: number = 240;
 
@@ -48,55 +35,47 @@ interface AppBarProps extends MuiAppBarProps {
 
 const AppBar = styled(MuiAppBar, {
   shouldForwardProp: (prop) => prop !== 'open',
-})<AppBarProps>(({ theme, open }) => ({
+})(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
-  transition: theme.transitions.create(['width', 'margin'], {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
-  ...(open && {
-    marginLeft: drawerWidth,
-    width: `calc(100% - ${drawerWidth}px)`,
-    transition: theme.transitions.create(['width', 'margin'], {
+}));
+
+const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(({ theme }) => ({
+  '& .MuiDrawer-paper': {
+    position: 'fixed',
+    whiteSpace: 'nowrap',
+    width: drawerWidth,
+    transition: theme.transitions.create('width', {
       easing: theme.transitions.easing.sharp,
       duration: theme.transitions.duration.enteringScreen,
     }),
-  }),
+    boxSizing: 'border-box',
+  },
 }));
 
-const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(
-  ({ theme, open }) => ({
-    '& .MuiDrawer-paper': {
-      position: 'relative',
-      whiteSpace: 'nowrap',
-      width: drawerWidth,
-      transition: theme.transitions.create('width', {
-        easing: theme.transitions.easing.sharp,
-        duration: theme.transitions.duration.enteringScreen,
-      }),
-      boxSizing: 'border-box',
-      ...(!open && {
-        overflowX: 'hidden',
-        transition: theme.transitions.create('width', {
-          easing: theme.transitions.easing.sharp,
-          duration: theme.transitions.duration.leavingScreen,
-        }),
-        width: theme.spacing(7),
-        [theme.breakpoints.up('sm')]: {
-          width: theme.spacing(9),
-        },
-      }),
-    },
-  }),
-);
+function MainWindow() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<DatabaseConnectionForm />} />
+        <Route path="/database" element={<DatabaseTable />} />
+      </Routes>
+    </Router>
+  );
+}
 
-// TODO remove, this demo shouldn't need to reset the theme.
-
-
-export default function Dashboard() {
+export default function MainPage() {
   const [open, setOpen] = React.useState(true);
   const toggleDrawer = () => {
     setOpen(!open);
+  };
+
+
+  const renderDrawerContent = () => {
+    if (location.pathname === "/database") {
+      return { DataList };
+    } else {
+      return { secondaryListItems };
+    }
   };
 
   const lightTheme = createTheme();
@@ -114,8 +93,7 @@ export default function Dashboard() {
       <Box sx={{ display: 'flex' }}>
         <CssBaseline />
 
-
-        <AppBar position="absolute" open={open}>
+        <AppBar position="absolute">
           <Toolbar
             sx={{
               pr: '25px', // keep right padding when drawer closed
@@ -138,7 +116,8 @@ export default function Dashboard() {
             <Typography
               component="h1"
               variant="h6"
-              sx={{ ml: 1, mr: 3 }}
+              align='left'
+              sx={{ width: "240px", ml: 1, mr: 3 }}
             >
               bdnexus
             </Typography>
@@ -177,7 +156,7 @@ export default function Dashboard() {
           </Toolbar>
         </AppBar>
 
-        <Drawer variant="permanent" open={open}>
+        <Drawer sx={{ width: "240px" }} variant="permanent" open={open}>
           <Toolbar
             sx={{
               display: 'flex',
@@ -190,15 +169,16 @@ export default function Dashboard() {
               <ChevronLeftIcon />
             </IconButton>
           </Toolbar>
-          <Divider />
+
           <List component="nav">
             {
             /* <MainListItems>
             </MainListItems> 
             <Divider sx={{ my: 1 }} />
             */}
-
-            {secondaryListItems}
+            {
+              location.pathname === "/database" ? <DataList></DataList> : secondaryListItems
+            }
           </List>
         </Drawer>
 
@@ -219,8 +199,7 @@ export default function Dashboard() {
           <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Grid container spacing={3} sx={{ justifyContent: 'center' }}>
 
-              <DatabaseConnectionForm
-              ></DatabaseConnectionForm>
+              <MainWindow></MainWindow>
 
               {/* Chart */}
               {/* <Grid item xs={12} md={8} lg={9}>
