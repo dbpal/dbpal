@@ -25,16 +25,16 @@ function MainListItems() {
   };
 
   return (
-    <React.Fragment >
+    <React.Fragment>
       <ListItemButton
-        aria-controls="files"
-        aria-haspopup="true"
+        aria-controls='files'
+        aria-haspopup='true'
         onClick={handleClick}
       >
-        <ListItemText primary="Files" />
+        <ListItemText primary='Files' />
       </ListItemButton>
       <Menu
-        id="files"
+        id='files'
         anchorEl={anchorEl}
         keepMounted
         open={open}
@@ -56,47 +56,43 @@ function MainListItems() {
         <ListItemIcon>
           <ShoppingCartIcon />
         </ListItemIcon>
-        <ListItemText primary="Edit" />
+        <ListItemText primary='Edit' />
       </ListItemButton>
       <ListItemButton>
         <ListItemIcon>
           <PeopleIcon />
         </ListItemIcon>
-        <ListItemText primary="View" />
+        <ListItemText primary='View' />
       </ListItemButton>
       <ListItemButton>
         <ListItemIcon>
           <BarChartIcon />
         </ListItemIcon>
-        <ListItemText primary="Tools" />
+        <ListItemText primary='Tools' />
       </ListItemButton>
       <ListItemButton>
         <ListItemIcon>
           <LayersIcon />
         </ListItemIcon>
-        <ListItemText primary="Help" />
+        <ListItemText primary='Help' />
       </ListItemButton>
-    </React.Fragment >
-  )
+    </React.Fragment>
+  );
 }
 
 export const secondaryListItems = (
   <React.Fragment>
-
     <ListItemButton sx={{ pl: 4 }}>
-
       <Grid>
-        <ListItemText primary="MySQL" />
-        <ListItemText secondary="localhost:3660" />
+        <ListItemText primary='MySQL' />
+        <ListItemText secondary='localhost:3660' />
       </Grid>
-
     </ListItemButton>
 
     <ListItemButton sx={{ pl: 4 }}>
-
       <Grid>
-        <ListItemText primary="MySQL" />
-        <ListItemText secondary="localhost:3660" />
+        <ListItemText primary='MySQL' />
+        <ListItemText secondary='localhost:3660' />
       </Grid>
     </ListItemButton>
 
@@ -105,8 +101,8 @@ export const secondaryListItems = (
         <Airplay />
       </ListItemIcon> */}
       <Grid>
-        <ListItemText primary="MySQL" />
-        <ListItemText secondary="localhost:3660" />
+        <ListItemText primary='MySQL' />
+        <ListItemText secondary='localhost:3660' />
       </Grid>
     </ListItemButton>
   </React.Fragment>

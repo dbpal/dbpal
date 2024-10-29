@@ -39,7 +39,9 @@ const AppBar = styled(MuiAppBar, {
   zIndex: theme.zIndex.drawer + 1,
 }));
 
-const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(({ theme }) => ({
+const Drawer = styled(MuiDrawer, {
+  shouldForwardProp: (prop) => prop !== 'open',
+})(({ theme }) => ({
   '& .MuiDrawer-paper': {
     position: 'fixed',
     whiteSpace: 'nowrap',
@@ -56,8 +58,8 @@ function MainWindow() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<DatabaseConnectionForm />} />
-        <Route path="/database" element={<DatabaseTable />} />
+        <Route path='/' element={<DatabaseConnectionForm />} />
+        <Route path='/database' element={<DatabaseTable />} />
       </Routes>
     </Router>
   );
@@ -69,9 +71,8 @@ export default function MainPage() {
     setOpen(!open);
   };
 
-
   const renderDrawerContent = () => {
-    if (location.pathname === "/database") {
+    if (location.pathname === '/database') {
       return { DataList };
     } else {
       return { secondaryListItems };
@@ -93,17 +94,16 @@ export default function MainPage() {
       <Box sx={{ display: 'flex' }}>
         <CssBaseline />
 
-        <AppBar position="absolute">
+        <AppBar position='absolute'>
           <Toolbar
             sx={{
               pr: '25px', // keep right padding when drawer closed
             }}
           >
-
             <IconButton
-              edge="start"
-              color="inherit"
-              aria-label="open drawer"
+              edge='start'
+              color='inherit'
+              aria-label='open drawer'
               onClick={toggleDrawer}
               sx={{
                 marginRight: '36px',
@@ -114,21 +114,20 @@ export default function MainPage() {
             </IconButton>
 
             <Typography
-              component="h1"
-              variant="h6"
+              component='h1'
+              variant='h6'
               align='left'
-              sx={{ width: "240px", ml: 1, mr: 3 }}
+              sx={{ width: '240px', ml: 1, mr: 3 }}
             >
               bdnexus
             </Typography>
 
-            <NavBar>
-            </NavBar>
+            <NavBar></NavBar>
 
             <Switch
               checked={isDarkMode}
               onChange={toggleTheme}
-              color="primary"
+              color='primary'
               sx={{
                 '& .MuiSwitch-track': {
                   backgroundColor: isDarkMode ? 'grey.800' : 'grey.300',
@@ -140,23 +139,22 @@ export default function MainPage() {
             />
 
             <Typography
-              component="h1"
-              variant="h6"
-              color="inherit"
+              component='h1'
+              variant='h6'
+              color='inherit'
               noWrap
               sx={{ flexGrow: 1 }}
-            >
-            </Typography>
+            ></Typography>
 
-            <IconButton color="inherit">
-              <Badge badgeContent={4} color="secondary">
+            <IconButton color='inherit'>
+              <Badge badgeContent={4} color='secondary'>
                 <NotificationsIcon />
               </Badge>
             </IconButton>
           </Toolbar>
         </AppBar>
 
-        <Drawer sx={{ width: "240px" }} variant="permanent" open={open}>
+        <Drawer sx={{ width: '240px' }} variant='permanent' open={open}>
           <Toolbar
             sx={{
               display: 'flex',
@@ -170,20 +168,21 @@ export default function MainPage() {
             </IconButton>
           </Toolbar>
 
-          <List component="nav">
-            {
-            /* <MainListItems>
+          <List component='nav'>
+            {/* <MainListItems>
             </MainListItems> 
             <Divider sx={{ my: 1 }} />
             */}
-            {
-              location.pathname === "/database" ? <DataList></DataList> : secondaryListItems
-            }
+            {location.pathname === '/database' ? (
+              <DataList></DataList>
+            ) : (
+              secondaryListItems
+            )}
           </List>
         </Drawer>
 
         <Box
-          component="main"
+          component='main'
           sx={{
             backgroundColor: (theme) =>
               theme.palette.mode === 'light'
@@ -194,11 +193,9 @@ export default function MainPage() {
             overflow: 'auto',
           }}
         >
-
           <Toolbar />
-          <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+          <Container maxWidth='lg' sx={{ mt: 4, mb: 4 }}>
             <Grid container spacing={3} sx={{ justifyContent: 'center' }}>
-
               <MainWindow></MainWindow>
 
               {/* Chart */}
@@ -233,12 +230,10 @@ export default function MainPage() {
                   <Orders />
                 </Paper>
               </Grid> */}
-
             </Grid>
             {/* <Copyright sx={{ pt: 4 }} /> */}
           </Container>
         </Box>
-
       </Box>
     </ThemeProvider>
   );

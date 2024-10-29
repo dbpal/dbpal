@@ -1,0 +1,13 @@
+config: {
+    "connection_configs": {
+        "xxxx": {
+            "conn_type": "sqlite",
+            "path": "/Users/yuyang/tests/test.sqlite.db",
+            "read_only": false,
+            "name": "haha"
+        }
+    }
+    "user_settings": {
+        "page_size": 100
+    }
+}
