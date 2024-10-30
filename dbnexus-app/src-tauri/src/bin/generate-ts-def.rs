@@ -20,7 +20,9 @@ use typescript_type_def::{write_definition_file_from_type_infos, DefinitionFileO
 
 fn main() {
     let dir = env!("CARGO_MANIFEST_DIR");
-    let filepath = Path::new(&dir).to_path_buf().join("../src/ApiStruct.ts");
+    let filepath = Path::new(&dir)
+        .to_path_buf()
+        .join("../src/comp/ApiStruct.ts");
 
     let ts_module = {
         let api = vec![
@@ -54,8 +56,7 @@ fn main() {
         ];
 
         let mut buf = Vec::new();
-        let mut options: DefinitionFileOptions = DefinitionFileOptions::default();
-        options.root_namespace = Some("db_apis");
+        let options: DefinitionFileOptions = DefinitionFileOptions::default();
         write_definition_file_from_type_infos(&mut buf, options, &api).unwrap();
         buf
     };
