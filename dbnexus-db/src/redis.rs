@@ -18,10 +18,12 @@ use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use crate::redis_completion::RedisDialet;
 
+use anyhow::Context;
 use dashmap::DashMap;
 use futures_util::StreamExt;
 
 use sqlparser::tokenizer::Token;
+
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -62,6 +64,92 @@ pub struct RedisListTable {
     pub zset_tables: Vec<String>,
 }
 
+impl RedisDB {
+    pub async fn lpush(&self, key: &str, value: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.lpush(key, value).await?;
+        anyhow::Ok(())
+    }
+
+    pub async fn rpush(&self, key: &str, value: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.rpush(key, value).await?;
+        anyhow::Ok(())
+    }
+
+    pub async fn set_replace(
+        &self, key: &str, old_member: &str, new_member: &str,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.sadd(key, new_member).await?;
+        let _: () = conn
+            .srem(key, old_member)
+            .await
+            .context("set new key succeefully , but remove old key failed")?;
+        anyhow::Ok(())
+    }
+    pub async fn set_del(&self, key: &str, member: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.srem(key, member).await?;
+        anyhow::Ok(())
+    }
+
+    pub async fn set_add(&self, key: &str, member: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.sadd(key, member).await?;
+        anyhow::Ok(())
+    }
+
+    pub async fn hash_replace(
+        &self, key: &str, old_member: &str, new_member: &str, new_value: &str,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.hset(key, new_member, new_value).await?;
+        let _: () = conn
+            .hdel(key, old_member)
+            .await
+            .context("set new key succeefully , but remove old key failed")?;
+        anyhow::Ok(())
+    }
+    pub async fn hash_del(&self, key: &str, member: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.hdel(key, member).await?;
+        anyhow::Ok(())
+    }
+    pub async fn hash_add(&self, key: &str, member: &str, value: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.hset(key, member, value).await?;
+        anyhow::Ok(())
+    }
+
+    pub async fn zset_replace(
+        &self, key: &str, old_member: &str, new_member: &str, new_value: f64,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.zadd(key, new_member, new_value).await?;
+        let _: () = conn
+            .zrem(key, old_member)
+            .await
+            .context("set new key succeefully , but remove old key failed")?;
+        anyhow::Ok(())
+    }
+    pub async fn zset_del(&self, key: &str, member: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.zrem(key, member).await?;
+        anyhow::Ok(())
+    }
+    pub async fn zset_add(&self, key: &str, member: &str, value: f64) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.zadd(key, member, value).await?;
+        anyhow::Ok(())
+    }
+
+    pub async fn string_set(&self, key: &str, value: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.set(key, value).await?;
+        anyhow::Result::Ok(())
+    }
+}
 impl RedisDB {
     /// used for frond end to query keys match in pattern
     pub async fn redis_match_keys(&self, pattern: &str) -> anyhow::Result<Vec<String>> {
@@ -678,11 +766,12 @@ impl SchemaTrait for RedisDB {
                     vec![ret],
                 ))
             }
+
             RedisType::List => {
                 let total: usize = conn.llen(key).await?;
-                let start = (page - 1) * page;
+                let start = (page - 1) * page_size;
                 let ret: Vec<String> = conn
-                    .lrange(key, start as isize, (start + page) as isize)
+                    .lrange(key, start as isize, (start + page_size) as isize)
                     .await?;
                 anyhow::Ok(TableListResp::new(
                     vec![Field::from_name_type("value", "string")],

@@ -618,10 +618,12 @@ pub struct AnyhowErrorFrontend {
 
 impl From<anyhow::Error> for AnyhowErrorFrontend {
     fn from(value: anyhow::Error) -> Self {
-        Self {
+        let x = Self {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
-        }
+        };
+        log::error!("msg:{},details:{}", x.reason, x.detail);
+        x
     }
 }
 impl From<String> for AnyhowErrorFrontend {

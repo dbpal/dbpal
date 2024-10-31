@@ -2,7 +2,7 @@
 /// used in test
 
 async function randomTestThrowFunction() {
-  await delayedReturn(undefined, Math.random() * 1000);
+  await delayedReturn(undefined, Math.random() * 900);
   const v = Math.random();
   if (v > 0.8) {
     throw new Error(`this is random error of ${v}`);
@@ -29,7 +29,7 @@ function generateRandomString(length: number) {
   return result;
 }
 
-function delayedReturn(value, delay) {
+function delayedReturn(value: any, delay: number) {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve(value);
