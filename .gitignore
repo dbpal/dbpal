@@ -3,5 +3,10 @@ logs
 *.log
 
 
+dbnexus-app/aaa.html
+dbnexus-app/src/comp/Test.jsx
+dbnexus-app/test.html
+dbnexus-app/vite.config.ts.timestamp-1730288962608-e9468f2a3b396.mjs
+
 # Editor directories and files
 target

@@ -55,4 +55,43 @@ function testExampleRedisSetList(length: number = 10): types.TableListResp {
   };
 }
 
-export { testExampleRedisZset, testExampleRedisSetList, testExampleRedisHash };
+function testExampleQueryResp(
+  fieldLength = 5,
+  length: number = 10
+): types.QueryResp {
+  var fields = [];
+  for (let i = 0; i < fieldLength; i++) {
+    fields.push(testExampleField());
+  }
+  let data = [];
+  for (let i = 0; i < length; i++) {
+    let d = [];
+    for (let j = 0; j < fieldLength; j++) {
+      d.push(Math.random() > 0.2 ? generateRandomString() : null);
+    }
+    data.push(d);
+  }
+
+  return {
+    fields,
+    data: data,
+  };
+}
+
+function testExampleField(): types.Field {
+  return {
+    name: 'field' + generateRandomString(4),
+    typ: 'type_' + generateRandomString(3),
+    is_auto_increment: Math.random() > 0.5,
+    is_primary: Math.random() > 0.5,
+    nullable: Math.random() > 0.5,
+    default_value: Math.random() > 0.5 ? generateRandomString() : null,
+  };
+}
+
+export {
+  testExampleRedisZset,
+  testExampleRedisSetList,
+  testExampleRedisHash,
+  testExampleQueryResp,
+};
