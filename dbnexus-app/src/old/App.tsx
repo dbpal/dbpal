@@ -1,11 +1,11 @@
-import { Layout } from "@arco-design/web-react";
-import MenuBar from "./header.jsx";
-import ContentTabs from "./tabs.jsx";
-import { invoke } from "@tauri-apps/api/tauri";
-import { useEffect, useState } from "react";
-import { TabItem } from "./context.tsx";
-import { showSysErrMsg } from "./functions.jsx";
-import { LeftTree } from "./left.jsx";
+import { Layout } from '@arco-design/web-react';
+import MenuBar from './header.jsx';
+import ContentTabs from './tabs.jsx';
+import { invoke } from '@tauri-apps/api/tauri';
+import { useEffect, useState } from 'react';
+import { TabItem } from './context.tsx';
+import { showSysErrMsg } from './functions.jsx';
+import { LeftTree } from './left.jsx';
 
 const Sider = Layout.Sider;
 const Header = Layout.Header;
@@ -14,10 +14,10 @@ const Content = Layout.Content;
 function App() {
   const [tabs, setTabs] = useState([]);
   function handleSetTabs(e: TabItem[]) {
-    setTabs(e as any);
+    setTabs11(e as any);
   }
 
-  const [activeTab, setActiveTab] = useState("");
+  const [activeTab, setActiveTab] = useState('');
   function handleSetActiveTab(e: string) {
     setActiveTab(e);
   }
@@ -25,7 +25,7 @@ function App() {
   const [listConfig, setListConfig] = useState([]);
 
   useEffect(() => {
-    invoke("list_all_config", {})
+    invoke('list_all_config111', {})
       .then((e) => {
         setListConfig(e);
       })
@@ -45,12 +45,12 @@ function App() {
         </Header>
         <Layout>
           <Sider
-            resizeDirections={["right"]}
+            resizeDirections={['right']}
             style={{
               minWidth: 250,
               maxWidth: 500,
-              minHeight: "800px",
-              height: "100%",
+              minHeight: '800px',
+              height: '100%',
             }}
           >
             <LeftTree

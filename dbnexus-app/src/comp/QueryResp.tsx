@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { createRef, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-const root = ReactDOM.createRoot(document.getElementById('root'));
 
 import apis from './ApiStruct.ts';
 import {
@@ -14,35 +13,118 @@ import {
   TableHead,
   TableRow,
   Tabs,
-  Typography,
+  Tooltip,
 } from '@mui/material';
+import Paper from '@mui/material/Paper';
+
 import { testExampleQueryResp } from './exampleTest.ts';
 import { generateRandomString } from './helper.ts';
 
-function QueryResp(props: { data: apis.QueryResp }) {
+const DEFAULT_MIN_WIDTH_CELL = 70;
+const DEFAULT_MAX_WIDTH_CELL = 800;
+
+function QueryResp(props: {
+  data: apis.QueryResp;
+  order: string;
+  orderBy: string;
+  reloadSort: (order: string, orderBy: string) => void;
+}) {
   let { data } = props;
+
+  const columnRefs = data.fields.map(() => createRef());
+  let columnsWidth = data.fields.map(() => {
+    return { minWidth: 100, maxWidth: 600 };
+  });
+
+  const isResizing = useRef(-1);
+
+  const setCursorDocument = (isResizing) => {
+    document.body.style.cursor = isResizing ? 'col-resize' : 'auto';
+  };
+
+  // function getTitalTooltipTitle(f: apis.Field): string {
+  //   let x = f.typ;
+  //   if (f.is_auto_increment) {
+  //     x += ` | auto increment`;
+  //   }
+  //   if (f.default_value) {
+  //     x += ` | defaultValue(${f.default_value})`;
+  //   }
+  //   return x;
+  // }
+
+  const handleOnMouseUp = () => {
+    console.log('end resize');
+    isResizing.current = -1;
+    setCursorDocument(false);
+  };
+
+  // const handleSort = (name: string) => {
+  //   let newOrder = order == 'asc' ? 'desc' : 'asc';
+  //   reloadSort(name, newOrder);
+  // };
+
+  const onClickResizeColumn = (index) => {
+    console.log('start resize');
+    isResizing.current = index;
+    setCursorDocument(true);
+  };
+  const adjustWidthColumn = (index, width) => {
+    const minWidth = columnsWidth[index]?.minWidth ?? DEFAULT_MIN_WIDTH_CELL;
+    const maxWidth = columnsWidth[index]?.maxWidth ?? DEFAULT_MAX_WIDTH_CELL;
+    const newWidth =
+      width > maxWidth ? maxWidth : width < minWidth ? minWidth : width;
+
+    columnRefs[index].current.parentElement.style.width = newWidth + 'px';
+  };
+
+  const handleOnMouseMove = (e) => {
+    if (isResizing.current >= 0) {
+      const newWidth =
+        e.clientX -
+        columnRefs[
+          isResizing.current
+        ].current.parentElement?.getBoundingClientRect().left;
+      adjustWidthColumn(isResizing.current, newWidth);
+    }
+  };
+
+  useEffect(() => {
+    document.onmousemove = handleOnMouseMove;
+    document.onmouseup = handleOnMouseUp;
+    return () => {
+      document.onmousemove = null;
+      document.onmouseup = null;
+    };
+  }, []);
+
   return (
-    <TableContainer>
-      <Table>
+    <TableContainer component={Paper}>
+      <Table className={'table'} sx={{ minWidth: 650 }}>
         <TableHead>
-          {data.fields.map((e) => {
-            return (
-              <TableCell>
-                <Typography variant='h6'> {e.name} </Typography>
-              </TableCell>
-            );
-          })}
+          <TableRow>
+            {data.fields.map((field, index) => {
+              return (
+                <TableCell
+                  key={index}
+                  sx={{ border: '1px solid black' }}
+                  className={'tableCell resizable'}
+                  align='center'
+                >
+                  {field.name}
+                  <div
+                    onMouseDown={() => onClickResizeColumn(index)}
+                    ref={columnRefs[index]}
+                    className={'resizeLine'}
+                  ></div>
+                </TableCell>
+              );
+            })}
+            <TableCell className='tableCell emtpyCell' />
+          </TableRow>
         </TableHead>
         <TableBody>
-          {data.data.map((e) => {
-            return (
-              <TableRow>
-                {e.map((e) => {
-                  return <TableCell> {e}</TableCell>;
-                })}
-              </TableRow>
-            );
-          })}
+          {/* <TableCell className='tableCell emtpyCell' /> */}
         </TableBody>
       </Table>
     </TableContainer>
@@ -153,11 +235,12 @@ function MultiQueryResp(props: { data: any[] }) {
   );
 }
 
+const root = ReactDOM.createRoot(document.getElementById('root'));
 export { MultiQueryResp };
 root.render(
   <React.StrictMode>
-    {/* <QueryResp data={testExampleQueryResp()}></QueryResp> */}
+    <QueryResp data={testExampleQueryResp()}></QueryResp>
 
-    <MultiQueryResp data={testExampleMultiQueryResp()}></MultiQueryResp>
+    {/* <MultiQueryResp data={testExampleMultiQueryResp()}></MultiQueryResp> */}
   </React.StrictMode>
 );

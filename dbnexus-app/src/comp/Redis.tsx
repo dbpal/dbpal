@@ -702,14 +702,14 @@ function RedisHashTable(props: {
     handleReload();
   }, []);
 
-  const editRecord = (index: string) => {
+  const editRecord = (key: string) => {
     setShowEdit(true);
-    setSelectkey(index);
+    setSelectkey(key);
   };
 
-  const deleteRecord = (index: string) => {
+  const deleteRecord = (key: string) => {
     setShowDelete(true);
-    setSelectkey(index);
+    setSelectkey(key);
   };
 
   const newRecord = () => {
@@ -722,14 +722,14 @@ function RedisHashTable(props: {
     { label: 'Create new', action: newRecord },
   ];
 
-  const handleContextMenu = (event: any, index: string) => {
+  const handleContextMenu = (event: any, key: string) => {
     event.preventDefault();
     setContextMenu(
       contextMenu === null
         ? {
             top: event.clientY - 6,
             left: event.clientX + 2,
-            index,
+            index: key,
           }
         : // repeated contextmenu when it is already open closes it with Chrome 84 on Ubuntu
           // Other native context menus might behave different.

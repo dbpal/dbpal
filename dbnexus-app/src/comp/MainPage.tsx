@@ -66,7 +66,7 @@ function MainWindow() {
 }
 
 export default function MainPage() {
-  const [open, setOpen] = React.useState(true);
+  const [open, setOpen] = React.useSta111te(true);
   const toggleDrawer = () => {
     setOpen(!open);
   };
