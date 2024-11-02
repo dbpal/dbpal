@@ -4,14 +4,15 @@
 use std::io::prelude::*;
 use std::path::Path;
 
+use dbnexus_app_lib::handlers::{MuiDataGridData, MuiDataTableListResp};
 use dbnexus_db::completion::{CompletionItem, CompletionKind};
 use dbnexus_db::datasource_config::{
     MongoConfig, MysqlDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
 };
 use dbnexus_db::db::{
     ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfDetail,
+    ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfDetail,
 };
 
 use dbnexus_db::app::{self, OpendKind};
@@ -32,7 +33,6 @@ fn main() {
             &SqlServerDbConfig::INFO,
             &ListTable::INFO,
             &Field::INFO,
-            &TableListResp::INFO,
             &Index::INFO,
             &SqlExecuteRet::INFO,
             &NamedStaff::INFO,
@@ -44,7 +44,6 @@ fn main() {
             &TriggerEnable::INFO,
             &CompletionItem::INFO,
             &CompletionKind::INFO,
-            &QueryResp::INFO,
             &UdfDetail::INFO,
             &ProcedureDetail::INFO,
             &OpendKind::INFO,
@@ -53,6 +52,8 @@ fn main() {
             &RedisDbConfig::INFO,
             &MysqlDbConfig::INFO,
             &MongoConfig::INFO,
+            &MuiDataTableListResp::INFO,
+            &MuiDataGridData::INFO,
         ];
 
         let mut buf = Vec::new();
@@ -67,4 +68,5 @@ fn main() {
 
     let mut file = ops.open(filepath.as_path()).unwrap();
     file.write_all(&ts_module).unwrap();
+    println!("generate OK.")
 }

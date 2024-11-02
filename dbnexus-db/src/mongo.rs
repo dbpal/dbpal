@@ -134,7 +134,7 @@ fn collect_table_resp(
         let mut values = vec![];
         for f in fs.iter() {
             let value = doc
-                .get(&f.name)
+                .get(&f.field)
                 .map(|b| bson_value_to_string(b).ok())
                 .flatten()
                 .flatten();

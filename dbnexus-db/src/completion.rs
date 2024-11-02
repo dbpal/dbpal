@@ -70,7 +70,7 @@ impl<T: DBTrait> DBListCompletionItem for T {
         let x = DBTrait::open_schema(self, db.as_deref().unwrap()).await?;
         x.show_columns(table_name)
             .await
-            .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())
+            .map(|x| x.into_iter().map(|x| x.field).collect::<Vec<_>>())
     }
 }
 

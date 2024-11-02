@@ -102,7 +102,7 @@ impl SqliteDB {
             for d in data.into_iter() {
                 let mut m = HashMap::new();
                 for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.name.clone(), d);
+                    m.insert(f.field.clone(), d);
                 }
 
                 let insert_sql =
@@ -843,7 +843,7 @@ fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
     let mut ret = Vec::with_capacity(rows[0].columns().len());
     for c in rows[0].columns().iter() {
         ret.push(Field {
-            name: c.name().to_string(),
+            field: c.name().to_string(),
             typ: c.type_info().name().to_string(),
             nullable: true,
             default_value: None,
@@ -1175,7 +1175,7 @@ impl DBListCompletionItem for SqliteDB {
     ) -> anyhow::Result<Vec<String>> {
         crate::db::SchemaTrait::show_columns(self, table_name)
             .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
+            .map(|x| x.into_iter().map(|x| x.field).collect())
     }
 }
 

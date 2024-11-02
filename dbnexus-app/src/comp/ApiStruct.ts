@@ -105,7 +105,7 @@ export namespace types {
         "size": (string | null);
     };
     export type Field = {
-        "name": string;
+        "field": string;
         "typ": string;
         "nullable": boolean;
 
@@ -119,12 +119,6 @@ export namespace types {
          */
         "is_primary": boolean;
         "is_auto_increment": boolean;
-    };
-    export type TableListResp = {
-        "fields": (types.Field)[];
-        "total": types.Usize;
-        "data": (((string | null))[])[];
-        "sql": (string | null);
     };
     export type IndexKind = ("Normal" | "Unique" | "Primary");
     export type Index = {
@@ -204,10 +198,6 @@ export namespace types {
         "kind": CompletionKind;
     };
     export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Dbname" | "SchemaName" | "TableName" | "Column" | "Text" | "Type");
-    export type QueryResp = {
-        "fields": (types.Field)[];
-        "data": (((string | null))[])[];
-    };
     export type UdfDetail = {
         "def": string;
         "metas": (types.MetaValue)[];
@@ -231,5 +221,14 @@ export namespace types {
         "indent": types.FormatSqlOptsIndent;
         "uppercase": (boolean | null);
         "lines_between_queries": types.U8;
+    };
+    export type MuiDataGridData = {
+        "fields": (types.Field)[];
+        "data": (Record<string, string>)[];
+    };
+    export type MuiDataTableListResp = {
+        "total": types.Usize;
+        "sql": (string | null);
+        "data": types.MuiDataGridData;
     };
 }

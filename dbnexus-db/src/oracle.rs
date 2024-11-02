@@ -645,7 +645,7 @@ impl OracleDB {
         for d in data.into_iter() {
             let mut m = HashMap::new();
             for (d, f) in d.into_iter().zip(cols.iter()) {
-                m.insert(f.name.clone(), d);
+                m.insert(f.field.clone(), d);
             }
             let insert_sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
             sender.send(Cow::Owned(insert_sql)).await?;
@@ -743,7 +743,7 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         if include_header {
             let fs = self.show_columns(table_name).await?;
-            let fs = fs.iter().map(|x| Some(x.name.clone())).collect::<Vec<_>>();
+            let fs = fs.iter().map(|x| Some(x.field.clone())).collect::<Vec<_>>();
             sender
                 .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
                 .await?;
@@ -905,7 +905,7 @@ impl SchemaTrait for OracleDB {
             names
         };
         for x in ret.iter_mut() {
-            if names.contains(&x.name) {
+            if names.contains(&x.field) {
                 x.is_primary = true;
             }
         }

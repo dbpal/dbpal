@@ -701,9 +701,9 @@ impl SchemaTrait for SqlServer {
         }
         drop(stream);
         for f in ret.iter_mut() {
-            let is_primary = SqlServer::is_primary(&mut conn, table_name, &f.name).await?;
+            let is_primary = SqlServer::is_primary(&mut conn, table_name, &f.field).await?;
             let is_auto_increment =
-                SqlServer::is_auto_increment(&mut conn, table_name, &f.name).await?;
+                SqlServer::is_auto_increment(&mut conn, table_name, &f.field).await?;
             f.is_primary = is_primary;
             f.is_auto_increment = is_auto_increment;
         }
@@ -1301,7 +1301,7 @@ impl SqlServer {
             for d in data.into_iter() {
                 let mut m = HashMap::new();
                 for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.name.clone(), d);
+                    m.insert(f.field.clone(), d);
                 }
 
                 let insert_sql = (self as &dyn SchemaTrait).insert_sql(

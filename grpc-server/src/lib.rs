@@ -457,7 +457,7 @@ pub mod app_grpc_def {
     impl From<db::Field> for Field {
         fn from(value: db::Field) -> Self {
             let db::Field {
-                name,
+                field: name,
                 typ,
                 nullable,
                 default_value,

@@ -66,7 +66,7 @@ function MainWindow() {
 }
 
 export default function MainPage() {
-  const [open, setOpen] = React.useSta111te(true);
+  const [open, setOpen] = React.useState(true);
   const toggleDrawer = () => {
     setOpen(!open);
   };
@@ -120,23 +120,23 @@ export default function MainPage() {
               sx={{ width: '240px', ml: 1, mr: 3 }}
             >
               bdnexus
+              <Switch
+                checked={isDarkMode}
+                onChange={toggleTheme}
+                color='primary'
+                sx={{
+                  ml: 4,
+                  '& .MuiSwitch-track': {
+                    backgroundColor: isDarkMode ? 'grey.800' : 'grey.300',
+                  },
+                  '& .MuiSwitch-thumb': {
+                    backgroundColor: isDarkMode ? 'yellow' : 'blue',
+                  },
+                }}
+              />
             </Typography>
 
             <NavBar></NavBar>
-
-            <Switch
-              checked={isDarkMode}
-              onChange={toggleTheme}
-              color='primary'
-              sx={{
-                '& .MuiSwitch-track': {
-                  backgroundColor: isDarkMode ? 'grey.800' : 'grey.300',
-                },
-                '& .MuiSwitch-thumb': {
-                  backgroundColor: isDarkMode ? 'yellow' : 'blue',
-                },
-              }}
-            />
 
             <Typography
               component='h1'

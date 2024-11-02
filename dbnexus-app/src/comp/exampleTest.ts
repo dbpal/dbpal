@@ -4,16 +4,16 @@ import { generateRandomString } from './helper.ts';
 function testExampleRedisZset(
   length: number = 10,
   range: number = 100
-): types.TableListResp {
+): types.MuiDataTableListResp {
   var data: (string | null)[][] = [];
   for (var i = 0; i < length; i++) {
     data.push([generateRandomString(10), (Math.random() * range).toString()]);
   }
   return {
     fields: [
-      { name: 'key', typ: 'string' } as types.Field,
+      { field: 'key', typ: 'string' } as types.Field,
       {
-        name: 'score',
+        field: 'score',
         typ: 'float64',
       } as types.Field,
     ],
@@ -23,16 +23,16 @@ function testExampleRedisZset(
   };
 }
 
-function testExampleRedisHash(length: number = 10): types.TableListResp {
+function testExampleRedisHash(length: number = 10): types.MuiDataTableListResp {
   var data: (string | null)[][] = [];
   for (var i = 0; i < length; i++) {
     data.push([generateRandomString(10), generateRandomString(10)]);
   }
   return {
     fields: [
-      { name: 'key', typ: 'string' } as types.Field,
+      { field: 'key', typ: 'string' } as types.Field,
       {
-        name: 'score',
+        field: 'score',
         typ: 'float64',
       } as types.Field,
     ],
@@ -42,14 +42,18 @@ function testExampleRedisHash(length: number = 10): types.TableListResp {
   };
 }
 
-function testExampleRedisSetList(length: number = 10): types.TableListResp {
-  var data: (string | null)[][] = [];
+function testExampleRedisSetList(
+  length: number = 10
+): types.MuiDataTableListResp {
+  var data = [];
   for (var i = 0; i < length; i++) {
-    data.push([generateRandomString(10)]);
+    data.push({ key: generateRandomString(10), id: generateRandomString(20) });
   }
   return {
-    fields: [{ name: 'key', typ: 'string' } as types.Field],
-    data: data,
+    data: {
+      data,
+      fields: [{ field: 'key', typ: 'string' } as types.Field],
+    },
     total: Math.floor(Math.random() * 10000 + 1000),
     sql: null,
   };
@@ -58,16 +62,17 @@ function testExampleRedisSetList(length: number = 10): types.TableListResp {
 function testExampleQueryResp(
   fieldLength = 5,
   length: number = 10
-): types.QueryResp {
+): types.MuiDataGridData {
   var fields = [];
   for (let i = 0; i < fieldLength; i++) {
     fields.push(testExampleField());
   }
   let data = [];
   for (let i = 0; i < length; i++) {
-    let d = [];
+    let d = {};
     for (let j = 0; j < fieldLength; j++) {
-      d.push(Math.random() > 0.2 ? generateRandomString() : null);
+      d[fields[j].field as string] =
+        Math.random() > 0.2 ? generateRandomString() : null;
     }
     data.push(d);
   }
@@ -80,7 +85,7 @@ function testExampleQueryResp(
 
 function testExampleField(): types.Field {
   return {
-    name: 'field' + generateRandomString(4),
+    field: 'field' + generateRandomString(4),
     typ: 'type_' + generateRandomString(3),
     is_auto_increment: Math.random() > 0.5,
     is_primary: Math.random() > 0.5,

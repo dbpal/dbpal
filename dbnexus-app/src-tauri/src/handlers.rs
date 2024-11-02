@@ -99,18 +99,21 @@ pub async fn show_columns(
 pub async fn show_table(
     uuid: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize, app: tauri::State<'_, App>,
-) -> Result<TableListResp, AnyhowErrorFrontend> {
+) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
-    app.show_table(
-        uuid.as_str(),
-        &table_name,
-        where_str,
-        order_by,
-        page,
-        page_size,
-    )
-    .await
-    .map_err(AnyhowErrorFrontend::from)
+    let x = app
+        .show_table(
+            uuid.as_str(),
+            &table_name,
+            where_str,
+            order_by,
+            page,
+            page_size,
+        )
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+
+    Ok(MuiDataTableListResp::from(x))
 }
 
 #[tauri::command]
@@ -195,7 +198,7 @@ pub async fn drop_table(
 pub async fn show_view(
     uuid: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize, app: tauri::State<'_, App>,
-) -> Result<TableListResp, AnyhowErrorFrontend> {
+) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
     app.show_view(
         uuid.as_str(),
@@ -207,6 +210,7 @@ pub async fn show_view(
     )
     .await
     .map_err(AnyhowErrorFrontend::from)
+    .map(MuiDataTableListResp::from)
 }
 
 #[tauri::command]
@@ -225,7 +229,7 @@ pub async fn opened_kind(
 #[tauri::command]
 pub async fn query_sql(
     uuid: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
-) -> Result<Vec<Result<QueryResp, String>>, AnyhowErrorFrontend> {
+) -> Result<Vec<Result<MuiDataGridData, String>>, AnyhowErrorFrontend> {
     random_sleep().await;
     let sql = sql.as_str();
     let db = app
@@ -239,7 +243,17 @@ pub async fn query_sql(
         Open::Catalog(x) => x.query_sql(query_id, sql).await,
     };
 
-    result.map_err(AnyhowErrorFrontend::from)
+    result.map_err(AnyhowErrorFrontend::from).map(|x| {
+        x.into_iter()
+            .map(|x| match x {
+                Err(e) => Err(e),
+                Ok(x) => {
+                    let QueryResp { fields, data } = x;
+                    Ok(MuiDataGridData::from((fields, data)))
+                }
+            })
+            .collect::<Vec<_>>()
+    })
 }
 #[tauri::command]
 pub async fn query_sql_open_connection(
@@ -543,7 +557,7 @@ pub async fn mongo_delete(
 #[tauri::command]
 pub async fn mongo_show_table(
     uuid: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
-) -> Result<TableListResp, String> {
+) -> Result<MuiDataTableListResp, String> {
     random_sleep().await;
     let filter = parse_bson_doc(filter.as_slice())?;
     let db = app
@@ -555,6 +569,7 @@ pub async fn mongo_show_table(
         None => return Err(format!("db '{}' not mongo", uuid)),
     }
     .map_err(|e| e.to_string())
+    .map(MuiDataTableListResp::from)
 }
 #[tauri::command]
 pub async fn mongo_show_table_docs(
@@ -640,6 +655,63 @@ async fn random_sleep() {
     dbnexus_db::random_sleep_impl().await
 }
 
+#[derive(Clone, Debug, serde::Serialize, typescript_type_def::TypeDef)]
+
+pub struct MuiDataGridData {
+    fields: Vec<Field>,
+    data: Vec<HashMap<String, String>>,
+}
+
+#[derive(Clone, Debug, serde::Serialize, typescript_type_def::TypeDef)]
+
+pub struct MuiDataTableListResp {
+    pub total: usize,
+    pub sql: Option<String>,
+    data: MuiDataGridData,
+}
+
+impl From<TableListResp> for MuiDataTableListResp {
+    fn from(value: TableListResp) -> Self {
+        let TableListResp {
+            fields,
+            total,
+            sql,
+            data,
+        } = value;
+
+        Self {
+            total,
+            sql,
+            data: MuiDataGridData::from((fields, data)),
+        }
+    }
+}
+
+impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
+    fn from(value: (Vec<Field>, Vec<Vec<Option<String>>>)) -> Self {
+        let (fields, old_data) = value;
+        let data: Vec<_> = old_data
+            .into_iter()
+            .map(|x| {
+                let mut m = HashMap::new();
+                fields
+                    .iter()
+                    .zip(x.into_iter())
+                    .for_each(|(f, value)| match value {
+                        Some(value) => {
+                            m.insert(f.field.clone(), value);
+                        }
+
+                        None => {}
+                    });
+
+                m
+            })
+            .collect();
+        Self { fields, data }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -670,5 +742,18 @@ mod tests {
 
         let ret = serde_json::to_string_pretty(&xs).unwrap();
         println!("{}", ret);
+    }
+
+    #[test]
+    fn test_mui_datagrid() {
+        let data = vec![vec![Some("100".to_string()), Some("hello".to_string())]];
+        let field = vec![
+            Field::from_name_type("a", "int"),
+            Field::from_name_type("b", "string"),
+        ];
+
+        let x = MuiDataGridData::from((field, data));
+        let str = serde_json::to_string_pretty(&x).unwrap();
+        println!("{}", str);
     }
 }

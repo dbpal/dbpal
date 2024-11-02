@@ -478,7 +478,7 @@ impl dyn SchemaTrait {
     ) -> anyhow::Result<String> {
         let mut field_by_name = HashMap::new();
         for f in fs.iter() {
-            field_by_name.insert(&f.name, f);
+            field_by_name.insert(&f.field, f);
         }
 
         // if contains primary key should use primary key to delete
@@ -532,7 +532,7 @@ impl dyn SchemaTrait {
 
         let mut field_by_name = HashMap::new();
         for f in fs.iter() {
-            field_by_name.insert(&f.name, f);
+            field_by_name.insert(&f.field, f);
         }
         let contains_pri = fs.iter().any(|x| x.is_primary);
 
@@ -612,7 +612,7 @@ impl dyn SchemaTrait {
                 if f.is_auto_increment {
                     continue;
                 }
-                sql.push_str(&f.name);
+                sql.push_str(&f.field);
                 if index != last {
                     sql.push_str(",");
                 }
@@ -628,7 +628,7 @@ impl dyn SchemaTrait {
                     continue;
                 }
                 let value = values
-                    .get(&f.name)
+                    .get(&f.field)
                     .map(|x| x.as_ref().map(|x| x.as_str()))
                     .flatten();
 
@@ -708,7 +708,7 @@ impl QueryResp {
         Self {
             data: vec![result],
             fields: vec![Field {
-                name: col_name,
+                field: col_name,
                 typ: "".to_string(),
                 nullable: false,
                 default_value: None,
@@ -722,7 +722,7 @@ impl QueryResp {
         Self {
             data: vec![vec![Some(affected.to_string())]],
             fields: vec![Field {
-                name: "row affected".to_string(),
+                field: "row affected".to_string(),
                 typ: "int".to_string(),
                 nullable: false,
                 default_value: None,
@@ -801,7 +801,7 @@ impl TableListResp {
             sql,
             data: vec![result],
             fields: vec![Field {
-                name: col_name,
+                field: col_name,
                 typ: "".to_string(),
                 nullable: false,
                 default_value: None,
@@ -814,7 +814,7 @@ impl TableListResp {
 
 #[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub struct Field {
-    pub name: String,
+    pub field: String,
     pub typ: String,
     pub nullable: bool,
     /// default value of this field
@@ -831,7 +831,7 @@ impl Field {
         let typ = typ.into();
 
         Self {
-            name,
+            field: name,
             typ,
             nullable: true,
             default_value: None,
@@ -849,7 +849,7 @@ impl Field {
         let name = name.into();
         let typ = typ.into();
         Self {
-            name,
+            field: name,
             typ,
             nullable,
             default_value,

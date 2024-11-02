@@ -42,7 +42,7 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
     for c in rows[0].columns().iter() {
         let column = c;
         ret.push(Field {
-            name: column.name().to_string(),
+            field: column.name().to_string(),
             typ: column.type_info().to_string(),
             nullable: true,
             default_value: None,
@@ -246,7 +246,7 @@ impl MysqlDB {
             for d in data.into_iter() {
                 let mut m = HashMap::new();
                 for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.name.clone(), d);
+                    m.insert(f.field.clone(), d);
                 }
 
                 let insert_sql =
