@@ -33,7 +33,7 @@ function DataList() {
   return (
     <Box
       sx={{
-        width: 240,
+        width: 235,
         bgcolor: 'background.paper',
         color: 'text.primary',
         p: 2,
