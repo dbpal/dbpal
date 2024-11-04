@@ -39,32 +39,32 @@ function NavBar() {
       <Button
         color='inherit'
         sx={{ marginRight: 2 }}
-        id='basic-button'
-        aria-controls={open ? 'basic-menu' : undefined}
+        id='nav-b-file'
+        aria-controls={open ? 'nav-file-menu' : undefined}
         aria-haspopup='true'
         aria-expanded={open ? 'true' : undefined}
         onClick={handleClick}
       >
-        Files
+        File
       </Button>
       <Menu
-        id='basic-menu'
+        id='nav-file-menu'
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
         MenuListProps={{
-          'aria-labelledby': 'basic-button',
+          'aria-labelledby': 'nav-b-file',
         }}
       >
-        <MenuItem onClick={handleClose}>Profile</MenuItem>
-        <MenuItem onClick={handleClose}>My account</MenuItem>
-        <MenuItem onClick={handleClose}>Logout</MenuItem>
+        <MenuItem onClick={handleClose}>Open</MenuItem>
+        <MenuItem onClick={handleClose}>Close</MenuItem>
+        <MenuItem onClick={handleClose}>Exit</MenuItem>
       </Menu>
       <Button
         color='inherit'
         sx={{ marginRight: 2 }}
-        id='basic-button'
-        aria-controls={open ? 'basic-menu' : undefined}
+        id='nav-b-edit'
+        aria-controls={open ? 'nav-edit-menu' : undefined}
         aria-haspopup='true'
         aria-expanded={open ? 'true' : undefined}
         onClick={handleClick}
@@ -72,47 +72,24 @@ function NavBar() {
         Edit
       </Button>
       <Menu
-        id='basic-menu'
+        id='nav-edit-menu'
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
         MenuListProps={{
-          'aria-labelledby': 'basic-button',
+          'aria-labelledby': 'nav-b-edit',
         }}
       >
-        <MenuItem onClick={handleClose}>Profile</MenuItem>
-        <MenuItem onClick={handleClose}>My account</MenuItem>
-        <MenuItem onClick={handleClose}>Logout</MenuItem>
+        <MenuItem onClick={handleClose}>Undo</MenuItem>
+        <MenuItem onClick={handleClose}>Redo</MenuItem>
+        <MenuItem onClick={handleClose}>Copy</MenuItem>
+        <MenuItem onClick={handleClose}>Paste</MenuItem>
       </Menu>
       <Button
         color='inherit'
         sx={{ marginRight: 2 }}
-        id='basic-button'
-        aria-controls={open ? 'basic-menu' : undefined}
-        aria-haspopup='true'
-        aria-expanded={open ? 'true' : undefined}
-        onClick={handleClick}
-      >
-        View
-      </Button>
-      <Menu
-        id='basic-menu'
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        MenuListProps={{
-          'aria-labelledby': 'basic-button',
-        }}
-      >
-        <MenuItem onClick={handleClose}>Profile</MenuItem>
-        <MenuItem onClick={handleClose}>My account</MenuItem>
-        <MenuItem onClick={handleClose}>Logout</MenuItem>
-      </Menu>
-      <Button
-        color='inherit'
-        sx={{ marginRight: 2 }}
-        id='basic-button'
-        aria-controls={open ? 'basic-menu' : undefined}
+        id='nav-b-tools'
+        aria-controls={open ? 'nav-tools-menu' : undefined}
         aria-haspopup='true'
         aria-expanded={open ? 'true' : undefined}
         onClick={handleClick}
@@ -120,23 +97,23 @@ function NavBar() {
         Tools
       </Button>
       <Menu
-        id='basic-menu'
+        id='nav-tools-menu'
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
         MenuListProps={{
-          'aria-labelledby': 'basic-button',
+          'aria-labelledby': 'nav-b-tools',
         }}
       >
-        <MenuItem onClick={handleClose}>Profile</MenuItem>
-        <MenuItem onClick={handleClose}>My account</MenuItem>
-        <MenuItem onClick={handleClose}>Logout</MenuItem>
+        <MenuItem onClick={handleClose}>Data Import</MenuItem>
+        <MenuItem onClick={handleClose}>Data Export</MenuItem>
       </Menu>
+
       <Button
         color='inherit'
         sx={{ marginRight: 2 }}
-        id='basic-button'
-        aria-controls={open ? 'basic-menu' : undefined}
+        id='nav-b-help'
+        aria-controls={open ? 'nav-help-menu' : undefined}
         aria-haspopup='true'
         aria-expanded={open ? 'true' : undefined}
         onClick={handleClick}
@@ -144,17 +121,16 @@ function NavBar() {
         Help
       </Button>
       <Menu
-        id='basic-menu'
+        id='nav-help-menu'
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
         MenuListProps={{
-          'aria-labelledby': 'basic-button',
+          'aria-labelledby': 'nav-b-help',
         }}
       >
-        <MenuItem onClick={handleClose}>Profile</MenuItem>
-        <MenuItem onClick={handleClose}>My account</MenuItem>
-        <MenuItem onClick={handleClose}>Logout</MenuItem>
+        <MenuItem onClick={handleClose}>Check Update</MenuItem>
+        <MenuItem onClick={handleClose}>Visit Website</MenuItem>
       </Menu>
       {isConnected ? (
         <>

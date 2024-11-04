@@ -167,11 +167,11 @@ export namespace types {
         "hash_tables": (string)[];
         "zset_tables": (string)[];
     };
-    export type TriggerTiming = ("Before" | "After" | 
-    /**
-     * sql server have this timing but I am not quit understand.
-     */
-"InsteadOf");
+    export type TriggerTiming = ("Before" | "After" |
+        /**
+         * sql server have this timing but I am not quit understand.
+         */
+        "InsteadOf");
     export type TriggerEvent = ("Insert" | "Update" | "Delete");
     export type TriggerEnable = (({
         "kind": "postgres";
@@ -227,6 +227,7 @@ export namespace types {
         "data": (Record<string, string>)[];
     };
     export type MuiDataTableListResp = {
+        fields: any;
         "total": types.Usize;
         "sql": (string | null);
         "data": types.MuiDataGridData;

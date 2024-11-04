@@ -24,7 +24,7 @@ const DEFAULT_MIN_WIDTH_CELL = 70;
 const DEFAULT_MAX_WIDTH_CELL = 800;
 
 function QueryResp(props: {
-  data: apis.QueryResp;
+  data: apis.MuiDataTableListResp;
   order: string;
   orderBy: string;
   reloadSort: (order: string, orderBy: string) => void;
@@ -38,7 +38,7 @@ function QueryResp(props: {
 
   const isResizing = useRef(-1);
 
-  const setCursorDocument = (isResizing) => {
+  const setCursorDocument = (isResizing: boolean) => {
     document.body.style.cursor = isResizing ? 'col-resize' : 'auto';
   };
 
@@ -64,7 +64,7 @@ function QueryResp(props: {
   //   reloadSort(name, newOrder);
   // };
 
-  const onClickResizeColumn = (index) => {
+  const onClickResizeColumn = (index: number) => {
     console.log('start resize');
     isResizing.current = index;
     setCursorDocument(true);
@@ -226,7 +226,9 @@ function MultiQueryResp(props: { data: any[] }) {
             {e.Err ? (
               <Alert severity='error'>{e.Err}</Alert>
             ) : (
-              <QueryResp data={e.Ok}></QueryResp>
+              <QueryResp data={e.Ok} order={''} orderBy={''} reloadSort={function (order: string, orderBy: string): void {
+                  throw new Error('Function not implemented.');
+                } }></QueryResp>
             )}
           </CustomTabPanel>
         );
