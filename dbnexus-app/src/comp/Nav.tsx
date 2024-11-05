@@ -8,12 +8,26 @@ import { Menu, MenuItem } from '@mui/material';
 import React from 'react';
 
 function NavBar() {
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const open = Boolean(anchorEl);
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const [fileMenuAnchorEl, setFileMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [editMenuAnchorEl, setEditMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [toolsMenuAnchorEl, setToolsMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [helpMenuAnchorEl, setHelpMenuAnchorEl] = useState<null | HTMLElement>(null);
+
+  const openFileMenu = Boolean(fileMenuAnchorEl);
+  const openEditMenu = Boolean(editMenuAnchorEl);
+  const openToolsMenu = Boolean(toolsMenuAnchorEl);
+  const openHelpMenu = Boolean(helpMenuAnchorEl);
+
+  const handleMenuClick = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    setAnchorEl: React.Dispatch<React.SetStateAction<HTMLElement | null>>
+  ) => {
     setAnchorEl(event.currentTarget);
   };
-  const handleClose = () => {
+
+  const handleMenuClose = (
+    setAnchorEl: React.Dispatch<React.SetStateAction<HTMLElement | null>>
+  ) => {
     setAnchorEl(null);
   };
 
@@ -23,9 +37,8 @@ function NavBar() {
 
   // 模拟连接数据库
   const handleConnect = () => {
-    // 这里可以替换成实际的数据库连接逻辑
     setIsConnected(true);
-    setConnectionURL('localhost:3304'); // 假设连接到这个端口
+    setConnectionURL('localhost:3304');
   };
 
   // 模拟断开数据库连接
@@ -36,102 +49,94 @@ function NavBar() {
 
   return (
     <>
-      <Button
+      {/* <Button
         color='inherit'
         sx={{ marginRight: 2 }}
         id='nav-b-file'
-        aria-controls={open ? 'nav-file-menu' : undefined}
+        aria-controls={openFileMenu ? 'nav-file-menu' : undefined}
         aria-haspopup='true'
-        aria-expanded={open ? 'true' : undefined}
-        onClick={handleClick}
+        aria-expanded={openFileMenu ? 'true' : undefined}
+        onClick={(e) => handleMenuClick(e, setFileMenuAnchorEl)}
       >
         File
       </Button>
       <Menu
         id='nav-file-menu'
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        MenuListProps={{
-          'aria-labelledby': 'nav-b-file',
-        }}
+        anchorEl={fileMenuAnchorEl}
+        open={openFileMenu}
+        onClose={() => handleMenuClose(setFileMenuAnchorEl)}
       >
-        <MenuItem onClick={handleClose}>Open</MenuItem>
-        <MenuItem onClick={handleClose}>Close</MenuItem>
-        <MenuItem onClick={handleClose}>Exit</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setFileMenuAnchorEl)}>Open</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setFileMenuAnchorEl)}>Close</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setFileMenuAnchorEl)}>Exit</MenuItem>
       </Menu>
+
       <Button
         color='inherit'
         sx={{ marginRight: 2 }}
         id='nav-b-edit'
-        aria-controls={open ? 'nav-edit-menu' : undefined}
+        aria-controls={openEditMenu ? 'nav-edit-menu' : undefined}
         aria-haspopup='true'
-        aria-expanded={open ? 'true' : undefined}
-        onClick={handleClick}
+        aria-expanded={openEditMenu ? 'true' : undefined}
+        onClick={(e) => handleMenuClick(e, setEditMenuAnchorEl)}
       >
         Edit
       </Button>
       <Menu
         id='nav-edit-menu'
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        MenuListProps={{
-          'aria-labelledby': 'nav-b-edit',
-        }}
+        anchorEl={editMenuAnchorEl}
+        open={openEditMenu}
+        onClose={() => handleMenuClose(setEditMenuAnchorEl)}
       >
-        <MenuItem onClick={handleClose}>Undo</MenuItem>
-        <MenuItem onClick={handleClose}>Redo</MenuItem>
-        <MenuItem onClick={handleClose}>Copy</MenuItem>
-        <MenuItem onClick={handleClose}>Paste</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setEditMenuAnchorEl)}>Undo</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setEditMenuAnchorEl)}>Redo</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setEditMenuAnchorEl)}>Copy</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setEditMenuAnchorEl)}>Paste</MenuItem>
       </Menu>
+
       <Button
         color='inherit'
         sx={{ marginRight: 2 }}
         id='nav-b-tools'
-        aria-controls={open ? 'nav-tools-menu' : undefined}
+        aria-controls={openToolsMenu ? 'nav-tools-menu' : undefined}
         aria-haspopup='true'
-        aria-expanded={open ? 'true' : undefined}
-        onClick={handleClick}
+        aria-expanded={openToolsMenu ? 'true' : undefined}
+        onClick={(e) => handleMenuClick(e, setToolsMenuAnchorEl)}
       >
         Tools
       </Button>
       <Menu
         id='nav-tools-menu'
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        MenuListProps={{
-          'aria-labelledby': 'nav-b-tools',
-        }}
+        anchorEl={toolsMenuAnchorEl}
+        open={openToolsMenu}
+        onClose={() => handleMenuClose(setToolsMenuAnchorEl)}
       >
-        <MenuItem onClick={handleClose}>Data Import</MenuItem>
-        <MenuItem onClick={handleClose}>Data Export</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setToolsMenuAnchorEl)}>Data Import</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setToolsMenuAnchorEl)}>Data Export</MenuItem>
       </Menu>
 
       <Button
         color='inherit'
         sx={{ marginRight: 2 }}
         id='nav-b-help'
-        aria-controls={open ? 'nav-help-menu' : undefined}
+        aria-controls={openHelpMenu ? 'nav-help-menu' : undefined}
         aria-haspopup='true'
-        aria-expanded={open ? 'true' : undefined}
-        onClick={handleClick}
+        aria-expanded={openHelpMenu ? 'true' : undefined}
+        onClick={(e) => handleMenuClick(e, setHelpMenuAnchorEl)}
       >
         Help
       </Button>
       <Menu
         id='nav-help-menu'
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        MenuListProps={{
-          'aria-labelledby': 'nav-b-help',
-        }}
+        anchorEl={helpMenuAnchorEl}
+        open={openHelpMenu}
+        onClose={() => handleMenuClose(setHelpMenuAnchorEl)}
       >
-        <MenuItem onClick={handleClose}>Check Update</MenuItem>
-        <MenuItem onClick={handleClose}>Visit Website</MenuItem>
-      </Menu>
+        <MenuItem onClick={() => handleMenuClose(setHelpMenuAnchorEl)}>Check Update</MenuItem>
+        <MenuItem onClick={() => handleMenuClose(setHelpMenuAnchorEl)}>Visit Website</MenuItem>
+      </Menu> */}
+
+      {/* Connection Status */}
       {isConnected ? (
         <>
           <Typography variant='body1' sx={{ marginRight: 2 }}>

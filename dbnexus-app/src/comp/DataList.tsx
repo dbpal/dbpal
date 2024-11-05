@@ -4,19 +4,27 @@ import {
   Typography,
   List,
   ListItem,
+  ListItemText,
+  ListItemIcon,
+  Collapse,
   TextField,
   Button,
   Select,
   MenuItem,
   InputLabel,
   FormControl,
+  IconButton,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
+import FolderIcon from '@mui/icons-material/Folder';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 
 function DataList() {
   const [database, setDatabase] = useState('');
   const [filter, setFilter] = useState('');
+  const [openEntity, setOpenEntity] = useState<string | null>(null);
 
   const handleDatabaseChange = (event: {
     target: { value: React.SetStateAction<string> };
@@ -30,6 +38,37 @@ function DataList() {
     setFilter(event.target.value);
   };
 
+  const handleEntityClick = (entityName: string) => {
+    setOpenEntity(openEntity === entityName ? null : entityName);
+  };
+
+  // 示例数据
+  const entities = [
+    {
+      name: 'aBTCDepositEvent',
+      fields: [
+        { name: 'id', type: 'int(10) unsigned' },
+        { name: 'hash', type: 'varchar(100)' },
+        { name: 'sequence_number', type: 'varchar(66)' },
+        { name: 'address', type: 'varchar(66)' },
+        { name: 'amount', type: 'bigint(20) unsigned' },
+        { name: 'version', type: 'bigint(20) unsigned' },
+        { name: 'timestamp', type: 'bigint(20) unsigned' },
+        { name: 'state', type: 'int(10) unsigned' },
+        { name: 'created', type: 'timestamp' },
+        { name: 'updated', type: 'timestamp' },
+      ],
+    },
+    {
+      name: 'aBTCEvent',
+      fields: [
+        { name: 'event_id', type: 'int(10) unsigned' },
+        { name: 'event_type', type: 'varchar(50)' },
+      ],
+    },
+    // 更多实体...
+  ];
+
   return (
     <Box
       sx={{
@@ -41,9 +80,7 @@ function DataList() {
     >
       <Box sx={{ mb: 2 }}>
         <FormControl fullWidth>
-          <InputLabel id='database-select-label'>
-            Select a database...
-          </InputLabel>
+          <InputLabel id='database-select-label'>Select a database...</InputLabel>
           <Select
             labelId='database-select-label'
             id='database-select'
@@ -65,11 +102,44 @@ function DataList() {
         size='small'
         value={filter}
         onChange={handleFilterChange}
-        InputProps={{}}
       />
       <Typography variant='subtitle2' sx={{ mt: 2, mb: 1 }}>
-        ENTITIES (0)
+        ENTITIES ({entities.length})
       </Typography>
+      <List component="nav" dense>
+        {entities.map((entity) => (
+          <React.Fragment key={entity.name}>
+            <ListItem onClick={() => handleEntityClick(entity.name)}>
+              {/* <ListItemIcon>
+                <FolderIcon />
+              </ListItemIcon> */}
+              <ListItemText primary={entity.name} />
+              {openEntity === entity.name ? <ExpandLess /> : <ExpandMore />}
+            </ListItem>
+            <Collapse in={openEntity === entity.name} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {entity.fields.map((field) => (
+                  <ListItem sx={{ m: 0, p: 0, pl: 4 }} key={field.name} >
+                    <ListItemText
+                      primary={field.name}
+                      secondary={field.type}
+                      primaryTypographyProps={{ fontSize: '0.9em' }}
+                      secondaryTypographyProps={{ fontSize: '0.75em', color: 'text.secondary' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Collapse>
+          </React.Fragment>
+        ))}
+      </List>
+      <Button
+        variant="outlined"
+        startIcon={<AddIcon />}
+        sx={{ mt: 2 }}
+      >
+        Add Entity
+      </Button>
     </Box>
   );
 }
