@@ -241,7 +241,7 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 export { MultiQueryResp };
 root.render(
   <React.StrictMode>
-    <QueryResp data={testExampleQueryResp()}></QueryResp>
+    {/* <QueryResp data={testExampleQueryResp()}></QueryResp> */}
 
     {/* <MultiQueryResp data={testExampleMultiQueryResp()}></MultiQueryResp> */}
   </React.StrictMode>

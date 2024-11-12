@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TextField,
@@ -14,6 +14,7 @@ import {
   MenuItem,
   Paper,
 } from '@mui/material';
+import { NotificationContext } from './Notification';
 
 export default function DatabaseConnectionForm() {
   const navigate = useNavigate(); // 添加这行来使用 navigate 函数
@@ -28,21 +29,23 @@ export default function DatabaseConnectionForm() {
   const [useSSL, setUseSSL] = useState(false);
   const [connectionName, setConnectionName] = useState('');
 
+  const { showNotification } = useContext(NotificationContext);
+
   const handleConnect = () => {
     // 模拟连接数据库
-    alert('Connecting to database...');
+
+
     navigate('/database'); // 在连接逻辑之后添加跳转
   };
 
   const handleSaveConnection = () => {
-    // 模拟保存连接
-    alert(`Connection ${connectionName} saved.`);
+
     navigate('/database'); // 这里也可以添加跳转，视业务逻辑而定
   };
 
   const handleTestConnection = () => {
     // 模拟测试连接
-    alert('Testing connection...');
+    showNotification("info", "Info", "Testing connection...");
   };
 
   return (

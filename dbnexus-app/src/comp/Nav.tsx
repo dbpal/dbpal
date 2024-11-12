@@ -137,20 +137,7 @@ function NavBar() {
       </Menu> */}
 
       {/* Connection Status */}
-      {isConnected ? (
-        <>
-          <Typography variant='body1' sx={{ marginRight: 2 }}>
-            Connected to: {connectionURL}
-          </Typography>
-          <Button variant='contained' color='error' onClick={handleDisconnect}>
-            Disconnect
-          </Button>
-        </>
-      ) : (
-        <Button color='inherit' variant='outlined' onClick={handleConnect}>
-          Connect
-        </Button>
-      )}
+
     </>
   );
 }

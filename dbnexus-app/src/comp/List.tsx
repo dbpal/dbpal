@@ -10,7 +10,8 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import LayersIcon from '@mui/icons-material/Layers';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import { Airplay } from '@mui/icons-material';
-import { Grid, Menu, MenuItem } from '@mui/material';
+import { Button, Grid, Menu, MenuItem, Typography } from '@mui/material';
+import { useState } from 'react';
 
 function MainListItems() {
   const [anchorEl, setAnchorEl] = React.useState(null);
@@ -80,8 +81,42 @@ function MainListItems() {
   );
 }
 
-export const secondaryListItems = (
-  <React.Fragment>
+
+export function ConnectList() {
+
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionURL, setConnectionURL] = useState('');
+
+  // 模拟连接数据库
+  const handleConnect = () => {
+    setIsConnected(true);
+    setConnectionURL('localhost:3304');
+  };
+
+  // 模拟断开数据库连接
+  const handleDisconnect = () => {
+    setIsConnected(false);
+    setConnectionURL('');
+  };
+
+
+  // 管理数据库连接状态
+  return (<React.Fragment>
+    {isConnected ? (
+      <>
+        <Typography variant='body1' sx={{ marginRight: 2, ml: 2 }}>
+          Connected to: {connectionURL}
+        </Typography>
+        <Button variant='contained' color='error' onClick={handleDisconnect}>
+          Disconnect
+        </Button>
+      </>
+    ) : (
+      <Button sx={{ mx: 4, mt: 2, mb: 2 }} color='inherit' variant='outlined' onClick={handleConnect}>
+        Connect
+      </Button>
+    )}
+
     <ListItemButton sx={{ pl: 4 }}>
       <Grid>
         <ListItemText primary='MySQL' />
@@ -105,7 +140,7 @@ export const secondaryListItems = (
         <ListItemText secondary='localhost:3660' />
       </Grid>
     </ListItemButton>
-  </React.Fragment>
-);
+  </React.Fragment>)
+}
 
 export default MainListItems;
