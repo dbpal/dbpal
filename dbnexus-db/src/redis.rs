@@ -13,6 +13,7 @@ use crate::db::{
     QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet,
     TableListResp,
 };
+
 use crate::helper::{create_csv, OffsetLimitIter};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
@@ -55,6 +56,25 @@ impl RedisDB {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef)]
+#[serde(tag = "redis_byte_or_str_arg", rename_all = "lowercase")]
+pub enum RedisBytesOrStringArg {
+    Bytes(Vec<u8>),
+    String(String),
+}
+
+impl redis::ToRedisArgs for RedisBytesOrStringArg {
+    fn write_redis_args<W>(&self, out: &mut W)
+    where
+        W: ?Sized + redis::RedisWrite,
+    {
+        match self {
+            Self::Bytes(x) => x.as_slice().write_redis_args(out),
+            Self::String(s) => s.write_redis_args(out),
+        }
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]
 pub struct RedisListTable {
     pub string_tables: Vec<String>,
@@ -65,20 +85,20 @@ pub struct RedisListTable {
 }
 
 impl RedisDB {
-    pub async fn lpush(&self, key: &str, value: &str) -> anyhow::Result<()> {
+    pub async fn lpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.lpush(key, value).await?;
         anyhow::Ok(())
     }
 
-    pub async fn rpush(&self, key: &str, value: &str) -> anyhow::Result<()> {
+    pub async fn rpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.rpush(key, value).await?;
         anyhow::Ok(())
     }
 
     pub async fn set_replace(
-        &self, key: &str, old_member: &str, new_member: &str,
+        &self, key: &str, old_member: &[u8], new_member: &[u8],
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.sadd(key, new_member).await?;
@@ -88,20 +108,20 @@ impl RedisDB {
             .context("set new key succeefully , but remove old key failed")?;
         anyhow::Ok(())
     }
-    pub async fn set_del(&self, key: &str, member: &str) -> anyhow::Result<()> {
+    pub async fn set_del(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.srem(key, member).await?;
         anyhow::Ok(())
     }
 
-    pub async fn set_add(&self, key: &str, member: &str) -> anyhow::Result<()> {
+    pub async fn set_add(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.sadd(key, member).await?;
         anyhow::Ok(())
     }
 
     pub async fn hash_replace(
-        &self, key: &str, old_member: &str, new_member: &str, new_value: &str,
+        &self, key: &str, old_member: &[u8], new_member: &[u8], new_value: &[u8],
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.hset(key, new_member, new_value).await?;
@@ -111,19 +131,19 @@ impl RedisDB {
             .context("set new key succeefully , but remove old key failed")?;
         anyhow::Ok(())
     }
-    pub async fn hash_del(&self, key: &str, member: &str) -> anyhow::Result<()> {
+    pub async fn hash_del(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.hdel(key, member).await?;
         anyhow::Ok(())
     }
-    pub async fn hash_add(&self, key: &str, member: &str, value: &str) -> anyhow::Result<()> {
+    pub async fn hash_add(&self, key: &str, member: &[u8], value: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.hset(key, member, value).await?;
         anyhow::Ok(())
     }
 
     pub async fn zset_replace(
-        &self, key: &str, old_member: &str, new_member: &str, new_value: f64,
+        &self, key: &str, old_member: &[u8], new_member: &[u8], new_value: f64,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.zadd(key, new_member, new_value).await?;
@@ -133,18 +153,18 @@ impl RedisDB {
             .context("set new key succeefully , but remove old key failed")?;
         anyhow::Ok(())
     }
-    pub async fn zset_del(&self, key: &str, member: &str) -> anyhow::Result<()> {
+    pub async fn zset_del(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.zrem(key, member).await?;
         anyhow::Ok(())
     }
-    pub async fn zset_add(&self, key: &str, member: &str, value: f64) -> anyhow::Result<()> {
+
+    pub async fn zset_add(&self, key: &str, member: &[u8], value: f64) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.zadd(key, member, value).await?;
         anyhow::Ok(())
     }
-
-    pub async fn string_set(&self, key: &str, value: &str) -> anyhow::Result<()> {
+    pub async fn string_set(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.set(key, value).await?;
         anyhow::Result::Ok(())
@@ -759,55 +779,60 @@ impl SchemaTrait for RedisDB {
         use futures_util::StreamExt;
         match typ {
             RedisType::String => {
-                let ret: Option<String> = conn.get(key).await?;
+                let ret: Option<Vec<u8>> = conn.get(key).await?;
                 anyhow::Ok(TableListResp::result(
                     "value",
                     format!("GET {}", key),
-                    vec![ret],
+                    vec![ret.map(|x| hex::encode(x.as_slice()))],
                 ))
             }
 
             RedisType::List => {
                 let total: usize = conn.llen(key).await?;
                 let start = (page - 1) * page_size;
-                let ret: Vec<String> = conn
+                let ret: Vec<Vec<u8>> = conn
                     .lrange(key, start as isize, (start + page_size) as isize)
                     .await?;
                 anyhow::Ok(TableListResp::new(
                     vec![Field::from_name_type("value", "string")],
                     total,
-                    ret.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>(),
+                    ret.into_iter()
+                        .map(|x| vec![Some(hex::encode(x.as_slice()))])
+                        .collect::<Vec<_>>(),
                     format!("LRANGE {} {} {}  ", key, start, start + page_size),
                 ))
             }
 
             RedisType::Set => {
                 let total: usize = conn.scard(key).await?;
-                let mut ret: AsyncIter<String> =
+                let mut ret: AsyncIter<Vec<u8>> =
                     conn.sscan_match(key, where_str.unwrap_or("*")).await?;
                 let mut set_values = Vec::new();
                 while let Some(value) = ret.next().await {
-                    set_values.push(Some(value));
+                    set_values.push(value);
                 }
                 anyhow::Ok(TableListResp::new(
                     vec![Field::from_name_type("value", "string")],
                     total,
-                    set_values.into_iter().map(|x| vec![x]).collect(),
+                    set_values
+                        .into_iter()
+                        .map(|x| vec![Some(hex::encode(x.as_slice()))])
+                        .collect(),
                     format!("SSCAN {} 0 {}", key, where_str.unwrap_or("*")),
                 ))
             }
             RedisType::Hash => {
                 let total: usize = conn.hlen(key).await?;
-                let mut ret: AsyncIter<String> =
+                let mut ret: AsyncIter<Vec<u8>> =
                     conn.hscan_match(key, where_str.unwrap_or("*")).await?;
                 let mut index = 0;
                 let mut key_values = Vec::new();
                 let mut value_values = Vec::new();
                 while let Some(value) = ret.next().await {
                     if index % 2 == 0 {
-                        key_values.push(Some(value.clone()));
+                        key_values.push(value.clone());
                     } else {
-                        value_values.push(Some(value.clone()));
+                        value_values.push(value.clone());
                     }
                     index += 1;
                 }
@@ -820,7 +845,12 @@ impl SchemaTrait for RedisDB {
                     key_values
                         .into_iter()
                         .zip(value_values.into_iter())
-                        .map(|(k, v)| vec![k, v])
+                        .map(|(k, v)| {
+                            vec![
+                                Some(hex::encode(k.as_slice())),
+                                Some(hex::encode(v.as_slice())),
+                            ]
+                        })
                         .collect(),
                     format!("HSCAN {} 0 {}", key, where_str.unwrap_or("*")),
                 ))
@@ -828,16 +858,16 @@ impl SchemaTrait for RedisDB {
 
             RedisType::Zset => {
                 let total: usize = conn.zcard(key).await?;
-                let mut ret: AsyncIter<String> =
+                let mut ret: AsyncIter<Vec<u8>> =
                     conn.zscan_match(key, where_str.unwrap_or("*")).await?;
                 let mut index = 0;
                 let mut key_values = Vec::new();
                 let mut value_values = Vec::new();
                 while let Some(value) = ret.next().await {
                     if index % 2 == 0 {
-                        key_values.push(Some(value.clone()));
+                        key_values.push(value.clone());
                     } else {
-                        value_values.push(Some(value.clone()));
+                        value_values.push(value.clone());
                     }
                     index += 1;
                 }
@@ -850,7 +880,12 @@ impl SchemaTrait for RedisDB {
                     key_values
                         .into_iter()
                         .zip(value_values.into_iter())
-                        .map(|(k, v)| vec![k, v])
+                        .map(|(k, v)| {
+                            vec![
+                                Some(hex::encode(k.as_slice())),
+                                Some(hex::encode(v.as_slice())),
+                            ]
+                        })
                         .collect(),
                     format!("ZSCAN {} 0 {}", key, where_str.unwrap_or("*")),
                 ))
@@ -1298,6 +1333,9 @@ mod tests {
 
     use std::{path::Path, time::Duration};
 
+    use futures_util::StreamExt;
+    use redis::AsyncCommands;
+
     use super::{extract_db_from_info_key_space, split_info_colon, RedisDB};
     use crate::{
         completion::completion_test::test_file_auto_completion,
@@ -1318,6 +1356,16 @@ mod tests {
         .await
         .unwrap();
         db
+    }
+    #[tokio::test]
+
+    async fn test_select_zset_binary() {
+        let db = make_test_object().await;
+        let mut conn = db.get_conn().await.unwrap();
+        let mut x: redis::AsyncIter<'_, Vec<u8>> = conn.zscan("zset_value").await.unwrap();
+        while let Some(val) = x.next().await {
+            println!("{:?}", val);
+        }
     }
 
     #[test]

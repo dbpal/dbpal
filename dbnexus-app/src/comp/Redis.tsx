@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Profiler, useContext, useEffect, useState } from 'react';
 import {
   Button,
   Stack,
@@ -10,11 +10,30 @@ import {
   FormControl,
   InputLabel,
   Select,
+  AlertColor,
+  Typography,
+  Modal,
 } from '@mui/material';
-
+import { v4 as uuidv4 } from 'uuid';
 import ReactDOM from 'react-dom/client';
 
-import { CloseSpace, errOkHoldTime } from './common';
+import {
+  CloseSpace,
+  errOkHoldTime,
+  hexToUint8Array,
+  hexToUtf8,
+  hexTryToUtf8,
+  modalStyle,
+  stringToHex,
+  arrayToHex,
+} from './common';
+import { testExampleRedisSetList } from './exampleTest';
+import { types } from './ApiStruct.ts';
+import { voidTestFunction } from './helper';
+import { NotificationContext } from './Notification';
+import { DataGrid } from '@mui/x-data-grid';
+import HexEditor from 'react-hex-editor';
+import oneDarkPro from 'react-hex-editor/themes/oneDarkPro';
 
 class RedisZsetHashModifyReq {
   oldKey: string;
@@ -25,6 +44,11 @@ class RedisZsetHashModifyReq {
     this.newKey = newKey;
     this.value = value;
   }
+}
+
+enum RedisEditMode {
+  Hex,
+  Text,
 }
 
 function RedisListAdd(props: {
@@ -667,64 +691,156 @@ function RedisEditZset(props: {
   );
 }
 
+function RedisEditModeComponent(props: {
+  mode: RedisEditMode;
+  handleChange: (mode: RedisEditMode) => void;
+}) {
+  const { mode, handleChange } = props;
+
+  return (
+    <Box sx={{ minWidth: 100 }}>
+      <FormControl fullWidth>
+        <InputLabel id='simple-select-label'>select edit patten</InputLabel>
+        <Select
+          labelId='simple-select-label'
+          id='simple-select'
+          value={mode}
+          onChange={(e) => {
+            handleChange(e.target.value as RedisEditMode);
+          }}
+          label='选择一个选项'
+        >
+          <MenuItem value={RedisEditMode.Hex}>hex</MenuItem>
+          <MenuItem value={RedisEditMode.Text}>text</MenuItem>
+        </Select>
+      </FormControl>
+    </Box>
+  );
+}
+
+function RedisEditHexOrText(props: {
+  oldValue: string;
+  handleValue: (a: any) => void;
+}) {
+  let { oldValue, handleValue } = props;
+  const [newValue, setNewValue] = useState<String | number[]>(oldValue);
+  const [editModel, setEditModel] = useState(RedisEditMode.Hex);
+  useEffect(() => {
+    let value = hexTryToUtf8(oldValue);
+    if (typeof value === 'string') {
+      setEditModel(RedisEditMode.Text);
+    } else {
+      setEditModel(RedisEditMode.Hex);
+    }
+    setNewValue(value);
+  }, []);
+
+  const [nonce, setNonce] = useState(0);
+  // The callback facilitates updates to the source data.
+  const handleSetValue = React.useCallback(
+    (offset, value) => {
+      newValue[offset] = value;
+      setNonce((v) => v + 1);
+      handleValue(arrayToHex(newValue));
+    },
+    [newValue]
+  );
+
+  useEffect(() => {
+    switch (editModel) {
+      case RedisEditMode.Text:
+        setNewValue(hexToUtf8(oldValue));
+        break;
+      case RedisEditMode.Hex:
+        setNewValue(hexToUint8Array(oldValue));
+        break;
+    }
+  }, [editModel]);
+
+  return (
+    <Stack spacing={2}>
+      <RedisEditModeComponent
+        mode={editModel}
+        handleChange={(mode) => {
+          setEditModel(mode);
+        }}
+      ></RedisEditModeComponent>
+      {editModel == RedisEditMode.Text && (
+        <TextField
+          value={newValue}
+          label='key'
+          multiline
+          rows={4}
+          onChange={(event) => {
+            setNewValue(event.target.value);
+            handleValue(stringToHex(event.target.value));
+          }}
+        ></TextField>
+      )}
+
+      {editModel == RedisEditMode.Hex && (
+        <HexEditor
+          columns={0x10}
+          data={newValue}
+          nonce={nonce}
+          onSetValue={handleSetValue}
+          theme={{ hexEditor: oneDarkPro }}
+          showAscii={true}
+          showRowLabels={true}
+          showColumnLabels={true}
+          rows={0x10}
+        ></HexEditor>
+      )}
+    </Stack>
+  );
+}
+
 function RedisEditSet(props: {
-  modifyOP: (oldkey: string, newkey: string) => Promise<void>;
-  oldKey: string;
+  modifyOP: (oldValue: string, newValue: string) => Promise<void>;
+  oldValue: string;
   handleClose: () => void;
 }) {
-  let { oldKey, modifyOP, handleClose } = props;
+  let { oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string>('');
-  const [okMsg, setOkMsg] = useState('');
-  const [newKey, setNewKey] = useState(oldKey);
+  const [newValue, setNewValue] = useState('');
+  const { showNotification } = useContext(NotificationContext);
 
   // really modify the content.
   const handleModify = () => {
-    if (oldKey == newKey) {
-      return;
-    }
-    // reset some state
     setLoading(true);
-    setErr('');
-    setOkMsg('');
-    modifyOP(oldKey, newKey)
+    modifyOP(oldValue, newValue)
       .then(() => {
         setLoading(false);
-        setOkMsg('Modify OK');
-        setTimeout(() => {
-          setOkMsg('');
-        }, errOkHoldTime);
+        setNewValue('');
+        showNotification('success', 'Modify OK', '');
       })
       .catch((e) => {
         setLoading(false);
-        setErr(e.toString());
-        setTimeout(() => {
-          setErr('');
-        }, errOkHoldTime);
+        showNotification('success', 'Modify Failure', e.toString());
+        setNewValue('');
       });
   };
 
   return (
     <Stack spacing={2}>
-      {err && <Alert severity='error'>{err}</Alert>}
-      {okMsg && <Alert>{okMsg}</Alert>}
       {loading && (
         <Box sx={{ display: 'flex' }}>
           <CircularProgress />
         </Box>
       )}
-      <TextField
-        value={newKey}
-        label='key'
-        multiline
-        rows={4}
-        onChange={(event) => {
-          setNewKey(event.target.value);
+      <RedisEditHexOrText
+        oldValue={oldValue}
+        handleValue={(e) => {
+          setNewValue(e);
         }}
-      ></TextField>
-
+      ></RedisEditHexOrText>
       <Stack direction='row'>
-        <Button color='primary' variant='contained' onClick={handleModify}>
+        <Button
+          color='primary'
+          variant='contained'
+          disabled={newValue == ''}
+          onClick={handleModify}
+        >
           Modify
         </Button>
         &nbsp;
@@ -741,8 +857,157 @@ function RedisEditSet(props: {
   );
 }
 
-// const root = ReactDOM.createRoot(document.getElementById('root'));
+function redisRenderCell(p: any) {
+  let value = hexTryToUtf8(p);
+  if (typeof value === 'string') {
+    return value;
+  } else {
+    return 'BINARY HEX ' + p;
+  }
+}
 
-// root.render(<React.StrictMode></React.StrictMode>);
+function RedisSetTable(props: {
+  reload: (string) => Promise<types.MuiDataTableListResp>;
+  modifyOP: (string, string) => Promise<void>;
+}) {
+  const { reload, modifyOP } = props;
+  const [keyMatch, setKeyMatch] = useState('');
+  const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
+  const { showNotification } = useContext(NotificationContext);
+  const [selectID, setSelectID] = useState<string | null>(null);
+
+  const handleReload = () => {
+    reload(keyMatch)
+      .then((resp) => {
+        resp.data.data.forEach((e) => {
+          e.id = uuidv4();
+        });
+        resp.data.fields[0]['flex'] = 1;
+        resp.data.fields[0]['sortable'] = false;
+        resp.data.fields[0]['renderCell'] = (p) => {
+          redisRenderCell(p.row.value);
+        };
+        setResp(resp);
+      })
+      .catch((e) => {
+        showNotification('error', 'load data error', e.toString());
+      });
+  };
+
+  useEffect(() => {
+    handleReload();
+  }, []);
+
+  const getIDIndex = (selectID: string): number => {
+    let ret;
+    resp.data.data.forEach((e, index) => {
+      if (e.id === selectID) {
+        ret = index;
+      }
+    });
+    return ret;
+  };
+  return (
+    <Stack>
+      <Stack direction='row'>
+        <TextField
+          label='key match could be *key,key*,*key*'
+          variant='outlined' // 可以是 'outlined', 'filled', or 'standard'
+          value={keyMatch}
+          onChange={(event) => {
+            setKeyMatch(event.target.value);
+          }}
+        />
+
+        <Button
+          variant='contained' // 可以是 'text', 'outlined', 或 'contained'
+          color='primary' // 主题颜色
+          onClick={handleReload} // 点击事件处理
+        >
+          Reload
+        </Button>
+      </Stack>
+
+      {resp && (
+        <Stack direction='row'>
+          <DataGrid
+            rows={resp.data.data}
+            editMode='row'
+            onRowDoubleClick={(e) => {
+              setSelectID(e.id);
+            }}
+            columns={resp.data.fields}
+          ></DataGrid>
+          {selectID && (
+            <Modal
+              open={!!selectID}
+              onClose={() => {
+                setSelectID(null);
+              }}
+              aria-labelledby='modify set'
+            >
+              <Box sx={modalStyle} width='600px'>
+                <RedisEditSet
+                  modifyOP={async (oldValue, newValue) => {
+                    try {
+                      await modifyOP(oldValue, newValue);
+                    } catch (e) {
+                      throw e;
+                    }
+                    resp.data.data[getIDIndex(selectID)].value = newValue;
+                  }}
+                  key={selectID}
+                  oldValue={resp.data.data[getIDIndex(selectID)].value}
+                  handleClose={() => {
+                    setSelectID(null);
+                  }}
+                ></RedisEditSet>
+              </Box>
+            </Modal>
+          )}
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+
+root.render(
+  <NotificationContext.Provider
+    value={{
+      showNotification: (
+        severity: AlertColor,
+        title: string,
+        message: string
+      ) => {
+        console.log(`${severity} ${title} ${message}`);
+      },
+    }}
+  >
+    <React.StrictMode>
+      <RedisEditHexOrText
+        oldValue='aaaaaabb'
+        handleValue={(e) => {
+          console.log(e);
+        }}
+      ></RedisEditHexOrText>
+
+      <hr></hr>
+
+      <RedisSetTable
+        reload={async (_: string) => {
+          try {
+            await voidTestFunction();
+          } catch (e) {
+            throw e;
+          }
+          return testExampleRedisSetList(66);
+        }}
+        modifyOP={voidTestFunction}
+      ></RedisSetTable>
+    </React.StrictMode>
+  </NotificationContext.Provider>
+);
 
 export {};

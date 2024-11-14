@@ -1,5 +1,6 @@
 import { types } from './ApiStruct.ts';
-import { generateRandomString } from './helper.ts';
+import { hexTryToUtf8, stringToHexArray, arrayToHex } from './common.tsx';
+import { generateRandomString, generateRandomUint8Array } from './helper.ts';
 
 function testExampleRedisZset(
   length: number = 10,
@@ -21,6 +22,14 @@ function testExampleRedisZset(
     total: Math.floor(Math.random() * 10000 + 1000),
     sql: null,
   };
+}
+
+function testRedisKeyOrValue(): string {
+  if (Math.random() > 0.5) {
+    return arrayToHex(stringToHexArray(generateRandomString()));
+  } else {
+    return arrayToHex(generateRandomUint8Array());
+  }
 }
 
 function testExampleRedisHash(length: number = 10): types.MuiDataTableListResp {
@@ -47,12 +56,12 @@ function testExampleRedisSetList(
 ): types.MuiDataTableListResp {
   var data = [];
   for (var i = 0; i < length; i++) {
-    data.push({ key: generateRandomString(10), id: generateRandomString(20) });
+    data.push({ value: testRedisKeyOrValue() });
   }
   return {
     data: {
       data,
-      fields: [{ field: 'key', typ: 'string' } as types.Field],
+      fields: [{ field: 'value', typ: 'string' } as types.Field],
     },
     total: Math.floor(Math.random() * 10000 + 1000),
     sql: null,

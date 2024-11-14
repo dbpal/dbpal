@@ -29,6 +29,14 @@ function generateRandomString(length: number = 10): string {
   return result;
 }
 
+function generateRandomUint8Array(length: number = 40): Uint8Array {
+  let result = [];
+  for (let i = 0; i < length; i++) {
+    result.push(Math.floor(Math.random() * 255));
+  }
+  return new Uint8Array(result);
+}
+
 function delayedReturn(value: any, delay: number) {
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -42,4 +50,5 @@ export {
   generateRandomString,
   delayedReturn,
   voidTestFunction,
+  generateRandomUint8Array,
 };

@@ -34,18 +34,16 @@ export default function DatabaseConnectionForm() {
   const handleConnect = () => {
     // 模拟连接数据库
 
-
     navigate('/database'); // 在连接逻辑之后添加跳转
   };
 
   const handleSaveConnection = () => {
-
     navigate('/database'); // 这里也可以添加跳转，视业务逻辑而定
   };
 
   const handleTestConnection = () => {
     // 模拟测试连接
-    showNotification("info", "Info", "Testing connection...");
+    showNotification('info', 'Info', 'Testing connection...');
   };
 
   return (

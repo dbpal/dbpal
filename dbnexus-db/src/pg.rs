@@ -916,7 +916,7 @@ impl SchemaTrait for PostGresDB {
                 name,
                 match udt_name {
                     Some(udt_name) => {
-                        get_pg_type_base_on_data_type_and_udtname(&data_type, &udt_name)
+                        get_pg_type_base_on_data_type_and_udtname(&data_type, &udt_name)?
                     }
                     None => data_type,
                 },
@@ -1076,57 +1076,60 @@ fn test_output_bytes() {
 }
 
 ///
-fn get_pg_type_base_on_data_type_and_udtname(data_type: &str, udt_name: &str) -> String {
+fn get_pg_type_base_on_data_type_and_udtname(
+    data_type: &str, udt_name: &str,
+) -> anyhow::Result<String> {
     if data_type.to_uppercase() == "ARRAY" {
-        match udt_name {
-            "_macaddr8" => return "MACADDR8[]".to_string(),
-            "_bytea" => return "BYTEA[]".to_string(),
-            "_bool" => return "BOOL[]".to_string(),
-            "_name" => return "NAME[]".to_string(),
-            "_bpchar" => return "BPCHAR[]".to_string(),
-            "_int2" => return "INT2[]".to_string(),
-            "_int4" => return "INT4[]".to_string(),
-            "_text" => return "TEXT[]".to_string(),
-            "_varchar" => return "VARCHAR[]".to_string(),
-            "_int8" => return "INT8[]".to_string(),
+        let x = match udt_name {
+            "_macaddr8" => "MACADDR8[]".to_string(),
+            "_bytea" => "BYTEA[]".to_string(),
+            "_bool" => "BOOL[]".to_string(),
+            "_name" => "NAME[]".to_string(),
+            "_bpchar" => "BPCHAR[]".to_string(),
+            "_int2" => "INT2[]".to_string(),
+            "_int4" => "INT4[]".to_string(),
+            "_text" => "TEXT[]".to_string(),
+            "_varchar" => "VARCHAR[]".to_string(),
+            "_int8" => "INT8[]".to_string(),
 
-            "_path" => return "PATH[]".to_string(),
-            "_float4" => return "FLOAT4[]".to_string(),
-            "_float8" => return "FLOAT8[]".to_string(),
-            "_macaddr" => return "MACADDR[]".to_string(),
-            "_inet" => return "INET[]".to_string(),
+            "_path" => "PATH[]".to_string(),
+            "_float4" => "FLOAT4[]".to_string(),
+            "_float8" => "FLOAT8[]".to_string(),
+            "_macaddr" => "MACADDR[]".to_string(),
+            "_inet" => "INET[]".to_string(),
 
-            "_timestamp" => return "TIMESTAMP[]".to_string(),
-            "_date" => return "DATE[]".to_string(),
-            "_time" => return "TIME[]".to_string(),
-            "_timestamptz" => return "TIMESTAMPTZ[]".to_string(),
+            "_timestamp" => "TIMESTAMP[]".to_string(),
+            "_date" => "DATE[]".to_string(),
+            "_time" => "TIME[]".to_string(),
+            "_timestamptz" => "TIMESTAMPTZ[]".to_string(),
 
-            "_interval" => return "INTERVAL[]".to_string(),
-            "_numeric" => return "NUMERIC[]".to_string(),
-            "_timetz" => return "TIMETZ[]".to_string(),
-            "_bit" => return "BIT[]".to_string(),
-            "_varbit" => return "VARBIT[]".to_string(),
+            "_interval" => "INTERVAL[]".to_string(),
+            "_numeric" => "NUMERIC[]".to_string(),
+            "_timetz" => "TIMETZ[]".to_string(),
+            "_bit" => "BIT[]".to_string(),
+            "_varbit" => "VARBIT[]".to_string(),
 
-            "_uuid" => return "UUID[]".to_string(),
-            "_jsonb" => return "JSONB[]".to_string(),
-            "_int4range" => return "INT4RANGE[]".to_string(),
+            "_uuid" => "UUID[]".to_string(),
+            "_jsonb" => "JSONB[]".to_string(),
+            "_int4range" => "INT4RANGE[]".to_string(),
 
-            "_numrange" => return "NUMRANGE[]".to_string(),
-            "_tsrange" => return "TSRANGE[]".to_string(),
-            "_tstzrange" => return "TSTZRANGE[]".to_string(),
+            "_numrange" => "NUMRANGE[]".to_string(),
+            "_tsrange" => "TSRANGE[]".to_string(),
+            "_tstzrange" => "TSTZRANGE[]".to_string(),
 
-            "_daterange" => return "DATERANGE[]".to_string(),
-            "_int8range" => return "INT8RANGE[]".to_string(),
-            "_jsonpath" => return "JSONPATH[]".to_string(),
-            "_money" => return "MONEY[]".to_string(),
-
+            "_daterange" => "DATERANGE[]".to_string(),
+            "_int8range" => "INT8RANGE[]".to_string(),
+            "_jsonpath" => "JSONPATH[]".to_string(),
+            "_money" => "MONEY[]".to_string(),
             _ => {
-                log::error!("udtname '{}' not handled", udt_name)
+                log::error!("udtname '{}' not handled", udt_name);
+                anyhow::bail!(format!("udtname '{}' not handled", udt_name));
             }
-        }
+        };
+        return Ok(x);
     }
 
-    return data_type.to_string();
+    return Ok(data_type.to_string());
 }
 
 async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Result<()> {
