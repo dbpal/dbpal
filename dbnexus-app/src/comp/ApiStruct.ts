@@ -2,234 +2,261 @@
 
 export default types;
 export namespace types {
-    export type U16 = number;
-    export type MysqlDbConfig = {
-        "host": string;
-        "port": types.U16;
-        "username": string;
-        "password": string;
-        "db_name": (string | null);
-        "read_only": boolean;
-    };
-    export type PGDbConfig = {
-        "host": string;
-        "port": types.U16;
-        "username": string;
-        "password": string;
-        "db_name": (string | null);
-        "schema": (string | null);
-        "read_only": boolean;
-    };
-    export type SqlServerDbConfig = {
-        "host": string;
-        "port": types.U16;
-        "username": string;
-        "password": string;
-        "db_name": (string | null);
-        "trust_cert": boolean;
-        "schema": (string | null);
-        "read_only": boolean;
-    };
-    export type U64 = number;
-    export type MongoConfig = {
-        "host": string;
-        "port": types.U16;
-        "username": (string | null);
-        "password": (string | null);
-
-        /**
-         * milliseconds
-         */
-        "connect_timeout": (types.U64 | null);
-        "db": (string | null);
-        "read_only": boolean;
-    };
-    export type RedisDbConfig = {
-        "host": string;
-        "port": (types.U16 | null);
-        "username": (string | null);
-        "password": (string | null);
-        "db": (string | null);
-        "read_only": boolean;
-    };
-    export type OracleDbConfig = {
-        "username": string;
-        "password": string;
-        "connect_str": string;
-        "schema": (string | null);
-        "call_timeout": (types.U64 | null);
-        "read_only": boolean;
-    };
-    export type DBConnectionConfig = (({
-        "conn_type": "sqlite";
-    } & {
-        "path": string;
-        "read_only": boolean;
-        "name": string;
-    }) | ({
-        "conn_type": "mysql";
-    } & (types.MysqlDbConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "mariadb";
-    } & (types.MysqlDbConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "postgres";
-    } & (types.PGDbConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "sqlserver";
-    } & (types.SqlServerDbConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "mongo";
-    } & (types.MongoConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "redis";
-    } & {
-        "name": string;
-        "conn": types.RedisDbConfig;
-    }) | ({
-        "conn_type": "oracle";
-    } & (types.OracleDbConfig & {
-        "name": string;
-    })));
-    export type Usize = number;
-    export type UserSettings = {
-        "page_size": types.Usize;
-    };
-    export type ListTable = {
-        "name": string;
-        "size": (string | null);
-    };
-    export type Field = {
-        "field": string;
-        "typ": string;
-        "nullable": boolean;
-
-        /**
-         * default value of this field
-         */
-        "default_value": (string | null);
-
-        /**
-         * is primary key??
-         */
-        "is_primary": boolean;
-        "is_auto_increment": boolean;
-    };
-    export type IndexKind = ("Normal" | "Unique" | "Primary");
-    export type Index = {
-        "name": string;
-        "kind": types.IndexKind;
-        "on": (string)[];
-    };
-    export type I64 = number;
-    export type SqlExecuteRet = {
-        "sql": string;
-        "changes": types.U64;
-        "last_insert_row_id": (types.I64 | null);
-
-        /**
-         * most of the database have id int but mongo have string
-         */
-        "last_insert_id_string": (string | null);
-    };
+  export type U16 = number;
+  export type MysqlDbConfig = {
+    host: string;
+    port: types.U16;
+    username: string;
+    password: string;
+    db_name: string | null;
+    read_only: boolean;
+  };
+  export type PGDbConfig = {
+    host: string;
+    port: types.U16;
+    username: string;
+    password: string;
+    db_name: string | null;
+    schema: string | null;
+    read_only: boolean;
+  };
+  export type SqlServerDbConfig = {
+    host: string;
+    port: types.U16;
+    username: string;
+    password: string;
+    db_name: string | null;
+    trust_cert: boolean;
+    schema: string | null;
+    read_only: boolean;
+  };
+  export type U64 = number;
+  export type MongoConfig = {
+    host: string;
+    port: types.U16;
+    username: string | null;
+    password: string | null;
 
     /**
-     * named staff maybe used for view udf etc...
+     * milliseconds
      */
-    export type NamedStaff = {
-        "name": string;
-    };
-    export type ExportKind = (({
-        "export_kind": "csv";
-    } & {
-        "include_header": boolean;
-        "delimiter": string;
-    }) | ({
-        "export_kind": "json";
-    } & {
-        "pretty": boolean;
-    }) | {
-        "export_kind": "jsonline";
-    } | ({
-        "export_kind": "sql";
-    } & {
-        "include_table_schema": boolean;
-    }));
-    export type RedisListTable = {
-        "string_tables": (string)[];
-        "list_tables": (string)[];
-        "set_tables": (string)[];
-        "hash_tables": (string)[];
-        "zset_tables": (string)[];
-    };
-    export type TriggerTiming = ("Before" | "After" |
-        /**
-         * sql server have this timing but I am not quit understand.
-         */
-        "InsteadOf");
-    export type TriggerEvent = ("Insert" | "Update" | "Delete");
-    export type TriggerEnable = (({
-        "kind": "postgres";
-    } & {
-        "enable": (string | null);
-    }) | ({
-        "kind": "bool";
-    } & {
-        "enable": boolean;
-    }));
-    export type MetaValue = {
-        "name": string;
-        "value": string;
-    };
-    export type TriggerDetail = {
-        "timing": types.TriggerTiming;
-        "event": types.TriggerEvent;
-        "sql": string;
-        "enable": (types.TriggerEnable | null);
-        "metas": (types.MetaValue)[];
-    };
-    export type CompletionItem = {
-        "name": string;
-        "kind": CompletionKind;
-    };
-    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Dbname" | "SchemaName" | "TableName" | "Column" | "Text" | "Type");
-    export type UdfDetail = {
-        "def": string;
-        "metas": (types.MetaValue)[];
-    };
-    export type ProcedureDetail = {
-        "def": string;
-        "metas": (types.MetaValue)[];
-    };
-    export type OpendKind = ("Catalog" | "DataBase" | "Schema");
-    export type U8 = number;
-    export type FormatSqlOptsIndent = (({
-        "ident": "spaces";
-    } & types.U8) | {
-        "ident": "tabs";
-    });
+    connect_timeout: types.U64 | null;
+    db: string | null;
+    read_only: boolean;
+  };
+  export type RedisDbConfig = {
+    host: string;
+    port: types.U16 | null;
+    username: string | null;
+    password: string | null;
+    db: string | null;
+    read_only: boolean;
+  };
+  export type OracleDbConfig = {
+    username: string;
+    password: string;
+    connect_str: string;
+    schema: string | null;
+    call_timeout: types.U64 | null;
+    read_only: boolean;
+  };
+  export type DBConnectionConfig =
+    | ({
+        conn_type: 'sqlite';
+      } & {
+        path: string;
+        read_only: boolean;
+        name: string;
+      })
+    | ({
+        conn_type: 'mysql';
+      } & (types.MysqlDbConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: 'mariadb';
+      } & (types.MysqlDbConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: 'postgres';
+      } & (types.PGDbConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: 'sqlserver';
+      } & (types.SqlServerDbConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: 'mongo';
+      } & (types.MongoConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: 'redis';
+      } & {
+        name: string;
+        conn: types.RedisDbConfig;
+      })
+    | ({
+        conn_type: 'oracle';
+      } & (types.OracleDbConfig & {
+        name: string;
+      }));
+  export type Usize = number;
+  export type UserSettings = {
+    page_size: types.Usize;
+  };
+  export type ListTable = {
+    name: string;
+    size: string | null;
+  };
+  export type Field = {
+    field: string;
+    typ: string;
+    nullable: boolean;
 
     /**
-     * almost copied from https://docs.rs/sqlformat/0.2.4/sqlformat/struct.FormatOptions.html
+     * default value of this field
      */
-    export type FormatSqlOpts = {
-        "indent": types.FormatSqlOptsIndent;
-        "uppercase": (boolean | null);
-        "lines_between_queries": types.U8;
-    };
-    export type MuiDataGridData = {
-        "fields": (types.Field)[];
-        "data": (Record<string, string>)[];
-    };
-    export type MuiDataTableListResp = {
-        fields: any;
-        "total": types.Usize;
-        "sql": (string | null);
-        "data": types.MuiDataGridData;
-    };
+    default_value: string | null;
+
+    /**
+     * is primary key??
+     */
+    is_primary: boolean;
+    is_auto_increment: boolean;
+  };
+  export type IndexKind = 'Normal' | 'Unique' | 'Primary';
+  export type Index = {
+    name: string;
+    kind: types.IndexKind;
+    on: string[];
+  };
+  export type I64 = number;
+  export type SqlExecuteRet = {
+    sql: string;
+    changes: types.U64;
+    last_insert_row_id: types.I64 | null;
+
+    /**
+     * most of the database have id int but mongo have string
+     */
+    last_insert_id_string: string | null;
+  };
+
+  /**
+   * named staff maybe used for view udf etc...
+   */
+  export type NamedStaff = {
+    name: string;
+  };
+  export type ExportKind =
+    | ({
+        export_kind: 'csv';
+      } & {
+        include_header: boolean;
+        delimiter: string;
+      })
+    | ({
+        export_kind: 'json';
+      } & {
+        pretty: boolean;
+      })
+    | {
+        export_kind: 'jsonline';
+      }
+    | ({
+        export_kind: 'sql';
+      } & {
+        include_table_schema: boolean;
+      });
+  export type RedisListTable = {
+    string_tables: string[];
+    list_tables: string[];
+    set_tables: string[];
+    hash_tables: string[];
+    zset_tables: string[];
+  };
+  export type TriggerTiming =
+    | 'Before'
+    | 'After'
+    /**
+     * sql server have this timing but I am not quit understand.
+     */
+    | 'InsteadOf';
+  export type TriggerEvent = 'Insert' | 'Update' | 'Delete';
+  export type TriggerEnable =
+    | ({
+        kind: 'postgres';
+      } & {
+        enable: string | null;
+      })
+    | ({
+        kind: 'bool';
+      } & {
+        enable: boolean;
+      });
+  export type MetaValue = {
+    name: string;
+    value: string;
+  };
+  export type TriggerDetail = {
+    timing: types.TriggerTiming;
+    event: types.TriggerEvent;
+    sql: string;
+    enable: types.TriggerEnable | null;
+    metas: types.MetaValue[];
+  };
+  export type CompletionItem = {
+    name: string;
+    kind: CompletionKind;
+  };
+  export type CompletionKind =
+    | 'Command'
+    | 'KeyWord'
+    | 'Function'
+    | 'Dbname'
+    | 'SchemaName'
+    | 'TableName'
+    | 'Column'
+    | 'Text'
+    | 'Type';
+  export type UdfDetail = {
+    def: string;
+    metas: types.MetaValue[];
+  };
+  export type ProcedureDetail = {
+    def: string;
+    metas: types.MetaValue[];
+  };
+  export type OpendKind = 'Catalog' | 'DataBase' | 'Schema';
+  export type U8 = number;
+  export type FormatSqlOptsIndent =
+    | ({
+        ident: 'spaces';
+      } & types.U8)
+    | {
+        ident: 'tabs';
+      };
+
+  /**
+   * almost copied from https://docs.rs/sqlformat/0.2.4/sqlformat/struct.FormatOptions.html
+   */
+  export type FormatSqlOpts = {
+    indent: types.FormatSqlOptsIndent;
+    uppercase: boolean | null;
+    lines_between_queries: types.U8;
+  };
+  export type MuiDataGridData = {
+    fields: types.Field[];
+    data: Record<string, string>[];
+  };
+  export type MuiDataTableListResp = {
+    fields: any;
+    total: types.Usize;
+    sql: string | null;
+    data: types.MuiDataGridData;
+  };
 }

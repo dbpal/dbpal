@@ -37,7 +37,6 @@ use redis::{AsyncCommands, AsyncIter, Value};
 pub struct RedisDB {
     config: RedisDbConfig,
     m: ConnectionManager,
-
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
 }
 
@@ -210,7 +209,45 @@ fn split_info_colon(info: &str) -> anyhow::Result<(String, String)> {
         None => anyhow::bail!("info should contains ':'"),
     }
 }
+impl RedisDB {
+    pub async fn redis_list_show_table(
+        &self, key: &str, page: isize, page_size: isize, asc: bool,
+    ) -> anyhow::Result<TableListResp> {
+        let mut conn = self.get_conn().await?;
+        let total: isize = conn.llen(key).await?;
+        let start = (page - 1) * page_size;
+        let end = start + page_size;
+        let start_pos = if asc {
+            start
+        } else {
+            if total >= end {
+                total - end
+            } else {
+                1
+            }
+        };
+        let end_pos = if asc { end } else { total - start };
+        let ret: Vec<Vec<u8>> = conn.lrange(key, start_pos, end_pos).await?;
 
+        anyhow::Ok(TableListResp::new(
+            vec![
+                Field::from_name_type("seq", "int"),
+                Field::from_name_type("value", "string"),
+            ],
+            total as usize,
+            ret.into_iter()
+                .zip(start_pos..end_pos)
+                .map(|(x, index)| {
+                    vec![
+                        Some((index + 1).to_string()),
+                        Some(hex::encode(x.as_slice())),
+                    ]
+                })
+                .collect::<Vec<_>>(),
+            format!("LRANGE {} {} {}  ", key, start, start + page_size),
+        ))
+    }
+}
 // export impl
 impl RedisDB {
     async fn export_table_as_csv(
@@ -771,8 +808,8 @@ impl SchemaTrait for RedisDB {
     }
 
     async fn show_table(
-        &self, key: &str, where_str: Option<&str>, _order_by: Option<&str>, page: usize,
-        page_size: usize,
+        &self, key: &str, where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
+        _page_size: usize,
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
         let typ = Self::get_key_type(&mut conn, key).await?;
@@ -788,19 +825,7 @@ impl SchemaTrait for RedisDB {
             }
 
             RedisType::List => {
-                let total: usize = conn.llen(key).await?;
-                let start = (page - 1) * page_size;
-                let ret: Vec<Vec<u8>> = conn
-                    .lrange(key, start as isize, (start + page_size) as isize)
-                    .await?;
-                anyhow::Ok(TableListResp::new(
-                    vec![Field::from_name_type("value", "string")],
-                    total,
-                    ret.into_iter()
-                        .map(|x| vec![Some(hex::encode(x.as_slice()))])
-                        .collect::<Vec<_>>(),
-                    format!("LRANGE {} {} {}  ", key, start, start + page_size),
-                ))
+                anyhow::bail!("use redis_list_show_table instead of this.")
             }
 
             RedisType::Set => {
@@ -1366,6 +1391,22 @@ mod tests {
         while let Some(val) = x.next().await {
             println!("{:?}", val);
         }
+    }
+    #[tokio::test]
+    async fn test_redis_list_show_table() {
+        let db = make_test_object().await;
+        let ret = db
+            .redis_list_show_table("list_value", 1, 10, true)
+            .await
+            .unwrap();
+
+        println!("{:?}", ret);
+        let ret = db
+            .redis_list_show_table("list_value", 1, 10, false)
+            .await
+            .unwrap();
+
+        println!("{:?}", ret);
     }
 
     #[test]

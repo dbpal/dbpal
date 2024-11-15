@@ -1,133 +1,34 @@
-import React, { createRef, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 
 import apis from './ApiStruct.ts';
-import {
-  Alert,
-  Box,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  Tooltip,
-} from '@mui/material';
-import Paper from '@mui/material/Paper';
+import { Alert, Box, Tab, Tabs } from '@mui/material';
 
 import { testExampleQueryResp } from './exampleTest.ts';
 import { generateRandomString } from './helper.ts';
-
-const DEFAULT_MIN_WIDTH_CELL = 70;
-const DEFAULT_MAX_WIDTH_CELL = 800;
+import { DataGrid } from '@mui/x-data-grid';
+import React from 'react';
 
 function QueryResp(props: {
-  data: apis.MuiDataTableListResp;
+  data: apis.MuiDataGridData;
   order: string;
   orderBy: string;
   reloadSort: (order: string, orderBy: string) => void;
 }) {
   let { data } = props;
-
-  const columnRefs = data.fields.map(() => createRef());
-  let columnsWidth = data.fields.map(() => {
-    return { minWidth: 100, maxWidth: 600 };
+  var rowid = 0;
+  data.fields.forEach((e) => {
+    // e.filterable = true;
   });
-
-  const isResizing = useRef(-1);
-
-  const setCursorDocument = (isResizing: boolean) => {
-    document.body.style.cursor = isResizing ? 'col-resize' : 'auto';
+  const getRowId = () => {
+    return rowid++;
   };
-
-  // function getTitalTooltipTitle(f: apis.Field): string {
-  //   let x = f.typ;
-  //   if (f.is_auto_increment) {
-  //     x += ` | auto increment`;
-  //   }
-  //   if (f.default_value) {
-  //     x += ` | defaultValue(${f.default_value})`;
-  //   }
-  //   return x;
-  // }
-
-  const handleOnMouseUp = () => {
-    console.log('end resize');
-    isResizing.current = -1;
-    setCursorDocument(false);
-  };
-
-  // const handleSort = (name: string) => {
-  //   let newOrder = order == 'asc' ? 'desc' : 'asc';
-  //   reloadSort(name, newOrder);
-  // };
-
-  const onClickResizeColumn = (index: number) => {
-    console.log('start resize');
-    isResizing.current = index;
-    setCursorDocument(true);
-  };
-  const adjustWidthColumn = (index, width) => {
-    const minWidth = columnsWidth[index]?.minWidth ?? DEFAULT_MIN_WIDTH_CELL;
-    const maxWidth = columnsWidth[index]?.maxWidth ?? DEFAULT_MAX_WIDTH_CELL;
-    const newWidth =
-      width > maxWidth ? maxWidth : width < minWidth ? minWidth : width;
-
-    columnRefs[index].current.parentElement.style.width = newWidth + 'px';
-  };
-
-  const handleOnMouseMove = (e) => {
-    if (isResizing.current >= 0) {
-      const newWidth =
-        e.clientX -
-        columnRefs[
-          isResizing.current
-        ].current.parentElement?.getBoundingClientRect().left;
-      adjustWidthColumn(isResizing.current, newWidth);
-    }
-  };
-
-  useEffect(() => {
-    document.onmousemove = handleOnMouseMove;
-    document.onmouseup = handleOnMouseUp;
-    return () => {
-      document.onmousemove = null;
-      document.onmouseup = null;
-    };
-  }, []);
-
   return (
-    <TableContainer component={Paper}>
-      <Table className={'table'} sx={{ minWidth: 650 }}>
-        <TableHead>
-          <TableRow>
-            {data.fields.map((field, index) => {
-              return (
-                <TableCell
-                  key={index}
-                  sx={{ border: '1px solid black' }}
-                  className={'tableCell resizable'}
-                  align='center'
-                >
-                  {field.name}
-                  <div
-                    onMouseDown={() => onClickResizeColumn(index)}
-                    ref={columnRefs[index]}
-                    className={'resizeLine'}
-                  ></div>
-                </TableCell>
-              );
-            })}
-            <TableCell className='tableCell emtpyCell' />
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {/* <TableCell className='tableCell emtpyCell' /> */}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <DataGrid
+      columns={data.fields}
+      getRowId={getRowId}
+      rows={data.data}
+      filterMode='client' // 使用客户端过滤
+    ></DataGrid>
   );
 }
 
@@ -145,7 +46,6 @@ function QueryResp(props: {
   }
 ]
 */
-
 function testExampleMultiQueryResp(length: number = 3) {
   let ret = [];
   for (let i = 0; i < length; i++) {
@@ -155,7 +55,6 @@ function testExampleMultiQueryResp(length: number = 3) {
       ret.push({ Ok: testExampleQueryResp() });
     }
   }
-
   return ret;
 }
 
@@ -226,9 +125,14 @@ function MultiQueryResp(props: { data: any[] }) {
             {e.Err ? (
               <Alert severity='error'>{e.Err}</Alert>
             ) : (
-              <QueryResp data={e.Ok} order={''} orderBy={''} reloadSort={function (order: string, orderBy: string): void {
+              <QueryResp
+                data={e.Ok}
+                order={''}
+                orderBy={''}
+                reloadSort={function (order: string, orderBy: string): void {
                   throw new Error('Function not implemented.');
-                } }></QueryResp>
+                }}
+              ></QueryResp>
             )}
           </CustomTabPanel>
         );
@@ -242,7 +146,6 @@ export { MultiQueryResp };
 root.render(
   <React.StrictMode>
     {/* <QueryResp data={testExampleQueryResp()}></QueryResp> */}
-
-    {/* <MultiQueryResp data={testExampleMultiQueryResp()}></MultiQueryResp> */}
+    <MultiQueryResp data={testExampleMultiQueryResp()}></MultiQueryResp>
   </React.StrictMode>
 );

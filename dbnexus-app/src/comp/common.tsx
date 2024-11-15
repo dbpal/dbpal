@@ -1,5 +1,7 @@
 import {
+  Alert,
   Box,
+  Button,
   FormControl,
   IconButton,
   InputLabel,
@@ -8,6 +10,7 @@ import {
   Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import { useState } from 'react';
 
 const errOkHoldTime = 5000;
 
@@ -59,7 +62,13 @@ function SelectPageSize({
   );
 }
 
-function CloseButton({ handleClose = null }) {
+function youNeedImplThis(name: string) {
+  return function (): void {
+    throw `You need impl '${name}'`;
+  };
+}
+
+function CloseButton({ handleClose = youNeedImplThis('handleClose') }) {
   return (
     <IconButton onClick={handleClose} edge='end' aria-label='delete'>
       <CloseIcon />
@@ -67,11 +76,44 @@ function CloseButton({ handleClose = null }) {
   );
 }
 
-function CloseSpace({ handleClose = null }) {
+function CloseSpace({ handleClose = youNeedImplThis('handleClose') }) {
   return (
     <Stack direction='row' alignItems='right' justifyContent='space-between'>
       <span></span>
       <CloseButton handleClose={handleClose} />
+    </Stack>
+  );
+}
+
+// when u doing some dangerous operation
+// u need second confirm about this.
+
+function SecondConfirm(props: {
+  msg: string;
+  buttonName: string;
+  operationOP: () => Promise<boolean>; // boolean used to disable button
+  handleClose: () => void;
+}) {
+  const { msg, operationOP, handleClose, buttonName } = props;
+  const [disableButton, setDisableButton] = useState(false);
+  return (
+    <Stack>
+      <CloseSpace handleClose={handleClose}></CloseSpace>
+      <Alert severity='error' color='error'>
+        {msg}
+      </Alert>
+      <Button
+        disabled={disableButton}
+        variant='contained'
+        color='error' // 使用 MUI 的 error 颜色
+        onClick={() => {
+          operationOP().then((disable) => {
+            setDisableButton(disable);
+          });
+        }}
+      >
+        {buttonName}
+      </Button>
     </Stack>
   );
 }
@@ -82,6 +124,9 @@ function CloseSpace({ handleClose = null }) {
 // 后台放回数据的时候都是 hex string模式
 
 function hexTryToUtf8(hex): string | number[] {
+  if (!hex) {
+    return '';
+  }
   // 将十六进制字符串转换为字节数组
   const bytes = [];
   for (let i = 0; i < hex.length; i += 2) {
@@ -97,11 +142,13 @@ function hexTryToUtf8(hex): string | number[] {
   } catch {
     return bytes;
   }
-
   return utf8String;
 }
 
 function hexToUint8Array(hex) {
+  if (!hex) {
+    return new Uint8Array([]);
+  }
   const bytes = [];
 
   for (let i = 0; i < hex.length; i += 2) {
@@ -110,6 +157,9 @@ function hexToUint8Array(hex) {
   return new Uint8Array(bytes);
 }
 function hexToUtf8(hex: string): string {
+  if (!hex) {
+    return '';
+  }
   // 将十六进制字符串转换为字节数组
   const bytes = [];
   for (let i = 0; i < hex.length; i += 2) {
@@ -146,4 +196,5 @@ export {
   hexToUtf8,
   hexToUint8Array,
   stringToHex,
+  SecondConfirm,
 };
