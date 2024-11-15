@@ -1,5 +1,5 @@
 import { types } from './ApiStruct.ts';
-import { hexTryToUtf8, stringToHexArray, arrayToHex } from './common.tsx';
+import { stringToHexArray, arrayToHex } from './common.tsx';
 import { generateRandomString, generateRandomUint8Array } from './helper.ts';
 
 function testExampleRedisZset(
@@ -51,9 +51,25 @@ function testExampleRedisHash(length: number = 10): types.MuiDataTableListResp {
   };
 }
 
-function testExampleRedisSetList(
-  length: number = 10
-): types.MuiDataTableListResp {
+function testExampleRedisList(length: number = 10): types.MuiDataTableListResp {
+  var data = [];
+  for (var i = 0; i < length; i++) {
+    data.push({ value: testRedisKeyOrValue(), seq: i.toString() });
+  }
+  return {
+    data: {
+      data,
+      fields: [
+        { field: 'seq', typ: 'int' } as types.Field,
+        { field: 'value', typ: 'string' } as types.Field,
+      ],
+    },
+    total: Math.floor(Math.random() * 10000 + 1000),
+    sql: null,
+  };
+}
+
+function testExampleRedisSet(length: number = 10): types.MuiDataTableListResp {
   var data = [];
   for (var i = 0; i < length; i++) {
     data.push({ value: testRedisKeyOrValue() });
@@ -94,7 +110,7 @@ function testExampleQueryResp(
 
 function testExampleField(): types.Field {
   return {
-    field: 'field' + generateRandomString(4),
+    field: 'field_' + generateRandomString(4),
     typ: 'type_' + generateRandomString(3),
     is_auto_increment: Math.random() > 0.5,
     is_primary: Math.random() > 0.5,
@@ -105,7 +121,8 @@ function testExampleField(): types.Field {
 
 export {
   testExampleRedisZset,
-  testExampleRedisSetList,
+  testExampleRedisSet,
   testExampleRedisHash,
   testExampleQueryResp,
+  testExampleRedisList,
 };
