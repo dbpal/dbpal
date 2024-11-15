@@ -752,7 +752,7 @@ function RedisEditHexOrText(props: {
         setNewValue(hexToUtf8(oldValue));
         break;
       case RedisEditMode.Hex:
-        setNewValue(hexToUint8Array(oldValue));
+        setNewValue(hexToUint8Array(oldValue).toString());
         break;
     }
   }, [editModel]);
@@ -867,8 +867,8 @@ function redisRenderCell(p: any) {
 }
 
 function RedisSetTable(props: {
-  reload: (string) => Promise<types.MuiDataTableListResp>;
-  modifyOP: (string, string) => Promise<void>;
+  reload: (arg0: string) => Promise<types.MuiDataTableListResp>;
+  modifyOP: (arg0: string, arg1: string) => Promise<void>;
 }) {
   const { reload, modifyOP } = props;
   const [keyMatch, setKeyMatch] = useState('');
@@ -1010,4 +1010,4 @@ root.render(
   </NotificationContext.Provider>
 );
 
-export {};
+export { };

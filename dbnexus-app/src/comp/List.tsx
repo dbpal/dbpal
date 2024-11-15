@@ -4,6 +4,7 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import ListSubheader from '@mui/material/ListSubheader';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import BrowserNotSupportedIcon from '@mui/icons-material/BrowserNotSupported';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import PeopleIcon from '@mui/icons-material/People';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -12,6 +13,8 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import { Airplay } from '@mui/icons-material';
 import { Button, Grid, Menu, MenuItem, Typography } from '@mui/material';
 import { useState } from 'react';
+import { confirm } from './Confirm';
+import BrowserNotSupported from '@mui/icons-material/BrowserNotSupported';
 
 function MainListItems() {
   const [anchorEl, setAnchorEl] = React.useState(null);
@@ -27,32 +30,6 @@ function MainListItems() {
 
   return (
     <React.Fragment>
-      <ListItemButton
-        aria-controls='files'
-        aria-haspopup='true'
-        onClick={handleClick}
-      >
-        <ListItemText primary='Files' />
-      </ListItemButton>
-      <Menu
-        id='files'
-        anchorEl={anchorEl}
-        keepMounted
-        open={open}
-        onClose={handleClose}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-      >
-        <MenuItem onClick={handleClose}>选项1</MenuItem>
-        <MenuItem onClick={handleClose}>选项2</MenuItem>
-        <MenuItem onClick={handleClose}>选项3</MenuItem>
-      </Menu>
       <ListItemButton>
         <ListItemIcon>
           <ShoppingCartIcon />
@@ -86,6 +63,20 @@ export function ConnectList() {
 
   const [isConnected, setIsConnected] = useState(false);
   const [connectionURL, setConnectionURL] = useState('');
+
+  const handleDelete = async () => {
+    const result = await confirm({
+      title: "Delete Item",
+      content: "Are you sure you want to delete this item?",
+      confirmText: "Delete",
+      cancelText: "Cancel"
+    });
+
+    if (result) {
+      // TODO: Delete
+      console.log("Item deleted");
+    }
+  };
 
   // 模拟连接数据库
   const handleConnect = () => {
@@ -122,6 +113,9 @@ export function ConnectList() {
         <ListItemText primary='MySQL' />
         <ListItemText secondary='localhost:3660' />
       </Grid>
+      <ListItemIcon sx={{ ml: 4, my: 0 }}>
+        <BrowserNotSupported />
+      </ListItemIcon>
     </ListItemButton>
 
     <ListItemButton sx={{ pl: 4 }}>
@@ -129,6 +123,9 @@ export function ConnectList() {
         <ListItemText primary='MySQL' />
         <ListItemText secondary='localhost:3660' />
       </Grid>
+      <ListItemIcon sx={{ ml: 4, my: 0 }}>
+        <BrowserNotSupported />
+      </ListItemIcon>
     </ListItemButton>
 
     <ListItemButton sx={{ pl: 4 }}>
@@ -139,6 +136,9 @@ export function ConnectList() {
         <ListItemText primary='MySQL' />
         <ListItemText secondary='localhost:3660' />
       </Grid>
+      <ListItemIcon sx={{ ml: 4, my: 0 }} onClick={handleDelete}>
+        <BrowserNotSupported />
+      </ListItemIcon>
     </ListItemButton>
   </React.Fragment>)
 }
