@@ -45,7 +45,8 @@ const ResizableColumns = ({ leftContent, rightContent, initWidth }) => {
       <Box
         sx={{
           width: leftWidth,
-          padding: 2,
+          padding: 0,
+          margin: 0,
         }}
       >
         {leftContent} {/* 显示左侧内容 */}

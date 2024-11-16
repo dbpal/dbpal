@@ -9,12 +9,11 @@ import {
   FormControl,
   InputLabel,
   Select,
-  AlertColor,
   Typography,
   Modal,
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
-import ReactDOM from 'react-dom/client';
+
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   CloseSpace,
@@ -26,16 +25,8 @@ import {
   arrayToHex,
 } from './common';
 
-//@ts-ignore
-import {
-  testExampleRedisHash,
-  testExampleRedisList,
-  testExampleRedisSet,
-  testExampleRedisZset,
-} from './exampleTest';
 import { types } from './ApiStruct.ts';
-//@ts-ignore
-import { voidTestFunction } from './helper';
+
 import { NotificationContext } from './Notification';
 import { DataGrid, GridSortModel } from '@mui/x-data-grid';
 import HexEditor from 'react-hex-editor';
@@ -1632,91 +1623,11 @@ function RedisHashTable(props: {
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-
-root.render(
-  <NotificationContext.Provider
-    value={{
-      showNotification: (
-        severity: AlertColor,
-        title: string,
-        message: string
-      ) => {
-        console.log(`${severity} ${title} ${message}`);
-        alert(`${severity} ${title} ${message}`);
-      },
-    }}
-  >
-    <React.StrictMode>
-      <RedisEditHexOrText
-        oldValue='aaaaaabb'
-        handleValue={(e) => {
-          console.log(e);
-        }}
-      ></RedisEditHexOrText>
-      <hr></hr>
-
-      <RedisListTable
-        // @ts-ignore
-        reloadOP={async (page, pageSize, asc) => {
-          console.log('request data:', page, pageSize, asc);
-          try {
-            await voidTestFunction();
-          } catch (e) {
-            throw e;
-          }
-          return testExampleRedisList(pageSize);
-        }}
-        modifyOP={voidTestFunction}
-        lpushOP={voidTestFunction}
-        rpushOP={voidTestFunction}
-        delOP={voidTestFunction}
-      ></RedisListTable>
-
-      <RedisSetTable
-        reloadOP={async (_: string) => {
-          try {
-            await voidTestFunction();
-          } catch (e) {
-            throw e;
-          }
-          return testExampleRedisSet(10);
-        }}
-        modifyOP={voidTestFunction}
-        addOP={voidTestFunction}
-        delOP={async () => {}}
-      ></RedisSetTable>
-
-      <RedisHashTable
-        reloadOP={async (_keyMatch) => {
-          return testExampleRedisHash();
-        }}
-        addOP={voidTestFunction}
-        modifyOP={voidTestFunction}
-        delOP={voidTestFunction}
-      ></RedisHashTable>
-
-      <RedisZsetTable
-        reloadOP={async (_keyMatch, _min, _max) => {
-          return testExampleRedisZset();
-        }}
-        addOP={voidTestFunction}
-        modifyOP={voidTestFunction}
-        delOP={voidTestFunction}
-      ></RedisZsetTable>
-
-      <RedisStringTable
-        content='aaaaaabbb'
-        modifyOP={voidTestFunction}
-      ></RedisStringTable>
-    </React.StrictMode>
-  </NotificationContext.Provider>
-);
-
 export {
   RedisListTable,
   RedisStringTable,
   RedisHashTable,
   RedisZsetTable,
   RedisSetTable,
+  RedisEditHexOrText,
 };

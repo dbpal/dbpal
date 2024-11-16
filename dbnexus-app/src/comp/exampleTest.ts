@@ -128,6 +128,31 @@ function testExampleField(): types.Field {
     default_value: Math.random() > 0.5 ? generateRandomString() : null,
   };
 }
+/*
+  multi resp have this rust structure
+[
+  {
+    "Err": "this a error"
+  },
+  {
+    "Ok": {
+      "fields": [],
+      "data": []
+    }
+  }
+]
+*/
+function testExampleMultiQueryResp(length: number = 3) {
+  let ret = [];
+  for (let i = 0; i < length; i++) {
+    if (Math.random() > 0.66) {
+      ret.push({ Err: `This is random error.` });
+    } else {
+      ret.push({ Ok: testExampleQueryResp() });
+    }
+  }
+  return ret;
+}
 
 export {
   testExampleRedisZset,
@@ -135,4 +160,5 @@ export {
   testExampleRedisHash,
   testExampleQueryResp,
   testExampleRedisList,
+  testExampleMultiQueryResp,
 };
