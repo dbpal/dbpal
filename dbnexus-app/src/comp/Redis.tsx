@@ -1,4 +1,4 @@
-import React, { Profiler, useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   Button,
   Stack,
@@ -26,7 +26,6 @@ import {
   modalStyle,
   stringToHex,
   arrayToHex,
-  SecondConfirm,
 } from './common';
 import { testExampleRedisList, testExampleRedisSet } from './exampleTest';
 import { types } from './ApiStruct.ts';
@@ -36,6 +35,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import HexEditor from 'react-hex-editor';
 import oneDarkPro from 'react-hex-editor/themes/oneDarkPro';
 import AddIcon from '@mui/icons-material/Add';
+import { secondConfirm } from './Confirm.tsx';
 class RedisZsetHashModifyReq {
   oldKey: string;
   newKey: string;
@@ -640,6 +640,7 @@ function RedisEditHexOrText(props: {
   );
 
   const handleAddLength = () => {
+    console.log(typeof newValue);
     let length = parseInt(addLength);
     if (isNaN(length)) {
       setAddLengthErr(true);
@@ -647,11 +648,9 @@ function RedisEditHexOrText(props: {
     } else {
       setAddLengthErr(false);
     }
-    let value = [...newValue];
-    for (let i = 0; i < length; i++) {
-      value.push(0);
-    }
-    setNewValue(value);
+    let array = new Uint8Array(newValue.length + length);
+    array.set(newValue as Uint8Array);
+    setNewValue(array);
   };
 
   useEffect(() => {
@@ -942,45 +941,32 @@ function RedisSetTable(props: {
             color='error'
             disabled={selectionModel.length == 0}
             onClick={() => {
-              setShowDel(true);
+              // setShowDel(true);
+              secondConfirm({
+                title: 'Are u sure',
+                content: 'Are you sure to delete those data',
+              }).then((confirm) => {
+                if (confirm) {
+                  handleDel();
+                }
+              });
             }}
           >
             Delete
           </Button>
-          {/* // delete modal  */}
-          <Modal
-            open={showDel}
-            onClose={() => {
-              setShowDel(false);
-            }}
-            aria-labelledby='modify set'
-          >
-            <Box sx={modalStyle} width='600px'>
-              <SecondConfirm
-                buttonName='Delete'
-                handleClose={() => {
-                  setShowDel(false);
-                }}
-                msg='Are u really going to delete those key??'
-                operationOP={async () => {
-                  await handleDel();
-                  return true;
-                }}
-              ></SecondConfirm>
-            </Box>
-          </Modal>
+
           {/* actual data grid */}
           <DataGrid
             rows={resp.data.data}
             checkboxSelection
             editMode='row'
             onRowDoubleClick={(e) => {
-              setSelectID(e.id);
+              setSelectID(e.id as string);
             }}
             columns={resp.data.fields}
             disableColumnFilter
             onRowSelectionModelChange={(rows) => {
-              setSelectionModel(rows);
+              setSelectionModel(rows as string[]);
             }}
           ></DataGrid>
           {selectID && (
@@ -1066,7 +1052,7 @@ function RedisListTable(props: {
   const [selectID, setSelectID] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [selectionModel, setSelectionModel] = useState('');
-  const [showDel, setShowDel] = useState(false);
+
   const handleReload = () => {
     reload()
       .then((resp) => {
@@ -1129,35 +1115,18 @@ function RedisListTable(props: {
             color='error'
             disabled={selectionModel === ''}
             onClick={() => {
-              setShowDel(true);
+              secondConfirm({
+                title: 'Delete',
+                content: 'Are u sure to Delete',
+              }).then((confirm) => {
+                if (confirm) {
+                  handleDel();
+                }
+              });
             }}
           >
             Delete
           </Button>
-          {/* // delete modal  */}
-          <Modal
-            open={showDel}
-            onClose={() => {
-              setShowDel(false);
-            }}
-            aria-labelledby='modify set'
-          >
-            <Box sx={modalStyle} width='600px'>
-              <SecondConfirm
-                buttonName='Delete'
-                handleClose={() => {
-                  setShowDel(false);
-                }}
-                msg={`Are u really going to delete key at ${getIDIndex(
-                  selectionModel
-                )}`}
-                operationOP={async () => {
-                  await handleDel();
-                  return true;
-                }}
-              ></SecondConfirm>
-            </Box>
-          </Modal>
 
           {/* actual data grid */}
           <DataGrid
@@ -1165,13 +1134,13 @@ function RedisListTable(props: {
             checkboxSelection
             editMode='row'
             onRowDoubleClick={(e) => {
-              setSelectID(e.id);
+              setSelectID(e.id as string);
             }}
             columns={resp.data.fields}
             disableColumnFilter
             disableMultipleRowSelection
             onRowSelectionModelChange={(rows) => {
-              setSelectionModel(rows.length > 0 ? rows[0] : '');
+              setSelectionModel(rows.length > 0 ? (rows[0] as string) : '');
             }}
           ></DataGrid>
           {selectID && (
@@ -1194,6 +1163,7 @@ function RedisListTable(props: {
                   }}
                   key={selectID}
                   oldValue={resp.data.data[getIDIndex(selectID)].value}
+                  index={getIDIndex(selectID)}
                   handleClose={() => {
                     setSelectID(null);
                   }}
@@ -1269,15 +1239,15 @@ root.render(
     }}
   >
     <React.StrictMode>
-      {/* <RedisEditHexOrText
+      <RedisEditHexOrText
         oldValue='aaaaaabb'
         handleValue={(e) => {
           console.log(e);
         }}
       ></RedisEditHexOrText>
-      <hr></hr> */}
+      <hr></hr>
 
-      <RedisListTable
+      {/* <RedisListTable
         reload={async (_: string) => {
           try {
             await voidTestFunction();
@@ -1290,9 +1260,9 @@ root.render(
         lpushOP={voidTestFunction}
         rpushOP={voidTestFunction}
         delOP={voidTestFunction}
-      ></RedisListTable>
+      ></RedisListTable> */}
 
-      {/* <RedisSetTable
+      <RedisSetTable
         reload={async (_: string) => {
           try {
             await voidTestFunction();
@@ -1304,9 +1274,9 @@ root.render(
         modifyOP={voidTestFunction}
         addOP={voidTestFunction}
         delOP={async () => {}}
-      ></RedisSetTable> */}
+      ></RedisSetTable>
     </React.StrictMode>
   </NotificationContext.Provider>
 );
 
-export { };
+export {};
