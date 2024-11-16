@@ -35,10 +35,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <DialogContentText>{content}</DialogContentText>
       </DialogContent>
       <DialogActions sx={{ p: 3 }}>
-        <Button onClick={onCancel} color='primary'>
+        <Button onClick={onCancel} color='primary' variant='outlined'>
           {cancelText}
         </Button>
-        <Button onClick={onConfirm} color='primary' variant='contained'>
+        <Button onClick={onConfirm} color='error' variant='contained'>
           {confirmText}
         </Button>
       </DialogActions>

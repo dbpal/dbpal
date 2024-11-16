@@ -6,19 +6,24 @@ function testExampleRedisZset(
   length: number = 10,
   range: number = 100
 ): types.MuiDataTableListResp {
-  var data: (string | null)[][] = [];
+  var data = [];
   for (var i = 0; i < length; i++) {
-    data.push([generateRandomString(10), (Math.random() * range).toString()]);
+    data.push({
+      key: testRedisKeyOrValue(),
+      score: (Math.random() * range).toString(),
+    });
   }
   return {
-    fields: [
-      { field: 'key', typ: 'string' } as types.Field,
-      {
-        field: 'score',
-        typ: 'float64',
-      } as types.Field,
-    ],
-    data: data,
+    data: {
+      fields: [
+        { field: 'key', typ: 'string' } as types.Field,
+        {
+          field: 'score',
+          typ: 'float64',
+        } as types.Field,
+      ],
+      data: data,
+    },
     total: Math.floor(Math.random() * 10000 + 1000),
     sql: null,
   };
@@ -33,19 +38,24 @@ function testRedisKeyOrValue(): string {
 }
 
 function testExampleRedisHash(length: number = 10): types.MuiDataTableListResp {
-  var data: (string | null)[][] = [];
+  var data = [];
   for (var i = 0; i < length; i++) {
-    data.push([generateRandomString(10), generateRandomString(10)]);
+    data.push({
+      key: testRedisKeyOrValue(),
+      value: testRedisKeyOrValue(),
+    });
   }
   return {
-    fields: [
-      { field: 'key', typ: 'string' } as types.Field,
-      {
-        field: 'score',
-        typ: 'float64',
-      } as types.Field,
-    ],
-    data: data,
+    data: {
+      fields: [
+        { field: 'key', typ: 'string' } as types.Field,
+        {
+          field: 'value',
+          typ: 'string',
+        } as types.Field,
+      ],
+      data,
+    },
     total: Math.floor(Math.random() * 10000 + 1000),
     sql: null,
   };

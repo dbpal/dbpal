@@ -16,6 +16,8 @@ pub async fn add_config(
     config: DBConnectionConfig, app: tauri::State<'_, App>,
 ) -> Result<String, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
+
     let uuid = uuid::Uuid::new_v4().to_string();
     log::info!("add config:{} {:?}", uuid, config);
     app.add_config(uuid.as_str(), config)
@@ -28,6 +30,7 @@ pub async fn delete_config(
     uuid: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     log::info!("del config:{}", uuid);
     app.delete_config(uuid.as_str())
         .await
@@ -39,6 +42,7 @@ pub async fn update_config(
     uuid: String, config: DBConnectionConfig, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     log::info!("update config:{} {:?}", uuid, config);
     app.update_config(uuid.as_str(), config)
         .await
@@ -48,6 +52,7 @@ pub async fn update_config(
 #[tauri::command]
 pub async fn open(uuid: String, app: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     log::info!("open db:{}", uuid);
     app.open(uuid.as_str())
         .await
@@ -60,6 +65,7 @@ pub async fn list_table(
     uuid: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<ListTable>, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     log::info!("show table db:{}", uuid);
     app.list_table(uuid.as_str())
         .await
@@ -71,6 +77,7 @@ pub async fn redis_list_table(
     uuid: String, app: tauri::State<'_, App>,
 ) -> Result<RedisListTable, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.redis_list_table(&uuid)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -81,6 +88,7 @@ pub async fn redis_match_keys(
     uuid: String, pattern: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<String>, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let keys = app.redis_match_keys(&uuid, &pattern).await?;
     Ok(keys)
 }
@@ -90,6 +98,7 @@ pub async fn show_columns(
     uuid: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Field>, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.show_columns(uuid.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -101,6 +110,7 @@ pub async fn show_table(
     page_size: usize, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let x = app
         .show_table(
             uuid.as_str(),
@@ -121,6 +131,7 @@ pub async fn show_indexes(
     uuid: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Index>, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.show_indexes(uuid.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -132,6 +143,7 @@ pub async fn insert(
     app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.insert(uuid.as_str(), &table_name, values)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -143,6 +155,7 @@ pub async fn update(
     wheres: HashMap<String, Option<String>>, app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.update(uuid.as_str(), &table_name, values, wheres)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -152,6 +165,7 @@ pub async fn truncate_table(
     uuid: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.truncate_table(uuid.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -162,6 +176,7 @@ pub async fn delete(
     app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.delete(uuid.as_str(), &table_name, wheres)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -172,6 +187,7 @@ pub async fn list_view(
     uuid: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<NamedStaff>, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.list_view(uuid.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -181,6 +197,7 @@ pub async fn drop_view(
     uuid: String, view_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.drop_view(uuid.as_str(), &view_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -190,6 +207,7 @@ pub async fn drop_table(
     uuid: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.drop_table(uuid.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -200,6 +218,7 @@ pub async fn show_view(
     page_size: usize, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.show_view(
         uuid.as_str(),
         &view_name,
@@ -218,6 +237,7 @@ pub async fn opened_kind(
     uuid: String, app: tauri::State<'_, App>,
 ) -> Result<OpendKind, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let kind = app
         .get_opened(uuid.as_str())
         .await
@@ -231,6 +251,7 @@ pub async fn query_sql(
     uuid: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Result<MuiDataGridData, String>>, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let sql = sql.as_str();
     let db = app
         .open(uuid.as_str())
@@ -260,6 +281,7 @@ pub async fn query_sql_open_connection(
     uuid: String, app: tauri::State<'_, App>,
 ) -> Result<uuid::Uuid, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
         Open::DataBase(x) => x.open_connection().await,
@@ -271,21 +293,23 @@ pub async fn query_sql_open_connection(
 #[tauri::command]
 pub async fn query_sql_re_connection(
     uuid: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
-) -> Result<(), String> {
+) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
         Open::DataBase(x) => x.re_connect(query_id).await,
         Open::Schema(x) => x.re_connect(query_id).await,
         app::Open::Catalog(x) => x.re_connect(query_id).await,
     };
-    result.map_err(|e| e.to_string())
+    result.map_err(|e| AnyhowErrorFrontend::from(e))
 }
 #[tauri::command]
 pub async fn query_sql_close_connection(
     uuid: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
         Open::DataBase(x) => x.close_connection(query_id).await,
@@ -300,6 +324,7 @@ pub async fn save_user_settings(
     user_settings: UserSettings, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.loader
         .save_user_settings(user_settings)
         .await
@@ -311,6 +336,7 @@ pub async fn get_user_settings(
     app: tauri::State<'_, App>,
 ) -> Result<UserSettings, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.loader
         .get_user_settings_cloned()
         .await
@@ -322,6 +348,7 @@ pub async fn list_all_config(
     app: tauri::State<'_, App>,
 ) -> Result<HashMap<String /* uuid */, DBConnectionConfig>, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     app.loader
         .list_all_configs_cloned()
         .await
@@ -334,6 +361,7 @@ pub async fn export_table(
     app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_schema(uuid.as_str())
         .await
@@ -345,8 +373,9 @@ pub async fn export_table(
 #[tauri::command]
 pub async fn format_sql(
     uuid: String, sql: String, opts: Option<FormatSqlOpts>, app: tauri::State<'_, App>,
-) -> Result<String, String> {
+) -> Result<String, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_opened(uuid.as_str())
         .await
@@ -356,7 +385,7 @@ pub async fn format_sql(
         Open::Schema(x) => x.format_sql(sql.as_str(), opts),
         Open::Catalog(x) => x.format_sql(sql.as_str(), opts),
     };
-    ret.map_err(|e| e.to_string())
+    ret.map_err(|e| AnyhowErrorFrontend::from(e))
 }
 
 #[tauri::command]
@@ -367,6 +396,7 @@ pub async fn test_connection(
     AnyhowErrorFrontend,
 > {
     random_sleep().await;
+    random_error()?;
     let db = app::open(&config).await.map_err(|e| e.to_string())?;
     match db {
         app::Open::DataBase(x) => x.check_conn().await,
@@ -382,6 +412,7 @@ pub async fn oracle_query_set_autocommit(
     uuid: String, id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_schema(uuid.as_str())
         .await
@@ -402,6 +433,7 @@ pub async fn oracle_query_autocommit(
     uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<bool, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_schema(uuid.as_str())
         .await
@@ -420,127 +452,146 @@ pub async fn oracle_query_autocommit(
 #[tauri::command]
 pub async fn oracle_query_commit(
     uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
-) -> Result<(), String> {
+) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x.query_commit(id).await.map_err(|e| e.to_string()),
-        None => Err(format!("db '{}' is not oracle", uuid)),
+        Some(x) => x
+            .query_commit(id)
+            .await
+            .map_err(|e| AnyhowErrorFrontend::from(e)),
+        None => Err(format!("db '{}' is not oracle", uuid).into()),
     }
 }
 #[tauri::command]
 pub async fn oracle_query_rollback(
     uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
-) -> Result<(), String> {
+) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_schema(uuid.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x.query_rollback(id).await.map_err(|e| e.to_string()),
-        None => Err(format!("db '{}' is not oracle", uuid)),
+        Some(x) => x
+            .query_rollback(id)
+            .await
+            .map_err(|e| AnyhowErrorFrontend::from(e)),
+        None => Err(format!("db '{}' is not oracle", uuid).into()),
     }
 }
 
 #[tauri::command]
 pub async fn list_trigger(
     uuid: String, table: String, app: tauri::State<'_, App>,
-) -> Result<Vec<NamedStaff>, String> {
+) -> Result<Vec<NamedStaff>, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_schema(uuid.as_str())
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
-    db.list_trigger(&table).await.map_err(|e| e.to_string())
+    db.list_trigger(&table)
+        .await
+        .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 
 #[tauri::command]
 pub async fn show_trigger(
     uuid: String, table: String, name: String, app: tauri::State<'_, App>,
-) -> Result<TriggerDetail, String> {
+) -> Result<TriggerDetail, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_schema(uuid.as_str())
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
     db.show_trigger(&table, &name)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 #[tauri::command]
 pub async fn rename_table(
     uuid: String, old: String, new: String, app: tauri::State<'_, App>,
-) -> Result<(), String> {
+) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_schema(uuid.as_str())
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
-    db.rename_table(&old, &new).await.map_err(|e| e.to_string())
+    db.rename_table(&old, &new)
+        .await
+        .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 
 #[tauri::command]
 pub async fn duplicate_table(
     uuid: String, from: String, to: String, app: tauri::State<'_, App>,
-) -> Result<(), String> {
+) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let db = app
         .get_schema(uuid.as_str())
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
     db.duplicate_table(&from, &to)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 
 #[tauri::command]
 pub async fn mongo_insert(
     uuid: String, table: String, doc: Vec<u8>, app: tauri::State<'_, App>,
-) -> Result<mongodb::results::InsertOneResult, String> {
+) -> Result<mongodb::results::InsertOneResult, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let doc = parse_bson_doc(doc.as_slice())?;
 
     let db = app
         .get_schema(uuid.as_str())
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AnyhowErrorFrontend::from(e))?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.insert(table.as_str(), doc).await,
-        None => return Err(format!("db '{}' not mongo", uuid)),
+        None => return Err(format!("db '{}' not mongo", uuid).into()),
     }
-    .map_err(|e| e.to_string())
+    .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 #[tauri::command]
 pub async fn mongo_update(
     uuid: String, table: String, update: Vec<u8>, query: Vec<u8>, app: tauri::State<'_, App>,
-) -> Result<mongodb::results::UpdateResult, String> {
+) -> Result<mongodb::results::UpdateResult, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let update = parse_bson_doc(update.as_slice())?;
     let query = parse_bson_doc(query.as_slice())?;
 
     let db = app
         .get_schema(uuid.as_str())
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AnyhowErrorFrontend::from(e))?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.update(table.as_str(), update, query).await,
-        None => return Err(format!("db '{}' not mongo", uuid)),
+        None => return Err(format!("db '{}' not mongo", uuid).into()),
     }
-    .map_err(|e| e.to_string())
+    .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 #[tauri::command]
 pub async fn mongo_delete(
     uuid: String, table: String, query: Vec<u8>, app: tauri::State<'_, App>,
-) -> Result<mongodb::results::DeleteResult, String> {
+) -> Result<mongodb::results::DeleteResult, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let query = parse_bson_doc(query.as_slice())?;
 
     let db = app
@@ -549,16 +600,17 @@ pub async fn mongo_delete(
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.delete(table.as_str(), query).await,
-        None => return Err(format!("db '{}' not mongo", uuid)),
+        None => return Err(format!("db '{}' not mongo", uuid).into()),
     }
-    .map_err(|e| e.to_string())
+    .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 
 #[tauri::command]
 pub async fn mongo_show_table(
     uuid: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
-) -> Result<MuiDataTableListResp, String> {
+) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let filter = parse_bson_doc(filter.as_slice())?;
     let db = app
         .get_schema(uuid.as_str())
@@ -566,16 +618,17 @@ pub async fn mongo_show_table(
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.show_collection(table.as_str(), filter).await,
-        None => return Err(format!("db '{}' not mongo", uuid)),
+        None => return Err(format!("db '{}' not mongo", uuid).into()),
     }
-    .map_err(|e| e.to_string())
+    .map_err(|e| AnyhowErrorFrontend::from(e))
     .map(MuiDataTableListResp::from)
 }
 #[tauri::command]
 pub async fn mongo_show_table_docs(
     uuid: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
-) -> Result<DocsAndCount, String> {
+) -> Result<DocsAndCount, AnyhowErrorFrontend> {
     random_sleep().await;
+    random_error()?;
     let filter = parse_bson_doc(filter.as_slice())?;
     let db = app
         .get_schema(uuid.as_str())
@@ -583,10 +636,10 @@ pub async fn mongo_show_table_docs(
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.show_collection_docs(table.as_str(), filter).await,
-        None => return Err(format!("db '{}' not mongo", uuid)),
+        None => return Err(format!("db '{}' not mongo", uuid).into()),
     }
-    .map_err(|e| e.to_string())?;
-    DocsAndCount::try_from(docs)
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    DocsAndCount::try_from(docs).map_err(|e| e.into())
 }
 
 #[derive(serde::Serialize)]
@@ -653,6 +706,25 @@ impl From<String> for AnyhowErrorFrontend {
 async fn random_sleep() {
     #[cfg(feature = "random-sleep")]
     dbnexus_db::random_sleep_impl().await
+}
+
+fn random_error() -> Result<(), AnyhowErrorFrontend> {
+    #[cfg(not(feature = "random-error"))]
+    return Ok(());
+    #[cfg(feature = "random-error")]
+    {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let x: i8 = rng.gen_range(1, 100);
+        if x > 50 {
+            Err(AnyhowErrorFrontend {
+                reason: format!("random error of {}", x),
+                detail: "".to_string(),
+            })
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, typescript_type_def::TypeDef)]

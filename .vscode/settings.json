@@ -25,7 +25,8 @@
   "http.proxyStrictSSL": false,
   "rust-analyzer.checkOnSave": true,
   "rust-analyzer.cargo.features": [
-    "random-sleep"
+    "random-sleep",
+    "random-error"
   ],
   "prettier.singleQuote": true
 }

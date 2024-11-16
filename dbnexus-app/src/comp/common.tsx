@@ -1,7 +1,5 @@
 import {
-  Alert,
   Box,
-  Button,
   FormControl,
   IconButton,
   InputLabel,
@@ -10,9 +8,6 @@ import {
   Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import { useState } from 'react';
-
-const errOkHoldTime = 5000;
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -156,7 +151,6 @@ function stringToHex(str): string {
 }
 
 export {
-  errOkHoldTime,
   modalStyle,
   SelectPageSize,
   CloseButton,
