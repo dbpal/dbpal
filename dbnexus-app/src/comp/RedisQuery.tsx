@@ -2,46 +2,30 @@ import { Box, Stack } from '@mui/material';
 
 import { ResizableColumns } from './ResizableColumns.tsx';
 import { useState } from 'react';
+import SplitPane, { Pane } from 'react-split-pane';
+import './style/react-split-pane.css';
 
 function RedisQuery() {
   const [command, setCommand] = useState('get');
   return (
-    <ResizableColumns
-      initWidth={500}
-      leftContent={
-        <>
-          <div
-            style={{
-              width: '100%',
-              height: '60vh',
-              overflow: 'auto',
-              resize: 'vertical',
-              border: '1px solid black',
-            }}
-          >
-            111
-          </div>
-          <div
-            style={{
-              width: '100%',
-              height: '40vh',
-            }}
-          >
-            query resp
-          </div>
-        </>
-      }
-      rightContent={
-        // right
-        <Box
-          sx={{
-            width: '100%',
-            height: '100vh', // 设置为视口高度，或根据需要调整
+    <div style={{ display: 'flex' }}>
+      <SplitPane split='vertical' minSize={50} defaultSize={1000} step={5}>
+        <div>
+          {/* <SplitPane split='horizontal' defaultSize='100px'>
+          <Pane>You can use a Pane component1111</Pane>
+          <div>or you can use a plain old div</div>
+        </SplitPane> */}
+          11111111111111111111111111111111
+        </div>
+        <div
+          style={{
+            height: '100vh',
             position: 'relative',
           }}
         >
           <iframe
-            src={`https://redis.io/docs/latest/commands/${command}/`}
+            src={`https://www.bilibili.com/`}
+            // src='https://www.github.com'
             style={{
               width: '100%',
               height: '100%',
@@ -49,12 +33,17 @@ function RedisQuery() {
               position: 'absolute',
               top: 0,
               left: 0,
+              padding: 0,
+              margin: 0,
             }}
             title='Full Size Iframe'
           />
-        </Box>
-      }
-    ></ResizableColumns>
+        </div>
+        {/* <Pane initialSize='25%' minSize='10%' maxSize='500px'>
+          Using a Pane allows you to specify any constraints directly
+        </Pane> */}
+      </SplitPane>
+    </div>
   );
 }
 

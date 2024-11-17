@@ -9,4 +9,3 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <MainPage></MainPage>
   </React.StrictMode>
 );
-
