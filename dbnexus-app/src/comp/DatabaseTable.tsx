@@ -1,28 +1,60 @@
-import React from 'react';
-import Box from '@mui/material/Box';
-import Paper from '@mui/material/Paper';
+import React, { useState } from 'react';
+import { Box, Paper, Tab, Tabs, IconButton, Typography } from '@mui/material';
 import { DataGrid, GridColDef, GridRowsProp } from '@mui/x-data-grid';
+import CloseIcon from '@mui/icons-material/Close';
 import { useTheme } from '@mui/material/styles';
 
-const columns: GridColDef[] = [
-  { field: 'id', headerName: 'ID', width: 90, headerClassName: 'header-style' },
-  { field: 'hash', headerName: 'Hash', width: 150, editable: true, headerClassName: 'header-style' },
-  { field: 'source_chain', headerName: 'Source Chain', type: 'number', width: 150, editable: true, headerClassName: 'header-style' },
-  { field: 'seq_num', headerName: 'Sequence Number', type: 'number', width: 150, editable: true, headerClassName: 'header-style' },
-  { field: 'from_address', headerName: 'From Address', width: 200, editable: true, headerClassName: 'header-style' },
-  { field: 'target_chain', headerName: 'Target Chain', type: 'number', width: 150, editable: true, headerClassName: 'header-style' },
-];
+// 封装 DataGrid 的创建逻辑
+const createDataGrid = (rows: GridRowsProp, columns: GridColDef[], gridName: string) => (
+  <Box sx={{ height: '100%' }}>
+    <Typography variant="h6" sx={{ mb: 2 }}>
+      {gridName}
+    </Typography>
+    <DataGrid
+      rows={rows}
+      columns={columns}
+      pageSizeOptions={[5, 10, 20]}
+      checkboxSelection
+      disableRowSelectionOnClick
+      sx={{
+        height: 'calc(100% - 32px)',
+        backgroundColor: '#fff',
+        color: '#000',
+        '.MuiDataGrid-columnHeaders': {
+          backgroundColor: '#f5f5f5',
+        },
+      }}
+    />
+  </Box>
+);
 
-const rows: GridRowsProp = [
-  { id: 1, hash: '0x4ae...', source_chain: 1, seq_num: 0, from_address: '0xa0E...', target_chain: 11 },
-  { id: 2, hash: '0x738...', source_chain: 1, seq_num: 2, from_address: '0xa0E...', target_chain: 11 },
-  { id: 3, hash: '0xfee...', source_chain: 1, seq_num: 100000000001, from_address: '0x409...', target_chain: 11 },
-  { id: 4, hash: '0x350...', source_chain: 1, seq_num: 1, from_address: '0xa0E...', target_chain: 11 },
-  { id: 5, hash: '0xf391...', source_chain: 1, seq_num: 3, from_address: '0xa0E...', target_chain: 11 },
-];
-
-export default function DatabaseTable() {
+export default function DatabaseTable({ addEntity }: { addEntity: (name: string) => void }) {
   const theme = useTheme();
+
+  // 存储 DataGrid 的名称及内容
+  const [dataGrids, setDataGrids] = useState<{ name: string; content: JSX.Element }[]>([]);
+  const [activeTab, setActiveTab] = useState(0);
+
+  // 切换 Tab
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+
+  // 添加新的 DataGrid
+  const addDataGrid = (name: string, rows: GridRowsProp, columns: GridColDef[]) => {
+    const newGrid = {
+      name,
+      content: createDataGrid(rows, columns, name),
+    };
+    setDataGrids((prev) => [...prev, newGrid]);
+    setActiveTab(dataGrids.length); // 自动切换到新添加的 Tab
+  };
+
+  // 移除 DataGrid
+  const removeDataGrid = (index: number) => {
+    setDataGrids((prev) => prev.filter((_, i) => i !== index));
+    setActiveTab((prev) => (prev >= index ? Math.max(prev - 1, 0) : prev));
+  };
 
   return (
     <Box
@@ -30,58 +62,59 @@ export default function DatabaseTable() {
         flexGrow: 1,
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         padding: 2,
         mt: 1,
         ml: 4,
-        mb: 0,
       }}
     >
       <Paper
         sx={{
-          height: '83vh',
-          width: '83vw',
+          height: '85vh',
+          width: '85vw',
           padding: 2,
           backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : 'white',
-          color: theme.palette.mode === 'dark' ? 'white' : 'black',
         }}
         elevation={3}
       >
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          initialState={{
-            pagination: {
-              paginationModel: {
-                pageSize: 5,
-              },
-            },
-          }}
-          pageSizeOptions={[5, 10, 20]}
-          checkboxSelection
-          disableRowSelectionOnClick
+        {/* Tab 切换 */}
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
           sx={{
-            '.MuiDataGrid-root': {
-              backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : 'white',
-              color: theme.palette.mode === 'dark' ? 'white' : 'black',
-            },
-            '.MuiDataGrid-cell': {
-              borderBottom: theme.palette.mode === 'dark' ? '1px solid #333' : '1px solid #e0e0e0',
-            },
-            '.MuiDataGrid-columnHeaders': {
-              backgroundColor: theme.palette.mode === 'dark' ? '#333' : '#f5f5f5',
-              color: theme.palette.mode === 'dark' ? 'white' : 'black',
-              borderBottom: theme.palette.mode === 'dark' ? '1px solid #333' : '1px solid #e0e0e0',
-            },
-            '.MuiDataGrid-footerContainer': {
-              backgroundColor: theme.palette.mode === 'dark' ? '#333' : '#f5f5f5',
-              color: theme.palette.mode === 'dark' ? 'white' : 'black',
-            },
-            '.MuiDataGrid-checkboxInput': {
-              color: theme.palette.mode === 'dark' ? 'white' : 'black',
-            },
+            borderBottom: '1px solid #ddd',
+            mb: 2,
+            '.MuiTab-root': { textTransform: 'none' },
           }}
-        />
+        >
+          {dataGrids.map((grid, index) => (
+            <Tab
+              key={index}
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  {grid.name}
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation(); // 防止点击关闭按钮切换 Tab
+                      removeDataGrid(index);
+                    }}
+                    sx={{ ml: 1 }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              }
+            />
+          ))}
+        </Tabs>
+
+        {/* 显示当前激活的 DataGrid */}
+        <Box sx={{ height: '75vh', mt: 2 }}>
+          {dataGrids[activeTab]?.content || <Typography>No DataGrid Available</Typography>}
+        </Box>
       </Paper>
     </Box>
   );
