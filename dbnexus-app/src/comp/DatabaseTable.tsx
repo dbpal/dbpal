@@ -64,14 +64,13 @@ export default function DatabaseTable({ addEntity }: { addEntity: (name: string)
         justifyContent: 'center',
         alignItems: 'flex-start',
         padding: 2,
-        mt: 1,
         ml: 4,
       }}
     >
       <Paper
         sx={{
           height: '85vh',
-          width: '85vw',
+          width: '80vw',
           padding: 2,
           backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : 'white',
         }}
