@@ -1,20 +1,46 @@
 import { Box, Stack } from '@mui/material';
-
-import { ResizableColumns } from './ResizableColumns.tsx';
-import { useState } from 'react';
-import SplitPane, { Pane } from 'react-split-pane';
+import { useState, useRef, useEffect } from 'react';
+import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
 
 function RedisQuery() {
   const [command, setCommand] = useState('get');
+  const [isDragging, setIsDragging] = useState(false);
+  const iframeRef = useRef(null);
+
+  // 禁用 iframe 的鼠标事件
+  const disableIframe = () => {
+    if (iframeRef.current) {
+      iframeRef.current.style.pointerEvents = 'none';
+    }
+  };
+
+  // 启用 iframe 的鼠标事件
+  const enableIframe = () => {
+    if (iframeRef.current) {
+      iframeRef.current.style.pointerEvents = 'auto';
+    }
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      disableIframe();
+    } else {
+      enableIframe();
+    }
+  }, [isDragging]);
+
   return (
     <div style={{ display: 'flex' }}>
-      <SplitPane split='vertical' minSize={50} defaultSize={1000} step={5}>
+      <SplitPane
+        split="vertical"
+        minSize={50}
+        defaultSize={1000}
+        step={5}
+        onDragStarted={() => setIsDragging(true)} // 拖动开始
+        onDragFinished={() => setIsDragging(false)} // 拖动结束
+      >
         <div>
-          {/* <SplitPane split='horizontal' defaultSize='100px'>
-          <Pane>You can use a Pane component1111</Pane>
-          <div>or you can use a plain old div</div>
-        </SplitPane> */}
           11111111111111111111111111111111
         </div>
         <div
@@ -24,8 +50,8 @@ function RedisQuery() {
           }}
         >
           <iframe
+            ref={iframeRef} // 绑定 iframe 引用
             src={`https://www.bilibili.com/`}
-            // src='https://www.github.com'
             style={{
               width: '100%',
               height: '100%',
@@ -36,12 +62,9 @@ function RedisQuery() {
               padding: 0,
               margin: 0,
             }}
-            title='Full Size Iframe'
+            title="Full Size Iframe"
           />
         </div>
-        {/* <Pane initialSize='25%' minSize='10%' maxSize='500px'>
-          Using a Pane allows you to specify any constraints directly
-        </Pane> */}
       </SplitPane>
     </div>
   );

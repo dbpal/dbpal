@@ -19,7 +19,7 @@ root.render(
       },
     }}
   >
-    <RedisQuery> </RedisQuery>
+    <RedisQuery></RedisQuery>
     <React.StrictMode></React.StrictMode>
   </NotificationContext.Provider>
 );
