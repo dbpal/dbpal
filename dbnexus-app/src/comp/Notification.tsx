@@ -1,13 +1,12 @@
 import React, { useState, ReactNode, createContext } from 'react';
 import { Snackbar, Alert, AlertTitle, Slide } from '@mui/material';
 import { AlertColor } from '@mui/material/Alert';
-import { WidthFull } from '@mui/icons-material';
 
 interface NotificationContextProps {
   showNotification: (
     severity: AlertColor,
     title: string,
-    message: string | Error
+    message?: string | Error
   ) => void;
 }
 

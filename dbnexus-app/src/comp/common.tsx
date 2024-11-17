@@ -1,7 +1,5 @@
 import {
-  Alert,
   Box,
-  Button,
   FormControl,
   IconButton,
   InputLabel,
@@ -10,9 +8,6 @@ import {
   Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import { useState } from 'react';
-
-const errOkHoldTime = 5000;
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -37,7 +32,11 @@ function SelectPageSize({
 }) {
   return (
     <Box width={width}>
-      <FormControl fullWidth variant={variant}>
+      <FormControl
+        fullWidth
+        // @ts-ignore
+        variant={variant}
+      >
         <InputLabel id='simple-select-label'>{tital}</InputLabel>
         <Select
           labelId='simple-select-label'
@@ -85,45 +84,12 @@ function CloseSpace({ handleClose = youNeedImplThis('handleClose') }) {
   );
 }
 
-// when u doing some dangerous operation
-// u need second confirm about this.
-
-function SecondConfirm(props: {
-  msg: string;
-  buttonName: string;
-  operationOP: () => Promise<boolean>; // boolean used to disable button
-  handleClose: () => void;
-}) {
-  const { msg, operationOP, handleClose, buttonName } = props;
-  const [disableButton, setDisableButton] = useState(false);
-  return (
-    <Stack>
-      <CloseSpace handleClose={handleClose}></CloseSpace>
-      <Alert severity='error' color='error'>
-        {msg}
-      </Alert>
-      <Button
-        disabled={disableButton}
-        variant='contained'
-        color='error' // 使用 MUI 的 error 颜色
-        onClick={() => {
-          operationOP().then((disable) => {
-            setDisableButton(disable);
-          });
-        }}
-      >
-        {buttonName}
-      </Button>
-    </Stack>
-  );
-}
-
 // redis的数据存储的时候都是二进制 有时候包含的是有效的
 // utf8字符前台的处理的最好当成utf8来处理
 // 不然当成二进制数据来处理呢
 // 后台放回数据的时候都是 hex string模式
 
-function hexTryToUtf8(hex): string | number[] {
+function hexTryToUtf8(hex): string | Uint8Array {
   if (!hex) {
     return '';
   }
@@ -140,7 +106,7 @@ function hexTryToUtf8(hex): string | number[] {
       new Uint8Array(bytes)
     );
   } catch {
-    return bytes;
+    return new Uint8Array(bytes);
   }
   return utf8String;
 }
@@ -185,7 +151,6 @@ function stringToHex(str): string {
 }
 
 export {
-  errOkHoldTime,
   modalStyle,
   SelectPageSize,
   CloseButton,
@@ -196,5 +161,4 @@ export {
   hexToUtf8,
   hexToUint8Array,
   stringToHex,
-  SecondConfirm,
 };
