@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box } from '@mui/material';
+import ReactDOM from 'react-dom/client';
 
 const ResizableColumns = ({ leftContent, rightContent, initWidth }) => {
   if (!initWidth) {
@@ -7,13 +8,16 @@ const ResizableColumns = ({ leftContent, rightContent, initWidth }) => {
   }
   const [leftWidth, setLeftWidth] = useState(initWidth); // 左列初始宽度
   const [isDragging, setIsDragging] = useState(false); // 拖拽状态
+  const iframeRef = useRef(null);
 
   const handleMouseDown = () => {
     setIsDragging(true);
+    disableIframe();
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    enableIframe();
   };
 
   const handleMouseMove = (event) => {
@@ -25,8 +29,19 @@ const ResizableColumns = ({ leftContent, rightContent, initWidth }) => {
     }
   };
 
-  // 添加事件监听器
-  React.useEffect(() => {
+  const disableIframe = () => {
+    if (iframeRef.current) {
+      iframeRef.current.style.pointerEvents = 'none'; // 禁用 iframe 交互
+    }
+  };
+
+  const enableIframe = () => {
+    if (iframeRef.current) {
+      iframeRef.current.style.pointerEvents = 'auto'; // 启用 iframe 交互
+    }
+  };
+
+  useEffect(() => {
     if (isDragging) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
@@ -42,35 +57,50 @@ const ResizableColumns = ({ leftContent, rightContent, initWidth }) => {
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
+      {/* 左侧内容 */}
       <Box
         sx={{
           width: leftWidth,
-          padding: 0,
-          margin: 0,
+          padding: '10px',
+          backgroundColor: '#f0f0f0',
         }}
       >
-        {leftContent} {/* 显示左侧内容 */}
+        {leftContent}
       </Box>
+
+      {/* 分隔条 */}
       <Box
         sx={{
           cursor: 'ew-resize',
           width: '5px',
           backgroundColor: 'gray',
           height: '100%',
-          alignSelf: 'stretch',
           '&:hover': {
             backgroundColor: 'darkgray',
           },
         }}
         onMouseDown={handleMouseDown}
       />
+
+      {/* 右侧内容 */}
       <Box
         sx={{
           flexGrow: 1,
-          padding: 1,
+          padding: '10px',
+          backgroundColor: '#e0e0e0',
         }}
       >
-        {rightContent} {/* 显示右侧内容 */}
+        {rightContent}
+        <iframe
+          ref={iframeRef}
+          src="https://redis.io/docs/latest/commands/get/"
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+          }}
+          title="iframe"
+        />
       </Box>
     </Box>
   );
@@ -88,3 +118,11 @@ const TestApp = () => {
 };
 
 export { ResizableColumns, TestApp };
+
+// const root = ReactDOM.createRoot(document.getElementById('root'));
+// root.render(<ResizableColumns
+//   leftContent={<div>左侧内容</div>}
+//   rightContent={<div>右侧内容</div>}
+//   initWidth={100}
+// />
+// )
