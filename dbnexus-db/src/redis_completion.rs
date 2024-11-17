@@ -1556,3 +1556,23 @@ const REDIS_COMMANDS: &'static [&'static str] = &[
     "ZSCORE",
     "ZUNIONSTORE",
 ];
+
+#[cfg(test)]
+mod tests {
+    use crate::redis_completion::REDIS_COMMANDS;
+
+    #[test]
+    fn print_monaco_highligth_reg() {
+        print!("/\\b(");
+        let last = REDIS_COMMANDS.len() - 1;
+        for (index, c) in REDIS_COMMANDS.iter().enumerate() {
+            print!("{}", c);
+            if index != last {
+                print!("|");
+            }
+        }
+        print!(")\\b/");
+
+        println!();
+    }
+}
