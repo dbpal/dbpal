@@ -63,7 +63,9 @@ function MainWindow() {
     <Router>
       <Routes>
         <Route path='/' element={<DatabaseConnectionForm />} />
-        <Route path='/database' element={<DatabaseTable />} />
+        <Route path='/database' element={<DatabaseTable addEntity={function (name: string): void {
+          throw new Error('Function not implemented.');
+        }} />} />
       </Routes>
     </Router>
   );
@@ -111,7 +113,9 @@ export default function MainPage() {
             <Divider sx={{ my: 1 }} />
             */}
               {location.pathname === '/database' ? (
-                <DataList></DataList>
+                <DataList addEntity={function (name: string, fields: any[]): void {
+                  throw new Error('Function not implemented.');
+                }}></DataList>
               ) : (
                 <ConnectList></ConnectList>
               )}

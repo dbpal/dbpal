@@ -21,7 +21,7 @@ import FolderIcon from '@mui/icons-material/Folder';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 
-function DataList() {
+function DataList({ addEntity }: { addEntity: (name: string, fields: any[]) => void }) {
   const [database, setDatabase] = useState('');
   const [filter, setFilter] = useState('');
   const [openEntity, setOpenEntity] = useState<string | null>(null);
@@ -38,7 +38,7 @@ function DataList() {
     setFilter(event.target.value);
   };
 
-  const handleEntityClick = (entityName: string) => {
+  const handleEntityClick = (entityName: string, fields?: { name: string; type: string; }[]) => {
     setOpenEntity(openEntity === entityName ? null : entityName);
   };
 
@@ -106,13 +106,24 @@ function DataList() {
       <Typography variant='subtitle2' sx={{ mt: 2, mb: 1 }}>
         ENTITIES ({entities.length})
       </Typography>
-      <List component="nav" dense>
+      <List dense>
+        {entities.map((entity) => (
+          <React.Fragment key={entity.name}>
+            <ListItem
+              button
+              onClick={() => handleEntityClick(entity.name, entity.fields)}
+            >
+              <ListItemText primary={entity.name} />
+              {openEntity === entity.name ? <ExpandLess /> : <ExpandMore />}
+            </ListItem>
+          </React.Fragment>
+        ))}
+      </List>
+
+      {/* <List component="nav" dense>
         {entities.map((entity) => (
           <React.Fragment key={entity.name}>
             <ListItem onClick={() => handleEntityClick(entity.name)}>
-              {/* <ListItemIcon>
-                <FolderIcon />
-              </ListItemIcon> */}
               <ListItemText primary={entity.name} />
               {openEntity === entity.name ? <ExpandLess /> : <ExpandMore />}
             </ListItem>
@@ -132,7 +143,8 @@ function DataList() {
             </Collapse>
           </React.Fragment>
         ))}
-      </List>
+      </List> */}
+
       <Button
         variant="outlined"
         startIcon={<AddIcon />}
