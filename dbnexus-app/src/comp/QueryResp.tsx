@@ -59,40 +59,50 @@ function MultiQueryResp(props: { data: any[] }) {
   };
   let idPrefix = generateRandomString(10);
   return (
-    <Box sx={{ width: '100%' }}>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs
-          value={value}
-          onChange={handleChange}
-          aria-label='basic tabs example'
-        >
-          {data.map((_, index) => (
-            <Tab
-              label={`Result ${index + 1}`}
-              key={index}
-              {...a11yProps(idPrefix, index)}
-            />
-          ))}
-        </Tabs>
-      </Box>
+    <>
+      {data.length == 1 ? (
+        data[0].Err ? (
+          <Alert severity='error'>{data[0].Err}</Alert>
+        ) : (
+          <QueryResp data={data[0].Ok}></QueryResp>
+        )
+      ) : (
+        <Box sx={{ width: '100%' }}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs
+              value={value}
+              onChange={handleChange}
+              aria-label='basic tabs example'
+            >
+              {data.map((_, index) => (
+                <Tab
+                  label={`Result ${index + 1}`}
+                  key={index}
+                  {...a11yProps(idPrefix, index)}
+                />
+              ))}
+            </Tabs>
+          </Box>
 
-      {data.map((e, index) => {
-        return (
-          <CustomTabPanel
-            idPrefix={idPrefix}
-            key={`panel${index}`}
-            value={value}
-            index={index}
-          >
-            {e.Err ? (
-              <Alert severity='error'>{e.Err}</Alert>
-            ) : (
-              <QueryResp data={e.Ok}></QueryResp>
-            )}
-          </CustomTabPanel>
-        );
-      })}
-    </Box>
+          {data.map((e, index) => {
+            return (
+              <CustomTabPanel
+                idPrefix={idPrefix}
+                key={`panel${index}`}
+                value={value}
+                index={index}
+              >
+                {e.Err ? (
+                  <Alert severity='error'>{e.Err}</Alert>
+                ) : (
+                  <QueryResp data={e.Ok}></QueryResp>
+                )}
+              </CustomTabPanel>
+            );
+          })}
+        </Box>
+      )}
+    </>
   );
 }
 

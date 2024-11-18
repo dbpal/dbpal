@@ -142,9 +142,9 @@ function testExampleField(): types.Field {
   }
 ]
 */
-function testExampleMultiQueryResp(length: number = 3) {
+function testExampleMultiQueryResp(maxlength: number = 3) {
   let ret = [];
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < Math.ceil(Math.random() * 3); i++) {
     if (Math.random() > 0.66) {
       ret.push({ Err: `This is random error.` });
     } else {
