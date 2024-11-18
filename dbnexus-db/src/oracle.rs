@@ -12,7 +12,7 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend};
+use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionTrait};
 
 use crate::datasource_config::OracleDbConfig;
 use crate::db::{
@@ -1716,7 +1716,7 @@ impl OracleDB {
 // }
 
 #[async_trait::async_trait]
-impl DBLexerCompletionBackend for OracleDB {
+impl LexerCompletionTrait for OracleDB {
     type Dialect = sqlparser::dialect::GenericDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = &[];

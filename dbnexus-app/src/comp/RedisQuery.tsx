@@ -9,7 +9,6 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import { NotificationContext } from './Notification';
 import { MultiQueryResp } from './QueryResp';
-import { ClassNames } from '@emotion/react';
 
 function initRedisLanguage(
   autoCompletion: (
@@ -22,12 +21,7 @@ function initRedisLanguage(
     monaco.languages.setMonarchTokensProvider('monaco', {
       ignoreCase: true,
       tokenizer: {
-        root: [
-          [
-            /\b(APPEND|ASKING|AUTH|BGREWRITEAOF|BGSAVE|BITCOUNT|BITFIELD|BITOP|BITPOS|BLPOP|BRPOP|BRPOPLPUSH|CLIENT|CLUSTER|CONFIG|DBSIZE|DEBUG|DECR|DECRBY|DEL|DISCARD|DUMP|ECHO|EVAL|EVALSHA|EXEC|EXISTS|EXPIRE|EXPIREAT|FLUSHALL|FLUSHDB|GEOADD|GEODIST|GEOHASH|GEOPOS|GEORADIUS|GEORADIUSBYMEMBER|GET|GETBIT|GETRANGE|GETSET|HDEL|HEXISTS|HGET|HGETALL|HINCRBY|HINCRBYFLOAT|HKEYS|HLEN|HMGET|HMSET|HSCAN|HSET|HSETNX|HSTRLEN|HVALS|INCR|INCRBY|INCRBYFLOAT|INFO|KEYS|LASTSAVE|LINDEX|LINSERT|LLEN|LPOP|LPUSH|LPUSHX|LRANGE|LREM|LSET|LTRIM|MGET|MIGRATE|MOVE|MSET|MSETNX|MULTI|OBJECT|PERSIST|PEXPIRE|PEXPIREAT|PFADD|PFCOUNT|PFMERGE|PING|PSETEX|PTTL|PUBLISH|RANDOMKEY|READONLY|READWRITE|RENAME|RENAMENX|RESTORE|RESTORE_ASKING|ROLE|RPOP|RPOPLPUSH|RPUSH|RPUSHX|SADD|SAVE|SCAN|SCARD|SCRIPT|SDIFF|SDIFFSTORE|SET|SETBIT|SETEX|SETNX|SETRANGE|SHUTDOWN|SINTER|SINTERSTORE|SISMEMBER|SLAVEOF|SLOWLOG|SMEMBERS|SMOVE|SORT|SPOP|SRANDMEMBER|SREM|SSCAN|STRLEN|SUNION|SUNIONSTORE|SYNC|TIME|TOUCH|TTL|TYPE|UNLINK|ZADD|ZCARD|ZCOUNT|ZINCRBY|ZINTERSTORE|ZLEXCOUNT|ZRANGE|ZRANGEBYLEX|ZRANGEBYSCORE|ZRANK|ZREM|ZREMRANGEBYLEX|ZREMRANGEBYRANK|ZREMRANGEBYSCORE|ZREVRANGE|ZREVRANGEBYLEX|ZREVRANGEBYSCORE|ZREVRANK|ZSCAN|ZSCORE|ZUNIONSTORE)\b/,
-            'keyword',
-          ],
-        ],
+        root: [[redisKeywords, 'keyword']],
       },
     });
 
@@ -125,7 +119,7 @@ function RedisQuery(props: {
         onDragStarted={() => setIsDragging(true)} // 拖动开始
         onDragFinished={() => setIsDragging(false)} // 拖动结束
       >
-        <div style={{ width: '100%' }}>
+        <div>
           {/* // @ts-ignore */}
           <SplitPane split='horizontal' defaultSize={500}>
             <div style={{ width: '100%' }}>
@@ -142,7 +136,7 @@ function RedisQuery(props: {
                 handelTextAndPositionChange={tryUpdateCommand}
               ></RedisEditor>
             </div>
-            <div style={{ width: '100%' }}>
+            <div>
               <MultiQueryResp data={resp}></MultiQueryResp>
             </div>
           </SplitPane>

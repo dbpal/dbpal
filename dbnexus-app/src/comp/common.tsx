@@ -8,6 +8,8 @@ import {
   Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import { languages } from 'monaco-editor';
+import { types } from './ApiStruct';
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -150,6 +152,42 @@ function stringToHex(str): string {
   return arrayToHex(stringToHexArray(str));
 }
 
+function backendCompletionItemToEditor(
+  xs: types.CompletionItem[]
+): languages.CompletionList {
+  function getKind(kind: types.CompletionKind): languages.CompletionItemKind {
+    switch (kind) {
+      case 'Command':
+        return languages.CompletionItemKind.Keyword;
+      case 'KeyWord':
+        return languages.CompletionItemKind.Keyword;
+      case 'Function':
+        return languages.CompletionItemKind.Function;
+      case 'Dbname':
+        return languages.CompletionItemKind.Folder;
+      case 'SchemaName':
+        return languages.CompletionItemKind.Folder;
+      case 'TableName':
+        return languages.CompletionItemKind.Module;
+      case 'Column':
+        return languages.CompletionItemKind.Field;
+      case 'Text':
+        return languages.CompletionItemKind.Text;
+      case 'Type':
+        return languages.CompletionItemKind.Class;
+    }
+  }
+  return {
+    suggestions: xs.map((e): languages.CompletionItem => {
+      return {
+        label: e.name,
+        kind: getKind(e.kind),
+        insertText: e.name,
+        range: undefined,
+      };
+    }),
+  };
+}
 export {
   modalStyle,
   SelectPageSize,
@@ -161,4 +199,5 @@ export {
   hexToUtf8,
   hexToUint8Array,
   stringToHex,
+  backendCompletionItemToEditor,
 };

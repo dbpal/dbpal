@@ -1,7 +1,7 @@
-use crate::{completion::DBLexerCompletionBackend, pg::PostGresDB};
+use crate::{completion::LexerCompletionTrait, pg::PostGresDB};
 
 #[async_trait::async_trait]
-impl DBLexerCompletionBackend for PostGresDB {
+impl LexerCompletionTrait for PostGresDB {
     type Dialect = sqlparser::dialect::PostgreSqlDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = PG_FUNCTIONS;

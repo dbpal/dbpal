@@ -1,7 +1,7 @@
-use crate::{completion::DBLexerCompletionBackend, sql_server::SqlServer};
+use crate::{completion::LexerCompletionTrait, sql_server::SqlServer};
 
 #[async_trait::async_trait]
-impl DBLexerCompletionBackend for SqlServer {
+impl LexerCompletionTrait for SqlServer {
     type Dialect = sqlparser::dialect::MsSqlDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;

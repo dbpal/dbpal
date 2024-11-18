@@ -18,13 +18,13 @@ async function testAutoCompletion(
       {
         label: 'get',
         kind: languages.CompletionItemKind.Keyword,
-        insertText: 'get',
+        insertText: '',
         range: undefined,
       },
       {
         label: 'set',
         kind: languages.CompletionItemKind.Keyword,
-        insertText: 'set',
+        insertText: '',
         range: undefined,
       },
     ],

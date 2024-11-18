@@ -6,7 +6,7 @@ use fuzzy_matcher::FuzzyMatcher;
 use sqlparser::tokenizer::Token;
 use typescript_type_def::TypeDef;
 
-use crate::db::DBTrait;
+use crate::db::monaco_editor_keyword_regexp;
 
 #[async_trait::async_trait]
 pub trait AutoCompletionTrait {
@@ -35,45 +35,6 @@ pub enum CompletionKind {
     Type,
 }
 
-#[async_trait::async_trait]
-pub trait DBListCompletionItem {
-    /// some fact about the backend
-    /// postgres and mysql etc support multiple database
-    /// while sqlite only contains one database
-    fn is_multi_db(&self) -> bool {
-        true
-    }
-    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>>;
-    async fn list_db(&self) -> anyhow::Result<Vec<String>>;
-    async fn list_columns(
-        &self, db: Option<String>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>>;
-}
-
-#[async_trait::async_trait]
-impl<T: DBTrait> DBListCompletionItem for T {
-    async fn list_table(&self, db: Option<String>) -> anyhow::Result<Vec<String>> {
-        let x = DBTrait::open_schema(self, db.as_deref().unwrap()).await?;
-
-        x.list_table()
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())
-    }
-
-    async fn list_db(&self) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
-
-    async fn list_columns(
-        &self, db: Option<String>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let x = DBTrait::open_schema(self, db.as_deref().unwrap()).await?;
-        x.show_columns(table_name)
-            .await
-            .map(|x| x.into_iter().map(|x| x.field).collect::<Vec<_>>())
-    }
-}
-
 pub fn in_pos(
     pos: sqlparser::tokenizer::Location, t: sqlparser::tokenizer::Location, len: impl Into<u64>,
 ) -> bool {
@@ -81,8 +42,7 @@ pub fn in_pos(
 }
 
 #[async_trait::async_trait]
-
-pub trait DBLexerCompletionBackend: DBListCompletionItem {
+pub trait LexerCompletionTrait {
     const KEY_WORDS: &'static [&'static str];
     const BUILD_IN_FUNCTIONS: &'static [&'static str];
     const TYPES: &'static [&'static str];
@@ -101,7 +61,6 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
             .tokenize_with_location()
             .unwrap_or(vec![]);
         let all_item = self.all_completion_items().await;
-
         for t in tokens.iter() {
             let pattern = t.token.to_string();
             match t.token {
@@ -117,6 +76,7 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                 return anyhow::Ok(match_pattern_and_sort(all_item, pattern.as_str()));
             }
         }
+
         return anyhow::Ok(all_item);
     }
 
@@ -158,66 +118,21 @@ pub trait DBLexerCompletionBackend: DBListCompletionItem {
                 })
                 .collect::<Vec<_>>(),
         );
-        let list_db = self.list_db().await.unwrap_or(vec![]);
-
-        ret.extend(
-            list_db
-                .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Owned(x.clone()),
-                    kind: CompletionKind::Dbname,
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        if self.is_multi_db() {
-            for db in list_db.iter() {
-                let list_tables = self
-                    .list_table(Some(db.to_string()))
-                    .await
-                    .unwrap_or(vec![]);
-                for t in list_tables.iter() {
-                    let cols = self
-                        .list_columns(Some(db.to_string()), t.as_str())
-                        .await
-                        .unwrap_or(vec![]);
-                    ret.extend(cols.into_iter().map(|x| CompletionItem {
-                        item: Cow::Owned(x),
-                        kind: CompletionKind::Column,
-                    }));
-                }
-                ret.extend(
-                    list_tables
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            item: Cow::Owned(x),
-                            kind: CompletionKind::TableName,
-                        })
-                        .collect::<Vec<_>>(),
-                );
-            }
-        } else {
-            let list_tables = self.list_table(None).await.unwrap_or(vec![]);
-            for t in list_tables.iter() {
-                let cols = self.list_columns(None, t.as_str()).await.unwrap_or(vec![]);
-                ret.extend(cols.into_iter().map(|x| CompletionItem {
-                    item: Cow::Owned(x),
-                    kind: CompletionKind::Column,
-                }));
-            }
-
-            ret.extend(
-                list_tables
-                    .into_iter()
-                    .map(|x| CompletionItem {
-                        item: Cow::Owned(x),
-                        kind: CompletionKind::TableName,
-                    })
-                    .collect::<Vec<_>>(),
-            );
-        }
         ret.extend(self.extra_completion_item().await.into_iter());
         ret
+    }
+
+    fn monaco_editor_keyword_regexp(&self) -> String {
+        let combined: Vec<&'static str> = [
+            Self::KEY_WORDS,
+            Self::TYPES,
+            Self::TEXTS,
+            Self::BUILD_IN_FUNCTIONS,
+        ]
+        .concat();
+
+        let s = monaco_editor_keyword_regexp(&combined[..]);
+        return s;
     }
 }
 

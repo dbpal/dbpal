@@ -1,13 +1,13 @@
 use std::{borrow::Cow, ops::DerefMut};
 
 use crate::{
-    completion::{AutoCompletionTrait, CompletionItem, DBLexerCompletionBackend},
+    completion::{AutoCompletionTrait, CompletionItem, LexerCompletionTrait},
     mysql::MysqlDB,
 };
 use sqlx::Row;
 
 #[async_trait::async_trait]
-impl DBLexerCompletionBackend for MysqlDB {
+impl LexerCompletionTrait for MysqlDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
 
     const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;

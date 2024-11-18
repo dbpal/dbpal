@@ -1398,7 +1398,7 @@ fn static_redis_command_completion_items() -> Vec<CompletionItem> {
         .clone()
 }
 
-const REDIS_COMMANDS: &'static [&'static str] = &[
+pub const REDIS_COMMANDS: &'static [&'static str] = &[
     "APPEND",
     "ASKING",
     "AUTH",
@@ -1559,20 +1559,10 @@ const REDIS_COMMANDS: &'static [&'static str] = &[
 
 #[cfg(test)]
 mod tests {
-    use crate::redis_completion::REDIS_COMMANDS;
+    use crate::{db::monaco_editor_keyword_regexp, redis_completion::REDIS_COMMANDS};
 
     #[test]
     fn print_monaco_highligth_reg() {
-        print!("/\\b(");
-        let last = REDIS_COMMANDS.len() - 1;
-        for (index, c) in REDIS_COMMANDS.iter().enumerate() {
-            print!("{}", c);
-            if index != last {
-                print!("|");
-            }
-        }
-        print!(")\\b/");
-
-        println!();
+        println!("{}", monaco_editor_keyword_regexp(REDIS_COMMANDS));
     }
 }

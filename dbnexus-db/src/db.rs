@@ -964,3 +964,17 @@ pub enum TriggerTiming {
     /// sql server have this timing but I am not quit understand.
     InsteadOf,
 }
+
+pub fn monaco_editor_keyword_regexp(keywords: &[&str]) -> String {
+    let mut ret = "/\\b(".to_string();
+    let last = keywords.len() - 1;
+    for (index, c) in keywords.iter().enumerate() {
+        ret.push_str(*c);
+        if index != last {
+            ret.push_str("|");
+        }
+    }
+    ret.push_str(")\\b/");
+
+    return ret;
+}
