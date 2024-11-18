@@ -40,13 +40,18 @@ impl serde::Serialize for MetaValue {
     where
         S: Serializer,
     {
-        let mut s = serializer.serialize_struct("MetaValue", 2)?;
+        let mut s = serializer.serialize_struct("MetaValue", 3)?;
         s.serialize_field("name", &self.name)?;
         match &self.value {
             Some(value) => s.serialize_field("value", &value.to_string())?,
-            None => s.serialize_field("value", "")?,
+            None => {}
         }
-
+        match &self.desc {
+            Some(x) => {
+                s.serialize_field("desc", x)?;
+            }
+            None => {}
+        }
         s.end()
     }
 }

@@ -185,6 +185,7 @@ export namespace types {
     export type MetaValue = {
         "name": string;
         "value": string;
+        "desc": string;
     };
     export type TriggerDetail = {
         "timing": types.TriggerTiming;

@@ -73,6 +73,15 @@ impl TypeDef for MetaValue {
                         optional: false,
                         r#type: TypeExpr::Name(TypeName::ident(Ident("string"))),
                     },
+                    ObjectField {
+                        docs: None,
+                        name: TypeString {
+                            docs: None,
+                            value: "desc",
+                        },
+                        optional: false,
+                        r#type: TypeExpr::Name(TypeName::ident(Ident("string"))),
+                    },
                 ],
             }),
         },

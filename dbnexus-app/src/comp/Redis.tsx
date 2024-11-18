@@ -983,7 +983,7 @@ function RedisListTable(props: {
   modifyOP: (index: number, newValue: string) => Promise<void>;
   lpushOP: (value: string) => Promise<void>;
   rpushOP: (value: string) => Promise<void>;
-  delOP: (index: number) => Promise<void>;
+  delOP: (count: number, value: string) => Promise<void>;
 }) {
   const { reloadOP, modifyOP, lpushOP, delOP, rpushOP } = props;
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
@@ -994,7 +994,8 @@ function RedisListTable(props: {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const { showNotification } = useContext(NotificationContext);
-
+  const [deleteCount, setDeleteCunnt] = useState<string | number>(0);
+  const [deleteCountErr, setDeleteCountErr] = useState(false);
   const getSortOrder = () => {
     if (sortModel.length == 0) {
       return true;
@@ -1039,9 +1040,12 @@ function RedisListTable(props: {
 
   const handleDel = async () => {
     let index = getIDIndex(selectionModel);
-    let value = parseInt(resp.data.data[index]['seq']);
+    let value = resp.data.data[index]['value'];
     try {
-      await delOP(value);
+      await delOP(
+        typeof deleteCount === 'string' ? parseInt(deleteCount) : deleteCount,
+        value
+      );
       showNotification('success', 'Delete OK');
     } catch (e) {
       showNotification('error', 'Delete failure', e);
@@ -1062,11 +1066,22 @@ function RedisListTable(props: {
       {resp && (
         <Stack spacing={1}>
           {/* delete Button  */}
-          <Stack direction='row' spacing={1}>
+          <Stack direction='row' spacing={1} alignItems='flex-start'>
+            <TextField
+              size='small'
+              value={deleteCount}
+              error={deleteCountErr}
+              helperText='put a valid integer'
+              onChange={(e) => {
+                setDeleteCountErr(isNaN(parseInt(e.target.value)));
+                setDeleteCunnt(e.target.value);
+              }}
+              inputProps={{ type: 'number' }}
+            />
             <Button
               variant='contained'
               color='error'
-              disabled={selectionModel === ''}
+              disabled={selectionModel === '' || deleteCountErr}
               onClick={() => {
                 secondConfirm({
                   title: 'Delete',
@@ -1623,6 +1638,69 @@ function RedisHashTable(props: {
   );
 }
 
+function RedisModifyKeyName(props: {
+  name: string;
+  modifyOP: (oldName: string, newName: string) => Promise<void>;
+  handleClose: () => void;
+}) {
+  let { name, modifyOP, handleClose } = props;
+  const [newName, setNewName] = useState(name);
+  const { showNotification } = useContext(NotificationContext);
+  const [loading, setLoading] = useState(false);
+
+  const handleModify = () => {
+    setLoading(true);
+    modifyOP(newName, name)
+      .then(() => {
+        setLoading(false);
+        showNotification('success', 'Modify OK');
+      })
+      .catch((e) => {
+        setLoading(false);
+        showNotification('error', 'Modify failure', e);
+      });
+  };
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction='row'>
+        <Typography variant='subtitle1'> New name: </Typography>
+        {loading && (
+          <Box sx={{ display: 'flex' }}>
+            <CircularProgress />
+          </Box>
+        )}
+      </Stack>
+
+      <TextField
+        value={newName}
+        onChange={(e) => {
+          setNewName(e.target.value);
+        }}
+        label='name'
+      ></TextField>
+      <Stack direction='row' spacing={1}>
+        <Button
+          variant='outlined'
+          onClick={() => {
+            handleClose();
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          disabled={name == newName}
+          color='primary'
+          variant='contained'
+          onClick={handleModify}
+        >
+          Save
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
+
 export {
   RedisListTable,
   RedisStringTable,
@@ -1630,4 +1708,5 @@ export {
   RedisZsetTable,
   RedisSetTable,
   RedisEditHexOrText,
+  RedisModifyKeyName,
 };

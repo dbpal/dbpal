@@ -6,6 +6,7 @@ import {
   RedisEditHexOrText,
   RedisHashTable,
   RedisListTable,
+  RedisModifyKeyName,
   RedisSetTable,
   RedisStringTable,
   RedisZsetTable,
@@ -34,13 +35,20 @@ root.render(
     }}
   >
     <React.StrictMode>
+      {/* // start  */}
+
+      {/* <RedisModifyKeyName
+        modifyOP={voidTestFunction}
+        name='string_key'
+        handleClose={() => {}}
+      ></RedisModifyKeyName>
       <RedisEditHexOrText
         oldValue='aaaaaabb'
         handleValue={(e) => {
           console.log(e);
         }}
       ></RedisEditHexOrText>
-      <hr></hr>
+      <hr></hr> */}
 
       <RedisListTable
         // @ts-ignore
@@ -59,7 +67,7 @@ root.render(
         delOP={voidTestFunction}
       ></RedisListTable>
 
-      <RedisSetTable
+      {/* <RedisSetTable
         reloadOP={async (_: string) => {
           try {
             await voidTestFunction();
@@ -94,7 +102,9 @@ root.render(
       <RedisStringTable
         content='aaaaaabbb'
         modifyOP={voidTestFunction}
-      ></RedisStringTable>
+      ></RedisStringTable> */}
+
+      {/* // end  */}
     </React.StrictMode>
   </NotificationContext.Provider>
 );

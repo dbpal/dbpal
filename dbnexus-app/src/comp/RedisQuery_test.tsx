@@ -46,14 +46,15 @@ root.render(
       },
     }}
   >
-    <RedisQuery
-      executeOP={async (_text) => {
-        return testExampleMultiQueryResp(3);
-      }}
-      validURL={async (_url: string) => {
-        return true;
-      }}
-    ></RedisQuery>
-    <React.StrictMode></React.StrictMode>
+    <React.StrictMode>
+      <RedisQuery
+        executeOP={async (_text) => {
+          return testExampleMultiQueryResp(3);
+        }}
+        validURL={async (_url: string) => {
+          return true;
+        }}
+      ></RedisQuery>
+    </React.StrictMode>
   </NotificationContext.Provider>
 );

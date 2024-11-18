@@ -9,7 +9,7 @@ use dbnexus_db::db::{
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 
-use dbnexus_db::redis::RedisListTable;
+use dbnexus_db::redis::{RedisDB, RedisListTable};
 
 #[tauri::command]
 pub async fn add_config(
@@ -641,6 +641,307 @@ pub async fn mongo_show_table_docs(
     .map_err(|e| AnyhowErrorFrontend::from(e))?;
     DocsAndCount::try_from(docs).map_err(|e| e.into())
 }
+#[tauri::command]
+pub async fn redis_list_lpush(
+    uuid: String, key: String, value: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.list_lpush(key.as_str(), value.as_slice())
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_list_rpush(
+    uuid: String, key: String, value: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.list_rpush(key.as_str(), value.as_slice())
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_list_remove(
+    uuid: String, key: String, value: String, count: isize, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.list_remove(key.as_str(), count, value.as_slice())
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_list_set(
+    uuid: String, key: String, value: String, index: isize, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.list_set(key.as_str(), index, value.as_slice())
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_set_replace(
+    uuid: String, key: String, old: String, new: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let old = hex::decode(old.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+    let new = hex::decode(new.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.set_replace(key.as_str(), old.as_slice(), new.as_slice())
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_set_del(
+    uuid: String, key: String, member: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.set_del(key.as_str(), member.as_slice())
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_set_add(
+    uuid: String, key: String, member: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.set_add(key.as_str(), member.as_slice())
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_hash_replace(
+    uuid: String, key: String, old_member: String, new_member: String, new_value: String,
+    app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let old_member = hex::decode(old_member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let new_member = hex::decode(new_member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+    let new_value = hex::decode(new_value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.hash_replace(key.as_str(), old_member.as_slice(), &new_member, &new_value)
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_hash_del(
+    uuid: String, key: String, member: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.hash_del(key.as_str(), &member)
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_hash_add(
+    uuid: String, key: String, member: String, value: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+    let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.hash_add(key.as_str(), &member, &value)
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_zset_replace(
+    uuid: String, key: String, old_member: String, new_member: String, new_value: f64,
+    app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let old_member = hex::decode(old_member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+    let new_member = hex::decode(new_member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.zset_replace(key.as_str(), &old_member, &new_member, new_value)
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_zset_del(
+    uuid: String, key: String, member: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.zset_del(key.as_str(), &member)
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+#[tauri::command]
+pub async fn redis_zset_add(
+    uuid: String, key: String, member: String, value: f64, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.zset_add(key.as_str(), &member, value)
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn redis_string_set(
+    uuid: String, key: String, value: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
+
+    let schema = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.string_set(key.as_str(), &value)
+                .await
+                .map_err(AnyhowErrorFrontend::from)?;
+        }
+        None => return Err(format!("uuid {} is not redis", uuid).into()),
+    }
+    return Ok(());
+}
 
 #[derive(serde::Serialize)]
 pub struct DocsAndCount {
@@ -689,6 +990,17 @@ impl From<anyhow::Error> for AnyhowErrorFrontend {
         let x = Self {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
+        };
+        log::error!("msg:{},details:{}", x.reason, x.detail);
+        x
+    }
+}
+
+impl From<hex::FromHexError> for AnyhowErrorFrontend {
+    fn from(value: hex::FromHexError) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: "".to_string(),
         };
         log::error!("msg:{},details:{}", x.reason, x.detail);
         x

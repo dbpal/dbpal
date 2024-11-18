@@ -142,9 +142,9 @@ function testExampleField(): types.Field {
   }
 ]
 */
-function testExampleMultiQueryResp(maxlength: number = 3) {
+function testExampleMultiQueryResp(maxResult: number = 3) {
   let ret = [];
-  for (let i = 0; i < Math.ceil(Math.random() * 3); i++) {
+  for (let i = 0; i < Math.ceil(Math.random() * maxResult); i++) {
     if (Math.random() > 0.66) {
       ret.push({ Err: `This is random error.` });
     } else {
@@ -154,6 +154,13 @@ function testExampleMultiQueryResp(maxlength: number = 3) {
   return ret;
 }
 
+function testMetaValues(): types.MetaValue[] {
+  return [
+    { name: 'version', value: '10.0.0', desc: 'the version of the server.' },
+    { name: 'haha', value: 'heihei', desc: '' },
+  ];
+}
+
 export {
   testExampleRedisZset,
   testExampleRedisSet,
@@ -161,4 +168,5 @@ export {
   testExampleQueryResp,
   testExampleRedisList,
   testExampleMultiQueryResp,
+  testMetaValues,
 };

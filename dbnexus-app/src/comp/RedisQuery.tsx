@@ -117,7 +117,7 @@ function RedisQuery(props: {
         defaultSize={1000}
         step={5}
         onDragStarted={() => setIsDragging(true)} // 拖动开始
-        onDragFinished={() => setIsDragging(false)} // 拖动结束
+        onDragFinished={(_) => setIsDragging(false)} // 拖动结束
       >
         <div>
           {/* // @ts-ignore */}
@@ -191,17 +191,14 @@ function RedisEditor(props: {
   const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
     editor.onDidChangeModelContent((_event) => {
       setText(editor.getValue());
-      console.log('new text:', text);
     });
 
     editor.onDidChangeCursorPosition((_event) => {
       setPos(editor.getPosition());
-      console.log('new pos:', pos);
     });
     editor.onDidChangeCursorSelection((_event) => {
       const selection = editor.getSelection();
       setSelectText(editor.getModel().getValueInRange(selection));
-      console.log('new select text:', selectText);
     });
   };
   const handleExecute = (text: string) => {
@@ -213,8 +210,8 @@ function RedisEditor(props: {
   };
 
   return (
-    <Stack style={{ width: '100%', height: '500px' }}>
-      <Stack direction='row' spacing={0}>
+    <Stack style={{ height: '500px' }}>
+      <Stack style={{ paddingLeft: '50px' }} direction='row' spacing={0}>
         <Tooltip title='execute'>
           <IconButton
             onClick={() => {

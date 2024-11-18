@@ -84,15 +84,26 @@ pub struct RedisListTable {
 }
 
 impl RedisDB {
-    pub async fn lpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
+    pub async fn list_lpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.lpush(key, value).await?;
         anyhow::Ok(())
     }
-
-    pub async fn rpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
+    pub async fn list_rpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.rpush(key, value).await?;
+        anyhow::Ok(())
+    }
+
+    pub async fn list_remove(&self, key: &str, count: isize, value: &[u8]) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.lrem(key, count, value).await?;
+        anyhow::Ok(())
+    }
+
+    pub async fn list_set(&self, key: &str, index: isize, value: &[u8]) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let _: () = conn.lset(key, index, value).await?;
         anyhow::Ok(())
     }
 

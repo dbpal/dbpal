@@ -10,6 +10,8 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import { languages } from 'monaco-editor';
 import { types } from './ApiStruct';
+import { DataGrid } from '@mui/x-data-grid';
+import { v4 as uuidv4 } from 'uuid';
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -23,6 +25,24 @@ const modalStyle = {
   p: 4,
 };
 
+function MetaValues(props: { values: types.MetaValue[] }) {
+  let { values } = props;
+  let columns = [
+    { field: 'name' } as types.Field,
+    { field: 'value' } as types.Field,
+    { field: 'desc' } as types.Field,
+  ];
+  values.forEach((e) => {
+    //@ts-ignore
+    e.id = uuidv4();
+  });
+
+  return (
+    <>
+      <DataGrid columns={columns} rows={values}></DataGrid>
+    </>
+  );
+}
 function SelectPageSize({
   width = '130px',
   variant = 'outlined',
@@ -199,5 +219,6 @@ export {
   hexToUtf8,
   hexToUint8Array,
   stringToHex,
+  MetaValues,
   backendCompletionItemToEditor,
 };
