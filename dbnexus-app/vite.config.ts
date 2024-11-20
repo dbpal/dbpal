@@ -1,17 +1,25 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { internalIpV4 } from 'internal-ip';
+import topLevelAwait from "vite-plugin-top-level-await";
 
 // @ts-expect-error process is a nodejs global
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-  plugins: [react()],
+  plugins: [
+    topLevelAwait({
+      // The export name of top-level await promise for each chunk module
+      promiseExportName: "__tla",
+      // The function to generate import names of top-level await promise in each chunk module
+      promiseImportName: i => `__tla_${i}`
+    })
+    ,
+    react()],
   build: {
-    target: ['es2022'],
+    target: 'esnext',
   },
-
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent vite from obscuring rust errors
@@ -23,10 +31,10 @@ export default defineConfig(async () => ({
     host: mobile ? '0.0.0.0' : false,
     hmr: mobile
       ? {
-          protocol: 'ws',
-          host: await internalIpV4(),
-          port: 1421,
-        }
+        protocol: 'ws',
+        host: await internalIpV4(),
+        port: 1421,
+      }
       : undefined,
     watch: {
       // 3. tell vite to ignore watching `src-tauri`

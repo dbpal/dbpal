@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
-    "target": "ES2016",
+    "target": "esnext",
     "useDefineForClassFields": true,
     "lib": [
-      "ES2020",
+      "esnext",
       "DOM",
       "DOM.Iterable"
     ],
-    "module": "ESNext",
+    "module": "esnext",
     "skipLibCheck": true,
     /* Bundler mode */
     "moduleResolution": "bundler",
