@@ -25,7 +25,6 @@ function generateRandomString(length: number = 10): string {
     const randomIndex = Math.floor(Math.random() * characters.length);
     result += characters[randomIndex];
   }
-
   return result;
 }
 

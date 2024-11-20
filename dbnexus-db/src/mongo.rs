@@ -888,6 +888,12 @@ mod tests {
 
         let resp = db.show_collection(table, doc! {}).await.unwrap();
         println!("resp:{:?}", resp);
+        let resp = db.show_collection_docs(table, doc! {}).await.unwrap();
+        for d in resp.docs {
+            println!("{:?}", d);
+            let json_str = serde_json::to_string_pretty(&d).unwrap();
+            println!("json_str:", json_str);
+        }
 
         let table_list = db.list_table().await.unwrap();
         println!("{:?}", table_list);

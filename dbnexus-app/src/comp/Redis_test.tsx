@@ -37,7 +37,7 @@ root.render(
     <React.StrictMode>
       {/* // start  */}
 
-      {/* <RedisModifyKeyName
+      <RedisModifyKeyName
         modifyOP={voidTestFunction}
         name='string_key'
         handleClose={() => {}}
@@ -48,7 +48,7 @@ root.render(
           console.log(e);
         }}
       ></RedisEditHexOrText>
-      <hr></hr> */}
+      <hr></hr>
 
       <RedisListTable
         // @ts-ignore
@@ -67,7 +67,7 @@ root.render(
         delOP={voidTestFunction}
       ></RedisListTable>
 
-      {/* <RedisSetTable
+      <RedisSetTable
         reloadOP={async (_: string) => {
           try {
             await voidTestFunction();
@@ -102,7 +102,7 @@ root.render(
       <RedisStringTable
         content='aaaaaabbb'
         modifyOP={voidTestFunction}
-      ></RedisStringTable> */}
+      ></RedisStringTable>
 
       {/* // end  */}
     </React.StrictMode>
