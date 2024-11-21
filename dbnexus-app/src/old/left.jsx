@@ -1,7 +1,7 @@
-import { Tree, Alert } from "@arco-design/web-react";
-import { useEffect, useState } from "react";
+import { Tree, Alert } from '@arco-design/web-react';
+import { useEffect, useState } from 'react';
 const TreeNode = Tree.Node;
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from '@tauri-apps/api/tauri';
 
 function Views({ config, setTabList, setActiveTab }) {
   useEffect(() => {}, [config]);
@@ -11,12 +11,10 @@ function Views({ config, setTabList, setActiveTab }) {
 
 /// show list of tables
 function Tables({ config, setTabList, setActiveTab }) {
-  config.log("$$$$$$$$$$$$$$$$", 123);
-
-  let [errMsg, setErrMsg] = useState("");
+  let [errMsg, setErrMsg] = useState('');
   let [tableList, setTableList] = useState([]);
   useEffect(() => {
-    invoke("list_table", { uuid: config.uuid })
+    invoke('list_table', { uuid: config.uuid })
       .catch((e) => {
         setErrMsg(e);
       })
@@ -36,8 +34,8 @@ function Tables({ config, setTabList, setActiveTab }) {
       ></Alert> */}
 
       {tableList.map((e) => {
-        console.log("################", e);
-        return <TreeNode key={"table_" + e.name} title={e.name}></TreeNode>;
+        console.log('################', e);
+        return <TreeNode key={'table_' + e.name} title={e.name}></TreeNode>;
       })}
     </>
   );
@@ -47,14 +45,14 @@ function OneDBDB({ config, setTabList, setActiveTab }) {
   return (
     <Tree showLine>
       <TreeNode title={config.name} key={config.name}>
-        <TreeNode title="Tables" key="tables">
+        <TreeNode title='Tables' key='tables'>
           <Tables
             config={config}
             setActiveTab={setActiveTab}
             setTabList={setTabList}
           />
         </TreeNode>
-        <TreeNode title="Views" key="views">
+        <TreeNode title='Views' key='views'>
           {/* <Views
             config={config}
             setActiveTab={setActiveTab}
@@ -68,11 +66,11 @@ function OneDBDB({ config, setTabList, setActiveTab }) {
 
 function MultiDBDB({ config, setTabList, setActiveTab }) {}
 function OneDataSource({ config, setTabList, setActiveTab }) {
-  switch (config["kind"]) {
-    case "postgres":
-    case "mysql":
-    case "sqlserver":
-      if (config["db_name"]) {
+  switch (config['kind']) {
+    case 'postgres':
+    case 'mysql':
+    case 'sqlserver':
+      if (config['db_name']) {
         return MultiDBDB({ config, setTabList, setActiveTab });
       } else {
         return OneDBDB({ config, setTabList, setActiveTab });

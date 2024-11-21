@@ -1,6 +1,27 @@
 import { types } from './ApiStruct.ts';
 import { stringToHexArray, arrayToHex } from './common.tsx';
 import { generateRandomString, generateRandomUint8Array } from './helper.ts';
+import { BSON, Document, Int32, Long, Code, Timestamp } from 'bson';
+
+function testBsonDoc(): Document {
+  const bsonDocument = {
+    // string: 'Hello, World!',
+    // int32: new Int32(Math.random() * 100),
+    // long: new Long(100),
+    // float: Math.random() * 100,
+    // boolean: Math.random() > 0.5,
+    // null: null,
+    // timestamp: new Timestamp(new Long(1732158103)),
+    // objectId: new BSON.ObjectId(),
+    // date: new Date(),
+    // decimal: new BSON.Decimal128('10.5'),
+    // regex: /haha/i,
+    // array: [1, 2, 3, 'four', { key: 'value' }],
+    code: new BSON.Code('function() { return 42; }'),
+    // binary: new BSON.Binary([1, 2, 3, 4]),
+  };
+  return bsonDocument;
+}
 
 function testExampleRedisZset(
   length: number = 10,
@@ -169,4 +190,5 @@ export {
   testExampleRedisList,
   testExampleMultiQueryResp,
   testMetaValues,
+  testBsonDoc,
 };

@@ -892,7 +892,7 @@ mod tests {
         for d in resp.docs {
             println!("{:?}", d);
             let json_str = serde_json::to_string_pretty(&d).unwrap();
-            println!("json_str:", json_str);
+            println!("json_str:{}", json_str);
         }
 
         let table_list = db.list_table().await.unwrap();

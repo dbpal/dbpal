@@ -1,12 +1,51 @@
 import { tokenize } from 'esprima';
-import { BSON, EJSON, ObjectId } from 'bson';
+import {
+  BSON,
+  Int32,
+  Long,
+  ObjectId,
+  Timestamp,
+  BSONRegExp,
+  Code,
+  Decimal128,
+  Binary,
+  Double,
+  Document,
+} from 'bson';
 
 class MongoBsonObject {
   constructor(
-    public startLoc: Location,
     public eles: MongoBsonKV[],
-    public endLoc: Location
+    public startLoc?: Location,
+    public endLoc?: Location
   ) {}
+  format(tableSize: number): string {
+    return new MongoBsonValue(MongoBsonValueKind.Object, this).format(
+      1,
+      true,
+      tableSize
+    );
+  }
+  compile(): Document {
+    let ret = {};
+    for (let i = 0; i < this.eles.length; i++) {
+      let kv = this.eles[i];
+      const key = trimQuoteMark(this.eles[i].key.value);
+      if (key in ret) {
+        throw new MongoBsonError(`key '${key}' already exits.`, kv.key.loc);
+      }
+      ret[key] = kv.value.compile();
+    }
+    return ret;
+  }
+}
+
+function trimQuoteMark(str: string): string {
+  if (str[0] == '"' || str[0] == "'" || str[0] == '`') {
+    return str.substring(1, str.length - 1);
+  } else {
+    return str;
+  }
 }
 
 class MongoBsonKV {
@@ -14,7 +53,106 @@ class MongoBsonKV {
 }
 
 class MongoBsonAs {
-  constructor(public value: MongoBsonValue, public kind: Token) {}
+  constructor(
+    public value: MongoBsonValue,
+    public kind: Token,
+    public extra: MongoBsonBinaryAllSubType
+  ) {}
+  compile(): any {
+    switch (this.kind.value) {
+      case 'int':
+        return this.compileInt32();
+      case 'long':
+        return this.compileLong();
+      case 'timestamp':
+        return this.compileTimestamp();
+      case 'date':
+        return this.compileDate();
+      case 'decimal':
+        return this.compileDecimal();
+      case 'code':
+        return this.compileJavascript();
+    }
+  }
+
+  compileJavascript(): Code {
+    let v = this.value.compile();
+    let ty = typeof v;
+    if (ty === 'string') {
+      return new Code(v);
+    }
+    this.cannotConvert(ty, 'date');
+  }
+
+  compileDecimal(): Decimal128 {
+    let v = this.value.compile();
+    let ty = typeof v;
+    if (ty === 'string') {
+      return new Decimal128(v);
+    }
+    if (ty === 'number') {
+      return new Decimal128(v.toString());
+    }
+    this.cannotConvert(ty, 'date');
+  }
+
+  compileDate(): Date {
+    let v = this.value.compile();
+    let ty = typeof v;
+    if (ty === 'string') {
+      return new Date(v);
+    }
+    this.cannotConvert(ty, 'date');
+  }
+
+  compileObjectID(): ObjectId {
+    let v = this.value.compile();
+    let ty = typeof v;
+    if (ty === 'string') {
+      return new ObjectId(v as string);
+    }
+    if (ty === 'object' && v instanceof Array) {
+      // TODO maybe more check
+      return new ObjectId(new Uint8Array(v as number[]));
+    }
+    this.cannotConvert(ty, 'ObjectID');
+  }
+  cannotConvert(ty: string, to: string): never {
+    throw new MongoBsonError(`can't compile '${ty}' to ${to}`, this.kind.loc);
+  }
+  compileInt32(): Int32 {
+    let v = this.value.compile();
+    let ty = typeof v;
+    if (ty === 'number') {
+      return new Int32(v);
+    }
+    this.cannotConvert(ty, 'int');
+  }
+  compileLong(): Long {
+    let v = this.value.compile();
+    let ty = typeof v;
+    if (ty === 'number') {
+      return new Long(v);
+    }
+    if (ty === 'string') {
+      return new Long(v);
+    }
+    this.cannotConvert(ty, 'int');
+  }
+  compileTimestamp(): Timestamp {
+    let v = this.value.compile();
+    let ty = typeof v;
+    if (ty === 'bigint') {
+      return new Timestamp(v);
+    }
+    if (ty === 'string') {
+      return new Timestamp(new Long(v));
+    }
+    if (ty === 'number') {
+      return new Timestamp(new Long(v));
+    }
+    this.cannotConvert(ty, 'int');
+  }
 }
 
 enum MongoBsonValueKind {
@@ -24,13 +162,111 @@ enum MongoBsonValueKind {
   Array,
   Object,
   RegExp,
+  Null,
+  Undefined,
+  Int32,
+  Long,
+  Code,
+  Timestamp,
+  Date,
+  ObjectID,
+  Binary,
+  Decimal,
+  Boolean,
+}
+
+class MongoBsonBinaryAllSubType {
+  static Generic = 'generic';
+  static Function = 'function';
+  static ByteArray = 'byte_array';
+  static Uuid = 'uuid';
+  static Md5 = 'md5';
+  static Encrypted = 'encrypted';
+  static Column = 'column';
+  static Sensitive = 'sensitive';
+  static Vector = 'vector';
+  static UserDefine = 'user_define';
+
+  static allValues(): string[] {
+    return [
+      MongoBsonBinaryAllSubType.Generic,
+      MongoBsonBinaryAllSubType.Function,
+      MongoBsonBinaryAllSubType.ByteArray,
+      MongoBsonBinaryAllSubType.Uuid,
+      MongoBsonBinaryAllSubType.Md5,
+      MongoBsonBinaryAllSubType.Encrypted,
+      MongoBsonBinaryAllSubType.Column,
+      MongoBsonBinaryAllSubType.Sensitive,
+      MongoBsonBinaryAllSubType.Vector,
+      MongoBsonBinaryAllSubType.UserDefine,
+    ];
+  }
+  static fromNumber(x: number): string {
+    switch (x) {
+      case Binary.SUBTYPE_DEFAULT:
+        return MongoBsonBinaryAllSubType.Generic;
+      case Binary.SUBTYPE_FUNCTION:
+        return MongoBsonBinaryAllSubType.Function;
+      case Binary.SUBTYPE_BYTE_ARRAY:
+        return MongoBsonBinaryAllSubType.ByteArray;
+      case Binary.SUBTYPE_UUID:
+        return MongoBsonBinaryAllSubType.Uuid;
+      case Binary.SUBTYPE_ENCRYPTED:
+        return MongoBsonBinaryAllSubType.Encrypted;
+      case Binary.SUBTYPE_COLUMN:
+        return MongoBsonBinaryAllSubType.Column;
+      case Binary.SUBTYPE_SENSITIVE:
+        return MongoBsonBinaryAllSubType.Sensitive;
+      case Binary.SUBTYPE_USER_DEFINED:
+        return MongoBsonBinaryAllSubType.UserDefine;
+    }
+  }
+}
+
+class BinaryAsExtraParameter {
+  constructor(public sub_type: Token) {}
 }
 
 class MongoBsonValue {
   constructor(
     public kind: MongoBsonValueKind,
-    public value: Token | MongoBsonObject | MongoBsonAs | MongoBsonArray
+    public value:
+      | Token
+      | MongoBsonObject
+      | MongoBsonAs
+      | MongoBsonArray
+      | null
+      | undefined
+      | Binary
   ) {}
+
+  asToken(): Token {
+    return this.value as Token;
+  }
+  compile(): any {
+    switch (this.kind) {
+      case MongoBsonValueKind.Boolean:
+        return this.asToken().value.toLocaleUpperCase() === 'true';
+      case MongoBsonValueKind.Number:
+        return parseFloat(this.asToken().value);
+      case MongoBsonValueKind.String:
+        return trimQuoteMark(this.asToken().value);
+      case MongoBsonValueKind.As:
+        return (this.value as MongoBsonAs).compile();
+      case MongoBsonValueKind.Array:
+        return (this.value as MongoBsonArray).compile();
+      case MongoBsonValueKind.Object:
+        return (this.value as MongoBsonObject).compile();
+      case MongoBsonValueKind.RegExp:
+        return new RegExp(this.asToken().value);
+      case MongoBsonValueKind.Null:
+        return null;
+      case MongoBsonValueKind.Undefined:
+        return undefined;
+      default:
+        throw new MongoBsonError(`this kind '${this.kind}' should in ast`);
+    }
+  }
 
   format(ident: number, newLine: boolean, tabSize: number): string {
     const doIdent = (newLine: boolean): string => {
@@ -40,62 +276,126 @@ class MongoBsonValue {
         return '';
       }
     };
-    let s = '';
+    let ret = '';
     switch (this.kind) {
+      case MongoBsonValueKind.Int32:
+        return `${this.asToken().value} as int`;
+      case MongoBsonValueKind.Long:
+        return `${this.asToken().value} as long`;
+      case MongoBsonValueKind.Null:
+        return `null`;
+      case MongoBsonValueKind.Undefined:
+        return `undefined`;
+      case MongoBsonValueKind.ObjectID:
+        return `'${this.asToken().value}' as ObjectID`;
+      case MongoBsonValueKind.Binary:
+        let binaryValue = this.value as Binary;
+        ret += '[';
+        if (newLine) {
+          ret += '\n';
+        } else {
+          ret += ' ';
+        }
+        for (let i = 0; i < binaryValue.buffer.length; i++) {
+          ret += binaryValue.buffer[i].toString();
+          if (i != binaryValue.buffer.length - 1) {
+            ret += ',';
+          }
+          if (newLine) {
+            ret += '\n';
+          } else {
+            ret += ' ';
+          }
+        }
+        ret += ']';
+        // here is type annotion
+        ret +=
+          ' as binary ' +
+          MongoBsonBinaryAllSubType.fromNumber(binaryValue.sub_type);
+        binaryValue.sub_type;
+        return ret;
+      case MongoBsonValueKind.Date:
+        return `'${this.asToken().value}' as date`;
+      case MongoBsonValueKind.Timestamp:
+        return `${this.asToken().value} as timestamp`;
+      case MongoBsonValueKind.Code:
+        return this.asToken().value + ' as code';
       case MongoBsonValueKind.Number:
-        return (this.value as Token).value;
+        return `${this.asToken().value}`;
+      case MongoBsonValueKind.Boolean:
+        return this.asToken().value;
+        return this.asToken().value;
+      case MongoBsonValueKind.RegExp:
+        return `${this.asToken().value}`; // this is regexp
       case MongoBsonValueKind.String:
-        return (this.value as Token).value;
+        return this.asToken().value;
+      case MongoBsonValueKind.Decimal:
+        return `'${this.asToken().value}' as decimal`;
+
       case MongoBsonValueKind.As:
         let as = this.value as MongoBsonAs;
-        s = as.value.format(ident, false, tabSize);
-        s += ` as ${as.kind.value}`;
-        return s;
+        ret = as.value.format(ident, false, tabSize);
+        ret += ` as ${as.kind.value}`;
+        return ret;
       case MongoBsonValueKind.Array:
         let valueArr = this.value as MongoBsonArray;
-        s = '[';
+        ret = '[';
         newLine = newLine || this.elementsSize() > 100;
         if (newLine) {
-          s += '\n';
+          ret += '\n';
+        } else {
+          ret += ' ';
         }
         valueArr.eles.forEach((e, index) => {
-          s += doIdent(newLine);
-          s += e.format(ident + 1, false, tabSize);
+          ret += doIdent(newLine);
+          ret += e.format(ident + 1, false, tabSize);
           if (index != valueArr.eles.length - 1) {
-            s += ',';
+            ret += ',';
           }
           if (newLine) {
-            s += '\n';
+            ret += '\n';
+          } else {
+            ret += ' ';
           }
         });
-        s += ']';
+        ret += ']';
         if (newLine) {
-          s += '\n';
+          ret += '\n';
         }
-        return s;
+        return ret;
       case MongoBsonValueKind.Object:
         let valueObj = this.value as MongoBsonObject;
-        s = '{';
+        ret = '{';
         newLine = newLine || this.elementsSize() > 100;
         if (newLine) {
-          s += '\n';
+          ret += '\n';
+        } else {
+          ret += ' ';
         }
         valueObj.eles.forEach((e, index) => {
-          s += doIdent(newLine);
-          s += e.key.value + ': ';
-          s += e.value.format(ident + 1, false, tabSize);
+          ret += doIdent(newLine);
+          ret += e.key.value + ': ';
+          if (e.value == null) {
+            ret += 'null';
+          } else if (e.value == undefined) {
+            ret += 'undefined';
+          } else {
+            ret += e.value.format(ident + 1, false, tabSize);
+          }
           if (index != valueObj.eles.length - 1) {
-            s += ',';
+            ret += ',';
           }
           if (newLine) {
-            s += '\n';
+            ret += '\n';
+          } else {
+            ret += ' ';
           }
         });
-        s += '}';
+        ret += '}';
         if (newLine) {
-          s += '\n';
+          ret += '\n';
         }
-        return s;
+        return ret;
     }
   }
 
@@ -104,7 +404,7 @@ class MongoBsonValue {
     switch (this.kind) {
       case MongoBsonValueKind.Number:
       case MongoBsonValueKind.String:
-        return (this.value as Token).value.length;
+        return this.asToken().value.length;
       case MongoBsonValueKind.Array:
         (this.value as MongoBsonArray).eles.forEach((e) => {
           count += e.elementsSize();
@@ -127,10 +427,14 @@ class MongoBsonValue {
 
 class MongoBsonArray {
   constructor(
-    public startLoc: Location,
     public eles: MongoBsonValue[],
-    public endLoc: Location
+    public startLoc?: Location,
+    public endLoc?: Location
   ) {}
+
+  compile(): any {
+    return this.eles.map((e) => e.compile());
+  }
 }
 
 function parseMongoBson(input: string): MongoBsonObject | MongoBsonError {
@@ -144,7 +448,7 @@ function parseMongoBson(input: string): MongoBsonObject | MongoBsonError {
   }
 }
 
-function formatMongoBson(
+function formatMongoBsonStr(
   input: string,
   tabSize: number
 ): string | MongoBsonError {
@@ -162,13 +466,13 @@ function formatMongoBson(
 }
 
 interface Token {
-  type: string;
+  type?: string;
   value: string;
-  loc: Location;
+  loc?: Location;
 }
 
 class MongoBsonError {
-  constructor(public loc: Location, public msg: string) {}
+  constructor(public msg: string, public loc?: Location) {}
 }
 
 class Parser {
@@ -189,26 +493,25 @@ class Parser {
     let tokenEnd = this.peek();
     let endLoc = tokenEnd.loc;
     this.except('}');
-    return new MongoBsonObject(startLoc, defs, endLoc);
+    return new MongoBsonObject(defs, endLoc, startLoc);
   }
 
   parseObjectDefs(): MongoBsonKV {
     let token = this.peek();
     if (token.type != 'Identifier' && token.type != 'String') {
       throw new MongoBsonError(
-        token.loc,
-        `expect identifer or string,but '${token.value}'`
+        `expect identifer or string,but '${token.value}'`,
+        token.loc
       );
     }
     this.next();
     let tokenColon = this.peek();
     if (tokenColon.value != ':') {
       throw new MongoBsonError(
-        token.loc,
-        `expect colon or string,but '${token.value}'`
+        `expect colon or string,but '${token.value}'`,
+        token.loc
       );
     }
-
     this.next();
     // here is value
     let value = this.parseValueAs();
@@ -224,10 +527,27 @@ class Parser {
       this.next();
       token = this.peek();
       this.next();
+      let extra = null;
+
+      if (token.value.toLowerCase() == 'binary') {
+        extra = this.parseBinaryTypeAnnotion();
+      }
       return new MongoBsonValue(
         MongoBsonValueKind.As,
-        new MongoBsonAs(value, token)
+        new MongoBsonAs(value, token, extra)
       );
+    }
+  }
+  parseBinaryTypeAnnotion(): BinaryAsExtraParameter | null {
+    let token = this.peek();
+    let valueLow = token.value.toLowerCase();
+    let t = MongoBsonBinaryAllSubType.allValues().find((e) => valueLow == e);
+    if (t) {
+      let r = new BinaryAsExtraParameter(token);
+      this.next();
+      return r;
+    } else {
+      return null;
     }
   }
   parseArray(): MongoBsonValue[] {
@@ -251,6 +571,14 @@ class Parser {
       this.next();
       return new MongoBsonValue(MongoBsonValueKind.Number, token);
     }
+    if (token.type == 'Boolean') {
+      this.next();
+      return new MongoBsonValue(MongoBsonValueKind.Boolean, token);
+    }
+    if (token.type == 'Null') {
+      this.next();
+      return new MongoBsonValue(MongoBsonValueKind.Null, token);
+    }
     if (token.value == '[') {
       let startLoc = token.loc;
       this.next();
@@ -258,7 +586,7 @@ class Parser {
       let endLoc = this.except(']').loc;
       return new MongoBsonValue(
         MongoBsonValueKind.Array,
-        new MongoBsonArray(startLoc, values, endLoc)
+        new MongoBsonArray(values, startLoc, endLoc)
       );
     }
     if (token.value == '{') {
@@ -271,8 +599,8 @@ class Parser {
     }
 
     throw new MongoBsonError(
-      token.loc,
-      `not valid value,type:'${token.type}' value:'${token.value}'`
+      `not valid value,type:'${token.type}' value:'${token.value}'`,
+      token.loc
     );
   }
 
@@ -280,8 +608,8 @@ class Parser {
     let token = this.peek();
     if (token.value != value) {
       throw new MongoBsonError(
-        token.loc,
-        `expect '${value}' , but '${token.value}'`
+        `expect '${value}' , but '${token.value}'`,
+        token.loc
       );
     }
     this.next();
@@ -295,8 +623,150 @@ class Parser {
   }
 }
 
-function bsonValue2MongoBson(x) {
-  let d = BSON.deserialize(x, {});
+function quoteString(s: string): string {
+  if (!s.includes("'")) {
+    let value = s.replace('\n', '\\n');
+    return `'${value}'`;
+  } else if (!s.includes('"')) {
+    let value = s.replace('\n', '\\n');
+    return `"${value}"`;
+  } else if (!s.includes('`')) {
+    return '`${s}`';
+  } else {
+    throw new MongoBsonError(`can't quote str:${s}`);
+  }
+}
+
+function validIdentifier(str): boolean {
+  let tokens = tokenize(str) as Token[];
+  // TOOD Identifier 写对了吗
+  return tokens.length == 1 && tokens[0].type == 'Identifier';
+}
+
+function toMongoBson(a: any): MongoBsonValue {
+  if (a === null) {
+    return new MongoBsonValue(MongoBsonValueKind.Null, null);
+  }
+
+  switch (typeof a) {
+    case 'string':
+      return new MongoBsonValue(MongoBsonValueKind.String, {
+        value: quoteString(a as unknown as string),
+      });
+    case 'boolean':
+      return new MongoBsonValue(MongoBsonValueKind.Boolean, {
+        value: a ? 'true' : 'false',
+      });
+    case 'number':
+      return new MongoBsonValue(MongoBsonValueKind.Number, {
+        value: a.toString(),
+      });
+    case 'bigint':
+      return new MongoBsonValue(MongoBsonValueKind.Long, {
+        value: a.toString(),
+      });
+    case 'undefined':
+      return new MongoBsonValue(MongoBsonValueKind.Undefined, undefined);
+    case 'object':
+      if (a instanceof Int32) {
+        return new MongoBsonValue(MongoBsonValueKind.Int32, {
+          value: a.toString(),
+        });
+      }
+      // Timestamp 必须在Long前面 可能timestamp继承到Long
+      if (a instanceof Timestamp) {
+        return new MongoBsonValue(MongoBsonValueKind.Timestamp, {
+          value: a.toString(),
+        });
+      }
+      if (a instanceof Long) {
+        return new MongoBsonValue(MongoBsonValueKind.Long, {
+          value: a.toString(),
+        });
+      }
+
+      if (a instanceof Code) {
+        return new MongoBsonValue(MongoBsonValueKind.Code, {
+          value: quoteString(a.code),
+        });
+      }
+      if (a instanceof Date) {
+        return new MongoBsonValue(MongoBsonValueKind.Date, {
+          value: a.toISOString(),
+        });
+      }
+      if (a instanceof BSONRegExp) {
+        return new MongoBsonValue(MongoBsonValueKind.RegExp, {
+          value: '/' + a.pattern + '/' + a.options,
+        });
+      }
+      if (a instanceof ObjectId) {
+        return new MongoBsonValue(MongoBsonValueKind.ObjectID, {
+          value: a.toHexString(),
+        });
+      }
+      if (a instanceof Double) {
+        return new MongoBsonValue(MongoBsonValueKind.Number, {
+          value: a.toString(),
+        });
+      }
+      if (a instanceof Decimal128) {
+        return new MongoBsonValue(MongoBsonValueKind.Decimal, {
+          value: a.toString(),
+        });
+      }
+      if (a instanceof Binary) {
+        return new MongoBsonValue(MongoBsonValueKind.Binary, a as Binary);
+      }
+      if (a instanceof Array) {
+        let eles = a.map((e) => {
+          return toMongoBson(e);
+        });
+        return new MongoBsonValue(
+          MongoBsonValueKind.Array,
+          new MongoBsonArray(eles)
+        );
+      }
+      if (a instanceof Object) {
+        let kv = [];
+        for (const key in a) {
+          let keyStr = '';
+          if (validIdentifier(key)) {
+            keyStr = key;
+          } else {
+            keyStr = '"' + key + '"';
+          }
+          kv.push(new MongoBsonKV({ value: keyStr }, toMongoBson(a[key])));
+        }
+        return new MongoBsonValue(
+          MongoBsonValueKind.Object,
+          new MongoBsonObject(kv)
+        );
+      }
+
+      throw new MongoBsonError(`can't convert value ${a.toString()}`);
+  }
+}
+
+function bsonValue2MongoBson(x): MongoBsonObject {
+  let eles = BSON.deserialize(x, {
+    bsonRegExp: true,
+    promoteLongs: false,
+    promoteBuffers: false,
+    promoteValues: false,
+  });
+
+  let defs = [];
+  for (const key in eles) {
+    let keyStr = '';
+    if (validIdentifier(key)) {
+      keyStr = key;
+    } else {
+      keyStr = '"' + key + '"';
+    }
+    defs.push(new MongoBsonKV({ value: keyStr }, toMongoBson(eles[key])));
+  }
+  return new MongoBsonObject(defs);
 }
 
 interface Position {
@@ -308,4 +778,11 @@ interface Location {
   end: Position;
 }
 
-export { parseMongoBson, formatMongoBson };
+export {
+  parseMongoBson,
+  formatMongoBsonStr,
+  bsonValue2MongoBson,
+  MongoBsonBinaryAllSubType,
+  MongoBsonError,
+  MongoBsonObject,
+};
