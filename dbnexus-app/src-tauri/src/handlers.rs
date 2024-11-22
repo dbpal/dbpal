@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use bson::{doc, Document};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, OpendKind, UserSettings};
@@ -606,7 +607,7 @@ pub async fn mongo_delete(
 }
 
 #[tauri::command]
-pub async fn mongo_show_table(
+pub async fn mongo_show_collection_table_list(
     uuid: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
@@ -617,14 +618,15 @@ pub async fn mongo_show_table(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => x.show_collection(table.as_str(), filter).await,
+        Some(x) => x.show_collection_table_list(table.as_str(), filter).await,
         None => return Err(format!("db '{}' not mongo", uuid).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
     .map(MuiDataTableListResp::from)
 }
+
 #[tauri::command]
-pub async fn mongo_show_table_docs(
+pub async fn mongo_show_collection_docs(
     uuid: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<DocsAndCount, AnyhowErrorFrontend> {
     random_sleep().await;
@@ -641,6 +643,26 @@ pub async fn mongo_show_table_docs(
     .map_err(|e| AnyhowErrorFrontend::from(e))?;
     DocsAndCount::try_from(docs).map_err(|e| e.into())
 }
+#[tauri::command]
+pub async fn mongo_get_one_document(
+    uuid: String, table: String, id: String, app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let id = bson::oid::ObjectId::from_str(id.as_str()).map_err(AnyhowErrorFrontend::from)?;
+
+    let db = app
+        .get_schema(uuid.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let doc = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.get_one_document(table.as_str(), id).await,
+        None => return Err(format!("db '{}' not mongo", uuid).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(encode_bson_doc(&doc).map_err(AnyhowErrorFrontend::from)?)
+}
+
 #[tauri::command]
 pub async fn redis_list_lpush(
     uuid: String, key: String, value: String, app: tauri::State<'_, App>,
@@ -1011,6 +1033,15 @@ impl From<String> for AnyhowErrorFrontend {
         Self {
             reason: value,
             detail: "".to_string(),
+        }
+    }
+}
+
+impl From<bson::oid::Error> for AnyhowErrorFrontend {
+    fn from(value: bson::oid::Error) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
         }
     }
 }

@@ -1,27 +1,7 @@
 import { types } from './ApiStruct.ts';
 import { stringToHexArray, arrayToHex } from './common.tsx';
 import { generateRandomString, generateRandomUint8Array } from './helper.ts';
-import { BSON, Document, Int32, Long, Code, Timestamp } from 'bson';
-
-function testBsonDoc(): Document {
-  const bsonDocument = {
-    // string: 'Hello, World!',
-    // int32: new Int32(Math.random() * 100),
-    // long: new Long(100),
-    // float: Math.random() * 100,
-    // boolean: Math.random() > 0.5,
-    // null: null,
-    // timestamp: new Timestamp(new Long(1732158103)),
-    // objectId: new BSON.ObjectId(),
-    // date: new Date(),
-    // decimal: new BSON.Decimal128('10.5'),
-    // regex: /haha/i,
-    // array: [1, 2, 3, 'four', { key: 'value' }],
-    code: new BSON.Code('function() { return 42; }'),
-    // binary: new BSON.Binary([1, 2, 3, 4]),
-  };
-  return bsonDocument;
-}
+import { BSON } from 'bson';
 
 function testExampleRedisZset(
   length: number = 10,
@@ -115,6 +95,79 @@ function testExampleRedisSet(length: number = 10): types.MuiDataTableListResp {
   };
 }
 
+function testBsonDoc(): BSON.Document {
+  const bsonDocument = {
+    _id: new BSON.ObjectId(),
+    string: 'Hello, World!',
+    int32: new BSON.Int32(Math.random() * 100),
+    long: new BSON.Long(100),
+    float: Math.random() * 100,
+    boolean: Math.random() > 0.5,
+    null: null,
+    timestamp: new BSON.Timestamp(new BSON.Long(1732158103)),
+    date: new Date(),
+    decimal: new BSON.Decimal128('10.5'),
+    regex: /haha/i,
+    array: [1, 2, 3, 'four', { key: 'value' }],
+    code: new BSON.Code('function() { return 42; }'),
+    binary: new BSON.Binary([1, 2, 3, 4]),
+  };
+  return bsonDocument;
+}
+
+function testBsonDocTableList(): Document {
+  const bsonDocument = {
+    _id: new BSON.ObjectId().toHexString(),
+    string: generateRandomString(),
+    int32: Math.floor(Math.random() * 100),
+    long: Math.floor(Math.random() * 100),
+    float: Math.random() * 100,
+    boolean: Math.random() > 0.5,
+    null: null,
+    timestamp: Math.floor(Math.random() * 1732158103),
+    date: new Date().toISOString(),
+    decimal: 10.5,
+    regex: '/haha/i',
+    array: [1, 2, 3, 'four', { key: 'value' }],
+    code: 'function() { return 42; }',
+    binary: [1, 2, 3, 4],
+  };
+  return bsonDocument;
+}
+
+function testExampleMongoTableList(
+  length: number = 10
+): types.MuiDataTableListResp {
+  let fields = [
+    { field: '_id' } as types.Field,
+    { field: 'string' } as types.Field,
+    { field: 'int32' } as types.Field,
+    { field: 'long' } as types.Field,
+    { field: 'boolean' } as types.Field,
+    { field: 'null' } as types.Field,
+    { field: 'timestamp' } as types.Field,
+    { field: 'date' } as types.Field,
+    { field: 'decimal' } as types.Field,
+    { field: 'regex' } as types.Field,
+    { field: 'array' } as types.Field,
+    { field: 'code' } as types.Field,
+    { field: 'binary' } as types.Field,
+  ];
+
+  let data = [];
+  for (let i = 0; i < length; i++) {
+    data.push(testBsonDocTableList());
+  }
+  return {
+    data: {
+      fields: fields,
+      data,
+    },
+    sql: null,
+    total: Math.ceil(Math.random() * length * 10) + 100,
+  };
+}
+
 function testExampleQueryResp(
   fieldLength = 5,
   length: number = 10
@@ -191,4 +244,6 @@ export {
   testExampleMultiQueryResp,
   testMetaValues,
   testBsonDoc,
+  testBsonDocTableList,
+  testExampleMongoTableList,
 };

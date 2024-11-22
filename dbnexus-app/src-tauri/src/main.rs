@@ -10,15 +10,15 @@ mod handlers;
 use handlers::{
     add_config, delete, delete_config, drop_table, drop_view, duplicate_table, export_table,
     format_sql, get_user_settings, insert, list_all_config, list_table, list_trigger, list_view,
-    mongo_delete, mongo_insert, mongo_show_table, mongo_show_table_docs, mongo_update, open,
-    opened_kind, oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
-    oracle_query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
-    query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
-    redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_match_keys,
-    redis_set_add, redis_set_del, redis_set_replace, redis_string_set, redis_zset_add,
-    redis_zset_del, redis_zset_replace, rename_table, save_user_settings, show_columns,
-    show_indexes, show_table, show_trigger, show_view, test_connection, truncate_table, update,
-    update_config,
+    mongo_delete, mongo_get_one_document, mongo_insert, mongo_show_collection_docs,
+    mongo_show_collection_table_list, mongo_update, open, opened_kind, oracle_query_autocommit,
+    oracle_query_commit, oracle_query_rollback, oracle_query_set_autocommit, query_sql,
+    query_sql_close_connection, query_sql_open_connection, query_sql_re_connection, redis_hash_add,
+    redis_hash_del, redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush,
+    redis_list_set, redis_list_table, redis_match_keys, redis_set_add, redis_set_del,
+    redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del, redis_zset_replace,
+    rename_table, save_user_settings, show_columns, show_indexes, show_table, show_trigger,
+    show_view, test_connection, truncate_table, update, update_config,
 };
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -75,8 +75,8 @@ async fn main() {
             mongo_delete,
             mongo_insert,
             mongo_update,
-            mongo_show_table,
-            mongo_show_table_docs,
+            mongo_show_collection_docs,
+            mongo_show_collection_table_list,
             open,
             opened_kind,
             redis_match_keys,
@@ -94,6 +94,7 @@ async fn main() {
             redis_zset_del,
             redis_zset_replace,
             redis_string_set,
+            mongo_get_one_document
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

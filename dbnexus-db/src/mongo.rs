@@ -66,6 +66,7 @@ impl AutoCompletionTrait for Mongo {
         not_support_features(self.backend_name())
     }
 }
+
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
@@ -123,7 +124,6 @@ fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
             anyhow::bail!(format!("should not handle those value,bson:{:?}", b))
         }
     };
-
     anyhow::Ok(value)
 }
 fn collect_table_resp(
@@ -210,51 +210,67 @@ impl FormatSql for Mongo {
 impl Mongo {
     /// normal `insert` , `update` ,`delete` works very bad with mongodb
     /// So i just impl those method on  type`Document`
-    pub async fn insert(&self, table: &str, doc: Document) -> anyhow::Result<InsertOneResult> {
+    pub async fn insert(
+        &self, collection_name: &str, doc: Document,
+    ) -> anyhow::Result<InsertOneResult> {
         let db = self.get_db().await?;
         let ret = db
-            .collection::<Document>(table)
+            .collection::<Document>(collection_name)
             .insert_one(doc)
             .await
             .context("insert failed")?;
         anyhow::Ok(ret)
     }
 
+    pub async fn get_one_document(
+        &self, collection_name: &str, id: bson::oid::ObjectId,
+    ) -> anyhow::Result<Document> {
+        let db = self.get_db().await?;
+        let filter = doc! { "_id": id };
+        if let Some(document) = db.collection(collection_name).find_one(filter).await? {
+            return anyhow::Ok(document);
+        } else {
+            anyhow::bail!(format!("uuid '{:?}' not found doc", id));
+        }
+    }
+
     pub async fn update(
-        &self, table: &str, update: Document, query: Document,
+        &self, collection_name: &str, update: Document, query: Document,
     ) -> anyhow::Result<UpdateResult> {
         self.can_write()?;
         let db = self.get_db().await?;
         let ret = db
-            .collection::<Document>(table)
+            .collection::<Document>(collection_name)
             .update_many(query, update)
             .await
             .context("update failed")?;
         anyhow::Ok(ret)
     }
 
-    pub async fn delete(&self, table: &str, query: Document) -> anyhow::Result<DeleteResult> {
+    pub async fn delete(
+        &self, collection_name: &str, query: Document,
+    ) -> anyhow::Result<DeleteResult> {
         self.can_write()?;
         let db = self.get_db().await?;
         let ret = db
-            .collection::<Document>(table)
+            .collection::<Document>(collection_name)
             .delete_many(query)
             .await
             .context("delete failed")?;
         anyhow::Ok(ret)
     }
 
-    pub async fn show_collection(
-        &self, table: &str, filter: Document,
+    pub async fn show_collection_table_list(
+        &self, collection_name: &str, filter: Document,
     ) -> anyhow::Result<TableListResp> {
         let db = self.get_db().await?;
         let count = db
-            .collection::<u64>(table)
+            .collection::<u64>(collection_name)
             .count_documents(filter.clone())
             .await
             .context("query total count failed")?;
         let mut stream = db
-            .collection::<Document>(table)
+            .collection::<Document>(collection_name)
             .find(filter)
             .await
             .context("get query stream")?;
@@ -272,16 +288,16 @@ impl Mongo {
     }
 
     pub async fn show_collection_docs(
-        &self, table: &str, filter: Document,
+        &self, collection_name: &str, filter: Document,
     ) -> anyhow::Result<DocsAndCount> {
         let db = self.get_db().await?;
         let count = db
-            .collection::<u64>(table)
+            .collection::<u64>(collection_name)
             .count_documents(filter.clone())
             .await
             .context("query docs count failed")?;
         let mut stream = db
-            .collection::<Document>(table)
+            .collection::<Document>(collection_name)
             .find(filter)
             .await
             .context("get query result")?;
@@ -307,9 +323,11 @@ pub struct DocsAndCount {
 }
 
 impl Mongo {
-    async fn duplicate_collection_impl(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
+    async fn duplicate_collection_impl(
+        &self, old_collection: &str, dup: &str,
+    ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
-        let old_table = db.collection::<Document>(old_table);
+        let old_table = db.collection::<Document>(old_collection);
         let new_table = db.collection::<Document>(dup);
         let mut stream = old_table
             .find(doc! {})
@@ -492,11 +510,11 @@ impl Mongo {
 
 #[async_trait::async_trait]
 impl SchemaTrait for Mongo {
-    async fn duplicate_table(&self, old_table: &str, dup: &str) -> anyhow::Result<()> {
+    async fn duplicate_table(&self, old_collection: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        if let Err(err) = self.duplicate_collection_impl(&old_table, dup).await {
+        if let Err(err) = self.duplicate_collection_impl(&old_collection, dup).await {
             if let Err(err) = self.delete_collection(dup).await {
                 log::error!(
                     "dup error has happen,but delete old collection failed,err:{:?}",
@@ -557,10 +575,10 @@ impl SchemaTrait for Mongo {
         self.drop_table(view_name).await
     }
 
-    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+    async fn drop_table(&self, collect_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let conn = self.get_db().await?;
-        conn.collection::<Document>(table).drop().await?;
+        conn.collection::<Document>(collect_name).drop().await?;
         anyhow::Ok(())
     }
 
@@ -885,9 +903,10 @@ mod tests {
                 .deleted_count,
             0
         );
-
-        let resp = db.show_collection(table, doc! {}).await.unwrap();
+        let resp = db.show_collection_table_list(table, doc! {}).await.unwrap();
+        println!("########################");
         println!("resp:{:?}", resp);
+
         let resp = db.show_collection_docs(table, doc! {}).await.unwrap();
         for d in resp.docs {
             println!("{:?}", d);
