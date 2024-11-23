@@ -89,12 +89,20 @@ class MongoBsonAs {
   compileBinary(): Binary {
     let v = this.value.compile();
     let ty = typeof v;
+
     let subType = this.extra
       ? this.extra.toBinarySubTypeNumber()
       : Binary.SUBTYPE_DEFAULT;
     if (ty === 'string') {
       return new Binary(v, subType);
     }
+    if (ty === 'object' && v instanceof Array && this.extra.isFloat32()) {
+      return Binary.fromFloat32Array(new Float32Array(v));
+    }
+    if (ty === 'object' && v instanceof Array && this.extra.isInt8()) {
+      return Binary.fromInt8Array(new Int8Array(v));
+    }
+    this.cannotConvert(ty, 'date');
   }
 
   compileJavascript(): Code {
@@ -195,10 +203,12 @@ enum MongoBsonValueKind {
   Binary,
   Decimal,
   Boolean,
+  Float32Array,
+  Int8Array,
 }
 
 class MongoBsonBinaryAllSubType {
-  constructor(public kind: Token) {}
+  constructor(public kind: Token, public extra?: Token[]) {}
   static Generic = 'generic';
   static Function = 'function';
   static ByteArray = 'byte_array';
@@ -209,6 +219,22 @@ class MongoBsonBinaryAllSubType {
   static Sensitive = 'sensitive';
   static Vector = 'vector';
   static UserDefine = 'user_define';
+  extraIndex(index: number): Token | undefined {
+    if (!this.extra) {
+      return undefined;
+    }
+    if (index >= this.extra.length) {
+      return undefined;
+    }
+    return this.extra[index];
+  }
+  isFloat32(): boolean {
+    return this.extraIndex(0).value.toLowerCase() == 'float32';
+  }
+
+  isInt8(): boolean {
+    return this.extraIndex(0).value.toLowerCase() == 'int8';
+  }
 
   static allValues(): string[] {
     return [
@@ -293,6 +319,8 @@ class MongoBsonValue {
       | null
       | undefined
       | Binary
+      | Float32Array
+      | Int8Array
   ) {}
 
   asToken(): Token {
@@ -323,16 +351,72 @@ class MongoBsonValue {
     }
   }
 
-  format(ident: number, newLine: boolean, tabSize: number): string {
-    const doIdent = (newLine: boolean): string => {
-      if (newLine) {
-        return ' '.repeat(tabSize).repeat(ident);
+  formatArray(
+    x: any[],
+    newLine: boolean,
+    tabSize: number,
+    ident: number
+  ): string {
+    let ret: string;
+    ret = '[';
+    newLine = newLine || this.elementsSize() > 100;
+    if (newLine) {
+      ret += '\n';
+    } else {
+      ret += ' ';
+    }
+    x.forEach((e, index) => {
+      ret += MongoBsonValue.doIdent(newLine, tabSize, ident);
+      let ety = typeof e;
+      if (ety == 'number') {
+        ret += e;
       } else {
-        return '';
+        ret += e.format(ident + 1, false, tabSize);
       }
-    };
+
+      if (index != x.length - 1) {
+        ret += ',';
+      }
+      if (newLine) {
+        ret += '\n';
+      } else {
+        ret += ' ';
+      }
+    });
+    ret += ']';
+    if (newLine) {
+      ret += '\n';
+    }
+    return ret;
+  }
+  static doIdent(newLine: boolean, tabSize: number, ident: number) {
+    if (newLine) {
+      return ' '.repeat(tabSize).repeat(ident);
+    } else {
+      return '';
+    }
+  }
+  format(ident: number, newLine: boolean, tabSize: number): string {
     let ret = '';
     switch (this.kind) {
+      case MongoBsonValueKind.Float32Array:
+        return (
+          this.formatArray(
+            Array.from(this.value as Float32Array),
+            newLine,
+            tabSize,
+            ident
+          ) + ' as binary vector float32'
+        );
+      case MongoBsonValueKind.Int8Array:
+        return (
+          this.formatArray(
+            Array.from(this.value as Int8Array),
+            newLine,
+            tabSize,
+            ident
+          ) + ' as binary vector int8'
+        );
       case MongoBsonValueKind.Int32:
         return `${this.asToken().value} as int`;
       case MongoBsonValueKind.Long:
@@ -391,33 +475,16 @@ class MongoBsonValue {
         let as = this.value as MongoBsonAs;
         ret = as.value.format(ident, false, tabSize);
         ret += ` as ${as.kind.value}`;
+        ret += ` ${as.extra.kind.value}`;
+        if (as.extra.extra) {
+          as.extra.extra.forEach((e) => {
+            ret += ` ${e.value}`;
+          });
+        }
         return ret;
       case MongoBsonValueKind.Array:
         let valueArr = this.value as MongoBsonArray;
-        ret = '[';
-        newLine = newLine || this.elementsSize() > 100;
-        if (newLine) {
-          ret += '\n';
-        } else {
-          ret += ' ';
-        }
-        valueArr.eles.forEach((e, index) => {
-          ret += doIdent(newLine);
-          ret += e.format(ident + 1, false, tabSize);
-          if (index != valueArr.eles.length - 1) {
-            ret += ',';
-          }
-          if (newLine) {
-            ret += '\n';
-          } else {
-            ret += ' ';
-          }
-        });
-        ret += ']';
-        if (newLine) {
-          ret += '\n';
-        }
-        return ret;
+        return this.formatArray(valueArr.eles, newLine, tabSize, ident);
       case MongoBsonValueKind.Object:
         let valueObj = this.value as MongoBsonObject;
         ret = '{';
@@ -428,7 +495,7 @@ class MongoBsonValue {
           ret += ' ';
         }
         valueObj.eles.forEach((e, index) => {
-          ret += doIdent(newLine);
+          ret += MongoBsonValue.doIdent(newLine, tabSize, ident);
           ret += e.key.value + ': ';
           if (e.value == null) {
             ret += 'null';
@@ -588,13 +655,14 @@ class Parser {
     let tokenColon = this.peek();
     if (tokenColon.value != ':') {
       throw new MongoBsonError(
-        `expect colon or string,but '${tokenColon.value}'`,
+        `expect colon,but '${tokenColon.value}'`,
         tokenColon.loc
       );
     }
     this.next();
     // here is value
     let value = this.parseValueAs();
+
     return new MongoBsonKV(token, value);
   }
 
@@ -608,7 +676,6 @@ class Parser {
       token = this.peek();
       this.next();
       let extra = null;
-
       if (token.value.toLowerCase() == 'binary') {
         extra = this.parseBinaryTypeAnnotion();
       }
@@ -623,11 +690,24 @@ class Parser {
     let valueLow = token.value.toLowerCase();
     let t = MongoBsonBinaryAllSubType.allValues().find((e) => valueLow == e);
     if (t) {
-      let r = new MongoBsonBinaryAllSubType(token);
       this.next();
+      let extra;
+      if (t == MongoBsonBinaryAllSubType.Vector) {
+        extra = this.parseBinaryTypeAnnotionVector();
+      }
+      let r = new MongoBsonBinaryAllSubType(token, extra);
       return r;
     } else {
       return null;
+    }
+  }
+
+  parseBinaryTypeAnnotionVector(): Token[] {
+    let token = this.peek();
+    let tolower = token.value.toLowerCase();
+    if (tolower == 'float32' || tolower == 'int8') {
+      this.next();
+      return [token];
     }
   }
   parseArray(): MongoBsonValue[] {
@@ -662,6 +742,29 @@ class Parser {
     if (token.type == 'Null') {
       this.next();
       return new MongoBsonValue(MongoBsonValueKind.Null, token);
+    }
+    if (token.type == 'Identifier' && token.value.toLowerCase() == 'nan') {
+      // special cae
+      // this is special value of number.
+      this.next();
+      return new MongoBsonValue(MongoBsonValueKind.Number, token);
+    }
+
+    if (token.value == '-') {
+      let startLoc = token.loc.start;
+      this.next();
+      let tokenNumber = this.peek();
+      if (tokenNumber.type == 'Numeric') {
+        tokenNumber.value = '-' + token.value;
+        tokenNumber.loc.start = startLoc;
+        this.next();
+        return new MongoBsonValue(MongoBsonValueKind.Number, tokenNumber);
+      } else {
+        throw new MongoBsonError(
+          `shoud be a number after '-' , but '${token.value}'`,
+          token.loc
+        );
+      }
     }
     if (token.value == '[') {
       let startLoc = token.loc;
@@ -724,17 +827,6 @@ class Parser {
 }
 
 function quoteString(quote: string): string {
-  // if (!s.includes("'")) {
-  //   let value = s.replace('\n', '\\n');
-  //   return `'${value}'`;
-  // } else if (!s.includes('"')) {
-  //   let value = s.replace('\n', '\\n');
-  //   return `"${value}"`;
-  // } else if (!s.includes('`')) {
-  //   return '`${s}`';
-  // } else {
-  //   throw new MongoBsonError(`can't quote str:${s}`);
-  // }
   const ok = (d: string): [string, boolean] => {
     let s = d + quote + d;
     return [s, (tokenize(s) as Token[]).length == 1];
@@ -806,6 +898,13 @@ function toMongoBson(a: any): MongoBsonValue {
         return new MongoBsonValue(MongoBsonValueKind.Long, {
           value: a.toString(),
         });
+      }
+
+      if (a instanceof Float32Array) {
+        return new MongoBsonValue(MongoBsonValueKind.Float32Array, a);
+      }
+      if (a instanceof Int8Array) {
+        return new MongoBsonValue(MongoBsonValueKind.Int8Array, a);
       }
 
       if (a instanceof Code) {

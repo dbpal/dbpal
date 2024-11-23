@@ -2,37 +2,33 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-import { MongoBsonEditor, MongoTableList } from './MongoDB.tsx';
-import {
-  parseMongoBson,
-  formatMongoBsonStr,
-  bsonValue2MongoBson,
-  MongoBsonObject,
-} from './MongoBsonCompiler.ts';
+import { MongoTable, MongoTableAdd } from './MongoDB.tsx';
+import { parseMongoBson } from './MongoBsonCompiler.ts';
 import {
   testBsonDoc,
   testBsonDocTableList,
+  testDocsAndCount,
   testExampleMongoTableList,
 } from './exampleTest.ts';
 import { BSON, MaxKey } from 'bson';
 import { voidTestFunction } from './helper.ts';
 import { NotificationContext } from './Notification.tsx';
-import { AlertColor } from '@mui/material';
+import { AlertColor, Button, IconButton } from '@mui/material';
+import { MongoDataViewModel } from './common.tsx';
 
-// let x = parseMongoBson(`
-// {
-//   a : /haha/1,
-// }
-//   `);
+let x = parseMongoBson(`
+{
+  string: -1,
+  b : 3
+}
+
+  `);
 
 // console.log(x);
 // console.log(/haha/i);
 // console.log(eval('/haha/i'));
 
-let doc = BSON.serialize(testBsonDoc());
-
-let value = bsonValue2MongoBson(doc);
-let value2 = value.format(2);
+let doc = testBsonDoc();
 
 root.render(
   <NotificationContext.Provider
@@ -48,13 +44,16 @@ root.render(
     }}
   >
     <React.StrictMode>
-      <MongoBsonEditor
-        doc={{ aa: 100 }}
-        maxHeight={500}
+      {/* <MongoTableAdd addOP={voidTestFunction}></MongoTableAdd> */}
+      {/* <MongoBsonEditor
+        docPrev={doc}
         handleChange={() => {}}
-      ></MongoBsonEditor>
-      <MongoTableList
-        reloadOP={async (...args) => {
+        buttons={[]}
+      ></MongoBsonEditor> */}
+
+      <MongoTable
+        viewModel={MongoDataViewModel.Object}
+        reloadOPTableList={async (...args) => {
           try {
             voidTestFunction();
           } catch (e) {
@@ -62,11 +61,15 @@ root.render(
           }
           return testExampleMongoTableList();
         }}
+        realodOPDocs={async (...args) => {
+          return testDocsAndCount();
+        }}
         modifyOP={voidTestFunction}
         loadOne={async () => {
           return testBsonDoc();
         }}
-      ></MongoTableList>
+        deleteOP={voidTestFunction}
+      ></MongoTable>
     </React.StrictMode>
   </NotificationContext.Provider>
 );

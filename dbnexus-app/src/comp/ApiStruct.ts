@@ -232,4 +232,9 @@ export namespace types {
         "sql": (string | null);
         "data": types.MuiDataGridData;
     };
+    export type QueryLogEvent = {
+        "timestamp": types.U64;
+        "sql": string;
+        "success": boolean;
+    };
 }

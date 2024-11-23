@@ -587,6 +587,7 @@ pub async fn mongo_update(
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
 }
+
 #[tauri::command]
 pub async fn mongo_delete(
     uuid: String, table: String, query: Vec<u8>, app: tauri::State<'_, App>,

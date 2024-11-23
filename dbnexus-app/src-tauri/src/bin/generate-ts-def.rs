@@ -16,6 +16,7 @@ use dbnexus_db::db::{
 };
 
 use dbnexus_db::app::{self, OpendKind};
+use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::RedisListTable;
 use typescript_type_def::{write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef};
 
@@ -54,6 +55,7 @@ fn main() {
             &MongoConfig::INFO,
             &MuiDataTableListResp::INFO,
             &MuiDataGridData::INFO,
+            &QueryLogEvent::INFO,
         ];
 
         let mut buf = Vec::new();

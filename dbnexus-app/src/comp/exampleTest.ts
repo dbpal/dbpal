@@ -1,5 +1,5 @@
 import { types } from './ApiStruct.ts';
-import { stringToHexArray, arrayToHex } from './common.tsx';
+import { stringToHexArray, arrayToHex, DocsAndCount } from './common.tsx';
 import { generateRandomString, generateRandomUint8Array } from './helper.ts';
 import { BSON } from 'bson';
 
@@ -111,11 +111,22 @@ function testBsonDoc(): BSON.Document {
     array: [1, 2, 3, 'four', { key: 'value' }],
     code: new BSON.Code('function() { return 42; }'),
     binary: new BSON.Binary([1, 2, 3, 4]),
+
+    float32_array: new Float32Array([
+      Math.random() * 10,
+      Math.random() * 100,
+      Math.random() * 1000,
+    ]),
+    int8_array: new Int8Array([
+      Math.random() * 10,
+      Math.random() * 100,
+      Math.random() * 1000,
+    ]),
   };
   return bsonDocument;
 }
 
-function testBsonDocTableList(): Document {
+function testBsonDocTableList(): BSON.Document {
   const bsonDocument = {
     _id: new BSON.ObjectId().toHexString(),
     string: generateRandomString(),
@@ -166,6 +177,14 @@ function testExampleMongoTableList(
     sql: null,
     total: Math.ceil(Math.random() * length * 10) + 100,
   };
+}
+
+function testDocsAndCount(length: number = 10): DocsAndCount {
+  let docs = [];
+  for (let i = 0; i < length; i++) {
+    docs.push(testBsonDoc());
+  }
+  return new DocsAndCount(docs, Math.ceil(Math.random() * 10 * 10 + length));
 }
 
 function testExampleQueryResp(
@@ -246,4 +265,5 @@ export {
   testBsonDoc,
   testBsonDocTableList,
   testExampleMongoTableList,
+  testDocsAndCount,
 };

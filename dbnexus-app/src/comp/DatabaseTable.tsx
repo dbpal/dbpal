@@ -3,17 +3,22 @@ import { Box, Paper, Tab, Tabs, IconButton, Typography } from '@mui/material';
 import { DataGrid, GridColDef, GridRowsProp } from '@mui/x-data-grid';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTheme } from '@mui/material/styles';
+import { pageSizeOptions } from './common';
 
 // 封装 DataGrid 的创建逻辑
-const createDataGrid = (rows: GridRowsProp, columns: GridColDef[], gridName: string) => (
+const createDataGrid = (
+  rows: GridRowsProp,
+  columns: GridColDef[],
+  gridName: string
+) => (
   <Box sx={{ height: '100%' }}>
-    <Typography variant="h6" sx={{ mb: 2 }}>
+    <Typography variant='h6' sx={{ mb: 2 }}>
       {gridName}
     </Typography>
     <DataGrid
       rows={rows}
       columns={columns}
-      pageSizeOptions={[5, 10, 20]}
+      pageSizeOptions={pageSizeOptions}
       checkboxSelection
       disableRowSelectionOnClick
       sx={{
@@ -28,11 +33,17 @@ const createDataGrid = (rows: GridRowsProp, columns: GridColDef[], gridName: str
   </Box>
 );
 
-export default function DatabaseTable({ addEntity }: { addEntity: (name: string) => void }) {
+export default function DatabaseTable({
+  addEntity,
+}: {
+  addEntity: (name: string) => void;
+}) {
   const theme = useTheme();
 
   // 存储 DataGrid 的名称及内容
-  const [dataGrids, setDataGrids] = useState<{ name: string; content: JSX.Element }[]>([]);
+  const [dataGrids, setDataGrids] = useState<
+    { name: string; content: JSX.Element }[]
+  >([]);
   const [activeTab, setActiveTab] = useState(0);
 
   // 切换 Tab
@@ -41,7 +52,11 @@ export default function DatabaseTable({ addEntity }: { addEntity: (name: string)
   };
 
   // 添加新的 DataGrid
-  const addDataGrid = (name: string, rows: GridRowsProp, columns: GridColDef[]) => {
+  const addDataGrid = (
+    name: string,
+    rows: GridRowsProp,
+    columns: GridColDef[]
+  ) => {
     const newGrid = {
       name,
       content: createDataGrid(rows, columns, name),
@@ -80,8 +95,8 @@ export default function DatabaseTable({ addEntity }: { addEntity: (name: string)
         <Tabs
           value={activeTab}
           onChange={handleTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
+          variant='scrollable'
+          scrollButtons='auto'
           sx={{
             borderBottom: '1px solid #ddd',
             mb: 2,
@@ -95,14 +110,14 @@ export default function DatabaseTable({ addEntity }: { addEntity: (name: string)
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   {grid.name}
                   <IconButton
-                    size="small"
+                    size='small'
                     onClick={(e) => {
                       e.stopPropagation(); // 防止点击关闭按钮切换 Tab
                       removeDataGrid(index);
                     }}
                     sx={{ ml: 1 }}
                   >
-                    <CloseIcon fontSize="small" />
+                    <CloseIcon fontSize='small' />
                   </IconButton>
                 </Box>
               }
@@ -112,7 +127,9 @@ export default function DatabaseTable({ addEntity }: { addEntity: (name: string)
 
         {/* 显示当前激活的 DataGrid */}
         <Box sx={{ height: '75vh', mt: 2 }}>
-          {dataGrids[activeTab]?.content || <Typography>No DataGrid Available</Typography>}
+          {dataGrids[activeTab]?.content || (
+            <Typography>No DataGrid Available</Typography>
+          )}
         </Box>
       </Paper>
     </Box>

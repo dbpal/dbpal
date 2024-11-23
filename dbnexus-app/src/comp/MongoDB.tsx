@@ -7,33 +7,41 @@ import {
   CircularProgress,
   IconButton,
   Modal,
+  Pagination,
   Stack,
   Typography,
 } from '@mui/material';
-
 import ListIcon from '@mui/icons-material/List';
-
 import { loader } from '@monaco-editor/react';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
-
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   bsonValue2MongoBson,
   formatMongoBsonStr,
   MongoBsonBinaryAllSubType,
   MongoBsonError,
-  MongoBsonObject,
   parseMongoBson,
 } from './MongoBsonCompiler';
+
 import { useContext, useEffect, useState } from 'react';
-import { BSON } from 'bson';
+import { BSON, ObjectId } from 'bson';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
 import { DataGrid } from '@mui/x-data-grid';
-import { modalStyle } from './common';
+
+import {
+  CloseSpace,
+  DocsAndCount,
+  modalStyle,
+  MongoDataViewModel,
+  pageSizeOptions,
+  SelectPageSize,
+} from './common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
+import { secondConfirm } from './Confirm';
 const mongoBsonKeywords =
-  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code)\b/;
+  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code|float32|int8)\b/;
 function mongoBsonAutoCompletion(): languages.CompletionList {
   let generateSubTypes = MongoBsonBinaryAllSubType.allValues().map((e) => {
     return {
@@ -112,6 +120,19 @@ function mongoBsonAutoCompletion(): languages.CompletionList {
         insertText: 'false',
         range: undefined,
       },
+
+      {
+        label: 'float32',
+        kind: languages.CompletionItemKind.Class,
+        insertText: 'float32',
+        range: undefined,
+      },
+      {
+        label: 'int8',
+        kind: languages.CompletionItemKind.Class,
+        insertText: 'int8',
+        range: undefined,
+      },
     ],
   };
 }
@@ -156,37 +177,43 @@ function initMongoBsonLanguage() {
 
 initMongoBsonLanguage();
 
+interface MongoBsonEditorCallback {
+  color?: string;
+  disabled?: (docHasChange: boolean) => boolean;
+  variant?: string;
+  callBack: (doc: BSON.Document) => void;
+  buttonConent: string;
+}
+
 function MongoBsonEditor(props: {
   doc: BSON.Document;
-  maxHeight: number;
-  handleChange: (text: string) => void;
+  // maxHeight: number;
+  handleChange: (doc: BSON.Document) => void;
+  buttons: MongoBsonEditorCallback[];
 }) {
-  let { doc, maxHeight, handleChange } = props;
-  let content = bsonValue2MongoBson(doc).format();
+  let { doc, handleChange, buttons } = props;
+  //@ts-ignore
+  let [content, setContent] = useState(bsonValue2MongoBson(doc).format());
 
-  const [heigth, setHeigth] = useState('200px');
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorColumn, setCursorColumn] = useState(1);
   const [err, setErr] = useState<MongoBsonError | null>(null);
-  const [newText, setNewText] = useState(content);
-
-  useEffect(() => {
-    try {
-      parseMongoBson(newText).compile();
-    } catch (e) {
-      setErr(e);
-      console.log('@@@@@@@@@@@@@@@@', e);
-      return;
-    }
-    setErr(null);
-  }, [newText]);
+  const [docHasChange, setDocHasChange] = useState(false);
 
   const handleEditorDidMount = (ce: editor.IStandaloneCodeEditor) => {
     ce.onDidChangeModelContent((_event) => {
       let text = ce.getValue();
-      handleChange(text);
-      setNewText(text);
+      try {
+        let d = parseMongoBson(text).compile();
+        setErr(null);
+        handleChange(d);
+        setDocHasChange(true);
+      } catch (e) {
+        setErr(e);
+        return;
+      }
     });
+
     ce.onDidChangeCursorPosition((event) => {
       setCursorLine(event.position.lineNumber);
       setCursorColumn(event.position.column);
@@ -207,16 +234,36 @@ function MongoBsonEditor(props: {
 
   return (
     <Stack spacing={1}>
-      <Box style={{ height: heigth }}>
+      <Box style={{ height: '200px' }}>
         <Editor
           onMount={handleEditorDidMount}
           language='mongoBson'
           value={content}
         ></Editor>
       </Box>
+
       <Stack direction='row' justifyContent='space-between'>
-        <Stack direction='row' alignContent='flex-start'>
-          {err == null && <Alert severity='success'>OK</Alert>}
+        <Stack direction='row' alignContent='flex-start' spacing={1}>
+          {buttons.map((button) => {
+            return (
+              // @ts-ignore
+              <Button
+                key={button.buttonConent}
+                variant={button.variant}
+                color={button.color}
+                onClick={() => {
+                  button.callBack(doc);
+                }}
+                disabled={
+                  button.disabled ? button.disabled(docHasChange) : false
+                }
+              >
+                {button.buttonConent}
+              </Button>
+            );
+          })}
+
+          {err == null && <Alert severity='success'>Valid Document</Alert>}
           {!!err && <Alert severity='error'>{err.msgWithLoc}</Alert>}
         </Stack>
         <Stack
@@ -242,32 +289,15 @@ function MongoDBModify(props: {
 }) {
   let { doc, handleClose, setOP, verify, buttonName } = props;
   const [loading, setLoading] = useState(false);
-  const [text, setNewText] = useState('');
+  const [newDoc, setNewDoc] = useState(doc);
   const { showNotification } = useContext(NotificationContext);
-  useEffect(() => {
-    let t = bsonValue2MongoBson(doc).format(2);
-    setNewText(t);
-  }, []);
 
   const handleModify = () => {
-    let obj: MongoBsonObject;
-    try {
-      obj = parseMongoBson(text);
-    } catch (e) {
-      showNotification('error', 'parse bson failed', e);
+    if (!verify(newDoc)) {
       return;
     }
-    let doc: BSON.Document;
-    try {
-      doc = obj.compile();
-    } catch (e) {
-      showNotification('error', 'Compile failed', e);
-      return;
-    }
-    if (!verify(doc)) {
-      return;
-    }
-    setOP(doc)
+    setLoading(true);
+    setOP(newDoc)
       .then(() => {
         showNotification('success', 'Modify OK');
         setLoading(false);
@@ -280,31 +310,28 @@ function MongoDBModify(props: {
 
   return (
     <Stack spacing={1}>
+      <CloseSpace loading={loading} handleClose={handleClose}></CloseSpace>
+
       <MongoBsonEditor
         doc={doc}
-        maxHeight={500}
         handleChange={(e) => {
-          setNewText(e);
+          setNewDoc(e);
         }}
+        buttons={[
+          {
+            color: 'primary',
+            callBack: (doc) => {
+              setNewDoc(doc);
+              handleModify();
+            },
+            variant: 'contained',
+            buttonConent: buttonName,
+            disabled: (changed) => {
+              return !changed;
+            },
+          },
+        ]}
       ></MongoBsonEditor>
-      <Stack direction='row' spacing={1}>
-        <Button
-          variant='outlined'
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
-        <Button color='primary' variant='contained' onClick={handleModify}>
-          {buttonName}
-        </Button>
-        {loading && (
-          <Box sx={{ display: 'flex' }}>
-            <CircularProgress />
-          </Box>
-        )}
-      </Stack>
     </Stack>
   );
 }
@@ -313,28 +340,23 @@ function MongoTableListToolBar(props: {
   handleReload: () => Promise<void>;
   handleFilter: (doc: BSON.Document) => void;
   handleOrderBy: (doc: BSON.Document) => void;
-  orderByPrev: BSON.Document;
-  filterPrev: BSON.Document;
-  viewModelPrev: MongoDataViewModel;
+  orderBy: BSON.Document;
+  filter: BSON.Document;
+  viewModel: MongoDataViewModel;
   handleViewModel: (doc: MongoDataViewModel) => void;
 }) {
-  let {
+  const {
     handleReload,
     handleFilter,
     handleOrderBy,
-    orderByPrev,
-    filterPrev,
-    viewModelPrev,
+    orderBy,
+    filter,
+    viewModel,
     handleViewModel,
   } = props;
 
-  const [filter, setFilter] = useState<BSON.Document>(filterPrev);
-  const [orderBy, setOrderby] = useState<BSON.Document>(orderByPrev);
-  const [orderByText, setOrderByText] = useState('');
-  const [filterText, setFilterText] = useState('');
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifyOrderBy, setShowModifyOrderBy] = useState(false);
-  const [viewModel, setViewModel] = useState(viewModelPrev);
 
   const [loading, setLoading] = useState(false);
   const doReload = () => {
@@ -348,21 +370,10 @@ function MongoTableListToolBar(props: {
     handleViewModel(viewModel);
   }, [viewModel]);
 
-  useEffect(() => {
-    let x = bsonValue2MongoBson(orderBy).format(2);
-    setOrderByText(x);
-  }, [orderBy]);
-
-  useEffect(() => {
-    let x = bsonValue2MongoBson(filter).format(2);
-    setFilterText(x);
-  }, [filter]);
-
   return (
     <Stack direction='row' justifyContent='space-between'>
       <Stack direction='row' spacing={1} alignContent='flex-end'>
         <span>filter:</span>
-
         <Typography
           onClick={() => {
             setShowModifyFilter(true);
@@ -370,7 +381,7 @@ function MongoTableListToolBar(props: {
           style={{ cursor: 'pointer' }}
           variant='subtitle1'
         >
-          {filterText}
+          {bsonValue2MongoBson(filter).format()}
         </Typography>
 
         {showModifyFilter && (
@@ -388,7 +399,6 @@ function MongoTableListToolBar(props: {
                   return true;
                 }}
                 setOP={async (doc) => {
-                  setFilter(doc);
                   handleFilter(doc);
                 }}
                 handleClose={() => {
@@ -408,7 +418,7 @@ function MongoTableListToolBar(props: {
           style={{ cursor: 'pointer' }}
           variant='subtitle1'
         >
-          {orderByText}
+          {bsonValue2MongoBson(orderBy).format()}
         </Typography>
 
         {showModifyOrderBy && (
@@ -426,7 +436,6 @@ function MongoTableListToolBar(props: {
                   return true;
                 }}
                 setOP={async (doc) => {
-                  setOrderby(doc);
                   handleOrderBy(doc);
                 }}
                 handleClose={() => {
@@ -451,11 +460,11 @@ function MongoTableListToolBar(props: {
           </Box>
         )}
       </Stack>
-      <Stack direction='row'>
+      <Stack direction='row' style={{ padding: '5px' }}>
         <ButtonGroup variant='contained' aria-label='Basic button group'>
           <IconButton
             onClick={() => {
-              setViewModel(MongoDataViewModel.List);
+              handleViewModel(MongoDataViewModel.List);
             }}
             disabled={viewModel == MongoDataViewModel.List}
             edge='start'
@@ -467,7 +476,7 @@ function MongoTableListToolBar(props: {
           <IconButton
             disabled={viewModel == MongoDataViewModel.Object}
             onClick={() => {
-              setViewModel(MongoDataViewModel.Object);
+              handleViewModel(MongoDataViewModel.Object);
             }}
             edge='start'
             color='inherit'
@@ -481,39 +490,88 @@ function MongoTableListToolBar(props: {
   );
 }
 
-enum MongoDataViewModel {
-  List,
-  Object,
-}
-
-function MongoTableList(props: {
-  reloadOP: (
+function MongoTable(props: {
+  reloadOPTableList: (
     filter: BSON.Document,
     orderBy: BSON.Document,
     page: number,
     pageSize: number
   ) => Promise<types.MuiDataTableListResp>;
+  realodOPDocs: (
+    filter: BSON.Document,
+    orderBy: BSON.Document,
+    page: number,
+    pageSize: number
+  ) => Promise<DocsAndCount>;
   loadOne: (id: BSON.ObjectId) => Promise<BSON.Document>;
   modifyOP: (doc: BSON.Document) => Promise<void>;
+  deleteOP: (ids: string[]) => Promise<void>;
+  viewModel: MongoDataViewModel;
 }) {
-  const { reloadOP, loadOne, modifyOP } = props;
+  const {
+    reloadOPTableList,
+    loadOne,
+    modifyOP,
+    realodOPDocs,
+    deleteOP,
+    viewModel: viewModelPrev,
+  } = props;
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const [filter, setFilter] = useState<BSON.Document>({});
   const [orderBy, setOrderby] = useState<BSON.Document>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [selectDoc, setSelectDoc] = useState<BSON.Document | null>(null);
+  const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
+    null
+  );
+  const [docs, setDocs] = useState<DocsAndCount | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [viewModel, setViewModel] = useState(MongoDataViewModel.List);
+  const [viewModel, setViewModel] = useState(viewModelPrev);
+  const [selectIDs, setSelectIDs] = useState([]);
 
-  const handleReloadTableList = async () => {
-    reloadOP(filter, orderBy, page, pageSize)
-      .then((resp) => {
-        setResp(resp);
-      })
-      .catch((e) => {
-        showNotification('error', 'fetch data failed', e);
-      });
+  const handleReload = () => {
+    const handleReloadTableList = async () => {
+      reloadOPTableList(filter, orderBy, page, pageSize)
+        .then((resp) => {
+          setResp(resp);
+        })
+        .catch((e) => {
+          showNotification('error', 'fetch data failed', e);
+        });
+    };
+    const handleReloadDocs = async () => {
+      realodOPDocs(filter, orderBy, page, pageSize)
+        .then((resp) => {
+          setDocs(resp);
+        })
+        .catch((e) => {
+          showNotification('error', 'fetch data failed', e);
+        });
+    };
+    if (viewModel === MongoDataViewModel.List) {
+      handleReloadTableList();
+    } else {
+      handleReloadDocs();
+    }
+  };
+
+  const handleDetelet = (ids: string[]) => {
+    secondConfirm({
+      title: 'Delete data',
+      content: `are u sure delte those ${ids.join(',')} data`,
+      confirmText: 'Delete',
+    }).then((confirm) => {
+      if (confirm) {
+        deleteOP(ids)
+          .then(() => {
+            showNotification('success', 'Delete OK');
+            handleReload();
+          })
+          .catch((e) => {
+            showNotification('error', 'Delete failure', e);
+          });
+      }
+    });
   };
 
   const handleLoadOne = async (id: string) => {
@@ -527,15 +585,14 @@ function MongoTableList(props: {
   };
 
   useEffect(() => {
-    handleReloadTableList();
-  }, [page, pageSize]);
+    handleReload();
+  }, [page, pageSize, viewModel]);
 
-  useEffect(() => {}, [orderBy]);
   return (
     <Stack spacing={1}>
       <MongoTableListToolBar
-        orderByPrev={orderBy}
-        filterPrev={filter}
+        orderBy={orderBy}
+        filter={filter}
         handleFilter={(e) => {
           setFilter(e);
         }}
@@ -543,59 +600,77 @@ function MongoTableList(props: {
           setOrderby(e);
         }}
         handleReload={async () => {
-          handleReloadTableList();
+          handleReload();
         }}
         handleViewModel={(e) => {
           setViewModel(e);
         }}
-        viewModelPrev={viewModel}
+        viewModel={viewModel}
       ></MongoTableListToolBar>
-      {resp && (
-        <DataGrid
-          getRowId={(e) => {
-            return e._id;
-          }}
-          checkboxSelection
-          rowCount={resp.total}
-          columns={resp.data.fields}
-          rows={resp.data.data}
-          pageSizeOptions={[10]}
-          disableColumnFilter
-          paginationMode='server'
-          paginationMeta={{ hasNextPage: true }}
-          paginationModel={{ page: page, pageSize: pageSize }}
-          onPaginationModelChange={(m) => {
-            setPage(m.page);
-            setPageSize(m.pageSize);
-          }}
-          onRowDoubleClick={(e) => {
-            handleLoadOne(e.id as string).then((doc) => {
-              setSelectDoc(doc);
-            });
-          }}
-          sortingMode='server'
-          onSortModelChange={(e) => {
-            if (e.length == 0) {
-              setOrderby({});
-              return;
-            }
 
-            let s = e[0];
-            if (!s.sort) {
-              setOrderby({});
-              return;
-            }
-            let order = {};
-            order[s.field] = s.sort == 'asc' ? 1 : -1;
-            setOrderby(order);
-          }}
-        ></DataGrid>
+      {/* // datagrid modeal */}
+      {resp && viewModel == MongoDataViewModel.List && (
+        <Stack spacing={1}>
+          <Stack direction='row'>
+            <Button
+              variant='contained'
+              color='error'
+              disabled={selectIDs.length == 0}
+              onClick={() => {
+                handleDetelet(selectIDs);
+              }}
+            >
+              <DeleteForeverIcon></DeleteForeverIcon>
+            </Button>
+          </Stack>
+          <DataGrid
+            getRowId={(e) => {
+              return e._id; // in this case object been convert to hexstring
+            }}
+            checkboxSelection
+            rowCount={resp.total}
+            columns={resp.data.fields}
+            rows={resp.data.data}
+            pageSizeOptions={pageSizeOptions}
+            disableColumnFilter
+            paginationMode='server'
+            paginationMeta={{ hasNextPage: true }}
+            paginationModel={{ page: page, pageSize: pageSize }}
+            onPaginationModelChange={(m) => {
+              setPage(m.page);
+              setPageSize(m.pageSize);
+            }}
+            onRowDoubleClick={(e) => {
+              handleLoadOne(e.id as string).then((doc) => {
+                setSelectModifyDoc(doc);
+              });
+            }}
+            sortingMode='server'
+            onSortModelChange={(e) => {
+              if (e.length == 0) {
+                setOrderby({});
+                return;
+              }
+              let s = e[0];
+              if (!s.sort) {
+                setOrderby({});
+                return;
+              }
+              let order = {};
+              order[s.field] = s.sort == 'asc' ? 1 : -1;
+              setOrderby(order);
+            }}
+            onRowSelectionModelChange={(e) => {
+              setSelectIDs(e as string[]);
+            }}
+          ></DataGrid>
+        </Stack>
       )}
-      {selectDoc && (
+      {selectModifyDoc && (
         <Modal
-          open={!!selectDoc}
+          open={!!selectModifyDoc}
           onClose={() => {
-            setSelectDoc(null);
+            setSelectModifyDoc(null);
           }}
           aria-labelledby='modify set'
         >
@@ -610,19 +685,118 @@ function MongoTableList(props: {
                 } catch (e) {
                   throw e;
                 }
-                handleReloadTableList();
+                handleReload();
               }}
               handleClose={() => {
-                setSelectDoc(null);
+                setSelectModifyDoc(null);
               }}
-              doc={selectDoc}
+              doc={selectModifyDoc}
               buttonName='Modify'
             ></MongoDBModify>
           </Box>
         </Modal>
       )}
+      {/* // docs modal  */}
+      {docs && viewModel == MongoDataViewModel.Object && (
+        <Stack spacing={1} style={{ paddingRight: '40px' }}>
+          {docs.docs.map((doc) => {
+            return (
+              <MongoBsonEditor
+                key={(doc._id as BSON.ObjectId).toHexString()}
+                doc={doc}
+                handleChange={() => {
+                  // here need do nothing
+                }}
+                buttons={[
+                  {
+                    buttonConent: 'set',
+                    variant: 'contained',
+                    callBack: (doc) => {
+                      modifyOP(doc)
+                        .then(() => {
+                          showNotification('success', 'Modify OK');
+                        })
+                        .catch((e) => {
+                          showNotification('error', 'Modify failure', e);
+                        });
+                    },
+                  },
+                  {
+                    buttonConent: 'delte',
+                    color: 'error',
+                    variant: 'outlined',
+                    callBack: (_) => {
+                      handleDetelet([(doc._id as ObjectId).toHexString()]);
+                    },
+                  },
+                ]}
+              ></MongoBsonEditor>
+            );
+          })}
+          {/* // here is pagination */}
+          <Stack direction='row' spacing={1} alignItems='flex-end'>
+            <Pagination
+              page={page}
+              defaultPage={1}
+              count={Math.ceil(docs.total / pageSize)}
+              showFirstButton
+              showLastButton
+              onChange={(_e, page) => {
+                setPage(page);
+              }}
+            />
+            <SelectPageSize
+              pageSize={pageSize}
+              onChange={(size) => {
+                setPage(size);
+              }}
+            ></SelectPageSize>
+          </Stack>
+        </Stack>
+      )}
     </Stack>
   );
 }
 
-export { MongoBsonEditor, MongoTableList };
+function MongoTableAdd(props: {
+  addOP: (doc: BSON.Document) => Promise<void>;
+}) {
+  let { addOP } = props;
+
+  const { showNotification } = useContext(NotificationContext);
+  const [doc, setDoc] = useState({});
+  const handleAdd = () => {
+    addOP(doc)
+      .then(() => {
+        showNotification('success', 'Add OK');
+      })
+      .catch((e) => {
+        showNotification('error', 'Add failure', e);
+      });
+  };
+
+  return (
+    <Stack>
+      <MongoBsonEditor
+        doc={doc}
+        handleChange={(doc) => {
+          setDoc(doc);
+        }}
+        buttons={[
+          {
+            buttonConent: 'Add',
+            variant: 'contained',
+            disabled: (changed) => {
+              return !changed;
+            },
+            callBack: () => {
+              handleAdd();
+            },
+          },
+        ]}
+      ></MongoBsonEditor>
+    </Stack>
+  );
+}
+
+export { MongoBsonEditor, MongoTable, MongoTableAdd };

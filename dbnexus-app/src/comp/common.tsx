@@ -1,5 +1,6 @@
 import {
   Box,
+  CircularProgress,
   FormControl,
   IconButton,
   InputLabel,
@@ -12,6 +13,7 @@ import { languages } from 'monaco-editor';
 import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
+import { BSON } from 'bson';
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -48,7 +50,7 @@ function SelectPageSize({
   variant = 'outlined',
   tital = 'select page size',
   pageSize = 50,
-  setPageSize = (_: number) => {
+  onChange = (_: number) => {
     // a function which will do nothing.
   },
 }) {
@@ -58,6 +60,7 @@ function SelectPageSize({
         fullWidth
         // @ts-ignore
         variant={variant}
+        size='small'
       >
         <InputLabel id='simple-select-label'>{tital}</InputLabel>
         <Select
@@ -65,43 +68,33 @@ function SelectPageSize({
           id='simple-select'
           value={pageSize}
           onChange={(e) => {
-            setPageSize(e.target.value as number);
+            onChange(e.target.value as number);
           }}
           label='select page size'
         >
-          <MenuItem value={50}>50</MenuItem>
-          <MenuItem value={100}>100</MenuItem>
-          <MenuItem value={200}>200</MenuItem>
-          <MenuItem value={500}>500</MenuItem>
-          <MenuItem value={1000}>1000</MenuItem>
-          <MenuItem value={2000}>2000</MenuItem>
-          <MenuItem value={5000}>5000</MenuItem>
-          <MenuItem value={10000}>10000</MenuItem>
+          {pageSizeOptions.map((e) => (
+            <MenuItem value={e}>{e}</MenuItem>
+          ))}
         </Select>
       </FormControl>
     </Box>
   );
 }
 
-function youNeedImplThis(name: string) {
-  return function (): void {
-    throw `You need impl '${name}'`;
-  };
-}
-
-function CloseButton({ handleClose = youNeedImplThis('handleClose') }) {
-  return (
-    <IconButton onClick={handleClose} edge='end' aria-label='delete'>
-      <CloseIcon />
-    </IconButton>
-  );
-}
-
-function CloseSpace({ handleClose = youNeedImplThis('handleClose') }) {
+function CloseSpace(props: { handleClose: () => void; loading: boolean }) {
+  const { handleClose, loading } = props;
   return (
     <Stack direction='row' alignItems='right' justifyContent='space-between'>
-      <span></span>
-      <CloseButton handleClose={handleClose} />
+      {loading ? (
+        <Box sx={{ display: 'flex' }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <span></span>
+      )}
+      <IconButton onClick={handleClose} edge='end' aria-label='delete'>
+        <CloseIcon />
+      </IconButton>
     </Stack>
   );
 }
@@ -208,10 +201,20 @@ function backendCompletionItemToEditor(
     }),
   };
 }
+
+class DocsAndCount {
+  constructor(public docs: BSON.Document[], public total: number) {}
+}
+enum MongoDataViewModel {
+  List,
+  Object,
+}
+
+const pageSizeOptions = [10, 20, 50, 100];
+
 export {
   modalStyle,
   SelectPageSize,
-  CloseButton,
   CloseSpace,
   hexTryToUtf8,
   stringToHexArray,
@@ -221,4 +224,7 @@ export {
   stringToHex,
   MetaValues,
   backendCompletionItemToEditor,
+  DocsAndCount,
+  MongoDataViewModel,
+  pageSizeOptions,
 };

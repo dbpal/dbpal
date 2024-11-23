@@ -23,6 +23,7 @@ import {
   modalStyle,
   stringToHex,
   arrayToHex,
+  pageSizeOptions,
 } from './common';
 
 import { types } from './ApiStruct.ts';
@@ -75,13 +76,7 @@ function RedisListAdd(props: {
 
   return (
     <Stack spacing={2}>
-      <CloseSpace handleClose={handleClose} />
-
-      {loading && (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      )}
+      <CloseSpace loading={loading} handleClose={handleClose} />
       <Box width='200px'>
         <FormControl fullWidth>
           <InputLabel id='simple-select-label'>Direction</InputLabel>
@@ -197,12 +192,7 @@ function RedisAddSet(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      )}
-      <CloseSpace handleClose={handleClose}></CloseSpace>
+      <CloseSpace loading={loading} handleClose={handleClose}></CloseSpace>
       <RedisEditHexOrText
         handleValue={(e) => {
           setKey(e);
@@ -1117,7 +1107,7 @@ function RedisListTable(props: {
               setSortModel(e);
             }}
             autoPageSize={false}
-            pageSizeOptions={[10]}
+            pageSizeOptions={pageSizeOptions}
             paginationMeta={{ hasNextPage: true }}
             paginationMode='server'
             paginationModel={{ page: page, pageSize: pageSize }}
