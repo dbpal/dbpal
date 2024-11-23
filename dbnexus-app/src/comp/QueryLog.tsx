@@ -1,0 +1,79 @@
+import { Box, Modal, Stack } from '@mui/material';
+import { types } from './ApiStruct.ts';
+import { DataGrid } from '@mui/x-data-grid';
+
+import { v4 as uuidv4 } from 'uuid';
+import { useState } from 'react';
+import { CloseSpace, modalStyle } from './common.tsx';
+import { Editor } from '@monaco-editor/react';
+import DoneIcon from '@mui/icons-material/Done';
+import CloseIcon from '@mui/icons-material/Close';
+function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
+  let { logs, language } = props;
+  let fiedls = [
+    {
+      field: 'time',
+      flex: 1,
+      renderCell: (p) => {
+        let t = p.row.time;
+        return new Date(t).toLocaleString();
+      },
+    },
+    {
+      field: 'success',
+      renderCell: (p) => {
+        let s = p.row.success;
+        if (s) {
+          return <DoneIcon></DoneIcon>;
+        } else {
+          return <CloseIcon></CloseIcon>;
+        }
+      },
+    },
+    { field: 'sql', flex: 1 },
+  ];
+
+  logs.forEach((e) => {
+    // @ts-ignore
+    e.id = uuidv4();
+  });
+  const [selectSql, setSelectSql] = useState('');
+
+  return (
+    <Stack>
+      <DataGrid
+        onRowDoubleClick={(e) => {
+          setSelectSql(e.row.sql);
+        }}
+        columns={fiedls}
+        rows={logs}
+      ></DataGrid>
+      {selectSql && (
+        <Modal
+          open={!!selectSql}
+          onClose={() => {
+            setSelectSql('');
+          }}
+          aria-labelledby='set filter'
+        >
+          <Stack sx={modalStyle} width='600px'>
+            <CloseSpace
+              handleClose={() => {
+                setSelectSql('');
+              }}
+            ></CloseSpace>
+            <Box>
+              <Editor
+                language={language}
+                height='300px'
+                value={selectSql}
+              ></Editor>
+            </Box>
+          </Stack>
+        </Modal>
+      )}
+    </Stack>
+  );
+}
+
+export { QueryLog };
