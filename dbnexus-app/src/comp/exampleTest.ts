@@ -253,6 +253,17 @@ function testMetaValues(): types.MetaValue[] {
     { name: 'haha', value: 'heihei', desc: '' },
   ];
 }
+function testQueryLogs(length: number = 20): types.QueryLogEvent[] {
+  let ret: types.QueryLogEvent[] = [];
+  for (let i = 0; i < length; i++) {
+    ret.push({
+      time: Date.now() - Math.ceil(Math.random() * 1000000000000),
+      success: Math.random() > 0.3,
+      sql: generateRandomString(300),
+    });
+  }
+  return ret;
+}
 
 export {
   testExampleRedisZset,
@@ -266,4 +277,5 @@ export {
   testBsonDocTableList,
   testExampleMongoTableList,
   testDocsAndCount,
+  testQueryLogs,
 };

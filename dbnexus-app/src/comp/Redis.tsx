@@ -784,7 +784,7 @@ function RedisSetTable(props: {
   const [keyMatch, setKeyMatch] = useState('');
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [selectID, setSelectID] = useState('');
+  const [selectRow, setSelectRow] = useState({});
   const [showAdd, setShowAdd] = useState(false);
   const [selectionModel, setSelectionModel] = useState([]);
   const handleReload = () => {
@@ -804,24 +804,23 @@ function RedisSetTable(props: {
       });
   };
 
-  useEffect(() => {
-    handleReload();
-  }, []);
-
-  const getIDIndex = (selectID: string): number => {
+  const getIDIndex = (id: string): number => {
     let ret;
     resp.data.data.forEach((e, index) => {
-      if (e.id === selectID) {
+      if (e.id === id) {
         ret = index;
       }
     });
     return ret;
   };
 
+  useEffect(() => {
+    handleReload();
+  }, []);
+
   const handleDel = async () => {
     for (let i = 0; i < selectionModel.length; i++) {
-      let id = selectionModel[i];
-      let index = getIDIndex(id);
+      let index = getIDIndex(selectionModel[i]);
       let value = resp.data.data[index]['value'];
       try {
         await delOP(value);
@@ -882,7 +881,7 @@ function RedisSetTable(props: {
             checkboxSelection
             editMode='row'
             onRowDoubleClick={(e) => {
-              setSelectID(e.id as string);
+              setSelectRow(e.row);
             }}
             columns={resp.data.fields}
             disableColumnFilter
@@ -890,11 +889,11 @@ function RedisSetTable(props: {
               setSelectionModel(rows as string[]);
             }}
           ></DataGrid>
-          {selectID && (
+          {selectRow && (
             <Modal
-              open={!!selectID}
+              open={!!selectRow}
               onClose={() => {
-                setSelectID(null);
+                setSelectRow(null);
               }}
               aria-labelledby='modify set'
             >
@@ -906,12 +905,15 @@ function RedisSetTable(props: {
                     } catch (e) {
                       throw e;
                     }
-                    resp.data.data[getIDIndex(selectID)].value = newValue;
+                    //@ts-ignore
+                    selectRow.value = newValue;
                   }}
-                  key={selectID}
-                  oldValue={resp.data.data[getIDIndex(selectID)].value}
+                  //@ts-ignore
+                  key={selectRow.id}
+                  //@ts-ignore
+                  oldValue={selectRow.value}
                   handleClose={() => {
-                    setSelectID(null);
+                    setSelectRow(null);
                   }}
                 ></RedisEditSet>
               </Box>
@@ -919,6 +921,7 @@ function RedisSetTable(props: {
           )}
         </Stack>
       )}
+
       <Stack direction='row' spacing={1}>
         <Button
           variant='contained'
@@ -934,7 +937,7 @@ function RedisSetTable(props: {
       <Modal
         open={showAdd}
         onClose={() => {
-          setSelectID(null);
+          setSelectRow(null);
         }}
         aria-labelledby='modify set'
       >
@@ -977,7 +980,7 @@ function RedisListTable(props: {
 }) {
   const { reloadOP, modifyOP, lpushOP, delOP, rpushOP } = props;
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
-  const [selectID, setSelectID] = useState('');
+  const [selectRow, setSelectRow] = useState<any>({});
   const [showAdd, setShowAdd] = useState(false);
   const [selectionModel, setSelectionModel] = useState('');
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
@@ -1014,23 +1017,22 @@ function RedisListTable(props: {
       });
   };
 
-  useEffect(() => {
-    handleReload();
-  }, [page, pageSize, sortModel]);
-
-  const getIDIndex = (selectID: string): number => {
+  const getIDIndex = (id: string): number => {
     let ret;
     resp.data.data.forEach((e, index) => {
-      if (e.id === selectID) {
+      if (e.id === id) {
         ret = index;
       }
     });
     return ret;
   };
 
+  useEffect(() => {
+    handleReload();
+  }, [page, pageSize, sortModel]);
+
   const handleDel = async () => {
-    let index = getIDIndex(selectionModel);
-    let value = resp.data.data[index]['value'];
+    let value = resp.data.data[getIDIndex(selectionModel)]['value'];
     try {
       await delOP(
         typeof deleteCount === 'string' ? parseInt(deleteCount) : deleteCount,
@@ -1094,7 +1096,7 @@ function RedisListTable(props: {
             checkboxSelection
             editMode='row'
             onRowDoubleClick={(e) => {
-              setSelectID(e.id as string);
+              setSelectRow(e.row);
             }}
             columns={resp.data.fields}
             disableColumnFilter
@@ -1118,11 +1120,11 @@ function RedisListTable(props: {
             }}
             sortingMode='server'
           ></DataGrid>
-          {selectID && (
+          {selectRow && (
             <Modal
-              open={!!selectID}
+              open={!!selectRow}
               onClose={() => {
-                setSelectID(null);
+                setSelectRow(null);
               }}
               aria-labelledby='modify set'
             >
@@ -1134,13 +1136,13 @@ function RedisListTable(props: {
                     } catch (e) {
                       throw e;
                     }
-                    resp.data.data[getIDIndex(selectID)].value = newValue;
+                    selectRow.value = newValue;
                   }}
-                  key={selectID}
-                  oldValue={resp.data.data[getIDIndex(selectID)].value}
-                  index={getIDIndex(selectID)}
+                  key={selectRow.id}
+                  oldValue={selectRow.value}
+                  index={selectRow.seq}
                   handleClose={() => {
-                    setSelectID(null);
+                    setSelectRow(null);
                   }}
                 ></RedisEditList>
               </Box>
@@ -1163,7 +1165,7 @@ function RedisListTable(props: {
       <Modal
         open={showAdd}
         onClose={() => {
-          setSelectID(null);
+          setSelectRow(null);
         }}
         aria-labelledby='modify set'
       >
@@ -1214,7 +1216,7 @@ function RedisZsetTable(props: {
   const { reloadOP, modifyOP, addOP, delOP } = props;
   const [keyMatch, setKeyMatch] = useState('');
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
-  const [selectID, setSelectID] = useState('');
+  const [selectRow, setSelectRow] = useState<any>();
   const [showAdd, setShowAdd] = useState(false);
   const [min, setMin] = useState('');
   const [max, setMax] = useState('');
@@ -1222,6 +1224,7 @@ function RedisZsetTable(props: {
   const [maxErr, setMaxErr] = useState(false);
 
   const [selectionModel, setSelectionModel] = useState([]);
+
   const { showNotification } = useContext(NotificationContext);
   const handleReload = () => {
     if (minErr || maxErr) {
@@ -1250,11 +1253,10 @@ function RedisZsetTable(props: {
   useEffect(() => {
     handleReload();
   }, []);
-
-  const getIDIndex = (selectID: string): number => {
+  const getIDIndex = (id: string): number => {
     let ret;
     resp.data.data.forEach((e, index) => {
-      if (e.id === selectID) {
+      if (e.id === id) {
         ret = index;
       }
     });
@@ -1263,8 +1265,7 @@ function RedisZsetTable(props: {
 
   const handleDel = async () => {
     for (let i = 0; i < selectionModel.length; i++) {
-      let id = selectionModel[i];
-      let index = getIDIndex(id);
+      let index = getIDIndex(selectionModel[i]);
       let value = resp.data.data[index]['key'];
       try {
         await delOP(value);
@@ -1347,7 +1348,7 @@ function RedisZsetTable(props: {
             checkboxSelection
             editMode='row'
             onRowDoubleClick={(e) => {
-              setSelectID(e.id as string);
+              setSelectRow(e.row);
             }}
             columns={resp.data.fields}
             disableColumnFilter
@@ -1355,11 +1356,11 @@ function RedisZsetTable(props: {
               setSelectionModel(rows as string[]);
             }}
           ></DataGrid>
-          {selectID && (
+          {selectRow && (
             <Modal
-              open={!!selectID}
+              open={!!selectRow}
               onClose={() => {
-                setSelectID(null);
+                setSelectRow(null);
               }}
               aria-labelledby='modify set'
             >
@@ -1371,15 +1372,14 @@ function RedisZsetTable(props: {
                     } catch (e) {
                       throw e;
                     }
-                    let index = getIDIndex(selectID);
-                    resp.data.data[index].key = req.newKey;
-                    resp.data.data[index].score = req.value;
+                    selectRow.key = req.newKey;
+                    selectRow.score = req.value;
                   }}
-                  key={selectID}
-                  oldValue={resp.data.data[getIDIndex(selectID)].score}
-                  oldKey={resp.data.data[getIDIndex(selectID)].key}
+                  key={selectRow}
+                  oldValue={selectRow.score}
+                  oldKey={selectRow.key}
                   handleClose={() => {
-                    setSelectID(null);
+                    setSelectRow(null);
                   }}
                 ></RedisEditZset>
               </Box>
@@ -1402,7 +1402,7 @@ function RedisZsetTable(props: {
       <Modal
         open={showAdd}
         onClose={() => {
-          setSelectID(null);
+          setSelectRow(null);
         }}
         aria-labelledby='modify set'
       >
@@ -1442,7 +1442,7 @@ function RedisHashTable(props: {
   const [keyMatch, setKeyMatch] = useState('');
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [selectID, setSelectID] = useState('');
+  const [selectRow, setSelctRow] = useState<any>({});
   const [showAdd, setShowAdd] = useState(false);
   const [selectionModel, setSelectionModel] = useState([]);
   const handleReload = () => {
@@ -1470,10 +1470,10 @@ function RedisHashTable(props: {
     handleReload();
   }, []);
 
-  const getIDIndex = (selectID: string): number => {
+  const getIDIndex = (id: string): number => {
     let ret;
     resp.data.data.forEach((e, index) => {
-      if (e.id === selectID) {
+      if (e.id === id) {
         ret = index;
       }
     });
@@ -1545,7 +1545,7 @@ function RedisHashTable(props: {
             checkboxSelection
             editMode='row'
             onRowDoubleClick={(e) => {
-              setSelectID(e.id as string);
+              setSelctRow(e.row);
             }}
             columns={resp.data.fields}
             disableColumnFilter
@@ -1553,11 +1553,11 @@ function RedisHashTable(props: {
               setSelectionModel(rows as string[]);
             }}
           ></DataGrid>
-          {selectID && (
+          {selectRow && (
             <Modal
-              open={!!selectID}
+              open={!!selectRow}
               onClose={() => {
-                setSelectID(null);
+                setSelctRow(null);
               }}
               aria-labelledby='modify set'
             >
@@ -1569,15 +1569,14 @@ function RedisHashTable(props: {
                     } catch (e) {
                       throw e;
                     }
-                    let index = getIDIndex(selectID);
-                    resp.data.data[index].key = req.newKey;
-                    resp.data.data[index].value = req.value;
+                    selectRow.key = req.newKey;
+                    selectRow.value = req.value;
                   }}
-                  key={selectID}
-                  oldValue={resp.data.data[getIDIndex(selectID)].value}
-                  oldKey={resp.data.data[getIDIndex(selectID)].key}
+                  key={selectRow.id}
+                  oldValue={selectRow.value}
+                  oldKey={selectRow.key}
                   handleClose={() => {
-                    setSelectID(null);
+                    setSelctRow(null);
                   }}
                 ></RedisEditHash>
               </Box>
@@ -1599,7 +1598,7 @@ function RedisHashTable(props: {
       <Modal
         open={showAdd}
         onClose={() => {
-          setSelectID(null);
+          setSelctRow(null);
         }}
         aria-labelledby='modify set'
       >

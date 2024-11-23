@@ -36,7 +36,7 @@ impl QueryLog {
 
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct QueryLogEvent {
-    timestamp: u64,
+    time: u64,
     sql: String,
     success: bool,
 }
@@ -44,7 +44,7 @@ pub struct QueryLogEvent {
 impl QueryLogEvent {
     pub(crate) fn new(sql: impl Into<String>, success: bool) -> Self {
         Self {
-            timestamp: current_timestamp(),
+            time: current_timestamp(),
             sql: sql.into(),
             success,
         }

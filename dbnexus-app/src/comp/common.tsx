@@ -14,6 +14,7 @@ import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import { BSON } from 'bson';
+import { Padding } from '@mui/icons-material';
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -24,6 +25,8 @@ const modalStyle = {
   bgcolor: 'background.paper',
   border: '1px solid #000',
   boxShadow: 24,
+  padding: 0,
+  margin: 0,
   p: 4,
 };
 
@@ -81,7 +84,7 @@ function SelectPageSize({
   );
 }
 
-function CloseSpace(props: { handleClose: () => void; loading: boolean }) {
+function CloseSpace(props: { handleClose: () => void; loading?: boolean }) {
   const { handleClose, loading } = props;
   return (
     <Stack direction='row' alignItems='right' justifyContent='space-between'>
