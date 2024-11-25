@@ -30,7 +30,6 @@ import { NotificationContext } from './Notification';
 import { DataGrid } from '@mui/x-data-grid';
 
 import {
-  CloseSpace,
   DocsAndCount,
   modalStyle,
   MongoDataViewModel,
@@ -282,12 +281,11 @@ function MongoBsonEditor(props: {
 
 function MongoDBModify(props: {
   doc: BSON.Document;
-  handleClose: () => void;
   verify: (doc: BSON.Document) => boolean;
   setOP: (doc: BSON.Document) => Promise<void>;
   buttonName: string;
 }) {
-  let { doc, handleClose, setOP, verify, buttonName } = props;
+  let { doc, setOP, verify, buttonName } = props;
   const [loading, setLoading] = useState(false);
   const [newDoc, setNewDoc] = useState(doc);
   const { showNotification } = useContext(NotificationContext);
@@ -310,8 +308,6 @@ function MongoDBModify(props: {
 
   return (
     <Stack spacing={1}>
-      <CloseSpace loading={loading} handleClose={handleClose}></CloseSpace>
-
       <MongoBsonEditor
         doc={doc}
         handleChange={(e) => {
@@ -401,9 +397,6 @@ function MongoTableListToolBar(props: {
                 setOP={async (doc) => {
                   handleFilter(doc);
                 }}
-                handleClose={() => {
-                  setShowModifyFilter(false);
-                }}
                 doc={filter}
               ></MongoDBModify>
             </Box>
@@ -437,9 +430,6 @@ function MongoTableListToolBar(props: {
                 }}
                 setOP={async (doc) => {
                   handleOrderBy(doc);
-                }}
-                handleClose={() => {
-                  setShowModifyOrderBy(false);
                 }}
                 doc={orderBy}
               ></MongoDBModify>
@@ -555,7 +545,7 @@ function MongoTable(props: {
     }
   };
 
-  const handleDetelet = (ids: string[]) => {
+  const handleDetele = (ids: string[]) => {
     secondConfirm({
       title: 'Delete data',
       content: `are u sure delte those ${ids.join(',')} data`,
@@ -617,7 +607,7 @@ function MongoTable(props: {
               color='error'
               disabled={selectIDs.length == 0}
               onClick={() => {
-                handleDetelet(selectIDs);
+                handleDetele(selectIDs);
               }}
             >
               <DeleteForeverIcon></DeleteForeverIcon>
@@ -687,9 +677,6 @@ function MongoTable(props: {
                 }
                 handleReload();
               }}
-              handleClose={() => {
-                setSelectModifyDoc(null);
-              }}
               doc={selectModifyDoc}
               buttonName='Modify'
             ></MongoDBModify>
@@ -726,7 +713,7 @@ function MongoTable(props: {
                     color: 'error',
                     variant: 'outlined',
                     callBack: (_) => {
-                      handleDetelet([(doc._id as ObjectId).toHexString()]);
+                      handleDetele([(doc._id as ObjectId).toHexString()]);
                     },
                   },
                 ]}

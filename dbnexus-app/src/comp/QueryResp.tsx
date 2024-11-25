@@ -1,16 +1,29 @@
-import apis from './ApiStruct.ts';
-import { Alert, Box, Tab, Tabs } from '@mui/material';
+import { types } from './ApiStruct.ts';
+import { Alert, Box, Tab, Tabs, Tooltip } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import { generateRandomString } from './helper.ts';
 import { DataGrid } from '@mui/x-data-grid';
 import React from 'react';
 
-function QueryResp(props: { data: apis.MuiDataGridData }) {
+function QueryResp(props: { data: types.MuiDataGridData }) {
   let { data } = props;
   data.data.forEach((e) => {
-    if (!e['id']) {
+    if (!('id' in e)) {
       e.id = uuidv4();
     }
+  });
+  data.fields.forEach((e) => {
+    // @ts-ignore
+    e.renderHeader = (e) => {
+      let def = e.colDef;
+      return (
+        <Tooltip title={def.typ}>
+          <strong> {def.field}</strong>
+        </Tooltip>
+      );
+    };
+    // @ts-ignore
+    e.flex = 1;
   });
   return (
     <DataGrid

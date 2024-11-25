@@ -84,24 +84,6 @@ function SelectPageSize({
   );
 }
 
-function CloseSpace(props: { handleClose: () => void; loading?: boolean }) {
-  const { handleClose, loading } = props;
-  return (
-    <Stack direction='row' alignItems='right' justifyContent='space-between'>
-      {loading ? (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <span></span>
-      )}
-      <IconButton onClick={handleClose} edge='end' aria-label='delete'>
-        <CloseIcon />
-      </IconButton>
-    </Stack>
-  );
-}
-
 // redis的数据存储的时候都是二进制 有时候包含的是有效的
 // utf8字符前台的处理的最好当成utf8来处理
 // 不然当成二进制数据来处理呢
@@ -215,10 +197,21 @@ enum MongoDataViewModel {
 
 const pageSizeOptions = [10, 20, 50, 100];
 
+// TODO Add more
+// if type large text should use multiline
+// textfield
+
+function isTypeLargeText(s: string): boolean {
+  const toUpper = s.toUpperCase();
+  if (toUpper.includes('TEXT')) {
+    return true;
+  }
+  return false;
+}
+
 export {
   modalStyle,
   SelectPageSize,
-  CloseSpace,
   hexTryToUtf8,
   stringToHexArray,
   arrayToHex,
@@ -230,4 +223,5 @@ export {
   DocsAndCount,
   MongoDataViewModel,
   pageSizeOptions,
+  isTypeLargeText,
 };

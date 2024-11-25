@@ -16,7 +16,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
-  CloseSpace,
   hexToUint8Array,
   hexToUtf8,
   hexTryToUtf8,
@@ -75,8 +74,12 @@ function RedisListAdd(props: {
   };
 
   return (
-    <Stack spacing={2}>
-      <CloseSpace loading={loading} handleClose={handleClose} />
+    <Stack spacing={1}>
+      {loading && (
+        <Box sx={{ display: 'flex' }}>
+          <CircularProgress />
+        </Box>
+      )}
       <Box width='200px'>
         <FormControl fullWidth>
           <InputLabel id='simple-select-label'>Direction</InputLabel>
@@ -192,7 +195,6 @@ function RedisAddSet(props: {
 
   return (
     <Stack spacing={1}>
-      <CloseSpace loading={loading} handleClose={handleClose}></CloseSpace>
       <RedisEditHexOrText
         handleValue={(e) => {
           setKey(e);
@@ -211,6 +213,11 @@ function RedisAddSet(props: {
         <Button color='primary' variant='contained' onClick={handleAdd}>
           Add
         </Button>
+        {loading && (
+          <Box sx={{ display: 'flex' }}>
+            <CircularProgress />
+          </Box>
+        )}
       </Stack>
     </Stack>
   );
@@ -873,6 +880,15 @@ function RedisSetTable(props: {
             >
               <DeleteForeverIcon></DeleteForeverIcon>
             </Button>
+            <Button
+              variant='contained'
+              color='primary'
+              onClick={() => {
+                setShowAdd(true);
+              }}
+            >
+              <AddIcon></AddIcon>
+            </Button>
           </Stack>
 
           {/* actual data grid */}
@@ -921,18 +937,6 @@ function RedisSetTable(props: {
           )}
         </Stack>
       )}
-
-      <Stack direction='row' spacing={1}>
-        <Button
-          variant='contained'
-          color='primary'
-          onClick={() => {
-            setShowAdd(true);
-          }}
-        >
-          <AddIcon></AddIcon>
-        </Button>
-      </Stack>
 
       <Modal
         open={showAdd}
@@ -1088,6 +1092,15 @@ function RedisListTable(props: {
             >
               <DeleteForeverIcon></DeleteForeverIcon>
             </Button>
+            <Button
+              variant='contained'
+              color='primary'
+              onClick={() => {
+                setShowAdd(true);
+              }}
+            >
+              <AddIcon></AddIcon>
+            </Button>
           </Stack>
 
           {/* actual data grid */}
@@ -1150,17 +1163,7 @@ function RedisListTable(props: {
           )}
         </Stack>
       )}
-      <Stack direction='row' spacing={1}>
-        <Button
-          variant='contained'
-          color='primary'
-          onClick={() => {
-            setShowAdd(true);
-          }}
-        >
-          <AddIcon></AddIcon>
-        </Button>
-      </Stack>
+
       {/* // add modal */}
       <Modal
         open={showAdd}
@@ -1340,6 +1343,15 @@ function RedisZsetTable(props: {
             >
               <DeleteForeverIcon></DeleteForeverIcon>
             </Button>
+            <Button
+              variant='contained'
+              color='primary'
+              onClick={() => {
+                setShowAdd(true);
+              }}
+            >
+              <AddIcon />
+            </Button>
           </Stack>
 
           {/* actual data grid */}
@@ -1387,17 +1399,7 @@ function RedisZsetTable(props: {
           )}
         </Stack>
       )}
-      <Stack direction='row' spacing={1}>
-        <Button
-          variant='contained'
-          color='primary'
-          onClick={() => {
-            setShowAdd(true);
-          }}
-        >
-          <AddIcon />
-        </Button>
-      </Stack>
+
       {/* // add modal */}
       <Modal
         open={showAdd}
@@ -1518,7 +1520,7 @@ function RedisHashTable(props: {
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction='row'>
+          <Stack direction='row' spacing={1}>
             <Button
               variant='contained'
               color='error'
@@ -1536,6 +1538,15 @@ function RedisHashTable(props: {
               }}
             >
               <DeleteForeverIcon></DeleteForeverIcon>
+            </Button>
+            <Button
+              variant='contained'
+              color='primary'
+              onClick={() => {
+                setShowAdd(true);
+              }}
+            >
+              <AddIcon></AddIcon>
             </Button>
           </Stack>
 
@@ -1584,17 +1595,7 @@ function RedisHashTable(props: {
           )}
         </Stack>
       )}
-      <Stack direction='row' spacing={1}>
-        <Button
-          variant='contained'
-          color='primary'
-          onClick={() => {
-            setShowAdd(true);
-          }}
-        >
-          <AddIcon></AddIcon>
-        </Button>
-      </Stack>
+
       <Modal
         open={showAdd}
         onClose={() => {

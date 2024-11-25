@@ -8,7 +8,6 @@ import { QueryLog } from './QueryLog.tsx';
 import { NotificationContext } from './Notification.tsx';
 import { AlertColor } from '@mui/material';
 
-console.log(testQueryLogs(10));
 root.render(
   <NotificationContext.Provider
     value={{

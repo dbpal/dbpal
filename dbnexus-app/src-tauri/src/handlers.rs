@@ -1079,7 +1079,6 @@ pub struct MuiDataGridData {
 }
 
 #[derive(Clone, Debug, serde::Serialize, typescript_type_def::TypeDef)]
-
 pub struct MuiDataTableListResp {
     pub total: usize,
     pub sql: Option<String>,

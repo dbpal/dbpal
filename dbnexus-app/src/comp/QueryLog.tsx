@@ -4,13 +4,13 @@ import { DataGrid } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
 import { useState } from 'react';
-import { CloseSpace, modalStyle } from './common.tsx';
+import { modalStyle } from './common.tsx';
 import { Editor } from '@monaco-editor/react';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
   let { logs, language } = props;
-  let fiedls = [
+  let columns = [
     {
       field: 'time',
       flex: 1,
@@ -18,17 +18,19 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
         let t = p.row.time;
         return new Date(t).toLocaleString();
       },
+      filterable: false,
     },
     {
       field: 'success',
       renderCell: (p) => {
         let s = p.row.success;
         if (s) {
-          return <DoneIcon></DoneIcon>;
+          return <DoneIcon color='success'></DoneIcon>;
         } else {
-          return <CloseIcon></CloseIcon>;
+          return <CloseIcon color='error'></CloseIcon>;
         }
       },
+      filterable: false,
     },
     { field: 'sql', flex: 1 },
   ];
@@ -45,7 +47,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
         onRowDoubleClick={(e) => {
           setSelectSql(e.row.sql);
         }}
-        columns={fiedls}
+        columns={columns}
         rows={logs}
       ></DataGrid>
       {selectSql && (
@@ -57,11 +59,6 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
           aria-labelledby='set filter'
         >
           <Stack sx={modalStyle} width='600px'>
-            <CloseSpace
-              handleClose={() => {
-                setSelectSql('');
-              }}
-            ></CloseSpace>
             <Box>
               <Editor
                 language={language}

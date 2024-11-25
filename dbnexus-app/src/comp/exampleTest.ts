@@ -211,16 +211,46 @@ function testExampleQueryResp(
   };
 }
 
+function testExampleQueryRespTableList(
+  fieldLength = 5,
+  length: number = 10
+): types.MuiDataTableListResp {
+  return {
+    data: testExampleQueryResp(fieldLength, length),
+    total: Math.ceil(Math.random() * 1000),
+    sql: 'select * from ' + generateRandomString(4),
+  };
+}
+
 function testExampleField(): types.Field {
+  const someSqlTypes = [
+    'INT',
+    'FLOAT',
+    'DOUBLE',
+    'DECIMAL',
+    'CHAR',
+    'VARCHAR',
+    'TEXT',
+    'DATE',
+    'TIME',
+    'DATETIME',
+    'TIMESTAMP',
+    'BOOLEAN',
+    'BLOB',
+    'ENUM',
+    'SET',
+  ];
+
   return {
     field: 'field_' + generateRandomString(4),
-    typ: 'type_' + generateRandomString(3),
-    is_auto_increment: Math.random() > 0.5,
+    typ: someSqlTypes[Math.floor(Math.random() * someSqlTypes.length)],
     is_primary: Math.random() > 0.5,
-    nullable: Math.random() > 0.5,
+    is_auto_increment: Math.random() > 0.8,
+    nullable: Math.random() > 0.8,
     default_value: Math.random() > 0.5 ? generateRandomString() : null,
   };
 }
+
 /*
   multi resp have this rust structure
 [
@@ -255,11 +285,19 @@ function testMetaValues(): types.MetaValue[] {
 }
 function testQueryLogs(length: number = 20): types.QueryLogEvent[] {
   let ret: types.QueryLogEvent[] = [];
+  const randomString = (length: number = 10) => {
+    let ret = '';
+    for (let i = 0; i < length; i++) {
+      ret += generateRandomString(Math.random() * 20);
+      ret += '\n';
+    }
+    return ret;
+  };
   for (let i = 0; i < length; i++) {
     ret.push({
       time: Date.now() - Math.ceil(Math.random() * 1000000000000),
       success: Math.random() > 0.3,
-      sql: generateRandomString(300),
+      sql: randomString(30),
     });
   }
   return ret;
@@ -278,4 +316,5 @@ export {
   testExampleMongoTableList,
   testDocsAndCount,
   testQueryLogs,
+  testExampleQueryRespTableList,
 };
