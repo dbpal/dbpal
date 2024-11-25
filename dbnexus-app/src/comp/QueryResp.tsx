@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { generateRandomString } from './helper.ts';
 import { DataGrid } from '@mui/x-data-grid';
 import React from 'react';
+import { datagridHeaderHeight, datagridRowHeight } from './common.tsx';
 
 function QueryResp(props: { data: types.MuiDataGridData }) {
   let { data } = props;
@@ -25,8 +26,11 @@ function QueryResp(props: { data: types.MuiDataGridData }) {
     // @ts-ignore
     e.flex = 1;
   });
+
   return (
     <DataGrid
+      rowHeight={datagridRowHeight}
+      columnHeaderHeight={datagridHeaderHeight}
       columns={data.fields}
       rows={data.data}
       filterMode='client' // 使用客户端过滤
@@ -43,7 +47,6 @@ interface TabPanelProps {
 
 function CustomTabPanel(props: TabPanelProps) {
   const { children, value, index, idPrefix, ...other } = props;
-
   return (
     <div
       role='tabpanel'
@@ -66,13 +69,16 @@ function a11yProps(idPrefix: string, index: number) {
 
 function MultiQueryResp(props: { data: any[] }) {
   let { data } = props;
+  if (data.length == 0) {
+    return;
+  }
   const [value, setValue] = React.useState(0);
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
   };
   let idPrefix = generateRandomString(10);
   return (
-    <>
+    <div style={{ overflow: 'scroll' }}>
       {data.length == 1 ? (
         data[0].Err ? (
           <Alert severity='error'>{data[0].Err}</Alert>
@@ -80,7 +86,7 @@ function MultiQueryResp(props: { data: any[] }) {
           <QueryResp data={data[0].Ok}></QueryResp>
         )
       ) : (
-        <Box sx={{ width: '100%' }}>
+        <Box>
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tabs
               value={value}
@@ -115,7 +121,7 @@ function MultiQueryResp(props: { data: any[] }) {
           })}
         </Box>
       )}
-    </>
+    </div>
   );
 }
 

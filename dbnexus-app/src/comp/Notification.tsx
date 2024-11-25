@@ -60,7 +60,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         sx={{ mb: 8 }} // 调整位置稍微高一些
       >
         <Alert severity={notification.severity} sx={{ width: '300px' }}>
-          {' '}
           {/* 设置更宽的宽度 */}
           {notification.title && <AlertTitle>{notification.title}</AlertTitle>}
           {notification.message}

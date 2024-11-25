@@ -4,7 +4,13 @@ import { DataGrid } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
 import { useState } from 'react';
-import { modalStyle } from './common.tsx';
+import {
+  datagridHeaderHeight,
+  datagridRowHeight,
+  defaultPageSize,
+  modalStyle,
+  pageSizeOptions,
+} from './common.tsx';
 import { Editor } from '@monaco-editor/react';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
@@ -39,17 +45,28 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
     // @ts-ignore
     e.id = uuidv4();
   });
-  const [selectSql, setSelectSql] = useState('');
 
+  const [selectSql, setSelectSql] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPagesize] = useState(defaultPageSize);
   return (
-    <Stack>
+    <Stack style={{ overflow: 'scorll' }}>
       <DataGrid
         onRowDoubleClick={(e) => {
           setSelectSql(e.row.sql);
         }}
         columns={columns}
         rows={logs}
+        rowHeight={datagridRowHeight}
+        pageSizeOptions={[10, 15]}
+        paginationModel={{ page: page, pageSize: pageSize }}
+        onPaginationModelChange={(e) => {
+          setPage(e.page);
+          setPagesize(e.pageSize);
+        }}
+        columnHeaderHeight={datagridHeaderHeight}
       ></DataGrid>
+
       {selectSql && (
         <Modal
           open={!!selectSql}

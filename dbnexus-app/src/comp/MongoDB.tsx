@@ -35,6 +35,9 @@ import {
   MongoDataViewModel,
   pageSizeOptions,
   SelectPageSize,
+  datagridRowHeight,
+  datagridHeaderHeight,
+  defaultPageSize,
 } from './common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
@@ -308,6 +311,7 @@ function MongoDBModify(props: {
 
   return (
     <Stack spacing={1}>
+      {loading && <CircularProgress />}
       <MongoBsonEditor
         doc={doc}
         handleChange={(e) => {
@@ -444,11 +448,7 @@ function MongoTableListToolBar(props: {
         >
           Reload
         </Button>
-        {loading && (
-          <Box sx={{ display: 'flex' }}>
-            <CircularProgress />
-          </Box>
-        )}
+        {loading && <CircularProgress />}
       </Stack>
       <Stack direction='row' style={{ padding: '5px' }}>
         <ButtonGroup variant='contained' aria-label='Basic button group'>
@@ -510,7 +510,7 @@ function MongoTable(props: {
   const [filter, setFilter] = useState<BSON.Document>({});
   const [orderBy, setOrderby] = useState<BSON.Document>({});
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
@@ -545,7 +545,7 @@ function MongoTable(props: {
     }
   };
 
-  const handleDetele = (ids: string[]) => {
+  const handleDetelet = (ids: string[]) => {
     secondConfirm({
       title: 'Delete data',
       content: `are u sure delte those ${ids.join(',')} data`,
@@ -607,7 +607,7 @@ function MongoTable(props: {
               color='error'
               disabled={selectIDs.length == 0}
               onClick={() => {
-                handleDetele(selectIDs);
+                handleDetelet(selectIDs);
               }}
             >
               <DeleteForeverIcon></DeleteForeverIcon>
@@ -617,6 +617,8 @@ function MongoTable(props: {
             getRowId={(e) => {
               return e._id; // in this case object been convert to hexstring
             }}
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
             checkboxSelection
             rowCount={resp.total}
             columns={resp.data.fields}
@@ -713,7 +715,7 @@ function MongoTable(props: {
                     color: 'error',
                     variant: 'outlined',
                     callBack: (_) => {
-                      handleDetele([(doc._id as ObjectId).toHexString()]);
+                      handleDetelet([(doc._id as ObjectId).toHexString()]);
                     },
                   },
                 ]}

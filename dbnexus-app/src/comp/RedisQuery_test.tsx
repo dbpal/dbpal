@@ -48,7 +48,7 @@ root.render(
   >
     <React.StrictMode>
       <RedisQuery
-        executeOP={async (_text) => {
+        queryOP={async (_text) => {
           return testExampleMultiQueryResp(3);
         }}
         validURL={async (_url: string) => {

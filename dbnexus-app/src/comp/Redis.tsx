@@ -23,6 +23,9 @@ import {
   stringToHex,
   arrayToHex,
   pageSizeOptions,
+  datagridRowHeight,
+  datagridHeaderHeight,
+  defaultPageSize,
 } from './common';
 
 import { types } from './ApiStruct.ts';
@@ -75,11 +78,7 @@ function RedisListAdd(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      )}
+      {loading && <CircularProgress />}
       <Box width='200px'>
         <FormControl fullWidth>
           <InputLabel id='simple-select-label'>Direction</InputLabel>
@@ -161,11 +160,7 @@ function RedisStringTable(props: {
         >
           Set
         </Button>
-        {loading && (
-          <Box sx={{ display: 'flex' }}>
-            <CircularProgress />
-          </Box>
-        )}
+        {loading && <CircularProgress />}
       </Stack>
     </Stack>
   );
@@ -213,11 +208,7 @@ function RedisAddSet(props: {
         <Button color='primary' variant='contained' onClick={handleAdd}>
           Add
         </Button>
-        {loading && (
-          <Box sx={{ display: 'flex' }}>
-            <CircularProgress />
-          </Box>
-        )}
+        {loading && <CircularProgress />}
       </Stack>
     </Stack>
   );
@@ -249,11 +240,7 @@ function RedisAddHash(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      )}
+      {loading && <CircularProgress />}
       <Typography variant='h5'> key </Typography>
       <RedisEditHexOrText
         oldValue={key}
@@ -314,11 +301,7 @@ function RedisAddZset(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      )}
+      {loading && <CircularProgress />}
       <TextField
         value={score}
         label='score'
@@ -381,11 +364,7 @@ function RedisEditHash(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      )}
+      {loading && <CircularProgress />}
       <Typography variant='h5'>key</Typography>
       <RedisEditHexOrText
         oldValue={newKey}
@@ -452,11 +431,7 @@ function RedisEditZset(props: {
 
   return (
     <Stack spacing={2}>
-      {loading && (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      )}
+      {loading && <CircularProgress />}
       <TextField
         value={newValue}
         label='score'
@@ -679,11 +654,7 @@ function RedisEditList(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      )}
+      {loading && <CircularProgress />}
       <RedisEditHexOrText
         oldValue={oldValue}
         handleValue={(e) => {
@@ -739,11 +710,7 @@ function RedisEditSet(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && (
-        <Box sx={{ display: 'flex' }}>
-          <CircularProgress />
-        </Box>
-      )}
+      {loading && <CircularProgress />}
       <RedisEditHexOrText
         oldValue={oldValue}
         handleValue={(e) => {
@@ -893,6 +860,8 @@ function RedisSetTable(props: {
 
           {/* actual data grid */}
           <DataGrid
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection
             editMode='row'
@@ -989,7 +958,7 @@ function RedisListTable(props: {
   const [selectionModel, setSelectionModel] = useState('');
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
   const { showNotification } = useContext(NotificationContext);
   const [deleteCount, setDeleteCunnt] = useState<string | number>(0);
   const [deleteCountErr, setDeleteCountErr] = useState(false);
@@ -1105,6 +1074,8 @@ function RedisListTable(props: {
 
           {/* actual data grid */}
           <DataGrid
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection
             editMode='row'
@@ -1356,6 +1327,8 @@ function RedisZsetTable(props: {
 
           {/* actual data grid */}
           <DataGrid
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection
             editMode='row'
@@ -1552,6 +1525,8 @@ function RedisHashTable(props: {
 
           {/* actual data grid */}
           <DataGrid
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection
             editMode='row'
@@ -1655,11 +1630,7 @@ function RedisModifyKeyName(props: {
     <Stack spacing={1}>
       <Stack direction='row'>
         <Typography variant='subtitle1'> New name: </Typography>
-        {loading && (
-          <Box sx={{ display: 'flex' }}>
-            <CircularProgress />
-          </Box>
-        )}
+        {loading && <CircularProgress />}
       </Stack>
 
       <TextField

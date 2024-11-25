@@ -3,7 +3,11 @@ import { Box, Paper, Tab, Tabs, IconButton, Typography } from '@mui/material';
 import { DataGrid, GridColDef, GridRowsProp } from '@mui/x-data-grid';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTheme } from '@mui/material/styles';
-import { pageSizeOptions } from './common';
+import {
+  datagridHeaderHeight,
+  datagridRowHeight,
+  pageSizeOptions,
+} from './common';
 
 // 封装 DataGrid 的创建逻辑
 const createDataGrid = (
@@ -16,6 +20,8 @@ const createDataGrid = (
       {gridName}
     </Typography>
     <DataGrid
+      rowHeight={datagridRowHeight}
+      columnHeaderHeight={datagridHeaderHeight}
       rows={rows}
       columns={columns}
       pageSizeOptions={pageSizeOptions}

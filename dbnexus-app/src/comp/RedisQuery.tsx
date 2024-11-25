@@ -4,7 +4,13 @@ import './style/react-split-pane.css';
 import Editor, { loader } from '@monaco-editor/react';
 import { Position, editor, languages } from 'monaco-editor';
 import { CancellationToken } from 'monaco-editor';
-import { IconButton, Stack, Tooltip } from '@mui/material';
+import {
+  Box,
+  CircularProgress,
+  IconButton,
+  Stack,
+  Tooltip,
+} from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import { NotificationContext } from './Notification';
@@ -40,10 +46,10 @@ function initRedisLanguage(
 }
 
 function RedisQuery(props: {
-  executeOP: (code: string) => Promise<any[]>;
+  queryOP: (code: string) => Promise<any[]>;
   validURL: (string) => Promise<boolean>;
 }) {
-  const { executeOP, validURL } = props;
+  const { queryOP, validURL } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -124,8 +130,8 @@ function RedisQuery(props: {
           <SplitPane split='horizontal' defaultSize={500}>
             <div style={{ width: '100%' }}>
               <RedisEditor
-                executeOP={(text) => {
-                  executeOP(text)
+                queryOP={(text) => {
+                  queryOP(text)
                     .then((resp) => {
                       setResp(resp);
                     })
@@ -170,13 +176,14 @@ function RedisQuery(props: {
 }
 
 function RedisEditor(props: {
-  executeOP: (code: string) => void;
+  queryOP: (code: string) => void;
   handelTextAndPositionChange: (text: string, pos: Position) => void;
 }) {
+  let { queryOP, handelTextAndPositionChange } = props;
   const [text, setText] = useState('');
   const [selectText, setSelectText] = useState('');
   const [pos, setPos] = useState<Position | null>(null);
-  let { executeOP, handelTextAndPositionChange } = props;
+  const [loading, setLoading] = useState(false);
 
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
@@ -206,12 +213,14 @@ function RedisEditor(props: {
       showNotification('error', "can't execute empty statement.");
       return;
     }
-    executeOP(text);
+    queryOP(text);
   };
 
   return (
     <Stack style={{ height: '500px' }}>
       <Stack style={{ paddingLeft: '50px' }} direction='row' spacing={0}>
+        {loading && <CircularProgress />}
+
         <Tooltip title='execute'>
           <IconButton
             onClick={() => {

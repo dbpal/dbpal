@@ -1,20 +1,17 @@
 import {
   Box,
-  CircularProgress,
   FormControl,
-  IconButton,
   InputLabel,
   MenuItem,
   Select,
   Stack,
 } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import { languages } from 'monaco-editor';
+
+import { languages, Position as EditorPositon } from 'monaco-editor';
 import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import { BSON } from 'bson';
-import { Padding } from '@mui/icons-material';
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -44,7 +41,12 @@ function MetaValues(props: { values: types.MetaValue[] }) {
 
   return (
     <>
-      <DataGrid columns={columns} rows={values}></DataGrid>
+      <DataGrid
+        rowHeight={datagridRowHeight}
+        columnHeaderHeight={datagridHeaderHeight}
+        columns={columns}
+        rows={values}
+      ></DataGrid>
     </>
   );
 }
@@ -209,6 +211,23 @@ function isTypeLargeText(s: string): boolean {
   return false;
 }
 
+function EditorBar(props: { left: any; pos: EditorPositon }) {
+  let { left, pos } = props;
+  return (
+    <Stack justifyContent='space-between' direction='row'>
+      <div style={{ width: '40%' }}> {left}</div>
+      <Stack width='40%' direction='row' spacing={1}>
+        <span>Ln {pos ? pos.lineNumber : ''}</span>
+        <span>Column {pos ? pos.column : ''}</span>
+      </Stack>
+    </Stack>
+  );
+}
+
+const datagridRowHeight = 25;
+const datagridHeaderHeight = 36;
+const defaultPageSize = 10;
+
 export {
   modalStyle,
   SelectPageSize,
@@ -224,4 +243,8 @@ export {
   MongoDataViewModel,
   pageSizeOptions,
   isTypeLargeText,
+  EditorBar,
+  datagridRowHeight,
+  datagridHeaderHeight,
+  defaultPageSize,
 };

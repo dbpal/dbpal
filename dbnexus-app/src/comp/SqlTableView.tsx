@@ -14,7 +14,14 @@ import {
 import { NotificationContext } from './Notification';
 import { DataGrid, GridRowSelectionModel } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
-import { isTypeLargeText, modalStyle, pageSizeOptions } from './common';
+import {
+  datagridHeaderHeight,
+  datagridRowHeight,
+  defaultPageSize,
+  isTypeLargeText,
+  modalStyle,
+  pageSizeOptions,
+} from './common';
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
 function SqlTableView(props: {
@@ -36,13 +43,12 @@ function SqlTableView(props: {
   const [where, setWhere] = useState('');
   const [orderBy, setOrderBy] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectIDs, setSelectIDs] = useState<GridRowSelectionModel>([]);
   const [showAdd, setShowAdd] = useState(false);
   const uuid_key = 'qwertyuioplkjhgfdsazxcvbnm';
-
   const handleResp = (resp: types.MuiDataTableListResp) => {
     resp.data.data.forEach((e) => {
       e[uuid_key] = uuidv4();
@@ -174,11 +180,7 @@ function SqlTableView(props: {
         >
           Reload
         </Button>
-        {loading && (
-          <Box sx={{ display: 'flex' }}>
-            <CircularProgress />
-          </Box>
-        )}
+        {loading && <CircularProgress />}
 
         {resp && <Alert color='info'> {resp.sql}</Alert>}
       </Stack>
@@ -232,6 +234,8 @@ function SqlTableView(props: {
           </Stack>
 
           <DataGrid
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
             getRowId={(e) => e[uuid_key]}
             paginationModel={{ page, pageSize }}
             pageSizeOptions={pageSizeOptions}
@@ -336,11 +340,7 @@ function SqlTableViewAdd(props: {
         <Button variant='contained' onClick={handleAdd}>
           Add
         </Button>
-        {loading && (
-          <Box sx={{ display: 'flex' }}>
-            <CircularProgress />
-          </Box>
-        )}
+        {loading && <CircularProgress />}
       </Stack>
     </Stack>
   );
