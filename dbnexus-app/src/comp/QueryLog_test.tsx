@@ -22,7 +22,7 @@ root.render(
     }}
   >
     <React.StrictMode>
-      <QueryLog logs={testQueryLogs(220)} language='xxx'></QueryLog>
+      <QueryLog logs={testQueryLogs(10)} language='xxx'></QueryLog>
     </React.StrictMode>
   </NotificationContext.Provider>
 );

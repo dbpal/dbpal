@@ -9,7 +9,6 @@ import {
   datagridRowHeight,
   defaultPageSize,
   modalStyle,
-  pageSizeOptions,
 } from './common.tsx';
 import { Editor } from '@monaco-editor/react';
 import DoneIcon from '@mui/icons-material/Done';
@@ -58,13 +57,13 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
         columns={columns}
         rows={logs}
         rowHeight={datagridRowHeight}
+        columnHeaderHeight={datagridHeaderHeight}
         pageSizeOptions={[10, 15]}
         paginationModel={{ page: page, pageSize: pageSize }}
         onPaginationModelChange={(e) => {
           setPage(e.page);
           setPagesize(e.pageSize);
         }}
-        columnHeaderHeight={datagridHeaderHeight}
       ></DataGrid>
 
       {selectSql && (

@@ -62,7 +62,11 @@ function SqlQuery(props: {
     }
   }, [showQueryLog]);
 
-  const handleExecute = (text: string) => {
+  const handleQuery = (text: string) => {
+    if (!text.trim()) {
+      showNotification('error', `can't execute empty statement.`);
+      return;
+    }
     setLoading(true);
     queryOP(text)
       .then((resp) => {
@@ -94,7 +98,7 @@ function SqlQuery(props: {
           flexDirection: 'column',
         }}
       >
-        // here is query log use positive to locate
+        {/* // here is query log use positive to locate. */}
         {showQueryLog && (
           <div
             style={{
@@ -116,7 +120,7 @@ function SqlQuery(props: {
             <IconButton
               disabled={loading}
               onClick={() => {
-                handleExecute(text);
+                handleQuery(text);
               }}
               color='primary'
               aria-label='execute'
@@ -128,7 +132,7 @@ function SqlQuery(props: {
             <IconButton
               disabled={loading}
               onClick={() => {
-                handleExecute(selectText);
+                handleQuery(selectText);
               }}
               color='primary'
               aria-label='execute'
