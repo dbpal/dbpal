@@ -27,6 +27,9 @@ fn main() {
         let content = monaco_editor_keyword_regexp(REDIS_COMMANDS);
         file.write(compose("redisKeywords", &content).as_bytes())
             .unwrap();
+        file.write("\n".as_bytes()).unwrap();
     }
     // TODO add more
+
+    file.write(r#"export {redisKeywords}"#.as_bytes()).unwrap();
 }

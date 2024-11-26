@@ -6,7 +6,7 @@ import { NotificationContext } from './Notification';
 import { Position, languages } from 'monaco-editor';
 
 import { initRedisLanguage, RedisQuery } from './RedisQuery.tsx';
-import { testExampleMultiQueryResp } from './exampleTest.ts';
+import { testExampleMultiQueryResp, testQueryLogs } from './exampleTest.ts';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
 async function testAutoCompletion(
@@ -53,6 +53,9 @@ root.render(
         }}
         validURL={async (_url: string) => {
           return true;
+        }}
+        loadQueryLog={async () => {
+          return testQueryLogs();
         }}
       ></RedisQuery>
     </React.StrictMode>

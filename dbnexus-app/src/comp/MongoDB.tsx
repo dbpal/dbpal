@@ -424,7 +424,7 @@ function MongoTableListToolBar(props: {
             onClose={() => {
               setShowModifyOrderBy(false);
             }}
-            aria-labelledby='set filter'
+            aria-labelledby='order by'
           >
             <Box sx={modalStyle} width='600px'>
               <MongoDBModify

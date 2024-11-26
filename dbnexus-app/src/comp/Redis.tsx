@@ -1110,7 +1110,7 @@ function RedisListTable(props: {
               onClose={() => {
                 setSelectRow(null);
               }}
-              aria-labelledby='modify set'
+              aria-labelledby='modify list'
             >
               <Box sx={modalStyle} width='600px'>
                 <RedisEditList
@@ -1141,7 +1141,7 @@ function RedisListTable(props: {
         onClose={() => {
           setSelectRow(null);
         }}
-        aria-labelledby='modify set'
+        aria-labelledby='modify list'
       >
         <Box sx={modalStyle} width='600px'>
           <RedisListAdd
@@ -1347,7 +1347,7 @@ function RedisZsetTable(props: {
               onClose={() => {
                 setSelectRow(null);
               }}
-              aria-labelledby='modify set'
+              aria-labelledby='modify zset'
             >
               <Box sx={modalStyle} width='600px'>
                 <RedisEditZset
@@ -1379,7 +1379,7 @@ function RedisZsetTable(props: {
         onClose={() => {
           setSelectRow(null);
         }}
-        aria-labelledby='modify set'
+        aria-labelledby='modify zset'
       >
         <Box sx={modalStyle} width='600px'>
           <RedisAddZset
@@ -1545,7 +1545,7 @@ function RedisHashTable(props: {
               onClose={() => {
                 setSelctRow(null);
               }}
-              aria-labelledby='modify set'
+              aria-labelledby='modify hash'
             >
               <Box sx={modalStyle} width='600px'>
                 <RedisEditHash
@@ -1576,7 +1576,7 @@ function RedisHashTable(props: {
         onClose={() => {
           setSelctRow(null);
         }}
-        aria-labelledby='modify set'
+        aria-labelledby='modify hash'
       >
         <Box sx={modalStyle} width='600px'>
           <RedisAddHash

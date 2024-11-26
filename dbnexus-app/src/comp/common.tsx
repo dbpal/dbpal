@@ -12,6 +12,7 @@ import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import { BSON } from 'bson';
+import { CSSProperties } from 'react';
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -211,10 +212,14 @@ function isTypeLargeText(s: string): boolean {
   return false;
 }
 
-function EditorBar(props: { left: any; pos: EditorPositon }) {
-  let { left, pos } = props;
+function EditorBar(props: {
+  left?: any;
+  pos: EditorPositon;
+  style: CSSProperties | undefined;
+}) {
+  let { left, pos, style } = props;
   return (
-    <Stack justifyContent='space-between' direction='row'>
+    <Stack justifyContent='space-between' direction='row' style={style}>
       <div style={{ width: '40%' }}> {left}</div>
       <Stack width='40%' direction='row' spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>

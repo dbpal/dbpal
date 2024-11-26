@@ -214,7 +214,7 @@ function SqlTableView(props: {
                 onClose={() => {
                   setShowAdd(false);
                 }}
-                aria-labelledby='set filter'
+                aria-labelledby='add data'
               >
                 <Box sx={modalStyle} width='600px'>
                   <SqlTableViewAdd

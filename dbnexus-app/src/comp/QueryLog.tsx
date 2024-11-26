@@ -41,19 +41,22 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
   ];
 
   logs.forEach((e) => {
-    // @ts-ignore
-    e.id = uuidv4();
+    if (!('id' in e)) {
+      // @ts-ignore
+      e.id = uuidv4();
+    }
   });
 
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPagesize] = useState(defaultPageSize);
   return (
-    <Stack style={{ overflow: 'scorll' }}>
+    <Stack>
       <DataGrid
         onRowDoubleClick={(e) => {
           setSelectSql(e.row.sql);
         }}
+        getRowId={(e) => e['time']}
         columns={columns}
         rows={logs}
         rowHeight={datagridRowHeight}
@@ -64,6 +67,9 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
           setPage(e.page);
           setPagesize(e.pageSize);
         }}
+        initialState={{
+          sorting: { sortModel: [{ field: 'time', sort: 'desc' }] },
+        }}
       ></DataGrid>
 
       {selectSql && (
@@ -72,7 +78,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
           onClose={() => {
             setSelectSql('');
           }}
-          aria-labelledby='set filter'
+          aria-labelledby='sql'
         >
           <Stack sx={modalStyle} width='600px'>
             <Box>

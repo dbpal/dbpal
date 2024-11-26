@@ -10,6 +10,7 @@ import {
   Stack,
   Tooltip,
 } from '@mui/material';
+
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
@@ -144,6 +145,7 @@ function SqlQuery(props: {
             onClick={() => {
               setShowQueryLog((prev) => !prev);
             }}
+            color={showQueryLog ? 'error' : 'info'}
           >
             {showQueryLog ? <CloseIcon></CloseIcon> : ''} query log
           </Button>
@@ -162,8 +164,7 @@ function SqlQuery(props: {
             value=''
           ></Editor>
         </div>
-        <EditorBar left={<></>} pos={pos}></EditorBar>
-        {/* <div style={{ backgroundColor: 'gray', height: '100%' }}> 1111 </div> */}
+        <EditorBar style={{ paddingBottom: '10px' }} pos={pos}></EditorBar>
       </div>
 
       <div>

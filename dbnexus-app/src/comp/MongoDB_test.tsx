@@ -24,10 +24,6 @@ let x = parseMongoBson(`
 
   `);
 
-// console.log(x);
-// console.log(/haha/i);
-// console.log(eval('/haha/i'));
-
 let doc = testBsonDoc();
 
 root.render(
