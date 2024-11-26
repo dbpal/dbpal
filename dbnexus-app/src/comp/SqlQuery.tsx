@@ -15,7 +15,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import { useContext, useEffect, useState } from 'react';
-import { editor } from 'monaco-editor';
+import { editor, Position } from 'monaco-editor';
 import { EditorBar } from './common.tsx';
 import { NotificationContext } from './Notification.tsx';
 import types from './ApiStruct.ts';
@@ -25,8 +25,9 @@ function SqlQuery(props: {
   language: string;
   queryOP: (text: string) => Promise<any[]>;
   loadQueryLog: () => Promise<types.QueryLogEvent[]>;
+  handelTextAndPositionChange: (text: string, pos: Position) => void;
 }) {
-  let { language, queryOP, loadQueryLog } = props;
+  let { language, queryOP, loadQueryLog, handelTextAndPositionChange } = props;
   const [resp, setResp] = useState([]);
   const [text, setText] = useState('');
   const [selectText, setSelectText] = useState('');
@@ -35,19 +36,24 @@ function SqlQuery(props: {
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [queryLogs, setQueryLogs] = useState([]);
+
   const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
     editor.onDidChangeModelContent((_event) => {
-      setText(editor.getValue());
+      let text = editor.getValue();
+      setText(text);
+      handelTextAndPositionChange(text, editor.getPosition());
     });
+
     editor.onDidChangeCursorPosition((_event) => {
-      setPos(editor.getPosition());
+      let pos = editor.getPosition();
+      setPos(pos);
+      handelTextAndPositionChange(editor.getValue(), pos);
     });
     editor.onDidChangeCursorSelection((_event) => {
       const selection = editor.getSelection();
       setSelectText(editor.getModel().getValueInRange(selection));
     });
   };
-
   const handleLoadQueryLog = () => {
     loadQueryLog()
       .then((logs) => {
