@@ -41,13 +41,13 @@ root.render(
   >
     <React.StrictMode>
       {/* <MongoTableAdd addOP={voidTestFunction}></MongoTableAdd> */}
-      {/* <MongoBsonEditor
+      <MongoBsonEditor
         doc={doc}
         handleChange={() => {}}
         buttons={[]}
-      ></MongoBsonEditor> */}
+      ></MongoBsonEditor>
 
-      <MongoTable
+      {/* <MongoTable
         viewModel={MongoDataViewModel.Object}
         reloadOPTableList={async (...args) => {
           try {
@@ -65,7 +65,7 @@ root.render(
           return testBsonDoc();
         }}
         deleteOP={voidTestFunction}
-      ></MongoTable>
+      ></MongoTable> */}
     </React.StrictMode>
   </NotificationContext.Provider>
 );

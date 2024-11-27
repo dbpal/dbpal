@@ -57,7 +57,7 @@ class MongoBsonAs {
   constructor(
     public value: MongoBsonValue,
     public kind: Token,
-    public extra: MongoBsonBinaryAllSubType
+    public extra?: MongoBsonBinaryAllSubType
   ) {}
   compile(): any {
     switch (this.kind.value.toLocaleLowerCase()) {
@@ -186,29 +186,30 @@ class MongoBsonAs {
 }
 
 enum MongoBsonValueKind {
-  Number,
-  String,
-  As,
-  Array,
-  Object,
-  RegExp,
-  Null,
-  Undefined,
-  Int32,
-  Long,
-  Code,
-  Timestamp,
-  Date,
-  ObjectID,
-  Binary,
-  Decimal,
-  Boolean,
-  Float32Array,
-  Int8Array,
+  Number = 'number',
+  String = 'string',
+  As = 'as',
+  Array = 'array',
+  Object = 'object',
+  RegExp = 'regexp',
+  Null = 'null',
+  Undefined = 'undefined',
+  Int32 = 'int32',
+  Long = 'long',
+  Code = 'code',
+  Timestamp = 'timestamp',
+  Date = 'date',
+  ObjectID = 'objectid',
+  Binary = 'binary',
+  Decimal = 'decimal',
+  Boolean = 'boolean',
+  Float32Array = 'float32_array',
+  Int8Array = 'int8_array',
 }
 
 class MongoBsonBinaryAllSubType {
   constructor(public kind: Token, public extra?: Token[]) {}
+
   static Generic = 'generic';
   static Function = 'function';
   static ByteArray = 'byte_array';
@@ -463,11 +464,12 @@ class MongoBsonValue {
         return `${this.asToken().value}`;
       case MongoBsonValueKind.Boolean:
         return this.asToken().value;
-        return this.asToken().value;
       case MongoBsonValueKind.RegExp:
         return `${this.asToken().value}`; // this is regexp
       case MongoBsonValueKind.String:
-        return this.asToken().value;
+        let x = this.asToken().value;
+
+        return x;
       case MongoBsonValueKind.Decimal:
         return `'${this.asToken().value}' as decimal`;
 
@@ -475,11 +477,13 @@ class MongoBsonValue {
         let as = this.value as MongoBsonAs;
         ret = as.value.format(ident, false, tabSize);
         ret += ` as ${as.kind.value}`;
-        ret += ` ${as.extra.kind.value}`;
-        if (as.extra.extra) {
-          as.extra.extra.forEach((e) => {
-            ret += ` ${e.value}`;
-          });
+        if (as.extra) {
+          ret += ` ${as.extra.kind.value}`;
+          if (as.extra.extra) {
+            as.extra.extra.forEach((e) => {
+              ret += ` ${e.value}`;
+            });
+          }
         }
         return ret;
       case MongoBsonValueKind.Array:
@@ -507,17 +511,22 @@ class MongoBsonValue {
           if (index != valueObj.eles.length - 1) {
             ret += ',';
           }
+
           if (newLine) {
             ret += '\n';
           } else {
             ret += ' ';
           }
         });
+
         ret += '}';
         if (newLine) {
           ret += '\n';
         }
+
         return ret;
+      default:
+        throw new MongoBsonError(`unhandled type '${this.kind}' of format`);
     }
   }
 
@@ -570,15 +579,8 @@ function parseMongoBson(input: string): MongoBsonObject {
   return x;
 }
 
-function formatMongoBsonStr(
-  input: string,
-  tabSize: number
-): string | MongoBsonError {
-  let x = parseMongoBson(input);
-  if (x instanceof MongoBsonError) {
-    return x;
-  }
-  let ast = x as MongoBsonObject;
+function formatMongoBsonStr(input: string, tabSize: number): string {
+  let ast = parseMongoBson(input);
   let s = new MongoBsonValue(MongoBsonValueKind.Object, ast).format(
     1,
     true,
@@ -755,7 +757,7 @@ class Parser {
       this.next();
       let tokenNumber = this.peek();
       if (tokenNumber.type == 'Numeric') {
-        tokenNumber.value = '-' + token.value;
+        tokenNumber.value = '-' + tokenNumber.value;
         tokenNumber.loc.start = startLoc;
         this.next();
         return new MongoBsonValue(MongoBsonValueKind.Number, tokenNumber);
@@ -794,7 +796,6 @@ class Parser {
   except(value: string): Token {
     let token = this.peek();
     if (token.value != value) {
-      console.log('!!!!!!!!!!!!!!!', token);
       throw new MongoBsonError(
         `expect '${value}' , but '${token.value}'`,
         token.loc

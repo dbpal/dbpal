@@ -98,8 +98,8 @@ function testRedisSet(length: number = 10): types.MuiDataTableListResp {
 function testBsonDoc(): BSON.Document {
   const bsonDocument = {
     _id: new BSON.ObjectId(),
-    string: 'Hello, World!',
-    int32: new BSON.Int32(Math.random() * 100),
+    string: generateRandomString(10),
+    int32: new BSON.Int32(Math.random() * -100),
     long: new BSON.Long(100),
     float: Math.random() * 100,
     boolean: Math.random() > 0.5,

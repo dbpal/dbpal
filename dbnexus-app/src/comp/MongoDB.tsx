@@ -153,14 +153,16 @@ function initMongoBsonLanguage() {
     monaco.languages.registerDocumentFormattingEditProvider('mongoBson', {
       provideDocumentFormattingEdits(model, options, _token) {
         let text = model.getValue();
-        let result = formatMongoBsonStr(text, options.tabSize);
-        if (typeof result === 'string') {
+        try {
+          const result = formatMongoBsonStr(text, options.tabSize);
           return [{ range: model.getFullModelRange(), text: result }];
-        } else {
-          let e = result as MongoBsonError;
-          let msg = `${e.loc.start.line}:${e.loc.start.column}  ${e.msg}`;
-          alert(msg);
-          throw result;
+        } catch (e) {
+          console.log(e);
+          if (e instanceof MongoBsonError) {
+            alert(e.msgWithLoc);
+          } else {
+            alert(e.toString());
+          }
         }
       },
     });
