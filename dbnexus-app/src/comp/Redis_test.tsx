@@ -13,10 +13,10 @@ import {
 } from './Redis.tsx';
 import { voidTestFunction } from './helper';
 import {
-  testExampleRedisHash,
-  testExampleRedisList,
-  testExampleRedisSet,
-  testExampleRedisZset,
+  testRedisHash,
+  testRedisList,
+  testRedisSet,
+  testRedisZset,
 } from './exampleTest.ts';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -60,7 +60,7 @@ root.render(
           } catch (e) {
             throw e;
           }
-          return testExampleRedisList(pageSize);
+          return testRedisList(pageSize);
         }}
         modifyOP={voidTestFunction}
         lpushOP={voidTestFunction}
@@ -75,7 +75,7 @@ root.render(
           } catch (e) {
             throw e;
           }
-          return testExampleRedisSet(10);
+          return testRedisSet(10);
         }}
         modifyOP={voidTestFunction}
         addOP={voidTestFunction}
@@ -84,7 +84,7 @@ root.render(
 
       <RedisHashTable
         reloadOP={async (_keyMatch) => {
-          return testExampleRedisHash();
+          return testRedisHash();
         }}
         addOP={voidTestFunction}
         modifyOP={voidTestFunction}
@@ -93,7 +93,7 @@ root.render(
 
       <RedisZsetTable
         reloadOP={async (_keyMatch, _min, _max) => {
-          return testExampleRedisZset();
+          return testRedisZset();
         }}
         addOP={voidTestFunction}
         modifyOP={voidTestFunction}

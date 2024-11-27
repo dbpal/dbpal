@@ -25,13 +25,14 @@ function SqlQuery(props: {
   language: string;
   queryOP: (text: string) => Promise<any[]>;
   loadQueryLog: () => Promise<types.QueryLogEvent[]>;
-  handelTextAndPositionChange: (text: string, pos: Position) => void;
+  handelTextAndPositionChange?: (text: string, pos: Position) => void;
 }) {
   let { language, queryOP, loadQueryLog, handelTextAndPositionChange } = props;
+
   const [resp, setResp] = useState([]);
   const [text, setText] = useState('');
   const [selectText, setSelectText] = useState('');
-  const [pos, setPos] = useState<any>();
+  const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
@@ -41,19 +42,23 @@ function SqlQuery(props: {
     editor.onDidChangeModelContent((_event) => {
       let text = editor.getValue();
       setText(text);
-      handelTextAndPositionChange(text, editor.getPosition());
+      if (handelTextAndPositionChange) {
+        handelTextAndPositionChange(text, editor.getPosition());
+      }
     });
-
     editor.onDidChangeCursorPosition((_event) => {
-      let pos = editor.getPosition();
-      setPos(pos);
-      handelTextAndPositionChange(editor.getValue(), pos);
+      let p = editor.getPosition();
+      setPos(p);
+      if (handelTextAndPositionChange) {
+        handelTextAndPositionChange(editor.getValue(), p);
+      }
     });
     editor.onDidChangeCursorSelection((_event) => {
       const selection = editor.getSelection();
       setSelectText(editor.getModel().getValueInRange(selection));
     });
   };
+
   const handleLoadQueryLog = () => {
     loadQueryLog()
       .then((logs) => {
@@ -91,6 +96,7 @@ function SqlQuery(props: {
   };
 
   return (
+    //@ts-ignore
     <SplitPane
       split='horizontal'
       defaultSize={500}
@@ -114,7 +120,7 @@ function SqlQuery(props: {
               right: 0,
               top: 0,
               display: showQueryLog ? 'block' : 'none',
-              zIndex: 14,
+              zIndex: 13,
               width: 700,
             }}
           >

@@ -7,12 +7,13 @@ import {
   Stack,
 } from '@mui/material';
 
-import { languages, Position as EditorPositon } from 'monaco-editor';
+import { languages, Position as EditorPositon, editor } from 'monaco-editor';
 import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import { BSON } from 'bson';
 import { CSSProperties } from 'react';
+import { Editor, OnMount } from '@monaco-editor/react';
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -31,9 +32,9 @@ const modalStyle = {
 function MetaValues(props: { values: types.MetaValue[] }) {
   let { values } = props;
   let columns = [
-    { field: 'name' } as types.Field,
-    { field: 'value' } as types.Field,
-    { field: 'desc' } as types.Field,
+    { field: 'name' },
+    { field: 'value' },
+    { field: 'desc', flex: 1 },
   ];
   values.forEach((e) => {
     //@ts-ignore
@@ -229,10 +230,62 @@ function EditorBar(props: {
   );
 }
 
+function countLines(str) {
+  if (!str) return 0; // 如果字符串为空，返回 0
+  return str.split('\n').length; // 按换行符分割并计算长度
+}
+
+function editorInitHeight(str): number {
+  let lines = countLines(str);
+  if (!lines) {
+    lines = 10;
+  }
+  return lines * 22;
+}
+
+function SimpleResizeAbleEditor(props: {
+  language: string;
+  value: string;
+  onMount?: OnMount;
+  options?: editor.IStandaloneEditorConstructionOptions;
+}) {
+  let { language, value, onMount, options } = props;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        resize: 'vertical',
+        overflow: 'auto',
+      }}
+    >
+      <div
+        style={{
+          flexGrow: 1,
+          flexShrink: 1,
+          minHeight: 0,
+          height: editorInitHeight(value) + 'px',
+        }}
+      >
+        <Editor
+          options={options}
+          onMount={onMount}
+          language={language}
+          value={value}
+        ></Editor>
+      </div>
+    </div>
+  );
+}
+
 const datagridRowHeight = 25;
 const datagridHeaderHeight = 36;
 const defaultPageSize = 10;
 
+interface DefAndMetas {
+  def: string;
+  metas: types.MetaValue[];
+}
 export {
   modalStyle,
   SelectPageSize,
@@ -252,4 +305,9 @@ export {
   datagridRowHeight,
   datagridHeaderHeight,
   defaultPageSize,
+  countLines,
+  SimpleResizeAbleEditor,
+  editorInitHeight,
 };
+
+export type { DefAndMetas };

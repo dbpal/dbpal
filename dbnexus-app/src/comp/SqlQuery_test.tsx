@@ -5,8 +5,8 @@ import { NotificationContext } from './Notification';
 
 import { SqlQuery } from './SqlQuery.tsx';
 import {
-  testExampleMultiQueryResp,
-  testExampleQueryRespTableList,
+  testMultiQueryResp,
+  testQueryRespTableList,
   testQueryLogs,
 } from './exampleTest.ts';
 import { voidTestFunction } from './helper.ts';
@@ -28,7 +28,7 @@ root.render(
       <SqlQuery
         language='sql'
         queryOP={async (_text) => {
-          return testExampleMultiQueryResp(3);
+          return testMultiQueryResp(3);
         }}
         loadQueryLog={async () => {
           return testQueryLogs(220);

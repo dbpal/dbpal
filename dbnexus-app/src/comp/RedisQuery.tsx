@@ -1,26 +1,12 @@
-import { useState, useRef, useEffect, useContext } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
-import Editor, { loader } from '@monaco-editor/react';
 import { Position, editor, languages } from 'monaco-editor';
 import { CancellationToken } from 'monaco-editor';
-import {
-  Button,
-  CircularProgress,
-  IconButton,
-  Stack,
-  Tooltip,
-} from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PlayCircleIcon from '@mui/icons-material/PlayCircle';
-import { NotificationContext } from './Notification';
-import { MultiQueryResp } from './QueryResp';
-import { EditorBar } from './common';
-import { QueryLog } from './QueryLog';
 import types from './ApiStruct';
 import { redisKeywords } from './keywords.ts';
-import CloseIcon from '@mui/icons-material/Close';
 import { SqlQuery } from './SqlQuery.tsx';
+import { loader } from '@monaco-editor/react';
 
 function initRedisLanguage(
   autoCompletion: (
@@ -121,56 +107,54 @@ function RedisQuery(props: {
   };
 
   return (
-    <>
-      {/* // @ts-ignore */}
-      <SplitPane
-        split='vertical'
-        minSize={50}
-        defaultSize={1000}
-        step={5}
-        onDragStarted={() => setIsDragging(true)} // 拖动开始
-        onDragFinished={(_) => setIsDragging(false)} // 拖动结束
-        style={{ position: 'relative' }}
-      >
-        <SqlQuery
-          handelTextAndPositionChange={(text, pos) => {
-            if (!pos) {
-              return;
-            }
-            if (!text) {
-              return;
-            }
-            tryUpdateCommand(text, pos);
-          }}
-          language='redis'
-          queryOP={queryOP}
-          loadQueryLog={loadQueryLog}
-        ></SqlQuery>
+    //@ts-ignore
+    <SplitPane
+      split='vertical'
+      minSize={50}
+      defaultSize={1000}
+      step={5}
+      onDragStarted={() => setIsDragging(true)} // 拖动开始
+      onDragFinished={(_) => setIsDragging(false)} // 拖动结束
+      style={{ position: 'relative' }}
+    >
+      <SqlQuery
+        handelTextAndPositionChange={(text, pos) => {
+          if (!pos) {
+            return;
+          }
+          if (!text) {
+            return;
+          }
+          tryUpdateCommand(text, pos);
+        }}
+        language='redis'
+        queryOP={queryOP}
+        loadQueryLog={loadQueryLog}
+      ></SqlQuery>
 
-        <div
+      <div
+        style={{
+          height: '100vh',
+          position: 'relative',
+        }}
+      >
+        <iframe
+          ref={iframeRef} // 绑定 iframe 引用
+          src={getURL(command)}
           style={{
-            height: '100vh',
-            position: 'relative',
+            width: '100%',
+            height: '100%',
+            border: 'none', // 去掉边框
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            padding: 0,
+            margin: 0,
           }}
-        >
-          <iframe
-            ref={iframeRef} // 绑定 iframe 引用
-            src={getURL(command)}
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none', // 去掉边框
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              padding: 0,
-              margin: 0,
-            }}
-            title='Full Size Iframe'
-          />
-        </div>
-      </SplitPane>
-    </>
+          title='Full Size Iframe'
+        />
+      </div>
+    </SplitPane>
   );
 }
 

@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { NotificationContext } from './Notification';
 
 import { SqlTableView } from './SqlTableView.tsx';
-import { testExampleQueryRespTableList } from './exampleTest.ts';
+import { testQueryRespTableList } from './exampleTest.ts';
 import { voidTestFunction } from './helper.ts';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
@@ -23,7 +23,7 @@ root.render(
     <React.StrictMode>
       <SqlTableView
         reloadOP={async () => {
-          return testExampleQueryRespTableList(10, 20);
+          return testQueryRespTableList(10, 20);
         }}
         //@ts-ignore
         updateOP={async () => {

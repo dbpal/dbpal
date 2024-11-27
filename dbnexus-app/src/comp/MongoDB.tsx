@@ -38,6 +38,7 @@ import {
   datagridRowHeight,
   datagridHeaderHeight,
   defaultPageSize,
+  editorInitHeight,
 } from './common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
@@ -189,7 +190,6 @@ interface MongoBsonEditorCallback {
 
 function MongoBsonEditor(props: {
   doc: BSON.Document;
-  // maxHeight: number;
   handleChange: (doc: BSON.Document) => void;
   buttons: MongoBsonEditorCallback[];
 }) {
@@ -220,29 +220,33 @@ function MongoBsonEditor(props: {
       setCursorLine(event.position.lineNumber);
       setCursorColumn(event.position.column);
     });
-
-    // TODO怎么实现适应性高度呢
-    // ce.onDidChangeModelContent(() => {
-    //   const lineCount = ce.getModel().getLineCount();
-    //   const lineHeight = ce.getOption(editor.EditorOption.lineHeight);
-    //   const padding = 20;
-    //   let newHeight = lineCount * lineHeight + padding;
-    //   if (newHeight > maxHeight) {
-    //     newHeight = maxHeight;
-    //   }
-    //   setHeigth(`${newHeight}px`);
-    // });
   };
-
+  const initHeigth = editorInitHeight(content);
   return (
-    <Stack spacing={1}>
-      <Box style={{ height: '200px' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        resize: 'vertical',
+        overflow: 'auto',
+        height: initHeigth + 'px',
+      }}
+    >
+      <div
+        style={{
+          height: '20px',
+          flexGrow: 1,
+          flexShrink: 1,
+          border: '1px gray black',
+        }}
+      >
         <Editor
           onMount={handleEditorDidMount}
           language='mongoBson'
           value={content}
+          height='100%'
         ></Editor>
-      </Box>
+      </div>
 
       <Stack direction='row' justifyContent='space-between'>
         <Stack direction='row' alignContent='flex-start' spacing={1}>
@@ -278,7 +282,7 @@ function MongoBsonEditor(props: {
           <span> Col {cursorColumn} </span>
         </Stack>
       </Stack>
-    </Stack>
+    </div>
   );
 }
 
@@ -545,7 +549,7 @@ function MongoTable(props: {
     }
   };
 
-  const handleDetelet = (ids: string[]) => {
+  const handleDetele = (ids: string[]) => {
     secondConfirm({
       title: 'Delete data',
       content: `are u sure delte those ${ids.join(',')} data`,
@@ -607,7 +611,7 @@ function MongoTable(props: {
               color='error'
               disabled={selectIDs.length == 0}
               onClick={() => {
-                handleDetelet(selectIDs);
+                handleDetele(selectIDs);
               }}
             >
               <DeleteForeverIcon></DeleteForeverIcon>
@@ -715,7 +719,7 @@ function MongoTable(props: {
                     color: 'error',
                     variant: 'outlined',
                     callBack: (_) => {
-                      handleDetelet([(doc._id as ObjectId).toHexString()]);
+                      handleDetele([(doc._id as ObjectId).toHexString()]);
                     },
                   },
                 ]}

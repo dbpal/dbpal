@@ -2,13 +2,13 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-import { MongoTable, MongoTableAdd } from './MongoDB.tsx';
+import { MongoBsonEditor, MongoTable, MongoTableAdd } from './MongoDB.tsx';
 import { parseMongoBson } from './MongoBsonCompiler.ts';
 import {
   testBsonDoc,
   testBsonDocTableList,
   testDocsAndCount,
-  testExampleMongoTableList,
+  testMongoTableList,
 } from './exampleTest.ts';
 import { BSON, MaxKey } from 'bson';
 import { voidTestFunction } from './helper.ts';
@@ -42,7 +42,7 @@ root.render(
     <React.StrictMode>
       {/* <MongoTableAdd addOP={voidTestFunction}></MongoTableAdd> */}
       {/* <MongoBsonEditor
-        docPrev={doc}
+        doc={doc}
         handleChange={() => {}}
         buttons={[]}
       ></MongoBsonEditor> */}
@@ -55,7 +55,7 @@ root.render(
           } catch (e) {
             throw e;
           }
-          return testExampleMongoTableList();
+          return testMongoTableList();
         }}
         realodOPDocs={async (...args) => {
           return testDocsAndCount();

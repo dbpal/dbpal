@@ -3,7 +3,7 @@ import { stringToHexArray, arrayToHex, DocsAndCount } from './common.tsx';
 import { generateRandomString, generateRandomUint8Array } from './helper.ts';
 import { BSON } from 'bson';
 
-function testExampleRedisZset(
+function testRedisZset(
   length: number = 10,
   range: number = 100
 ): types.MuiDataTableListResp {
@@ -38,7 +38,7 @@ function testRedisKeyOrValue(): string {
   }
 }
 
-function testExampleRedisHash(length: number = 10): types.MuiDataTableListResp {
+function testRedisHash(length: number = 10): types.MuiDataTableListResp {
   var data = [];
   for (var i = 0; i < length; i++) {
     data.push({
@@ -62,7 +62,7 @@ function testExampleRedisHash(length: number = 10): types.MuiDataTableListResp {
   };
 }
 
-function testExampleRedisList(length: number = 10): types.MuiDataTableListResp {
+function testRedisList(length: number = 10): types.MuiDataTableListResp {
   var data = [];
   for (var i = 0; i < length; i++) {
     data.push({ value: testRedisKeyOrValue(), seq: i.toString() });
@@ -80,7 +80,7 @@ function testExampleRedisList(length: number = 10): types.MuiDataTableListResp {
   };
 }
 
-function testExampleRedisSet(length: number = 10): types.MuiDataTableListResp {
+function testRedisSet(length: number = 10): types.MuiDataTableListResp {
   var data = [];
   for (var i = 0; i < length; i++) {
     data.push({ value: testRedisKeyOrValue() });
@@ -146,9 +146,7 @@ function testBsonDocTableList(): BSON.Document {
   return bsonDocument;
 }
 
-function testExampleMongoTableList(
-  length: number = 10
-): types.MuiDataTableListResp {
+function testMongoTableList(length: number = 10): types.MuiDataTableListResp {
   let fields = [
     { field: '_id' } as types.Field,
     { field: 'string' } as types.Field,
@@ -187,7 +185,7 @@ function testDocsAndCount(length: number = 10): DocsAndCount {
   return new DocsAndCount(docs, Math.ceil(Math.random() * 10 * 10 + length));
 }
 
-function testExampleQueryResp(
+function testQueryResp(
   fieldLength = 5,
   length: number = 10
 ): types.MuiDataGridData {
@@ -211,12 +209,12 @@ function testExampleQueryResp(
   };
 }
 
-function testExampleQueryRespTableList(
+function testQueryRespTableList(
   fieldLength = 5,
   length: number = 10
 ): types.MuiDataTableListResp {
   return {
-    data: testExampleQueryResp(fieldLength, length),
+    data: testQueryResp(fieldLength, length),
     total: Math.ceil(Math.random() * 1000),
     sql: 'select * from ' + generateRandomString(4),
   };
@@ -265,13 +263,13 @@ function testExampleField(): types.Field {
   }
 ]
 */
-function testExampleMultiQueryResp(maxResult: number = 3) {
+function testMultiQueryResp(maxResult: number = 3) {
   let ret = [];
   for (let i = 0; i < Math.ceil(Math.random() * maxResult); i++) {
     if (Math.random() > 0.66) {
       ret.push({ Err: `This is random error.` });
     } else {
-      ret.push({ Ok: testExampleQueryResp() });
+      ret.push({ Ok: testQueryResp() });
     }
   }
   return ret;
@@ -281,6 +279,7 @@ function testMetaValues(): types.MetaValue[] {
   return [
     { name: 'version', value: '10.0.0', desc: 'the version of the server.' },
     { name: 'haha', value: 'heihei', desc: '' },
+    { name: 'extra', value: generateRandomString(10), desc: '' },
   ];
 }
 function testQueryLogs(length: number = 20): types.QueryLogEvent[] {
@@ -303,18 +302,94 @@ function testQueryLogs(length: number = 20): types.QueryLogEvent[] {
   return ret;
 }
 
+function testTriggerDetail(): types.TriggerDetail {
+  function testEvent(): types.TriggerEvent {
+    const a = ['Insert', 'Update', 'Delete'];
+    let index = Math.ceil(Math.random() * a.length);
+    //@ts-ignore
+    return a[index];
+  }
+  function testTiming(): types.TriggerTiming {
+    const a = ['Before', 'After', 'InsteadOf'];
+    let index = Math.ceil(Math.random() * a.length);
+    //@ts-ignore
+    return a[index];
+  }
+  return {
+    event: testEvent(),
+    timing: testTiming(),
+    enable: { kind: 'postgres', enable: 'o' },
+    sql: `DELIMITER //
+
+CREATE TRIGGER after_employee_insert
+AFTER INSERT ON employees
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (action, employee_id)
+    VALUES ('INSERT', NEW.id);
+END;
+
+//
+
+DELIMITER ;`,
+    metas: testMetaValues(),
+  };
+}
+
+function testProcedure(): types.ProcedureDetail {
+  return {
+    def: `DELIMITER //
+
+CREATE PROCEDURE GetUserDetails (
+    IN userId INT
+)
+BEGIN
+    SELECT 
+        id, 
+        username, 
+        email, 
+        created_at 
+    FROM 
+        users 
+    WHERE 
+        id = userId;
+END //
+
+DELIMITER ;`,
+    metas: testMetaValues(),
+  };
+}
+
+function testUDF(): types.UdfDetail {
+  return {
+    def: `CREATE FUNCTION AddNumbers (
+    a INT,
+    b INT
+)
+RETURNS INT
+BEGIN
+    DECLARE result INT;
+    SET result = a + b;
+    RETURN result;
+END;`,
+    metas: testMetaValues(),
+  };
+}
 export {
-  testExampleRedisZset,
-  testExampleRedisSet,
-  testExampleRedisHash,
-  testExampleQueryResp,
-  testExampleRedisList,
-  testExampleMultiQueryResp,
+  testRedisZset,
+  testRedisSet,
+  testRedisHash,
+  testQueryResp,
+  testRedisList,
+  testMultiQueryResp,
   testMetaValues,
   testBsonDoc,
   testBsonDocTableList,
-  testExampleMongoTableList,
+  testMongoTableList,
   testDocsAndCount,
   testQueryLogs,
-  testExampleQueryRespTableList,
+  testQueryRespTableList,
+  testTriggerDetail,
+  testUDF,
+  testProcedure,
 };
