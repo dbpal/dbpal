@@ -1,12 +1,16 @@
 use std::borrow::Cow;
+
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use sqlparser::tokenizer::Token;
+use sqlparser::ast::{CommentObject, ObjectName, ObjectType, ShowCreateObject};
+use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
 use crate::db::monaco_editor_keyword_regexp;
+use crate::sqlparser_completion::CompletionStament;
 
 #[async_trait::async_trait]
 pub trait AutoCompletionTrait {
@@ -27,12 +31,22 @@ pub enum CompletionKind {
     Command,
     KeyWord,
     Function,
-    Dbname,
-    SchemaName,
-    TableName,
+    Database,
+    Schema,
+    Table,
+    View,
     Column,
     Text,
     Type,
+    Index,
+    Sequence,
+    Stage,
+    Trigger,
+    Event,
+    Procedure,
+    Extension,
+    User,
+    Role,
 }
 
 pub fn in_pos(
@@ -71,7 +85,7 @@ pub trait LexerCompletionTrait {
                     continue;
                 }
             }
-            if in_pos(pos, t.location, pattern.len() as u64) {
+            if in_pos(pos, t.span.start, pattern.len() as u64) {
                 // matched
                 return anyhow::Ok(match_pattern_and_sort(all_item, pattern.as_str()));
             }
@@ -161,6 +175,47 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
     // desc order
     matched.sort_by(|a, b| b.score.cmp(&a.score));
     matched.into_iter().map(|x| x.item).collect()
+}
+
+#[async_trait::async_trait]
+pub trait CompletionOnSynTaxHelper: Send + Sync + 'static {
+    async fn list_table_names(
+        &self, db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>>;
+    async fn list_schema_names(&self, db: Option<&str>) -> anyhow::Result<Vec<String>>;
+    async fn list_db_names(&self) -> anyhow::Result<Vec<String>>;
+    async fn list_column(&self, table: &ObjectName) -> anyhow::Result<Vec<String>>;
+    async fn list_function(
+        &self, catelog: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>>;
+    async fn list_drop_by_type(&self, typ: ObjectType) -> anyhow::Result<Vec<String>>;
+    async fn mysql_list_show_create(
+        &self, obj_type: ShowCreateObject, name: &ObjectName,
+    ) -> anyhow::Result<Vec<String>>;
+    async fn postgres_list_comment_object(
+        &self, c: CommentObject, name: &ObjectName,
+    ) -> anyhow::Result<Vec<String>>;
+}
+
+pub(crate) async fn try_completion_on_syntax(
+    sql: &str, line: u32, col: u32, dialet: &dyn sqlparser::dialect::Dialect,
+    helper: Arc<dyn CompletionOnSynTaxHelper>,
+) -> anyhow::Result<Vec<CompletionItem>> {
+    let loc = Location {
+        line: line as u64,
+        column: col as u64,
+    };
+    let parser = sqlparser::parser::Parser::new(dialet);
+    let mut parser = parser.try_with_sql(sql)?;
+    let statements = parser.parse_statements()?;
+    for statement in statements {
+        let c = CompletionStament::new(statement, loc, helper.clone());
+        c.do_auto_completion().await?;
+        if c.oked() {
+            return anyhow::Ok(c.result.take());
+        }
+    }
+    anyhow::bail!("can't find competion ")
 }
 
 #[cfg(test)]
@@ -269,4 +324,5 @@ select xxxx
             }
         }
     }
+    //
 }

@@ -755,14 +755,15 @@ pub mod app_grpc_def {
         fn from(value: completion::CompletionKind) -> Self {
             match value {
                 completion::CompletionKind::Column => Self::Column,
-                completion::CompletionKind::Dbname => Self::Dbname,
-                completion::CompletionKind::SchemaName => Self::SchemaName,
+                completion::CompletionKind::Database => Self::Dbname,
+                completion::CompletionKind::Schema => Self::SchemaName,
                 completion::CompletionKind::KeyWord => Self::Keyword,
                 completion::CompletionKind::Text => Self::Text,
-                completion::CompletionKind::TableName => Self::Tablename,
+                completion::CompletionKind::Table => Self::Tablename,
                 completion::CompletionKind::Type => Self::Type,
                 completion::CompletionKind::Function => Self::Function,
                 completion::CompletionKind::Command => Self::Command,
+                _ => unreachable!(),
             }
         }
     }

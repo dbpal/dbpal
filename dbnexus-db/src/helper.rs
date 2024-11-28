@@ -156,12 +156,12 @@ pub fn sql_to_sql_seq(
             let start = parser.peek_token();
             let stmt = parser.parse_statement()?;
             let kind = statement_kind(&stmt)?;
-            let sql = get_sql(&lines, sql, start.location, {
+            let sql = get_sql(&lines, sql, start.span.start, {
                 let t = parser.peek_token();
                 if t.token == Token::EOF {
                     None
                 } else {
-                    Some(t.location)
+                    Some(t.span.start)
                 }
             });
             ret.push(SqlSeq::new(sql, kind));
@@ -190,11 +190,11 @@ pub fn sql_to_sql_seq(
                 let sql = get_sql(
                     &lines,
                     sql,
-                    start.location,
+                    start.span.start,
                     if t.token == Token::EOF {
                         None
                     } else {
-                        Some(t.location)
+                        Some(t.span.start)
                     },
                 );
                 let kind = statement_kind(sql.as_str())?;

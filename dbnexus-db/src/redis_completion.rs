@@ -37,7 +37,7 @@ impl RedisDB {
             if type_matched {
                 ret.push(CompletionItem {
                     item: key.into(),
-                    kind: CompletionKind::TableName,
+                    kind: CompletionKind::Table,
                 })
             }
         }
@@ -1319,7 +1319,7 @@ impl AutoCompletionTrait for RedisDB {
         };
         let command = match &tokens[0].token {
             Token::Word(word) => {
-                if in_pos(pos, tokens[0].location, word.value.len() as u64) {
+                if in_pos(pos, tokens[0].span.start, word.value.len() as u64) {
                     // we are auto completion on command.
                     let x = match_pattern_and_sort(
                         static_redis_command_completion_items(),
@@ -1348,7 +1348,7 @@ impl AutoCompletionTrait for RedisDB {
             println!("{:?}", token);
             match &token.token {
                 Token::Word(word) => {
-                    if in_pos(pos, token.location, word.value.len() as u64) {
+                    if in_pos(pos, token.span.start, word.value.len() as u64) {
                         let item = f.await;
                         return item.map(|item| match_pattern_and_sort(item, &word.value));
                     }

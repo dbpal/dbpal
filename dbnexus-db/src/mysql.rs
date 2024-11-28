@@ -30,7 +30,6 @@ use crate::MemoryLimit;
 pub struct MysqlDB {
     pool: sqlx::MySqlPool,
     config: MysqlDbConfig,
-
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
 }
 
@@ -370,6 +369,32 @@ impl MysqlDB {
         let sql = format!("SELECT * from {}", table_name);
         self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
             .await
+    }
+}
+
+impl MysqlDB {
+    pub async fn query_partition_name(
+        &self, db: &str, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let sql = format!(
+            r#"
+            SELECT 
+    PARTITION_NAME
+FROM 
+    information_schema.partitions
+WHERE 
+    table_name = '{table_name}'
+    AND table_schema = '{db}';
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
     }
 }
 

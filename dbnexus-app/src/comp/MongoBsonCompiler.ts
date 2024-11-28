@@ -468,7 +468,6 @@ class MongoBsonValue {
         return `${this.asToken().value}`; // this is regexp
       case MongoBsonValueKind.String:
         let x = this.asToken().value;
-
         return x;
       case MongoBsonValueKind.Decimal:
         return `'${this.asToken().value}' as decimal`;

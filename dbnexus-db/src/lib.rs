@@ -27,6 +27,9 @@ pub mod redis_completion;
 pub mod sql_server;
 pub mod sql_server_completion;
 pub mod sqlite;
+pub mod sqlite_completion;
+pub mod sqlparser_completing;
+pub mod sqlparser_completion;
 pub mod typedef;
 lazy_static! {
     static ref TEST_HOST: String =

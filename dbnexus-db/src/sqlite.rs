@@ -14,7 +14,7 @@ use sqlx::pool::PoolConnection;
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Row, SqliteConnection, TypeInfo};
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, CompletionKind};
+use crate::completion::{CompletionItem, CompletionKind};
 
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, ExportKind, Field, FormatSql, FormatSqlOpts,
@@ -1133,22 +1133,6 @@ impl QuerySql for SqliteDB {
 
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl AutoCompletionTrait for SqliteDB {
-    async fn auto_completion(
-        &self, _sql: &str, _line: u32, _col: u32,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        // DBLexerCompletionBackend::do_auto_completion(
-        //     self,
-        //     sql,
-        //     &sqlparser::dialect::SQLiteDialect {},
-        //     pos,
-        // )
-        // .await
-        unimplemented!()
     }
 }
 

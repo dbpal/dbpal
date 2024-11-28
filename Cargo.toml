@@ -49,7 +49,9 @@ ipnetwork = "0.20.0"
 chrono = "0.4.34"
 bit-vec = "0.6.3"
 
-sqlparser = "0.51.0"
+sqlparser = { git = "https://github.com/apache/datafusion-sqlparser-rs", rev = "5a510ac4d9715528ad5c518bf1ce0719cc813b8c", features = [
+    "serde",
+] }
 lazy_static = "1.5.0"
 line-index = "0.1.1"
 log = "0.4.22"
