@@ -9,7 +9,7 @@ use sqlparser::ast::{CommentObject, ObjectName, ObjectType, ShowCreateObject};
 use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
-use crate::db::monaco_editor_keyword_regexp;
+use crate::db::{monaco_editor_keyword_regexp, not_support_features, BackendName, Field};
 use crate::sqlparser_completion::CompletionStament;
 
 #[async_trait::async_trait]
@@ -47,6 +47,7 @@ pub enum CompletionKind {
     Extension,
     User,
     Role,
+    Constraint,
 }
 
 pub fn in_pos(
@@ -178,23 +179,51 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
 }
 
 #[async_trait::async_trait]
-pub trait CompletionOnSynTaxHelper: Send + Sync + 'static {
-    async fn list_table_names(
+pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+    async fn list_table(
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>>;
-    async fn list_schema_names(&self, db: Option<&str>) -> anyhow::Result<Vec<String>>;
-    async fn list_db_names(&self) -> anyhow::Result<Vec<String>>;
-    async fn list_column(&self, table: &ObjectName) -> anyhow::Result<Vec<String>>;
+    async fn list_column(
+        &self, db: Option<&str>, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<Field>>;
     async fn list_function(
         &self, catelog: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>>;
-    async fn list_drop_by_type(&self, typ: ObjectType) -> anyhow::Result<Vec<String>>;
+    async fn list_procedure(
+        &self, catelog: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+    async fn list_drop_by_type(
+        &self, typ: ObjectType, db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>>;
     async fn mysql_list_show_create(
-        &self, obj_type: ShowCreateObject, name: &ObjectName,
-    ) -> anyhow::Result<Vec<String>>;
+        &self, _obj_type: ShowCreateObject, _schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
     async fn postgres_list_comment_object(
-        &self, c: CommentObject, name: &ObjectName,
-    ) -> anyhow::Result<Vec<String>>;
+        &self, _c: CommentObject, _name: &ObjectName,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+    async fn list_index(&self) -> anyhow::Result<Vec<String>>;
+    async fn list_postgres_rule(
+        &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+    async fn list_constraint(
+        &self, db: Option<&str>, schema: Option<&str>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
 }
 
 pub(crate) async fn try_completion_on_syntax(
@@ -210,8 +239,8 @@ pub(crate) async fn try_completion_on_syntax(
     let statements = parser.parse_statements()?;
     for statement in statements {
         let c = CompletionStament::new(statement, loc, helper.clone());
-        c.do_auto_completion().await?;
-        if c.oked() {
+        c.do_auto_completion().await;
+        if c.finished() {
             return anyhow::Ok(c.result.take());
         }
     }
