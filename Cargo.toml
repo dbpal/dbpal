@@ -6,7 +6,7 @@ repository = "https://github.com/dbnexus/dbnexus"
 license = "Unlicense"
 
 [workspace]
-members = ["dbnexus-db", "dbnexus-app/src-tauri", "grpc-server"]
+members = ["dbnexus-db", "dbnexus-app/src-tauri"]
 resolver = "2"
 
 [workspace.dependencies]

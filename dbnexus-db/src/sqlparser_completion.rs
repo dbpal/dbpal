@@ -44,7 +44,7 @@ impl Scopes {
             ss: self.ss.clone(),
         }
     }
-    pub(crate) fn inner_most<R>(&self, f: impl Fn(&Scope) -> Option<R>) -> Option<R> {
+    pub(crate) fn inner_first<R>(&self, f: impl Fn(&Scope) -> Option<R>) -> Option<R> {
         for s in self.ss.borrow().iter().rev() {
             let x = f(s);
             if x.is_some() {
@@ -56,7 +56,7 @@ impl Scopes {
 
     pub(crate) fn find_table_alias(&self, name: &str) -> Option<ObjectName> {
         let name = name.to_owned();
-        self.inner_most(|x| x.table_alias.get(&name).map(|x| x.clone()))
+        self.inner_first(|x| x.table_alias.get(&name).map(|x| x.clone()))
     }
 }
 #[derive(Clone, Default)]
