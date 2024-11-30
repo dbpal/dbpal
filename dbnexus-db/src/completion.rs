@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use sqlparser::ast::{CommentObject, ObjectName, ObjectType, ShowCreateObject};
+use sqlparser::ast::{CommentObject, ObjectName, ObjectType, ShowCreateObject, Statement};
 use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
@@ -48,6 +48,7 @@ pub enum CompletionKind {
     User,
     Role,
     Constraint,
+    Partition,
 }
 
 pub fn in_pos(
@@ -183,6 +184,12 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
+    async fn list_partition(
+        &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
@@ -196,7 +203,7 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
         &self, catelog: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>>;
     async fn list_procedure(
-        &self, catelog: Option<&str>, schema: Option<&str>,
+        &self, _catelog: Option<&str>, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
@@ -220,28 +227,38 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
         not_support_features(self.backend_name())
     }
     async fn list_constraint(
-        &self, db: Option<&str>, schema: Option<&str>, table_name: &str,
+        &self, _db: Option<&str>, _schema: Option<&str>, _table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+    async fn list_table_trigger(
+        &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
 }
 
-pub(crate) async fn try_completion_on_syntax(
-    sql: &str, line: u32, col: u32, dialet: &dyn sqlparser::dialect::Dialect,
-    helper: Arc<dyn CompletionOnSynTaxHelper>,
+pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Send + Sync>(
+    sql: &str, line: u32, col: u32, dialet: T, helper: Arc<dyn CompletionOnSynTaxHelper>,
 ) -> anyhow::Result<Vec<CompletionItem>> {
     let loc = Location {
         line: line as u64,
         column: col as u64,
     };
-    let parser = sqlparser::parser::Parser::new(dialet);
-    let mut parser = parser.try_with_sql(sql)?;
-    let statements = parser.parse_statements()?;
+
+    let statements = tokio::task::block_in_place(|| -> anyhow::Result<Vec<Statement>> {
+        let parser = sqlparser::parser::Parser::new(&dialet);
+        let mut parser = parser.try_with_sql(sql)?;
+        let statements: Vec<Statement> = parser.parse_statements()?;
+        anyhow::Ok(statements)
+    })?;
+
     for statement in statements {
         let c = CompletionStament::new(statement, loc, helper.clone());
         c.do_auto_completion().await;
         if c.finished() {
-            return anyhow::Ok(c.result.take());
+            let m = c.result;
+            return anyhow::Ok(m.into_inner().unwrap());
         }
     }
     anyhow::bail!("can't find competion ")

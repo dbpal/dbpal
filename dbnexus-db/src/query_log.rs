@@ -5,7 +5,7 @@ use typescript_type_def::TypeDef;
 
 use crate::helper::current_timestamp;
 
-#[derive(Clone, Debug, serde::Serialize, TypeDef, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct QueryLog {
     pub(crate) logs: Vec<QueryLogEvent>,
 }

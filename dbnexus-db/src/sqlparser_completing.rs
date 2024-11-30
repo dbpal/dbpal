@@ -1,12 +1,12 @@
 #![allow(unused)]
 
-use std::vec;
+use std::{future::Future, ops::DerefMut, vec};
 
 use oracle::sql_type::Object;
 use sqlparser::ast::{
-    AlterTableOperation, CommentObject, Expr, FromTable, Ident, Join, MySQLColumnPosition,
-    ObjectName, ObjectType, OrderByExpr, Query, ShowCreateObject, Spanned, TableConstraint,
-    TableFactor,
+    AlterTableOperation, CommentObject, Expr, FromTable, Function, Ident, Join,
+    MySQLColumnPosition, ObjectName, ObjectType, OrderByExpr, Partition, Query, ShowCreateObject,
+    Spanned, Subscript, TableConstraint, TableFactor,
 };
 
 use crate::{
@@ -56,6 +56,7 @@ impl Into<CompletionKind> for CommentObject {
         }
     }
 }
+
 impl CompletionStament {
     pub(crate) async fn c_on_column_mysql_position(
         &self, table_name: &ObjectName, column_position: Option<&MySQLColumnPosition>,
@@ -67,9 +68,39 @@ impl CompletionStament {
             }
         }
     }
+
+    pub(crate) async fn c_on_partition_expr(&self, table_name: &ObjectName, p: &Expr) {
+        match p {
+            Expr::Identifier(x) => {
+                let (db, schema, table) = self.extract_db_schme_item(table_name);
+
+                if self.in_pos(&x.span) {
+                    *self.result.write().unwrap() = self
+                        .helper
+                        .list_partition(db, schema, table)
+                        .await
+                        .map_err(|e| {
+                            log::error!("list partition failed,err:{:?}", e);
+                            self.set_has_err();
+                        })
+                        .ok()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|x| CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::Partition,
+                        })
+                        .collect::<Vec<_>>();
+                }
+            }
+            _ => {
+                log::error!("unhandled partation type:{:?}", p);
+            }
+        }
+    }
     pub(crate) async fn c_on_index(&self, name: &ObjectName) {
         if self.in_pos(&name.span()) {
-            *self.result.borrow_mut() = self
+            *self.result.write().unwrap() = self
                 .helper
                 .list_index()
                 .await
@@ -114,12 +145,16 @@ impl CompletionStament {
         };
         return (db, schema, table);
     }
+    pub(crate) async fn c_on_partition(&self, p: &Partition) {
+        // TODO
+    }
+
     pub(crate) async fn c_on_postgres_rule(&self, table_name: &ObjectName, rule: &Ident) {
         if !self.in_pos(&rule.span) {
             return;
         }
         let (db, schema, table) = self.extract_db_schme_item(table_name);
-        *self.result.borrow_mut() = self
+        *self.result.write().unwrap() = self
             .helper
             .list_postgres_rule(db, schema, &table)
             .await
@@ -139,7 +174,7 @@ impl CompletionStament {
     pub(crate) async fn c_on_constraint(&self, table_name: &ObjectName, name: &Ident) {
         if self.in_pos(&name.span) {
             let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-            *self.result.borrow_mut() = self
+            *self.result.write().unwrap() = self
                 .helper
                 .list_constraint(db, schema, table_name)
                 .await
@@ -173,27 +208,8 @@ impl CompletionStament {
                         index_name,
                         columns,
                         ..
-                    } => {
-                        if let Some(name) = name {
-                            if self.in_pos(&name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        };
-                        if let Some(index_name) = index_name {
-                            if self.in_pos(&index_name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        };
-                        for c in columns.iter() {
-                            self.c_on_column(table_name, c).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
                     }
-                    TableConstraint::PrimaryKey {
+                    | TableConstraint::PrimaryKey {
                         name,
                         index_name,
                         columns,
@@ -249,9 +265,8 @@ impl CompletionStament {
                         }
                     }
                     TableConstraint::Check { name, expr } => {
-                        // TODO I don't understand this.
                         //  https://www.w3schools.com/sql/sql_check.asp
-                        self.scopes.push(Scope::from_this_table(table_name.clone()));
+                        let _guard = self.scopes.push(Scope::from_this_table(table_name.clone()));
                         self.c_on_expr(expr);
                     }
                     TableConstraint::Index { name, columns, .. } => {
@@ -300,7 +315,6 @@ impl CompletionStament {
                     self.c_on_column_mysql_position(table_name, column_position.as_ref())
                         .await;
                 }
-
                 AlterTableOperation::AddProjection { .. } => {
                     // this is a ClickHouse-specific operation.
                 }
@@ -319,10 +333,8 @@ impl CompletionStament {
                 AlterTableOperation::DisableRule { name } => {
                     self.c_on_postgres_rule(table_name, name).await
                 }
-
                 AlterTableOperation::DisableTrigger { name } => {
-                    self.c_on_trigger(table_name, &ObjectName(vec![name.clone()]))
-                        .await;
+                    self.c_on_table_trigger(table_name, name).await;
                 }
                 AlterTableOperation::DropConstraint { name, .. } => {
                     self.c_on_constraint(table_name, name).await;
@@ -356,8 +368,7 @@ impl CompletionStament {
                     self.c_on_postgres_rule(table_name, name).await;
                 }
                 AlterTableOperation::EnableReplicaTrigger { name } => {
-                    self.c_on_trigger(table_name, &ObjectName(vec![name.clone()]))
-                        .await;
+                    self.c_on_table_trigger(table_name, name).await;
                 }
                 AlterTableOperation::EnableRowLevelSecurity => {
                     // nothing to here
@@ -366,23 +377,51 @@ impl CompletionStament {
                     self.c_on_postgres_rule(table_name, name).await;
                 }
                 AlterTableOperation::EnableTrigger { name } => {
-                    self.c_on_trigger(table_name, &ObjectName(vec![name.clone()]))
-                        .await;
+                    self.c_on_table_trigger(table_name, name).await;
                 }
-                AlterTableOperation::RenamePartitions { .. } => {
+                AlterTableOperation::RenamePartitions {
+                    old_partitions,
+                    new_partitions,
+                } => {
                     // TODO
+                    for p in old_partitions.iter() {
+                        self.c_on_partition_expr(table_name, p).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                    for p in new_partitions.iter() {
+                        if self.in_pos(&p.span()) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
                 }
-                AlterTableOperation::AddPartitions { .. } => {
-                    // TODO
+                AlterTableOperation::AddPartitions { new_partitions, .. } => {
+                    let _guard = self.scopes.push(Scope::from_this_table(table_name.clone()));
+                    for p in new_partitions.iter() {
+                        self.c_on_partition(p).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
                 }
-                AlterTableOperation::DropPartitions { .. } => {
-                    // TODO
+                AlterTableOperation::DropPartitions { partitions, .. } => {
+                    for p in partitions.iter() {
+                        self.c_on_partition_expr(table_name, p).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
                 }
                 AlterTableOperation::RenameColumn {
                     old_column_name,
                     new_column_name,
                 } => {
                     self.c_on_column(table_name, old_column_name).await;
+                    if self.finished() {
+                        return;
+                    }
                     if self.in_pos(&new_column_name.span) {
                         self.set_on_def();
                         return;
@@ -394,7 +433,6 @@ impl CompletionStament {
                         return;
                     }
                 }
-
                 AlterTableOperation::ChangeColumn {
                     old_name,
                     new_name,
@@ -414,10 +452,13 @@ impl CompletionStament {
                 }
                 AlterTableOperation::ModifyColumn {
                     col_name,
-                    data_type,
-                    options,
                     column_position,
+                    ..
                 } => {
+                    self.c_on_column(table_name, col_name);
+                    if self.finished() {
+                        return;
+                    }
                     self.c_on_column_mysql_position(table_name, column_position.as_ref())
                         .await;
                 }
@@ -430,28 +471,534 @@ impl CompletionStament {
                 }
                 AlterTableOperation::AlterColumn { column_name, .. } => {
                     self.c_on_column(table_name, column_name).await;
+                    // other fallback to lexer.
                 }
                 AlterTableOperation::SwapWith { .. } => {
-                    // no support
+                    // snowflake no support
                 }
                 AlterTableOperation::SetTblProperties { .. } => {
                     // no special handle
                 }
-                AlterTableOperation::OwnerTo { new_owner } => {
+                AlterTableOperation::OwnerTo { .. } => {
                     // no need
                 }
             }
         }
     }
-    pub(crate) async fn c_on_view(&self, view: &ObjectName) {}
-    pub(crate) async fn c_on_expr(&self, expr: &Expr) {}
-    pub(crate) async fn c_on_order_by_expr(&self, orderby: &OrderByExpr) {}
+    pub(crate) async fn c_on_view(&self, name: &ObjectName) {
+        self.c_on_db_schema(name).await;
+        if self.finished() {
+            return;
+        }
+        if !name.0.last().map(|x| self.in_pos(&x.span)).unwrap_or(false) {
+            return;
+        }
+        // here match
+        let (db, schema, name) = self.extract_db_schme_item(name);
+        *self.result.write().unwrap() = self
+            .helper
+            .list_table(db, schema)
+            .await
+            .map_err(|e| {
+                log::error!("list table failed,err:{:?}", e);
+                self.set_has_err();
+            })
+            .ok()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Table,
+            })
+            .collect::<Vec<_>>();
+    }
+
+    pub(crate) async fn c_on_expr_compund_identifier(&self, idents: &[Ident]) {
+        // we must access table's column???
+        match idents.len() {
+            1 => {
+                if let Some(table_name) = self.scopes.this_table() {
+                    self.c_on_column(&table_name, &idents[0]).await
+                }
+            }
+            2 => {
+                let table = &idents[0];
+                if self.in_pos(&table.span) {
+                    // handle name
+                    self.c_on_table_or_view(&ObjectName(vec![table.clone()]))
+                        .await;
+                    return;
+                }
+                if let Some(table) = self.scopes.find_table_alias(&table.value) {
+                    self.c_on_column(&table, &idents[1]).await;
+                } else {
+                    self.c_on_column(&ObjectName(vec![table.clone()]), &idents[1])
+                        .await;
+                }
+            }
+            3 | 4 => {
+                let table: ObjectName = ObjectName(idents[0..idents.len() - 1].to_vec());
+                self.c_on_table(&table).await;
+                if self.finished() {
+                    return;
+                }
+                self.c_on_column(&table, &idents[2]).await;
+            }
+            _ => {
+                log::error!("identifers too long:{:?}", idents)
+            }
+        }
+    }
+    pub(crate) async fn c_on_expr(&self, expr: &Expr) {
+        match expr {
+            Expr::Identifier(ident) => {
+                //
+                if let Some(this_table) = self.scopes.this_table() {
+                    self.c_on_column(&this_table, ident).await;
+                } else {
+                    // another completion
+                }
+            }
+            Expr::CompoundIdentifier(vec) => {
+                self.c_on_expr_compund_identifier(&vec);
+            }
+            Expr::JsonAccess { .. } => {
+                // snowflake databricks not support
+            }
+            Expr::CompositeAccess { expr, .. } => {
+                // TODO
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+            }
+            Expr::IsFalse(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::IsNotFalse(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::IsTrue(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::IsNotTrue(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::IsNull(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::IsNotNull(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::IsUnknown(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::IsNotUnknown(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::IsDistinctFrom(expr, expr1) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&expr1)).await;
+            }
+            Expr::IsNotDistinctFrom(expr, expr1) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&expr1)).await;
+            }
+            Expr::InList { expr, list, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                for expr in list.iter() {
+                    Box::pin(self.c_on_expr(&expr)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            Expr::InSubquery { expr, subquery, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_query(&subquery)).await;
+            }
+            Expr::InUnnest {
+                expr, array_expr, ..
+            } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&array_expr)).await;
+            }
+            Expr::Between {
+                expr, low, high, ..
+            } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&low)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&high)).await;
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                Box::pin(self.c_on_expr(&left)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&right)).await;
+            }
+            Expr::Like { expr, pattern, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&pattern)).await;
+            }
+            Expr::ILike { expr, pattern, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&pattern)).await;
+            }
+            Expr::SimilarTo { expr, pattern, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&pattern)).await;
+            }
+            Expr::RLike { expr, pattern, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&pattern)).await;
+            }
+            Expr::AnyOp { left, right, .. } => {
+                Box::pin(self.c_on_expr(&left)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&right)).await;
+            }
+            Expr::AllOp { left, right, .. } => {
+                Box::pin(self.c_on_expr(&left)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&right)).await;
+            }
+            Expr::UnaryOp { expr, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+            }
+            Expr::Convert { expr, styles, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                for style in styles.iter() {
+                    Box::pin(self.c_on_expr(&style)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            Expr::Cast { expr, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::AtTimeZone {
+                timestamp,
+                time_zone,
+            } => {
+                Box::pin(self.c_on_expr(&timestamp)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&time_zone)).await;
+            }
+            Expr::Extract { expr, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::Ceil { expr, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::Floor { expr, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::Position { expr, r#in } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(r#in)).await;
+            }
+            Expr::Substring {
+                expr,
+                substring_from,
+                substring_for,
+                ..
+            } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(from) = substring_from {
+                    Box::pin(self.c_on_expr(&from)).await;
+                }
+                if let Some(f) = substring_for {
+                    Box::pin(self.c_on_expr(&f)).await;
+                }
+            }
+            Expr::Trim {
+                expr,
+
+                trim_what,
+                trim_characters,
+                ..
+            } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(what) = trim_what {
+                    Box::pin(self.c_on_expr(&what)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(cs) = trim_characters {
+                    for c in cs.iter() {
+                        Box::pin(self.c_on_expr(&c)).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
+            Expr::Overlay {
+                expr,
+                overlay_what,
+                overlay_from,
+                overlay_for,
+            } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&overlay_what)).await;
+                if self.finished() {
+                    return;
+                }
+                Box::pin(self.c_on_expr(&overlay_from)).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(overlay_for) = overlay_for {
+                    Box::pin(self.c_on_expr(&overlay_for)).await;
+                }
+            }
+            Expr::Collate { expr, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::Nested(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::Value(..) => {
+                // literal value
+                // nothing to completion
+            }
+            Expr::IntroducedString { .. } => {
+                // literal value
+            }
+            Expr::TypedString { .. } => {
+                // literal value
+            }
+            Expr::MapAccess { .. } => {
+                // clickhouse
+            }
+            Expr::Function(function) => self.c_on_function_def(function).await,
+
+            Expr::Method(_method) => {
+                // TODO
+            }
+            Expr::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => {
+                if let Some(operand) = operand {
+                    Box::pin(self.c_on_expr(&operand)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                for c in conditions.iter() {
+                    Box::pin(self.c_on_expr(c)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                for r in results.iter() {
+                    Box::pin(self.c_on_expr(r)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(e) = else_result {
+                    Box::pin(self.c_on_expr(e)).await;
+                }
+            }
+
+            Expr::Exists { subquery, .. } => {
+                Box::pin(self.c_on_query(&subquery)).await;
+            }
+            Expr::Subquery(query) => {
+                Box::pin(self.c_on_query(&query)).await;
+            }
+            Expr::GroupingSets(vec) => {
+                for v in vec.iter() {
+                    for e in v.iter() {
+                        Box::pin(self.c_on_expr(e)).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
+            Expr::Cube(vec) => {
+                for v in vec.iter() {
+                    for e in v.iter() {
+                        Box::pin(self.c_on_expr(e)).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
+            Expr::Rollup(vec) => {
+                for v in vec.iter() {
+                    for e in v.iter() {
+                        Box::pin(self.c_on_expr(e)).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
+            Expr::Tuple(vec) => {
+                for e in vec.iter() {
+                    Box::pin(self.c_on_expr(e)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            Expr::Struct { .. } => {
+                // bitquery not support
+            }
+            Expr::Named { .. } => {
+                // bitquery not support
+            }
+            Expr::Dictionary(..) => {
+                // duckdb not support
+            }
+            Expr::Map(map) => {
+                // duckdb not support
+            }
+            Expr::Subscript { expr, subscript } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+                if self.finished() {
+                    return;
+                }
+                match subscript.as_ref() {
+                    Subscript::Index { index } => {
+                        Box::pin(self.c_on_expr(&index)).await;
+                    }
+                    Subscript::Slice {
+                        lower_bound,
+                        upper_bound,
+                        stride,
+                    } => {
+                        if let Some(lower_bound) = lower_bound {
+                            Box::pin(self.c_on_expr(&lower_bound)).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                        if let Some(upper_bound) = upper_bound {
+                            Box::pin(self.c_on_expr(&upper_bound)).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                        if let Some(stride) = stride {
+                            Box::pin(self.c_on_expr(&stride)).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            Expr::Array(array) => {
+                for e in array.elem.iter() {
+                    Box::pin(self.c_on_expr(e)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            Expr::Interval(interval) => {
+                Box::pin(self.c_on_expr(&interval.value)).await;
+            }
+            Expr::MatchAgainst { columns, .. } => {
+                if let Some(this_table) = self.scopes.this_table() {
+                    for c in columns.iter() {
+                        self.c_on_column(&this_table, c).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
+            Expr::Wildcard(..) => {
+                // nothing here
+            }
+            Expr::QualifiedWildcard(..) => {
+                // nothing here
+            }
+            Expr::OuterJoin(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::Prior(expr) => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::Lambda(lambda_function) => {
+                // databricks no support
+            }
+        }
+    }
+    pub(crate) async fn c_on_order_by_expr(&self, orderby: &OrderByExpr) {
+        self.c_on_expr(&orderby.expr);
+    }
 
     pub(crate) async fn c_on_column(&self, table_name: &ObjectName, col: &Ident) {
         if self.in_pos(&col.span) {
             let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-
-            *self.result.borrow_mut() = self
+            *self.result.write().unwrap() = self
                 .helper
                 .list_column(db, schema, table_name)
                 .await
@@ -470,15 +1017,35 @@ impl CompletionStament {
         }
     }
 
-    pub(crate) async fn c_on_trigger(&self, table_name: &ObjectName, trigger_name: &ObjectName) {
-        unimplemented!()
+    pub(crate) async fn c_on_table_trigger(&self, table_name: &ObjectName, trigger_name: &Ident) {
+        if self.in_pos(&trigger_name.span) {
+            let (db, schema, table_name) = self.extract_db_schme_item(table_name);
+            *self.result.write().unwrap() = self
+                .helper
+                .list_table_trigger(db, schema, table_name)
+                .await
+                .map_err(|e| {
+                    log::error!("list_table_trigger failed,err:{:?}", e);
+                    self.set_has_err();
+                })
+                .ok()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Trigger,
+                })
+                .collect();
+        }
     }
+
+    // completion 假设  database.schema
     pub(crate) async fn c_on_db_schema(&self, name: &ObjectName) {
         match name.0.len() {
             2 => {
                 let schema = &name.0[0];
                 if self.in_pos(&schema.span) {
-                    *self.result.borrow_mut() = self
+                    *self.result.write().unwrap() = self
                         .helper
                         .list_schema(None)
                         .await
@@ -499,7 +1066,7 @@ impl CompletionStament {
             3 => {
                 let db = &name.0[0];
                 if self.in_pos(&db.span) {
-                    *self.result.borrow_mut() = self
+                    *self.result.write().unwrap() = self
                         .helper
                         .list_database()
                         .await
@@ -518,7 +1085,7 @@ impl CompletionStament {
                 }
                 let schema = &name.0[1];
                 if self.in_pos(&schema.span) {
-                    *self.result.borrow_mut() = self
+                    *self.result.write().unwrap() = self
                         .helper
                         .list_schema(Some(&db.value))
                         .await
@@ -544,6 +1111,15 @@ impl CompletionStament {
             }
         }
     }
+
+    // completion on table or view.
+    pub(crate) async fn c_on_table_or_view(&self, name: &ObjectName) {
+        self.c_on_view(name).await;
+        let x1 = std::mem::take(self.result.write().unwrap().deref_mut());
+        self.c_on_table(name).await;
+        self.result.write().unwrap().extend(x1.into_iter());
+    }
+
     pub(crate) async fn c_on_table(&self, table_name: &ObjectName) {
         self.c_on_db_schema(table_name).await;
         if self.finished() {
@@ -559,7 +1135,7 @@ impl CompletionStament {
         }
         // here match
         let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-        *self.result.borrow_mut() = self
+        *self.result.write().unwrap() = self
             .helper
             .list_table(db, schema)
             .await
@@ -682,7 +1258,7 @@ impl CompletionStament {
         }
         if self.last_name_in_pos(name) {
             let (db, schema, _) = self.extract_db_schme_item(name);
-            *self.result.borrow_mut() = self
+            *self.result.write().unwrap() = self
                 .helper
                 .list_procedure(db, schema)
                 .await
@@ -703,16 +1279,15 @@ impl CompletionStament {
     pub(crate) fn last_name_in_pos(&self, name: &ObjectName) -> bool {
         name.0.last().map(|x| self.in_pos(&x.span)).unwrap_or(false)
     }
-
+    pub(crate) async fn c_on_function_def(&self, name: &Function) {}
     pub(crate) async fn c_on_function(&self, name: &ObjectName) {
         self.c_on_db_schema(name).await;
         if self.finished() {
             return;
         }
-
         if self.last_name_in_pos(name) {
             let (db, schema, _) = self.extract_db_schme_item(name);
-            *self.result.borrow_mut() = self
+            *self.result.write().unwrap() = self
                 .helper
                 .list_function(db, schema)
                 .await

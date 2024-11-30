@@ -1,4 +1,4 @@
-use std::ops::DerefMut;
+use std::{ops::DerefMut, sync::Arc};
 
 use crate::{
     completion::{
@@ -20,13 +20,14 @@ impl AutoCompletionTrait for SqliteDB {
             &sql,
             line,
             col,
-            &sqlparser::dialect::SQLiteDialect {},
-            unimplemented!(),
+            sqlparser::dialect::SQLiteDialect {},
+            Arc::new(Clone::clone(self)),
         )
         .await;
         if r.is_ok() {
             return r;
         }
+
         return LexerCompletionTrait::do_auto_completion(
             self,
             sql,
