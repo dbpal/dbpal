@@ -49,6 +49,7 @@ pub enum CompletionKind {
     Role,
     Constraint,
     Partition,
+    PrepareStatement,
 }
 
 pub fn in_pos(
@@ -236,6 +237,9 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
     ) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
+    async fn list_prepare_name(&self) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
 }
 
 pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Send + Sync>(
@@ -254,8 +258,9 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
     })?;
 
     for statement in statements {
-        let c = CompletionStament::new(statement, loc, helper.clone());
-        c.do_auto_completion().await;
+        println!("!!!!!!!!!!!!!!!!!!!completoion on:{:?}", statement);
+        let c = CompletionStament::new(loc, helper.clone());
+        c.completion_on_statement(&statement).await;
         if c.finished() {
             let m = c.result;
             return anyhow::Ok(m.into_inner().unwrap());

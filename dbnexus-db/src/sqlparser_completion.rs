@@ -8,8 +8,9 @@ use std::{
 
 use sqlparser::{
     ast::{
-        AlterIndexOperation, CopySource, Declare, DeclareAssignment, FunctionArg, FunctionArgExpr,
-        FunctionArguments, GrantObjects, ObjectName, SelectItem, Spanned, Statement,
+        AlterIndexOperation, CopySource, CreateFunctionBody, DataType, Declare, DeclareAssignment,
+        FunctionArg, FunctionArgExpr, FunctionArguments, GrantObjects, ObjectName, SchemaName,
+        SelectItem, SequenceOptions, Spanned, Statement, UserDefinedTypeRepresentation,
     },
     tokenizer::{Location, Span},
 };
@@ -19,7 +20,6 @@ use crate::completion::{CompletionItem, CompletionKind, CompletionOnSynTaxHelper
 pub struct CompletionStament {
     pub(crate) loc: Location,
     pub(crate) result: RwLock<Vec<CompletionItem>>,
-    pub(crate) statement: Statement,
     pub(crate) helper: Arc<dyn CompletionOnSynTaxHelper>,
     pub(crate) scopes: Scopes,
     pub(crate) on_def: AtomicBool,
@@ -78,11 +78,32 @@ impl Scopes {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug)]
+pub struct TempTableColumn {
+    pub(crate) name: String,
+    // typ: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct TempTable {
+    pub(crate) columns: Vec<TempTableColumn>,
+}
+
+#[derive(Clone, Default, Debug)]
 pub struct Scope {
     table_alias: HashMap<String, ObjectName>,
     this_table: Option<ObjectName>,
+    temp_tables: HashMap<String, TempTable>,
+    // https://www.postgresql.org/docs/current/plpgsql-declarations.html
+    // declares variables
     declares: HashMap<String, Arc<Declare>>,
+    //
+    vars: HashMap<String, Var>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Var {
+    datatype: DataType,
 }
 
 impl Scope {
@@ -92,11 +113,24 @@ impl Scope {
         }
     }
 
+    pub(crate) fn from_temp_tables(this_table: HashMap<String, TempTable>) -> Self {
+        Self {
+            temp_tables: this_table,
+            ..Default::default()
+        }
+    }
+
     pub(crate) fn from_this_table(this_table: ObjectName) -> Self {
         Self {
             this_table: Some(this_table),
-            table_alias: Default::default(),
-            declares: Default::default(),
+            ..Default::default()
+        }
+    }
+
+    pub(crate) fn from_vars(vars: HashMap<String, Var>) -> Self {
+        Self {
+            vars,
+            ..Default::default()
         }
     }
 }
@@ -115,12 +149,9 @@ impl CompletionStament {
             || self.has_err.load(Ordering::Relaxed)
     }
 
-    pub(crate) fn new(
-        statement: Statement, loc: Location, helper: Arc<dyn CompletionOnSynTaxHelper>,
-    ) -> Self {
+    pub(crate) fn new(loc: Location, helper: Arc<dyn CompletionOnSynTaxHelper>) -> Self {
         Self {
             loc,
-            statement,
             helper,
             result: RwLock::new(vec![]),
             scopes: Scopes::new(),
@@ -134,9 +165,9 @@ impl CompletionStament {
             && (self.loc.column >= span.start.column && self.loc.column <= span.end.column)
     }
 
-    pub(crate) async fn do_auto_completion(&self) {
+    pub(crate) async fn completion_on_statement(&self, statement: &Statement) {
         #[allow(unused)]
-        match &self.statement {
+        match statement {
             Statement::Analyze {
                 table_name,
                 columns,
@@ -174,7 +205,9 @@ impl CompletionStament {
             Statement::Msck { .. } => {
                 // hive not support rigth now
             }
-            Statement::Query(query) => self.c_on_query(&query).await,
+            Statement::Query(query) => {
+                let _ = self.c_on_query(&query).await;
+            }
             Statement::Insert(insert) => {
                 self.c_on_table(&insert.table_name).await;
                 if self.finished() {
@@ -318,7 +351,9 @@ impl CompletionStament {
                             }
                         }
                     }
-                    CopySource::Query(query) => self.c_on_query(&query).await,
+                    CopySource::Query(query) => {
+                        let _ = self.c_on_query(&query).await;
+                    }
                 };
             }
 
@@ -529,7 +564,6 @@ impl CompletionStament {
                     }
                 }
             }
-
             Statement::DropProcedure { proc_desc, .. } => {
                 for d in proc_desc.iter() {
                     self.c_on_procedure(&d.name).await;
@@ -696,12 +730,84 @@ impl CompletionStament {
                 if_not_exists,
             } => {
                 // no need to completion.
+                match schema_name {
+                    SchemaName::Simple(object_name) => {
+                        if self.in_pos(&object_name.span()) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
+                    SchemaName::UnnamedAuthorization(ident) => {
+                        if self.in_pos(&ident.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
+                    SchemaName::NamedAuthorization(_object_name, ident) => {
+                        if self.in_pos(&ident.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
+                }
             }
-            Statement::CreateDatabase { .. } => {
+            Statement::CreateDatabase { db_name, .. } => {
                 //
+                if self.in_pos(&db_name.span()) {
+                    self.set_on_def();
+                    return;
+                }
             }
-            Statement::CreateFunction { .. } => {
-                // fallback to lexer
+            Statement::CreateFunction {
+                name,
+                args,
+                function_body,
+                ..
+            } => {
+                if self.in_pos(&name.span()) {
+                    self.set_on_def();
+                    return;
+                }
+                let mut vars = HashMap::new();
+                if let Some(args) = args {
+                    for a in args.iter() {
+                        if let Some(name) = &a.name {
+                            if self.in_pos(&name.span) {
+                                self.set_on_def();
+                                return;
+                            }
+                            vars.insert(
+                                name.value.clone(),
+                                Var {
+                                    datatype: a.data_type.clone(),
+                                },
+                            );
+                        }
+
+                        if let Some(expr) = &a.default_expr {
+                            self.c_on_expr(expr).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                    }
+                }
+                let _gurad = self.scopes.push(Scope::from_vars(vars));
+                // TODO why just a expr.
+                // due to this https://github.com/apache/datafusion-sqlparser-rs/issues/1356
+                if let Some(x) = function_body {
+                    match x {
+                        CreateFunctionBody::AsBeforeOptions(expr) => {
+                            self.c_on_expr(expr).await;
+                        }
+                        CreateFunctionBody::AsAfterOptions(expr) => {
+                            self.c_on_expr(expr).await;
+                        }
+                        CreateFunctionBody::Return(expr) => {
+                            self.c_on_expr(expr).await;
+                        }
+                    }
+                }
             }
             Statement::CreateTrigger { .. } => {
                 // fallback to lexer
@@ -741,95 +847,161 @@ impl CompletionStament {
                 GrantObjects::Sequences(vec) => todo!(),
                 GrantObjects::Tables(vec) => todo!(),
             },
-            Statement::Revoke {
-                privileges,
-                objects,
-                grantees,
-                granted_by,
-                cascade,
-            } => todo!(),
-            Statement::Deallocate { name, prepare } => todo!(),
+            Statement::Revoke { .. } => {
+                // fallback to lexer
+            }
+            Statement::Deallocate { name, prepare } => {
+                // fallback to lexer
+            }
             Statement::Execute {
                 name,
                 parameters,
-                has_parentheses,
                 using,
-            } => todo!(),
+                ..
+            } => {
+                //
+                self.c_on_prepare(name).await;
+                if self.finished() {
+                    return;
+                }
+                for p in parameters.iter() {
+                    self.c_on_expr(p).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                for u in using.iter() {
+                    self.c_on_expr(u).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+
             Statement::Prepare {
-                name,
-                data_types,
-                statement,
-            } => todo!(),
-            Statement::Kill { modifier, id } => todo!(),
-            Statement::ExplainTable {
-                describe_alias,
-                hive_format,
-                has_table_keyword,
-                table_name,
-            } => todo!(),
-            Statement::Explain {
-                describe_alias,
-                analyze,
-                verbose,
-                query_plan,
-                statement,
-                format,
-                options,
-            } => todo!(),
-            Statement::Savepoint { name } => todo!(),
-            Statement::ReleaseSavepoint { name } => todo!(),
-            Statement::Merge {
-                into,
-                table,
-                source,
-                on,
-                clauses,
-            } => todo!(),
-            Statement::Cache {
-                table_flag,
-                table_name,
-                has_as,
-                options,
-                query,
-            } => todo!(),
-            Statement::UNCache {
-                table_name,
-                if_exists,
-            } => todo!(),
+                name, statement, ..
+            } => {
+                if self.in_pos(&name.span) {
+                    self.set_on_def();
+                    return;
+                }
+                Box::pin(self.completion_on_statement(statement)).await;
+            }
+            Statement::Kill { .. } => {}
+            Statement::ExplainTable { table_name, .. } => {
+                self.c_on_table(table_name).await;
+            }
+            Statement::Explain { statement, .. } => {
+                Box::pin(self.completion_on_statement(statement)).await;
+            }
+            Statement::Savepoint { name } => {
+                if self.in_pos(&name.span) {
+                    self.set_on_def();
+                    return;
+                }
+            }
+            Statement::ReleaseSavepoint { .. } => {}
+            Statement::Merge { .. } => {
+                //not support rightnow
+            }
+            Statement::Cache { .. } => {
+                // Spark SQL
+            }
+
+            Statement::UNCache { .. } => {
+                // Spark SQL
+            }
             Statement::CreateSequence {
-                temporary,
-                if_not_exists,
                 name,
-                data_type,
+
                 sequence_options,
-                owned_by,
-            } => todo!(),
+                ..
+            } => {
+                if self.in_pos(&name.span()) {
+                    self.set_on_def();
+                    return;
+                }
+                for op in sequence_options.iter() {
+                    match op {
+                        SequenceOptions::IncrementBy(expr, _) => {
+                            self.c_on_expr(expr).await;
+                        }
+                        SequenceOptions::MinValue(expr) => {
+                            if let Some(expr) = expr {
+                                self.c_on_expr(expr).await;
+                            }
+                        }
+                        SequenceOptions::MaxValue(expr) => {
+                            if let Some(expr) = expr {
+                                self.c_on_expr(expr).await;
+                            }
+                        }
+                        SequenceOptions::StartWith(expr, _) => {
+                            self.c_on_expr(expr).await;
+                        }
+                        SequenceOptions::Cache(expr) => {
+                            self.c_on_expr(expr).await;
+                        }
+                        SequenceOptions::Cycle(_) => {}
+                    }
+                }
+            }
             Statement::CreateType {
                 name,
                 representation,
-            } => todo!(),
-            Statement::Pragma { name, value, is_eq } => todo!(),
-            Statement::LockTables { tables } => todo!(),
-            Statement::UnlockTables => todo!(),
-            Statement::Unload { query, to, with } => todo!(),
-            Statement::OptimizeTable {
-                name,
-                on_cluster,
-                partition,
-                include_final,
-                deduplicate,
-            } => todo!(),
-            Statement::LISTEN { channel } => todo!(),
-            Statement::UNLISTEN { channel } => todo!(),
-            Statement::NOTIFY { channel, payload } => todo!(),
-            Statement::LoadData {
-                local,
-                inpath,
-                overwrite,
-                table_name,
-                partitioned,
-                table_format,
-            } => todo!(),
+            } => {
+                if self.in_pos(&name.span()) {
+                    self.set_on_def();
+                    return;
+                }
+                match representation {
+                    UserDefinedTypeRepresentation::Composite { attributes } => {
+                        for a in attributes.iter() {
+                            if self.in_pos(&a.name.span) {
+                                self.set_on_def();
+                                return;
+                            }
+                        }
+                    }
+                    UserDefinedTypeRepresentation::Enum { labels } => {
+                        for a in labels.iter() {
+                            if self.in_pos(&a.span) {
+                                self.set_on_def();
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            Statement::Pragma { name, .. } => {
+                self.c_on_pragma(name).await;
+            }
+            Statement::LockTables { tables } => {
+                for t in tables.iter() {
+                    self.c_on_table(&ObjectName(vec![t.table.clone()]));
+                    if self.finished() {
+                        return;
+                    }
+                    if let Some(alias) = t.alias.as_ref() {
+                        if self.in_pos(&alias.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
+                }
+            }
+            Statement::UnlockTables => {}
+            Statement::Unload { query, to, with } => {
+                // not support right now
+            }
+            Statement::OptimizeTable { .. } => {
+                // ClickHouse spec
+            }
+
+            Statement::LISTEN { .. } => {}
+            Statement::UNLISTEN { .. } => {}
+            Statement::NOTIFY { .. } => {}
+            Statement::LoadData { .. } => {}
         }
     }
 }
@@ -839,15 +1011,31 @@ mod tests {
 
     #[test]
     fn test_sql_statement() {
-        let sql = r#"SET @aaa = 1;
-        SET @aaa = 1;
+        let sql = r#"
+ 
+DECLARE
+    result INT := 1;
+BEGIN
+    IF n < 0 THEN
+        RETURN NULL;  -- 负数的阶乘未定义
+    ELSIF n = 0 THEN
+        RETURN 1;  -- 0 的阶乘为 1
+    ELSE
+        FOR i IN 1..n LOOP
+            result := result * i;
+        END LOOP;
+        RETURN result;
+    END IF;
+END;
+ 
         "#;
-        let dialect = sqlparser::dialect::MySqlDialect {};
+
+        let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
         let mut p = p.try_with_sql(sql).unwrap();
         let statement = p.parse_statement().unwrap();
         // let s = serde_json::to_string(match &statement {
-        //     sqlparser::ast::Statement::Delete(x) => &x.from,
+        //     Statement::Delete(x) => &x.from,
         //     _ => {
         //         unreachable!()
         //     }

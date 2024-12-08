@@ -1,6 +1,7 @@
 #![allow(unused)]
 
-use std::{future::Future, ops::DerefMut, vec};
+use std::ops::Deref;
+use std::{collections::HashMap, future::Future, ops::DerefMut, vec};
 
 use oracle::sql_type::Object;
 use sqlparser::ast::{
@@ -8,10 +9,12 @@ use sqlparser::ast::{
     MySQLColumnPosition, ObjectName, ObjectType, OrderByExpr, Partition, Query, ShowCreateObject,
     Spanned, Subscript, TableConstraint, TableFactor,
 };
+use sqlparser::ast::{Select, SetExpr};
+use sqlx::any;
 
 use crate::{
     completion::{CompletionItem, CompletionKind},
-    sqlparser_completion::{CompletionStament, Scope, ScopesGuard},
+    sqlparser_completion::{CompletionStament, Scope, ScopesGuard, TempTable, TempTableColumn},
 };
 
 impl Into<CompletionKind> for ObjectType {
@@ -69,6 +72,31 @@ impl CompletionStament {
         }
     }
 
+    pub(crate) async fn c_on_prepare(&self, name: &ObjectName) {
+        match name.0.len() {
+            1 => {
+                *self.result.write().unwrap() = self
+                    .helper
+                    .list_prepare_name()
+                    .await
+                    .map_err(|e| {
+                        log::error!("list_prepare_name failed,err:{:?}", e);
+                        self.set_has_err();
+                    })
+                    .ok()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|x| CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::PrepareStatement,
+                    })
+                    .collect::<Vec<_>>()
+            }
+            _ => {
+                log::error!("handled name:{:?}", name);
+            }
+        }
+    }
     pub(crate) async fn c_on_partition_expr(&self, table_name: &ObjectName, p: &Expr) {
         match p {
             Expr::Identifier(x) => {
@@ -1121,6 +1149,7 @@ impl CompletionStament {
     }
 
     pub(crate) async fn c_on_table(&self, table_name: &ObjectName) {
+        println!("!!!!!!!!!!!!!!!!!:{:?}", table_name);
         self.c_on_db_schema(table_name).await;
         if self.finished() {
             return;
@@ -1133,6 +1162,7 @@ impl CompletionStament {
         {
             return;
         }
+
         // here match
         let (db, schema, table_name) = self.extract_db_schme_item(table_name);
         *self.result.write().unwrap() = self
@@ -1172,7 +1202,116 @@ impl CompletionStament {
         // }
         unimplemented!()
     }
-    pub(crate) async fn c_on_query(&self, q: &Query) {}
+
+    pub(crate) async fn c_on_select(&self, s: &Select) -> anyhow::Result<Vec<TempTableColumn>> {
+        unimplemented!()
+    }
+
+    pub(crate) async fn c_on_query(&self, query: &Query) -> anyhow::Result<Vec<TempTableColumn>> {
+        let mut temp_tables = HashMap::new();
+        if let Some(with) = query.with.as_ref() {
+            for c in with.cte_tables.iter() {
+                let cols = Box::pin(self.c_on_query(&c.query)).await?;
+                temp_tables.insert(c.alias.name.value.clone(), TempTable { columns: cols });
+            }
+        }
+        let s = Scope::from_temp_tables(temp_tables);
+        let _guard = self.scopes.push(s);
+        let ret = vec![];
+        // handle a lot of
+        if let Some(orderby) = query.order_by.as_ref() {
+            for e in orderby.exprs.iter() {
+                self.c_on_order_by_expr(e).await;
+                if self.finished() {
+                    return anyhow::Ok(ret);
+                }
+            }
+        }
+        // limit and offset can't filter on column values
+        // so we don't need handle limit and offset
+        // althought it is a expr,But I think it is literal.
+
+        // limit by is not support right now.
+        let _ = &query.limit_by;
+
+        return Box::pin(self.c_on_set_expr(&query.body)).await;
+    }
+
+    pub(crate) async fn c_on_set_expr(
+        &self, set: &SetExpr,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        match set {
+            SetExpr::Select(select) => {
+                return self.c_on_select(select).await;
+            }
+            SetExpr::Query(query) => {
+                return Box::pin(self.c_on_query(&query)).await;
+            }
+            SetExpr::SetOperation { left, right, .. } => {
+                Box::pin(self.c_on_set_expr(&left)).await;
+                return Box::pin(self.c_on_set_expr(&right)).await;
+            }
+            SetExpr::Values(values) => {
+                if values.rows.len() > 0 {
+                    let last = values.rows.len() - 1;
+                    for (index, es) in values.rows.iter().enumerate() {
+                        for e in es.iter() {
+                            self.c_on_expr(e).await;
+                            if self.finished() {
+                                return anyhow::Ok(vec![]);
+                            }
+                        }
+                        // last one we will return anyway
+                        if index == last {
+                            let cols = (0..es.len())
+                                .map(|x| TempTableColumn {
+                                    name: format!("column_{}", x),
+                                })
+                                .collect::<Vec<_>>();
+                            return anyhow::Ok(cols);
+                        }
+                    }
+                }
+            }
+            SetExpr::Insert(statement) => {
+                self.completion_on_statement(statement).await;
+            }
+            SetExpr::Update(statement) => {
+                self.completion_on_statement(statement).await;
+            }
+            SetExpr::Table(table) => {
+                if table.table_name.is_none() {
+                    log::error!("null table name for table command,:{:?}", table.deref());
+                }
+                let cols = self
+                    .helper
+                    .list_column(
+                        None,
+                        table.schema_name.as_deref(),
+                        table
+                            .table_name
+                            .as_ref()
+                            .map(|x| x.as_str())
+                            .unwrap_or_default(),
+                    )
+                    .await
+                    .map_err(|e| {
+                        log::error!("list_column failed,err:{:?}", e);
+                        self.set_has_err();
+                    })
+                    .ok()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|x| TempTableColumn {
+                        name: x.field.clone(),
+                    })
+                    .collect();
+                return anyhow::Ok(cols);
+            }
+        }
+        anyhow::Ok(vec![])
+    }
+
     pub(crate) async fn c_on_join(&self, j: &Join) {}
 
     pub(crate) fn c_on_table_factor(&self, f: &TableFactor) {
@@ -1279,6 +1418,9 @@ impl CompletionStament {
     pub(crate) fn last_name_in_pos(&self, name: &ObjectName) -> bool {
         name.0.last().map(|x| self.in_pos(&x.span)).unwrap_or(false)
     }
+
+    pub(crate) async fn c_on_pragma(&self, name: &ObjectName) {}
+
     pub(crate) async fn c_on_function_def(&self, name: &Function) {}
     pub(crate) async fn c_on_function(&self, name: &ObjectName) {
         self.c_on_db_schema(name).await;

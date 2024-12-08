@@ -1043,7 +1043,6 @@ impl PostGresDB {
         if let Some(s) = &self.config.schema {
             set_current_schema(conn.deref_mut(), s).await?;
         }
-
         return anyhow::Ok(conn);
     }
 }
