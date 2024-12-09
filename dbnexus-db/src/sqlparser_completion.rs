@@ -1,5 +1,6 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    ops::{Deref, DerefMut},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, RwLock,
@@ -9,8 +10,8 @@ use std::{
 use sqlparser::{
     ast::{
         AlterIndexOperation, CopySource, CreateFunctionBody, DataType, Declare, DeclareAssignment,
-        FunctionArg, FunctionArgExpr, FunctionArguments, GrantObjects, ObjectName, SchemaName,
-        SelectItem, SequenceOptions, Spanned, Statement, UserDefinedTypeRepresentation,
+        FunctionArg, FunctionArgExpr, FunctionArguments, GrantObjects, Ident, ObjectName,
+        SchemaName, SelectItem, SequenceOptions, Spanned, Statement, UserDefinedTypeRepresentation,
     },
     tokenizer::{Location, Span},
 };
@@ -33,15 +34,37 @@ pub struct Scopes {
 
 pub(crate) struct ScopesGuard {
     ss: Arc<Mutex<Vec<Scope>>>,
+    n: usize,
 }
 
 impl Drop for ScopesGuard {
     fn drop(&mut self) {
-        self.ss.lock().unwrap().pop();
+        let n = self.n;
+        let mut m = self.ss.lock().unwrap();
+        let m = m.deref_mut();
+        for _ in 0..n {
+            m.pop();
+        }
     }
 }
 
 impl Scopes {
+    pub(crate) fn nearest_from_table(&self) -> Vec<FromTableOrTemp> {
+        let x = self.ss.lock().unwrap();
+        for s in x.deref().iter().rev() {
+            if s.from_tables.len() > 0 {
+                return s.from_tables.clone();
+            }
+        }
+        vec![]
+    }
+
+    pub(crate) fn drop_n(&self, n: usize) -> ScopesGuard {
+        ScopesGuard {
+            ss: self.ss.clone(),
+            n,
+        }
+    }
     pub(crate) fn enter_declare(&self, d: Arc<Declare>) {
         self.current_scope(|x| x.enter_declare(d));
     }
@@ -54,13 +77,47 @@ impl Scopes {
             ss: Arc::new(Mutex::new(vec![Scope::default()])),
         }
     }
+
+    pub(crate) fn tables(&self) -> Vec<String> {
+        let names: HashSet<String> = HashSet::new();
+        let mut ret = Vec::new();
+        self.inner_first(|scope| {
+            if let Some(table) = &scope.this_table {
+                let name = table.0.last().unwrap();
+                let name_str = name.to_string();
+                if !names.contains(&name_str) {
+                    ret.push(name_str);
+                }
+            }
+            for name in scope.table_entered.keys() {
+                let name_str = name.to_string();
+                if !names.contains(&name_str) {
+                    ret.push(name_str);
+                }
+            }
+            for temp in scope.temp_tables.keys() {
+                let name_str = temp.to_string();
+                if !names.contains(&name_str) {
+                    ret.push(name_str);
+                }
+            }
+            // this clouse need return a option.
+            return None as Option<()>;
+        });
+        ret
+    }
     pub(crate) fn push(&self, s: Scope) -> ScopesGuard {
         self.ss.lock().unwrap().push(s);
         ScopesGuard {
             ss: self.ss.clone(),
+            n: 1,
         }
     }
-    pub(crate) fn inner_first<R>(&self, f: impl Fn(&Scope) -> Option<R>) -> Option<R> {
+    pub(crate) fn push_without_guard(&self, s: Scope) {
+        self.ss.lock().unwrap().push(s);
+    }
+
+    pub(crate) fn inner_first<R>(&self, mut f: impl FnMut(&Scope) -> Option<R>) -> Option<R> {
         for s in self.ss.lock().unwrap().iter().rev() {
             let x = f(s);
             if x.is_some() {
@@ -69,13 +126,29 @@ impl Scopes {
         }
         None
     }
-    pub(crate) fn find_table_alias(&self, name: &str) -> Option<ObjectName> {
+    pub(crate) fn nearest_table_named(&self, name: &Ident) -> Option<NearNestTableNamed> {
         let name = name.to_owned();
-        self.inner_first(|x| x.table_alias.get(&name).map(|x| x.clone()))
+        self.inner_first(|scope| -> Option<NearNestTableNamed> {
+            let alias = scope.table_entered.get(&name).map(|x| x.clone());
+            if alias.is_some() {
+                return alias.map(|alias| NearNestTableNamed::Alias { table: alias });
+            }
+
+            let temp_table = scope.temp_tables.get(&name).map(|x| x.clone());
+            if temp_table.is_some() {
+                return temp_table.map(|temp_table| NearNestTableNamed::Temp { table: temp_table });
+            }
+            None
+        })
     }
     pub(crate) fn this_table(&self) -> Option<ObjectName> {
         self.inner_first(|x| x.this_table.clone())
     }
+}
+
+pub(crate) enum NearNestTableNamed {
+    Alias { table: ObjectName },
+    Temp { table: TempTable },
 }
 
 #[derive(Clone, Debug)]
@@ -91,31 +164,64 @@ pub struct TempTable {
 
 #[derive(Clone, Default, Debug)]
 pub struct Scope {
-    table_alias: HashMap<String, ObjectName>,
+    table_entered: HashMap<Ident, ObjectName>,
     this_table: Option<ObjectName>,
-    temp_tables: HashMap<String, TempTable>,
+    temp_tables: HashMap<Ident, TempTable>,
     // https://www.postgresql.org/docs/current/plpgsql-declarations.html
-    // declares variables
+
+    // right sqlparse have problem to parse function or precedure body
+    // `declares` and `vars` not used.
+    #[allow(unused)]
     declares: HashMap<String, Arc<Declare>>,
     //
+    #[allow(unused)]
     vars: HashMap<String, Var>,
+
+    pub(crate) from_tables: Vec<FromTableOrTemp>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum FromTableOrTemp {
+    FromTable { table: ObjectName },
+    Temp { table: TempTable },
+}
+
+impl From<ObjectName> for FromTableOrTemp {
+    fn from(value: ObjectName) -> Self {
+        Self::FromTable { table: value }
+    }
+}
+
+impl From<TempTable> for FromTableOrTemp {
+    fn from(value: TempTable) -> Self {
+        Self::Temp { table: value }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct Var {
+    #[allow(dead_code)]
     datatype: DataType,
 }
 
 impl Scope {
+    pub(crate) fn enter_table(&mut self, alias: Ident, table_name: ObjectName) {
+        self.table_entered.insert(alias, table_name);
+    }
+
+    pub(crate) fn enter_temp_table(&mut self, name: Ident, table_name: TempTable) {
+        self.temp_tables.insert(name, table_name);
+    }
+
     pub(crate) fn enter_declare(&mut self, d: Arc<Declare>) {
         for name in d.names.iter() {
             self.declares.insert(name.value.clone(), d.clone());
         }
     }
 
-    pub(crate) fn from_temp_tables(this_table: HashMap<String, TempTable>) -> Self {
+    pub(crate) fn from_temp_tables(temp_tables: HashMap<Ident, TempTable>) -> Self {
         Self {
-            temp_tables: this_table,
+            temp_tables,
             ..Default::default()
         }
     }
@@ -372,15 +478,15 @@ impl CompletionStament {
                 or,
             } => todo!(),
             Statement::Delete(delete) => {
+                let _guard = self.c_from_table(&delete.from).await;
+                if self.finished() {
+                    return;
+                }
                 for t in delete.tables.iter() {
                     self.c_on_table(t).await;
                     if self.finished() {
                         return;
                     }
-                }
-                self.c_from_table(&delete.from);
-                if self.finished() {
-                    return;
                 }
             }
             Statement::CreateView { query, name, .. } => {

@@ -50,6 +50,7 @@ pub enum CompletionKind {
     Constraint,
     Partition,
     PrepareStatement,
+    Pragma,
 }
 
 pub fn in_pos(
@@ -239,6 +240,9 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
     }
     async fn list_prepare_name(&self) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
+    }
+    fn sqlite_pragma(&self) -> Vec<CompletionItem> {
+        vec![]
     }
 }
 
