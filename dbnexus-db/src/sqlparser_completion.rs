@@ -159,7 +159,7 @@ pub struct TempTableColumn {
 
 #[derive(Clone, Debug)]
 pub struct TempTable {
-    pub(crate) columns: Vec<TempTableColumn>,
+    pub(crate) columns: Arc<Vec<TempTableColumn>>,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -184,6 +184,7 @@ pub struct Scope {
 pub(crate) enum FromTableOrTemp {
     FromTable { table: ObjectName },
     Temp { table: TempTable },
+    Unnamed { table: TempTable },
 }
 
 impl From<ObjectName> for FromTableOrTemp {

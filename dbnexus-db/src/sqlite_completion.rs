@@ -220,7 +220,68 @@ mod tests {
     };
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore = "should run by hand."]
+
     async fn test_auto_completion() {
+        /*
+
+        测试用到的表格 和建表语句
+
+           -- 创建 departments 表
+           CREATE TABLE departments (
+               id INTEGER PRIMARY KEY,
+               name TEXT NOT NULL
+           );
+
+           -- 创建 employees 表
+           CREATE TABLE employees (
+               id INTEGER PRIMARY KEY,
+               name TEXT NOT NULL,
+               department_id INTEGER,
+               FOREIGN KEY (department_id) REFERENCES departments (id)
+           );
+
+           -- 插入测试数据到 departments 表
+           INSERT INTO departments (id, name) VALUES
+           (1, 'HR'),
+           (2, 'IT'),
+           (3, 'Sales');
+
+           -- 插入测试数据到 employees 表
+           INSERT INTO employees (id, name, department_id) VALUES
+           (1, 'Alice', 1),
+           (2, 'Bob', 2),
+           (3, 'Charlie', 2),
+           (4, 'David', 1),
+           (5, 'Eva', 3);
+
+           -- 创建 departments 表
+           CREATE TABLE departments (
+               id INTEGER PRIMARY KEY,
+               name TEXT NOT NULL
+           );
+
+           -- 创建 employees 表
+           CREATE TABLE employees (
+               id INTEGER PRIMARY KEY,
+               name TEXT NOT NULL,
+               department_id INTEGER,
+               FOREIGN KEY (department_id) REFERENCES departments (id)
+           );
+
+           -- 插入测试数据到 departments 表
+           INSERT INTO departments (id, name) VALUES
+           (1, 'HR'),
+           (2, 'IT'),
+           (3, 'Sales');
+
+           -- 插入测试数据到 employees 表
+           INSERT INTO employees (id, name, department_id) VALUES
+           (1, 'Alice', 1),
+           (2, 'Bob', 2),
+           (3, 'Charlie', 2),
+           (4, 'David', 1),
+           (5, 'Eva', 3);
+        */
         enable_test_log();
         let manifest_dir =
             std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
@@ -233,6 +294,21 @@ mod tests {
             .unwrap();
 
         test_file_auto_completion(&content, &db).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "should run by hand."]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = SqliteDB::new("/Users/yuyang/tests/test.sqlite.db".to_string(), false)
+            .await
+            .unwrap();
+        test_file_auto_completion(
+            r#"select id from (select * from employees)
+10 name"#,
+            &db,
+        )
+        .await;
     }
 }
 

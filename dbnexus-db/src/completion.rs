@@ -262,7 +262,6 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
     })?;
 
     for statement in statements {
-        println!("!!!!!!!!!!!!!!!!!!!completoion on:{:?}", statement);
         let c = CompletionStament::new(loc, helper.clone());
         c.completion_on_statement(&statement).await;
         if c.finished() {
@@ -270,7 +269,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
             return anyhow::Ok(m.into_inner().unwrap());
         }
     }
-    anyhow::bail!("can't find competion ")
+    anyhow::bail!("can't find completion.")
 }
 
 #[cfg(test)]

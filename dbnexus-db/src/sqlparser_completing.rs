@@ -15,6 +15,7 @@ use crate::{
     sqlparser_completion::{CompletionStament, Scope, ScopesGuard, TempTable, TempTableColumn},
 };
 use std::ops::Deref;
+use std::sync::Arc;
 use std::{collections::HashMap, ops::DerefMut, vec};
 
 impl Into<CompletionKind> for ObjectType {
@@ -617,11 +618,31 @@ impl CompletionStament {
     pub(crate) async fn c_on_expr(&self, expr: &Expr) {
         match expr {
             Expr::Identifier(ident) => {
-                //
+                // this table used every little
                 if let Some(this_table) = self.scopes.this_table() {
                     self.c_on_column(&this_table, ident).await;
                 } else {
-                    // another completion
+                    if self.in_pos(&ident.span) {
+                        // another completion
+                        for from in self.scopes.nearest_from_table().iter() {
+                            match from {
+                                // we only looking for unnamed
+                                // because named need access by `table.column`
+                                FromTableOrTemp::Unnamed { table } => {
+                                    *self.result.write().unwrap() = table
+                                        .columns
+                                        .to_vec()
+                                        .into_iter()
+                                        .map(|x| CompletionItem {
+                                            item: x.name.into(),
+                                            kind: CompletionKind::Column,
+                                        })
+                                        .collect::<Vec<_>>();
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
             }
             Expr::CompoundIdentifier(vec) => {
@@ -1083,7 +1104,7 @@ impl CompletionStament {
                 .unwrap_or_default()
                 .into_iter()
                 .map(|x| CompletionItem {
-                    kind: CompletionKind::Table,
+                    kind: CompletionKind::Column,
                     item: x.field.into(),
                 })
                 .collect::<Vec<_>>();
@@ -1344,9 +1365,14 @@ impl CompletionStament {
                                     kind: CompletionKind::Column,
                                 }));
                             }
+                            FromTableOrTemp::Unnamed { table } => {
+                                cs.extend(table.columns.iter().map(|x| CompletionItem {
+                                    item: x.name.clone().into(),
+                                    kind: CompletionKind::Column,
+                                }));
+                            }
                         }
                     }
-
                     *self.result.write().unwrap() = cs
                 }
             }
@@ -1521,7 +1547,10 @@ impl CompletionStament {
                                 ret.extend(cols.into_iter());
                             }
                             FromTableOrTemp::Temp { table } => {
-                                ret.extend(table.columns.clone().into_iter());
+                                ret.extend(table.columns.to_vec());
+                            }
+                            FromTableOrTemp::Unnamed { table } => {
+                                ret.extend(table.columns.to_vec());
                             }
                         }
                     }
@@ -1537,7 +1566,12 @@ impl CompletionStament {
         if let Some(with) = query.with.as_ref() {
             for c in with.cte_tables.iter() {
                 let cols = Box::pin(self.c_on_query(&c.query)).await?;
-                with_temp_tables.insert(c.alias.name.clone(), TempTable { columns: cols });
+                with_temp_tables.insert(
+                    c.alias.name.clone(),
+                    TempTable {
+                        columns: Arc::new(cols),
+                    },
+                );
             }
         }
         let s = Scope::from_temp_tables(with_temp_tables);
@@ -1720,22 +1754,45 @@ impl CompletionStament {
                         .await
                         .map_err(|e| log::error!("self.c_on_query failed,err:{:?}", e))
                         .unwrap_or_default();
-                    s.enter_temp_table(alias.name.clone(), TempTable { columns: cols });
+                    s.enter_temp_table(
+                        alias.name.clone(),
+                        TempTable {
+                            columns: Arc::new(cols),
+                        },
+                    );
                 } else {
-                    // TODO
-                    log::error!("empty table alias:{:?}", f);
+                    let cols = self
+                        .c_on_query(&subquery)
+                        .await
+                        .map_err(|e| log::error!("self.c_on_query failed,err:{:?}", e))
+                        .unwrap_or_default();
+                    s.from_tables.push(FromTableOrTemp::Unnamed {
+                        table: TempTable {
+                            columns: Arc::new(cols),
+                        },
+                    });
                 }
             }
             TableFactor::TableFunction { expr, alias } => {
                 if let Some(alias) = alias {
-                    s.enter_temp_table(alias.name.clone(), TempTable { columns: vec![] });
+                    s.enter_temp_table(
+                        alias.name.clone(),
+                        TempTable {
+                            columns: Arc::new(vec![]),
+                        },
+                    );
                 } else {
                     // TODO how to handle this case
                 }
             }
             TableFactor::Function { alias, .. } => {
                 if let Some(alias) = alias {
-                    s.enter_temp_table(alias.name.clone(), TempTable { columns: vec![] });
+                    s.enter_temp_table(
+                        alias.name.clone(),
+                        TempTable {
+                            columns: Arc::new(vec![]),
+                        },
+                    );
                 } else {
                     // TODO how to handle this case
                 }
