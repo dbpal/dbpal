@@ -15,7 +15,13 @@ use crate::sqlparser_completion::CompletionStament;
 #[async_trait::async_trait]
 pub trait AutoCompletionTrait {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
+        // if use the lexer to completing
+        // right now this parameter only use in test.
+        use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
 }
 
@@ -23,6 +29,7 @@ pub trait AutoCompletionTrait {
 pub struct CompletionItem {
     pub item: Cow<'static, str>,
     pub kind: CompletionKind,
+    pub desc: Option<Cow<'static, str>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
@@ -106,6 +113,7 @@ pub trait LexerCompletionTrait {
                 .map(|x| CompletionItem {
                     item: Cow::Borrowed(*x),
                     kind: CompletionKind::KeyWord,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -115,6 +123,7 @@ pub trait LexerCompletionTrait {
                 .map(|x| CompletionItem {
                     item: Cow::Borrowed(*x),
                     kind: CompletionKind::Function,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -124,6 +133,7 @@ pub trait LexerCompletionTrait {
                 .map(|x| CompletionItem {
                     item: Cow::Borrowed(*x),
                     kind: CompletionKind::Type,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -133,6 +143,7 @@ pub trait LexerCompletionTrait {
                 .map(|x| CompletionItem {
                     item: Cow::Borrowed(*x),
                     kind: CompletionKind::Text,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -203,7 +214,8 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
     ) -> anyhow::Result<Vec<Field>>;
     async fn list_function(
         &self, catelog: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>>;
+    ) -> anyhow::Result<Vec<CompletionItem>>;
+
     async fn list_procedure(
         &self, _catelog: Option<&str>, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
@@ -262,11 +274,12 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
     })?;
 
     for statement in statements {
-        let c = CompletionStament::new(loc, helper.clone());
+        log::trace!("completion on ast:{:?}", statement);
+        let mut c = CompletionStament::new(loc, helper.clone());
         c.completion_on_statement(&statement).await;
         if c.finished() {
             let m = c.result;
-            return anyhow::Ok(m.into_inner().unwrap());
+            return anyhow::Ok(m);
         }
     }
     anyhow::bail!("can't find completion.")
@@ -299,6 +312,7 @@ pub(crate) mod completion_test {
             &[CompletionItem {
                 item: "aaa".into(),
                 kind: CompletionKind::Text,
+                desc: None,
             }],
             "aaa",
         );
@@ -365,13 +379,18 @@ select xxxx
         );
     }
 
-    pub(crate) async fn test_file_auto_completion(content: &str, db: &dyn AutoCompletionTrait) {
+    pub(crate) async fn test_file_auto_completion(
+        content: &str, db: &dyn AutoCompletionTrait, use_lexer: bool,
+    ) {
         let items = parse_auto_completion_test_file(&content);
         for item in items.iter() {
             log::trace!("########completion on {:?}", item.sql);
             for i in item.tests.iter() {
                 log::trace!("on pos:{}", i.0);
-                let items = db.auto_completion(&item.sql, 1, i.0 as u32).await.unwrap();
+                let items = db
+                    .auto_completion(&item.sql, 1, i.0 as u32, use_lexer)
+                    .await
+                    .unwrap();
                 for should in i.1.iter() {
                     test_completion_items_contains(&items[..], &should);
                 }

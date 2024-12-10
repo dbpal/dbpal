@@ -1,4 +1,4 @@
-use sqlparser::ast::SelectItem;
+use sqlparser::ast::{FunctionArguments, SelectItem};
 
 use sqlparser::ast::{
     AlterTableOperation, CommentObject, Distinct, Expr, FromTable, Function, FunctionArg,
@@ -9,14 +9,14 @@ use sqlparser::ast::{
 use sqlparser::ast::{GroupByExpr, Partition};
 use sqlparser::ast::{JoinConstraint, JoinOperator};
 
-use crate::sqlparser_completion::{FromTableOrTemp, NearNestTableNamed};
+use crate::sqlparser_completion::{FromTableOrTemp, NearNestTableNamed, ThisTableEnum};
 use crate::{
     completion::{CompletionItem, CompletionKind},
     sqlparser_completion::{CompletionStament, Scope, ScopesGuard, TempTable, TempTableColumn},
 };
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
-use std::{collections::HashMap, ops::DerefMut, vec};
 
 impl Into<CompletionKind> for ObjectType {
     fn into(self) -> CompletionKind {
@@ -63,7 +63,7 @@ impl Into<CompletionKind> for CommentObject {
 
 impl CompletionStament {
     pub(crate) async fn c_on_column_mysql_position(
-        &self, table_name: &ObjectName, column_position: Option<&MySQLColumnPosition>,
+        &mut self, table_name: &ObjectName, column_position: Option<&MySQLColumnPosition>,
     ) {
         if let Some(column_position) = column_position {
             match column_position {
@@ -73,10 +73,10 @@ impl CompletionStament {
         }
     }
 
-    pub(crate) async fn c_on_prepare(&self, name: &ObjectName) {
+    pub(crate) async fn c_on_prepare(&mut self, name: &ObjectName) {
         match name.0.len() {
             1 => {
-                *self.result.write().unwrap() = self
+                self.result = self
                     .helper
                     .list_prepare_name()
                     .await
@@ -90,6 +90,7 @@ impl CompletionStament {
                     .map(|x| CompletionItem {
                         item: x.into(),
                         kind: CompletionKind::PrepareStatement,
+                        desc: None,
                     })
                     .collect::<Vec<_>>()
             }
@@ -98,13 +99,13 @@ impl CompletionStament {
             }
         }
     }
-    pub(crate) async fn c_on_partition_expr(&self, table_name: &ObjectName, p: &Expr) {
+    pub(crate) async fn c_on_partition_expr(&mut self, table_name: &ObjectName, p: &Expr) {
         match p {
             Expr::Identifier(x) => {
                 let (db, schema, table) = self.extract_db_schme_item(table_name);
 
                 if self.in_pos(&x.span) {
-                    *self.result.write().unwrap() = self
+                    self.result = self
                         .helper
                         .list_partition(db, schema, table)
                         .await
@@ -118,6 +119,7 @@ impl CompletionStament {
                         .map(|x| CompletionItem {
                             item: x.into(),
                             kind: CompletionKind::Partition,
+                            desc: None,
                         })
                         .collect::<Vec<_>>();
                 }
@@ -127,9 +129,9 @@ impl CompletionStament {
             }
         }
     }
-    pub(crate) async fn c_on_index(&self, name: &ObjectName) {
+    pub(crate) async fn c_on_index(&mut self, name: &ObjectName) {
         if self.in_pos(&name.span()) {
-            *self.result.write().unwrap() = self
+            self.result = self
                 .helper
                 .list_index()
                 .await
@@ -143,13 +145,14 @@ impl CompletionStament {
                 .map(|x| CompletionItem {
                     item: x.into(),
                     kind: CompletionKind::Index,
+                    desc: None,
                 })
                 .collect::<Vec<_>>();
         }
     }
 
     pub(crate) fn extract_db_schme_item<'a>(
-        &self, item_name: &'a ObjectName,
+        &mut self, item_name: &'a ObjectName,
     ) -> (Option<&'a str>, Option<&'a str>, &'a str) {
         let mut db = None;
         let mut schema = None;
@@ -175,12 +178,12 @@ impl CompletionStament {
         return (db, schema, table);
     }
 
-    pub(crate) async fn c_on_postgres_rule(&self, table_name: &ObjectName, rule: &Ident) {
+    pub(crate) async fn c_on_postgres_rule(&mut self, table_name: &ObjectName, rule: &Ident) {
         if !self.in_pos(&rule.span) {
             return;
         }
         let (db, schema, table) = self.extract_db_schme_item(table_name);
-        *self.result.write().unwrap() = self
+        self.result = self
             .helper
             .list_postgres_rule(db, schema, &table)
             .await
@@ -194,13 +197,14 @@ impl CompletionStament {
             .map(|x| CompletionItem {
                 item: x.into(),
                 kind: CompletionKind::Index,
+                desc: None,
             })
             .collect::<Vec<_>>();
     }
-    pub(crate) async fn c_on_constraint(&self, table_name: &ObjectName, name: &Ident) {
+    pub(crate) async fn c_on_constraint(&mut self, table_name: &ObjectName, name: &Ident) {
         if self.in_pos(&name.span) {
             let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-            *self.result.write().unwrap() = self
+            self.result = self
                 .helper
                 .list_constraint(db, schema, table_name)
                 .await
@@ -214,13 +218,14 @@ impl CompletionStament {
                 .map(|x| CompletionItem {
                     item: x.into(),
                     kind: CompletionKind::Constraint,
+                    desc: None,
                 })
                 .collect::<Vec<_>>();
         }
     }
 
     pub(crate) async fn c_on_alert_table(
-        &self, table_name: &ObjectName, operations: &Vec<AlterTableOperation>,
+        &mut self, table_name: &ObjectName, operations: &Vec<AlterTableOperation>,
     ) {
         self.c_on_table(table_name).await;
         if self.finished() {
@@ -537,7 +542,7 @@ impl CompletionStament {
             }
         }
     }
-    pub(crate) async fn c_on_view(&self, name: &ObjectName) {
+    pub(crate) async fn c_on_view(&mut self, name: &ObjectName) {
         self.c_on_db_schema(name).await;
         if self.finished() {
             return;
@@ -547,7 +552,7 @@ impl CompletionStament {
         }
         // here match
         let (db, schema, _name) = self.extract_db_schme_item(name);
-        *self.result.write().unwrap() = self
+        self.result = self
             .helper
             .list_table(db, schema)
             .await
@@ -561,17 +566,17 @@ impl CompletionStament {
             .map(|x| CompletionItem {
                 item: x.into(),
                 kind: CompletionKind::Table,
+                desc: None,
             })
             .collect::<Vec<_>>();
     }
 
-    pub(crate) async fn c_on_expr_compund_identifier(&self, idents: &[Ident]) {
+    pub(crate) async fn c_on_expr_compund_identifier(&mut self, idents: &[Ident]) {
         // we must access table's column???
         match idents.len() {
             1 => {
-                if let Some(table_name) = self.scopes.this_table() {
-                    self.c_on_column(&table_name, &idents[0]).await
-                }
+                // maybe never execute to here???
+                self.c_on_expr_ident(&idents[0]).await;
             }
             2 => {
                 let table = &idents[0];
@@ -587,12 +592,13 @@ impl CompletionStament {
                             self.c_on_column(&table, &idents[1]).await;
                         }
                         NearNestTableNamed::Temp { table } => {
-                            *self.result.write().unwrap() = table
+                            self.result = table
                                 .columns
                                 .iter()
                                 .map(|col| CompletionItem {
                                     item: col.name.clone().into(),
                                     kind: CompletionKind::Column,
+                                    desc: None,
                                 })
                                 .collect();
                         }
@@ -615,36 +621,95 @@ impl CompletionStament {
             }
         }
     }
-    pub(crate) async fn c_on_expr(&self, expr: &Expr) {
-        match expr {
-            Expr::Identifier(ident) => {
-                // this table used every little
-                if let Some(this_table) = self.scopes.this_table() {
-                    self.c_on_column(&this_table, ident).await;
-                } else {
-                    if self.in_pos(&ident.span) {
-                        // another completion
-                        for from in self.scopes.nearest_from_table().iter() {
-                            match from {
-                                // we only looking for unnamed
-                                // because named need access by `table.column`
-                                FromTableOrTemp::Unnamed { table } => {
-                                    *self.result.write().unwrap() = table
-                                        .columns
-                                        .to_vec()
-                                        .into_iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.name.into(),
-                                            kind: CompletionKind::Column,
-                                        })
-                                        .collect::<Vec<_>>();
-                                }
-                                _ => {}
-                            }
-                        }
+
+    pub(crate) async fn c_on_expr_ident(&mut self, ident: &Ident) {
+        if !self.in_pos(&ident.span) {
+            return;
+        }
+
+        if let Some(this_table) = self.scopes.this_table() {
+            match this_table {
+                ThisTableEnum::Table { name } => {
+                    self.c_on_column(&name, ident).await;
+                }
+                ThisTableEnum::Temp { temp } => {
+                    self.result = temp
+                        .columns
+                        .iter()
+                        .map(|x| CompletionItem {
+                            item: x.name.clone().into(),
+                            kind: CompletionKind::Column,
+                            desc: None,
+                        })
+                        .collect();
+                }
+            }
+        } else {
+            // another completion
+            for from in self.scopes.nearest_from_table().iter() {
+                match from {
+                    // we only looking for unnamed
+                    // because named need access by `table.column`
+                    FromTableOrTemp::Unnamed { table } => {
+                        self.result.extend(
+                            table
+                                .columns
+                                .to_vec()
+                                .into_iter()
+                                .map(|x| CompletionItem {
+                                    item: x.name.into(),
+                                    kind: CompletionKind::Column,
+                                    desc: None,
+                                })
+                                .collect::<Vec<_>>()
+                                .into_iter(),
+                        );
+                    }
+                    FromTableOrTemp::FromTable { table } => {
+                        let (db, schema, table) = self.extract_db_schme_item(table);
+                        let m = self
+                            .helper
+                            .list_column(db, schema, table)
+                            .await
+                            .map_err(|e| {
+                                log::error!("list_column failed,err:{}", e);
+                                self.set_has_err();
+                            })
+                            .ok()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                item: x.field.clone().into(),
+                                kind: CompletionKind::Column,
+                                desc: None,
+                            })
+                            .collect::<Vec<_>>();
+                        self.result.extend(m.into_iter());
+                    }
+                    FromTableOrTemp::Temp { table } => {
+                        self.result.extend(
+                            table
+                                .columns
+                                .to_vec()
+                                .into_iter()
+                                .map(|x| CompletionItem {
+                                    item: x.name.into(),
+                                    kind: CompletionKind::Column,
+                                    desc: None,
+                                })
+                                .collect::<Vec<_>>()
+                                .into_iter(),
+                        );
                     }
                 }
             }
+        }
+    }
+
+    pub(crate) async fn c_on_expr(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Identifier(ident) => self.c_on_expr_ident(ident).await,
+
             Expr::CompoundIdentifier(vec) => {
                 self.c_on_expr_compund_identifier(&vec).await;
             }
@@ -852,7 +917,6 @@ impl CompletionStament {
             }
             Expr::Trim {
                 expr,
-
                 trim_what,
                 trim_characters,
                 ..
@@ -917,7 +981,7 @@ impl CompletionStament {
             Expr::MapAccess { .. } => {
                 // clickhouse
             }
-            Expr::Function(function) => self.c_on_function_def(function).await,
+            Expr::Function(function) => Box::pin(self.c_on_function_call(function)).await,
 
             Expr::Method(_method) => {
                 // TODO
@@ -1061,9 +1125,18 @@ impl CompletionStament {
             Expr::MatchAgainst { columns, .. } => {
                 if let Some(this_table) = self.scopes.this_table() {
                     for c in columns.iter() {
-                        self.c_on_column(&this_table, c).await;
-                        if self.finished() {
-                            return;
+                        match &this_table {
+                            ThisTableEnum::Table { name } => {
+                                self.c_on_column(name, c).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                            ThisTableEnum::Temp { temp: _temp } => {
+                                // temp this table only use in table create
+                                // I think I should never enter here.
+                                log::error!("temp this table only use in table create , I think I should never enter here. ");
+                            }
                         }
                     }
                 }
@@ -1085,14 +1158,14 @@ impl CompletionStament {
             }
         }
     }
-    pub(crate) async fn c_on_order_by_expr(&self, orderby: &OrderByExpr) {
+    pub(crate) async fn c_on_order_by_expr(&mut self, orderby: &OrderByExpr) {
         self.c_on_expr(&orderby.expr).await;
     }
 
-    pub(crate) async fn c_on_column(&self, table_name: &ObjectName, col: &Ident) {
+    pub(crate) async fn c_on_column(&mut self, table_name: &ObjectName, col: &Ident) {
         if self.in_pos(&col.span) {
             let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-            *self.result.write().unwrap() = self
+            self.result = self
                 .helper
                 .list_column(db, schema, table_name)
                 .await
@@ -1106,15 +1179,18 @@ impl CompletionStament {
                 .map(|x| CompletionItem {
                     kind: CompletionKind::Column,
                     item: x.field.into(),
+                    desc: None,
                 })
                 .collect::<Vec<_>>();
         }
     }
 
-    pub(crate) async fn c_on_table_trigger(&self, table_name: &ObjectName, trigger_name: &Ident) {
+    pub(crate) async fn c_on_table_trigger(
+        &mut self, table_name: &ObjectName, trigger_name: &Ident,
+    ) {
         if self.in_pos(&trigger_name.span) {
             let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-            *self.result.write().unwrap() = self
+            self.result = self
                 .helper
                 .list_table_trigger(db, schema, table_name)
                 .await
@@ -1128,18 +1204,19 @@ impl CompletionStament {
                 .map(|x| CompletionItem {
                     item: x.into(),
                     kind: CompletionKind::Trigger,
+                    desc: None,
                 })
                 .collect();
         }
     }
 
     // completion 假设  database.schema
-    pub(crate) async fn c_on_db_schema(&self, name: &ObjectName) {
+    pub(crate) async fn c_on_db_schema(&mut self, name: &ObjectName) {
         match name.0.len() {
             2 => {
                 let schema = &name.0[0];
                 if self.in_pos(&schema.span) {
-                    *self.result.write().unwrap() = self
+                    self.result = self
                         .helper
                         .list_schema(None)
                         .await
@@ -1153,6 +1230,7 @@ impl CompletionStament {
                         .map(|x| CompletionItem {
                             kind: CompletionKind::Schema,
                             item: x.into(),
+                            desc: None,
                         })
                         .collect::<Vec<_>>();
                 }
@@ -1160,7 +1238,7 @@ impl CompletionStament {
             3 => {
                 let db = &name.0[0];
                 if self.in_pos(&db.span) {
-                    *self.result.write().unwrap() = self
+                    self.result = self
                         .helper
                         .list_database()
                         .await
@@ -1174,12 +1252,13 @@ impl CompletionStament {
                         .map(|x| CompletionItem {
                             kind: CompletionKind::Database,
                             item: x.into(),
+                            desc: None,
                         })
                         .collect::<Vec<_>>();
                 }
                 let schema = &name.0[1];
                 if self.in_pos(&schema.span) {
-                    *self.result.write().unwrap() = self
+                    self.result = self
                         .helper
                         .list_schema(Some(&db.value))
                         .await
@@ -1193,6 +1272,7 @@ impl CompletionStament {
                         .map(|x| CompletionItem {
                             kind: CompletionKind::Schema,
                             item: x.into(),
+                            desc: None,
                         })
                         .collect::<Vec<_>>();
                 }
@@ -1207,14 +1287,14 @@ impl CompletionStament {
     }
 
     // completion on table or view.
-    pub(crate) async fn c_on_table_or_view(&self, name: &ObjectName) {
+    pub(crate) async fn c_on_table_or_view(&mut self, name: &ObjectName) {
         self.c_on_view(name).await;
-        let x1 = std::mem::take(self.result.write().unwrap().deref_mut());
+        let x1 = std::mem::take(&mut self.result);
         self.c_on_table(name).await;
-        self.result.write().unwrap().extend(x1.into_iter());
+        self.result.extend(x1.into_iter());
     }
 
-    pub(crate) async fn c_on_table(&self, table_name: &ObjectName) {
+    pub(crate) async fn c_on_table(&mut self, table_name: &ObjectName) {
         self.c_on_db_schema(table_name).await;
         if self.finished() {
             return;
@@ -1246,12 +1326,13 @@ impl CompletionStament {
             .map(|x| CompletionItem {
                 item: x.into(),
                 kind: CompletionKind::Table,
+                desc: None,
             })
             .collect::<Vec<_>>();
 
-        *self.result.write().unwrap() = tables;
+        self.result = tables;
     }
-    pub(crate) async fn c_from_table(&self, from_table: &FromTable) -> ScopesGuard {
+    pub(crate) async fn c_from_table(&mut self, from_table: &FromTable) -> ScopesGuard {
         let tables = match from_table {
             FromTable::WithFromKeyword(vec) => vec,
             FromTable::WithoutKeyword(vec) => vec,
@@ -1259,7 +1340,7 @@ impl CompletionStament {
         self.c_on_table_with_joins(&tables[..]).await
     }
 
-    pub(crate) async fn c_on_table_with_joins(&self, joins: &[TableWithJoins]) -> ScopesGuard {
+    pub(crate) async fn c_on_table_with_joins(&mut self, joins: &[TableWithJoins]) -> ScopesGuard {
         for (index, join_tables) in joins.iter().enumerate() {
             let scope = self.c_on_table_with_join(join_tables).await;
             if self.finished() {
@@ -1271,7 +1352,7 @@ impl CompletionStament {
         self.scopes.drop_n(joins.len())
     }
 
-    pub(crate) async fn c_on_table_with_join(&self, t: &TableWithJoins) -> Scope {
+    pub(crate) async fn c_on_table_with_join(&mut self, t: &TableWithJoins) -> Scope {
         let mut scope = Scope::default();
         self.c_on_table_factor(&t.relation, &mut scope).await;
         if self.finished() {
@@ -1327,7 +1408,7 @@ impl CompletionStament {
         return scope;
     }
 
-    pub(crate) async fn c_on_join_constraint(&self, c: &JoinConstraint) {
+    pub(crate) async fn c_on_join_constraint(&mut self, c: &JoinConstraint) {
         match c {
             JoinConstraint::On(expr) => {
                 self.c_on_expr(expr).await;
@@ -1356,6 +1437,7 @@ impl CompletionStament {
                                         .map(|x| CompletionItem {
                                             item: x.field.clone().into(),
                                             kind: CompletionKind::Column,
+                                            desc: None,
                                         }),
                                 );
                             }
@@ -1363,17 +1445,19 @@ impl CompletionStament {
                                 cs.extend(table.columns.iter().map(|x| CompletionItem {
                                     item: x.name.clone().into(),
                                     kind: CompletionKind::Column,
+                                    desc: None,
                                 }));
                             }
                             FromTableOrTemp::Unnamed { table } => {
                                 cs.extend(table.columns.iter().map(|x| CompletionItem {
                                     item: x.name.clone().into(),
                                     kind: CompletionKind::Column,
+                                    desc: None,
                                 }));
                             }
                         }
                     }
-                    *self.result.write().unwrap() = cs
+                    self.result = cs
                 }
             }
             JoinConstraint::Natural => {}
@@ -1382,7 +1466,7 @@ impl CompletionStament {
     }
 
     pub(crate) async fn c_on_select(
-        &self, selection: &Select,
+        &mut self, selection: &Select,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let _gurad = self.c_on_table_with_joins(&selection.from[..]).await;
         if self.finished() {
@@ -1443,8 +1527,14 @@ impl CompletionStament {
                 return anyhow::Ok(vec![]);
             }
         }
+        self.c_on_select_item(&selection.projection).await
+    }
+
+    pub(crate) async fn c_on_select_item(
+        &mut self, projection: &[SelectItem],
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut ret = Vec::new();
-        for p in selection.projection.iter() {
+        for p in projection.iter() {
             match p {
                 SelectItem::UnnamedExpr(expr) => {
                     self.c_on_expr(expr).await;
@@ -1464,7 +1554,6 @@ impl CompletionStament {
                         name: alias.to_string(),
                     });
                 }
-
                 SelectItem::QualifiedWildcard(object_name, _wildcard_additional_options) => {
                     self.c_on_table(object_name).await;
                     if self.finished() {
@@ -1560,8 +1649,9 @@ impl CompletionStament {
 
         anyhow::Ok(ret)
     }
-
-    pub(crate) async fn c_on_query(&self, query: &Query) -> anyhow::Result<Vec<TempTableColumn>> {
+    pub(crate) async fn c_on_query(
+        &mut self, query: &Query,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut with_temp_tables = HashMap::new();
         if let Some(with) = query.with.as_ref() {
             for c in with.cte_tables.iter() {
@@ -1597,7 +1687,7 @@ impl CompletionStament {
     }
 
     pub(crate) async fn c_on_set_expr(
-        &self, set: &SetExpr,
+        &mut self, set: &SetExpr,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         match set {
             SetExpr::Select(select) => {
@@ -1673,7 +1763,7 @@ impl CompletionStament {
         anyhow::Ok(vec![])
     }
 
-    pub(crate) async fn c_on_function_arg_expr(&self, arg: &FunctionArgExpr) {
+    pub(crate) async fn c_on_function_arg_expr(&mut self, arg: &FunctionArgExpr) {
         match arg {
             FunctionArgExpr::Expr(expr) => {
                 self.c_on_expr(expr).await;
@@ -1682,7 +1772,7 @@ impl CompletionStament {
             FunctionArgExpr::Wildcard => {}
         }
     }
-    pub(crate) async fn c_on_table_factor(&self, f: &TableFactor, s: &mut Scope) {
+    pub(crate) async fn c_on_table_factor(&mut self, f: &TableFactor, s: &mut Scope) {
         #[allow(unused)]
         match f {
             TableFactor::Table {
@@ -1806,14 +1896,14 @@ impl CompletionStament {
             TableFactor::MatchRecognize { .. } => {}
         }
     }
-    pub(crate) async fn c_on_procedure(&self, name: &ObjectName) {
+    pub(crate) async fn c_on_procedure(&mut self, name: &ObjectName) {
         self.c_on_db_schema(name).await;
         if self.finished() {
             return;
         }
         if self.last_name_in_pos(name) {
             let (db, schema, _) = self.extract_db_schme_item(name);
-            *self.result.write().unwrap() = self
+            self.result = self
                 .helper
                 .list_procedure(db, schema)
                 .await
@@ -1827,33 +1917,79 @@ impl CompletionStament {
                 .map(|x| CompletionItem {
                     kind: CompletionKind::Function,
                     item: x.into(),
+                    desc: None,
                 })
                 .collect::<Vec<_>>();
         }
     }
-    pub(crate) fn last_name_in_pos(&self, name: &ObjectName) -> bool {
+    pub(crate) fn last_name_in_pos(&mut self, name: &ObjectName) -> bool {
         name.0.last().map(|x| self.in_pos(&x.span)).unwrap_or(false)
     }
 
     // sqlite pragma
 
-    pub(crate) async fn c_on_pragma(&self, name: &ObjectName) {
+    pub(crate) async fn c_on_pragma(&mut self, name: &ObjectName) {
         if self.in_pos(&name.span()) {
             return;
         }
-        *self.result.write().unwrap() = self.helper.sqlite_pragma();
+        self.result = self.helper.sqlite_pragma();
     }
 
-    pub(crate) async fn c_on_function_def(&self, _f: &Function) {}
+    pub(crate) async fn c_on_function_call(&mut self, function: &Function) {
+        self.c_on_function(&function.name).await;
+        // handle args
+        match &function.args {
+            FunctionArguments::None => {}
+            FunctionArguments::Subquery(query) => {
+                let _ = self.c_on_query(&query).await;
+            }
+            FunctionArguments::List(function_argument_list) => {
+                for arg in function_argument_list.args.iter() {
+                    match arg {
+                        FunctionArg::Named { name, arg, .. } => {
+                            if self.in_pos(&name.span) {
+                                return;
+                            }
+                            match arg {
+                                FunctionArgExpr::Expr(expr) => {
+                                    self.c_on_expr(expr).await;
+                                }
+                                _ => {}
+                            };
+                        }
+                        FunctionArg::ExprNamed { name, arg, .. } => {
+                            if self.in_pos(&name.span()) {
+                                // make suggest nothing.
+                                return;
+                            }
+                            match arg {
+                                FunctionArgExpr::Expr(expr) => {
+                                    self.c_on_expr(expr).await;
+                                }
+                                _ => {}
+                            };
+                        }
+                        FunctionArg::Unnamed(function_arg_expr) => match function_arg_expr {
+                            FunctionArgExpr::Expr(expr) => {
+                                self.c_on_expr(expr).await;
+                            }
+                            _ => {}
+                        },
+                    }
+                }
+            }
+        }
+    }
 
-    pub(crate) async fn c_on_function(&self, name: &ObjectName) {
+    pub(crate) async fn c_on_function_drop(&mut self, name: &ObjectName) {
         self.c_on_db_schema(name).await;
         if self.finished() {
             return;
         }
+
         if self.last_name_in_pos(name) {
             let (db, schema, _) = self.extract_db_schme_item(name);
-            *self.result.write().unwrap() = self
+            self.result = self
                 .helper
                 .list_function(db, schema)
                 .await
@@ -1863,12 +1999,25 @@ impl CompletionStament {
                 })
                 .ok()
                 .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    kind: CompletionKind::Function,
-                    item: x.into(),
+        }
+    }
+    pub(crate) async fn c_on_function(&mut self, name: &ObjectName) {
+        self.c_on_db_schema(name).await;
+        if self.finished() {
+            return;
+        }
+        if self.last_name_in_pos(name) {
+            let (db, schema, _) = self.extract_db_schme_item(name);
+            self.result = self
+                .helper
+                .list_function(db, schema)
+                .await
+                .map_err(|e| {
+                    log::error!("list function error:{:?}", e);
+                    self.set_has_err();
                 })
-                .collect::<Vec<_>>();
+                .ok()
+                .unwrap_or_default()
         }
     }
 }

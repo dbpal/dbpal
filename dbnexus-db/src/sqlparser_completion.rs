@@ -1,17 +1,15 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::{Deref, DerefMut},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex, RwLock,
-    },
+    sync::{Arc, Mutex},
 };
 
 use sqlparser::{
     ast::{
-        AlterIndexOperation, CopySource, CreateFunctionBody, DataType, Declare, DeclareAssignment,
-        FunctionArg, FunctionArgExpr, FunctionArguments, GrantObjects, Ident, ObjectName,
-        SchemaName, SelectItem, SequenceOptions, Spanned, Statement, UserDefinedTypeRepresentation,
+        AlterIndexOperation, AssignmentTarget, CopySource, CreateFunctionBody, DataType, Declare,
+        DeclareAssignment, GrantObjects, Ident, ObjectName, SchemaName, SelectItem,
+        SequenceOptions, Spanned, Statement, TableConstraint, TableFactor,
+        UserDefinedTypeRepresentation,
     },
     tokenizer::{Location, Span},
 };
@@ -20,11 +18,11 @@ use crate::completion::{CompletionItem, CompletionKind, CompletionOnSynTaxHelper
 
 pub struct CompletionStament {
     pub(crate) loc: Location,
-    pub(crate) result: RwLock<Vec<CompletionItem>>,
+    pub(crate) result: Vec<CompletionItem>,
     pub(crate) helper: Arc<dyn CompletionOnSynTaxHelper>,
     pub(crate) scopes: Scopes,
-    pub(crate) on_def: AtomicBool,
-    pub(crate) has_err: AtomicBool,
+    pub(crate) on_def: bool,
+    pub(crate) has_err: bool,
 }
 
 #[derive(Clone)]
@@ -83,10 +81,17 @@ impl Scopes {
         let mut ret = Vec::new();
         self.inner_first(|scope| {
             if let Some(table) = &scope.this_table {
-                let name = table.0.last().unwrap();
-                let name_str = name.to_string();
-                if !names.contains(&name_str) {
-                    ret.push(name_str);
+                match table {
+                    ThisTableEnum::Table { name } => {
+                        let name = name.0.last().unwrap();
+                        let name_str = name.to_string();
+                        if !names.contains(&name_str) {
+                            ret.push(name_str);
+                        }
+                    }
+                    ThisTableEnum::Temp { temp: _ } => {
+                        // nothing to here.
+                    }
                 }
             }
             for name in scope.table_entered.keys() {
@@ -141,7 +146,8 @@ impl Scopes {
             None
         })
     }
-    pub(crate) fn this_table(&self) -> Option<ObjectName> {
+
+    pub(crate) fn this_table(&self) -> Option<ThisTableEnum> {
         self.inner_first(|x| x.this_table.clone())
     }
 }
@@ -162,10 +168,21 @@ pub struct TempTable {
     pub(crate) columns: Arc<Vec<TempTableColumn>>,
 }
 
+#[derive(Debug, Clone)]
+pub enum ThisTableEnum {
+    Table { name: ObjectName },
+    Temp { temp: TempTable },
+}
+
+impl From<ObjectName> for ThisTableEnum {
+    fn from(value: ObjectName) -> Self {
+        Self::Table { name: value }
+    }
+}
 #[derive(Clone, Default, Debug)]
 pub struct Scope {
     table_entered: HashMap<Ident, ObjectName>,
-    this_table: Option<ObjectName>,
+    this_table: Option<ThisTableEnum>,
     temp_tables: HashMap<Ident, TempTable>,
     // https://www.postgresql.org/docs/current/plpgsql-declarations.html
 
@@ -229,7 +246,7 @@ impl Scope {
 
     pub(crate) fn from_this_table(this_table: ObjectName) -> Self {
         Self {
-            this_table: Some(this_table),
+            this_table: Some(ThisTableEnum::from(this_table)),
             ..Default::default()
         }
     }
@@ -243,27 +260,25 @@ impl Scope {
 }
 
 impl CompletionStament {
-    pub(crate) fn set_on_def(&self) {
-        self.on_def.store(true, Ordering::Relaxed);
+    pub(crate) fn set_on_def(&mut self) {
+        self.on_def = true
     }
-    pub(crate) fn set_has_err(&self) {
-        self.has_err.store(true, Ordering::Relaxed);
+    pub(crate) fn set_has_err(&mut self) {
+        self.has_err = true
     }
 
     pub(crate) fn finished(&self) -> bool {
-        self.result.read().unwrap().len() > 0
-            || self.on_def.load(Ordering::Relaxed)
-            || self.has_err.load(Ordering::Relaxed)
+        self.result.len() > 0 || self.on_def || self.has_err
     }
 
     pub(crate) fn new(loc: Location, helper: Arc<dyn CompletionOnSynTaxHelper>) -> Self {
         Self {
             loc,
             helper,
-            result: RwLock::new(vec![]),
+            result: vec![],
             scopes: Scopes::new(),
-            on_def: AtomicBool::new(false),
-            has_err: AtomicBool::new(false),
+            on_def: false,
+            has_err: false,
         }
     }
 
@@ -272,7 +287,7 @@ impl CompletionStament {
             && (self.loc.column >= span.start.column && self.loc.column <= span.end.column)
     }
 
-    pub(crate) async fn completion_on_statement(&self, statement: &Statement) {
+    pub(crate) async fn completion_on_statement(&mut self, statement: &Statement) {
         #[allow(unused)]
         match statement {
             Statement::Analyze {
@@ -340,11 +355,13 @@ impl CompletionStament {
                         return;
                     }
                 }
-                /*
-                在 INSERT 语句中使用别名的实际应用场景较少，更多的是在 SELECT 查询中使用。表别名在 INSERT 的上下文中没有实际的功能，但可以在设计更复杂的查询时提高可读性。如果你有特定的用例或需要进一步的例子，请告诉我！ */
-                #[allow(unused)]
-                &insert.table_alias;
 
+                if let Some(alias) = &insert.table_alias {
+                    if self.in_pos(&alias.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                }
                 {
                     // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE 或 DELETE 语句后返回被操作的行的特定列。这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
                     let _gurad = self
@@ -385,61 +402,7 @@ impl CompletionStament {
                 //
             }
             Statement::Call(function) => {
-                //
-                self.c_on_function(&function.name).await;
-                // handle args
-                match &function.args {
-                    FunctionArguments::None => {}
-                    FunctionArguments::Subquery(query) => {
-                        self.c_on_query(&query);
-                    }
-                    FunctionArguments::List(function_argument_list) => {
-                        for arg in function_argument_list.args.iter() {
-                            match arg {
-                                FunctionArg::Named { name, arg, .. } => {
-                                    if self.in_pos(&name.span) {
-                                        return;
-                                    }
-                                    match arg {
-                                        FunctionArgExpr::Expr(expr) => {
-                                            self.c_on_expr(expr);
-                                        }
-                                        _ => {}
-                                    };
-                                }
-                                FunctionArg::ExprNamed { name, arg, .. } => {
-                                    if self.in_pos(&name.span()) {
-                                        // make suggest nothing.
-                                        return;
-                                    }
-                                    match arg {
-                                        FunctionArgExpr::Expr(expr) => {
-                                            self.c_on_expr(expr);
-                                        }
-                                        _ => {}
-                                    };
-                                }
-                                FunctionArg::Unnamed(function_arg_expr) => {
-                                    match function_arg_expr {
-                                        FunctionArgExpr::Expr(expr) => {
-                                            self.c_on_expr(expr);
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                            }
-                        }
-                    } //
-                }
-                if let Some(filter) = &function.filter {
-                    self.c_on_expr(&filter);
-                }
-                for x in function.within_group.iter() {
-                    self.c_on_order_by_expr(x);
-                    if self.finished() {
-                        return;
-                    }
-                }
+                Box::pin(self.c_on_function_call(function)).await;
             }
             Statement::Copy { source, .. } => {
                 match source {
@@ -476,18 +439,92 @@ impl CompletionStament {
                 from,
                 selection,
                 returning,
-                or,
-            } => todo!(),
+                ..
+            } => {
+                let mut joins = vec![table.clone()];
+                if let Some(x) = from.as_ref() {
+                    joins.push(x.clone());
+                }
+                let _guard = self.c_on_table_with_joins(&joins[..]).await;
+                let table = match &table.relation {
+                    TableFactor::Table { name, .. } => Some(name.clone()),
+                    _ => {
+                        log::error!("update from table is not a Table but:{:?}", table);
+                        None
+                    }
+                };
+                if let Some(selection) = selection {
+                    Box::pin(self.c_on_expr(selection)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                for ass in assignments.iter() {
+                    self.c_on_expr(&ass.value).await;
+                    if self.finished() {
+                        return;
+                    }
+                    if let Some(table) = &table {
+                        match &ass.target {
+                            AssignmentTarget::ColumnName(object_name) => {
+                                match object_name.0.len() {
+                                    1 => {
+                                        Box::pin(
+                                            self.c_on_column(table, object_name.0.last().unwrap()),
+                                        )
+                                        .await;
+                                    }
+                                    2 | 3 | 4 => {}
+                                    _ => {
+                                        log::error!("unhandled object name for column target")
+                                    }
+                                }
+                            }
+
+                            AssignmentTarget::Tuple(vec) => todo!(),
+                        }
+                    }
+                }
+                if let Some(p) = returning {
+                    let _ = self.c_on_select_item(&p).await;
+                }
+            }
             Statement::Delete(delete) => {
                 let _guard = self.c_from_table(&delete.from).await;
                 if self.finished() {
                     return;
                 }
+                let _guard = if let Some(other) = &delete.using {
+                    let _guard = self.c_on_table_with_joins(&other).await;
+                    if self.finished() {
+                        return;
+                    }
+                    _guard
+                } else {
+                    // 0 means drop nothing.
+                    self.scopes.drop_n(0)
+                };
+
                 for t in delete.tables.iter() {
                     self.c_on_table(t).await;
                     if self.finished() {
                         return;
                     }
+                }
+                if let Some(s) = &delete.selection {
+                    Box::pin(self.c_on_expr(s)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                for orderby in delete.order_by.iter() {
+                    Box::pin(self.c_on_order_by_expr(orderby)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(r) = &delete.returning {
+                    let _ = self.c_on_select_item(&r[..]).await;
                 }
             }
             Statement::CreateView { query, name, .. } => {
@@ -507,6 +544,144 @@ impl CompletionStament {
                     if (self.in_pos(&c.name.span)) {
                         self.set_on_def();
                         return;
+                    }
+                }
+                for c in create_table.constraints.iter() {
+                    match c {
+                        TableConstraint::Unique {
+                            name,
+                            index_name,
+                            columns,
+                            ..
+                        }
+                        | TableConstraint::PrimaryKey {
+                            name,
+                            index_name,
+                            columns,
+                            ..
+                        } => {
+                            if let Some(name) = name {
+                                if self.in_pos(&name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
+                            }
+                            if let Some(name) = index_name {
+                                if self.in_pos(&name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
+                            }
+                            if columns.iter().any(|x| self.in_pos(&x.span)) {
+                                // hit column
+                                self.result = columns
+                                    .iter()
+                                    .map(|x| CompletionItem {
+                                        item: x.value.clone().into(),
+                                        kind: CompletionKind::Column,
+                                        desc: None,
+                                    })
+                                    .collect();
+                            }
+                        }
+                        TableConstraint::ForeignKey {
+                            name,
+                            columns,
+                            foreign_table,
+                            referred_columns,
+                            ..
+                        } => {
+                            if let Some(name) = name {
+                                if self.in_pos(&name.span) {
+                                    return;
+                                }
+                            }
+                            if columns.iter().any(|x| self.in_pos(&x.span)) {
+                                // hit column
+                                self.result = columns
+                                    .iter()
+                                    .map(|x| CompletionItem {
+                                        item: x.value.clone().into(),
+                                        kind: CompletionKind::Column,
+                                        desc: None,
+                                    })
+                                    .collect();
+                                return;
+                            }
+                            self.c_on_table(foreign_table).await;
+                            for r in referred_columns.iter() {
+                                self.c_on_column(foreign_table, r).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                        }
+                        TableConstraint::Check { name, expr } => {
+                            if let Some(name) = name {
+                                if self.in_pos(&name.span) {
+                                    return;
+                                }
+                            }
+                            let mut s = Scope::default();
+                            let this_table = ThisTableEnum::Temp {
+                                temp: TempTable {
+                                    columns: Arc::new(
+                                        create_table
+                                            .columns
+                                            .iter()
+                                            .map(|c| TempTableColumn {
+                                                name: c.name.value.clone(),
+                                            })
+                                            .collect(),
+                                    ),
+                                },
+                            };
+                            s.this_table = Some(this_table);
+                            let _guard = self.scopes.push(s);
+                            Box::pin(self.c_on_expr(&expr)).await;
+                        }
+                        TableConstraint::Index { name, columns, .. } => {
+                            if let Some(name) = name {
+                                if self.in_pos(&name.span) {
+                                    return;
+                                }
+                            }
+
+                            if columns.iter().any(|x| self.in_pos(&x.span)) {
+                                // hit column
+                                self.result = columns
+                                    .iter()
+                                    .map(|x| CompletionItem {
+                                        item: x.value.clone().into(),
+                                        kind: CompletionKind::Column,
+                                        desc: None,
+                                    })
+                                    .collect();
+                            }
+                        }
+                        TableConstraint::FulltextOrSpatial {
+                            opt_index_name,
+                            columns,
+                            ..
+                        } => {
+                            if let Some(name) = opt_index_name {
+                                if self.in_pos(&name.span) {
+                                    return;
+                                }
+                            }
+
+                            if columns.iter().any(|x| self.in_pos(&x.span)) {
+                                // hit column
+                                self.result = columns
+                                    .iter()
+                                    .map(|x| CompletionItem {
+                                        item: x.value.clone().into(),
+                                        kind: CompletionKind::Column,
+                                        desc: None,
+                                    })
+                                    .collect();
+                            }
+                        }
                     }
                 }
                 if let Some(query) = &create_table.query {
@@ -657,15 +832,17 @@ impl CompletionStament {
                             .map(|x| CompletionItem {
                                 item: x.into(),
                                 kind: kind.clone(),
+                                desc: None,
                             })
                             .collect::<Vec<_>>();
-                        *self.result.write().unwrap() = items;
+                        self.result = items;
                     }
                 }
             }
+
             Statement::DropFunction { func_desc, .. } => {
                 for d in func_desc.iter() {
-                    self.c_on_function(&d.name).await;
+                    self.c_on_function_drop(&d.name).await;
                     if self.finished() {
                         return;
                     }
@@ -787,9 +964,10 @@ impl CompletionStament {
                         .map(|x| CompletionItem {
                             item: x.into(),
                             kind,
+                            desc: None,
                         })
                         .collect::<Vec<_>>();
-                    *self.result.write().unwrap() = items;
+                    self.result = items;
                 }
             }
             Statement::ShowColumns { .. } => {}
@@ -821,9 +999,10 @@ impl CompletionStament {
                     .map(|x| CompletionItem {
                         item: x.into(),
                         kind,
+                        desc: None,
                     })
                     .collect::<Vec<_>>();
-                *self.result.write().unwrap() = x;
+                self.result = x;
             }
 
             Statement::Commit { chain } => {

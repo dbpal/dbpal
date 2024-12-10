@@ -38,6 +38,7 @@ impl RedisDB {
                 ret.push(CompletionItem {
                     item: key.into(),
                     kind: CompletionKind::Table,
+                    desc: None,
                 })
             }
         }
@@ -52,6 +53,7 @@ impl RedisDB {
                 .map(|x| CompletionItem {
                     kind: CompletionKind::Column,
                     item: x.into(),
+                    desc: None,
                 })
                 .collect(),
         )
@@ -99,22 +101,27 @@ impl RedisDB {
                         CompletionItem {
                             item: "SCHEDULE".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "FORCE".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "SCHEDULE FORCE".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "SCHEDULE CRON".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "SCHEDULE INTERVAL".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                     ])
                 }
@@ -147,18 +154,22 @@ impl RedisDB {
                         CompletionItem {
                             item: "AND".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "OR".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "XOR".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "NOT".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                     ])
                 }
@@ -223,57 +234,70 @@ impl RedisDB {
                         CompletionItem {
                             item: "CONNECT".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "DISCONNECT".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "KILL".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "LIST".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         // 客户端信息获取
                         CompletionItem {
                             item: "GETNAME".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "ID".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "ADDR".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "PORT".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         //  客户端连接配置
                         CompletionItem {
                             item: "SETNAME".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "PAUSE".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "REPLY".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         // 客户端连接监控
                         CompletionItem {
                             item: "LIST".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "TRACKING".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                     ])
                 }
@@ -286,78 +310,96 @@ impl RedisDB {
                         CompletionItem {
                             item: "CREATE".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "MEET".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "ADDSLOTS".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "REPLICATE".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         // 集群状态查询
                         CompletionItem {
                             item: "NODES".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "INFO".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "KEYSLOT".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "COUNTKEYSINSLOT".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         // 集群维护和修复
                         CompletionItem {
                             item: "FAILOVER".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "FORGET".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "FLUSHSLOTS".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "RESET".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         // 集群扩展和缩容
                         CompletionItem {
                             item: "ADDSLOTS".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "DELSLOTS".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "SETSLOT".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         // 其他集群操作
                         CompletionItem {
                             item: "SAVECONFIG".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "SLOTS".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "TALK".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                     ])
                 }
@@ -369,18 +411,22 @@ impl RedisDB {
                         CompletionItem {
                             item: "GET".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "SET".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "RESETSTAT".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "REWRITE".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                     ])
                 }
@@ -658,44 +704,55 @@ impl RedisDB {
                         CompletionItem {
                             item: "SERVER".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "MEMORY".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "PERSISTENCE".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "STATS".into(),
+                            desc: None,
+
                             kind: CompletionKind::Text,
                         },
                         //
                         CompletionItem {
                             item: "REPLICATION".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "CLIENTS".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "CPU".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "COMMANDSTATS".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         //
                         CompletionItem {
                             item: "CLUSTER".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                         CompletionItem {
                             item: "KEYSPACE".into(),
                             kind: CompletionKind::Text,
+                            desc: None,
                         },
                     ])
                 }
@@ -770,14 +827,17 @@ impl RedisDB {
                                 CompletionItem {
                                     item: "ENCODING".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "IDLETIME".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "REFCOUNT".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                             ])
                         }
@@ -959,22 +1019,27 @@ impl RedisDB {
                                 CompletionItem {
                                     item: "LOAD".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "EXISTS".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "FLUSH".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "KILL".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "DEBUG".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                             ])
                         }
@@ -993,22 +1058,27 @@ impl RedisDB {
                                 CompletionItem {
                                     item: "OBJECT".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "SEGFAULT".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "RELOAD".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "SLEEP".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "HELP".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                             ])
                         }
@@ -1095,14 +1165,17 @@ impl RedisDB {
                                 CompletionItem {
                                     item: "GET".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "LEN".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                                 CompletionItem {
                                     item: "RESET".into(),
                                     kind: CompletionKind::Text,
+                                    desc: None,
                                 },
                             ])
                         }
@@ -1296,7 +1369,7 @@ impl RedisDB {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for RedisDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self, sql: &str, line: u32, col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let tokens =
             sqlparser::tokenizer::Tokenizer::new(&RedisDialet {}, sql).tokenize_with_location()?;
@@ -1392,6 +1465,7 @@ fn static_redis_command_completion_items() -> Vec<CompletionItem> {
                 .map(|x| CompletionItem {
                     item: (*x).into(),
                     kind: CompletionKind::Command,
+                    desc: None,
                 })
                 .collect::<Vec<_>>()
         })

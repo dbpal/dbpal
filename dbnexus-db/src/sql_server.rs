@@ -1622,7 +1622,7 @@ impl crate::db::DBTrait for SqlServer {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for SqlServer {
     async fn auto_completion(
-        &self, _sql: &str, _line: u32, _col: u32,
+        &self, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         // DBLexerCompletionBackend::do_auto_completion(
         //     self,
