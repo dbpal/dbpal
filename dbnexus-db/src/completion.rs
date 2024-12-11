@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use sqlparser::ast::{CommentObject, ObjectName, ObjectType, ShowCreateObject, Statement};
+use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
@@ -58,6 +58,7 @@ pub enum CompletionKind {
     Partition,
     PrepareStatement,
     Pragma,
+    Policy,
 }
 
 pub fn in_pos(
@@ -202,11 +203,21 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
     ) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
-
+    async fn postgres_table_policy(
+        &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
     async fn list_table(
+        &self, db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>>;
+    async fn list_view(
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>>;
     async fn list_column(
@@ -221,19 +232,7 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
     ) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
-    async fn list_drop_by_type(
-        &self, typ: ObjectType, db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>>;
-    async fn mysql_list_show_create(
-        &self, _obj_type: ShowCreateObject, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
-    }
-    async fn postgres_list_comment_object(
-        &self, _c: CommentObject, _name: &ObjectName,
-    ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
-    }
+
     async fn list_index(&self) -> anyhow::Result<Vec<String>>;
     async fn list_postgres_rule(
         &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
@@ -253,6 +252,7 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
     async fn list_prepare_name(&self) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
+
     fn sqlite_pragma(&self) -> Vec<CompletionItem> {
         vec![]
     }
@@ -384,7 +384,7 @@ select xxxx
     ) {
         let items = parse_auto_completion_test_file(&content);
         for item in items.iter() {
-            log::trace!("########completion on {:?}", item.sql);
+            // log::trace!("########completion on {:?}", item.sql);
             for i in item.tests.iter() {
                 log::trace!("on pos:{}", i.0);
                 let items = db

@@ -1,13 +1,6 @@
-use sqlparser::ast::{FunctionArguments, SelectItem};
+use sqlparser::ast::ColumnOption;
 
-use sqlparser::ast::{
-    AlterTableOperation, CommentObject, Distinct, Expr, FromTable, Function, FunctionArg,
-    FunctionArgExpr, Ident, MySQLColumnPosition, ObjectName, ObjectType, OrderByExpr, Query,
-    Select, SetExpr, ShowCreateObject, Spanned, Subscript, TableConstraint, TableFactor,
-    TableWithJoins, TopQuantity,
-};
-use sqlparser::ast::{GroupByExpr, Partition};
-use sqlparser::ast::{JoinConstraint, JoinOperator};
+use sqlparser::ast::*;
 
 use crate::sqlparser_completion::{FromTableOrTemp, NearNestTableNamed, ThisTableEnum};
 use crate::{
@@ -62,6 +55,135 @@ impl Into<CompletionKind> for CommentObject {
 }
 
 impl CompletionStament {
+    pub(crate) async fn c_on_trigger_exec_body(&mut self, _body: &TriggerExecBody) {
+        // sqlparser don't support parse trigger body??
+    }
+    pub(crate) async fn c_on_role(&mut self, role: &Ident) {
+        if !self.in_pos(&role.span) {
+            return;
+        }
+        self.result = self
+            .helper
+            .list_role()
+            .await
+            .map_err(|e| {
+                log::error!("list_role failed,err:{:?}", e);
+                self.set_has_err();
+            })
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                desc: None,
+                kind: CompletionKind::Role,
+            })
+            .collect();
+    }
+
+    pub(crate) async fn c_on_trigger(&mut self, _object_name: &ObjectName) {
+        unimplemented!()
+    }
+    pub(crate) async fn c_on_mysql_show_create(
+        &mut self, show_create: ShowCreateObject, name: &ObjectName,
+    ) {
+        match show_create {
+            ShowCreateObject::Event => {
+                // not support rigth now.
+            }
+            ShowCreateObject::Function => self.c_on_function(&name).await,
+
+            ShowCreateObject::Procedure => self.c_on_procedure(&name).await,
+            ShowCreateObject::Table => self.c_on_table(&name).await,
+            ShowCreateObject::Trigger => self.c_on_trigger(&name).await,
+            ShowCreateObject::View => self.c_on_view(&name).await,
+        }
+    }
+
+    pub(crate) async fn c_on_policy(&mut self, table_name: &ObjectName, name: &Ident) {
+        if self.in_pos(&name.span) {
+            return;
+        }
+        let (db, schema, table) = self.extract_db_schme_item(table_name);
+        self.result = self
+            .helper
+            .postgres_table_policy(db, schema, table)
+            .await
+            .map_err(|e| log::error!("postgres_table_policy failed,err:{:?}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Policy,
+                desc: None,
+            })
+            .collect();
+    }
+
+    pub(crate) async fn c_on_type_drop(&mut self, typ: ObjectType, name: &ObjectName) {
+        if !self.in_pos(&name.span()) {
+            return;
+        }
+        match typ {
+            ObjectType::Table => self.c_on_table(name).await,
+            ObjectType::View => self.c_on_view(name).await,
+            ObjectType::Index => self.c_on_index(name).await,
+            ObjectType::Schema | ObjectType::Database => {
+                // c_on_db_schema 假设形式是 database.schema.table
+                // 但是在这种情况下 ident肯定没这么长
+                // 所以加一个假的
+                let mut name = name.0.clone();
+                name.push(Ident::new("fake"));
+                self.c_on_db_schema(&ObjectName(name)).await;
+            }
+            ObjectType::Role => {
+                // rule not support
+            }
+            ObjectType::Sequence => {
+                // rule not support
+            }
+            ObjectType::Stage => {
+                // rule not support
+            }
+            ObjectType::Type => {
+                // rule not support
+            }
+        }
+    }
+    pub(crate) async fn c_on_postgres_comment_object(
+        &mut self, object_type: CommentObject, name: &ObjectName,
+    ) {
+        if !self.in_pos(&name.span()) {
+            return;
+        }
+        match object_type {
+            CommentObject::Table => self.c_on_table(name).await,
+            CommentObject::Schema | CommentObject::Database => {
+                // c_on_db_schema 假设形式是 database.schema.table
+                // 但是在这种情况下 ident肯定没这么长
+                // 所以加一个假的
+                let mut name = name.0.clone();
+                name.push(Ident::new("fake"));
+                self.c_on_db_schema(&ObjectName(name)).await;
+            }
+            CommentObject::Role => {
+                // not support right now
+            }
+            CommentObject::Column => {
+                if name.0.len() >= 2 {
+                    let table = (&name.0[..name.0.len() - 1]).to_vec();
+                    self.c_on_column(&ObjectName(table), name.0.last().unwrap())
+                        .await;
+                }
+            }
+            CommentObject::Extension => {
+                // not support right now
+            }
+            CommentObject::User => {
+                // not support right now
+            }
+        }
+    }
+
     pub(crate) async fn c_on_column_mysql_position(
         &mut self, table_name: &ObjectName, column_position: Option<&MySQLColumnPosition>,
     ) {
@@ -130,25 +252,26 @@ impl CompletionStament {
         }
     }
     pub(crate) async fn c_on_index(&mut self, name: &ObjectName) {
-        if self.in_pos(&name.span()) {
-            self.result = self
-                .helper
-                .list_index()
-                .await
-                .map_err(|err| {
-                    log::error!("list index failed,err:{}", err);
-                    self.set_has_err();
-                })
-                .ok()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Index,
-                    desc: None,
-                })
-                .collect::<Vec<_>>();
+        if !self.in_pos(&name.span()) {
+            return;
         }
+        self.result = self
+            .helper
+            .list_index()
+            .await
+            .map_err(|err| {
+                log::error!("list index failed,err:{}", err);
+                self.set_has_err();
+            })
+            .ok()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Index,
+                desc: None,
+            })
+            .collect::<Vec<_>>();
     }
 
     pub(crate) fn extract_db_schme_item<'a>(
@@ -554,7 +677,7 @@ impl CompletionStament {
         let (db, schema, _name) = self.extract_db_schme_item(name);
         self.result = self
             .helper
-            .list_table(db, schema)
+            .list_view(db, schema)
             .await
             .map_err(|e| {
                 log::error!("list table failed,err:{:?}", e);
@@ -626,8 +749,9 @@ impl CompletionStament {
         if !self.in_pos(&ident.span) {
             return;
         }
-
+        log::trace!("hit idenfier:{:?}", ident);
         if let Some(this_table) = self.scopes.this_table() {
+            log::trace!("this table found:{:?}", this_table);
             match this_table {
                 ThisTableEnum::Table { name } => {
                     self.c_on_column(&name, ident).await;
@@ -646,7 +770,7 @@ impl CompletionStament {
             }
         } else {
             // another completion
-            for from in self.scopes.nearest_from_table().iter() {
+            for from in self.scopes.nearest_from_tables().iter() {
                 match from {
                     // we only looking for unnamed
                     // because named need access by `table.column`
@@ -706,7 +830,61 @@ impl CompletionStament {
         }
     }
 
+    pub(crate) async fn c_on_column_option_def(&mut self, def: &ColumnOptionDef) {
+        if let Some(name) = &def.name {
+            if self.in_pos(&name.span) {
+                self.set_on_def();
+                return;
+            }
+        }
+        match &def.option {
+            ColumnOption::Null => {}
+            ColumnOption::NotNull => {}
+            ColumnOption::Default(expr) => {
+                Box::pin(self.c_on_expr(expr)).await;
+            }
+            ColumnOption::Materialized(_expr) => {
+                // ClickHouse
+            }
+            ColumnOption::Ephemeral(expr) => {
+                if let Some(expr) = expr {
+                    Box::pin(self.c_on_expr(expr)).await;
+                }
+            }
+            ColumnOption::Alias(expr) => {
+                Box::pin(self.c_on_expr(expr)).await;
+            }
+            ColumnOption::Unique { .. } => {}
+            ColumnOption::ForeignKey {
+                foreign_table,
+                referred_columns,
+                ..
+            } => {
+                for r in referred_columns.iter() {
+                    self.c_on_column(foreign_table, r).await;
+                    if self.finished() {}
+                }
+            }
+            ColumnOption::Check(expr) => {
+                self.c_on_expr(expr).await;
+            }
+            ColumnOption::DialectSpecific(_vec) => {}
+            ColumnOption::CharacterSet(_object_name) => {}
+            ColumnOption::Comment(_) => {}
+            ColumnOption::OnUpdate(expr) => {
+                self.c_on_expr(expr).await;
+            }
+            ColumnOption::Generated { .. } => {}
+            ColumnOption::Options(_vec) => {}
+            ColumnOption::Identity(_identity_property_kind) => {}
+            ColumnOption::OnConflict(_keyword) => {}
+            ColumnOption::Policy(_column_policy) => {}
+            ColumnOption::Tags(_tags_column_option) => {}
+        }
+    }
+
     pub(crate) async fn c_on_expr(&mut self, expr: &Expr) {
+        log::trace!("completion on:{:?}", expr);
         match expr {
             Expr::Identifier(ident) => self.c_on_expr_ident(ident).await,
 
@@ -1417,7 +1595,7 @@ impl CompletionStament {
                 // TODO need handle this.
                 let in_pos = vec.iter().any(|x| self.in_pos(&x.span));
                 if in_pos {
-                    let tables = self.scopes.nearest_from_table();
+                    let tables = self.scopes.nearest_from_tables();
                     let mut cs = vec![];
                     for table in tables.iter() {
                         match table {
@@ -1612,7 +1790,7 @@ impl CompletionStament {
                     }
                 }
                 SelectItem::Wildcard(_) => {
-                    let tables = self.scopes.nearest_from_table();
+                    let tables = self.scopes.nearest_from_tables();
                     for table in tables.iter() {
                         match table {
                             FromTableOrTemp::FromTable { table } => {
@@ -1649,6 +1827,7 @@ impl CompletionStament {
 
         anyhow::Ok(ret)
     }
+
     pub(crate) async fn c_on_query(
         &mut self, query: &Query,
     ) -> anyhow::Result<Vec<TempTableColumn>> {

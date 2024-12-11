@@ -1001,6 +1001,16 @@ impl SqliteDB {
     pub async fn new(path: String, read_only: bool) -> anyhow::Result<Self> {
         let pool = sqlx::sqlite::SqlitePool::connect(path.as_str()).await?;
 
+        if read_only {
+            let r = sqlx::query("PRAGMA query_only = true;")
+                .execute(pool.acquire().await?.deref_mut())
+                .await;
+            match r {
+                Ok(_) => {}
+                Err(err) => anyhow::bail!(format!("execute query only failed,err:{}", err)),
+            }
+        }
+
         anyhow::Ok(Self {
             pool,
             read_only,

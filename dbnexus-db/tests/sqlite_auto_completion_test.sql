@@ -20,3 +20,17 @@ delete from employees where id = 1000
 31 id ; 31 name
 create view view_name as select * from employees
 49 employees
+CREATE TABLE products (price REAL CHECK(price > 0),   quantity INTEGER CHECK(quantity >= 0) );
+46 price ; 86 quantity 
+CREATE INDEX index_name ON employees (id)
+40 id
+alter table employees rename to employees2
+22 employees
+alter table employees rename column id to id2
+39 id
+drop table employees
+21 employees
+drop view employees_view
+25 employees_view
+drop index employees_name
+26 employees_name
