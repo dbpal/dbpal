@@ -13,7 +13,6 @@ use sqlx::postgres::PgRow;
 use sqlx::{Column, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
-use crate::completion::{AutoCompletionTrait, CompletionItem};
 use crate::datasource_config::PGDbConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter,
@@ -36,8 +35,9 @@ impl FormatSql for PostGresDB {
 #[derive(Clone)]
 pub struct PostGresDB {
     pool: sqlx::PgPool,
-    config: PGDbConfig,
-    query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
+    pub(crate) config: PGDbConfig,
+    pub(crate) query_connection:
+        Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
 }
 
 #[async_trait::async_trait]
@@ -1038,7 +1038,7 @@ impl PostGresDB {
         })
     }
 
-    pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<Postgres>> {
+    pub(crate) async fn get_conn(&self) -> anyhow::Result<PoolConnection<Postgres>> {
         let mut conn = self.pool.acquire().await?;
         if let Some(s) = &self.config.schema {
             set_current_schema(conn.deref_mut(), s).await?;
@@ -1258,15 +1258,6 @@ async fn get_index_kind(
 impl BackendName for PostGresDB {
     fn backend_name(&self) -> &str {
         "postgres"
-    }
-}
-
-#[async_trait::async_trait]
-impl AutoCompletionTrait for PostGresDB {
-    async fn auto_completion(
-        &self, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        unimplemented!()
     }
 }
 

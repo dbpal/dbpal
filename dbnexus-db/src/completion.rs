@@ -9,13 +9,14 @@ use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
-use crate::db::{monaco_editor_keyword_regexp, not_support_features, BackendName, Field};
+use crate::db::{monaco_editor_keyword_regexp, not_support_features, BackendName};
 use crate::sqlparser_completion::CompletionStament;
 
 #[async_trait::async_trait]
 pub trait AutoCompletionTrait {
     async fn auto_completion(
         &self,
+        uuid: uuid::Uuid,
         sql: &str,
         line: u32,
         col: u32,
@@ -59,6 +60,7 @@ pub enum CompletionKind {
     PrepareStatement,
     Pragma,
     Policy,
+    Variable,
 }
 
 pub fn in_pos(
@@ -195,6 +197,35 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
 
 #[async_trait::async_trait]
 pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
+    async fn list_table(
+        &self, db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>>;
+    async fn list_view(
+        &self, db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>>;
+    async fn list_column(
+        &self, db: Option<&str>, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<String>>;
+    async fn list_function(
+        &self, db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<CompletionItem>>;
+
+    async fn list_procedure(
+        &self, _db: Option<&str>, _schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+
+    async fn list_index(&self) -> anyhow::Result<Vec<String>>;
+
+    /*
+    postgres use `show all`
+    mysql use `show variables`
+    to query all variables
+     */
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
@@ -214,26 +245,6 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
-    async fn list_table(
-        &self, db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>>;
-    async fn list_view(
-        &self, db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>>;
-    async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<Field>>;
-    async fn list_function(
-        &self, catelog: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<CompletionItem>>;
-
-    async fn list_procedure(
-        &self, _catelog: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
-    }
-
-    async fn list_index(&self) -> anyhow::Result<Vec<String>>;
     async fn list_postgres_rule(
         &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -249,7 +260,7 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
     ) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
-    async fn list_prepare_name(&self) -> anyhow::Result<Vec<String>> {
+    async fn list_prepare_name(&self, _query_id: uuid::Uuid) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
 
@@ -259,7 +270,8 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
 }
 
 pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Send + Sync>(
-    sql: &str, line: u32, col: u32, dialet: T, helper: Arc<dyn CompletionOnSynTaxHelper>,
+    sql: &str, query_id: uuid::Uuid, line: u32, col: u32, dialet: T,
+    helper: Arc<dyn CompletionOnSynTaxHelper>,
 ) -> anyhow::Result<Vec<CompletionItem>> {
     let loc = Location {
         line: line as u64,
@@ -275,10 +287,10 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
 
     for statement in statements {
         log::trace!("completion on ast:{:?}", statement);
-        let mut c = CompletionStament::new(loc, helper.clone());
+        let mut c = CompletionStament::new(loc, helper.clone(), query_id);
         c.completion_on_statement(&statement).await;
         if c.finished() {
-            let m = c.result;
+            let m = c.result.unwrap_or_default();
             return anyhow::Ok(m);
         }
     }
@@ -380,7 +392,7 @@ select xxxx
     }
 
     pub(crate) async fn test_file_auto_completion(
-        content: &str, db: &dyn AutoCompletionTrait, use_lexer: bool,
+        content: &str, db: &dyn AutoCompletionTrait, id: uuid::Uuid, use_lexer: bool,
     ) {
         let items = parse_auto_completion_test_file(&content);
         for item in items.iter() {
@@ -388,7 +400,7 @@ select xxxx
             for i in item.tests.iter() {
                 log::trace!("on pos:{}", i.0);
                 let items = db
-                    .auto_completion(&item.sql, 1, i.0 as u32, use_lexer)
+                    .auto_completion(id, &item.sql, 1, i.0 as u32, use_lexer)
                     .await
                     .unwrap();
                 for should in i.1.iter() {

@@ -62,22 +62,23 @@ impl CompletionStament {
         if !self.in_pos(&role.span) {
             return;
         }
-        self.result = self
-            .helper
-            .list_role()
-            .await
-            .map_err(|e| {
-                log::error!("list_role failed,err:{:?}", e);
-                self.set_has_err();
-            })
-            .unwrap_or_default()
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                desc: None,
-                kind: CompletionKind::Role,
-            })
-            .collect();
+        self.result = Some(
+            self.helper
+                .list_role()
+                .await
+                .map_err(|e| {
+                    log::error!("list_role failed,err:{:?}", e);
+                    self.set_has_err();
+                })
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    desc: None,
+                    kind: CompletionKind::Role,
+                })
+                .collect(),
+        );
     }
 
     pub(crate) async fn c_on_trigger(&mut self, _object_name: &ObjectName) {
@@ -98,25 +99,47 @@ impl CompletionStament {
             ShowCreateObject::View => self.c_on_view(&name).await,
         }
     }
-
+    pub(crate) async fn c_on_variable(&mut self, var: &Ident) {
+        if !self.in_pos(&var.span) {
+            return;
+        }
+        self.result = Some(
+            self.helper
+                .list_variable()
+                .await
+                .map_err(|e| {
+                    log::error!("list_variable failed,err:{:?}", e);
+                    self.set_has_err();
+                })
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Variable,
+                    desc: None,
+                })
+                .collect(),
+        );
+    }
     pub(crate) async fn c_on_policy(&mut self, table_name: &ObjectName, name: &Ident) {
         if self.in_pos(&name.span) {
             return;
         }
         let (db, schema, table) = self.extract_db_schme_item(table_name);
-        self.result = self
-            .helper
-            .postgres_table_policy(db, schema, table)
-            .await
-            .map_err(|e| log::error!("postgres_table_policy failed,err:{:?}", e))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Policy,
-                desc: None,
-            })
-            .collect();
+        self.result = Some(
+            self.helper
+                .postgres_table_policy(db, schema, table)
+                .await
+                .map_err(|e| log::error!("postgres_table_policy failed,err:{:?}", e))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Policy,
+                    desc: None,
+                })
+                .collect(),
+        );
     }
 
     pub(crate) async fn c_on_type_drop(&mut self, typ: ObjectType, name: &ObjectName) {
@@ -147,6 +170,44 @@ impl CompletionStament {
             ObjectType::Type => {
                 // rule not support
             }
+        }
+    }
+    pub(crate) async fn c_on_privileges_action(&mut self, tables: &[ObjectName], a: &Action) {
+        match a {
+            Action::Insert { columns }
+            | Action::References { columns }
+            | Action::Select { columns }
+            | Action::Update { columns } => {
+                if let Some(columns) = columns {
+                    if columns.iter().any(|x| self.in_pos(&x.span)) {
+                        // we simple suggest all column lies in talbe.
+                        let mut cols = Vec::new();
+                        for table in tables.iter() {
+                            let (db, schema, table) = self.extract_db_schme_item(table);
+                            let cs = self
+                                .helper
+                                .list_column(db, schema, table)
+                                .await
+                                .map_err(|e| {
+                                    log::error!("list_column failed,err:{:?}", e);
+                                    self.set_has_err();
+                                })
+                                .ok()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|x| CompletionItem {
+                                    item: x.into(),
+                                    desc: None,
+                                    kind: CompletionKind::Column,
+                                })
+                                .collect::<Vec<_>>();
+                            cols.extend(cs.into_iter());
+                        }
+                        self.result = Some(cols);
+                    }
+                }
+            }
+            _ => {}
         }
     }
     pub(crate) async fn c_on_postgres_comment_object(
@@ -198,25 +259,29 @@ impl CompletionStament {
     pub(crate) async fn c_on_prepare(&mut self, name: &ObjectName) {
         match name.0.len() {
             1 => {
-                self.result = self
-                    .helper
-                    .list_prepare_name()
-                    .await
-                    .map_err(|e| {
-                        log::error!("list_prepare_name failed,err:{:?}", e);
-                        self.set_has_err();
-                    })
-                    .ok()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::PrepareStatement,
-                        desc: None,
-                    })
-                    .collect::<Vec<_>>()
+                self.result = Some(
+                    self.helper
+                        .list_prepare_name(self.query_id.clone())
+                        .await
+                        .map_err(|e| {
+                            log::error!("list_prepare_name failed,err:{:?}", e);
+                            self.set_has_err();
+                        })
+                        .ok()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|x| CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::PrepareStatement,
+                            desc: None,
+                        })
+                        .collect::<Vec<_>>(),
+                )
             }
+
             _ => {
+                //TODO https://learn.microsoft.com/en-us/sql/relational-databases/stored-procedures/execute-a-stored-procedure
+                // mssql 可以指定数据库
                 log::error!("handled name:{:?}", name);
             }
         }
@@ -227,23 +292,24 @@ impl CompletionStament {
                 let (db, schema, table) = self.extract_db_schme_item(table_name);
 
                 if self.in_pos(&x.span) {
-                    self.result = self
-                        .helper
-                        .list_partition(db, schema, table)
-                        .await
-                        .map_err(|e| {
-                            log::error!("list partition failed,err:{:?}", e);
-                            self.set_has_err();
-                        })
-                        .ok()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            item: x.into(),
-                            kind: CompletionKind::Partition,
-                            desc: None,
-                        })
-                        .collect::<Vec<_>>();
+                    self.result = Some(
+                        self.helper
+                            .list_partition(db, schema, table)
+                            .await
+                            .map_err(|e| {
+                                log::error!("list partition failed,err:{:?}", e);
+                                self.set_has_err();
+                            })
+                            .ok()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::Partition,
+                                desc: None,
+                            })
+                            .collect::<Vec<_>>(),
+                    );
                 }
             }
             _ => {
@@ -255,23 +321,24 @@ impl CompletionStament {
         if !self.in_pos(&name.span()) {
             return;
         }
-        self.result = self
-            .helper
-            .list_index()
-            .await
-            .map_err(|err| {
-                log::error!("list index failed,err:{}", err);
-                self.set_has_err();
-            })
-            .ok()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Index,
-                desc: None,
-            })
-            .collect::<Vec<_>>();
+        self.result = Some(
+            self.helper
+                .list_index()
+                .await
+                .map_err(|err| {
+                    log::error!("list index failed,err:{}", err);
+                    self.set_has_err();
+                })
+                .ok()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Index,
+                    desc: None,
+                })
+                .collect::<Vec<_>>(),
+        );
     }
 
     pub(crate) fn extract_db_schme_item<'a>(
@@ -306,44 +373,46 @@ impl CompletionStament {
             return;
         }
         let (db, schema, table) = self.extract_db_schme_item(table_name);
-        self.result = self
-            .helper
-            .list_postgres_rule(db, schema, &table)
-            .await
-            .map_err(|err| {
-                log::error!("list index failed,err:{}", err);
-                self.set_has_err();
-            })
-            .ok()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Index,
-                desc: None,
-            })
-            .collect::<Vec<_>>();
-    }
-    pub(crate) async fn c_on_constraint(&mut self, table_name: &ObjectName, name: &Ident) {
-        if self.in_pos(&name.span) {
-            let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-            self.result = self
-                .helper
-                .list_constraint(db, schema, table_name)
+        self.result = Some(
+            self.helper
+                .list_postgres_rule(db, schema, &table)
                 .await
                 .map_err(|err| {
-                    log::error!("list_constraint failed,err:{:?}", err);
-                    self.set_has_err()
+                    log::error!("list index failed,err:{}", err);
+                    self.set_has_err();
                 })
                 .ok()
                 .unwrap_or_default()
                 .into_iter()
                 .map(|x| CompletionItem {
                     item: x.into(),
-                    kind: CompletionKind::Constraint,
+                    kind: CompletionKind::Index,
                     desc: None,
                 })
-                .collect::<Vec<_>>();
+                .collect::<Vec<_>>(),
+        );
+    }
+    pub(crate) async fn c_on_constraint(&mut self, table_name: &ObjectName, name: &Ident) {
+        if self.in_pos(&name.span) {
+            let (db, schema, table_name) = self.extract_db_schme_item(table_name);
+            self.result = Some(
+                self.helper
+                    .list_constraint(db, schema, table_name)
+                    .await
+                    .map_err(|err| {
+                        log::error!("list_constraint failed,err:{:?}", err);
+                        self.set_has_err()
+                    })
+                    .ok()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|x| CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Constraint,
+                        desc: None,
+                    })
+                    .collect::<Vec<_>>(),
+            );
         }
     }
 
@@ -675,23 +744,24 @@ impl CompletionStament {
         }
         // here match
         let (db, schema, _name) = self.extract_db_schme_item(name);
-        self.result = self
-            .helper
-            .list_view(db, schema)
-            .await
-            .map_err(|e| {
-                log::error!("list table failed,err:{:?}", e);
-                self.set_has_err();
-            })
-            .ok()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Table,
-                desc: None,
-            })
-            .collect::<Vec<_>>();
+        self.result = Some(
+            self.helper
+                .list_view(db, schema)
+                .await
+                .map_err(|e| {
+                    log::error!("list table failed,err:{:?}", e);
+                    self.set_has_err();
+                })
+                .ok()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
+                })
+                .collect::<Vec<_>>(),
+        );
     }
 
     pub(crate) async fn c_on_expr_compund_identifier(&mut self, idents: &[Ident]) {
@@ -715,15 +785,17 @@ impl CompletionStament {
                             self.c_on_column(&table, &idents[1]).await;
                         }
                         NearNestTableNamed::Temp { table } => {
-                            self.result = table
-                                .columns
-                                .iter()
-                                .map(|col| CompletionItem {
-                                    item: col.name.clone().into(),
-                                    kind: CompletionKind::Column,
-                                    desc: None,
-                                })
-                                .collect();
+                            self.result = Some(
+                                table
+                                    .columns
+                                    .iter()
+                                    .map(|col| CompletionItem {
+                                        item: col.name.clone().into(),
+                                        kind: CompletionKind::Column,
+                                        desc: None,
+                                    })
+                                    .collect(),
+                            );
                         }
                     }
                 } else {
@@ -757,25 +829,27 @@ impl CompletionStament {
                     self.c_on_column(&name, ident).await;
                 }
                 ThisTableEnum::Temp { temp } => {
-                    self.result = temp
-                        .columns
-                        .iter()
-                        .map(|x| CompletionItem {
-                            item: x.name.clone().into(),
-                            kind: CompletionKind::Column,
-                            desc: None,
-                        })
-                        .collect();
+                    self.result = Some(
+                        temp.columns
+                            .iter()
+                            .map(|x| CompletionItem {
+                                item: x.name.clone().into(),
+                                kind: CompletionKind::Column,
+                                desc: None,
+                            })
+                            .collect(),
+                    );
                 }
             }
         } else {
             // another completion
             for from in self.scopes.nearest_from_tables().iter() {
+                let mut old = self.result.take().unwrap_or_default();
                 match from {
                     // we only looking for unnamed
                     // because named need access by `table.column`
                     FromTableOrTemp::Unnamed { table } => {
-                        self.result.extend(
+                        old.extend(
                             table
                                 .columns
                                 .to_vec()
@@ -788,6 +862,7 @@ impl CompletionStament {
                                 .collect::<Vec<_>>()
                                 .into_iter(),
                         );
+                        self.result = Some(old);
                     }
                     FromTableOrTemp::FromTable { table } => {
                         let (db, schema, table) = self.extract_db_schme_item(table);
@@ -803,15 +878,16 @@ impl CompletionStament {
                             .unwrap_or_default()
                             .into_iter()
                             .map(|x| CompletionItem {
-                                item: x.field.clone().into(),
+                                item: x.into(),
                                 kind: CompletionKind::Column,
                                 desc: None,
                             })
                             .collect::<Vec<_>>();
-                        self.result.extend(m.into_iter());
+                        old.extend(m.into_iter());
+                        self.result = Some(old);
                     }
                     FromTableOrTemp::Temp { table } => {
-                        self.result.extend(
+                        old.extend(
                             table
                                 .columns
                                 .to_vec()
@@ -824,6 +900,7 @@ impl CompletionStament {
                                 .collect::<Vec<_>>()
                                 .into_iter(),
                         );
+                        self.result = Some(old);
                     }
                 }
             }
@@ -1343,23 +1420,24 @@ impl CompletionStament {
     pub(crate) async fn c_on_column(&mut self, table_name: &ObjectName, col: &Ident) {
         if self.in_pos(&col.span) {
             let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-            self.result = self
-                .helper
-                .list_column(db, schema, table_name)
-                .await
-                .map_err(|e| {
-                    log::error!("list column error:{:?}", e);
-                    self.set_has_err();
-                })
-                .ok()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    kind: CompletionKind::Column,
-                    item: x.field.into(),
-                    desc: None,
-                })
-                .collect::<Vec<_>>();
+            self.result = Some(
+                self.helper
+                    .list_column(db, schema, table_name)
+                    .await
+                    .map_err(|e| {
+                        log::error!("list column error:{:?}", e);
+                        self.set_has_err();
+                    })
+                    .ok()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|x| CompletionItem {
+                        kind: CompletionKind::Column,
+                        item: x.into(),
+                        desc: None,
+                    })
+                    .collect::<Vec<_>>(),
+            );
         }
     }
 
@@ -1368,23 +1446,24 @@ impl CompletionStament {
     ) {
         if self.in_pos(&trigger_name.span) {
             let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-            self.result = self
-                .helper
-                .list_table_trigger(db, schema, table_name)
-                .await
-                .map_err(|e| {
-                    log::error!("list_table_trigger failed,err:{:?}", e);
-                    self.set_has_err();
-                })
-                .ok()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Trigger,
-                    desc: None,
-                })
-                .collect();
+            self.result = Some(
+                self.helper
+                    .list_table_trigger(db, schema, table_name)
+                    .await
+                    .map_err(|e| {
+                        log::error!("list_table_trigger failed,err:{:?}", e);
+                        self.set_has_err();
+                    })
+                    .ok()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|x| CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Trigger,
+                        desc: None,
+                    })
+                    .collect(),
+            );
         }
     }
 
@@ -1394,65 +1473,68 @@ impl CompletionStament {
             2 => {
                 let schema = &name.0[0];
                 if self.in_pos(&schema.span) {
-                    self.result = self
-                        .helper
-                        .list_schema(None)
-                        .await
-                        .map_err(|e| {
-                            log::error!("list schema error:{:?}", e);
-                            self.set_has_err();
-                        })
-                        .ok()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            kind: CompletionKind::Schema,
-                            item: x.into(),
-                            desc: None,
-                        })
-                        .collect::<Vec<_>>();
+                    self.result = Some(
+                        self.helper
+                            .list_schema(None)
+                            .await
+                            .map_err(|e| {
+                                log::error!("list schema error:{:?}", e);
+                                self.set_has_err();
+                            })
+                            .ok()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                kind: CompletionKind::Schema,
+                                item: x.into(),
+                                desc: None,
+                            })
+                            .collect::<Vec<_>>(),
+                    );
                 }
             }
             3 => {
                 let db = &name.0[0];
                 if self.in_pos(&db.span) {
-                    self.result = self
-                        .helper
-                        .list_database()
-                        .await
-                        .map_err(|e| {
-                            log::error!("list db error:{:?}", e);
-                            self.set_has_err();
-                        })
-                        .ok()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            kind: CompletionKind::Database,
-                            item: x.into(),
-                            desc: None,
-                        })
-                        .collect::<Vec<_>>();
+                    self.result = Some(
+                        self.helper
+                            .list_database()
+                            .await
+                            .map_err(|e| {
+                                log::error!("list db error:{:?}", e);
+                                self.set_has_err();
+                            })
+                            .ok()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                kind: CompletionKind::Database,
+                                item: x.into(),
+                                desc: None,
+                            })
+                            .collect::<Vec<_>>(),
+                    );
                 }
                 let schema = &name.0[1];
                 if self.in_pos(&schema.span) {
-                    self.result = self
-                        .helper
-                        .list_schema(Some(&db.value))
-                        .await
-                        .map_err(|e| {
-                            log::error!("list schema error:{:?}", e);
-                            self.set_has_err();
-                        })
-                        .ok()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            kind: CompletionKind::Schema,
-                            item: x.into(),
-                            desc: None,
-                        })
-                        .collect::<Vec<_>>();
+                    self.result = Some(
+                        self.helper
+                            .list_schema(Some(&db.value))
+                            .await
+                            .map_err(|e| {
+                                log::error!("list schema error:{:?}", e);
+                                self.set_has_err();
+                            })
+                            .ok()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                kind: CompletionKind::Schema,
+                                item: x.into(),
+                                desc: None,
+                            })
+                            .collect::<Vec<_>>(),
+                    );
                 }
             }
             1 => {
@@ -1467,9 +1549,10 @@ impl CompletionStament {
     // completion on table or view.
     pub(crate) async fn c_on_table_or_view(&mut self, name: &ObjectName) {
         self.c_on_view(name).await;
-        let x1 = std::mem::take(&mut self.result);
+        let mut x1 = self.result.take().unwrap_or_default();
         self.c_on_table(name).await;
-        self.result.extend(x1.into_iter());
+        x1.extend(self.result.take().unwrap_or_default().into_iter());
+        self.result = Some(x1);
     }
 
     pub(crate) async fn c_on_table(&mut self, table_name: &ObjectName) {
@@ -1508,7 +1591,7 @@ impl CompletionStament {
             })
             .collect::<Vec<_>>();
 
-        self.result = tables;
+        self.result = Some(tables);
     }
     pub(crate) async fn c_from_table(&mut self, from_table: &FromTable) -> ScopesGuard {
         let tables = match from_table {
@@ -1613,7 +1696,7 @@ impl CompletionStament {
                                         .unwrap_or_default()
                                         .into_iter()
                                         .map(|x| CompletionItem {
-                                            item: x.field.clone().into(),
+                                            item: x.into(),
                                             kind: CompletionKind::Column,
                                             desc: None,
                                         }),
@@ -1635,7 +1718,7 @@ impl CompletionStament {
                             }
                         }
                     }
-                    self.result = cs
+                    self.result = Some(cs);
                 }
             }
             JoinConstraint::Natural => {}
@@ -1754,9 +1837,9 @@ impl CompletionStament {
                                             })
                                             .ok()
                                             .unwrap_or_default();
-                                        ret.extend(f.iter().map(|x| TempTableColumn {
-                                            name: x.field.clone(),
-                                        }));
+                                        ret.extend(
+                                            f.iter().map(|x| TempTableColumn { name: x.clone() }),
+                                        );
                                     }
                                     NearNestTableNamed::Temp { table } => {
                                         ret.extend(table.columns.iter().map(|x| TempTableColumn {
@@ -1778,9 +1861,7 @@ impl CompletionStament {
                                 .map_err(|e| log::error!("list_column failed,err:{:?}", e))
                                 .ok()
                                 .unwrap_or_default();
-                            ret.extend(f.iter().map(|x| TempTableColumn {
-                                name: x.field.clone(),
-                            }));
+                            ret.extend(f.iter().map(|x| TempTableColumn { name: x.clone() }));
                         }
                         _ => {
                             log::error!(
@@ -1807,9 +1888,7 @@ impl CompletionStament {
                                     .ok()
                                     .unwrap_or_default()
                                     .into_iter()
-                                    .map(|x| TempTableColumn {
-                                        name: x.field.clone(),
-                                    })
+                                    .map(|name| TempTableColumn { name })
                                     .collect::<Vec<_>>();
                                 ret.extend(cols.into_iter());
                             }
@@ -1932,9 +2011,7 @@ impl CompletionStament {
                     .ok()
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|x| TempTableColumn {
-                        name: x.field.clone(),
-                    })
+                    .map(|x| TempTableColumn { name: x })
                     .collect();
                 return anyhow::Ok(cols);
             }
@@ -2082,23 +2159,24 @@ impl CompletionStament {
         }
         if self.last_name_in_pos(name) {
             let (db, schema, _) = self.extract_db_schme_item(name);
-            self.result = self
-                .helper
-                .list_procedure(db, schema)
-                .await
-                .map_err(|e| {
-                    log::error!("list function error:{:?}", e);
-                    self.set_has_err();
-                })
-                .ok()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    kind: CompletionKind::Function,
-                    item: x.into(),
-                    desc: None,
-                })
-                .collect::<Vec<_>>();
+            self.result = Some(
+                self.helper
+                    .list_procedure(db, schema)
+                    .await
+                    .map_err(|e| {
+                        log::error!("list function error:{:?}", e);
+                        self.set_has_err();
+                    })
+                    .ok()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|x| CompletionItem {
+                        kind: CompletionKind::Function,
+                        item: x.into(),
+                        desc: None,
+                    })
+                    .collect::<Vec<_>>(),
+            );
         }
     }
     pub(crate) fn last_name_in_pos(&mut self, name: &ObjectName) -> bool {
@@ -2108,10 +2186,10 @@ impl CompletionStament {
     // sqlite pragma
 
     pub(crate) async fn c_on_pragma(&mut self, name: &ObjectName) {
-        if self.in_pos(&name.span()) {
+        if !self.in_pos(&name.span()) {
             return;
         }
-        self.result = self.helper.sqlite_pragma();
+        self.result = Some(self.helper.sqlite_pragma());
     }
 
     pub(crate) async fn c_on_function_call(&mut self, function: &Function) {
@@ -2168,16 +2246,17 @@ impl CompletionStament {
 
         if self.last_name_in_pos(name) {
             let (db, schema, _) = self.extract_db_schme_item(name);
-            self.result = self
-                .helper
-                .list_function(db, schema)
-                .await
-                .map_err(|e| {
-                    log::error!("list function error:{:?}", e);
-                    self.set_has_err();
-                })
-                .ok()
-                .unwrap_or_default()
+            self.result = Some(
+                self.helper
+                    .list_function(db, schema)
+                    .await
+                    .map_err(|e| {
+                        log::error!("list function error:{:?}", e);
+                        self.set_has_err();
+                    })
+                    .ok()
+                    .unwrap_or_default(),
+            )
         }
     }
     pub(crate) async fn c_on_function(&mut self, name: &ObjectName) {
@@ -2187,16 +2266,17 @@ impl CompletionStament {
         }
         if self.last_name_in_pos(name) {
             let (db, schema, _) = self.extract_db_schme_item(name);
-            self.result = self
-                .helper
-                .list_function(db, schema)
-                .await
-                .map_err(|e| {
-                    log::error!("list function error:{:?}", e);
-                    self.set_has_err();
-                })
-                .ok()
-                .unwrap_or_default()
+            self.result = Some(
+                self.helper
+                    .list_function(db, schema)
+                    .await
+                    .map_err(|e| {
+                        log::error!("list function error:{:?}", e);
+                        self.set_has_err();
+                    })
+                    .ok()
+                    .unwrap_or_default(),
+            )
         }
     }
 }

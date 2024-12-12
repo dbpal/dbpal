@@ -34,3 +34,5 @@ drop view employees_view
 25 employees_view
 drop index employees_name
 26 employees_name
+PRAGMA user_version;
+12 user_version

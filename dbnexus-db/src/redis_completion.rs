@@ -1369,7 +1369,7 @@ impl RedisDB {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for RedisDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, _use_lexer: bool,
+        &self, _uuid: uuid::Uuid, sql: &str, line: u32, col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let tokens =
             sqlparser::tokenizer::Tokenizer::new(&RedisDialet {}, sql).tokenize_with_location()?;

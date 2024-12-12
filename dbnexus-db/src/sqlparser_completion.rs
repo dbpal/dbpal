@@ -7,9 +7,9 @@ use std::{
 use sqlparser::{
     ast::{
         AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CopySource, CreateFunctionBody,
-        DataType, Declare, DeclareAssignment, Ident, ObjectName, SchemaName, SelectItem,
-        SequenceOptions, Spanned, Statement, TableConstraint, TableFactor, TriggerEvent, Use,
-        UserDefinedTypeRepresentation,
+        DataType, Declare, DeclareAssignment, GrantObjects, Ident, ObjectName, Privileges,
+        SchemaName, SelectItem, SequenceOptions, Spanned, Statement, TableConstraint, TableFactor,
+        TriggerEvent, UserDefinedTypeRepresentation,
     },
     tokenizer::{Location, Span},
 };
@@ -18,12 +18,12 @@ use crate::completion::{CompletionItem, CompletionKind, CompletionOnSynTaxHelper
 
 pub struct CompletionStament {
     pub(crate) loc: Location,
-    pub(crate) result: Vec<CompletionItem>,
+    pub(crate) result: Option<Vec<CompletionItem>>,
     pub(crate) helper: Arc<dyn CompletionOnSynTaxHelper>,
     pub(crate) scopes: Scopes,
     pub(crate) on_def: bool,
     pub(crate) has_err: bool,
-    pub(crate) disable_lexer: bool,
+    pub(crate) query_id: uuid::Uuid,
 }
 
 #[derive(Clone)]
@@ -188,6 +188,7 @@ impl From<ObjectName> for ThisTableEnum {
         Self::Table { name: value }
     }
 }
+
 #[derive(Clone, Default, Debug)]
 pub struct Scope {
     table_entered: HashMap<Ident, ObjectName>,
@@ -275,22 +276,20 @@ impl CompletionStament {
     pub(crate) fn set_has_err(&mut self) {
         self.has_err = true
     }
-    pub(crate) fn set_disable_lexer(&mut self) {
-        self.disable_lexer = true
-    }
     pub(crate) fn finished(&self) -> bool {
-        self.result.len() > 0 || self.on_def || self.has_err || self.disable_lexer
+        self.result.is_some() || self.on_def || self.has_err
     }
-
-    pub(crate) fn new(loc: Location, helper: Arc<dyn CompletionOnSynTaxHelper>) -> Self {
+    pub(crate) fn new(
+        loc: Location, helper: Arc<dyn CompletionOnSynTaxHelper>, query_id: uuid::Uuid,
+    ) -> Self {
         Self {
             loc,
             helper,
-            result: vec![],
+            result: None,
             scopes: Scopes::new(),
             on_def: false,
             has_err: false,
-            disable_lexer: false,
+            query_id,
         }
     }
 
@@ -608,14 +607,16 @@ impl CompletionStament {
                             }
                             if columns.iter().any(|x| self.in_pos(&x.span)) {
                                 // hit column
-                                self.result = columns
-                                    .iter()
-                                    .map(|x| CompletionItem {
-                                        item: x.value.clone().into(),
-                                        kind: CompletionKind::Column,
-                                        desc: None,
-                                    })
-                                    .collect();
+                                self.result = Some(
+                                    columns
+                                        .iter()
+                                        .map(|x| CompletionItem {
+                                            item: x.value.clone().into(),
+                                            kind: CompletionKind::Column,
+                                            desc: None,
+                                        })
+                                        .collect(),
+                                );
                             }
                         }
                         TableConstraint::ForeignKey {
@@ -632,14 +633,16 @@ impl CompletionStament {
                             }
                             if columns.iter().any(|x| self.in_pos(&x.span)) {
                                 // hit column
-                                self.result = columns
-                                    .iter()
-                                    .map(|x| CompletionItem {
-                                        item: x.value.clone().into(),
-                                        kind: CompletionKind::Column,
-                                        desc: None,
-                                    })
-                                    .collect();
+                                self.result = Some(
+                                    columns
+                                        .iter()
+                                        .map(|x| CompletionItem {
+                                            item: x.value.clone().into(),
+                                            kind: CompletionKind::Column,
+                                            desc: None,
+                                        })
+                                        .collect(),
+                                );
                                 return;
                             }
                             self.c_on_table(foreign_table).await;
@@ -668,14 +671,16 @@ impl CompletionStament {
 
                             if columns.iter().any(|x| self.in_pos(&x.span)) {
                                 // hit column
-                                self.result = columns
-                                    .iter()
-                                    .map(|x| CompletionItem {
-                                        item: x.value.clone().into(),
-                                        kind: CompletionKind::Column,
-                                        desc: None,
-                                    })
-                                    .collect();
+                                self.result = Some(
+                                    columns
+                                        .iter()
+                                        .map(|x| CompletionItem {
+                                            item: x.value.clone().into(),
+                                            kind: CompletionKind::Column,
+                                            desc: None,
+                                        })
+                                        .collect(),
+                                );
                             }
                         }
                         TableConstraint::FulltextOrSpatial {
@@ -691,14 +696,16 @@ impl CompletionStament {
 
                             if columns.iter().any(|x| self.in_pos(&x.span)) {
                                 // hit column
-                                self.result = columns
-                                    .iter()
-                                    .map(|x| CompletionItem {
-                                        item: x.value.clone().into(),
-                                        kind: CompletionKind::Column,
-                                        desc: None,
-                                    })
-                                    .collect();
+                                self.result = Some(
+                                    columns
+                                        .iter()
+                                        .map(|x| CompletionItem {
+                                            item: x.value.clone().into(),
+                                            kind: CompletionKind::Column,
+                                            desc: None,
+                                        })
+                                        .collect(),
+                                );
                             }
                         }
                     }
@@ -983,8 +990,17 @@ impl CompletionStament {
                     self.c_on_role(name).await;
                 }
             }
-            Statement::SetVariable { .. } => {
+            Statement::SetVariable { variables, .. } => {
                 // fallback to lexer
+
+                for v in variables.iter() {
+                    match v.0.len() {
+                        1 => self.c_on_variable(&v.0[0]).await,
+                        _ => {
+                            log::error!("not handle variable name length:{:?}", v);
+                        }
+                    }
+                }
             }
             Statement::SetTimeZone { .. } => {
                 // fallback to lexer
@@ -996,15 +1012,23 @@ impl CompletionStament {
                 // fallback to lexer
             }
             Statement::ShowFunctions { .. } => {
-                // fallback to lexer
+                // Presto-specific
             }
-            Statement::ShowVariable { .. } => {
-                // fallback to lexer
+            Statement::ShowVariable { variable } => {
+                for var in variable {
+                    self.c_on_variable(var).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
             }
             Statement::ShowStatus { .. } => {
                 //
             }
-            Statement::ShowVariables { .. } => {}
+            Statement::ShowVariables { .. } => {
+                // this is show all variable
+                // no need to completion.
+            }
             Statement::ShowCreate { obj_type, obj_name } => {
                 self.c_on_mysql_show_create(obj_type.clone(), obj_name)
                     .await;
@@ -1015,21 +1039,9 @@ impl CompletionStament {
             Statement::ShowTables { .. } => {}
             Statement::ShowViews { .. } => {}
             Statement::ShowCollation { .. } => {}
-            Statement::Use(x) => {
+            Statement::Use(_x) => {
                 // TODO maybe can auto completion.
-                match x {
-                    Use::Catalog(object_name)
-                    | Use::Schema(object_name)
-                    | Use::Database(object_name)
-                    | Use::Warehouse(object_name)
-                    | Use::Object(object_name) => {
-                        if self.in_pos(&object_name.span()) {
-                            self.set_disable_lexer();
-                            return;
-                        }
-                    }
-                    Use::Default => {}
-                }
+                // wo perfer use don't use this statment.
             }
             Statement::StartTransaction { .. } => {}
             Statement::SetTransaction { .. } => {}
@@ -1199,11 +1211,30 @@ impl CompletionStament {
                 self.c_on_table_trigger(table_name, &trigger_name.0[0])
                     .await;
             }
-            Statement::CreateProcedure { .. } => {
-                // fallback lexer
+            Statement::CreateProcedure {
+                name, params, body, ..
+            } => {
+                if self.in_pos(&name.span()) {
+                    self.set_on_def();
+                    return;
+                }
+                if let Some(params) = params {
+                    for p in params.iter() {
+                        if self.in_pos(&p.name.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
+                }
+                for s in body.iter() {
+                    Box::pin(self.completion_on_statement(s)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
             }
             Statement::CreateMacro { .. } => {
-                // fallback lexer
+                // DuckDB not support.
             }
             Statement::CreateStage { .. } => {
                 // snowflake not support
@@ -1217,12 +1248,67 @@ impl CompletionStament {
                     self.c_on_expr(msg).await;
                 }
             }
-            Statement::Grant { .. } => {}
-            Statement::Revoke { .. } => {
-                // fallback to lexer
+            Statement::Grant {
+                grantees,
+                granted_by,
+                objects,
+                privileges,
+                ..
             }
-            Statement::Deallocate { .. } => {
-                // fallback to lexer
+            | Statement::Revoke {
+                privileges,
+                objects,
+                grantees,
+                granted_by,
+                ..
+            } => {
+                for g in grantees.iter() {
+                    self.c_on_role(g).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(granted_by) = granted_by {
+                    self.c_on_role(granted_by).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                let mut tables = None;
+                match objects {
+                    GrantObjects::AllSequencesInSchema { schemas: _schemas } => {}
+                    GrantObjects::AllTablesInSchema { schemas: _schemas } => {}
+                    GrantObjects::Schemas(_vec) => {}
+                    GrantObjects::Sequences(_vec) => {}
+                    GrantObjects::Tables(vec) => {
+                        for table in vec.iter() {
+                            self.c_on_table(table).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                        tables = Some(vec);
+                    }
+                }
+                if let Some(tables) = tables {
+                    match privileges {
+                        Privileges::All { .. } => {
+                            // nothing here
+                        }
+                        Privileges::Actions(vec) => {
+                            for a in vec.iter() {
+                                self.c_on_privileges_action(&tables[..], a).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Statement::Deallocate { name, .. } => {
+                self.c_on_prepare(&ObjectName(vec![name.clone()])).await;
             }
             Statement::Execute {
                 name,
@@ -1271,9 +1357,12 @@ impl CompletionStament {
                     return;
                 }
             }
-            Statement::ReleaseSavepoint { .. } => {}
+            Statement::ReleaseSavepoint { .. } => {
+                // 我在postgres和mysql都没找到可以查询savepoint的语句
+                // 所以这里不能做
+            }
             Statement::Merge { .. } => {
-                //not support rightnow
+                //Snowflake ... not support rightnow
             }
             Statement::Cache { .. } => {
                 // Spark SQL
@@ -1284,7 +1373,6 @@ impl CompletionStament {
             }
             Statement::CreateSequence {
                 name,
-
                 sequence_options,
                 ..
             } => {

@@ -5,7 +5,7 @@ use crate::{
         try_completion_on_syntax, AutoCompletionTrait, CompletionItem, CompletionKind,
         CompletionOnSynTaxHelper, LexerCompletionTrait,
     },
-    db::{Field, SchemaTrait},
+    db::SchemaTrait,
     sqlite::SqliteDB,
 };
 
@@ -37,10 +37,11 @@ impl crate::completion::LexerCompletionTrait for SqliteDB {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for SqliteDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
             &sql,
+            query_id,
             line,
             col,
             sqlparser::dialect::SQLiteDialect {},
@@ -105,8 +106,10 @@ impl CompletionOnSynTaxHelper for SqliteDB {
     }
     async fn list_column(
         &self, _db: Option<&str>, _schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<Field>> {
-        SchemaTrait::show_columns(self, &table).await
+    ) -> anyhow::Result<Vec<String>> {
+        SchemaTrait::show_columns(self, &table)
+            .await
+            .map(|x| x.into_iter().map(|x| x.field).collect())
     }
 
     async fn list_function(
@@ -1034,14 +1037,18 @@ mod tests {
     use crate::{
         completion::completion_test::test_file_auto_completion, enable_test_log, sqlite::SqliteDB,
     };
+
     use std::path::Path;
+    fn test_db() -> String {
+        std::env::var("DBNEXUS_SQLITE_COMPLETION_DB")
+            .unwrap_err()
+            .to_string()
+    }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore = "should run by hand."]
     async fn test_auto_completion() {
         /*
-
         测试用到的表格 和建表语句
-
            -- 创建 departments 表
            CREATE TABLE departments (
                id INTEGER PRIMARY KEY,
@@ -1068,23 +1075,20 @@ mod tests {
         file_path.push("tests");
         file_path.push("sqlite_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        let db = SqliteDB::new("/Users/yuyang/tests/test.sqlite.db".to_string(), false)
-            .await
-            .unwrap();
-        test_file_auto_completion(&content, &db, false).await;
+        let db = SqliteDB::new(test_db(), false).await.unwrap();
+        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore = "should run by hand."]
     async fn test_completion_xxx() {
         enable_test_log();
-        let db = SqliteDB::new("/Users/yuyang/tests/test.sqlite.db".to_string(), false)
-            .await
-            .unwrap();
+        let db = SqliteDB::new(test_db(), false).await.unwrap();
         test_file_auto_completion(
-            r#"drop view employees_view
-25 employees_view"#,
+            r#"PRAGMA user_version;
+12 user_version"#,
             &db,
+            uuid::Uuid::new_v4(),
             false,
         )
         .await;
