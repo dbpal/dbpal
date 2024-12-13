@@ -2,8 +2,8 @@ use std::{borrow::Cow, ops::DerefMut, sync::Arc};
 
 use crate::{
     completion::{
-        try_completion_on_syntax, AutoCompletionTrait, CompletionItem, CompletionKind,
-        CompletionOnSynTaxHelper, LexerCompletionTrait,
+        AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
+        LexerCompletionTrait, try_completion_on_syntax,
     },
     db::SchemaTrait,
     sqlite::SqliteDB,
@@ -1045,7 +1045,6 @@ mod tests {
             .to_string()
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    #[ignore = "should run by hand."]
     async fn test_auto_completion() {
         /*
         测试用到的表格 和建表语句
@@ -1080,7 +1079,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    #[ignore = "should run by hand."]
     async fn test_completion_xxx() {
         enable_test_log();
         let db = SqliteDB::new(test_db(), false).await.unwrap();

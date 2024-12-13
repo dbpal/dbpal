@@ -4,8 +4,8 @@ use sqlx::Row;
 
 use crate::{
     completion::{
-        try_completion_on_syntax, AutoCompletionTrait, CompletionItem, CompletionKind,
-        CompletionOnSynTaxHelper, LexerCompletionTrait,
+        AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
+        LexerCompletionTrait, try_completion_on_syntax,
     },
     db::CatalogTrait,
     pg::PostGresDB,
@@ -373,7 +373,7 @@ impl AutoCompletionTrait for PostGresDB {
             }
         };
         if !use_lexer {
-            log::warn!("disabled use lexer , we can return empty data.");
+            log::warn!("disabled use lexer , we will return empty data.");
             return anyhow::Ok(vec![]);
         }
         return LexerCompletionTrait::do_auto_completion(
@@ -384,6 +384,71 @@ impl AutoCompletionTrait for PostGresDB {
                 line: line as u64,
                 column: col as u64,
             },
+        )
+        .await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::{
+        TEST_HOST, completion::completion_test::test_file_auto_completion,
+        datasource_config::PGDbConfig, enable_test_log, pg::PostGresDB,
+    };
+
+    async fn make_test_object() -> PostGresDB {
+        let pg = PostGresDB::new(PGDbConfig {
+            host: TEST_HOST.to_string(),
+            port: 5432,
+            username: "postgres".to_string(),
+            password: "root".to_string(),
+            db_name: Some("test".to_string()),
+            schema: Some("test".to_string()),
+            read_only: false,
+        })
+        .await
+        .unwrap();
+        pg
+    }
+
+    /*
+        我们创建一下的表来做测试的
+
+        CREATE TABLE departments (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL
+        );
+        CREATE TABLE employees (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            department_id INTEGER REFERENCES departments(id)
+        );
+    */
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        enable_test_log();
+        let manifest_dir =
+            std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
+        file_path.push("tests");
+        file_path.push("pg_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        let db = make_test_object().await;
+        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object().await;
+        test_file_auto_completion(
+            r#"delete from employees USING employees
+38 employees"#,
+            &db,
+            uuid::Uuid::new_v4(),
+            false,
         )
         .await;
     }

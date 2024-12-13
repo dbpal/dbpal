@@ -405,11 +405,10 @@ impl CompletionStament {
                 // duckdb no support at all.
             }
             Statement::Load { .. } => {
-                // } no support at all.
+                // DuckDB no support at all.
             }
             Statement::Directory { .. } => {
                 // TODO maybe dump some data to a file.
-                //
             }
             Statement::Call(function) => {
                 Box::pin(self.c_on_function_call(function)).await;
@@ -1108,12 +1107,9 @@ impl CompletionStament {
                                 self.set_on_def();
                                 return;
                             }
-                            vars.insert(
-                                name.value.clone(),
-                                Var {
-                                    datatype: a.data_type.clone(),
-                                },
-                            );
+                            vars.insert(name.value.clone(), Var {
+                                datatype: a.data_type.clone(),
+                            });
                         }
 
                         if let Some(expr) = &a.default_expr {
