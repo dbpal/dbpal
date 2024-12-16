@@ -14,17 +14,17 @@ use tokio::task::block_in_place;
 
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionTrait};
 
+use crate::MemoryLimit;
 use crate::datasource_config::OracleDbConfig;
 use crate::db::{
-    not_support_features, BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
-    SchemaTrait, SqlExecuteRet, TableListResp,
+    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
+    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
+    SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::helper::{
-    create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql, SqlKind, SqlSeq,
+    SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql,
 };
 use crate::query_log::QueryLog;
-use crate::MemoryLimit;
 
 impl FormatSql for OracleDB {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
@@ -237,13 +237,10 @@ impl OracleDB {
     fn query_count(conn: &Connection, name: &str, where_str: Option<&str>) -> anyhow::Result<i64> {
         let row = block_in_place(|| {
             conn.query_row(
-                format!(
-                    "SELECT count(*) FROM {name} {}",
-                    match where_str {
-                        Some(x) => format!("  WHERE {} ", x),
-                        None => "".to_string(),
-                    }
-                )
+                format!("SELECT count(*) FROM {name} {}", match where_str {
+                    Some(x) => format!("  WHERE {} ", x),
+                    None => "".to_string(),
+                })
                 .as_str(),
                 &[],
             )
@@ -983,20 +980,17 @@ impl SchemaTrait for OracleDB {
                 } else {
                     query_index_unique(&conn, &name, table_name)?
                 };
-                ret.insert(
-                    name.clone(),
-                    Index {
-                        name,
-                        kind: if primary {
-                            IndexKind::Primary
-                        } else if unique {
-                            IndexKind::Unique
-                        } else {
-                            IndexKind::Normal
-                        },
-                        on: vec![col_name],
+                ret.insert(name.clone(), Index {
+                    name,
+                    kind: if primary {
+                        IndexKind::Primary
+                    } else if unique {
+                        IndexKind::Unique
+                    } else {
+                        IndexKind::Normal
                     },
-                );
+                    on: vec![col_name],
+                });
             }
         }
         anyhow::Ok(ret.into_iter().map(|(_, v)| v).collect())

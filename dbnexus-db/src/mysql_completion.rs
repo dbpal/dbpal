@@ -1,7 +1,11 @@
-use std::{borrow::Cow, ops::DerefMut};
+use std::{borrow::Cow, ops::DerefMut, sync::Arc};
 
 use crate::{
-    completion::{AutoCompletionTrait, CompletionItem, LexerCompletionTrait},
+    completion::{
+        AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
+        LexerCompletionTrait, try_completion_on_syntax,
+    },
+    db::{BackendName, DBTrait, not_support_features},
     mysql::MysqlDB,
 };
 use sqlx::Row;
@@ -45,16 +49,288 @@ impl MysqlDB {
 #[async_trait::async_trait]
 impl AutoCompletionTrait for MysqlDB {
     async fn auto_completion(
-        &self, _uuid: uuid::Uuid, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
+        &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        // DBLexerCompletionBackend::do_auto_completion(
-        //     self,
-        //     sql,
-        //     &sqlparser::dialect::MySqlDialect {},
-        //     pos,
-        // )
-        // .await
-        unimplemented!()
+        let r = try_completion_on_syntax(
+            &sql,
+            query_id,
+            line,
+            col,
+            sqlparser::dialect::MySqlDialect {},
+            Arc::new(Clone::clone(self)),
+        )
+        .await;
+        match r {
+            Ok(xs) => return Ok(xs),
+            Err(err) => {
+                log::error!("completion on ast failed,err:{:?}", err);
+            }
+        };
+        if !use_lexer {
+            log::warn!("disabled use lexer , we will return empty data.");
+            return anyhow::Ok(vec![]);
+        }
+        return LexerCompletionTrait::do_auto_completion(
+            self,
+            sql,
+            &sqlparser::dialect::MySqlDialect {},
+            sqlparser::tokenizer::Location {
+                line: line as u64,
+                column: col as u64,
+            },
+        )
+        .await;
+    }
+}
+
+impl MysqlDB {
+    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
+    where
+        'b: 'a,
+    {
+        if schema.is_some() {
+            return schema;
+        }
+        return self.config.db_name.as_deref();
+    }
+    fn not_allow_empty_schema<'a>(schema: Option<&'a str>) -> anyhow::Result<&'a str> {
+        match schema {
+            Some(x) => return anyhow::Ok(x),
+            None => anyhow::bail!("empty schema"),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl CompletionOnSynTaxHelper for MysqlDB {
+    async fn list_table(
+        &self, _db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        self.list_table_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_view(
+        &self, _db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        self.list_view_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+    async fn list_column(
+        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let s = format!("describe {}.{}", schema, table);
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_function(
+        &self, _db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let mut conn = self.get_conn().await?;
+        crate::mysql::FunctionOrProcedure::query_list(
+            crate::mysql::FunctionOrProcedure::Function,
+            conn.deref_mut(),
+            schema,
+        )
+        .await
+        .map(|x| {
+            x.into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
+                })
+                .collect()
+        })
+    }
+
+    async fn list_procedure(
+        &self, _db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let mut conn = self.get_conn().await?;
+        crate::mysql::FunctionOrProcedure::query_list(
+            crate::mysql::FunctionOrProcedure::Procedure,
+            conn.deref_mut(),
+            schema,
+        )
+        .await
+    }
+
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let sql = format!(
+            r#"
+        SELECT   INDEX_NAME 
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = '{}'"#,
+            schema
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "show variables";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
+    }
+
+    async fn list_partition(
+        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let sql = format!(
+            r#"
+        SELECT PARTITION_NAME
+            FROM information_schema.PARTITIONS
+            WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}';"#,
+            schema, table
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+    // TODO sqlpaser支持解析mysql 的role语句吗
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+    async fn list_constraint(
+        &self, _db: Option<&str>, schema: Option<&str>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let sql = format!(
+            r#"SELECT CONSTRAINT_NAME
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}'"#,
+            schema, table_name
+        );
+
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_table_trigger(
+        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let sql = format!(
+            r#"SELECT TRIGGER_NAME
+                FROM information_schema.TRIGGERS
+                WHERE EVENT_OBJECT_TABLE = '{}' AND TRIGGER_SCHEMA = '{}';"#,
+            table, schema
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::{
+        TEST_HOST, completion::completion_test::test_file_auto_completion,
+        datasource_config::MysqlDbConfig, enable_test_log, mysql::MysqlDB,
+    };
+
+    async fn make_test_object(config: MysqlDbConfig) -> MysqlDB {
+        let db = MysqlDB::new(config).await.unwrap();
+        db
+    }
+    fn make_config() -> MysqlDbConfig {
+        MysqlDbConfig {
+            host: TEST_HOST.to_string(),
+            username: "root".to_string(),
+            password: "root".to_string(),
+            port: 3307, // use mariadb to test mysql have bugs.
+            db_name: Some("test".to_string()),
+            read_only: false,
+        }
+    }
+
+    /*
+        环境设置
+        CREATE TABLE departments (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL
+        );
+        CREATE TABLE employees (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(50) NOT NULL
+        );
+    */
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        let db = make_test_object(make_config()).await;
+        enable_test_log();
+        let manifest_dir =
+            std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
+        file_path.push("tests");
+        file_path.push("mysql_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+    }
+    #[ignore = "xxx"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object(make_config()).await;
+        test_file_auto_completion(
+            r#"select id from (select id from employees) as xxx
+10 id"#,
+            &db,
+            uuid::Uuid::new_v4(),
+            false,
+        )
+        .await;
     }
 }
 

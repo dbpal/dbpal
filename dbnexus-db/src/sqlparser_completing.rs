@@ -853,7 +853,9 @@ impl CompletionStament {
             }
         } else {
             // another completion
-            for from in self.scopes.nearest_from_tables().iter() {
+            let tables = self.scopes.nearest_from_tables();
+            log::trace!("from tables:{:?}", tables);
+            for from in tables.iter() {
                 let mut old = self.result.take().unwrap_or_default();
                 match from {
                     // we only looking for unnamed
@@ -1935,7 +1937,7 @@ impl CompletionStament {
         let s = Scope::from_temp_tables(with_temp_tables);
         let _with_temp_table_guard = self.scopes.push(s);
         let ret = vec![];
-        // handle a lot of
+
         if let Some(orderby) = query.order_by.as_ref() {
             for e in orderby.exprs.iter() {
                 self.c_on_order_by_expr(e).await;
@@ -2104,21 +2106,22 @@ impl CompletionStament {
                 subquery,
                 alias,
             } => {
+                let cols = self
+                    .c_on_query(&subquery)
+                    .await
+                    .map_err(|e| log::error!("self.c_on_query failed,err:{:?}", e))
+                    .unwrap_or_default();
+
                 if let Some(alias) = alias {
-                    let cols = self
-                        .c_on_query(&subquery)
-                        .await
-                        .map_err(|e| log::error!("self.c_on_query failed,err:{:?}", e))
-                        .unwrap_or_default();
                     s.enter_temp_table(alias.name.clone(), TempTable {
-                        columns: Arc::new(cols),
+                        columns: Arc::new(cols.clone()),
+                    });
+                    s.from_tables.push(FromTableOrTemp::Unnamed {
+                        table: TempTable {
+                            columns: Arc::new(cols),
+                        },
                     });
                 } else {
-                    let cols = self
-                        .c_on_query(&subquery)
-                        .await
-                        .map_err(|e| log::error!("self.c_on_query failed,err:{:?}", e))
-                        .unwrap_or_default();
                     s.from_tables.push(FromTableOrTemp::Unnamed {
                         table: TempTable {
                             columns: Arc::new(cols),

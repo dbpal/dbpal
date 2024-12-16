@@ -29,7 +29,7 @@ use crate::query_log::QueryLog;
 #[derive(Clone)]
 pub struct MysqlDB {
     pool: sqlx::MySqlPool,
-    config: MysqlDbConfig,
+    pub(crate) config: MysqlDbConfig,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
 }
 
@@ -424,13 +424,13 @@ async fn query_trigger_detail(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum FunctionOrProcedure {
+pub enum FunctionOrProcedure {
     Function,
     Procedure,
 }
 
 impl FunctionOrProcedure {
-    async fn query_list(
+    pub(crate) async fn query_list(
         self, conn: &mut sqlx::mysql::MySqlConnection, db: &str,
     ) -> anyhow::Result<Vec<String>> {
         let sql = format!(
@@ -573,6 +573,46 @@ impl ServerMetas for MysqlDB {
 impl BackendName for MysqlDB {
     fn backend_name(&self) -> &str {
         "mysql"
+    }
+}
+
+impl MysqlDB {
+    pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+        let mut conn = self.get_conn().await?;
+        let s = format!(
+            r#"SELECT table_name ,data_length
+        FROM information_schema.tables
+        WHERE table_schema = '{}';"#,
+            schema
+        );
+        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let table_name: String = r.get(0);
+            let size: Option<u64> = r.get(1);
+            ret.push(ListTable::new(table_name, size));
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"
+        SELECT table_name FROM information_schema.tables WHERE table_type = 'VIEW' AND table_schema = '{}';
+        "#,
+            schema
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(NamedStaff::from(name));
+        }
+        anyhow::Ok(ret)
     }
 }
 
@@ -822,22 +862,8 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let sql = format!(
-            r#"
-        SELECT table_name FROM information_schema.tables WHERE table_type = 'VIEW' AND table_schema = '{}';
-        "#,
-            self.config.db_name.as_ref().unwrap()
-        );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(sql.as_str())
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.get(0);
-            ret.push(NamedStaff::from(name));
-        }
-        anyhow::Ok(ret)
+        self.list_view_impl(self.config.db_name.as_ref().unwrap())
+            .await
     }
 
     async fn delete(
@@ -945,22 +971,8 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let mut conn = self.get_conn().await?;
-        let s = format!(
-            r#"SELECT table_name ,data_length
-        FROM information_schema.tables
-        WHERE table_schema = '{}';"#,
-            self.config.db_name.as_ref().map(|x| x.as_str()).unwrap()
-        );
-        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let table_name: String = r.get(0);
-            let size: Option<u64> = r.get(1);
-            ret.push(ListTable::new(table_name, size));
-        }
-
-        anyhow::Ok(ret)
+        self.list_table_impl(self.config.db_name.as_ref().map(|x| x.as_str()).unwrap())
+            .await
     }
 
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -1267,7 +1279,6 @@ impl QuerySql for MysqlDB {
                 Ok(x) => x,
                 Err(err) => {
                     ret.push(Err(err.to_string()));
-
                     continue;
                 }
             };
