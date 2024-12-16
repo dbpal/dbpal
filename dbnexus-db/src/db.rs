@@ -177,7 +177,7 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
     }
 
     async fn drop_udf(
-        &self, _name: &str, _extra: Option<DropUdfExtraParameter>,
+        &self, _name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
@@ -185,10 +185,14 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
         not_support_features(self.backend_name())
     }
-    async fn show_procedure(&self, _name: &str) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(
+        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<ProcedureDetail> {
         not_support_features(self.backend_name())
     }
-    async fn drop_procedure(&self, _name: &str) -> anyhow::Result<()> {
+    async fn drop_procedure(
+        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -203,7 +207,7 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "drop_udf_extra_paramter", rename_all = "lowercase")]
-pub enum DropUdfExtraParameter {
+pub enum UdfOrPrecedureExtraParameter {
     PostGres {
         parameters: String, // a integer , b integer
     },
@@ -249,14 +253,18 @@ pub trait CatalogTrait:
 }
 
 /// named staff maybe used for view udf etc...
-#[derive(Debug, serde::Serialize, TypeDef, Clone)]
+#[derive(Debug, serde::Serialize, TypeDef)]
 pub struct NamedStaff {
     pub name: String,
+    pub metas: Vec<MetaValue>,
 }
 
 impl From<String> for NamedStaff {
     fn from(value: String) -> Self {
-        NamedStaff { name: value }
+        NamedStaff {
+            name: value,
+            metas: vec![],
+        }
     }
 }
 

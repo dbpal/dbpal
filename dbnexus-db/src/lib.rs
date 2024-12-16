@@ -1,6 +1,6 @@
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Once,
+    atomic::{AtomicUsize, Ordering},
 };
 
 use lazy_static::lazy_static;

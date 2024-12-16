@@ -17,20 +17,19 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use crate::completion::{AutoCompletionTrait, CompletionItem};
 
+use crate::MemoryLimit;
 use crate::datasource_config::SqlServerDbConfig;
 use crate::db::{
-    format_data_time_fix_offset, BackendName, CatalogTrait, CheckConn, DBTrait,
-    DropUdfExtraParameter, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
-    ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfDetail,
+    BackendName, CatalogTrait, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts,
+    Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent,
+    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter, format_data_time_fix_offset,
 };
 use crate::helper::{
-    create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql, SqlKind, SqlSeq,
+    SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql,
 };
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
-use crate::MemoryLimit;
 
 #[derive(Clone)]
 pub struct SqlServer {
@@ -782,18 +781,15 @@ impl SchemaTrait for SqlServer {
                     if let Some(x) = ret.get_mut(&name) {
                         x.on.push(col);
                     } else {
-                        ret.insert(
-                            name.clone(),
-                            Index {
-                                name,
-                                kind: if is_unique.unwrap_or_default() {
-                                    IndexKind::Unique
-                                } else {
-                                    IndexKind::Normal
-                                },
-                                on: vec![col],
+                        ret.insert(name.clone(), Index {
+                            name,
+                            kind: if is_unique.unwrap_or_default() {
+                                IndexKind::Unique
+                            } else {
+                                IndexKind::Normal
                             },
-                        );
+                            on: vec![col],
+                        });
                     }
                 }
                 tiberius::QueryItem::Metadata(_) => {}
@@ -1016,7 +1012,7 @@ impl SchemaTrait for SqlServer {
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<DropUdfExtraParameter>,
+        &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!("DROP FUNCTION dbo.{name}");
         let mut conn = self.get_conn().await?;
@@ -1052,7 +1048,9 @@ impl SchemaTrait for SqlServer {
 
         anyhow::Ok(ret)
     }
-    async fn show_procedure(&self, name: &str) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(
+        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<ProcedureDetail> {
         let sql = format!(
             r#"
             SELECT 
@@ -1092,7 +1090,9 @@ impl SchemaTrait for SqlServer {
         }
         anyhow::bail!("query precedure contains no result.")
     }
-    async fn drop_procedure(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_procedure(
+        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<()> {
         let sql = format!(" DROP PROCEDURE dbo.{name}");
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -1107,13 +1107,10 @@ impl SqlServer {
     ) -> anyhow::Result<i32> {
         let mut stream = conn
             .query(
-                format!(
-                    "SELECT count(*) from {name} {}",
-                    match where_str {
-                        Some(x) => format!("  where {} ", x),
-                        None => "".to_string(),
-                    }
-                ),
+                format!("SELECT count(*) from {name} {}", match where_str {
+                    Some(x) => format!("  where {} ", x),
+                    None => "".to_string(),
+                }),
                 &[],
             )
             .await?;
@@ -1674,7 +1671,7 @@ impl CatalogTrait for SqlServer {
 mod tests {
 
     use super::*;
-    use crate::{enable_test_log, TEST_HOST};
+    use crate::{TEST_HOST, enable_test_log};
 
     async fn make_test_object() -> SqlServer {
         let ss = SqlServer::new(SqlServerDbConfig {
@@ -1697,7 +1694,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
-        let _ = db.drop_procedure("test_procedure").await;
+        let _ = db.drop_procedure("test_procedure", None).await;
         db.query_sql(
             query_id,
             r#"
@@ -1721,7 +1718,7 @@ mod tests {
         .unwrap();
         let list = db.list_procedure().await.unwrap();
         for l in list.iter() {
-            let details = db.show_procedure(&l.name).await.unwrap();
+            let details = db.show_procedure(&l.name, None).await.unwrap();
             println!("udf:{},details:{:?}", l.name, details);
         }
     }
@@ -2145,25 +2142,19 @@ mod tests {
         }
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);
         }
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -2189,13 +2180,10 @@ mod tests {
         }
         {
             let s = db
-                .export_query_result_to_string(
-                    sql,
-                    ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
+                .export_query_result_to_string(sql, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);

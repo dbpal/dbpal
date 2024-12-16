@@ -578,7 +578,6 @@ impl CompletionStament {
                     }
                 }
                 for c in create_table.constraints.iter() {
-                    println!("completion on table costraint:{:?}", c);
                     match c {
                         TableConstraint::Unique {
                             name,
@@ -839,7 +838,6 @@ impl CompletionStament {
                     }
                 }
             }
-
             Statement::AlterView { name, query, .. } => {
                 self.c_on_view(name).await;
                 if self.finished() {
@@ -885,6 +883,7 @@ impl CompletionStament {
             }
             Statement::AttachDatabase { .. } => {
                 // fallback to lexer
+                // this SQLite-specific
             }
             Statement::AttachDuckDBDatabase { .. } => {
                 // duckdb not supported
@@ -1005,13 +1004,15 @@ impl CompletionStament {
                 // fallback to lexer
             }
             Statement::SetNames { .. } => {
-                // fallback to lexer
+                // this ast have no span info.
+                // so we can't do
             }
             Statement::SetNamesDefault {} => {
                 // fallback to lexer
             }
             Statement::ShowFunctions { .. } => {
                 // Presto-specific
+                // no one can write a sql like this???
             }
             Statement::ShowVariable { variable } => {
                 for var in variable {
@@ -1032,6 +1033,7 @@ impl CompletionStament {
                 self.c_on_mysql_show_create(obj_type.clone(), obj_name)
                     .await;
             }
+            // a list of show command 应该主要是用在模式匹配的地方呢
             Statement::ShowColumns { .. } => {}
             Statement::ShowDatabases { .. } => {}
             Statement::ShowSchemas { .. } => {}
@@ -1171,8 +1173,10 @@ impl CompletionStament {
                 }
                 if let Some(r) = referenced_table_name {
                     self.c_on_table(r).await;
+                    if self.finished() {
+                        return;
+                    }
                 }
-
                 for r in referencing.iter() {
                     // TODO is this actual a table name.
                     self.c_on_table(&r.transition_relation_name).await;

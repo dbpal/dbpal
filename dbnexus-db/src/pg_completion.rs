@@ -30,8 +30,7 @@ impl PostGresDB {
         }
         return self.config.db_name.as_deref();
     }
-
-    fn schema_merget_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
+    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
     where
         'b: 'a,
     {
@@ -72,7 +71,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
             sql.push_str(format!(" WHERE table_catalog = '{}'", db).as_str());
             has_db = true;
         }
-        if let Some(schema) = self.schema_merget_config(schema) {
+        if let Some(schema) = self.schema_merge_config(schema) {
             if has_db {
                 sql.push_str(format!(" AND table_schema = '{}'", schema).as_str());
             } else {
@@ -89,13 +88,59 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         anyhow::Ok(ret)
     }
 
+    async fn list_procedure(
+        &self, _db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        let sql = if let Some(schema) = self.schema_merge_config(schema) {
+            format!(
+                r#"
+            SELECT 
+                p.proname AS procedure_name
+            FROM 
+                pg_catalog.pg_proc p
+            JOIN 
+                pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE 
+                n.nspname = '{}'  -- 指定目标模式
+                AND p.prokind = 'p'  -- 仅选择存储过程
+            ORDER BY 
+                p.proname;
+            "#,
+                schema
+            )
+        } else {
+            format!(
+                r#"
+            SELECT 
+                p.proname AS procedure_name
+            FROM 
+                pg_catalog.pg_proc p
+            JOIN 
+                pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE 
+                p.prokind = 'p'  -- 仅选择存储过程
+            ORDER BY 
+                p.proname;
+            "#
+            )
+        };
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn list_view(
         &self,
-        _db: Option<&str>, // can't filter on catelog???
+        _db: Option<&str>, // can't filter on catelog 根据表结构
         schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
         let mut sql = "SELECT viewname FROM pg_views ".to_string();
-        if let Some(schema) = self.schema_merget_config(schema) {
+        if let Some(schema) = self.schema_merge_config(schema) {
             sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
         }
         let mut conn = self.get_conn().await?;
@@ -116,7 +161,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
             has_where = true;
             sql.push_str(format!(" WHERE table_catalog='{}'", db).as_str());
         }
-        if let Some(schema) = self.schema_merget_config(schema) {
+        if let Some(schema) = self.schema_merge_config(schema) {
             if has_where {
                 sql.push_str(" AND ");
             } else {
@@ -147,7 +192,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         schema: Option<&str>,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let sql;
-        if let Some(schema) = self.schema_merget_config(schema) {
+        if let Some(schema) = self.schema_merge_config(schema) {
             sql = format!(
                 r#"
             SELECT  
@@ -188,8 +233,31 @@ impl CompletionOnSynTaxHelper for PostGresDB {
                 .collect(),
         )
     }
-    async fn list_index(&self) -> anyhow::Result<Vec<String>> {
-        unimplemented!()
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let sql = if let Some(schema) = self.schema_merge_config(schema) {
+            format!(
+                r#"
+            SELECT indexname AS index_name
+                FROM pg_indexes
+                WHERE schemaname = '{}';
+                "#,
+                schema
+            )
+        } else {
+            r#"
+            SELECT indexname AS index_name
+                FROM pg_indexes
+                "#
+            .to_string()
+        };
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
     }
 
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
@@ -235,16 +303,16 @@ impl CompletionOnSynTaxHelper for PostGresDB {
     async fn postgres_table_policy(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let sql = if let Some(schema) = self.schema_merget_config(schema) {
+        let sql = if let Some(schema) = self.schema_merge_config(schema) {
             format!(
-                r#"SELECT *
+                r#"SELECT policyname
                 FROM pg_policies
                 WHERE tablename = '{}' AND schemaname='{}';  -- 替换为你的表名"#,
                 table, schema
             )
         } else {
             format!(
-                r#"SELECT *
+                r#"SELECT policyname
                 FROM pg_policies
                 WHERE tablename = '{}';  -- 替换为你的表名"#,
                 table
@@ -274,12 +342,16 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         anyhow::Ok(ret)
     }
     async fn list_postgres_rule(
-        &self, db: Option<&str>, _schema: Option<&str>, table: &str,
+        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let sql = if let Some(db) = self.db_merge_config(db) {
+        /*
+           这里schemaname实际上是db的名字 我观察出来的
+           对吗？？？
+        */
+        let sql = if let Some(schema) = self.db_merge_config(schema) {
             format!(
                 r#"select rulename from pg_rules where tablename='{}' and schemaname='{}'"#,
-                table, db
+                table, schema
             )
         } else {
             format!(
@@ -306,7 +378,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
             has_where = true;
             sql.push_str(format!(" WHERE table_catalog='{}'", db).as_str());
         }
-        if let Some(schema) = self.schema_merget_config(schema) {
+        if let Some(schema) = self.schema_merge_config(schema) {
             if has_where {
                 sql.push_str(" AND ");
             } else {
@@ -342,6 +414,42 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name)
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_table_trigger(
+        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let sql = if let Some(schema) = self.schema_merge_config(schema) {
+            format!(
+                r#"
+                SELECT tgname AS trigger_name
+                    FROM pg_trigger
+                    JOIN pg_class ON pg_trigger.tgrelid = pg_class.oid
+                    JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
+                    WHERE pg_class.relname = '{}'
+                    AND pg_namespace.nspname = '{}'
+            "#,
+                table, schema,
+            )
+        } else {
+            format!(
+                r#"
+                SELECT tgname AS trigger_name
+                    FROM pg_trigger
+                    JOIN pg_class ON pg_trigger.tgrelid = pg_class.oid
+                    JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
+                    WHERE pg_class.relname = '{}'
+            "#,
+                table,
+            )
+        };
+        let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
@@ -425,6 +533,30 @@ mod tests {
             name VARCHAR(100) NOT NULL,
             department_id INTEGER REFERENCES departments(id)
         );
+        CREATE OR REPLACE RULE do_nothing_rule AS
+            ON INSERT TO employees
+            DO INSTEAD
+            NOTHING;
+        CREATE OR REPLACE FUNCTION do_nothing()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            RETURN NULL;  -- 不执行任何操作
+        END;
+        $$ LANGUAGE plpgsql;
+
+        CREATE TRIGGER do_nothing_trigger
+        BEFORE INSERT OR UPDATE OR DELETE ON employees
+        FOR EACH ROW
+        EXECUTE FUNCTION do_nothing();
+        create  view employees_test as select * from employees e;
+
+        ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+
+        CREATE POLICY no_op_policy
+        ON employees
+        USING (true)  -- 任何行都可以访问
+        WITH CHECK (true);  -- 任何行都可以插入/更新
+
     */
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -439,13 +571,14 @@ mod tests {
         let db = make_test_object().await;
         test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
     }
+    #[ignore = "xxx"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"delete from employees USING employees
-38 employees"#,
+            r#"DROP PROCEDURE procedure_name() 
+30 test_procedure"#,
             &db,
             uuid::Uuid::new_v4(),
             false,

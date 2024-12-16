@@ -8,23 +8,23 @@ use anyhow::Context;
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
+use sqlx::Executor;
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
-use sqlx::Executor;
 use sqlx::{Column, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
+use crate::MemoryLimit;
 use crate::datasource_config::MysqlDbConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter, ExportKind,
-    Field, FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfDetail,
+    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
+    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
-use crate::MemoryLimit;
 
 #[derive(Clone)]
 pub struct MysqlDB {
@@ -417,15 +417,10 @@ async fn query_trigger_detail(
         TriggerTiming::After
     };
 
-    anyhow::Ok((
-        TriggerEvent::try_from(event.as_str())?,
-        timing,
-        sql,
-        vec![
-            MetaValue::new("created", create_time),
-            MetaValue::new("sql_mode", sql_mode),
-        ],
-    ))
+    anyhow::Ok((TriggerEvent::try_from(event.as_str())?, timing, sql, vec![
+        MetaValue::new("created", create_time),
+        MetaValue::new("sql_mode", sql_mode),
+    ]))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -489,13 +484,10 @@ impl FunctionOrProcedure {
         let create = create.naive_utc();
         let last_altered: chrono::DateTime<Utc> = row.try_get(1)?;
         let last_altered = last_altered.naive_utc();
-        anyhow::Ok((
-            def,
-            vec![
-                MetaValue::new("created", create),
-                MetaValue::new("last_altered", last_altered),
-            ],
-        ))
+        anyhow::Ok((def, vec![
+            MetaValue::new("created", create),
+            MetaValue::new("last_altered", last_altered),
+        ]))
     }
 
     fn sql_condtion_str(self) -> &'static str {
@@ -595,7 +587,9 @@ impl SchemaTrait for MysqlDB {
             .await?;
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
-    async fn show_procedure(&self, name: &str) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(
+        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<ProcedureDetail> {
         let mut conn = self.get_conn().await?;
         let (def, metas) = FunctionOrProcedure::Procedure
             .query_details(
@@ -607,7 +601,9 @@ impl SchemaTrait for MysqlDB {
 
         anyhow::Ok(ProcedureDetail::new(def, metas))
     }
-    async fn drop_procedure(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_procedure(
+        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<()> {
         let sql = format!("DROP PROCEDURE {name}");
         let mut conn = self.get_conn().await?;
         conn.execute(sqlx::raw_sql(&sql)).await?;
@@ -628,7 +624,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<DropUdfExtraParameter>,
+        &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!("DROP FUNCTION {name}");
         let mut conn = self.get_conn().await?;
@@ -1320,7 +1316,14 @@ pub(crate) mod test_fns {
         let query_id = db_trait.open_connection().await.unwrap();
         let f = "test_procedure";
 
-        let _ = db_trait.drop_procedure(f).await;
+        let _ = db_trait
+            .drop_procedure(
+                f,
+                Some(UdfOrPrecedureExtraParameter::PostGres {
+                    parameters: "".to_string(),
+                }),
+            )
+            .await;
 
         let resp = db_trait
             .query_sql(
@@ -1346,7 +1349,7 @@ pub(crate) mod test_fns {
 
         let udfs = db_trait.list_procedure().await.unwrap();
         for udf in udfs.iter() {
-            let details = db_trait.show_procedure(&udf.name).await.unwrap();
+            let details = db_trait.show_procedure(&udf.name, None).await.unwrap();
             println!("details:{:?}", details);
         }
     }
@@ -1639,37 +1642,28 @@ pub(crate) mod test_fns {
         }
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);
         }
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
         }
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1923,16 +1917,13 @@ pub(crate) mod test_fns {
         let db = &db as &dyn crate::db::DBTrait;
 
         let resp = db.list_schema().await.unwrap();
-        assert_eq!(
-            resp,
-            vec![
-                "information_schema",
-                "mysql",
-                "performance_schema",
-                "sys",
-                "test"
-            ]
-        );
+        assert_eq!(resp, vec![
+            "information_schema",
+            "mysql",
+            "performance_schema",
+            "sys",
+            "test"
+        ]);
     }
 
     pub(crate) async fn test_query(db: MysqlDB) {
@@ -1981,7 +1972,7 @@ pub(crate) mod test_fns {
 #[cfg(test)]
 mod tests {
     use super::test_fns::{self, make_test_object};
-    use crate::{datasource_config::MysqlDbConfig, TEST_HOST};
+    use crate::{TEST_HOST, datasource_config::MysqlDbConfig};
 
     pub(crate) fn make_config() -> MysqlDbConfig {
         MysqlDbConfig {

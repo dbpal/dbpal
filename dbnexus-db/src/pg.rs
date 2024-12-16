@@ -15,15 +15,15 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::PGDbConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, DropUdfExtraParameter,
-    ExportKind, Field, FormatSql, FormatSqlOpts, HumanSize, Index, IndexKind, ListTable,
-    NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
+    BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    FormatSql, FormatSqlOpts, HumanSize, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
-use crate::{pg_format::*, MemoryLimit};
+use crate::{MemoryLimit, pg_format::*};
 
 impl FormatSql for PostGresDB {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
@@ -102,11 +102,7 @@ impl PostGresDB {
 
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_columns(self, table_name).await?;
-        let sql = format!(
-            "SELECT * from {}.{}",
-            self.config.schema.as_ref().unwrap(),
-            table_name
-        );
+        let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -155,11 +151,7 @@ impl PostGresDB {
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!(
-            "SELECT * from {}.{}",
-            self.config.schema.as_ref().unwrap(),
-            table_name
-        );
+        let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
         self.export_query_result_as_json_line(&sql, sender).await
     }
 
@@ -167,9 +159,7 @@ impl PostGresDB {
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-
         let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
-
         sender.send("[".into()).await?;
         let mut first = true;
         while let Some(row) = stream.next().await {
@@ -200,11 +190,7 @@ impl PostGresDB {
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!(
-            "SELECT * from {}.{}",
-            self.config.schema.as_ref().unwrap(),
-            table_name
-        );
+        let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
         self.export_query_result_as_json(&sql, pretty, sender).await
     }
 
@@ -246,11 +232,7 @@ impl PostGresDB {
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!(
-            "SELECT * from {}.{}",
-            self.config.schema.as_ref().unwrap(),
-            table_name
-        );
+        let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
         self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
             .await
     }
@@ -334,6 +316,11 @@ fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTimin
     anyhow::bail!(format!("unknown tgtype:{}", tgtype))
 }
 
+impl PostGresDB {
+    pub(crate) fn must_schema(&self) -> &String {
+        self.config.schema.as_ref().unwrap()
+    }
+}
 #[async_trait::async_trait]
 
 impl ServerMetas for PostGresDB {
@@ -380,6 +367,88 @@ impl ServerMetas for PostGresDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"
+        SELECT  
+        p.proname AS procedure_name,
+        pg_catalog.pg_get_function_arguments(p.oid) AS arguments
+        FROM pg_catalog.pg_proc p
+            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = '{}'  -- 替换为目标模式名称
+        AND p.prokind = 'p'  -- 仅选择存储过程
+        ORDER BY p.proname;"#,
+            self.must_schema()
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            let p: String = r.try_get(1)?;
+            ret.push(NamedStaff {
+                name,
+                metas: vec![MetaValue::new("parameter", p)],
+            });
+        }
+
+        anyhow::Ok(ret)
+    }
+    async fn show_procedure(
+        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<ProcedureDetail> {
+        let arg: &UdfOrPrecedureExtraParameter = match arg.as_ref() {
+            Some(arg) => arg,
+            None => anyhow::bail!(format!("postgres need extra argument.")),
+        };
+        let parameters = match arg {
+            UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+        };
+        let sql = format!(
+            r#"
+                SELECT 
+                    pg_catalog.pg_get_function_result(p.oid) AS return_type,
+                    pg_catalog.pg_get_function_arguments(p.oid) AS arguments,
+                    p.prosrc AS source_code
+        FROM pg_catalog.pg_proc p
+            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = '{}'  -- 指定目标模式
+        AND p.proname = '{}'  -- 指定存储过程名称
+        AND p.prokind = 'p'
+        AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'  -- 指定参数类型"#,
+            self.must_schema(),
+            name,
+            parameters,
+        );
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+        let return_type: Option<String> = row.try_get(0)?;
+        let parameters: String = row.try_get(1)?;
+        let code: String = row.try_get(2)?;
+
+        anyhow::Ok(ProcedureDetail {
+            def: code,
+            metas: vec![
+                MetaValue::new_opt("return_type", return_type),
+                MetaValue::new("parameters", parameters),
+            ],
+        })
+    }
+    async fn drop_procedure(
+        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<()> {
+        let arg: &UdfOrPrecedureExtraParameter = match arg.as_ref() {
+            Some(arg) => arg,
+            None => anyhow::bail!(format!("postgres need extra argument.")),
+        };
+        let p = match arg {
+            UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+        };
+        let sql = format!("DROP PROCEDURE {}({})", name, p);
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
@@ -390,16 +459,18 @@ impl SchemaTrait for PostGresDB {
             WHERE n.nspname = '{}'  -- 替换为您要查询的模式名称
             ORDER BY p.proname;
         "#,
-            self.config.schema.as_ref().unwrap()
+            self.must_schema()
         );
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
-            ret.push(NamedStaff { name });
+            ret.push(NamedStaff {
+                name,
+                metas: vec![],
+            });
         }
-
         anyhow::Ok(ret)
     }
     async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
@@ -413,27 +484,24 @@ impl SchemaTrait for PostGresDB {
                 JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             WHERE p.proname = '{name}' and n.nspname ='{}';  -- 替换为您要查询的函数名称
        "#,
-            self.config.schema.as_ref().unwrap()
+            self.must_schema()
         );
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
         let result_type: String = row.try_get(0)?;
         let arguments: String = row.try_get(1)?;
         let function_definition: String = row.try_get(2)?;
-        anyhow::Ok(UdfDetail::new(
-            function_definition,
-            vec![
-                MetaValue::new("result_type", result_type),
-                MetaValue::new("arguments", arguments),
-            ],
-        ))
+        anyhow::Ok(UdfDetail::new(function_definition, vec![
+            MetaValue::new("result_type", result_type),
+            MetaValue::new("arguments", arguments),
+        ]))
     }
     async fn drop_udf(
-        &self, name: &str, extra: Option<DropUdfExtraParameter>,
+        &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
             Some(x) => match x {
-                DropUdfExtraParameter::PostGres { parameters } => parameters,
+                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
                 #[allow(unreachable_patterns)]
                 _ => {
                     anyhow::bail!("must be a postgres parameter")
@@ -444,7 +512,7 @@ impl SchemaTrait for PostGresDB {
 
         let sql = format!(
             "DROP FUNCTION IF EXISTS {}.{}({})",
-            self.config.schema.as_ref().unwrap(),
+            self.must_schema(),
             name,
             parameters
         );
@@ -491,7 +559,7 @@ impl SchemaTrait for PostGresDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
 
         let sql = format!("CREATE TABLE {schema}.{dup} AS TABLE {schema}.{table}");
         let mut conn = self.get_conn().await?;
@@ -500,7 +568,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
         let sql = format!("ALTER TABLE {schema}.{old} RENAME TO {new}");
         println!("sql:{}", sql);
 
@@ -542,7 +610,6 @@ impl SchemaTrait for PostGresDB {
                     AND tgname = '{name}';
         "#
         );
-
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_one(conn.deref_mut())
@@ -563,7 +630,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
         let sql = format!(
             r#"table
          DROP TRIGGER {name} ON {schema}.{table} 
@@ -679,7 +746,7 @@ impl SchemaTrait for PostGresDB {
         let total = self.query_count(view_name, where_str).await?;
 
         let sql = gen_show_sql(
-            self.config.schema.as_ref().unwrap(),
+            self.must_schema(),
             view_name,
             where_str,
             order_by,
@@ -699,7 +766,7 @@ impl SchemaTrait for PostGresDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let mut conn = self.get_conn().await?;
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
 
         let sql = format!("DROP VIEW {schema}.{view_name}");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -708,7 +775,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
         let mut conn = self.get_conn().await?;
         let sql = format!("DROP TABLE {schema}.{table}");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -717,7 +784,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
         let rows = sqlx::query(
             format!(
                 r#"
@@ -763,7 +830,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
         let s = format!(
             r#"
             TRUNCATE TABLE {schema}.{table_name};
@@ -830,7 +897,7 @@ impl SchemaTrait for PostGresDB {
              FROM information_schema.tables
              WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}'
      "#,
-            self.config.schema.as_ref().unwrap(),
+            self.must_schema(),
             &self.config.db_str()
         );
 
@@ -863,7 +930,7 @@ impl SchemaTrait for PostGresDB {
             FROM information_schema.columns where table_catalog='{}' and table_schema='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
             &self.config.db_str(),
-            self.config.schema.as_ref().unwrap(),
+            self.must_schema(),
             table_name
         );
 
@@ -936,7 +1003,7 @@ impl SchemaTrait for PostGresDB {
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(
-            self.config.schema.as_ref().unwrap(),
+            self.must_schema(),
             table_name,
             where_str,
             order_by,
@@ -1006,7 +1073,7 @@ impl SchemaTrait for PostGresDB {
 impl PostGresDB {
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
 
         let mut s = format!("SELECT count(1) from {schema}.{name} ");
         if let Some(where_str) = where_str {
@@ -1290,7 +1357,7 @@ pub type ListMaterializedView = ListTable;
 #[allow(dead_code)]
 impl PostGresDB {
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
 
         let sql = format!(
             r#"
@@ -1316,7 +1383,7 @@ impl PostGresDB {
         anyhow::Ok(ret)
     }
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.must_schema();
         let sql = format!(
             r#"DROP MATERIALIZED VIEW  "{}"."{}" RESTRICT"#,
             schema, name
@@ -1332,7 +1399,7 @@ impl PostGresDB {
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(view_name, where_str.clone()).await?;
         let sql = gen_show_sql(
-            self.config.schema.as_ref().unwrap(),
+            self.must_schema(),
             view_name,
             where_str,
             order_by,
@@ -1353,10 +1420,10 @@ impl PostGresDB {
 mod tests {
     use super::PostGresDB;
     use crate::datasource_config::PGDbConfig;
-    use crate::db::{CatalogTrait, DropUdfExtraParameter, QueryResp};
+    use crate::db::{CatalogTrait, QueryResp, UdfOrPrecedureExtraParameter};
     use crate::db::{CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas};
 
-    use crate::{enable_test_log, TEST_HOST};
+    use crate::{TEST_HOST, enable_test_log};
     use std::collections::HashMap;
 
     async fn make_test_object() -> PostGresDB {
@@ -1372,6 +1439,39 @@ mod tests {
         .await
         .unwrap();
         pg
+    }
+    #[tokio::test]
+    async fn test_procedure() {
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db.drop_procedure("test_procedure", None).await;
+        db.query_sql(
+            query_id,
+            r#"
+            CREATE PROCEDURE test_procedure()
+            LANGUAGE plpgsql AS
+            $$
+            BEGIN
+                -- procedure logic goes here
+            END;
+            $$;
+        "#,
+        )
+        .await
+        .unwrap();
+        let list = db.list_procedure().await.unwrap();
+        for l in list.iter() {
+            let details = db
+                .show_procedure(
+                    &l.name,
+                    Some(UdfOrPrecedureExtraParameter::PostGres {
+                        parameters: "".to_string(),
+                    }),
+                )
+                .await
+                .unwrap();
+            println!("udf:{},details:{:?}", l.name, details);
+        }
     }
 
     #[tokio::test]
@@ -1565,25 +1665,19 @@ mod tests {
         }
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);
         }
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1655,7 +1749,7 @@ mod tests {
             if l.name == "test_udf" {
                 pg.drop_udf(
                     &l.name,
-                    Some(DropUdfExtraParameter::PostGres {
+                    Some(UdfOrPrecedureExtraParameter::PostGres {
                         parameters: "a integer, b integer".to_string(),
                     }),
                 )
@@ -1783,25 +1877,19 @@ mod tests {
 
         {
             let e = db_trait
-                .export_table_to_string(
-                    &table_name,
-                    ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(&table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", e);
         }
         {
             let e = db_trait
-                .export_table_to_string(
-                    &table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
+                .export_table_to_string(&table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", e);
@@ -1826,13 +1914,10 @@ mod tests {
 
         {
             let e = db_trait
-                .export_query_result_to_string(
-                    "select * from test_export_table",
-                    ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
+                .export_query_result_to_string("select * from test_export_table", ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", e);

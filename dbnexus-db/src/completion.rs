@@ -3,13 +3,13 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
-use crate::db::{monaco_editor_keyword_regexp, not_support_features, BackendName};
+use crate::db::{BackendName, monaco_editor_keyword_regexp, not_support_features};
 use crate::sqlparser_completion::CompletionStament;
 
 #[async_trait::async_trait]
@@ -61,6 +61,7 @@ pub enum CompletionKind {
     Pragma,
     Policy,
     Variable,
+    Rule,
 }
 
 pub fn in_pos(
@@ -216,7 +217,7 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
         not_support_features(self.backend_name())
     }
 
-    async fn list_index(&self) -> anyhow::Result<Vec<String>>;
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
 
     /*
     postgres use `show all`
@@ -370,25 +371,22 @@ select xxxx
 "#,
         );
 
-        assert_eq!(
-            x,
-            vec![
-                CompletionOneTest {
-                    sql: "append str".to_string(),
-                    tests: vec![
-                        (1, vec!["append".to_string()]),
-                        (11, vec!["str".to_string()])
-                    ]
-                },
-                CompletionOneTest {
-                    sql: "select xxxx".to_string(),
-                    tests: vec![
-                        (1, vec!["select".to_string()]),
-                        (4, vec!["xxxx".to_string()])
-                    ]
-                }
-            ]
-        );
+        assert_eq!(x, vec![
+            CompletionOneTest {
+                sql: "append str".to_string(),
+                tests: vec![
+                    (1, vec!["append".to_string()]),
+                    (11, vec!["str".to_string()])
+                ]
+            },
+            CompletionOneTest {
+                sql: "select xxxx".to_string(),
+                tests: vec![
+                    (1, vec!["select".to_string()]),
+                    (4, vec!["xxxx".to_string()])
+                ]
+            }
+        ]);
     }
 
     pub(crate) async fn test_file_auto_completion(

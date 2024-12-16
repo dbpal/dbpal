@@ -126,7 +126,7 @@ impl CompletionOnSynTaxHelper for SqliteDB {
         anyhow::Ok(vec)
     }
 
-    async fn list_index(&self) -> anyhow::Result<Vec<String>> {
+    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         self.list_index_name_impl().await
     }
 
@@ -1078,6 +1078,7 @@ mod tests {
         test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
     }
 
+    #[ignore = "xxx"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_completion_xxx() {
         enable_test_log();

@@ -122,7 +122,7 @@ impl CompletionStament {
         );
     }
     pub(crate) async fn c_on_policy(&mut self, table_name: &ObjectName, name: &Ident) {
-        if self.in_pos(&name.span) {
+        if !self.in_pos(&name.span) {
             return;
         }
         let (db, schema, table) = self.extract_db_schme_item(table_name);
@@ -321,9 +321,19 @@ impl CompletionStament {
         if !self.in_pos(&name.span()) {
             return;
         }
+        let mut schema = None;
+        match name.0.len() {
+            2 => {
+                schema = Some(name.0[1].value.as_str());
+            }
+            1 => {}
+            _ => {
+                log::error!("should have this kind of index name:{:?}", name);
+            }
+        }
         self.result = Some(
             self.helper
-                .list_index()
+                .list_index(schema)
                 .await
                 .map_err(|err| {
                     log::error!("list index failed,err:{}", err);
@@ -378,7 +388,7 @@ impl CompletionStament {
                 .list_postgres_rule(db, schema, &table)
                 .await
                 .map_err(|err| {
-                    log::error!("list index failed,err:{}", err);
+                    log::error!("list_postgres_rule,err:{}", err);
                     self.set_has_err();
                 })
                 .ok()
@@ -386,7 +396,7 @@ impl CompletionStament {
                 .into_iter()
                 .map(|x| CompletionItem {
                     item: x.into(),
-                    kind: CompletionKind::Index,
+                    kind: CompletionKind::Rule,
                     desc: None,
                 })
                 .collect::<Vec<_>>(),
@@ -591,7 +601,7 @@ impl CompletionStament {
                     self.c_on_postgres_rule(table_name, name).await;
                 }
                 AlterTableOperation::EnableAlwaysTrigger { name } => {
-                    self.c_on_postgres_rule(table_name, name).await;
+                    self.c_on_table_trigger(table_name, name).await;
                 }
                 AlterTableOperation::EnableReplicaRule { name } => {
                     self.c_on_postgres_rule(table_name, name).await;
@@ -1390,7 +1400,9 @@ impl CompletionStament {
                             ThisTableEnum::Temp { temp: _temp } => {
                                 // temp this table only use in table create
                                 // I think I should never enter here.
-                                log::error!("temp this table only use in table create , I think I should never enter here. ");
+                                log::error!(
+                                    "temp this table only use in table create , I think I should never enter here. "
+                                );
                             }
                         }
                     }
@@ -1865,7 +1877,8 @@ impl CompletionStament {
                         }
                         _ => {
                             log::error!(
-                                "SelectItem QualifiedWildcard object name too long,I can't handle:{:?}" , object_name 
+                                "SelectItem QualifiedWildcard object name too long,I can't handle:{:?}",
+                                object_name
                             )
                         }
                     }
@@ -1914,12 +1927,9 @@ impl CompletionStament {
         if let Some(with) = query.with.as_ref() {
             for c in with.cte_tables.iter() {
                 let cols = Box::pin(self.c_on_query(&c.query)).await?;
-                with_temp_tables.insert(
-                    c.alias.name.clone(),
-                    TempTable {
-                        columns: Arc::new(cols),
-                    },
-                );
+                with_temp_tables.insert(c.alias.name.clone(), TempTable {
+                    columns: Arc::new(cols),
+                });
             }
         }
         let s = Scope::from_temp_tables(with_temp_tables);
@@ -2100,12 +2110,9 @@ impl CompletionStament {
                         .await
                         .map_err(|e| log::error!("self.c_on_query failed,err:{:?}", e))
                         .unwrap_or_default();
-                    s.enter_temp_table(
-                        alias.name.clone(),
-                        TempTable {
-                            columns: Arc::new(cols),
-                        },
-                    );
+                    s.enter_temp_table(alias.name.clone(), TempTable {
+                        columns: Arc::new(cols),
+                    });
                 } else {
                     let cols = self
                         .c_on_query(&subquery)
@@ -2121,24 +2128,18 @@ impl CompletionStament {
             }
             TableFactor::TableFunction { expr, alias } => {
                 if let Some(alias) = alias {
-                    s.enter_temp_table(
-                        alias.name.clone(),
-                        TempTable {
-                            columns: Arc::new(vec![]),
-                        },
-                    );
+                    s.enter_temp_table(alias.name.clone(), TempTable {
+                        columns: Arc::new(vec![]),
+                    });
                 } else {
                     // TODO how to handle this case
                 }
             }
             TableFactor::Function { alias, .. } => {
                 if let Some(alias) = alias {
-                    s.enter_temp_table(
-                        alias.name.clone(),
-                        TempTable {
-                            columns: Arc::new(vec![]),
-                        },
-                    );
+                    s.enter_temp_table(alias.name.clone(), TempTable {
+                        columns: Arc::new(vec![]),
+                    });
                 } else {
                     // TODO how to handle this case
                 }
@@ -2157,27 +2158,28 @@ impl CompletionStament {
         if self.finished() {
             return;
         }
-        if self.last_name_in_pos(name) {
-            let (db, schema, _) = self.extract_db_schme_item(name);
-            self.result = Some(
-                self.helper
-                    .list_procedure(db, schema)
-                    .await
-                    .map_err(|e| {
-                        log::error!("list function error:{:?}", e);
-                        self.set_has_err();
-                    })
-                    .ok()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|x| CompletionItem {
-                        kind: CompletionKind::Function,
-                        item: x.into(),
-                        desc: None,
-                    })
-                    .collect::<Vec<_>>(),
-            );
+        if !self.last_name_in_pos(name) {
+            return;
         }
+        let (db, schema, _) = self.extract_db_schme_item(name);
+        self.result = Some(
+            self.helper
+                .list_procedure(db, schema)
+                .await
+                .map_err(|e| {
+                    log::error!("list_procedure error:{:?}", e);
+                    self.set_has_err();
+                })
+                .ok()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    kind: CompletionKind::Function,
+                    item: x.into(),
+                    desc: None,
+                })
+                .collect::<Vec<_>>(),
+        );
     }
     pub(crate) fn last_name_in_pos(&mut self, name: &ObjectName) -> bool {
         name.0.last().map(|x| self.in_pos(&x.span)).unwrap_or(false)
@@ -2243,40 +2245,41 @@ impl CompletionStament {
         if self.finished() {
             return;
         }
-
-        if self.last_name_in_pos(name) {
-            let (db, schema, _) = self.extract_db_schme_item(name);
-            self.result = Some(
-                self.helper
-                    .list_function(db, schema)
-                    .await
-                    .map_err(|e| {
-                        log::error!("list function error:{:?}", e);
-                        self.set_has_err();
-                    })
-                    .ok()
-                    .unwrap_or_default(),
-            )
+        if !self.last_name_in_pos(name) {
+            return;
         }
+        let (db, schema, _) = self.extract_db_schme_item(name);
+        self.result = Some(
+            self.helper
+                .list_function(db, schema)
+                .await
+                .map_err(|e| {
+                    log::error!("list function error:{:?}", e);
+                    self.set_has_err();
+                })
+                .ok()
+                .unwrap_or_default(),
+        )
     }
     pub(crate) async fn c_on_function(&mut self, name: &ObjectName) {
         self.c_on_db_schema(name).await;
         if self.finished() {
             return;
         }
-        if self.last_name_in_pos(name) {
-            let (db, schema, _) = self.extract_db_schme_item(name);
-            self.result = Some(
-                self.helper
-                    .list_function(db, schema)
-                    .await
-                    .map_err(|e| {
-                        log::error!("list function error:{:?}", e);
-                        self.set_has_err();
-                    })
-                    .ok()
-                    .unwrap_or_default(),
-            )
+        if !self.last_name_in_pos(name) {
+            return;
         }
+        let (db, schema, _) = self.extract_db_schme_item(name);
+        self.result = Some(
+            self.helper
+                .list_function(db, schema)
+                .await
+                .map_err(|e| {
+                    log::error!("list function error:{:?}", e);
+                    self.set_has_err();
+                })
+                .ok()
+                .unwrap_or_default(),
+        )
     }
 }
