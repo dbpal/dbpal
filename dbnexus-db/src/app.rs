@@ -207,7 +207,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             }
         }
         DBConnectionConfig::SqlServer { conn, name: _ } => {
-            let o = Arc::new(crate::sql_server::SqlServer::new(conn.clone()).await?);
+            let o = Arc::new(crate::mssql::SqlServer::new(conn.clone()).await?);
             if conn.db_name.is_none() {
                 anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>))
             } else {
@@ -450,7 +450,7 @@ impl App {
         &self, uuid: &str, table_name: &str, cascade: bool,
     ) -> anyhow::Result<()> {
         let db = self.get_schema(uuid).await?;
-        db.drop_table(table_name ,cascade).await
+        db.drop_table(table_name, cascade).await
     }
 
     pub async fn show_view(

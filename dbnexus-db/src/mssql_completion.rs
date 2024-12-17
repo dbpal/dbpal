@@ -1,4 +1,4 @@
-use crate::{completion::LexerCompletionTrait, sql_server::SqlServer};
+use crate::{completion::LexerCompletionTrait, mssql::SqlServer};
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for SqlServer {
