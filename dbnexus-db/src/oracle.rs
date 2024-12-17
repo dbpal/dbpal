@@ -1096,7 +1096,7 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         let sql = format!("DROP TABLE {table} CASCADE CONSTRAINTS PURGE");
         let conn = self.get_conn().await?;
         let _ = block_in_place(|| conn.execute(&sql.as_str(), &[]))?;

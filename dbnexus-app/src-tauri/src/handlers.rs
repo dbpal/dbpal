@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use bson::{doc, Document};
+use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, OpendKind, UserSettings};
 use dbnexus_db::db::{
     ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, QueryResp, SqlExecuteRet,
@@ -205,11 +205,11 @@ pub async fn drop_view(
 }
 #[tauri::command]
 pub async fn drop_table(
-    uuid: String, table_name: String, app: tauri::State<'_, App>,
+    uuid: String, table_name: String, cascade: bool, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.drop_table(uuid.as_str(), &table_name)
+    app.drop_table(uuid.as_str(), &table_name, cascade)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }

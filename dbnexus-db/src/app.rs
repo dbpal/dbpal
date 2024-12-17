@@ -446,9 +446,11 @@ impl App {
         db.drop_view(view_name).await
     }
 
-    pub async fn drop_table(&self, uuid: &str, table_name: &str) -> anyhow::Result<()> {
+    pub async fn drop_table(
+        &self, uuid: &str, table_name: &str, cascade: bool,
+    ) -> anyhow::Result<()> {
         let db = self.get_schema(uuid).await?;
-        db.drop_table(table_name).await
+        db.drop_table(table_name ,cascade).await
     }
 
     pub async fn show_view(
@@ -587,28 +589,22 @@ mod tests {
             user_settings: super::UserSettings { page_size: 100 },
             connection_configs: {
                 let mut m = HashMap::new();
-                m.insert(
-                    "xxxx".to_string(),
-                    DBConnectionConfig::Sqlite {
-                        path: "d:\\sqlite.test.db".to_string(),
+                m.insert("xxxx".to_string(), DBConnectionConfig::Sqlite {
+                    path: "d:\\sqlite.test.db".to_string(),
+                    read_only: false,
+                    name: "haha".to_string(),
+                });
+                m.insert("yyyy".to_string(), DBConnectionConfig::Mysql {
+                    conn: MysqlDbConfig {
+                        host: "127.0.0.1".to_string(),
+                        port: 33,
+                        username: "aaa".to_string(),
+                        password: "bbb".to_string(),
+                        db_name: None,
                         read_only: false,
-                        name: "haha".to_string(),
                     },
-                );
-                m.insert(
-                    "yyyy".to_string(),
-                    DBConnectionConfig::Mysql {
-                        conn: MysqlDbConfig {
-                            host: "127.0.0.1".to_string(),
-                            port: 33,
-                            username: "aaa".to_string(),
-                            password: "bbb".to_string(),
-                            db_name: None,
-                            read_only: false,
-                        },
-                        name: "haha".to_string(),
-                    },
-                );
+                    name: "haha".to_string(),
+                });
                 m
             },
         };

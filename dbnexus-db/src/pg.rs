@@ -773,11 +773,14 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
         let schema = self.must_schema();
         let mut conn = self.get_conn().await?;
-        let sql = format!("DROP TABLE {schema}.{table}");
+        let sql = format!(
+            "DROP TABLE {schema}.{table} {}",
+            if cascade { " CASCADE " } else { "" }
+        );
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
@@ -1487,7 +1490,7 @@ mod tests {
     async fn empty_type_and_column_info() {
         let db = make_test_object().await;
         let table = "empty_table";
-        let _ = db.drop_table(table).await;
+        let _ = db.drop_table(table, false).await;
         let query_id = db.open_connection().await.unwrap();
         let query_resp = db
             .query_sql(
@@ -1516,7 +1519,7 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         let _ = db.drop_materialized_view("test_material_view").await;
-        let _ = db.drop_table("test_material_view_table").await;
+        let _ = db.drop_table("test_material_view_table", false).await;
 
         let query_id = db.open_connection().await.unwrap();
         let query_resp = db
@@ -1568,8 +1571,8 @@ mod tests {
         let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("test_rename").await;
-        let _ = db_trait.drop_table("test_rename2").await;
+        let _ = db_trait.drop_table("test_rename", false).await;
+        let _ = db_trait.drop_table("test_rename2", false).await;
         db_trait
             .query_sql(
                 query_id,
@@ -1599,8 +1602,8 @@ mod tests {
         let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("test_duplicate").await;
-        let _ = db_trait.drop_table("test_duplicate2").await;
+        let _ = db_trait.drop_table("test_duplicate", false).await;
+        let _ = db_trait.drop_table("test_duplicate2", false).await;
 
         db_trait
             .query_sql(
@@ -1701,7 +1704,7 @@ mod tests {
         let table_name = "index_test";
         let db = make_test_object().await;
 
-        let _ = db.drop_table(table_name).await;
+        let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
 
         db.query_sql(query_id, format!(
@@ -1764,7 +1767,7 @@ mod tests {
         let pg = make_test_object().await;
         let db_trait = &pg as &dyn SchemaTrait;
         //
-        let _ = db_trait.drop_table("test_create_trigger").await;
+        let _ = db_trait.drop_table("test_create_trigger", false).await;
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
             .query_sql(
@@ -1779,7 +1782,9 @@ mod tests {
             .await
             .unwrap();
 
-        let _ = db_trait.drop_table("test_create_trigger_update").await;
+        let _ = db_trait
+            .drop_table("test_create_trigger_update", false)
+            .await;
 
         db_trait
             .query_sql(
@@ -1853,7 +1858,7 @@ mod tests {
         let query_id = db_trait.open_connection().await.unwrap();
         let table_name = "test_export_table";
 
-        let _ = db_trait.drop_table(table_name).await;
+        let _ = db_trait.drop_table(table_name, false).await;
 
         db_trait
             .query_sql(
@@ -1953,7 +1958,7 @@ mod tests {
         let table_name = "test_types1";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2024,7 +2029,7 @@ mod tests {
 
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2103,7 +2108,7 @@ mod tests {
         let pg = make_test_object().await;
         let table_name = "test_types3";
 
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2170,7 +2175,7 @@ mod tests {
         let table_name = "test_types4";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2228,7 +2233,7 @@ mod tests {
         let table_name = "test_types5";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2308,7 +2313,7 @@ mod tests {
         let table_name = "test_types6";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2382,7 +2387,7 @@ mod tests {
         enable_test_log();
         let table_name = "test_types7";
         let pg = make_test_object().await;
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2442,7 +2447,7 @@ mod tests {
         let table_name = "test_types8";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2492,7 +2497,7 @@ mod tests {
         enable_test_log();
         let table_name = "test_types9";
         let pg = make_test_object().await;
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2563,7 +2568,7 @@ mod tests {
         let table_name = "test_types10";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
@@ -2625,7 +2630,7 @@ mod tests {
         let table_name = "test_types11";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name).await;
+        let _ = pg.drop_table(&table_name, false).await;
 
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(

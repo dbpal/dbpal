@@ -591,9 +591,12 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
-        let s = format!("DROP TABLE {table}");
+        let s = format!(
+            "DROP TABLE {table} {}",
+            if cascade { " CASCADE " } else { "" }
+        );
         let mut conn = self.get_conn().await?;
         sqlx::query(s.as_str())
             .execute(conn.deref_mut())
@@ -1636,6 +1639,6 @@ mod tests {
         }
 
         db.drop_view("test_view").await.unwrap();
-        db.drop_table(table_name).await.unwrap();
+        db.drop_table(table_name, false).await.unwrap();
     }
 }

@@ -59,7 +59,7 @@ pub trait SchemaTrait: Sync + Send + QuerySql + CheckConn + FormatSql + 'static 
     async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
-    async fn drop_table(&self, table: &str) -> anyhow::Result<()>;
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize,

@@ -1,7 +1,7 @@
 use anyhow::Context;
 
 use futures_util::StreamExt;
-use mongodb::bson::{doc, Document};
+use mongodb::bson::{Document, doc};
 use mongodb::options::ServerAddress;
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 use std::borrow::Cow;
@@ -13,9 +13,9 @@ use std::time::Duration;
 use crate::completion::{AutoCompletionTrait, CompletionItem};
 use crate::datasource_config::MongoConfig;
 use crate::db::{
-    not_support_features, BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql,
-    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp,
+    BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
+    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    TableListResp, not_support_features,
 };
 use crate::meta_value::MetaValue;
 
@@ -504,7 +504,7 @@ impl Mongo {
         anyhow::Ok(ts.into_iter().map(NamedStaff::from).collect())
     }
     pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<()> {
-        self.drop_table(name).await
+        self.drop_table(name, false).await
     }
 }
 
@@ -572,10 +572,10 @@ impl SchemaTrait for Mongo {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
-        self.drop_table(view_name).await
+        self.drop_table(view_name, false).await
     }
 
-    async fn drop_table(&self, collect_name: &str) -> anyhow::Result<()> {
+    async fn drop_table(&self, collect_name: &str, _cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
         let conn = self.get_db().await?;
         conn.collection::<Document>(collect_name).drop().await?;
@@ -712,7 +712,7 @@ mod tests {
     use std::time::SystemTime;
 
     use bson::oid::ObjectId;
-    use bson::{doc, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
+    use bson::{Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
 
     use super::Mongo;
 
@@ -754,7 +754,7 @@ mod tests {
     async fn test_show_index() {
         let db = make_test_object();
         let table = "test_index";
-        let _ = db.drop_table(&table).await;
+        let _ = db.drop_table(&table, false).await;
 
         db.insert(&table, doc! {"name" : "haha" , "age" : 2 })
             .await
@@ -766,7 +766,7 @@ mod tests {
     async fn test_truncat() {
         let db = make_test_object();
         let table = "test_truncat";
-        let _ = db.drop_table(&table).await;
+        let _ = db.drop_table(&table, false).await;
 
         db.insert(&table, doc! {"name" : "haha" , "age" : 2 })
             .await
@@ -777,7 +777,7 @@ mod tests {
     async fn test_export() {
         let db = make_test_object();
         let table = "test_export";
-        let _ = db.drop_table(&table).await;
+        let _ = db.drop_table(&table, false).await;
 
         db.insert(&table, doc! {"name" : "haha" , "age" : 2 })
             .await
@@ -810,8 +810,8 @@ mod tests {
         let table_name = "test_rename";
         let table_name2 = "test_rename2";
 
-        let _ = db_trait.drop_table(&table_name).await;
-        let _ = db_trait.drop_table(&table_name2).await;
+        let _ = db_trait.drop_table(&table_name, false).await;
+        let _ = db_trait.drop_table(&table_name2, false).await;
         let database = db.get_db().await.unwrap();
         let c = database.collection::<Document>(&table_name);
         let d = bson::doc! {"name" : 123};
@@ -830,8 +830,8 @@ mod tests {
         let table_name = "test_dup";
         let table_name2 = "test_dup2";
 
-        let _ = db_trait.drop_table(&table_name).await;
-        let _ = db_trait.drop_table(&table_name2).await;
+        let _ = db_trait.drop_table(&table_name, false).await;
+        let _ = db_trait.drop_table(&table_name2, false).await;
         let database = db.get_db().await.unwrap();
         let c = database.collection::<Document>(&table_name);
         let d = bson::doc! {"name" : 123};
@@ -859,7 +859,7 @@ mod tests {
     async fn test2() {
         let db = make_test_object();
         let table = "test_mongo";
-        let _ = db.drop_table(&table).await;
+        let _ = db.drop_table(&table, false).await;
         db.insert(table, doc! {"name" : "xxx" , "age" : 22})
             .await
             .unwrap();

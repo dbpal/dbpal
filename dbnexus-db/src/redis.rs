@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use std::str::{from_utf8, FromStr};
+use std::str::{FromStr, from_utf8};
 use std::sync::Arc;
 
 use std::time::Duration;
@@ -14,7 +14,7 @@ use crate::db::{
     TableListResp,
 };
 
-use crate::helper::{create_csv, OffsetLimitIter};
+use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use crate::redis_completion::RedisDialet;
@@ -215,7 +215,7 @@ fn split_info_colon(info: &str) -> anyhow::Result<(String, String)> {
             return anyhow::Ok((
                 (&info[..index]).to_string(),
                 (&info[index + 1..]).to_string(),
-            ))
+            ));
         }
         None => anyhow::bail!("info should contains ':'"),
     }
@@ -231,11 +231,7 @@ impl RedisDB {
         let start_pos = if asc {
             start
         } else {
-            if total >= end {
-                total - end
-            } else {
-                1
-            }
+            if total >= end { total - end } else { 1 }
         };
         let end_pos = if asc { end } else { total - start };
         let ret: Vec<Vec<u8>> = conn.lrange(key, start_pos, end_pos).await?;
@@ -957,7 +953,7 @@ impl SchemaTrait for RedisDB {
         anyhow::bail!("not impl")
     }
 
-    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
         let mut conn: ConnectionManager = self.get_conn().await?;
         conn.del::<_, ()>(table).await?;
@@ -1372,12 +1368,13 @@ mod tests {
     use futures_util::StreamExt;
     use redis::AsyncCommands;
 
-    use super::{extract_db_from_info_key_space, split_info_colon, RedisDB};
+    use super::{RedisDB, extract_db_from_info_key_space, split_info_colon};
     use crate::{
+        TEST_HOST,
         completion::completion_test::test_file_auto_completion,
         datasource_config::RedisDbConfig,
         db::{ExportKind, ServerMetas},
-        enable_test_log, TEST_HOST,
+        enable_test_log,
     };
 
     async fn make_test_object() -> RedisDB {
@@ -1546,7 +1543,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let query_id = db.open_connection().await.unwrap();
         let table_name = "hash_value";
 
-        let _ = db.drop_table(table_name).await;
+        let _ = db.drop_table(table_name, false).await;
 
         let ret = db
             .query_sql(query_id.clone(), "hset hash_value key11111 value2222")
@@ -1562,13 +1559,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: false,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1586,12 +1580,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1602,7 +1593,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
-        let _ = db.drop_table(&table_name_dup).await;
+        let _ = db.drop_table(&table_name_dup, false).await;
 
         db.duplicate_table(&table_name, &table_name_dup)
             .await
@@ -1645,7 +1636,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let query_id = db.open_connection().await.unwrap();
         let table_name = "zset_value";
 
-        let _ = db.drop_table(table_name).await;
+        let _ = db.drop_table(table_name, false).await;
 
         let ret = db
             .query_sql(query_id.clone(), "zadd zset_value 1 haha")
@@ -1661,13 +1652,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: false,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1685,12 +1673,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1701,7 +1686,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
-        let _ = db.drop_table(&table_name_dup).await;
+        let _ = db.drop_table(&table_name_dup, false).await;
         db.duplicate_table(&table_name, &table_name_dup)
             .await
             .unwrap();
@@ -1719,7 +1704,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let query_id = db.open_connection().await.unwrap();
         let table_name = "set_value";
 
-        let _ = db.drop_table(table_name).await;
+        let _ = db.drop_table(table_name, false).await;
 
         let ret = db
             .query_sql(query_id.clone(), "sadd set_value a")
@@ -1735,13 +1720,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: false,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1759,12 +1741,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1775,7 +1754,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
-        let _ = db.drop_table(table_name_dup.as_str()).await;
+        let _ = db.drop_table(table_name_dup.as_str(), false).await;
         db.duplicate_table(&table_name, &table_name_dup)
             .await
             .unwrap();
@@ -1793,7 +1772,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let query_id = db.open_connection().await.unwrap();
         let table_name = "list_value";
 
-        let _ = db.drop_table(table_name).await;
+        let _ = db.drop_table(table_name, false).await;
 
         let ret = db
             .query_sql(query_id.clone(), "lpush list_value a")
@@ -1809,13 +1788,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: false,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1833,12 +1809,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1849,7 +1822,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
-        let _ = db.drop_table(table_name_dup.as_str()).await;
+        let _ = db.drop_table(table_name_dup.as_str(), false).await;
         db.duplicate_table(&table_name, &table_name_dup)
             .await
             .unwrap();
@@ -1879,7 +1852,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let query_id = db.open_connection().await.unwrap();
         let table_name = "string_value";
 
-        let _ = db.drop_table(table_name).await;
+        let _ = db.drop_table(table_name, false).await;
 
         let ret = db
             .query_sql(query_id.clone(), "set string_value string_value")
@@ -1890,13 +1863,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: false,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1914,12 +1884,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1931,7 +1898,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
-        let _ = db.drop_table(&table_name_dup).await;
+        let _ = db.drop_table(&table_name_dup, false).await;
         db.duplicate_table(&table_name, &table_name_dup)
             .await
             .unwrap();

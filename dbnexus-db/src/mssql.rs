@@ -586,7 +586,7 @@ impl SchemaTrait for SqlServer {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!("DROP TABLE {table}");
         let mut conn = self.get_conn().await?;
@@ -1839,8 +1839,8 @@ mod tests {
         let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("test_rename").await;
-        let _ = db_trait.drop_table("test_rename2").await;
+        let _ = db_trait.drop_table("test_rename", false).await;
+        let _ = db_trait.drop_table("test_rename2", false).await;
         db_trait
             .query_sql(
                 query_id,
@@ -1871,8 +1871,8 @@ mod tests {
         let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("test_duplicate").await;
-        let _ = db_trait.drop_table("test_duplicate2").await;
+        let _ = db_trait.drop_table("test_duplicate", false).await;
+        let _ = db_trait.drop_table("test_duplicate2", false).await;
 
         db_trait
             .query_sql(
@@ -1911,8 +1911,8 @@ mod tests {
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
         let query_id = db.open_connection().await.unwrap();
-        let _ = db.drop_table("test_create_trigger").await;
-        let _ = db.drop_table("test_create_trigger_update").await;
+        let _ = db.drop_table("test_create_trigger", false).await;
+        let _ = db.drop_table("test_create_trigger_update", false).await;
         let x = db
             .query_sql(
                 query_id,
@@ -2024,7 +2024,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::SchemaTrait;
-        let _ = db.drop_table("test_view_table").await;
+        let _ = db.drop_table("test_view_table", false).await;
         let _ = db.drop_view("test_view").await;
         let conn_id = db.open_connection().await.unwrap();
 
@@ -2074,7 +2074,7 @@ mod tests {
     async fn test_index() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let _ = db.drop_table("test_index_table").await;
+        let _ = db.drop_table("test_index_table", false).await;
 
         let query_id = db.open_connection().await.unwrap();
 
@@ -2098,7 +2098,7 @@ mod tests {
         std::thread::sleep(Duration::from_secs(1));
         let indexes = db.show_indexes("test_index_table").await.unwrap();
         println!("indexes:{:?}", indexes);
-        db.drop_table("test_index_table").await.unwrap();
+        db.drop_table("test_index_table", false).await.unwrap();
     }
 
     #[tokio::test]

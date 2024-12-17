@@ -853,10 +853,13 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
         let mut conn = self.get_conn().await?;
-        let sql = format!("DROP TABLE {table}");
+        let sql = format!(
+            "DROP TABLE {table} {}",
+            if cascade { " CASCADE " } else { "" }
+        );
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
@@ -1399,8 +1402,8 @@ pub(crate) mod test_fns {
     pub(crate) async fn test_rename(db: MysqlDB) {
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("test_rename").await;
-        let _ = db_trait.drop_table("test_rename2").await;
+        let _ = db_trait.drop_table("test_rename", false).await;
+        let _ = db_trait.drop_table("test_rename2", false).await;
         db_trait
             .query_sql(
                 query_id,
@@ -1428,8 +1431,8 @@ pub(crate) mod test_fns {
     pub(crate) async fn test_duplicate(db: MysqlDB) {
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("test_duplicate").await;
-        let _ = db_trait.drop_table("test_duplicate2").await;
+        let _ = db_trait.drop_table("test_duplicate", false).await;
+        let _ = db_trait.drop_table("test_duplicate2", false).await;
 
         db_trait
             .query_sql(
@@ -1471,8 +1474,10 @@ pub(crate) mod test_fns {
         let mut _conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn SchemaTrait;
 
-        let _ = db_trait.drop_table("test_create_trigger").await;
-        let _ = db_trait.drop_table("test_create_trigger_update").await;
+        let _ = db_trait.drop_table("test_create_trigger", false).await;
+        let _ = db_trait
+            .drop_table("test_create_trigger_update", false)
+            .await;
 
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
@@ -1890,7 +1895,7 @@ pub(crate) mod test_fns {
         let table_name = "test_types4";
 
         let db = &db as &dyn crate::db::SchemaTrait;
-        let _ = db.drop_table(table_name).await;
+        let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(
             query_id,
