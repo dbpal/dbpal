@@ -15,9 +15,6 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
-use crate::completion::{AutoCompletionTrait, CompletionItem};
-
-use crate::MemoryLimit;
 use crate::datasource_config::SqlServerDbConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts,
@@ -30,23 +27,26 @@ use crate::helper::{
 };
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
+use crate::{MemoryLimit, TEST_HOST};
 
 #[derive(Clone)]
-pub struct SqlServer {
+pub struct MsSqlServer {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
-    config: SqlServerDbConfig,
+    pub(crate) config: SqlServerDbConfig,
 
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
 }
 
-impl FormatSql for SqlServer {
+impl FormatSql for MsSqlServer {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
     }
 }
-
+impl MsSqlServer {
+    pub const ONLY_SCHEMA: &str = "dbo";
+}
 #[async_trait::async_trait]
-impl ServerMetas for SqlServer {
+impl ServerMetas for MsSqlServer {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let mut conn = self.get_conn().await?;
         let mut ret = Vec::new();
@@ -162,7 +162,7 @@ impl ServerMetas for SqlServer {
         anyhow::Ok(ret)
     }
 }
-impl SqlServer {
+impl MsSqlServer {
     pub async fn new(c: SqlServerDbConfig) -> anyhow::Result<Self> {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
         let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
@@ -333,7 +333,7 @@ fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent
 }
 
 #[async_trait::async_trait]
-impl CheckConn for SqlServer {
+impl CheckConn for MsSqlServer {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         let mut conn = self.get_conn().await?;
@@ -343,7 +343,7 @@ impl CheckConn for SqlServer {
     }
 }
 
-impl SqlServer {
+impl MsSqlServer {
     async fn execute_simple_execute(&self, sql: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -355,14 +355,86 @@ impl SqlServer {
     }
 }
 
-impl BackendName for SqlServer {
+impl MsSqlServer {
+    pub(crate) async fn list_table_impl(
+        &self, db: &str, schema: &str,
+    ) -> anyhow::Result<Vec<ListTable>> {
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn
+            .query(
+                format!(
+                    r#"
+            SELECT TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG='{}' AND TABLE_SCHEMA='{}';
+        "#,
+                    db, schema
+                )
+                .as_str(),
+                &[],
+            )
+            .await?;
+        let mut ret = Vec::new();
+
+        while let Some(item) = stream.next().await {
+            let item = item?;
+
+            match item {
+                tiberius::QueryItem::Row(r) => {
+                    let table_name: Option<&str> = r.try_get(0)?;
+                    ret.push(table_name.unwrap().to_string());
+                }
+
+                tiberius::QueryItem::Metadata(_) => {
+                    // I know the meta pretty well
+                }
+            }
+        }
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+    }
+
+    pub(crate) async fn list_procedure_impl(
+        &self, db: &str, schema: &str,
+    ) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"
+            SELECT 
+                ROUTINE_NAME 
+            FROM 
+                INFORMATION_SCHEMA.ROUTINES 
+            WHERE 
+                ROUTINE_TYPE = 'PROCEDURE'  AND SPECIFIC_CATALOG='{}' AND  SPECIFIC_SCHEMA='{}';
+            "#,
+            db, schema
+        );
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut resp = conn.simple_query(sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = resp.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    ret.push(NamedStaff::from(name.unwrap_or_default().to_string()));
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+}
+
+impl BackendName for MsSqlServer {
     fn backend_name(&self) -> &str {
         "sqlserver"
     }
 }
 
 #[async_trait::async_trait]
-impl SchemaTrait for SqlServer {
+impl SchemaTrait for MsSqlServer {
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -388,7 +460,7 @@ impl SchemaTrait for SqlServer {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let schema = self.config.schema.as_ref().unwrap().as_str();
+        let schema = self.config.must_schema().as_str();
         let sql = format!(
             r#"
             SELECT * INTO {schema}.{dup} FROM {schema}.{table} 
@@ -488,9 +560,10 @@ impl SchemaTrait for SqlServer {
 
     async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(
-            r#"table
-         DROP TRIGGER dbo.{name} ON {table};
-        "#
+            r#"
+         DROP TRIGGER {}.{name} ON {table};
+        "#,
+            Self::ONLY_SCHEMA
         );
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -545,9 +618,9 @@ impl SchemaTrait for SqlServer {
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let total = SqlServer::query_count(conn, view_name, where_str.clone()).await?;
+        let total = MsSqlServer::query_count(conn, view_name, where_str.clone()).await?;
         let sql = gen_select_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()).unwrap(),
+            self.config.must_schema().as_str(),
             view_name,
             where_str,
             order_by,
@@ -576,7 +649,7 @@ impl SchemaTrait for SqlServer {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.config.schema.as_ref().unwrap();
+        let schema = self.config.must_schema().as_str();
 
         let s = format!("DROP VIEW {schema}.{view_name}");
         let mut conn = self.get_conn().await?;
@@ -626,35 +699,11 @@ impl SchemaTrait for SqlServer {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let mut stream = conn
-            .query(
-                r#"
-            SELECT TABLE_NAME
-            FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_TYPE = 'BASE TABLE';
-        "#,
-                &[],
-            )
-            .await?;
-        let mut ret = Vec::new();
-
-        while let Some(item) = stream.next().await {
-            let item = item?;
-
-            match item {
-                tiberius::QueryItem::Row(r) => {
-                    let table_name: Option<&str> = r.try_get(0)?;
-                    ret.push(table_name.unwrap().to_string());
-                }
-
-                tiberius::QueryItem::Metadata(_) => {
-                    // I know the meta pretty well
-                }
-            }
-        }
-        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+        self.list_table_impl(
+            self.config.must_db().as_str(),
+            self.config.must_schema().as_str(),
+        )
+        .await
     }
 
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -700,9 +749,9 @@ impl SchemaTrait for SqlServer {
         }
         drop(stream);
         for f in ret.iter_mut() {
-            let is_primary = SqlServer::is_primary(&mut conn, table_name, &f.field).await?;
+            let is_primary = MsSqlServer::is_primary(&mut conn, table_name, &f.field).await?;
             let is_auto_increment =
-                SqlServer::is_auto_increment(&mut conn, table_name, &f.field).await?;
+                MsSqlServer::is_auto_increment(&mut conn, table_name, &f.field).await?;
             f.is_primary = is_primary;
             f.is_auto_increment = is_auto_increment;
         }
@@ -716,9 +765,9 @@ impl SchemaTrait for SqlServer {
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let total = SqlServer::query_count(conn, table_name, where_str.clone()).await?;
+        let total = MsSqlServer::query_count(conn, table_name, where_str.clone()).await?;
         let sql = gen_select_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()).unwrap(),
+            self.config.must_schema().as_str(),
             table_name,
             where_str,
             order_by,
@@ -927,8 +976,9 @@ impl SchemaTrait for SqlServer {
             FROM 
                 sys.objects
             WHERE 
-                type IN ('FN', 'IF', 'TF') AND  SCHEMA_NAME(schema_id) = 'dbo';
-        "#
+                type IN ('FN', 'IF', 'TF') AND  SCHEMA_NAME(schema_id) = '{}';
+        "#,
+            Self::ONLY_SCHEMA
         );
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -1014,7 +1064,7 @@ impl SchemaTrait for SqlServer {
     async fn drop_udf(
         &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let sql = format!("DROP FUNCTION dbo.{name}");
+        let sql = format!("DROP FUNCTION {}.{name}", Self::ONLY_SCHEMA);
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         conn.execute(sql.as_str(), &[]).await?;
@@ -1023,30 +1073,11 @@ impl SchemaTrait for SqlServer {
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let sql = r#"
-            SELECT 
-                ROUTINE_NAME 
-            FROM 
-                INFORMATION_SCHEMA.ROUTINES 
-            WHERE 
-                ROUTINE_TYPE = 'PROCEDURE';
-            "#;
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let mut resp = conn.simple_query(sql).await?;
-        let mut ret = Vec::new();
-        while let Some(item) = resp.next().await {
-            let item = item?;
-            match item {
-                tiberius::QueryItem::Row(row) => {
-                    let name: Option<&str> = row.try_get(0)?;
-                    ret.push(NamedStaff::from(name.unwrap_or_default().to_string()));
-                }
-                tiberius::QueryItem::Metadata(_) => {}
-            }
-        }
-
-        anyhow::Ok(ret)
+        self.list_procedure_impl(
+            self.config.must_db().as_str(),
+            self.config.must_schema().as_str(),
+        )
+        .await
     }
     async fn show_procedure(
         &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
@@ -1101,7 +1132,7 @@ impl SchemaTrait for SqlServer {
     }
 }
 
-impl SqlServer {
+impl MsSqlServer {
     async fn query_count(
         conn: &mut Connection, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<i32> {
@@ -1128,7 +1159,7 @@ impl SqlServer {
         anyhow::Ok(count.unwrap_or_default())
     }
 }
-impl SqlServer {
+impl MsSqlServer {
     async fn is_primary(
         conn: &mut Connection, table_name: &str, col_name: &str,
     ) -> anyhow::Result<bool> {
@@ -1264,7 +1295,7 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Map<String, serde
     anyhow::Ok(values)
 }
 
-impl SqlServer {
+impl MsSqlServer {
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -1450,7 +1481,7 @@ impl SqlServer {
     }
 }
 
-impl SqlServer {
+impl MsSqlServer {
     /// this fn create a `Connection` only use for query connection
     /// because `query_connections` use in `SqlServer`,
     /// we can't create self reference struct in rust.
@@ -1470,7 +1501,7 @@ impl SqlServer {
 
 type Connection = Client<Compat<TcpStream>>;
 #[async_trait::async_trait]
-impl QuerySql for SqlServer {
+impl QuerySql for MsSqlServer {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -1568,8 +1599,8 @@ async fn set_current_schema(conn: &mut Connection, schema: &str) -> anyhow::Resu
     anyhow::Ok(())
 }
 
-impl SqlServer {
-    async fn get_conn<'a>(
+impl MsSqlServer {
+    pub(crate) async fn get_conn<'a>(
         &'a self,
     ) -> anyhow::Result<bb8::PooledConnection<'a, bb8_tiberius::ConnectionManager>> {
         let conn = self.pool.get().await?;
@@ -1603,7 +1634,7 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
 }
 
 #[async_trait::async_trait]
-impl crate::db::DBTrait for SqlServer {
+impl crate::db::DBTrait for MsSqlServer {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec!["dbo".to_string()])
     }
@@ -1617,23 +1648,7 @@ impl crate::db::DBTrait for SqlServer {
 }
 
 #[async_trait::async_trait]
-impl AutoCompletionTrait for SqlServer {
-    async fn auto_completion(
-        &self, _uuid: uuid::Uuid, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        // DBLexerCompletionBackend::do_auto_completion(
-        //     self,
-        //     sql,
-        //     &sqlparser::dialect::MsSqlDialect {},
-        //     pos,
-        // )
-        // .await
-        unimplemented!()
-    }
-}
-
-#[async_trait::async_trait]
-impl CatalogTrait for SqlServer {
+impl CatalogTrait for MsSqlServer {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let mut stream = conn
@@ -1667,27 +1682,28 @@ impl CatalogTrait for SqlServer {
     }
 }
 
+#[allow(dead_code)]
+pub(crate) async fn make_test_object() -> MsSqlServer {
+    let ss = MsSqlServer::new(SqlServerDbConfig {
+        host: TEST_HOST.to_string(),
+        port: 1433,
+        username: "sa".to_string(),
+        password: "sfdewRE123".to_string(),
+        db_name: Some("test".to_string()),
+        trust_cert: true,
+        schema: Some(MsSqlServer::ONLY_SCHEMA.to_string()),
+        read_only: false,
+    })
+    .await
+    .unwrap();
+    ss
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::{TEST_HOST, enable_test_log};
-
-    async fn make_test_object() -> SqlServer {
-        let ss = SqlServer::new(SqlServerDbConfig {
-            host: TEST_HOST.to_string(),
-            port: 1433,
-            username: "sa".to_string(),
-            password: "sfdewRE123".to_string(),
-            db_name: Some("test".to_string()),
-            trust_cert: true,
-            schema: Some("dbo".to_string()),
-            read_only: false,
-        })
-        .await
-        .unwrap();
-        ss
-    }
+    use crate::enable_test_log;
 
     #[tokio::test]
     async fn test_procedure() {
@@ -1699,18 +1715,10 @@ mod tests {
             query_id,
             r#"
             CREATE PROCEDURE dbo.test_procedure
-                @EmployeeID INT
+                
             AS
             BEGIN
-                SET NOCOUNT ON;  -- 防止影响行计数的消息
-
-                SELECT 
-                    Name, 
-                    Position
-                FROM 
-                    Employees
-                WHERE 
-                    EmployeeID = @EmployeeID;
+                SELECT 1
             END;
         "#,
         )
@@ -2013,7 +2021,7 @@ mod tests {
         let db = &db as &dyn crate::db::DBTrait;
 
         let dbnames = db.list_schema().await.unwrap();
-        assert_eq!(dbnames, vec!["dbo",]);
+        assert_eq!(dbnames, vec![MsSqlServer::ONLY_SCHEMA]);
         for dbname in dbnames.iter() {
             db.open_schema(&dbname).await.unwrap();
         }

@@ -1515,6 +1515,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         }
     }
 
+    #[ignore = "run me by hand"]
     #[tokio::test]
     async fn test_check_alot_of_key() {
         let db = make_test_object().await;

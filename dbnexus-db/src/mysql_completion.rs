@@ -364,8 +364,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object(make_config()).await;
         test_file_auto_completion(
-            r#"ALTER TABLE t1 DROP PARTITION p0, p1;
-33 p0"#,
+            r#"select * from test.dbo.employees
+19 test "#,
             &db,
             uuid::Uuid::new_v4(),
             false,

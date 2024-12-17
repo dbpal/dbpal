@@ -137,12 +137,18 @@ export namespace types {
          */
         "last_insert_id_string": (string | null);
     };
+    export type MetaValue = {
+        "name": string;
+        "value": (string | null);
+        "desc": (string | null);
+    };
 
     /**
      * named staff maybe used for view udf etc...
      */
     export type NamedStaff = {
         "name": string;
+        "metas": (types.MetaValue)[];
     };
     export type ExportKind = (({
         "export_kind": "csv";
@@ -182,11 +188,6 @@ export namespace types {
     } & {
         "enable": boolean;
     }));
-    export type MetaValue = {
-        "name": string;
-        "value": string;
-        "desc": string;
-    };
     export type TriggerDetail = {
         "timing": types.TriggerTiming;
         "event": types.TriggerEvent;
@@ -197,8 +198,9 @@ export namespace types {
     export type CompletionItem = {
         "name": string;
         "kind": CompletionKind;
+        "desc": (string | null);
     };
-    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma");
+    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule");
     export type UdfDetail = {
         "def": string;
         "metas": (types.MetaValue)[];

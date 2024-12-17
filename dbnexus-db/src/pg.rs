@@ -488,12 +488,12 @@ impl SchemaTrait for PostGresDB {
         );
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
-        let result_type: String = row.try_get(0)?;
-        let arguments: String = row.try_get(1)?;
+        let result_type: Option<String> = row.try_get(0)?;
+        let arguments: Option<String> = row.try_get(1)?;
         let function_definition: String = row.try_get(2)?;
         anyhow::Ok(UdfDetail::new(function_definition, vec![
-            MetaValue::new("result_type", result_type),
-            MetaValue::new("arguments", arguments),
+            MetaValue::new_opt("result_type", result_type),
+            MetaValue::new_opt("arguments", arguments),
         ]))
     }
     async fn drop_udf(

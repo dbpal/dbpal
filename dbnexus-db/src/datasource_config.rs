@@ -155,6 +155,16 @@ pub struct SqlServerDbConfig {
     pub schema: Option<String>,
     pub read_only: bool,
 }
+
+impl SqlServerDbConfig {
+    pub(crate) fn must_db(&self) -> &String {
+        self.db_name.as_ref().unwrap()
+    }
+    pub(crate) fn must_schema(&self) -> &String {
+        self.schema.as_ref().unwrap()
+    }
+}
+
 impl SqlServerDbConfig {
     #[allow(dead_code)]
     pub(crate) fn db_str(&self) -> &str {

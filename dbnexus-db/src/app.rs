@@ -207,7 +207,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             }
         }
         DBConnectionConfig::SqlServer { conn, name: _ } => {
-            let o = Arc::new(crate::mssql::SqlServer::new(conn.clone()).await?);
+            let o = Arc::new(crate::mssql::MsSqlServer::new(conn.clone()).await?);
             if conn.db_name.is_none() {
                 anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>))
             } else {

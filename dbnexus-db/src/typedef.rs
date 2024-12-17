@@ -1,9 +1,9 @@
 use typescript_type_def::{
+    TypeDef,
     type_expr::{
         DefinedTypeInfo, Ident, NativeTypeInfo, ObjectField, TypeDefinition, TypeExpr, TypeInfo,
-        TypeName, TypeObject, TypeString,
+        TypeName, TypeObject, TypeString, TypeUnion,
     },
-    TypeDef,
 };
 
 use crate::{completion::CompletionItem, db::HumanSize, meta_value::MetaValue};
@@ -36,6 +36,21 @@ impl TypeDef for CompletionItem {
                         },
                         optional: false,
                         r#type: TypeExpr::Name(TypeName::ident(Ident("CompletionKind"))),
+                    },
+                    ObjectField {
+                        docs: None,
+                        name: TypeString {
+                            docs: None,
+                            value: "desc",
+                        },
+                        optional: false,
+                        r#type: TypeExpr::Union(TypeUnion {
+                            docs: None,
+                            members: &[
+                                TypeExpr::Name(TypeName::ident(Ident("string"))),
+                                TypeExpr::Name(TypeName::ident(Ident("null"))),
+                            ],
+                        }),
                     },
                 ],
             }),
@@ -71,7 +86,13 @@ impl TypeDef for MetaValue {
                             value: "value",
                         },
                         optional: false,
-                        r#type: TypeExpr::Name(TypeName::ident(Ident("string"))),
+                        r#type: TypeExpr::Union(TypeUnion {
+                            docs: None,
+                            members: &[
+                                TypeExpr::Name(TypeName::ident(Ident("string"))),
+                                TypeExpr::Name(TypeName::ident(Ident("null"))),
+                            ],
+                        }),
                     },
                     ObjectField {
                         docs: None,
@@ -80,7 +101,13 @@ impl TypeDef for MetaValue {
                             value: "desc",
                         },
                         optional: false,
-                        r#type: TypeExpr::Name(TypeName::ident(Ident("string"))),
+                        r#type: TypeExpr::Union(TypeUnion {
+                            docs: None,
+                            members: &[
+                                TypeExpr::Name(TypeName::ident(Ident("string"))),
+                                TypeExpr::Name(TypeName::ident(Ident("null"))),
+                            ],
+                        }),
                     },
                 ],
             }),
