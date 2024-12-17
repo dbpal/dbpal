@@ -995,7 +995,7 @@ impl CompletionStament {
                     match v.0.len() {
                         1 => self.c_on_variable(&v.0[0]).await,
                         _ => {
-                            log::error!("not handle variable name length:{:?}", v);
+                            log::error!("not handled variable name length:{:?}", v);
                         }
                     }
                 }

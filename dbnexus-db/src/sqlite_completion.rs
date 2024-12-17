@@ -113,7 +113,7 @@ impl CompletionOnSynTaxHelper for SqliteDB {
     }
 
     async fn list_function(
-        &self, _catelog: Option<&str>, _schema: Option<&str>,
+        &self, _catelog: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let vec = SQLITE_FN_AND_DESC
             .iter()
@@ -131,7 +131,7 @@ impl CompletionOnSynTaxHelper for SqliteDB {
     }
 
     fn sqlite_pragma(&self) -> Vec<CompletionItem> {
-        static PS: &[[&'static str; 2]] = &[
+        static SS: &[[&'static str; 2]] = &[
             [
                 "analysis_limit",
                 r#"PRAGMA analysis_limit;
@@ -1022,7 +1022,7 @@ When this pragma is on, and the SQLITE_DBCONFIG_DEFENSIVE flag is off, then the 
             ],
         ];
         lazy_static::lazy_static! {
-            static ref CS : Vec<CompletionItem> = PS.iter().map(|x| CompletionItem {
+            static ref CS : Vec<CompletionItem> = SS.iter().map(|x| CompletionItem {
                 item : Cow::Borrowed(x[0].into()),
                 kind : CompletionKind::Pragma,
                 desc: Some( x[1].into()),
@@ -1035,38 +1035,54 @@ When this pragma is on, and the SQLITE_DBCONFIG_DEFENSIVE flag is off, then the 
 #[cfg(test)]
 mod tests {
     use crate::{
-        completion::completion_test::test_file_auto_completion, enable_test_log, sqlite::SqliteDB,
+        completion::completion_test::test_file_auto_completion, db::QuerySql, enable_test_log,
+        sqlite::SqliteDB,
     };
 
     use std::path::Path;
     fn test_db() -> String {
         std::env::var("DBNEXUS_SQLITE_COMPLETION_DB")
-            .unwrap_err()
+            .unwrap()
             .to_string()
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
-        /*
-        测试用到的表格 和建表语句
-           -- 创建 departments 表
-           CREATE TABLE departments (
-               id INTEGER PRIMARY KEY,
-               name TEXT NOT NULL
-           );
+        let db = SqliteDB::new(test_db(), false).await.unwrap();
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+            -- 测试用到的表格 和建表语句
+            -- 创建 departments 表
+            CREATE TABLE departments (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL
+            );
 
-           -- 创建 employees 表
-           CREATE TABLE employees (
-               id INTEGER PRIMARY KEY,
-               name TEXT NOT NULL,
-               department_id INTEGER,
-               FOREIGN KEY (department_id) REFERENCES departments (id)
-           );
-           -- create view for test
-           create view employees_view as select * from employees;
-           --create index for test
-            create index employees_name on employees(name)
+            -- 创建 employees 表
+            CREATE TABLE employees (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                department_id INTEGER,
+                FOREIGN KEY (department_id) REFERENCES departments (id)
+            );
 
-        */
+            -- create view for test
+            create view employees_view as select * from employees;
+        "#,
+            )
+            .await;
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+                create index employees_name on employees(name)
+        "#,
+            )
+            .await;
+
         enable_test_log();
         let manifest_dir =
             std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
@@ -1074,7 +1090,7 @@ mod tests {
         file_path.push("tests");
         file_path.push("sqlite_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        let db = SqliteDB::new(test_db(), false).await.unwrap();
+
         test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
     }
 

@@ -208,7 +208,7 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
         &self, db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>>;
     async fn list_function(
-        &self, db: Option<&str>, schema: Option<&str>,
+        &self, db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
 
     async fn list_procedure(

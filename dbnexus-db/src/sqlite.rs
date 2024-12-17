@@ -23,7 +23,7 @@ use crate::db::{
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
-use crate::{MemoryLimit, CANNOT_GET_CONN_ERR};
+use crate::{CANNOT_GET_CONN_ERR, MemoryLimit};
 impl FormatSql for SqliteDB {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
@@ -1468,12 +1468,9 @@ mod tests {
         let db = &db as &dyn SchemaTrait;
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1489,13 +1486,10 @@ mod tests {
         }
         {
             let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1511,10 +1505,9 @@ mod tests {
 
         {
             let s = db
-                .export_query_result_to_string(
-                    "select * from persons",
-                    ExportKind::Json { pretty: true },
-                )
+                .export_query_result_to_string("select * from persons", ExportKind::Json {
+                    pretty: true,
+                })
                 .await
                 .unwrap();
             println!("json:{}", s);
@@ -1522,13 +1515,10 @@ mod tests {
         }
         {
             let s = db
-                .export_query_result_to_string(
-                    "select * from persons",
-                    ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
+                .export_query_result_to_string("select * from persons", ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
                 .await
                 .unwrap();
             println!("csv:{}", s);

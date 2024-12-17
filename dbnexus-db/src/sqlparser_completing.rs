@@ -2254,7 +2254,7 @@ impl CompletionStament {
         let (db, schema, _) = self.extract_db_schme_item(name);
         self.result = Some(
             self.helper
-                .list_function(db, schema)
+                .list_function(db, schema, false)
                 .await
                 .map_err(|e| {
                     log::error!("list function error:{:?}", e);
@@ -2275,7 +2275,7 @@ impl CompletionStament {
         let (db, schema, _) = self.extract_db_schme_item(name);
         self.result = Some(
             self.helper
-                .list_function(db, schema)
+                .list_function(db, schema, true)
                 .await
                 .map_err(|e| {
                     log::error!("list function error:{:?}", e);

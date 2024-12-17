@@ -42,18 +42,25 @@ impl PostGresDB {
 }
 
 impl PostGresDB {
-    async fn list_build_functions(&self) -> anyhow::Result<Vec<String>> {
-        let sql = r#"SELECT p.proname AS function_name
-        FROM pg_catalog.pg_proc p
-        JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-        WHERE n.nspname = 'pg_catalog'  -- 只查询内置函数
-        ORDER BY p.proname;"#;
+    async fn list_build_functions(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let sql = r#"SELECT p.proname AS function_name,
+             d.description AS function_description
+            FROM pg_catalog.pg_proc p
+            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            LEFT JOIN pg_catalog.pg_description d ON d.objoid = p.oid
+            WHERE n.nspname = 'pg_catalog'  -- 只查询内置函数
+            ORDER BY p.proname;"#;
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
-            ret.push(name);
+            let desc: Option<String> = r.try_get(1)?;
+            ret.push(CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Function,
+                desc: desc.map(|x| x.into()),
+            });
         }
         anyhow::Ok(ret)
     }
@@ -190,6 +197,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         &self,
         _db: Option<&str>, // how to filter on this???
         schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let sql;
         if let Some(schema) = self.schema_merge_config(schema) {
@@ -220,18 +228,16 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
-            ret.push(name);
+            ret.push(CompletionItem {
+                item: name.into(),
+                desc: None,
+                kind: CompletionKind::Function,
+            });
         }
-        ret.extend(self.list_build_functions().await?.into_iter());
-        anyhow::Ok(
-            ret.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                })
-                .collect(),
-        )
+        if include_build_in {
+            ret.extend(self.list_build_functions().await?.into_iter());
+        }
+        anyhow::Ok(ret)
     }
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = if let Some(schema) = self.schema_merge_config(schema) {
@@ -503,7 +509,7 @@ mod tests {
 
     use crate::{
         TEST_HOST, completion::completion_test::test_file_auto_completion,
-        datasource_config::PGDbConfig, enable_test_log, pg::PostGresDB,
+        datasource_config::PGDbConfig, db::QuerySql, enable_test_log, pg::PostGresDB,
     };
 
     async fn make_test_object() -> PostGresDB {
@@ -521,8 +527,15 @@ mod tests {
         pg
     }
 
-    /*
-        我们创建一下的表来做测试的
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+        -- 我们创建一下的表来做测试的
 
         CREATE TABLE departments (
             id SERIAL PRIMARY KEY,
@@ -556,11 +569,10 @@ mod tests {
         ON employees
         USING (true)  -- 任何行都可以访问
         WITH CHECK (true);  -- 任何行都可以插入/更新
+        "#,
+            )
+            .await;
 
-    */
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_auto_completion() {
         enable_test_log();
         let manifest_dir =
             std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
@@ -568,7 +580,7 @@ mod tests {
         file_path.push("tests");
         file_path.push("pg_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        let db = make_test_object().await;
+
         test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
     }
     #[ignore = "xxx"]
