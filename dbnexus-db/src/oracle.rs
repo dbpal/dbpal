@@ -1713,7 +1713,6 @@ impl OracleDB {
 impl LexerCompletionTrait for OracleDB {
     type Dialect = sqlparser::dialect::GenericDialect;
 
-    const BUILD_IN_FUNCTIONS: &'static [&'static str] = &[];
     const KEY_WORDS: &'static [&'static str] = ORACLE_KEY_WORDS;
     const TYPES: &'static [&'static str] = ORACLE_TYPES;
 }

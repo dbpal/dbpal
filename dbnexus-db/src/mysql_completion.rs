@@ -14,7 +14,6 @@ use sqlx::Row;
 impl LexerCompletionTrait for MysqlDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
 
-    const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;
     const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
     const TYPES: &'static [&'static str] = TYPES;
 
@@ -1146,32 +1145,6 @@ const TYPES: &'static [&'static str] = &[
     "VARBINARY",
     "BINARY",
     "BLOB",
-];
-
-const BUILD_IN_FUNCTIONS: &'static [&'static str] = &[
-    "list_add",
-    "ps_thread_account",
-    "ps_is_consumer_enabled",
-    "ps_thread_trx_info",
-    "ps_is_instrument_default_timed",
-    "version_minor",
-    "format_time",
-    "extract_schema_from_file_name",
-    "format_path",
-    "sys",
-    "version_patch",
-    "version_major",
-    "ps_is_thread_instrumented",
-    "list_drop",
-    "format_bytes",
-    "ps_is_instrument_default_enabled",
-    "format_statement",
-    "ps_thread_id",
-    "ps_is_account_enabled",
-    "ps_thread_stack",
-    "quote_identifier",
-    "sys_get_config",
-    "extract_table_from_file_name",
 ];
 
 fn mysql_build_in() -> Vec<CompletionItem> {

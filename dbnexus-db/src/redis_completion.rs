@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     completion::{
-        in_pos, match_pattern_and_sort, AutoCompletionTrait, CompletionItem, CompletionKind,
+        AutoCompletionTrait, CompletionItem, CompletionKind, in_pos, match_pattern_and_sort,
     },
     redis::{RedisDB, RedisType},
 };
@@ -96,36 +96,38 @@ impl RedisDB {
                 vec![]
             }
             "BGSAVE" => {
-                vec![async move {
-                    anyhow::Ok(vec![
-                        CompletionItem {
-                            item: "SCHEDULE".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "FORCE".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "SCHEDULE FORCE".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "SCHEDULE CRON".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "SCHEDULE INTERVAL".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                    ])
-                }
-                .boxed()]
+                vec![
+                    async move {
+                        anyhow::Ok(vec![
+                            CompletionItem {
+                                item: "SCHEDULE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "FORCE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "SCHEDULE FORCE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "SCHEDULE CRON".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "SCHEDULE INTERVAL".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                        ])
+                    }
+                    .boxed(),
+                ]
             }
             "BITCOUNT" => {
                 let key = patterns.get(0);
@@ -149,31 +151,33 @@ impl RedisDB {
             }
 
             "BITOP" => {
-                let mut vs = vec![async move {
-                    anyhow::Ok(vec![
-                        CompletionItem {
-                            item: "AND".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "OR".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "XOR".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "NOT".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                    ])
-                }
-                .boxed()];
+                let mut vs = vec![
+                    async move {
+                        anyhow::Ok(vec![
+                            CompletionItem {
+                                item: "AND".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "OR".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "XOR".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "NOT".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                        ])
+                    }
+                    .boxed(),
+                ];
                 let x = patterns
                     .iter()
                     .skip(1)
@@ -228,209 +232,215 @@ impl RedisDB {
                 vec![key, key2]
             }
             "CLIENT" => {
-                vec![async move {
-                    anyhow::Ok(vec![
-                        // 客户端连接管理
-                        CompletionItem {
-                            item: "CONNECT".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "DISCONNECT".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "KILL".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "LIST".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        // 客户端信息获取
-                        CompletionItem {
-                            item: "GETNAME".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "ID".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "ADDR".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "PORT".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        //  客户端连接配置
-                        CompletionItem {
-                            item: "SETNAME".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "PAUSE".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "REPLY".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        // 客户端连接监控
-                        CompletionItem {
-                            item: "LIST".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "TRACKING".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                    ])
-                }
-                .boxed()]
+                vec![
+                    async move {
+                        anyhow::Ok(vec![
+                            // 客户端连接管理
+                            CompletionItem {
+                                item: "CONNECT".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "DISCONNECT".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "KILL".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "LIST".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            // 客户端信息获取
+                            CompletionItem {
+                                item: "GETNAME".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "ID".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "ADDR".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "PORT".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            //  客户端连接配置
+                            CompletionItem {
+                                item: "SETNAME".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "PAUSE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "REPLY".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            // 客户端连接监控
+                            CompletionItem {
+                                item: "LIST".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "TRACKING".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                        ])
+                    }
+                    .boxed(),
+                ]
             }
             "CLUSTER" => {
-                vec![async move {
-                    anyhow::Ok(vec![
-                        //集群创建和配置
-                        CompletionItem {
-                            item: "CREATE".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "MEET".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "ADDSLOTS".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "REPLICATE".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        // 集群状态查询
-                        CompletionItem {
-                            item: "NODES".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "INFO".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "KEYSLOT".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "COUNTKEYSINSLOT".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        // 集群维护和修复
-                        CompletionItem {
-                            item: "FAILOVER".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "FORGET".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "FLUSHSLOTS".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "RESET".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        // 集群扩展和缩容
-                        CompletionItem {
-                            item: "ADDSLOTS".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "DELSLOTS".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "SETSLOT".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        // 其他集群操作
-                        CompletionItem {
-                            item: "SAVECONFIG".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "SLOTS".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "TALK".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                    ])
-                }
-                .boxed()]
+                vec![
+                    async move {
+                        anyhow::Ok(vec![
+                            //集群创建和配置
+                            CompletionItem {
+                                item: "CREATE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "MEET".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "ADDSLOTS".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "REPLICATE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            // 集群状态查询
+                            CompletionItem {
+                                item: "NODES".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "INFO".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "KEYSLOT".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "COUNTKEYSINSLOT".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            // 集群维护和修复
+                            CompletionItem {
+                                item: "FAILOVER".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "FORGET".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "FLUSHSLOTS".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "RESET".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            // 集群扩展和缩容
+                            CompletionItem {
+                                item: "ADDSLOTS".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "DELSLOTS".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "SETSLOT".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            // 其他集群操作
+                            CompletionItem {
+                                item: "SAVECONFIG".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "SLOTS".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "TALK".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                        ])
+                    }
+                    .boxed(),
+                ]
             }
             "CONFIG" => {
-                vec![async move {
-                    anyhow::Ok(vec![
-                        CompletionItem {
-                            item: "GET".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "SET".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "RESETSTAT".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "REWRITE".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                    ])
-                }
-                .boxed()]
+                vec![
+                    async move {
+                        anyhow::Ok(vec![
+                            CompletionItem {
+                                item: "GET".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "SET".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "RESETSTAT".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "REWRITE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                        ])
+                    }
+                    .boxed(),
+                ]
             }
             "DECR" | "DECRBY" => {
                 let key = patterns.get(0);
@@ -480,22 +490,26 @@ impl RedisDB {
             "GEOADD" | "GEODIST" | "GEOHASH" | "GEOPOS" | "GEORADIUS" | "GEORADIUSBYMEMBER" => {
                 // geo data use zset to store.
                 if patterns.len() > 0 {
-                    vec![async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Zset))
-                            .await
-                    }
-                    .boxed()]
+                    vec![
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Zset))
+                                .await
+                        }
+                        .boxed(),
+                    ]
                 } else {
                     vec![]
                 }
             }
             "GET" | "GETBIT" | "GETRANGE" | "GETSET" => {
                 if patterns.len() > 0 {
-                    vec![async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::String))
-                            .await
-                    }
-                    .boxed()]
+                    vec![
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::String))
+                                .await
+                        }
+                        .boxed(),
+                    ]
                 } else {
                     vec![]
                 }
@@ -518,11 +532,13 @@ impl RedisDB {
                 .collect(),
             "HGETALL" => {
                 if patterns.len() > 0 {
-                    vec![async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                            .await
-                    }
-                    .boxed()]
+                    vec![
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                                .await
+                        }
+                        .boxed(),
+                    ]
                 } else {
                     vec![]
                 }
@@ -550,11 +566,13 @@ impl RedisDB {
             }
             "HKEYS" | "HLEN" => {
                 if patterns.len() > 0 {
-                    vec![async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                            .await
-                    }
-                    .boxed()]
+                    vec![
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                                .await
+                        }
+                        .boxed(),
+                    ]
                 } else {
                     vec![]
                 }
@@ -593,11 +611,13 @@ impl RedisDB {
             }
             "HMSET" | "HSET" => {
                 if patterns.len() > 0 {
-                    let mut ret = vec![async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                            .await
-                    }
-                    .boxed()];
+                    let mut ret = vec![
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                                .await
+                        }
+                        .boxed(),
+                    ];
                     let hash_keys: Arc<Mutex<Option<Vec<CompletionItem>>>> = Default::default();
                     let hash_keys: Vec<_> =
                         (0..patterns.len() - 1).map(|_| hash_keys.clone()).collect();
@@ -630,11 +650,13 @@ impl RedisDB {
             }
             "HSCAN" => {
                 if patterns.len() > 0 {
-                    let ret = vec![async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                            .await
-                    }
-                    .boxed()];
+                    let ret = vec![
+                        async move {
+                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                                .await
+                        }
+                        .boxed(),
+                    ];
                     ret
                 } else {
                     vec![]
@@ -699,64 +721,66 @@ impl RedisDB {
                 ret
             }
             "INFO" => {
-                vec![async move {
-                    anyhow::Ok(vec![
-                        CompletionItem {
-                            item: "SERVER".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "MEMORY".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "PERSISTENCE".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "STATS".into(),
-                            desc: None,
+                vec![
+                    async move {
+                        anyhow::Ok(vec![
+                            CompletionItem {
+                                item: "SERVER".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "MEMORY".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "PERSISTENCE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "STATS".into(),
+                                desc: None,
 
-                            kind: CompletionKind::Text,
-                        },
-                        //
-                        CompletionItem {
-                            item: "REPLICATION".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "CLIENTS".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "CPU".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "COMMANDSTATS".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        //
-                        CompletionItem {
-                            item: "CLUSTER".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                        CompletionItem {
-                            item: "KEYSPACE".into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        },
-                    ])
-                }
-                .boxed()]
+                                kind: CompletionKind::Text,
+                            },
+                            //
+                            CompletionItem {
+                                item: "REPLICATION".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "CLIENTS".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "CPU".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "COMMANDSTATS".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            //
+                            CompletionItem {
+                                item: "CLUSTER".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "KEYSPACE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                        ])
+                    }
+                    .boxed(),
+                ]
             }
             "KEYS" => {
                 vec![]
@@ -1418,7 +1442,6 @@ impl AutoCompletionTrait for RedisDB {
                     .into_iter(),
             )
         {
-            println!("{:?}", token);
             match &token.token {
                 Token::Word(word) => {
                     if in_pos(pos, token.span.start, word.value.len() as u64) {

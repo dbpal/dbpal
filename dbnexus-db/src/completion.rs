@@ -73,7 +73,7 @@ pub fn in_pos(
 #[async_trait::async_trait]
 pub trait LexerCompletionTrait {
     const KEY_WORDS: &'static [&'static str];
-    const BUILD_IN_FUNCTIONS: &'static [&'static str];
+
     const TYPES: &'static [&'static str];
     const TEXTS: &'static [&'static str] = &[];
 
@@ -121,16 +121,7 @@ pub trait LexerCompletionTrait {
                 })
                 .collect::<Vec<_>>(),
         );
-        ret.extend(
-            Self::BUILD_IN_FUNCTIONS
-                .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                })
-                .collect::<Vec<_>>(),
-        );
+
         ret.extend(
             Self::TYPES
                 .iter()
@@ -156,13 +147,7 @@ pub trait LexerCompletionTrait {
     }
 
     fn monaco_editor_keyword_regexp(&self) -> String {
-        let combined: Vec<&'static str> = [
-            Self::KEY_WORDS,
-            Self::TYPES,
-            Self::TEXTS,
-            Self::BUILD_IN_FUNCTIONS,
-        ]
-        .concat();
+        let combined: Vec<&'static str> = [Self::KEY_WORDS, Self::TYPES, Self::TEXTS].concat();
 
         let s = monaco_editor_keyword_regexp(&combined[..]);
         return s;

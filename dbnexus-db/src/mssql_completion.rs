@@ -16,7 +16,6 @@ use crate::{
 impl LexerCompletionTrait for MsSqlServer {
     type Dialect = sqlparser::dialect::MsSqlDialect;
 
-    const BUILD_IN_FUNCTIONS: &'static [&'static str] = BUILD_IN_FUNCTIONS;
     const KEY_WORDS: &'static [&'static str] = KEYWORDS;
     const TYPES: &'static [&'static str] = TYPES;
 }
@@ -77,6 +76,28 @@ impl AutoCompletionTrait for MsSqlServer {
 
 #[async_trait::async_trait]
 impl CompletionOnSynTaxHelper for MsSqlServer {
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+        SELECT name AS RoleName
+            FROM sys.database_principals
+            WHERE type = 'R';  -- 'R' 表示角色
+        "#;
+        let mut conn = self.get_conn().await?;
+        let mut stream = conn.deref_mut().simple_query(sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.get(0);
+                    ret.push(name.unwrap_or_default().to_string());
+                }
+                QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn list_table(
         &self, db: Option<&str>, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
@@ -84,6 +105,35 @@ impl CompletionOnSynTaxHelper for MsSqlServer {
         self.list_table_impl(db, Self::ONLY_SCHEMA)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+    async fn list_constraint(
+        &self, db: Option<&str>, _schema: Option<&str>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
+        let sql = format!(
+            r#"
+            SELECT CONSTRAINT_NAME
+            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+            WHERE   CONSTRAINT_CATALOG='{}'  AND CONSTRAINT_SCHEMA ='{}' AND TABLE_NAME = '{}';
+        "#,
+            db,
+            Self::ONLY_SCHEMA,
+            table_name
+        );
+        let mut conn = self.get_conn().await?;
+        let mut stream = conn.deref_mut().simple_query(&sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.get(0);
+                    ret.push(name.unwrap_or_default().to_string());
+                }
+                QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(ret)
     }
 
     async fn list_view(
@@ -484,9 +534,6 @@ const TYPES: &'static [&'static str] = &[
     "time",
     "datetimeoffset",
 ];
-
-/// todo I don't find the full list on internet
-const BUILD_IN_FUNCTIONS: &'static [&'static str] = &[];
 
 fn mssql_build_in() -> Vec<CompletionItem> {
     static SS: &'static [[&'static str; 2]] = &[

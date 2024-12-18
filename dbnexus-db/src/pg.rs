@@ -354,9 +354,9 @@ impl ServerMetas for PostGresDB {
             let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
-                let setting: String = r.try_get(1)?;
+                let setting: Option<String> = r.try_get(1)?;
                 let desc: String = r.try_get(2)?;
-                let mut meta = MetaValue::new(name, setting);
+                let mut meta = MetaValue::new_opt(name, setting);
                 meta.with_desc(desc);
                 ret.push(meta);
             }

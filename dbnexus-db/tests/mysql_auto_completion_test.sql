@@ -10,6 +10,10 @@ SELECT e.id AS EmployeeID,  e.name AS EmployeeName,  d.name AS DepartmentName FR
 9 e ; 9 employees ; 12 name ; 54 d ; 54 departments ; 60 name ; 93 departments ; 125 e ; 125 departments ; 139 department_id ; 143 d ; 146 id
 select count(*) from employees
 11 count ; 11 abs ; 11 sin
+insert into employees (id) select id from employees
+18 employees ; 26 name ; 37 name
+insert into employees (id) values (1)
+26 name
 update employees set name = 1 where id = 10000
 25 name ; 25 id ; 39 name
 delete from employees where id = 1000
