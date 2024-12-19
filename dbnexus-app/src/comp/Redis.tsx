@@ -26,7 +26,7 @@ import {
   datagridRowHeight,
   datagridHeaderHeight,
   defaultPageSize,
-} from './common';
+} from './Common.tsx';
 
 import { types } from './ApiStruct.ts';
 

@@ -1096,7 +1096,7 @@ impl PostGresDB {
             .port(conn.port)
             .username(&conn.username)
             .password(&conn.password);
-        if let Some(db) = &conn.db_name {
+        if let Some(db) = &conn.db {
             opts = opts.database(db);
         }
 
@@ -1349,7 +1349,7 @@ impl CatalogTrait for PostGresDB {
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
-        config.db_name = Some(name.to_owned());
+        config.db = Some(name.to_owned());
         let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
@@ -1435,7 +1435,7 @@ mod tests {
             port: 5432,
             username: "postgres".to_string(),
             password: "root".to_string(),
-            db_name: Some("test".to_string()),
+            db: Some("test".to_string()),
             schema: Some("test".to_string()),
             read_only: false,
         })

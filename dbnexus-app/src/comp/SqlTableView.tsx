@@ -21,7 +21,7 @@ import {
   isTypeLargeText,
   modalStyle,
   pageSizeOptions,
-} from './common';
+} from './Common';
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
 function SqlTableView(props: {

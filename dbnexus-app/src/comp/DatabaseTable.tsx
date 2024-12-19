@@ -7,7 +7,7 @@ import {
   datagridHeaderHeight,
   datagridRowHeight,
   pageSizeOptions,
-} from './common';
+} from './Common';
 
 // 封装 DataGrid 的创建逻辑
 const createDataGrid = (

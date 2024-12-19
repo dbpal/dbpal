@@ -3,7 +3,7 @@ import { types } from './ApiStruct.ts';
 import { DefAndMetasView } from './UdfAndMetaView.tsx';
 import { Button, CircularProgress, Stack, Typography } from '@mui/material';
 import { NotificationContext } from './Notification.tsx';
-import { DefAndMetas } from './common.tsx';
+import { DefAndMetas } from './Common.tsx';
 
 function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
   const getEnableStr = (): string => {

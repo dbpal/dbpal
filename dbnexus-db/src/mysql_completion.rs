@@ -90,7 +90,7 @@ impl MysqlDB {
         if schema.is_some() {
             return schema;
         }
-        return self.config.db_name.as_deref();
+        return self.config.db.as_deref();
     }
     fn not_allow_empty_schema<'a>(schema: Option<&'a str>) -> anyhow::Result<&'a str> {
         match schema {
@@ -293,7 +293,7 @@ mod tests {
             username: "root".to_string(),
             password: "root".to_string(),
             port: 3307, // use mariadb to test mysql have bugs.
-            db_name: Some("test".to_string()),
+            db: Some("test".to_string()),
             read_only: false,
         }
     }

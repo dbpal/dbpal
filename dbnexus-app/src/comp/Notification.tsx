@@ -31,8 +31,16 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const showNotification = (
     severity: AlertColor,
     title: string,
-    message: string
+    message: string | Error | { reason: string }
   ) => {
+    if (typeof message == 'object' && 'reason' in message) {
+      // TODO show message
+      message = message['reason'];
+    }
+    if (typeof message == 'object' && message instanceof Error) {
+      // TODO show message
+      message = message.toString();
+    }
     // 首先关闭 Snackbar，确保每次可以重新打开
     setOpen(false);
     setNotification({ severity, title, message });

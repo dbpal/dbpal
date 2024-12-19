@@ -27,7 +27,7 @@ impl PostGresDB {
         if db.is_some() {
             return db;
         }
-        return self.config.db_name.as_deref();
+        return self.config.db.as_deref();
     }
     fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
     where
@@ -36,7 +36,7 @@ impl PostGresDB {
         if schema.is_some() {
             return schema;
         }
-        return self.config.db_name.as_deref();
+        return self.config.db.as_deref();
     }
 }
 
@@ -517,7 +517,7 @@ mod tests {
             port: 5432,
             username: "postgres".to_string(),
             password: "root".to_string(),
-            db_name: Some("test".to_string()),
+            db: Some("test".to_string()),
             schema: Some("test".to_string()),
             read_only: false,
         })

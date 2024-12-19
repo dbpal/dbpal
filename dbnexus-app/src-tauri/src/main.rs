@@ -36,6 +36,7 @@ async fn main() {
 
     tauri::Builder::default()
         .manage(app)
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             add_config,

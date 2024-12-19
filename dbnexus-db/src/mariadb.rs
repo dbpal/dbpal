@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::mysql::test_fns::{self, make_test_object};
-    use crate::{datasource_config::MysqlDbConfig, TEST_HOST};
+    use crate::{TEST_HOST, datasource_config::MysqlDbConfig};
 
     pub(crate) fn make_config() -> MysqlDbConfig {
         MysqlDbConfig {
@@ -9,7 +9,7 @@ mod tests {
             username: "root".to_string(),
             password: "root".to_string(),
             port: 3307,
-            db_name: Some("test".to_string()),
+            db: Some("test".to_string()),
             read_only: false,
         }
     }

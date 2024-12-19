@@ -8,7 +8,7 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": string;
-        "db_name": (string | null);
+        "db": (string | null);
         "read_only": boolean;
     };
     export type PGDbConfig = {
@@ -16,7 +16,7 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": string;
-        "db_name": (string | null);
+        "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
     };
@@ -25,7 +25,7 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": string;
-        "db_name": (string | null);
+        "db": (string | null);
         "trust_cert": boolean;
         "schema": (string | null);
         "read_only": boolean;
@@ -88,10 +88,9 @@ export namespace types {
         "name": string;
     })) | ({
         "conn_type": "redis";
-    } & {
+    } & (types.RedisDbConfig & {
         "name": string;
-        "conn": types.RedisDbConfig;
-    }) | ({
+    })) | ({
         "conn_type": "oracle";
     } & (types.OracleDbConfig & {
         "name": string;

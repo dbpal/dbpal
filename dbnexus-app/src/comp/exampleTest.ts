@@ -1,5 +1,5 @@
 import { types } from './ApiStruct.ts';
-import { stringToHexArray, arrayToHex, DocsAndCount } from './common.tsx';
+import { stringToHexArray, arrayToHex, DocsAndCount } from './Common.tsx';
 import { generateRandomString, generateRandomUint8Array } from './helper.ts';
 import { BSON } from 'bson';
 

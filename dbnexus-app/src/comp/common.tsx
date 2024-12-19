@@ -12,8 +12,9 @@ import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import { BSON } from 'bson';
-import { CSSProperties } from 'react';
+import { createContext, CSSProperties } from 'react';
 import { Editor, OnMount } from '@monaco-editor/react';
+import { TabContent } from './Tabs';
 
 // TOOD 适配黑暗模式
 const modalStyle = {
@@ -167,11 +168,11 @@ function backendCompletionItemToEditor(
         return languages.CompletionItemKind.Keyword;
       case 'Function':
         return languages.CompletionItemKind.Function;
-      case 'Dbname':
+      case 'Database':
         return languages.CompletionItemKind.Folder;
-      case 'SchemaName':
+      case 'Schema':
         return languages.CompletionItemKind.Folder;
-      case 'TableName':
+      case 'Table':
         return languages.CompletionItemKind.Module;
       case 'Column':
         return languages.CompletionItemKind.Field;
@@ -284,10 +285,29 @@ const datagridRowHeight = 25;
 const datagridHeaderHeight = 36;
 const defaultPageSize = 10;
 
+const TabsSetContext = createContext<{
+  tabs: TabContent[];
+  setTabs;
+  setSelectIndex;
+}>(null);
+
+const msgTimeout = 5000;
+
+function tabsHasId(tabs: TabContent[], id: string): number | null {
+  for (let i = 0; i < tabs.length; i++) {
+    let tab = tabs[i];
+    if (tab.id == id) {
+      return i;
+    }
+  }
+  return null;
+}
+
 interface DefAndMetas {
   def: string;
   metas: types.MetaValue[];
 }
+
 export {
   modalStyle,
   SelectPageSize,
@@ -310,6 +330,9 @@ export {
   countLines,
   SimpleResizeAbleEditor,
   editorInitHeight,
+  TabsSetContext,
+  tabsHasId,
+  msgTimeout,
 };
 
 export type { DefAndMetas };

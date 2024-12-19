@@ -9,7 +9,7 @@ import {
   datagridRowHeight,
   defaultPageSize,
   modalStyle,
-} from './common.tsx';
+} from './Common.tsx';
 import { Editor } from '@monaco-editor/react';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';

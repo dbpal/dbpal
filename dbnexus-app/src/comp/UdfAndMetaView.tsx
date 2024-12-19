@@ -8,7 +8,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { DefAndMetas, MetaValues, SimpleResizeAbleEditor } from './common';
+import { DefAndMetas, MetaValues, SimpleResizeAbleEditor } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import types from './ApiStruct';
 import { Variant } from '@mui/material/styles/createTypography';

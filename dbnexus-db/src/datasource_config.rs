@@ -18,7 +18,7 @@ pub struct MysqlDbConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
-    pub db_name: Option<String>,
+    pub db: Option<String>,
     pub read_only: bool,
 }
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
@@ -132,14 +132,14 @@ pub struct PGDbConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
-    pub db_name: Option<String>,
+    pub db: Option<String>,
     pub schema: Option<String>,
     pub read_only: bool,
 }
 
 impl PGDbConfig {
     pub(crate) fn db_str(&self) -> &str {
-        self.db_name.as_ref().expect("must be some").as_str()
+        self.db.as_ref().expect("must be some").as_str()
     }
 }
 
@@ -150,7 +150,7 @@ pub struct SqlServerDbConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
-    pub db_name: Option<String>,
+    pub db: Option<String>,
     pub trust_cert: bool,
     pub schema: Option<String>,
     pub read_only: bool,
@@ -158,7 +158,7 @@ pub struct SqlServerDbConfig {
 
 impl SqlServerDbConfig {
     pub(crate) fn must_db(&self) -> &String {
-        self.db_name.as_ref().unwrap()
+        self.db.as_ref().unwrap()
     }
     pub(crate) fn must_schema(&self) -> &String {
         self.schema.as_ref().unwrap()
@@ -168,7 +168,7 @@ impl SqlServerDbConfig {
 impl SqlServerDbConfig {
     #[allow(dead_code)]
     pub(crate) fn db_str(&self) -> &str {
-        self.db_name.as_ref().expect("must be some").as_str()
+        self.db.as_ref().expect("must be some").as_str()
     }
 }
 

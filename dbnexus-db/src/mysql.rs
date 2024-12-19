@@ -623,7 +623,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Procedure
-            .query_list(conn.deref_mut(), self.config.db_name.as_ref().unwrap())
+            .query_list(conn.deref_mut(), self.config.db.as_ref().unwrap())
             .await?;
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
@@ -632,11 +632,7 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<ProcedureDetail> {
         let mut conn = self.get_conn().await?;
         let (def, metas) = FunctionOrProcedure::Procedure
-            .query_details(
-                conn.deref_mut(),
-                self.config.db_name.as_ref().unwrap(),
-                name,
-            )
+            .query_details(conn.deref_mut(), self.config.db.as_ref().unwrap(), name)
             .await?;
 
         anyhow::Ok(ProcedureDetail::new(def, metas))
@@ -653,11 +649,7 @@ impl SchemaTrait for MysqlDB {
     async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
         let mut conn = self.get_conn().await?;
         let (def, metas) = FunctionOrProcedure::Function
-            .query_details(
-                conn.deref_mut(),
-                self.config.db_name.as_ref().unwrap(),
-                name,
-            )
+            .query_details(conn.deref_mut(), self.config.db.as_ref().unwrap(), name)
             .await?;
 
         anyhow::Ok(UdfDetail::new(def, metas))
@@ -676,7 +668,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Function
-            .query_list(conn.deref_mut(), self.config.db_name.as_ref().unwrap())
+            .query_list(conn.deref_mut(), self.config.db.as_ref().unwrap())
             .await?;
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
@@ -865,8 +857,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_view_impl(self.config.db_name.as_ref().unwrap())
-            .await
+        self.list_view_impl(self.config.db.as_ref().unwrap()).await
     }
 
     async fn delete(
@@ -974,7 +965,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_table_impl(self.config.db_name.as_ref().map(|x| x.as_str()).unwrap())
+        self.list_table_impl(self.config.db.as_ref().map(|x| x.as_str()).unwrap())
             .await
     }
 
@@ -1179,7 +1170,7 @@ impl MysqlDB {
             .port(conn.port)
             .username(&conn.username)
             .password(&conn.password);
-        if let Some(db) = &conn.db_name {
+        if let Some(db) = &conn.db {
             opts = opts.database(&db);
         }
         let pool = sqlx::mysql::MySqlPool::connect_with(opts).await?;
@@ -1226,7 +1217,7 @@ impl DBTrait for MysqlDB {
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
-        config.db_name = Some(name.to_owned());
+        config.db = Some(name.to_owned());
         let x = Self::new(self.config.clone()).await?;
         Ok(Arc::new(x))
     }
@@ -1996,7 +1987,7 @@ mod tests {
             username: "root".to_string(),
             password: "root".to_string(),
             port: 3306,
-            db_name: Some("test".to_string()),
+            db: Some("test".to_string()),
             read_only: false,
         }
     }

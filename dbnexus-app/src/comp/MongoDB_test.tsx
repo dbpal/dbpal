@@ -14,7 +14,7 @@ import { BSON, MaxKey } from 'bson';
 import { voidTestFunction } from './helper.ts';
 import { NotificationContext } from './Notification.tsx';
 import { AlertColor, Button, IconButton } from '@mui/material';
-import { MongoDataViewModel } from './common.tsx';
+import { MongoDataViewModel } from './Common.tsx';
 
 let x = parseMongoBson(`
 {

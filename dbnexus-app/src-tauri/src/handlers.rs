@@ -1059,7 +1059,7 @@ fn random_error() -> Result<(), AnyhowErrorFrontend> {
     {
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        let x: i8 = rng.gen_range(1, 100);
+        let x: i8 = rng.gen_range(1..100);
         if x > 50 {
             Err(AnyhowErrorFrontend {
                 reason: format!("random error of {}", x),

@@ -57,6 +57,7 @@ pub enum DBConnectionConfig {
     },
     Redis {
         name: String,
+        #[serde(flatten)]
         conn: RedisDbConfig,
     },
     Oracle {
@@ -180,7 +181,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Mysql { conn, name: _ }
-        | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db_name {
+        | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
             Some(_) => {
                 let db: Arc<dyn SchemaTrait> =
                     Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
@@ -197,7 +198,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
         DBConnectionConfig::Postgres { conn, name: _ } => {
             let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
 
-            if conn.db_name.is_none() {
+            if conn.db.is_none() {
                 anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>))
             } else {
                 match &conn.schema {
@@ -208,7 +209,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
         }
         DBConnectionConfig::SqlServer { conn, name: _ } => {
             let o = Arc::new(crate::mssql::MsSqlServer::new(conn.clone()).await?);
-            if conn.db_name.is_none() {
+            if conn.db.is_none() {
                 anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>))
             } else {
                 match &conn.schema {
@@ -600,7 +601,7 @@ mod tests {
                         port: 33,
                         username: "aaa".to_string(),
                         password: "bbb".to_string(),
-                        db_name: None,
+                        db: None,
                         read_only: false,
                     },
                     name: "haha".to_string(),

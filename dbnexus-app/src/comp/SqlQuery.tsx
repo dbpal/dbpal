@@ -16,7 +16,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import { useContext, useEffect, useState } from 'react';
 import { editor, Position } from 'monaco-editor';
-import { EditorBar } from './common.tsx';
+import { EditorBar } from './Common.tsx';
 import { NotificationContext } from './Notification.tsx';
 import types from './ApiStruct.ts';
 import { QueryLog } from './QueryLog.tsx';

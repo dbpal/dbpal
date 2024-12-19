@@ -28,7 +28,7 @@ impl MsSqlServer {
         if db.is_some() {
             return db;
         }
-        return self.config.db_name.as_deref();
+        return self.config.db.as_deref();
     }
     fn not_allow_empty_db<'a>(db: Option<&'a str>) -> anyhow::Result<&'a str> {
         match db {

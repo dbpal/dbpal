@@ -39,7 +39,7 @@ import {
   datagridHeaderHeight,
   defaultPageSize,
   editorInitHeight,
-} from './common';
+} from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import { secondConfirm } from './Confirm';

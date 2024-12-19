@@ -179,7 +179,7 @@ fn make_config(c: &SqlServerDbConfig) -> tiberius::Config {
     config.host(&c.host);
     config.port(c.port);
     config.authentication(tiberius::AuthMethod::sql_server(&c.username, &c.password));
-    if let Some(db) = &c.db_name {
+    if let Some(db) = &c.db {
         config.database(db);
     }
 
@@ -1676,7 +1676,7 @@ impl CatalogTrait for MsSqlServer {
     }
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
-        config.db_name = Some(name.to_owned());
+        config.db = Some(name.to_owned());
         let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
@@ -1689,7 +1689,7 @@ pub(crate) async fn make_test_object() -> MsSqlServer {
         port: 1433,
         username: "sa".to_string(),
         password: "sfdewRE123".to_string(),
-        db_name: Some("test".to_string()),
+        db: Some("test".to_string()),
         trust_cert: true,
         schema: Some(MsSqlServer::ONLY_SCHEMA.to_string()),
         read_only: false,
