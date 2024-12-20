@@ -15,7 +15,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-
+import { listen } from '@tauri-apps/api/event';
 function Left() {
   let { setTabs, tabs, setSelectIndex } = useContext(TabsSetContext);
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
@@ -33,11 +33,14 @@ function Left() {
   useEffect(() => {
     handleReload();
   }, []);
+  listen('config_added', () => {
+    handleReload();
+  });
 
   return (
     <Stack
       style={{
-        overflow: 'scroll',
+        overflow: 'auto',
       }}
     >
       <Stack direction='row'>
@@ -63,7 +66,7 @@ function Left() {
           <AddIcon></AddIcon>
         </Button>
       </Stack>
-      <Stack style={{ overflow: 'scroll' }}>
+      <Stack>
         {configs.map((e) => {
           return (
             <NameAndTypeContext.Provider
@@ -87,15 +90,19 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
   let kind = connTypeToDataSourceKind(config.conn_type);
 
   return (
-    <SimpleTreeView style={{ overflow: 'auto' }}>
+    <SimpleTreeView>
       {config.conn_type == 'mariadb' &&
-        (config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>)}
+        (config.db ? (
+          <SchemaTree isTop={true}></SchemaTree>
+        ) : (
+          <DatabaseTree isTop={true}></DatabaseTree>
+        ))}
     </SimpleTreeView>
   );
 }
-function SchemaTree(prpos: { schemaname?: string }) {
+function SchemaTree(prpos: { schemaname?: string; isTop: boolean }) {
   const { uuid, database, conn_type } = useContext(NameAndTypeContext);
-  let { schemaname } = prpos;
+  let { schemaname, isTop } = prpos;
 
   const getPrefix = () => {
     return uuid + database + schemaname;
@@ -114,7 +121,7 @@ function SchemaTree(prpos: { schemaname?: string }) {
   };
 
   return (
-    <TreeItem itemId={getPrefix()} label={schemaname ? schemaname : 'schema'}>
+    <TreeItem itemId={getPrefix()} label={isTop ? uuid : schemaname}>
       <NameAndTypeContext.Provider value={{ uuid: newUuid() }}>
         <TablesTree></TablesTree>
       </NameAndTypeContext.Provider>
@@ -154,7 +161,6 @@ function TableTree(props: { table: string }) {
     <TreeItem
       itemId={uuid + '-' + table}
       onContextMenu={(e) => {
-        console.log('!!!!!!!!!!!!!!!!!!!', e);
         e.preventDefault();
       }}
       label={table}
@@ -162,11 +168,11 @@ function TableTree(props: { table: string }) {
   );
 }
 
-function DatabaseTree() {
+function DatabaseTree(props: { isTop: boolean }) {
   const { uuid: name, database } = useContext(NameAndTypeContext);
   const { showNotification } = useContext(NotificationContext);
-
   const [databases, setDatabases] = useState<string[]>([]);
+  let { isTop } = props;
   const handleReload = () => {
     invoke<string[]>('list_schema', { name })
       .then((ds) => {
@@ -182,12 +188,9 @@ function DatabaseTree() {
   }, []);
   return (
     <>
-      <TreeItem
-        itemId={name + database}
-        label={database ? database : 'schemas'}
-      >
+      <TreeItem itemId={name + database} label={isTop ? name : database}>
         {databases.map((e) => {
-          return <SchemaTree key={e} schemaname={e}></SchemaTree>;
+          return <SchemaTree key={e} schemaname={e} isTop={false}></SchemaTree>;
         })}
       </TreeItem>
     </>

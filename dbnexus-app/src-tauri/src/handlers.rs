@@ -11,15 +11,34 @@ use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 
 use dbnexus_db::redis::{RedisDB, RedisListTable};
+use tauri::AppHandle;
+use tauri::Emitter;
+
+#[tauri::command]
+fn login(app: AppHandle, user: String, password: String) {
+    let authenticated = user == "tauri-apps" && password == "tauri";
+    let result = if authenticated {
+        "loggedIn"
+    } else {
+        "invalidCredentials"
+    };
+    app.emit_to("login", "login-result", result).unwrap();
+}
 
 #[tauri::command]
 pub async fn add_config(
-    config: DBConnectionConfig, app: tauri::State<'_, App>,
+    config: DBConnectionConfig, app: tauri::State<'_, App>, handler: AppHandle,
 ) -> Result<(), AnyhowErrorFrontend> {
     log::info!("add config:{:?}", config);
+    if config.get_name().contains(":") {
+        return Err(AnyhowErrorFrontend::from(
+            "connection name can't contains ':'",
+        ));
+    }
     app.add_config(config)
         .await
         .map_err(AnyhowErrorFrontend::from)?;
+    handler.emit("config_added", "").unwrap();
     Ok(())
 }
 #[tauri::command]
@@ -56,16 +75,16 @@ pub async fn delete_config(
 //         .map_err(AnyhowErrorFrontend::from)
 // }
 
-#[tauri::command]
-pub async fn open(name: String, app: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    log::info!("open db:{}", name);
-    app.open(name.as_str())
-        .await
-        .map_err(AnyhowErrorFrontend::from)
-        .map(|_| ())
-}
+// #[tauri::command]
+// pub async fn open(name: String, app: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
+//     random_sleep().await;
+//     random_error()?;
+//     log::info!("open db:{}", name);
+//     app.open(name.as_str())
+//         .await
+//         .map_err(AnyhowErrorFrontend::from)
+//         .map(|_| ())
+// }
 
 #[tauri::command]
 pub async fn list_table(

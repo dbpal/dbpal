@@ -1,6 +1,7 @@
 import React, { useState, ReactNode, createContext } from 'react';
 import { Snackbar, Alert, AlertTitle, Slide } from '@mui/material';
 import { AlertColor } from '@mui/material/Alert';
+import { msgTimeout } from './Common';
 
 interface NotificationContextProps {
   showNotification: (
@@ -61,7 +62,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       {children}
       <Snackbar
         open={open}
-        autoHideDuration={5000} // 显示 5 秒
+        autoHideDuration={msgTimeout} // 显示 5 秒
         onClose={handleClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         TransitionComponent={transition}

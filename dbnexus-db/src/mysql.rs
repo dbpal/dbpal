@@ -1211,7 +1211,7 @@ impl MysqlDB {
 #[async_trait::async_trait]
 impl DBTrait for MysqlDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
+        let mut conn: PoolConnection<sqlx::MySql> = self.get_conn().await?;
         let rows = sqlx::query("show databases")
             .fetch_all(conn.deref_mut())
             .await?;
@@ -1219,6 +1219,13 @@ impl DBTrait for MysqlDB {
         let mut ret = Vec::new();
         for r in rows.iter() {
             let name: String = r.get(0);
+            if name.eq_ignore_ascii_case("information_schema")
+                || name.eq_ignore_ascii_case("mysql")
+                || name.eq_ignore_ascii_case("performance_schema")
+                || name.eq_ignore_ascii_case("sys")
+            {
+                continue;
+            }
             ret.push(name);
         }
         anyhow::Ok(ret)

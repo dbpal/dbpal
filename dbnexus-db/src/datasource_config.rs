@@ -31,8 +31,8 @@ pub struct RedisDbConfig {
     pub read_only: bool,
 }
 impl RedisDbConfig {
-    // I used this in test why.
-    #[allow(unused)]
+    // I used this in test and why??
+    #[cfg(test)]
     fn new(
         host: String, port: Option<u16>, username: Option<String>, password: Option<String>,
         db: Option<String>,

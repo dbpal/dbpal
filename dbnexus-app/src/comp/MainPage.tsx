@@ -31,7 +31,7 @@ export default function MainPage() {
           split='vertical'
           minSize={0}
           defaultSize={300}
-          style={{ overflow: 'auto', minHeight: '100vh' }}
+          style={{ minHeight: '100vh', height: 'auto' }}
         >
           <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
             <Left></Left>

@@ -23,7 +23,7 @@ pub struct DBNexusConfigs {
 }
 
 impl DBConnectionConfig {
-    fn get_name(&self) -> &str {
+    pub fn get_name(&self) -> &str {
         match self {
             DBConnectionConfig::Sqlite { name, .. }
             | DBConnectionConfig::Mysql { name, .. }
@@ -152,6 +152,11 @@ impl DbConfigLoader for FileJsonSaver {
 
     async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
         let mut lock = self.config.lock().await;
+        for old in lock.connection_configs.iter() {
+            if old.get_name().eq_ignore_ascii_case(config.get_name()) {
+                anyhow::bail!(format!("name '{}' already exists.", config.get_name()))
+            }
+        }
         lock.connection_configs.push(config);
         self.save(&lock).await?;
         anyhow::Ok(())
@@ -376,7 +381,6 @@ impl App {
                     .insert(format!("{}-{}", name, db_name), db.clone());
                 anyhow::Ok(db)
             }
-
             _ => anyhow::bail!("this is not a database"),
         }
     }
@@ -493,13 +497,12 @@ impl App {
             let db_uuids: Vec<_> = name.split(":").collect();
             match db_uuids.len() {
                 1 => {
-                    // nothing
-                    // the frontend should open database
-                    // for themself.
+                    // I am trying to open the database so the frontend no need call `open` himself
+                    self.open(name).await?;
                 }
                 2 => {
                     // trying to open
-                    match self.get_opened(db_uuids[0]).await? {
+                    match self.open(db_uuids[0]).await? {
                         Open::Catalog(c) => {
                             let db = c.open_db(db_uuids[1]).await?;
                             self.opens.lock().await.insert(
@@ -520,10 +523,15 @@ impl App {
 
                 3 => {
                     let db_uuid = format!("{}:{}", db_uuids[0], db_uuids[1]);
-                    match self.get_opened(db_uuids[0]).await? {
+                    // 直接试图去打开数据库
+                    // 如果已经打开过了`open` 会支持返回我们一个指针
+                    match self.open(db_uuids[0]).await? {
                         Open::Catalog(c) => {
-                            if self.opens.lock().await.contains_key(&db_uuid) {
-                                match self.get_opened(&db_uuid).await? {
+                            if let Some(db) =
+                                self.opens.lock().await.get(&db_uuid).map(|x| x.clone())
+                            {
+                                // database已经打开了但是schema还没有打开的情况
+                                match db {
                                     Open::DataBase(db) => {
                                         let schema = db.open_schema(db_uuids[2]).await?;
                                         self.opens
@@ -534,6 +542,7 @@ impl App {
                                     _ => anyhow::bail!("this should a database"),
                                 }
                             } else {
+                                //  database没有打开的情况下 直接打开database和schema
                                 let db = c.open_db(db_uuids[1]).await?;
                                 self.opens
                                     .lock()
@@ -556,7 +565,7 @@ impl App {
                 }
             }
         }
-        // println!("xxxxxxx:{:?} {:?}", name, self.opens.lock().await);
+
         match self.get_opened(name).await? {
             Open::Schema(x) => anyhow::Ok(x.clone()),
             _ => anyhow::bail!(format!("this '{}' a multi", name)),
