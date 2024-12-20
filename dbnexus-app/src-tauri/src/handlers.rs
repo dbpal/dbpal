@@ -15,47 +15,53 @@ use dbnexus_db::redis::{RedisDB, RedisListTable};
 #[tauri::command]
 pub async fn add_config(
     config: DBConnectionConfig, app: tauri::State<'_, App>,
-) -> Result<String, AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-
-    let uuid = uuid::Uuid::new_v4().to_string();
-    log::info!("add config:{} {:?}", uuid, config);
-    app.add_config(uuid.as_str(), config)
+) -> Result<(), AnyhowErrorFrontend> {
+    log::info!("add config:{:?}", config);
+    app.add_config(config)
         .await
         .map_err(AnyhowErrorFrontend::from)?;
-    Ok(uuid)
+    Ok(())
 }
+#[tauri::command]
+pub async fn list_all_config(
+    app: tauri::State<'_, App>,
+) -> Result<Vec<DBConnectionConfig>, AnyhowErrorFrontend> {
+    app.loader
+        .list_all_configs_cloned()
+        .await
+        .map_err(AnyhowErrorFrontend::from)
+}
+
 #[tauri::command]
 pub async fn delete_config(
-    uuid: String, app: tauri::State<'_, App>,
+    name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("del config:{}", uuid);
-    app.delete_config(uuid.as_str())
+    log::info!("del config:{}", name);
+    app.delete_config(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
-#[tauri::command]
-pub async fn update_config(
-    uuid: String, config: DBConnectionConfig, app: tauri::State<'_, App>,
-) -> Result<(), AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    log::info!("update config:{} {:?}", uuid, config);
-    app.update_config(uuid.as_str(), config)
-        .await
-        .map_err(AnyhowErrorFrontend::from)
-}
+// #[tauri::command]
+// pub async fn update_config(
+//     name: String, config: DBConnectionConfig, app: tauri::State<'_, App>,
+// ) -> Result<(), AnyhowErrorFrontend> {
+//     random_sleep().await;
+//     random_error()?;
+//     log::info!("update config:{} {:?}", name, config);
+//     app.update_config(name.as_str(), config)
+//         .await
+//         .map_err(AnyhowErrorFrontend::from)
+// }
 
 #[tauri::command]
-pub async fn open(uuid: String, app: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
+pub async fn open(name: String, app: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("open db:{}", uuid);
-    app.open(uuid.as_str())
+    log::info!("open db:{}", name);
+    app.open(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
         .map(|_| ())
@@ -63,58 +69,58 @@ pub async fn open(uuid: String, app: tauri::State<'_, App>) -> Result<(), Anyhow
 
 #[tauri::command]
 pub async fn list_table(
-    uuid: String, app: tauri::State<'_, App>,
+    name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<ListTable>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("show table db:{}", uuid);
-    app.list_table(uuid.as_str())
+    log::info!("show table db:{}", name);
+    app.list_table(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn redis_list_table(
-    uuid: String, app: tauri::State<'_, App>,
+    name: String, app: tauri::State<'_, App>,
 ) -> Result<RedisListTable, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.redis_list_table(&uuid)
+    app.redis_list_table(&name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn redis_match_keys(
-    uuid: String, pattern: String, app: tauri::State<'_, App>,
+    name: String, pattern: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<String>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let keys = app.redis_match_keys(&uuid, &pattern).await?;
+    let keys = app.redis_match_keys(&name, &pattern).await?;
     Ok(keys)
 }
 
 #[tauri::command]
 pub async fn show_columns(
-    uuid: String, table_name: String, app: tauri::State<'_, App>,
+    name: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Field>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.show_columns(uuid.as_str(), &table_name)
+    app.show_columns(name.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn show_table(
-    uuid: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    name: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let x = app
         .show_table(
-            uuid.as_str(),
+            name.as_str(),
             &table_name,
             where_str,
             order_by,
@@ -129,99 +135,99 @@ pub async fn show_table(
 
 #[tauri::command]
 pub async fn show_indexes(
-    uuid: String, table_name: String, app: tauri::State<'_, App>,
+    name: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Index>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.show_indexes(uuid.as_str(), &table_name)
+    app.show_indexes(name.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn insert(
-    uuid: String, table_name: String, values: HashMap<String, Option<String>>,
+    name: String, table_name: String, values: HashMap<String, Option<String>>,
     app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.insert(uuid.as_str(), &table_name, values)
+    app.insert(name.as_str(), &table_name, values)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn update(
-    uuid: String, table_name: String, values: HashMap<String, Option<String>>,
+    name: String, table_name: String, values: HashMap<String, Option<String>>,
     wheres: HashMap<String, Option<String>>, app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.update(uuid.as_str(), &table_name, values, wheres)
+    app.update(name.as_str(), &table_name, values, wheres)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn truncate_table(
-    uuid: String, table_name: String, app: tauri::State<'_, App>,
+    name: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.truncate_table(uuid.as_str(), &table_name)
+    app.truncate_table(name.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn delete(
-    uuid: String, table_name: String, wheres: HashMap<String, Option<String>>,
+    name: String, table_name: String, wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.delete(uuid.as_str(), &table_name, wheres)
+    app.delete(name.as_str(), &table_name, wheres)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn list_view(
-    uuid: String, app: tauri::State<'_, App>,
+    name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<NamedStaff>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.list_view(uuid.as_str())
+    app.list_view(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn drop_view(
-    uuid: String, view_name: String, app: tauri::State<'_, App>,
+    name: String, view_name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.drop_view(uuid.as_str(), &view_name)
+    app.drop_view(name.as_str(), &view_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn drop_table(
-    uuid: String, table_name: String, cascade: bool, app: tauri::State<'_, App>,
+    name: String, table_name: String, cascade: bool, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.drop_table(uuid.as_str(), &table_name, cascade)
+    app.drop_table(name.as_str(), &table_name, cascade)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn show_view(
-    uuid: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    name: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     app.show_view(
-        uuid.as_str(),
+        name.as_str(),
         &view_name,
         where_str,
         order_by,
@@ -235,12 +241,12 @@ pub async fn show_view(
 
 #[tauri::command]
 pub async fn opened_kind(
-    uuid: String, app: tauri::State<'_, App>,
+    name: String, app: tauri::State<'_, App>,
 ) -> Result<OpendKind, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let kind = app
-        .get_opened(uuid.as_str())
+        .get_opened(&name)
         .await
         .map_err(AnyhowErrorFrontend::from)?
         .get_open_kind();
@@ -249,13 +255,13 @@ pub async fn opened_kind(
 
 #[tauri::command]
 pub async fn query_sql(
-    uuid: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
+    name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Result<MuiDataGridData, String>>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let sql = sql.as_str();
     let db = app
-        .open(uuid.as_str())
+        .open(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
 
@@ -279,11 +285,11 @@ pub async fn query_sql(
 }
 #[tauri::command]
 pub async fn query_sql_open_connection(
-    uuid: String, app: tauri::State<'_, App>,
+    name: String, app: tauri::State<'_, App>,
 ) -> Result<uuid::Uuid, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
+    let db = app.open(name.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
         Open::DataBase(x) => x.open_connection().await,
         Open::Schema(x) => x.open_connection().await,
@@ -293,11 +299,11 @@ pub async fn query_sql_open_connection(
 }
 #[tauri::command]
 pub async fn query_sql_re_connection(
-    uuid: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
+    let db = app.open(name.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
         Open::DataBase(x) => x.re_connect(query_id).await,
         Open::Schema(x) => x.re_connect(query_id).await,
@@ -307,11 +313,11 @@ pub async fn query_sql_re_connection(
 }
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    uuid: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.open(uuid.as_str()).await.map_err(|e| e.to_string())?;
+    let db = app.open(name.as_str()).await.map_err(|e| e.to_string())?;
     let result = match db {
         Open::DataBase(x) => x.close_connection(query_id).await,
         Open::Schema(x) => x.close_connection(query_id).await,
@@ -345,26 +351,14 @@ pub async fn get_user_settings(
 }
 
 #[tauri::command]
-pub async fn list_all_config(
-    app: tauri::State<'_, App>,
-) -> Result<HashMap<String /* uuid */, DBConnectionConfig>, AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    app.loader
-        .list_all_configs_cloned()
-        .await
-        .map_err(AnyhowErrorFrontend::from)
-}
-
-#[tauri::command]
 pub async fn export_table(
-    uuid: String, table_name: String, filepath: String, kind: ExportKind,
+    name: String, table_name: String, filepath: String, kind: ExportKind,
     app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     db.export_table_to_file(table_name.as_str(), filepath.as_str(), kind)
@@ -373,12 +367,12 @@ pub async fn export_table(
 }
 #[tauri::command]
 pub async fn format_sql(
-    uuid: String, sql: String, opts: Option<FormatSqlOpts>, app: tauri::State<'_, App>,
+    name: String, sql: String, opts: Option<FormatSqlOpts>, app: tauri::State<'_, App>,
 ) -> Result<String, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_opened(uuid.as_str())
+        .get_opened(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db {
@@ -409,13 +403,47 @@ pub async fn test_connection(
 }
 
 #[tauri::command]
+pub async fn list_database(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<
+    Vec<String>, // milliseconds
+    AnyhowErrorFrontend,
+> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.open(name.as_str()).await?;
+    match db {
+        app::Open::Catalog(x) => x.list_database().await,
+        _ => return Err(AnyhowErrorFrontend::from("not catalog trait")),
+    }
+    .map_err(AnyhowErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn list_schema(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<
+    Vec<String>, // milliseconds
+    AnyhowErrorFrontend,
+> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.open(name.as_str()).await?;
+    match db {
+        app::Open::DataBase(x) => x.list_schema().await,
+        _ => return Err(AnyhowErrorFrontend::from("not database trait")),
+    }
+    .map_err(AnyhowErrorFrontend::from)
+}
+
+#[tauri::command]
 pub async fn oracle_query_set_autocommit(
-    uuid: String, id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,
+    name: String, id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
@@ -425,18 +453,18 @@ pub async fn oracle_query_set_autocommit(
             .map_err(AnyhowErrorFrontend::from),
         None => Err(AnyhowErrorFrontend::from(format!(
             "db '{}' is not oracle",
-            uuid
+            name
         ))),
     }
 }
 #[tauri::command]
 pub async fn oracle_query_autocommit(
-    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<bool, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
@@ -446,18 +474,18 @@ pub async fn oracle_query_autocommit(
             .map_err(AnyhowErrorFrontend::from),
         None => Err(AnyhowErrorFrontend::from(format!(
             "db '{}' is not oracle",
-            uuid
+            name
         ))),
     }
 }
 #[tauri::command]
 pub async fn oracle_query_commit(
-    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
@@ -465,17 +493,17 @@ pub async fn oracle_query_commit(
             .query_commit(id)
             .await
             .map_err(|e| AnyhowErrorFrontend::from(e)),
-        None => Err(format!("db '{}' is not oracle", uuid).into()),
+        None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
 #[tauri::command]
 pub async fn oracle_query_rollback(
-    uuid: String, id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
@@ -483,18 +511,18 @@ pub async fn oracle_query_rollback(
             .query_rollback(id)
             .await
             .map_err(|e| AnyhowErrorFrontend::from(e)),
-        None => Err(format!("db '{}' is not oracle", uuid).into()),
+        None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
 
 #[tauri::command]
 pub async fn list_trigger(
-    uuid: String, table: String, app: tauri::State<'_, App>,
+    name: String, table: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<NamedStaff>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
@@ -505,27 +533,27 @@ pub async fn list_trigger(
 
 #[tauri::command]
 pub async fn show_trigger(
-    uuid: String, table: String, name: String, app: tauri::State<'_, App>,
+    name: String, table: String, trigger: String, app: tauri::State<'_, App>,
 ) -> Result<TriggerDetail, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
-    db.show_trigger(&table, &name)
+    db.show_trigger(&table, &trigger)
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 #[tauri::command]
 pub async fn rename_table(
-    uuid: String, old: String, new: String, app: tauri::State<'_, App>,
+    name: String, old: String, new: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
@@ -536,12 +564,12 @@ pub async fn rename_table(
 
 #[tauri::command]
 pub async fn duplicate_table(
-    uuid: String, from: String, to: String, app: tauri::State<'_, App>,
+    name: String, from: String, to: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
@@ -552,25 +580,25 @@ pub async fn duplicate_table(
 
 #[tauri::command]
 pub async fn mongo_insert(
-    uuid: String, table: String, doc: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table: String, doc: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<mongodb::results::InsertOneResult, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let doc = parse_bson_doc(doc.as_slice())?;
 
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.insert(table.as_str(), doc).await,
-        None => return Err(format!("db '{}' not mongo", uuid).into()),
+        None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 #[tauri::command]
 pub async fn mongo_update(
-    uuid: String, table: String, update: Vec<u8>, query: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table: String, update: Vec<u8>, query: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<mongodb::results::UpdateResult, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -578,49 +606,49 @@ pub async fn mongo_update(
     let query = parse_bson_doc(query.as_slice())?;
 
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.update(table.as_str(), update, query).await,
-        None => return Err(format!("db '{}' not mongo", uuid).into()),
+        None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 
 #[tauri::command]
 pub async fn mongo_delete(
-    uuid: String, table: String, query: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table: String, query: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<mongodb::results::DeleteResult, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let query = parse_bson_doc(query.as_slice())?;
 
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.delete(table.as_str(), query).await,
-        None => return Err(format!("db '{}' not mongo", uuid).into()),
+        None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 
 #[tauri::command]
 pub async fn mongo_show_collection_table_list(
-    uuid: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let filter = parse_bson_doc(filter.as_slice())?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.show_collection_table_list(table.as_str(), filter).await,
-        None => return Err(format!("db '{}' not mongo", uuid).into()),
+        None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
     .map(MuiDataTableListResp::from)
@@ -628,37 +656,37 @@ pub async fn mongo_show_collection_table_list(
 
 #[tauri::command]
 pub async fn mongo_show_collection_docs(
-    uuid: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<DocsAndCount, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let filter = parse_bson_doc(filter.as_slice())?;
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.show_collection_docs(table.as_str(), filter).await,
-        None => return Err(format!("db '{}' not mongo", uuid).into()),
+        None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))?;
     DocsAndCount::try_from(docs).map_err(|e| e.into())
 }
 #[tauri::command]
 pub async fn mongo_get_one_document(
-    uuid: String, table: String, id: String, app: tauri::State<'_, App>,
+    name: String, table: String, id: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<u8>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let id = bson::oid::ObjectId::from_str(id.as_str()).map_err(AnyhowErrorFrontend::from)?;
 
     let db = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let doc = match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.get_one_document(table.as_str(), id).await,
-        None => return Err(format!("db '{}' not mongo", uuid).into()),
+        None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))?;
     Ok(encode_bson_doc(&doc).map_err(AnyhowErrorFrontend::from)?)
@@ -666,12 +694,12 @@ pub async fn mongo_get_one_document(
 
 #[tauri::command]
 pub async fn redis_list_lpush(
-    uuid: String, key: String, value: String, app: tauri::State<'_, App>,
+    name: String, key: String, value: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -680,19 +708,19 @@ pub async fn redis_list_lpush(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_list_rpush(
-    uuid: String, key: String, value: String, app: tauri::State<'_, App>,
+    name: String, key: String, value: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -701,19 +729,19 @@ pub async fn redis_list_rpush(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_list_remove(
-    uuid: String, key: String, value: String, count: isize, app: tauri::State<'_, App>,
+    name: String, key: String, value: String, count: isize, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -722,19 +750,19 @@ pub async fn redis_list_remove(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_list_set(
-    uuid: String, key: String, value: String, index: isize, app: tauri::State<'_, App>,
+    name: String, key: String, value: String, index: isize, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -743,20 +771,20 @@ pub async fn redis_list_set(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_set_replace(
-    uuid: String, key: String, old: String, new: String, app: tauri::State<'_, App>,
+    name: String, key: String, old: String, new: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let old = hex::decode(old.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
     let new = hex::decode(new.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -765,19 +793,19 @@ pub async fn redis_set_replace(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_set_del(
-    uuid: String, key: String, member: String, app: tauri::State<'_, App>,
+    name: String, key: String, member: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -787,19 +815,19 @@ pub async fn redis_set_del(
                 .map_err(AnyhowErrorFrontend::from)?;
         }
 
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_set_add(
-    uuid: String, key: String, member: String, app: tauri::State<'_, App>,
+    name: String, key: String, member: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -808,14 +836,14 @@ pub async fn redis_set_add(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_hash_replace(
-    uuid: String, key: String, old_member: String, new_member: String, new_value: String,
+    name: String, key: String, old_member: String, new_member: String, new_value: String,
     app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let old_member = hex::decode(old_member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
@@ -824,7 +852,7 @@ pub async fn redis_hash_replace(
     let new_value = hex::decode(new_value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -833,19 +861,19 @@ pub async fn redis_hash_replace(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_hash_del(
-    uuid: String, key: String, member: String, app: tauri::State<'_, App>,
+    name: String, key: String, member: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -854,20 +882,20 @@ pub async fn redis_hash_del(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_hash_add(
-    uuid: String, key: String, member: String, value: String, app: tauri::State<'_, App>,
+    name: String, key: String, member: String, value: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
     let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -876,21 +904,21 @@ pub async fn redis_hash_add(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_zset_replace(
-    uuid: String, key: String, old_member: String, new_member: String, new_value: f64,
+    name: String, key: String, old_member: String, new_member: String, new_value: f64,
     app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let old_member = hex::decode(old_member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
     let new_member = hex::decode(new_member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -899,19 +927,19 @@ pub async fn redis_zset_replace(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_zset_del(
-    uuid: String, key: String, member: String, app: tauri::State<'_, App>,
+    name: String, key: String, member: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -920,18 +948,18 @@ pub async fn redis_zset_del(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 #[tauri::command]
 pub async fn redis_zset_add(
-    uuid: String, key: String, member: String, value: f64, app: tauri::State<'_, App>,
+    name: String, key: String, member: String, value: f64, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -940,19 +968,19 @@ pub async fn redis_zset_add(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn redis_string_set(
-    uuid: String, key: String, value: String, app: tauri::State<'_, App>,
+    name: String, key: String, value: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(AnyhowErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(uuid.as_str())
+        .get_schema(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -961,7 +989,7 @@ pub async fn redis_string_set(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", uuid).into()),
+        None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
 }
@@ -1037,6 +1065,14 @@ impl From<String> for AnyhowErrorFrontend {
         }
     }
 }
+impl From<&str> for AnyhowErrorFrontend {
+    fn from(value: &str) -> Self {
+        Self {
+            reason: value.to_owned(),
+            detail: "".to_string(),
+        }
+    }
+}
 
 impl From<bson::oid::Error> for AnyhowErrorFrontend {
     fn from(value: bson::oid::Error) -> Self {
@@ -1049,7 +1085,16 @@ impl From<bson::oid::Error> for AnyhowErrorFrontend {
 
 async fn random_sleep() {
     #[cfg(feature = "random-sleep")]
-    dbnexus_db::random_sleep_impl().await
+    {
+        let duration = {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let millis = rng.gen_range(500..1700);
+            let duration = std::time::Duration::from_millis(millis);
+            duration
+        };
+        tokio::time::sleep(duration).await
+    }
 }
 
 fn random_error() -> Result<(), AnyhowErrorFrontend> {

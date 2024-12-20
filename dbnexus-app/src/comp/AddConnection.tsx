@@ -18,30 +18,20 @@ import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 
 import { invoke } from '@tauri-apps/api/core';
-import { msgTimeout } from './Common';
+import { DataSourceKind, msgTimeout } from './Common';
 import { open } from '@tauri-apps/plugin-dialog';
 
-enum DataSourceKind {
-  Mysql,
-  MariaDB,
-  Sqlite,
-  Postgres,
-  MsSql,
-  Redis,
-  Mongo,
-}
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 
 async function selectFile() {
   const selected = await open({
     multiple: false, // 是否允许选择多个文件
   });
-  console.log('Selected file:', selected);
+  return selected;
 }
 
 function HostAndPort(props: { host; port; setHost; setPort }) {
   let { host, port, setHost, setPort } = props;
-
   return (
     <Stack direction='row'>
       <TextField
@@ -49,13 +39,16 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
         fullWidth
         label='Host'
         value={host}
+        size='small'
         sx={{ mr: 1 }}
         onChange={(e) => setHost(e.target.value)}
       />
       <TextField
         margin='normal'
         fullWidth
-        label='Port'
+        label='port'
+        error={isNaN(parseInt(port))}
+        size='small'
         value={port}
         onChange={(e) => setPort(e.target.value)}
       />
@@ -70,8 +63,9 @@ function Sqlite(props: { path; setPath }) {
       <Typography>path:{path}</Typography>
       <Button
         onClick={() => {
-          console.log('11111');
-          selectFile();
+          selectFile().then((e) => {
+            setPath(e);
+          });
         }}
       >
         <AttachFileIcon></AttachFileIcon>
@@ -91,12 +85,14 @@ function UserAndPassword(props: { user; password; setUser; setPassword }) {
         label='User'
         value={user}
         sx={{ mr: 1 }}
+        size='small'
         onChange={(e) => setUser(e.target.value)}
       />
       <TextField
         margin='normal'
         fullWidth
         label='Password'
+        size='small'
         type='password'
         value={password}
         onChange={(e) => setPassword(e.target.value)}
@@ -120,16 +116,34 @@ function EnableSSL(props: { useSSL; setUseSSL }) {
   );
 }
 
+function TrustCert(props: { trustCert; setTrustCert }) {
+  let { trustCert, setTrustCert } = props;
+  return (
+    <FormControlLabel
+      control={
+        <Switch
+          checked={trustCert}
+          onChange={(e) => setTrustCert(e.target.checked)}
+        />
+      }
+      label='Trust Cert'
+    />
+  );
+}
+
 function Database(props: { database; setDatabase }) {
   let { database, setDatabase } = props;
   return (
-    <TextField
-      margin='normal'
-      label='Password'
-      type='password'
-      value={database}
-      onChange={(e) => setDatabase(e.target.value)}
-    />
+    <Stack direction='row'>
+      <TextField
+        margin='normal'
+        label='database'
+        type='database'
+        size='small'
+        value={database}
+        onChange={(e) => setDatabase(e.target.value)}
+      />
+    </Stack>
   );
 }
 
@@ -159,13 +173,23 @@ export default function AddConfig() {
     let db_null = database ? database : null;
     switch (connectionType) {
       case DataSourceKind.Mysql:
-      case DataSourceKind.MariaDB:
         return {
           conn_type: 'mysql',
           host: host,
           port: portInt,
           username: user,
-          password: password,
+          password: pass_null,
+          db: db_null,
+          read_only: readOnly,
+          name: connectionName,
+        };
+      case DataSourceKind.MariaDB:
+        return {
+          conn_type: 'mariadb',
+          host: host,
+          port: portInt,
+          username: user,
+          password: pass_null,
           db: db_null,
           read_only: readOnly,
           name: connectionName,
@@ -176,7 +200,7 @@ export default function AddConfig() {
           host: host,
           port: portInt,
           username: user,
-          password: password,
+          password: pass_null,
           db: db_null,
           read_only: readOnly,
           name: connectionName,
@@ -277,6 +301,17 @@ export default function AddConfig() {
       showNotification('error', 'Connection Name is empty.');
       return;
     }
+    const config = makeConfig();
+    if (!config) {
+      return;
+    }
+    invoke('add_config', { config })
+      .then((_) => {
+        showNotification('success', 'Add Connection OK');
+      })
+      .catch((e) => {
+        showNotification('error', 'Add Connection failure', e);
+      });
   };
   return (
     <Stack spacing={1}>
@@ -286,14 +321,15 @@ export default function AddConfig() {
       <FormControl fullWidth margin='normal'>
         <InputLabel>Connection Type</InputLabel>
         <Select
+          size='small'
           value={connectionType}
           label='Connection Type'
           onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
         >
           <MenuItem value={DataSourceKind.Mysql}>MySQL</MenuItem>
+          <MenuItem value={DataSourceKind.MariaDB}>MariaDB</MenuItem>
           <MenuItem value={DataSourceKind.Postgres}>PostgreSQL</MenuItem>
           <MenuItem value={DataSourceKind.Sqlite}>SQLite</MenuItem>
-          <MenuItem value={DataSourceKind.MariaDB}>MariaDB</MenuItem>
           <MenuItem value={DataSourceKind.Redis}>Redis</MenuItem>
           <MenuItem value={DataSourceKind.Mongo}>Mongo</MenuItem>
           <MenuItem value={DataSourceKind.MsSql}>
@@ -386,6 +422,10 @@ export default function AddConfig() {
             setPassword={setPassword}
           ></UserAndPassword>
           <Database database={database} setDatabase={setDatabase}></Database>
+          <TrustCert
+            trustCert={trustCert}
+            setTrustCert={setTrustCert}
+          ></TrustCert>
         </>
       )}
       {connectionType == DataSourceKind.Sqlite && (
@@ -419,6 +459,7 @@ export default function AddConfig() {
           value={connectionName}
           error={!connectionName}
           required
+          size='small'
           onChange={(e) => setConnectionName(e.target.value)}
           helperText='Enter a name for this connection'
         />
@@ -426,6 +467,7 @@ export default function AddConfig() {
         <Button
           variant='contained'
           color='primary'
+          size='small'
           onClick={() => {
             handleSaveConnection();
           }}

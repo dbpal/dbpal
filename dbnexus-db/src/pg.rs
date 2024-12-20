@@ -1087,6 +1087,11 @@ impl PostGresDB {
         anyhow::Ok(count as usize)
     }
 }
+impl std::fmt::Debug for PostGresDB {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "postgres on:{:?}", self.config)
+    }
+}
 
 impl PostGresDB {
     pub async fn new(conn: PGDbConfig) -> anyhow::Result<Self> {
@@ -1094,8 +1099,10 @@ impl PostGresDB {
         opts = opts
             .host(&conn.host)
             .port(conn.port)
-            .username(&conn.username)
-            .password(&conn.password);
+            .username(&conn.username);
+        if let Some(pass) = &conn.password {
+            opts = opts.password(&pass);
+        }
         if let Some(db) = &conn.db {
             opts = opts.database(db);
         }
@@ -1434,7 +1441,7 @@ mod tests {
             host: TEST_HOST.to_string(),
             port: 5432,
             username: "postgres".to_string(),
-            password: "root".to_string(),
+            password: Some("root".to_string()),
             db: Some("test".to_string()),
             schema: Some("test".to_string()),
             read_only: false,

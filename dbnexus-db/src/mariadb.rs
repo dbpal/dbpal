@@ -7,7 +7,7 @@ mod tests {
         MysqlDbConfig {
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
-            password: "root".to_string(),
+            password: Some("root".to_string()),
             port: 3307,
             db: Some("test".to_string()),
             read_only: false,
@@ -45,11 +45,6 @@ mod tests {
     async fn test_udf() {
         test_fns::test_udf(make_test_object(make_config()).await).await;
     }
-    // #[tokio::test]
-    // async fn test_completion() {
-    //     test_fns::test_completion(make_test_object(make_config()).await).await;
-    // }
-
     #[tokio::test]
     async fn test_types1() {
         test_fns::test_types1(make_test_object(make_config()).await).await;

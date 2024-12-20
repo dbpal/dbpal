@@ -74,6 +74,12 @@ impl redis::ToRedisArgs for RedisBytesOrStringArg {
     }
 }
 
+impl std::fmt::Debug for RedisDB {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "redis on:{:?}", self.config)
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]
 pub struct RedisListTable {
     pub string_tables: Vec<String>,
@@ -995,7 +1001,6 @@ impl DBTrait for RedisDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
         config.db = Some(name.to_owned());
-
         let db = Self::new(config).await?;
         anyhow::Ok(Arc::new(db))
     }

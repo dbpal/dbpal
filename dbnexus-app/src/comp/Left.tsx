@@ -1,15 +1,45 @@
 import AddIcon from '@mui/icons-material/Add';
 import { Button, Stack } from '@mui/material';
-import { useContext } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { TabContent } from './Tabs';
-import { tabsHasId, TabsSetContext } from './Common';
+import {
+  connTypeToDataSourceKind,
+  tabsHasId,
+  TabsSetContext,
+  NameAndTypeContext,
+  DataSourceKind,
+} from './Common';
 import AddConfig from './AddConnection';
+import types from './ApiStruct';
+import { invoke } from '@tauri-apps/api/core';
+import { NotificationContext } from './Notification';
+import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
+import { TreeItem } from '@mui/x-tree-view/TreeItem';
 
 function Left() {
   let { setTabs, tabs, setSelectIndex } = useContext(TabsSetContext);
+  const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const handleReload = () => {
+    invoke<types.DBConnectionConfig[]>('list_all_config')
+      .then((e) => {
+        setConfigs(e);
+      })
+      .catch((e) => {
+        showNotification('error', 'list all config failure', e);
+      });
+  };
+
+  useEffect(() => {
+    handleReload();
+  }, []);
 
   return (
-    <Stack>
+    <Stack
+      style={{
+        overflow: 'scroll',
+      }}
+    >
       <Stack direction='row'>
         <Button
           color='primary'
@@ -33,7 +63,134 @@ function Left() {
           <AddIcon></AddIcon>
         </Button>
       </Stack>
+      <Stack style={{ overflow: 'scroll' }}>
+        {configs.map((e) => {
+          return (
+            <NameAndTypeContext.Provider
+              value={{
+                uuid: e.name,
+                conn_type: connTypeToDataSourceKind(e.conn_type),
+              }}
+            >
+              <OneConfig key={e.name} config={e}></OneConfig>
+            </NameAndTypeContext.Provider>
+          );
+        })}
+      </Stack>
     </Stack>
+  );
+}
+
+function OneConfig(props: { config: types.DBConnectionConfig }) {
+  let { config } = props;
+
+  let kind = connTypeToDataSourceKind(config.conn_type);
+
+  return (
+    <SimpleTreeView style={{ overflow: 'auto' }}>
+      {config.conn_type == 'mariadb' &&
+        (config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>)}
+    </SimpleTreeView>
+  );
+}
+function SchemaTree(prpos: { schemaname?: string }) {
+  const { uuid, database, conn_type } = useContext(NameAndTypeContext);
+  let { schemaname } = prpos;
+
+  const getPrefix = () => {
+    return uuid + database + schemaname;
+  };
+  const newUuid = () => {
+    switch (conn_type) {
+      case DataSourceKind.MariaDB:
+        if (schemaname) {
+          return uuid + ':' + schemaname;
+        } else {
+          return uuid;
+        }
+      default:
+        throw 'impl this.';
+    }
+  };
+
+  return (
+    <TreeItem itemId={getPrefix()} label={schemaname ? schemaname : 'schema'}>
+      <NameAndTypeContext.Provider value={{ uuid: newUuid() }}>
+        <TablesTree></TablesTree>
+      </NameAndTypeContext.Provider>
+    </TreeItem>
+  );
+}
+
+function TablesTree() {
+  const { uuid } = useContext(NameAndTypeContext);
+  const [tables, setTables] = useState<types.ListTable[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const handleReload = () => {
+    invoke<types.ListTable[]>('list_table', { name: uuid })
+      .then((ts) => {
+        setTables(ts);
+      })
+      .catch((e) => {
+        showNotification('error', 'list table failed', e);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+  return (
+    <TreeItem itemId={uuid + '-tables'} label='tables'>
+      {tables.map((e) => (
+        <TableTree key={e.name} table={e.name}></TableTree>
+      ))}
+    </TreeItem>
+  );
+}
+
+function TableTree(props: { table: string }) {
+  let { table } = props;
+  const { uuid } = useContext(NameAndTypeContext);
+  return (
+    <TreeItem
+      itemId={uuid + '-' + table}
+      onContextMenu={(e) => {
+        console.log('!!!!!!!!!!!!!!!!!!!', e);
+        e.preventDefault();
+      }}
+      label={table}
+    ></TreeItem>
+  );
+}
+
+function DatabaseTree() {
+  const { uuid: name, database } = useContext(NameAndTypeContext);
+  const { showNotification } = useContext(NotificationContext);
+
+  const [databases, setDatabases] = useState<string[]>([]);
+  const handleReload = () => {
+    invoke<string[]>('list_schema', { name })
+      .then((ds) => {
+        setDatabases(ds);
+      })
+      .catch((e) => {
+        showNotification('error', 'list schema failed', e);
+      });
+  };
+
+  useEffect(() => {
+    handleReload();
+  }, []);
+  return (
+    <>
+      <TreeItem
+        itemId={name + database}
+        label={database ? database : 'schemas'}
+      >
+        {databases.map((e) => {
+          return <SchemaTree key={e} schemaname={e}></SchemaTree>;
+        })}
+      </TreeItem>
+    </>
   );
 }
 

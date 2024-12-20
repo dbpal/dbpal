@@ -7,7 +7,7 @@ export namespace types {
         "host": string;
         "port": types.U16;
         "username": string;
-        "password": string;
+        "password": (string | null);
         "db": (string | null);
         "read_only": boolean;
     };
@@ -15,7 +15,7 @@ export namespace types {
         "host": string;
         "port": types.U16;
         "username": string;
-        "password": string;
+        "password": (string | null);
         "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;

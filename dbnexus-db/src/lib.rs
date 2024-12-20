@@ -97,15 +97,3 @@ impl MemoryLimit {
         }
     }
 }
-
-pub async fn random_sleep_impl() {
-    let duration = {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let millis = rng.gen_range(500..3000);
-        let duration = std::time::Duration::from_millis(millis);
-        duration
-    };
-
-    tokio::time::sleep(duration).await
-}

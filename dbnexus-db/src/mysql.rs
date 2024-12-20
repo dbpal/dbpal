@@ -616,6 +616,12 @@ impl MysqlDB {
     }
 }
 
+impl std::fmt::Debug for MysqlDB {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "mysql on:{:?}", self.config)
+    }
+}
+
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
@@ -1163,21 +1169,24 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
 }
 
 impl MysqlDB {
-    pub async fn new(conn: MysqlDbConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: MysqlDbConfig) -> anyhow::Result<Self> {
+        log::info!("mysql config:{:?}", config);
         let mut opts = sqlx::mysql::MySqlConnectOptions::new();
         opts = opts
-            .host(&conn.host)
-            .port(conn.port)
-            .username(&conn.username)
-            .password(&conn.password);
-        if let Some(db) = &conn.db {
+            .host(&config.host)
+            .port(config.port)
+            .username(&config.username);
+        if let Some(pass) = &config.password {
+            opts = opts.password(&pass);
+        }
+        if let Some(db) = &config.db {
             opts = opts.database(&db);
         }
         let pool = sqlx::mysql::MySqlPool::connect_with(opts).await?;
 
         anyhow::Ok(Self {
             pool,
-            config: conn,
+            config,
             query_connection: Default::default(),
         })
     }
@@ -1218,7 +1227,7 @@ impl DBTrait for MysqlDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
         config.db = Some(name.to_owned());
-        let x = Self::new(self.config.clone()).await?;
+        let x = Self::new(config).await?;
         Ok(Arc::new(x))
     }
 }
@@ -1557,65 +1566,6 @@ pub(crate) mod test_fns {
             }
         }
     }
-
-    // pub(crate) async fn test_completion(db: MysqlDB) {
-    //     println!("#############################################");
-    //     {
-    //         let completion = AutoCompletionTrait::auto_completion(
-    //             &db,
-    //             "sel  * from",
-    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
-    //         )
-    //         .await
-    //         .unwrap();
-
-    //         println!("{:?}", completion)
-    //     }
-    //     println!("#############################################");
-    //     {
-    //         let completion = AutoCompletionTrait::auto_completion(
-    //             &db,
-    //             "cou  xxxx",
-    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
-    //         )
-    //         .await
-    //         .unwrap();
-    //         println!("{:?}", completion)
-    //     }
-    //     println!("#############################################");
-    //     {
-    //         let completion = AutoCompletionTrait::auto_completion(
-    //             &db,
-    //             "nul",
-    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
-    //         )
-    //         .await
-    //         .unwrap();
-    //         println!("{:?}", completion)
-    //     }
-    //     println!("#############################################");
-    //     {
-    //         let completion = AutoCompletionTrait::auto_completion(
-    //             &db,
-    //             "emai  dddd",
-    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
-    //         )
-    //         .await
-    //         .unwrap();
-    //         println!("{:?}", completion)
-    //     }
-    //     println!("#############################################");
-    //     {
-    //         let completion = AutoCompletionTrait::auto_completion(
-    //             &db,
-    //             "use 1111",
-    //             sqlparser::tokenizer::Location { line: 1, column: 4 },
-    //         )
-    //         .await
-    //         .unwrap();
-    //         println!("{:?}", completion)
-    //     }
-    // }
 
     pub(crate) async fn test_export(db: MysqlDB) {
         // init_log();
@@ -1985,7 +1935,7 @@ mod tests {
         MysqlDbConfig {
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
-            password: "root".to_string(),
+            password: Some("root".to_string()),
             port: 3306,
             db: Some("test".to_string()),
             read_only: false,
@@ -2023,10 +1973,7 @@ mod tests {
     async fn test_udf() {
         test_fns::test_udf(make_test_object(make_config()).await).await;
     }
-    // #[tokio::test]
-    // async fn test_completion() {
-    //     test_fns::test_completion(make_test_object(make_config()).await).await;
-    // }
+
     #[tokio::test]
     async fn test_types1() {
         test_fns::test_types1(make_test_object(make_config()).await).await;

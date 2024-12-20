@@ -291,6 +291,39 @@ const TabsSetContext = createContext<{
   setSelectIndex;
 }>(null);
 
+enum DataSourceKind {
+  Mysql,
+  MariaDB,
+  Sqlite,
+  Postgres,
+  MsSql,
+  Redis,
+  Mongo,
+}
+
+function connTypeToDataSourceKind(name: string): DataSourceKind {
+  switch (name) {
+    case 'mysql':
+      return DataSourceKind.Mysql;
+    case 'mariadb':
+      return DataSourceKind.MariaDB;
+    case 'redis':
+      return DataSourceKind.Redis;
+    case 'mongo':
+      return DataSourceKind.Mongo;
+    case 'sqlserver':
+      return DataSourceKind.MsSql;
+    case 'sqlite':
+      return DataSourceKind.Sqlite;
+  }
+}
+
+const NameAndTypeContext = createContext<{
+  uuid: string;
+  conn_type?: DataSourceKind;
+  database?: string;
+}>(null);
+
 const msgTimeout = 5000;
 
 function tabsHasId(tabs: TabContent[], id: string): number | null {
@@ -300,6 +333,7 @@ function tabsHasId(tabs: TabContent[], id: string): number | null {
       return i;
     }
   }
+
   return null;
 }
 
@@ -333,6 +367,9 @@ export {
   TabsSetContext,
   tabsHasId,
   msgTimeout,
+  NameAndTypeContext,
+  DataSourceKind,
+  connTypeToDataSourceKind,
 };
 
 export type { DefAndMetas };

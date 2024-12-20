@@ -13,19 +13,15 @@
       {
         "title": "dvnexus-app",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "maximized": true
       }
     ],
     "security": {
-      "csp": null
-    }
-  },
-  "plugins": {
-    "allowlist": {
-      "dialog": {
-        "all": true,
-        "open": true
-      }
+      "csp": null,
+      "capabilities": [
+        "main-capability"
+      ]
     }
   },
   "bundle": {

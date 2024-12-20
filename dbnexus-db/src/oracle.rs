@@ -40,6 +40,12 @@ pub struct OracleDB {
     call_timeout: Option<Duration>,
 }
 
+impl std::fmt::Debug for OracleDB {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unimplemented!()
+    }
+}
+
 impl OracleDB {
     pub fn new(config: OracleDbConfig) -> anyhow::Result<Self> {
         let pool =

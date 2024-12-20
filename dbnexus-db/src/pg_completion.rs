@@ -516,7 +516,7 @@ mod tests {
             host: TEST_HOST.to_string(),
             port: 5432,
             username: "postgres".to_string(),
-            password: "root".to_string(),
+            password: Some("root".to_string()),
             db: Some("test".to_string()),
             schema: Some("test".to_string()),
             read_only: false,

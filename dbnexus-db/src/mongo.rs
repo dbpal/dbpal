@@ -26,6 +26,12 @@ pub struct Mongo {
     read_only: bool,
 }
 
+impl std::fmt::Debug for Mongo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "mssql on:{:?}", self.dbname)
+    }
+}
+
 impl Mongo {
     pub fn new(ds: MongoConfig) -> anyhow::Result<Self> {
         let mut opts = mongodb::options::ClientOptions::default();
@@ -189,11 +195,8 @@ fn infer_multi_value_column_names(docs: &[Document]) -> anyhow::Result<Vec<Field
 impl CheckConn for Mongo {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
-        let db = self.get_db().await?;
-        let _ping_result = db
-            .run_command(bson::doc! {"ping": 1})
-            .await
-            .context("ping failed")?;
+        let conn = self.get_conn().await?;
+        let _ = conn.list_database_names().await?;
         anyhow::Ok(ins.elapsed())
     }
 }

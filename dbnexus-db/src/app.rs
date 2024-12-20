@@ -18,8 +18,23 @@ use typescript_type_def::TypeDef;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct DBNexusConfigs {
-    connection_configs: HashMap<String, DBConnectionConfig>,
+    connection_configs: Vec<DBConnectionConfig>,
     user_settings: UserSettings,
+}
+
+impl DBConnectionConfig {
+    fn get_name(&self) -> &str {
+        match self {
+            DBConnectionConfig::Sqlite { name, .. }
+            | DBConnectionConfig::Mysql { name, .. }
+            | DBConnectionConfig::MariaDB { name, .. }
+            | DBConnectionConfig::Postgres { name, .. }
+            | DBConnectionConfig::SqlServer { name, .. }
+            | DBConnectionConfig::Mongo { name, .. }
+            | DBConnectionConfig::Redis { name, .. }
+            | DBConnectionConfig::Oracle { name, .. } => name.as_str(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
@@ -71,14 +86,13 @@ pub enum DBConnectionConfig {
 
 pub trait DbConfigLoader: Send + Sync + 'static {
     /// add one config
-    async fn add(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()>;
+    async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()>;
     /// delete one config
-    async fn delete(&self, uuid: &str) -> anyhow::Result<()>;
-    /// update one
-    async fn update(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()>;
+    async fn delete(&self, name: &str) -> anyhow::Result<()>;
+
     ///
-    async fn get_config_cloned(&self, uuid: &str) -> anyhow::Result<Option<DBConnectionConfig>>;
-    async fn list_all_configs_cloned(&self) -> anyhow::Result<HashMap<String, DBConnectionConfig>>;
+    async fn get_config_cloned(&self, uuid: &str) -> anyhow::Result<DBConnectionConfig>;
+    async fn list_all_configs_cloned(&self) -> anyhow::Result<Vec<DBConnectionConfig>>;
 
     async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings>;
     async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()>;
@@ -121,7 +135,7 @@ impl FileJsonSaver {
 
 #[async_trait::async_trait]
 impl DbConfigLoader for FileJsonSaver {
-    async fn list_all_configs_cloned(&self) -> anyhow::Result<HashMap<String, DBConnectionConfig>> {
+    async fn list_all_configs_cloned(&self) -> anyhow::Result<Vec<DBConnectionConfig>> {
         anyhow::Ok(self.config.lock().await.connection_configs.clone())
     }
 
@@ -136,34 +150,48 @@ impl DbConfigLoader for FileJsonSaver {
         anyhow::Ok(())
     }
 
-    async fn add(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()> {
+    async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
         let mut lock = self.config.lock().await;
-        lock.connection_configs.insert(uuid.to_string(), config);
+        lock.connection_configs.push(config);
         self.save(&lock).await?;
         anyhow::Ok(())
     }
 
-    async fn delete(&self, uuid: &str) -> anyhow::Result<()> {
+    async fn delete(&self, name: &str) -> anyhow::Result<()> {
         let mut lock = self.config.lock().await;
-        lock.connection_configs.remove(&uuid.to_string());
-        self.save(&lock).await?;
+        let mut index = None;
+        lock.connection_configs
+            .iter()
+            .enumerate()
+            .for_each(|(i, x)| {
+                if x.get_name() == name {
+                    index = Some(i);
+                }
+            });
+
+        if let Some(index) = index {
+            lock.connection_configs.remove(index);
+            self.save(&lock).await?;
+        }
         anyhow::Ok(())
     }
 
-    async fn update(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()> {
-        self.add(uuid, config).await
-    }
-
-    async fn get_config_cloned(&self, uuid: &str) -> anyhow::Result<Option<DBConnectionConfig>> {
-        let c = self
+    async fn get_config_cloned(&self, name: &str) -> anyhow::Result<DBConnectionConfig> {
+        let ret = self
             .config
             .lock()
             .await
+            .deref()
             .connection_configs
-            .get(&uuid.to_string())
+            .iter()
+            .find(|x| x.get_name() == name)
             .map(|x| x.clone());
-
-        anyhow::Ok(c)
+        match ret {
+            Some(x) => return anyhow::Ok(x),
+            None => {
+                anyhow::bail!(format!("config named '{}' not found", name))
+            }
+        }
     }
 }
 
@@ -251,7 +279,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 }
 
 /// opend database variant for frontend
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Open {
     Catalog(Arc<dyn crate::db::CatalogTrait>),
     /// database can contains multi database
@@ -295,14 +323,11 @@ impl App {
 }
 
 impl App {
-    pub async fn open(&self, uuid: &str) -> anyhow::Result<Open> {
-        if let Some(x) = self.opens.lock().await.get(&uuid.to_string()) {
+    pub async fn open(&self, name: &str) -> anyhow::Result<Open> {
+        if let Some(x) = self.opens.lock().await.get(&name.to_string()) {
             return anyhow::Ok(x.clone());
         }
-        let config = match self.loader.get_config_cloned(uuid).await? {
-            Some(config) => config,
-            None => anyhow::bail!(format!("connect '{}' not found", uuid)),
-        };
+        let config = self.loader.get_config_cloned(name).await?;
         let db = open(&config).await?;
         match &db {
             Open::DataBase(x) => {
@@ -316,13 +341,13 @@ impl App {
             }
         }
 
-        self.opens.lock().await.insert(uuid.to_string(), db.clone());
+        self.opens.lock().await.insert(name.to_string(), db.clone());
 
         anyhow::Ok(db)
     }
 
-    pub async fn open_db(&self, uuid: &str, db_name: &str) -> anyhow::Result<Open> {
-        let db = self.open(uuid).await?;
+    pub async fn open_db(&self, name: &str, db_name: &str) -> anyhow::Result<Open> {
+        let db = self.open(name).await?;
         match db {
             Open::Catalog(x) => {
                 let x = x.open_db(db_name).await?;
@@ -331,15 +356,15 @@ impl App {
                 self.opens
                     .lock()
                     .await
-                    .insert(format!("{}-{}", uuid, db_name), db.clone());
+                    .insert(format!("{}-{}", name, db_name), db.clone());
                 anyhow::Ok(db)
             }
 
             _ => anyhow::bail!("this is not a catalog"),
         }
     }
-    pub async fn open_schema(&self, uuid: &str, db_name: &str) -> anyhow::Result<Open> {
-        let db = self.open(uuid).await?;
+    pub async fn open_schema(&self, name: &str, db_name: &str) -> anyhow::Result<Open> {
+        let db = self.open(name).await?;
         match db {
             Open::DataBase(x) => {
                 let x = x.open_schema(db_name).await?;
@@ -348,7 +373,7 @@ impl App {
                 self.opens
                     .lock()
                     .await
-                    .insert(format!("{}-{}", uuid, db_name), db.clone());
+                    .insert(format!("{}-{}", name, db_name), db.clone());
                 anyhow::Ok(db)
             }
 
@@ -356,28 +381,28 @@ impl App {
         }
     }
 
-    pub async fn add_config(&self, uuid: &str, config: DBConnectionConfig) -> anyhow::Result<()> {
-        self.loader.add(uuid, config).await
+    pub async fn add_config(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
+        self.loader.add(config).await
     }
 
-    pub async fn delete_config(&self, uuid: &str) -> anyhow::Result<()> {
-        self.loader.delete(uuid).await?;
-        self.delete_prefix_dbs(uuid).await;
+    pub async fn delete_config(&self, name: &str) -> anyhow::Result<()> {
+        self.loader.delete(name).await?;
+        self.delete_prefix_dbs(name).await;
         anyhow::Ok(())
     }
 
-    pub async fn update_config(
-        &self, uuid: &str, config: DBConnectionConfig,
-    ) -> anyhow::Result<()> {
-        self.loader.update(uuid, config).await?;
-        self.delete_prefix_dbs(uuid).await;
-        anyhow::Ok(())
-    }
+    // pub async fn update_config(
+    //     &self, uuid: &str, config: DBConnectionConfig,
+    // ) -> anyhow::Result<()> {
+    //     self.loader.update(uuid, config).await?;
+    //     self.delete_prefix_dbs(uuid).await;
+    //     anyhow::Ok(())
+    // }
 
-    async fn delete_prefix_dbs(&self, uuid: &str) {
+    async fn delete_prefix_dbs(&self, name: &str) {
         let mut v = Vec::new();
         for k in self.opens.lock().await.keys() {
-            if k.starts_with(uuid) {
+            if k.starts_with(name) {
                 v.push(k.clone());
             }
         }
@@ -386,86 +411,86 @@ impl App {
         }
     }
 
-    pub async fn list_table(&self, uuid: &str) -> anyhow::Result<Vec<ListTable>> {
-        let db = self.get_schema(uuid).await?;
+    pub async fn list_table(&self, name: &str) -> anyhow::Result<Vec<ListTable>> {
+        let db = self.get_schema(name).await?;
         db.list_table().await
     }
 
-    pub async fn show_columns(&self, uuid: &str, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let db = self.get_schema(uuid).await?;
+    pub async fn show_columns(&self, name: &str, table_name: &str) -> anyhow::Result<Vec<Field>> {
+        let db = self.get_schema(name).await?;
         db.show_columns(table_name).await
     }
 
     pub async fn show_table(
-        &self, uuid: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>,
+        &self, name: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>,
         page: usize, page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        let db = self.get_schema(uuid).await?;
+        let db = self.get_schema(name).await?;
         db.show_table(table_name, where_str, order_by, page, page_size)
             .await
     }
 
-    pub async fn show_indexes(&self, uuid: &str, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let db = self.get_schema(uuid).await?;
+    pub async fn show_indexes(&self, name: &str, table_name: &str) -> anyhow::Result<Vec<Index>> {
+        let db = self.get_schema(name).await?;
         db.show_indexes(table_name).await
     }
 
     pub async fn insert(
-        &self, uuid: &str, table_name: &str, values: HashMap<String, Option<String>>,
+        &self, name: &str, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_schema(uuid).await?;
+        let db = self.get_schema(name).await?;
         db.insert(table_name, values).await
     }
 
     pub async fn update(
-        &self, uuid: &str, table_name: &str, values: HashMap<String, Option<String>>,
+        &self, name: &str, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_schema(uuid).await?;
+        let db = self.get_schema(name).await?;
         db.update(table_name, values, wheres).await
     }
 
-    pub async fn truncate_table(&self, uuid: &str, table_name: &str) -> anyhow::Result<()> {
-        let db = self.get_schema(uuid).await?;
+    pub async fn truncate_table(&self, name: &str, table_name: &str) -> anyhow::Result<()> {
+        let db = self.get_schema(name).await?;
         db.truncate_table(table_name).await
     }
 
     pub async fn delete(
-        &self, uuid: &str, table_name: &str, wheres: HashMap<String, Option<String>>,
+        &self, name: &str, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_schema(uuid).await?;
+        let db = self.get_schema(name).await?;
         db.delete(table_name, wheres).await
     }
 
-    pub async fn list_view(&self, uuid: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        let db = self.get_schema(uuid).await?;
+    pub async fn list_view(&self, name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        let db = self.get_schema(name).await?;
         db.list_view().await
     }
 
-    pub async fn drop_view(&self, uuid: &str, view_name: &str) -> anyhow::Result<()> {
-        let db = self.get_schema(uuid).await?;
+    pub async fn drop_view(&self, name: &str, view_name: &str) -> anyhow::Result<()> {
+        let db = self.get_schema(name).await?;
         db.drop_view(view_name).await
     }
 
     pub async fn drop_table(
-        &self, uuid: &str, table_name: &str, cascade: bool,
+        &self, name: &str, table_name: &str, cascade: bool,
     ) -> anyhow::Result<()> {
-        let db = self.get_schema(uuid).await?;
+        let db = self.get_schema(name).await?;
         db.drop_table(table_name, cascade).await
     }
 
     pub async fn show_view(
-        &self, uuid: &str, view_name: &str, where_str: Option<&str>, order_by: Option<&str>,
+        &self, name: &str, view_name: &str, where_str: Option<&str>, order_by: Option<&str>,
         page: usize, page_size: usize,
     ) -> anyhow::Result<TableListResp> {
-        let db = self.get_schema(uuid).await?;
+        let db = self.get_schema(name).await?;
         db.show_view(view_name, where_str, order_by, page, page_size)
             .await
     }
 
-    pub async fn get_schema(&self, uuid: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        if !self.opens.lock().await.contains_key(uuid) {
-            let db_uuids: Vec<_> = uuid.split("~").collect();
+    pub async fn get_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
+        if !self.opens.lock().await.contains_key(name) {
+            let db_uuids: Vec<_> = name.split(":").collect();
             match db_uuids.len() {
                 1 => {
                     // nothing
@@ -478,14 +503,14 @@ impl App {
                         Open::Catalog(c) => {
                             let db = c.open_db(db_uuids[1]).await?;
                             self.opens.lock().await.insert(
-                                format!("{}~{}", db_uuids[0], db_uuids[1]),
+                                format!("{}:{}", db_uuids[0], db_uuids[1]),
                                 Open::DataBase(db),
                             );
                         }
                         Open::DataBase(d) => {
                             let s = d.open_schema(db_uuids[1]).await?;
                             self.opens.lock().await.insert(
-                                format!("{}~{}", db_uuids[0], db_uuids[1]),
+                                format!("{}:{}", db_uuids[0], db_uuids[1]),
                                 Open::Schema(s),
                             );
                         }
@@ -494,7 +519,7 @@ impl App {
                 }
 
                 3 => {
-                    let db_uuid = format!("{}~{}", db_uuids[0], db_uuids[1]);
+                    let db_uuid = format!("{}:{}", db_uuids[0], db_uuids[1]);
                     match self.get_opened(db_uuids[0]).await? {
                         Open::Catalog(c) => {
                             if self.opens.lock().await.contains_key(&db_uuid) {
@@ -504,7 +529,7 @@ impl App {
                                         self.opens
                                             .lock()
                                             .await
-                                            .insert(uuid.to_string(), Open::Schema(schema));
+                                            .insert(name.to_string(), Open::Schema(schema));
                                     }
                                     _ => anyhow::bail!("this should a database"),
                                 }
@@ -518,7 +543,7 @@ impl App {
                                 self.opens
                                     .lock()
                                     .await
-                                    .insert(uuid.to_string(), Open::Schema(schema));
+                                    .insert(name.to_string(), Open::Schema(schema));
                             }
                         }
                         _ => {
@@ -531,35 +556,35 @@ impl App {
                 }
             }
         }
-
-        match self.get_opened(uuid).await? {
+        // println!("xxxxxxx:{:?} {:?}", name, self.opens.lock().await);
+        match self.get_opened(name).await? {
             Open::Schema(x) => anyhow::Ok(x.clone()),
-            _ => anyhow::bail!(format!("this '{}' a multi", uuid)),
+            _ => anyhow::bail!(format!("this '{}' a multi", name)),
         }
     }
 
-    pub async fn get_opened(&self, uuid: &str) -> anyhow::Result<Open> {
-        let db = self.opens.lock().await.get(uuid).map(|x| x.clone());
+    pub async fn get_opened(&self, name: &str) -> anyhow::Result<Open> {
+        let db = self.opens.lock().await.get(name).map(|x| x.clone());
         let x = match db {
             Some(x) => x,
-            None => anyhow::bail!("db '{}' not found", uuid),
+            None => anyhow::bail!("db '{}' not found", name),
         };
         anyhow::Ok(x)
     }
 
-    pub async fn redis_list_table(&self, uuid: &str) -> anyhow::Result<RedisListTable> {
-        let db = self.get_schema(uuid).await?;
+    pub async fn redis_list_table(&self, name: &str) -> anyhow::Result<RedisListTable> {
+        let db = self.get_schema(name).await?;
         match db.as_any().downcast_ref::<RedisDB>() {
             Some(x) => x.redis_list_table().await,
-            None => anyhow::bail!(format!("'{}' not a redis", uuid)),
+            None => anyhow::bail!(format!("'{}' not a redis", name)),
         }
     }
 
-    pub async fn redis_match_keys(&self, uuid: &str, pattern: &str) -> anyhow::Result<Vec<String>> {
-        let db = self.get_schema(uuid).await?;
+    pub async fn redis_match_keys(&self, name: &str, pattern: &str) -> anyhow::Result<Vec<String>> {
+        let db = self.get_schema(name).await?;
         match db.as_any().downcast_ref::<RedisDB>() {
             Some(x) => x.redis_match_keys(pattern).await,
-            None => anyhow::bail!(format!("'{}' not a redis", uuid)),
+            None => anyhow::bail!(format!("'{}' not a redis", name)),
         }
     }
 }
@@ -577,8 +602,6 @@ impl Default for UserSettings {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use crate::datasource_config::MysqlDbConfig;
 
     use super::DBNexusConfigs;
@@ -589,18 +612,18 @@ mod tests {
         let s = DBNexusConfigs {
             user_settings: super::UserSettings { page_size: 100 },
             connection_configs: {
-                let mut m = HashMap::new();
-                m.insert("xxxx".to_string(), DBConnectionConfig::Sqlite {
+                let mut m = Vec::new();
+                m.push(DBConnectionConfig::Sqlite {
                     path: "d:\\sqlite.test.db".to_string(),
                     read_only: false,
                     name: "haha".to_string(),
                 });
-                m.insert("yyyy".to_string(), DBConnectionConfig::Mysql {
+                m.push(DBConnectionConfig::Mysql {
                     conn: MysqlDbConfig {
                         host: "127.0.0.1".to_string(),
                         port: 33,
                         username: "aaa".to_string(),
-                        password: "bbb".to_string(),
+                        password: Some("bbb".to_string()),
                         db: None,
                         read_only: false,
                     },

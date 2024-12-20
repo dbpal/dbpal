@@ -34,6 +34,7 @@ impl FormatSql for SqliteDB {
 pub struct SqliteDB {
     pool: sqlx::SqlitePool,
     read_only: bool,
+    path: String,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
 }
 
@@ -409,6 +410,12 @@ impl ServerMetas for SqliteDB {
         }
 
         anyhow::Ok(metas)
+    }
+}
+
+impl std::fmt::Debug for SqliteDB {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "sqlite on:{:?}", self.path)
     }
 }
 
@@ -1018,6 +1025,7 @@ impl SqliteDB {
             pool,
             read_only,
             query_connection: Default::default(),
+            path,
         })
     }
 

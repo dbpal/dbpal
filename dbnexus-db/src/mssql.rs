@@ -37,6 +37,11 @@ pub struct MsSqlServer {
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
 }
 
+impl std::fmt::Debug for MsSqlServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "mssql on:{:?}", self.config)
+    }
+}
 impl FormatSql for MsSqlServer {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))

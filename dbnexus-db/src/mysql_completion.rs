@@ -291,7 +291,7 @@ mod tests {
         MysqlDbConfig {
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
-            password: "root".to_string(),
+            password: Some("root".to_string()),
             port: 3307, // use mariadb to test mysql have bugs.
             db: Some("test".to_string()),
             read_only: false,

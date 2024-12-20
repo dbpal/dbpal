@@ -17,7 +17,7 @@ pub struct MysqlDbConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
-    pub password: String,
+    pub password: Option<String>,
     pub db: Option<String>,
     pub read_only: bool,
 }
@@ -31,7 +31,8 @@ pub struct RedisDbConfig {
     pub read_only: bool,
 }
 impl RedisDbConfig {
-    #[allow(dead_code)]
+    // I used this in test why.
+    #[allow(unused)]
     fn new(
         host: String, port: Option<u16>, username: Option<String>, password: Option<String>,
         db: Option<String>,
@@ -45,6 +46,7 @@ impl RedisDbConfig {
             read_only: false,
         }
     }
+
     pub(crate) fn make_conn_string(&self) -> String {
         let mut ret = "redis://".to_owned();
         match &self.username {
@@ -131,7 +133,7 @@ pub struct PGDbConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
-    pub password: String,
+    pub password: Option<String>,
     pub db: Option<String>,
     pub schema: Option<String>,
     pub read_only: bool,

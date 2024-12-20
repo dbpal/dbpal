@@ -38,7 +38,6 @@ function TabsWithCloseButton(props: {
       <Tabs
         value={selectIndex}
         onChange={(_e, index) => {
-          console.log('xxxxxx', index);
           changeTab(index);
         }}
       >
