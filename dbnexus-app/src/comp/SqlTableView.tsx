@@ -21,6 +21,7 @@ import {
   isTypeLargeText,
   modalStyle,
   pageSizeOptions,
+  progressBarSize,
 } from './Common';
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
@@ -180,7 +181,7 @@ function SqlTableView(props: {
         >
           Reload
         </Button>
-        {loading && <CircularProgress />}
+        {loading && <CircularProgress size={progressBarSize} />}
 
         {resp && <Alert color='info'> {resp.sql}</Alert>}
       </Stack>
@@ -340,7 +341,7 @@ function SqlTableViewAdd(props: {
         <Button variant='contained' onClick={handleAdd}>
           Add
         </Button>
-        {loading && <CircularProgress />}
+        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
     </Stack>
   );

@@ -2,9 +2,11 @@ import {
   Box,
   FormControl,
   InputLabel,
+  ListItem,
   MenuItem,
   Select,
   Stack,
+  Typography,
 } from '@mui/material';
 
 import { languages, Position as EditorPositon, editor } from 'monaco-editor';
@@ -15,7 +17,7 @@ import { BSON } from 'bson';
 import { createContext, CSSProperties } from 'react';
 import { Editor, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
-
+import RefreshIcon from '@mui/icons-material/Refresh';
 // TOOD 适配黑暗模式
 const modalStyle = {
   position: 'absolute',
@@ -324,6 +326,10 @@ const NameAndTypeContext = createContext<{
   database?: string;
 }>(null);
 
+const MenuContext = createContext<{
+  setMenuContent;
+}>(null);
+
 const msgTimeout = 5000;
 
 function tabsHasId(tabs: TabContent[], id: string): number | null {
@@ -341,7 +347,65 @@ interface DefAndMetas {
   def: string;
   metas: types.MetaValue[];
 }
+const progressBarSize = '30px';
 
+function getViewportSize() {
+  const width = window.innerWidth; // 获取视口的宽度
+  const height = window.innerHeight; // 获取视口的高度
+
+  console.log('Viewport width:', width);
+  console.log('Viewport height:', height);
+
+  return { width, height }; // 返回一个对象，包含宽度和高度
+}
+
+function MenuRefresh({ reload }) {
+  return (
+    <MenuItem
+      onClick={() => {
+        reload();
+      }}
+    >
+      <ListItem>
+        <RefreshIcon></RefreshIcon>
+      </ListItem>
+      <ListItem> refresh </ListItem>
+      <Typography variant='body2' sx={{ color: 'text.secondary' }}></Typography>
+    </MenuItem>
+  );
+}
+
+function setUpMenu(e, eheigth) {
+  e.preventDefault();
+  const x = e.clientX;
+  const y = e.clientY;
+  const leftSizeMenuDom = document.getElementById('left-side-menu');
+  leftSizeMenuDom.style.display = 'block';
+  const { height } = getViewportSize();
+  {
+    // reset to auto.
+    leftSizeMenuDom.style.top = 'auto';
+    leftSizeMenuDom.style.bottom = 'auto';
+  }
+  leftSizeMenuDom.style.left =
+    x -
+    10 + // 稍微靠左一点
+    'px';
+  if (height - y > eheigth) {
+    // 这个是点击的位置下面有很大的空间
+    leftSizeMenuDom.style.top =
+      y -
+      10 + // 稍微靠上一点
+      'px';
+  } else {
+    // 没有空间了用bottom 定位
+    leftSizeMenuDom.style.bottom =
+      height -
+      y -
+      10 + // 稍微靠上一点
+      'px';
+  }
+}
 export {
   modalStyle,
   SelectPageSize,
@@ -370,6 +434,10 @@ export {
   NameAndTypeContext,
   DataSourceKind,
   connTypeToDataSourceKind,
+  progressBarSize,
+  MenuContext,
+  setUpMenu,
+  MenuRefresh,
 };
 
 export type { DefAndMetas };

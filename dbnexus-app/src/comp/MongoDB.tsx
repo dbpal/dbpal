@@ -39,6 +39,7 @@ import {
   datagridHeaderHeight,
   defaultPageSize,
   editorInitHeight,
+  progressBarSize,
 } from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
@@ -317,7 +318,7 @@ function MongoDBModify(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress />}
+      {loading && <CircularProgress size={progressBarSize} />}
       <MongoBsonEditor
         doc={doc}
         handleChange={(e) => {
@@ -454,7 +455,7 @@ function MongoTableListToolBar(props: {
         >
           Reload
         </Button>
-        {loading && <CircularProgress />}
+        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
       <Stack direction='row' style={{ padding: '5px' }}>
         <ButtonGroup variant='contained' aria-label='Basic button group'>

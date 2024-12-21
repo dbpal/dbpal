@@ -128,7 +128,7 @@ function SqlQuery(props: {
           </div>
         )}
         <Stack direction='row' spacing={1} style={{ paddingLeft: '40px' }}>
-          {loading && <CircularProgress />}
+          {loading && <CircularProgress size={progressBarSize} />}
           <Tooltip title='execute'>
             <IconButton
               disabled={loading}

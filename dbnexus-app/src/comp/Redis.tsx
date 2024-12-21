@@ -26,6 +26,7 @@ import {
   datagridRowHeight,
   datagridHeaderHeight,
   defaultPageSize,
+  progressBarSize,
 } from './Common.tsx';
 
 import { types } from './ApiStruct.ts';
@@ -78,7 +79,7 @@ function RedisListAdd(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress />}
+      {loading && <CircularProgress size={progressBarSize} />}
       <Box width='200px'>
         <FormControl fullWidth>
           <InputLabel id='simple-select-label'>Direction</InputLabel>
@@ -160,7 +161,7 @@ function RedisStringTable(props: {
         >
           Set
         </Button>
-        {loading && <CircularProgress />}
+        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
     </Stack>
   );
@@ -208,7 +209,7 @@ function RedisAddSet(props: {
         <Button color='primary' variant='contained' onClick={handleAdd}>
           Add
         </Button>
-        {loading && <CircularProgress />}
+        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
     </Stack>
   );
@@ -240,7 +241,7 @@ function RedisAddHash(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress />}
+      {loading && <CircularProgress size={progressBarSize} />}
       <Typography variant='h5'> key </Typography>
       <RedisEditHexOrText
         oldValue={key}
@@ -301,7 +302,7 @@ function RedisAddZset(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress />}
+      {loading && <CircularProgress size={progressBarSize} />}
       <TextField
         value={score}
         label='score'
@@ -364,7 +365,7 @@ function RedisEditHash(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress />}
+      {loading && <CircularProgress size={progressBarSize} />}
       <Typography variant='h5'>key</Typography>
       <RedisEditHexOrText
         oldValue={newKey}
@@ -431,7 +432,7 @@ function RedisEditZset(props: {
 
   return (
     <Stack spacing={2}>
-      {loading && <CircularProgress />}
+      {loading && <CircularProgress size={progressBarSize} />}
       <TextField
         value={newValue}
         label='score'
@@ -654,7 +655,7 @@ function RedisEditList(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress />}
+      {loading && <CircularProgress size={progressBarSize} />}
       <RedisEditHexOrText
         oldValue={oldValue}
         handleValue={(e) => {
@@ -710,7 +711,7 @@ function RedisEditSet(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress />}
+      {loading && <CircularProgress size={progressBarSize} />}
       <RedisEditHexOrText
         oldValue={oldValue}
         handleValue={(e) => {
@@ -1630,7 +1631,7 @@ function RedisModifyKeyName(props: {
     <Stack spacing={1}>
       <Stack direction='row'>
         <Typography variant='subtitle1'> New name: </Typography>
-        {loading && <CircularProgress />}
+        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
 
       <TextField

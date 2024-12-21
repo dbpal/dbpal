@@ -8,7 +8,12 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { DefAndMetas, MetaValues, SimpleResizeAbleEditor } from './Common';
+import {
+  DefAndMetas,
+  MetaValues,
+  progressBarSize,
+  SimpleResizeAbleEditor,
+} from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import types from './ApiStruct';
 import { Variant } from '@mui/material/styles/createTypography';
@@ -76,7 +81,7 @@ function DefAndMetasView(props: {
         </Alert>
       )}
 
-      {loading && <CircularProgress />}
+      {loading && <CircularProgress size={progressBarSize} />}
       <Stack direction='row' spacing={1}>
         <Button
           variant='contained' // 可以是 'text', 'outlined', 或 'contained'

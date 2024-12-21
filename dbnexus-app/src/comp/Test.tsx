@@ -3,40 +3,24 @@ import ReactDOM from 'react-dom/client';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
 import React, { createContext, useContext } from 'react';
-
-// 创建一个Context
-const ThemeContext = createContext();
+import { NameAndTypeContext } from './Common';
 
 const App = () => {
   return (
-    <ThemeContext.Provider value='light'>
+    <NameAndTypeContext.Provider value={{ uuid: '1', conn_type: 'xxxx' }}>
       <ThemeComponent />
-    </ThemeContext.Provider>
+      <NameAndTypeContext.Provider value={{ uuid: '1' }}>
+        <ThemeComponent />
+      </NameAndTypeContext.Provider>
+    </NameAndTypeContext.Provider>
   );
 };
 
 const ThemeComponent = () => {
+  const { conn_type } = useContext(NameAndTypeContext);
   return (
     <div>
-      <h2>Outer Theme</h2>
-      <ThemeContext.Provider value='dark'>
-        <InnerComponent />
-      </ThemeContext.Provider>
-    </div>
-  );
-};
-
-const InnerComponent = () => {
-  const theme = useContext(ThemeContext);
-
-  return (
-    <div
-      style={{
-        background: theme === 'dark' ? '#333' : '#FFF',
-        color: theme === 'dark' ? '#FFF' : '#000',
-      }}
-    >
-      <h3>Inner Component Theme: {theme}</h3>
+      <h2> {conn_type ? conn_type : 'empty'} </h2>
     </div>
   );
 };

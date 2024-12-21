@@ -26,7 +26,6 @@ function QueryResp(props: { data: types.MuiDataGridData }) {
     // @ts-ignore
     e.flex = 1;
   });
-
   return (
     <DataGrid
       rowHeight={datagridRowHeight}
@@ -55,7 +54,7 @@ function CustomTabPanel(props: TabPanelProps) {
       aria-labelledby={`${idPrefix}-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+      {value === index && <div>{children}</div>}
     </div>
   );
 }
@@ -70,7 +69,14 @@ function a11yProps(idPrefix: string, index: number) {
 function MultiQueryResp(props: { data: any[] }) {
   let { data } = props;
   if (data.length == 0) {
-    return;
+    return <></>;
+  }
+  if (data.length == 1) {
+    return data[0].Err ? (
+      <Alert severity='error'>{data[0].Err}</Alert>
+    ) : (
+      <QueryResp data={data[0].Ok}></QueryResp>
+    );
   }
   const [value, setValue] = React.useState(0);
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -78,49 +84,36 @@ function MultiQueryResp(props: { data: any[] }) {
   };
   let idPrefix = generateRandomString(10);
   return (
-    <div style={{ overflow: 'scroll' }}>
-      {data.length == 1 ? (
-        data[0].Err ? (
-          <Alert severity='error'>{data[0].Err}</Alert>
-        ) : (
-          <QueryResp data={data[0].Ok}></QueryResp>
-        )
-      ) : (
-        <Box>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs
-              value={value}
-              onChange={handleChange}
-              aria-label='basic tabs example'
-            >
-              {data.map((_, index) => (
-                <Tab
-                  label={`Result ${index + 1}`}
-                  key={index}
-                  {...a11yProps(idPrefix, index)}
-                />
-              ))}
-            </Tabs>
-          </Box>
+    <div>
+      <h1 style={{ backgroundColor: 'blue' }}>1234</h1>
+      <div>
+        <Tabs value={value} onChange={handleChange} aria-label='query results.'>
+          {data.map((_, index) => (
+            <Tab
+              label={`Result ${index + 1}`}
+              key={index}
+              {...a11yProps(idPrefix, index)}
+            />
+          ))}
+        </Tabs>
+      </div>
 
-          {data.map((e, index) => {
-            return (
-              <CustomTabPanel
-                idPrefix={idPrefix}
-                key={`panel${index}`}
-                value={value}
-                index={index}
-              >
-                {e.Err ? (
-                  <Alert severity='error'>{e.Err}</Alert>
-                ) : (
-                  <QueryResp data={e.Ok}></QueryResp>
-                )}
-              </CustomTabPanel>
-            );
-          })}
-        </Box>
-      )}
+      {data.map((e, index) => {
+        return (
+          <CustomTabPanel
+            idPrefix={idPrefix}
+            key={`panel${index}`}
+            value={value}
+            index={index}
+          >
+            {e.Err ? (
+              <Alert severity='error'>{e.Err}</Alert>
+            ) : (
+              <QueryResp data={e.Ok}></QueryResp>
+            )}
+          </CustomTabPanel>
+        );
+      })}
     </div>
   );
 }

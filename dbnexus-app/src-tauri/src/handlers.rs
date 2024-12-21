@@ -15,17 +15,6 @@ use tauri::AppHandle;
 use tauri::Emitter;
 
 #[tauri::command]
-fn login(app: AppHandle, user: String, password: String) {
-    let authenticated = user == "tauri-apps" && password == "tauri";
-    let result = if authenticated {
-        "loggedIn"
-    } else {
-        "invalidCredentials"
-    };
-    app.emit_to("login", "login-result", result).unwrap();
-}
-
-#[tauri::command]
 pub async fn add_config(
     config: DBConnectionConfig, app: tauri::State<'_, App>, handler: AppHandle,
 ) -> Result<(), AnyhowErrorFrontend> {
@@ -565,6 +554,7 @@ pub async fn show_trigger(
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))
 }
+
 #[tauri::command]
 pub async fn rename_table(
     name: String, old: String, new: String, app: tauri::State<'_, App>,

@@ -16,6 +16,10 @@ import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { listen } from '@tauri-apps/api/event';
+
+import { TablesTree } from './LeftTable';
+import { ViewsTree } from './LeftView';
+
 function Left() {
   let { setTabs, tabs, setSelectIndex } = useContext(TabsSetContext);
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
@@ -80,14 +84,13 @@ function Left() {
           );
         })}
       </Stack>
+      <div style={{ minHeight: '300px' }}></div>
     </Stack>
   );
 }
 
 function OneConfig(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-
-  let kind = connTypeToDataSourceKind(config.conn_type);
 
   return (
     <SimpleTreeView>
@@ -103,7 +106,6 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
 function SchemaTree(prpos: { schemaname?: string; isTop: boolean }) {
   const { uuid, database, conn_type } = useContext(NameAndTypeContext);
   let { schemaname, isTop } = prpos;
-
   const getPrefix = () => {
     return uuid + database + schemaname;
   };
@@ -122,49 +124,13 @@ function SchemaTree(prpos: { schemaname?: string; isTop: boolean }) {
 
   return (
     <TreeItem itemId={getPrefix()} label={isTop ? uuid : schemaname}>
-      <NameAndTypeContext.Provider value={{ uuid: newUuid() }}>
+      <NameAndTypeContext.Provider
+        value={{ uuid: newUuid(), conn_type, database }}
+      >
         <TablesTree></TablesTree>
+        <ViewsTree></ViewsTree>
       </NameAndTypeContext.Provider>
     </TreeItem>
-  );
-}
-
-function TablesTree() {
-  const { uuid } = useContext(NameAndTypeContext);
-  const [tables, setTables] = useState<types.ListTable[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const handleReload = () => {
-    invoke<types.ListTable[]>('list_table', { name: uuid })
-      .then((ts) => {
-        setTables(ts);
-      })
-      .catch((e) => {
-        showNotification('error', 'list table failed', e);
-      });
-  };
-  useEffect(() => {
-    handleReload();
-  }, []);
-  return (
-    <TreeItem itemId={uuid + '-tables'} label='tables'>
-      {tables.map((e) => (
-        <TableTree key={e.name} table={e.name}></TableTree>
-      ))}
-    </TreeItem>
-  );
-}
-
-function TableTree(props: { table: string }) {
-  let { table } = props;
-  const { uuid } = useContext(NameAndTypeContext);
-  return (
-    <TreeItem
-      itemId={uuid + '-' + table}
-      onContextMenu={(e) => {
-        e.preventDefault();
-      }}
-      label={table}
-    ></TreeItem>
   );
 }
 
@@ -182,7 +148,6 @@ function DatabaseTree(props: { isTop: boolean }) {
         showNotification('error', 'list schema failed', e);
       });
   };
-
   useEffect(() => {
     handleReload();
   }, []);

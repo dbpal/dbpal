@@ -1222,7 +1222,6 @@ impl DBTrait for MysqlDB {
             if name.eq_ignore_ascii_case("information_schema")
                 || name.eq_ignore_ascii_case("mysql")
                 || name.eq_ignore_ascii_case("performance_schema")
-                || name.eq_ignore_ascii_case("sys")
             {
                 continue;
             }
@@ -1881,13 +1880,7 @@ pub(crate) mod test_fns {
         let db = &db as &dyn crate::db::DBTrait;
 
         let resp = db.list_schema().await.unwrap();
-        assert_eq!(resp, vec![
-            "information_schema",
-            "mysql",
-            "performance_schema",
-            "sys",
-            "test"
-        ]);
+        assert_eq!(resp, vec!["test"]);
     }
 
     pub(crate) async fn test_query(db: MysqlDB) {

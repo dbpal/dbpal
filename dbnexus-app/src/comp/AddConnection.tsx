@@ -18,7 +18,7 @@ import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 
 import { invoke } from '@tauri-apps/api/core';
-import { DataSourceKind, msgTimeout } from './Common';
+import { DataSourceKind, msgTimeout, progressBarSize } from './Common';
 import { open } from '@tauri-apps/plugin-dialog';
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
@@ -441,7 +441,7 @@ export default function AddConfig() {
           Test
         </Button>
         {testOk && <Alert severity='success'> Test OK </Alert>}
-        {testLoading && <CircularProgress />}
+        {testLoading && <CircularProgress size={progressBarSize} />}
       </Stack>
       <FormControlLabel
         control={

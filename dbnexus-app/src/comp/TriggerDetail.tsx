@@ -86,7 +86,7 @@ function TriggerDetail(props: {
           >
             Disable
           </Button>
-          {loading && <CircularProgress />}
+          {loading && <CircularProgress size={progressBarSize} />}
         </Stack>
       </Stack>
     ) : (
@@ -108,7 +108,7 @@ function TriggerDetail(props: {
           >
             Disable
           </Button>
-          {loading && <CircularProgress />}
+          {loading && <CircularProgress size={progressBarSize} />}
         </Stack>
       </Stack>
     );
