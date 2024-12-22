@@ -56,7 +56,7 @@ function SqlTableView(props: {
     });
     resp.data.fields.forEach((e) => {
       //@ts-ignore
-      e.flex = 1;
+      // e.flex = 1;
       //@ts-ignore
       e.renderHeader = (e) => {
         let def = e.colDef;

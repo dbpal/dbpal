@@ -582,7 +582,7 @@ impl MysqlDB {
         let s = format!(
             r#"SELECT table_name ,data_length
         FROM information_schema.tables
-        WHERE table_schema = '{}';"#,
+        WHERE table_schema = '{}' AND  table_type = 'BASE TABLE';"#,
             schema
         );
         let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
@@ -592,7 +592,6 @@ impl MysqlDB {
             let size: Option<u64> = r.get(1);
             ret.push(ListTable::new(table_name, size));
         }
-
         anyhow::Ok(ret)
     }
 

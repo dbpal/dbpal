@@ -59,11 +59,14 @@ function TablesTree() {
   useEffect(() => {
     handleReload();
   }, []);
+
   let { setMenuContent } = useContext(MenuContext);
   return (
     <TreeItem
       itemId={uuid + '-tables'}
-      label=<div
+      label=<Stack
+        justifyContent='space-between'
+        direction='row'
         onContextMenu={(e) => {
           setMenuContent(
             <MenuList>
@@ -73,8 +76,8 @@ function TablesTree() {
           setUpMenu(e, 70);
         }}
       >
-        tables
-      </div>
+        <span> tables </span>
+      </Stack>
     >
       {loading && (
         <TreeItem
@@ -82,13 +85,16 @@ function TablesTree() {
           label={<CircularProgress size={progressBarSize}></CircularProgress>}
         ></TreeItem>
       )}
-      {tables.map((e) => (
-        <TableTree
-          key={e.name}
-          reloadTables={handleReload}
-          table={e.name}
-        ></TableTree>
-      ))}
+
+      {tables.map((e) => {
+        return (
+          <TableTree
+            key={e.name}
+            reloadTables={handleReload}
+            table={e.name}
+          ></TableTree>
+        );
+      })}
     </TreeItem>
   );
 }
@@ -99,7 +105,7 @@ function TableTree(props: { table: string; reloadTables }) {
   let { setMenuContent } = useContext(MenuContext);
   return (
     <TreeItem
-      itemId={uuid + '-' + table}
+      itemId={uuid + '-table-' + table}
       onContextMenu={(e) => {
         setMenuContent(
           <TableMenu

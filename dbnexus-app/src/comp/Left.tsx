@@ -103,6 +103,7 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
     </SimpleTreeView>
   );
 }
+
 function SchemaTree(prpos: { schemaname?: string; isTop: boolean }) {
   const { uuid, database, conn_type } = useContext(NameAndTypeContext);
   let { schemaname, isTop } = prpos;

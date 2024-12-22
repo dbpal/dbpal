@@ -18,13 +18,13 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import ListIcon from '@mui/icons-material/List';
 
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 
 import types from './ApiStruct';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-
+import ListIcon from '@mui/icons-material/List';
 function ViewsTree() {
   const { uuid } = useContext(NameAndTypeContext);
   const [views, setViews] = useState<types.NamedStaff[]>([]);
@@ -52,7 +52,7 @@ function ViewsTree() {
   return (
     <TreeItem
       itemId={uuid + '-views'}
-      label=<div 
+      label=<div
         onContextMenu={(e) => {
           setMenuContent(
             <MenuList>
@@ -67,7 +67,7 @@ function ViewsTree() {
     >
       {loading && (
         <TreeItem
-          itemId={uuid + '-views' + 'loading'}
+          itemId={uuid + '-views-' + 'loading'}
           label={<CircularProgress size={progressBarSize}></CircularProgress>}
         ></TreeItem>
       )}
@@ -85,14 +85,18 @@ function ViewTree(props: { view: string; reload }) {
   let { setMenuContent } = useContext(MenuContext);
   return (
     <TreeItem
-      itemId={uuid + '-' + view}
+      itemId={uuid + '-view-' + view}
       onContextMenu={(e) => {
         setMenuContent(
           <ViewMenu kind={conn_type} reload={reload} view={view} uuid={uuid} />
         );
         setUpMenu(e, 100);
       }}
-      label={<>{view}</>}
+      label={
+        <>
+          <VisibilityIcon></VisibilityIcon> {view}
+        </>
+      }
     ></TreeItem>
   );
 }
