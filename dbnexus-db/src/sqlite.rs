@@ -426,6 +426,20 @@ impl BackendName for SqliteDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
+    async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
+        use sqlx::Executor;
+        use sqlx::Statement;
+        let mut conn = self.get_conn().await?;
+        let sql = format!("select * from {view_name} limit 1");
+        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+        let ret = s
+            .columns()
+            .iter()
+            .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+            .collect::<Vec<_>>();
+        anyhow::Ok(ret)
+    }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {

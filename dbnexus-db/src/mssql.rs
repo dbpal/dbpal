@@ -440,6 +440,43 @@ impl BackendName for MsSqlServer {
 
 #[async_trait::async_trait]
 impl SchemaTrait for MsSqlServer {
+    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
+        anyhow::Ok(crate::mysql_completion::TYPES)
+    }
+    async fn modify_table_column(
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<String>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        if old_name != new_name {
+            let sql = format!(
+                r#"
+            EXEC sp_rename '{table}.{old_name}', '{new_name}', 'COLUMN';
+            "#
+            );
+            conn.deref_mut().execute(&sql, &[]).await?;
+        }
+        if let Some(typ) = typ.as_ref() {
+            let sql = format!(
+                r#"
+            ALTER TABLE {table} ALTER COLUMN {new_name} {typ};
+            "#
+            );
+            conn.deref_mut().execute(&sql, &[]).await?;
+        }
+        anyhow::Ok(())
+    }
+
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"
+            ALTER TABLE {table} DROP COLUMN {col};
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        conn.execute(&sql, &[]).await?;
+        anyhow::Ok(())
+    }
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {

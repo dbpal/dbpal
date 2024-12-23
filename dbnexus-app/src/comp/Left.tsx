@@ -6,8 +6,9 @@ import {
   connTypeToDataSourceKind,
   tabsHasId,
   TabsSetContext,
-  NameAndTypeContext,
+  UuidContext,
   DataSourceKind,
+  ConnTypeContext,
 } from './Common';
 import AddConfig from './AddConnection';
 import types from './ApiStruct';
@@ -73,14 +74,17 @@ function Left() {
       <Stack>
         {configs.map((e) => {
           return (
-            <NameAndTypeContext.Provider
-              value={{
-                uuid: e.name,
-                conn_type: connTypeToDataSourceKind(e.conn_type),
-              }}
+            <ConnTypeContext.Provider
+              value={{ conn_type: connTypeToDataSourceKind(e.conn_type) }}
             >
-              <OneConfig key={e.name} config={e}></OneConfig>
-            </NameAndTypeContext.Provider>
+              <UuidContext.Provider
+                value={{
+                  uuid: e.name,
+                }}
+              >
+                <OneConfig key={e.name} config={e}></OneConfig>
+              </UuidContext.Provider>
+            </ConnTypeContext.Provider>
           );
         })}
       </Stack>
@@ -105,7 +109,8 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
 }
 
 function SchemaTree(prpos: { schemaname?: string; isTop: boolean }) {
-  const { uuid, database, conn_type } = useContext(NameAndTypeContext);
+  const { uuid, database } = useContext(UuidContext);
+  const { conn_type } = useContext(ConnTypeContext);
   let { schemaname, isTop } = prpos;
   const getPrefix = () => {
     return uuid + database + schemaname;
@@ -125,18 +130,16 @@ function SchemaTree(prpos: { schemaname?: string; isTop: boolean }) {
 
   return (
     <TreeItem itemId={getPrefix()} label={isTop ? uuid : schemaname}>
-      <NameAndTypeContext.Provider
-        value={{ uuid: newUuid(), conn_type, database }}
-      >
+      <UuidContext.Provider value={{ uuid: newUuid(), database }}>
         <TablesTree></TablesTree>
         <ViewsTree></ViewsTree>
-      </NameAndTypeContext.Provider>
+      </UuidContext.Provider>
     </TreeItem>
   );
 }
 
 function DatabaseTree(props: { isTop: boolean }) {
-  const { uuid: name, database } = useContext(NameAndTypeContext);
+  const { uuid: name, database } = useContext(UuidContext);
   const { showNotification } = useContext(NotificationContext);
   const [databases, setDatabases] = useState<string[]>([]);
   let { isTop } = props;

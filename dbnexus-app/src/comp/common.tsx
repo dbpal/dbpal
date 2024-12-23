@@ -2,11 +2,12 @@ import {
   Box,
   FormControl,
   InputLabel,
-  ListItem,
+  ListItemIcon,
+  ListItemText,
   MenuItem,
   Select,
   Stack,
-  Typography,
+  SxProps,
 } from '@mui/material';
 
 import { languages, Position as EditorPositon, editor } from 'monaco-editor';
@@ -18,8 +19,9 @@ import { createContext, CSSProperties } from 'react';
 import { Editor, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import RefreshIcon from '@mui/icons-material/Refresh';
+
 // TOOD 适配黑暗模式
-const modalStyle = {
+const modalStyle: SxProps = {
   position: 'absolute',
   top: '50%',
   left: '50%',
@@ -27,9 +29,9 @@ const modalStyle = {
   bgcolor: 'background.paper',
   border: '1px solid #000',
   boxShadow: 24,
-  padding: 0,
   margin: 0,
   p: 4,
+  resize: 'both',
 };
 
 function MetaValues(props: { values: types.MetaValue[] }) {
@@ -39,6 +41,7 @@ function MetaValues(props: { values: types.MetaValue[] }) {
     { field: 'value' },
     { field: 'desc', flex: 1 },
   ];
+
   values.forEach((e) => {
     //@ts-ignore
     e.id = uuidv4();
@@ -319,10 +322,12 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
       return DataSourceKind.Sqlite;
   }
 }
+const ConnTypeContext = createContext<{
+  conn_type: DataSourceKind;
+}>(null);
 
-const NameAndTypeContext = createContext<{
+const UuidContext = createContext<{
   uuid: string;
-  conn_type?: DataSourceKind;
   database?: string;
 }>(null);
 
@@ -353,9 +358,6 @@ function getViewportSize() {
   const width = window.innerWidth; // 获取视口的宽度
   const height = window.innerHeight; // 获取视口的高度
 
-  console.log('Viewport width:', width);
-  console.log('Viewport height:', height);
-
   return { width, height }; // 返回一个对象，包含宽度和高度
 }
 
@@ -366,11 +368,10 @@ function MenuRefresh({ reload }) {
         reload();
       }}
     >
-      <ListItem>
+      <ListItemIcon>
         <RefreshIcon></RefreshIcon>
-      </ListItem>
-      <ListItem> refresh </ListItem>
-      <Typography variant='body2' sx={{ color: 'text.secondary' }}></Typography>
+      </ListItemIcon>
+      <ListItemText> refresh </ListItemText>
     </MenuItem>
   );
 }
@@ -406,6 +407,15 @@ function setUpMenu(e, eheigth) {
       'px';
   }
 }
+
+function chunkArray(array: any[], chunkSize: number): any[][] {
+  const result = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    result.push(array.slice(i, i + chunkSize));
+  }
+  return result;
+}
+
 export {
   modalStyle,
   SelectPageSize,
@@ -431,13 +441,15 @@ export {
   TabsSetContext,
   tabsHasId,
   msgTimeout,
-  NameAndTypeContext,
+  UuidContext,
   DataSourceKind,
   connTypeToDataSourceKind,
   progressBarSize,
   MenuContext,
   setUpMenu,
   MenuRefresh,
+  ConnTypeContext,
+  chunkArray,
 };
 
 export type { DefAndMetas };

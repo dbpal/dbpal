@@ -49,6 +49,18 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
 
+    async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
+        not_support_features(self.backend_name())
+    }
+    async fn modify_table_column(
+        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<String>,
+    ) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()>;
 
     async fn delete(
@@ -67,6 +79,14 @@ pub trait SchemaTrait:
         _page_size: usize,
     ) -> anyhow::Result<TableListResp> {
         not_support_features(self.backend_name())
+    }
+
+    async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
+        // 有些后端没有数据 也能得到完整的结果所以提供一个默认实现
+        // 后端基于sqlx的需要使用prepare_with这种特殊的接口
+        self.show_view(view_name, None, None, 1, 1)
+            .await
+            .map(|x| x.fields)
     }
 
     async fn export_table(
@@ -482,6 +502,40 @@ pub trait ServerMetas {
 }
 
 impl dyn SchemaTrait {
+    pub(crate) fn make_where(
+        &self, fs: &Vec<Field>, wheres: &HashMap<String, Option<String>>,
+        field_by_name: &HashMap<&String, &Field>,
+    ) -> anyhow::Result<String> {
+        // if contains primary key should use primary key to delete
+        // otherwise should use all value
+        // to do operation.
+        let contains_pri = fs.iter().any(|x| x.is_primary);
+        let mut sql = String::new();
+
+        let mut first = true;
+        for (k, v) in wheres.iter() {
+            let f = field_by_name.get(k);
+            let f = f.map(|x| *x);
+
+            if f.is_none() {
+                anyhow::bail!("field  '{}' not found", k);
+            }
+            if contains_pri && !f.unwrap().is_primary {
+                continue;
+            }
+            sql.push_str(
+                format!(
+                    "{} {} = {}",
+                    if !first { " AND " } else { "" },
+                    k,
+                    self.put_value_in_sql(f.unwrap(), v.as_ref().map(|x| x.as_str()))?
+                )
+                .as_str(),
+            );
+            first = false;
+        }
+        anyhow::Ok(sql)
+    }
     pub(crate) fn delete_sql(
         &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
         wheres: &HashMap<String, Option<String>>,
@@ -490,11 +544,6 @@ impl dyn SchemaTrait {
         for f in fs.iter() {
             field_by_name.insert(&f.field, f);
         }
-
-        // if contains primary key should use primary key to delete
-        // otherwise should use all value
-        // to delete.
-        let contains_pri = fs.iter().any(|x| x.is_primary);
 
         let mut sql = format!(
             "DELETE FROM {}{table_name} WHERE ",
@@ -505,31 +554,7 @@ impl dyn SchemaTrait {
             }
         );
 
-        {
-            let mut first = true;
-            for (k, v) in wheres.iter() {
-                let f = field_by_name.get(k);
-                let f = f.map(|x| *x);
-
-                if f.is_none() {
-                    anyhow::bail!("field  '{}' not found", k);
-                }
-                if contains_pri && !f.unwrap().is_primary {
-                    continue;
-                }
-                sql.push_str(
-                    format!(
-                        "{} {} = {}",
-                        if !first { "AND" } else { "" },
-                        k,
-                        self.put_value_in_sql(f.unwrap(), v.as_ref().map(|x| x.as_str()))?
-                    )
-                    .as_str(),
-                );
-
-                first = false;
-            }
-        }
+        sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
         log::info!("delete sql:{}", sql);
         anyhow::Ok(sql)
     }
@@ -544,7 +569,6 @@ impl dyn SchemaTrait {
         for f in fs.iter() {
             field_by_name.insert(&f.field, f);
         }
-        let contains_pri = fs.iter().any(|x| x.is_primary);
 
         let mut sql = format!(
             "UPDATE {}{table_name} SET ",
@@ -576,30 +600,8 @@ impl dyn SchemaTrait {
             }
         }
         sql.push_str(" WHERE ");
-        {
-            let mut first = true;
-            for (k, v) in wheres.iter() {
-                let f = field_by_name.get(k);
-                if f.is_none() {
-                    anyhow::bail!("field  '{}' not found", k);
-                }
-                if contains_pri && !f.unwrap().is_primary {
-                    continue;
-                }
-                sql.push_str(
-                    format!(
-                        "{} {} = {}",
-                        if !first { "AND" } else { "" },
-                        k,
-                        self.put_value_in_sql(*f.unwrap(), v.as_ref().map(|x| x.as_str()))?
-                    )
-                    .as_str(),
-                );
-                first = false;
-            }
-        }
+        sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
         log::info!("update sql:{}", sql);
-
         anyhow::Ok(sql)
     }
 

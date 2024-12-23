@@ -185,6 +185,58 @@ pub async fn truncate_table(
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
+
+#[tauri::command]
+pub async fn drop_table_column(
+    name: String, table_name: String, column_name: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    schema
+        .drop_table_column(&table_name, &column_name)
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn modify_table_column(
+    name: String, table_name: String, old_name: String, new_name: String, typ: Option<String>,
+    app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    schema
+        .modify_table_column(&table_name, &old_name, &new_name, typ)
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_data_types(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<&'static [&'static str], AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    let ret = schema
+        .list_data_types()
+        .map_err(AnyhowErrorFrontend::from)?;
+    Ok(ret)
+}
+
 #[tauri::command]
 pub async fn delete(
     name: String, table_name: String, wheres: HashMap<String, Option<String>>,
@@ -245,6 +297,22 @@ pub async fn show_view(
     .await
     .map_err(AnyhowErrorFrontend::from)
     .map(MuiDataTableListResp::from)
+}
+#[tauri::command]
+pub async fn show_view_coumns(
+    name: String, view_name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<Field>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(&name)
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+
+    schema
+        .show_view_columns(&view_name)
+        .await
+        .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]

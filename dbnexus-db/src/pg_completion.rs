@@ -16,7 +16,7 @@ impl LexerCompletionTrait for PostGresDB {
     type Dialect = sqlparser::dialect::PostgreSqlDialect;
 
     const KEY_WORDS: &'static [&'static str] = PG_KEYWORDS;
-    const TYPES: &'static [&'static str] = PG_TYPES;
+    const TYPES: &'static [&'static str] = TYPES;
 }
 
 impl PostGresDB {
@@ -598,7 +598,7 @@ mod tests {
     }
 }
 
-const PG_TYPES: &[&str] = &[
+pub(crate) const TYPES: &[&str] = &[
     "BOOL",
     "BYTEA",
     "NAME",

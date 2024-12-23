@@ -1,14 +1,16 @@
-import { useContext, useEffect, useState } from 'react';
+import { ReactNode, useContext, useEffect, useState } from 'react';
 import {
   DataSourceKind,
   MenuContext,
   MenuRefresh,
   modalStyle,
-  NameAndTypeContext,
+  UuidContext,
   progressBarSize,
   setUpMenu,
   tabsHasId,
   TabsSetContext,
+  ConnTypeContext,
+  chunkArray,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -23,23 +25,25 @@ import TableViewIcon from '@mui/icons-material/TableView';
 import {
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   FormControlLabel,
-  ListItem,
+  ListItemIcon,
+  ListItemText,
   MenuItem,
   MenuList,
   Modal,
+  Paper,
   Stack,
   Switch,
   TextField,
-  Typography,
 } from '@mui/material';
 import { secondConfirm } from './Confirm';
 import { TabContent } from './Tabs';
 import { SqlTableView } from './SqlTableView';
 
 function TablesTree() {
-  const { uuid } = useContext(NameAndTypeContext);
+  const { uuid } = useContext(UuidContext);
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
@@ -101,28 +105,229 @@ function TablesTree() {
 
 function TableTree(props: { table: string; reloadTables }) {
   let { table, reloadTables } = props;
-  const { uuid, conn_type } = useContext(NameAndTypeContext);
+  const { uuid } = useContext(UuidContext);
+  const { conn_type } = useContext(ConnTypeContext);
   let { setMenuContent } = useContext(MenuContext);
   return (
     <TreeItem
       itemId={uuid + '-table-' + table}
-      onContextMenu={(e) => {
-        setMenuContent(
-          <TableMenu
-            kind={conn_type}
-            reloadTables={reloadTables}
-            table={table}
-            uuid={uuid}
-          />
-        );
-        setUpMenu(e, 200);
-      }}
       label={
-        <>
+        <Stack
+          direction='row'
+          spacing={1}
+          onContextMenu={(e) => {
+            setMenuContent(
+              <TableMenu
+                kind={conn_type}
+                reload={reloadTables}
+                table={table}
+                uuid={uuid}
+              />
+            );
+            setUpMenu(e, 200);
+          }}
+        >
           <TableViewIcon> </TableViewIcon> {table}
-        </>
+        </Stack>
       }
-    ></TreeItem>
+    >
+      <TableColumnsTree table={table}></TableColumnsTree>
+    </TreeItem>
+  );
+}
+
+function ModifyTableColumn(props: {
+  uuid: string;
+  table: string;
+  col: string;
+  handleClose;
+  reload;
+}) {
+  let { uuid, table, col, handleClose, reload } = props;
+  const [loading, setLoading] = useState(false);
+  const [newName, setNewName] = useState(col);
+  const [typ, setTyp] = useState('');
+  const { showNotification } = useContext(NotificationContext);
+  const [modifyType, setModifyType] = useState(false);
+  const [types, setTypes] = useState([]);
+
+  useEffect(() => {
+    invoke<string[]>('list_data_types', { name: uuid })
+      .then((ts) => {
+        setTypes(ts);
+      })
+      .catch((e) => {
+        console.log('should not return a error', e);
+      });
+  }, []);
+
+  const handleModify = () => {
+    if (newName == col && !typ) {
+      showNotification('error', 'nothing is changed');
+      return;
+    }
+    if (!newName) {
+      showNotification('error', "name can't empty");
+      return;
+    }
+    setLoading(true);
+    invoke('modify_table_column', {
+      name: uuid,
+      tableName: table,
+      oldName: col,
+      newName: newName,
+      typ: typ ? typ : null,
+    })
+      .then((_) => {
+        setLoading(false);
+        showNotification('success', 'Modify column OK');
+        reload();
+        handleClose();
+      })
+      .catch((e) => {
+        setLoading(false);
+        showNotification('error', 'Modify column Failure', e);
+      });
+  };
+
+  return (
+    <Stack spacing={1}>
+      <TextField
+        fullWidth
+        label='New Name'
+        value={newName}
+        onChange={(e) => {
+          setNewName(e.target.value);
+        }}
+        required
+        error={!newName}
+      ></TextField>
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={modifyType}
+            onChange={(e) => {
+              setModifyType(e.target.checked);
+            }}
+            name='myCheckbox'
+            color='primary'
+          />
+        }
+        label='modify TYPE'
+      />
+
+      {modifyType && (
+        <Stack spacing={1}>
+          {chunkArray(types, 7).map((ts) => (
+            <Stack direction='row' spacing={1}>
+              {ts.map((t) => (
+                <Button
+                  onClick={() => {
+                    setTyp(t);
+                  }}
+                >
+                  {t}
+                </Button>
+              ))}
+            </Stack>
+          ))}
+          <TextField
+            fullWidth
+            label='Type'
+            value={typ}
+            onChange={(e) => {
+              setTyp(e.target.value);
+            }}
+          ></TextField>
+        </Stack>
+      )}
+      <Stack direction='row' spacing={1}>
+        <Button
+          variant='outlined'
+          onClick={() => {
+            handleClose();
+          }}
+        >
+          Cancel
+        </Button>
+        <Button color='error' variant='contained' onClick={handleModify}>
+          Modify
+        </Button>
+        {loading && <CircularProgress size={progressBarSize} />}
+      </Stack>
+    </Stack>
+  );
+}
+
+function TableColumnsTree(props: { table: string }) {
+  let { table } = props;
+  let { setMenuContent } = useContext(MenuContext);
+  const [fields, setFields] = useState<types.Field[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const { uuid } = useContext(UuidContext);
+  const { conn_type } = useContext(ConnTypeContext);
+  const reload = () => {
+    invoke<types.Field[]>('show_columns', { name: uuid, tableName: table })
+      .then((fs) => {
+        setFields(fs);
+      })
+      .catch((e) => {
+        showNotification('error', 'list column failed', e);
+      });
+  };
+
+  const support_modify_column =
+    conn_type == DataSourceKind.MariaDB ||
+    conn_type == DataSourceKind.MsSql ||
+    conn_type == DataSourceKind.Mysql ||
+    conn_type == DataSourceKind.Postgres;
+
+  useEffect(() => {
+    reload();
+  }, []);
+
+  let idPrefix = uuid + '-table-' + table + 'columns';
+  return (
+    <TreeItem
+      itemId={uuid + '-table-' + table + 'columns'}
+      label=<Stack
+        onContextMenu={
+          support_modify_column
+            ? (e) => {
+                setMenuContent(
+                  <MenuList>
+                    <MenuRefresh reload={reload}></MenuRefresh>
+                  </MenuList>
+                );
+                setUpMenu(e, 200);
+              }
+            : undefined
+        }
+      >
+        columns
+      </Stack>
+    >
+      {fields.map((f) => (
+        <TreeItem
+          key={f.field}
+          onContextMenu={(e) => {
+            setMenuContent(
+              <TableColumnMenu
+                table={table}
+                uuid={uuid}
+                col={f.field}
+                reload={reload}
+              ></TableColumnMenu>
+            );
+            setUpMenu(e, 70);
+          }}
+          itemId={idPrefix + '-' + f.field}
+          label=<Stack direction='row' spacing={1}>
+            {f.field} <em>({f.typ}) </em>
+          </Stack>
+        ></TreeItem>
+      ))}
+    </TreeItem>
   );
 }
 
@@ -199,10 +404,10 @@ function DropTable(props: {
 function TableMenu(props: {
   table: string;
   uuid: string;
-  reloadTables;
+  reload;
   kind: DataSourceKind;
 }) {
-  let { table, uuid, reloadTables, kind } = props;
+  let { table, uuid, reload, kind } = props;
   const [showDup, setshowDup] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [showDrop, setShowDrop] = useState(false);
@@ -234,63 +439,83 @@ function TableMenu(props: {
     if (typeof index == 'number') {
       setSelectIndex(index);
     } else {
-      const reloadOP = async () => {
-        invoke('show_table');
-      };
+      let tableList: ReactNode = null;
+      switch (kind) {
+        case DataSourceKind.MariaDB:
+        case DataSourceKind.Mysql:
+        case DataSourceKind.MsSql:
+        case DataSourceKind.Sqlite:
+          tableList = (
+            <SqlTableView
+              reloadOP={async (
+                where: string,
+                orderBy: string,
+                page: number,
+                pageSize: number
+              ) => {
+                let where_null = where ? where : null;
+                let orderBy_null = orderBy ? orderBy : null;
+                return await invoke<types.MuiDataTableListResp>('show_table', {
+                  name: uuid,
+                  tableName: table,
+                  whereStr: where_null,
+                  orderBy: orderBy_null,
+                  page,
+                  pageSize,
+                });
+              }}
+              updateOP={async (wheres, values) => {
+                return await invoke<types.SqlExecuteRet>('update', {
+                  name: uuid,
+                  tableName: table,
+                  values,
+                  wheres,
+                });
+              }}
+              deleteOP={async (wheres) => {
+                return await invoke<types.SqlExecuteRet>('delete', {
+                  name: uuid,
+                  tableName: table,
+                  wheres,
+                });
+              }}
+              addOP={async (values) => {
+                return await invoke<types.SqlExecuteRet>('insert', {
+                  name: uuid,
+                  tableName: table,
+                  values,
+                });
+              }}
+            >
+              table content
+            </SqlTableView>
+          );
+          break;
+        case DataSourceKind.Redis:
+          throw 'impl this';
+        case DataSourceKind.Mongo:
+          throw 'impl this';
+      }
+
       setTabs((e) => {
         setSelectIndex(tabs.length);
-        return [
-          ...e,
-          new TabContent(
-            id,
-            table,
-
-            (
-              <SqlTableView
-                reloadOP={async (
-                  where: string,
-                  orderBy: string,
-                  page: number,
-                  pageSize: number
-                ) => {
-                  console.log('111');
-                  let where_null = where ? where : null;
-                  let orderBy_null = orderBy ? orderBy : null;
-                  return invoke('show_table', {
-                    name: uuid,
-                    tableName: table,
-                    whereStr: where_null,
-                    orderBy: orderBy_null,
-                    page,
-                    pageSize,
-                  });
-                }}
-              >
-                table content
-              </SqlTableView>
-            )
-          ),
-        ];
+        return [...e, new TabContent(id, table, tableList)];
       });
     }
   };
 
   return (
-    <Stack>
+    <Paper>
       <MenuList>
         <MenuItem
           onClick={() => {
             handleOpenTableList();
           }}
         >
-          <ListItem>
+          <ListItemIcon>
             <ListIcon></ListIcon>
-          </ListItem>
-          <ListItem> open table list</ListItem>
-          <Typography
-            variant='body2'
-            sx={{ color: 'text.secondary' }}
-          ></Typography>
+          </ListItemIcon>
+          <ListItemText> open table list</ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -298,28 +523,20 @@ function TableMenu(props: {
             setshowDup(true);
           }}
         >
-          <ListItem>
+          <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
-          </ListItem>
-          <ListItem> duplicate table </ListItem>
-          <Typography
-            variant='body2'
-            sx={{ color: 'text.secondary' }}
-          ></Typography>
+          </ListItemIcon>
+          <ListItemText> duplicate table </ListItemText>
         </MenuItem>
         <MenuItem
           onClick={() => {
             setShowRename(true);
           }}
         >
-          <ListItem>
+          <ListItemIcon>
             <EditIcon></EditIcon>
-          </ListItem>
-          <ListItem> rename table</ListItem>
-          <Typography
-            variant='body2'
-            sx={{ color: 'text.secondary' }}
-          ></Typography>
+          </ListItemIcon>
+          <ListItemText> rename table</ListItemText>
         </MenuItem>
         <MenuItem
           sx={{ color: 'error.main' }}
@@ -327,14 +544,10 @@ function TableMenu(props: {
             setShowDrop(true);
           }}
         >
-          <ListItem>
+          <ListItemIcon>
             <DeleteForeverIcon></DeleteForeverIcon>
-          </ListItem>
-          <ListItem>drop table</ListItem>
-          <Typography
-            variant='body2'
-            sx={{ color: 'text.secondary' }}
-          ></Typography>
+          </ListItemIcon>
+          <ListItemText>drop table</ListItemText>
         </MenuItem>
         <MenuItem
           sx={{ color: 'error.main' }}
@@ -342,14 +555,10 @@ function TableMenu(props: {
             handleTruncateTable();
           }}
         >
-          <ListItem>
+          <ListItemIcon>
             <PlaylistRemoveIcon></PlaylistRemoveIcon>
-          </ListItem>
-          <ListItem> truncate table </ListItem>
-          <Typography
-            variant='body2'
-            sx={{ color: 'text.secondary' }}
-          ></Typography>
+          </ListItemIcon>
+          <ListItemText> truncate table </ListItemText>
         </MenuItem>
       </MenuList>
       {showDup && (
@@ -367,7 +576,7 @@ function TableMenu(props: {
               handleClose={() => {
                 setshowDup(false);
               }}
-              reloadTables={reloadTables}
+              reloadTables={reload}
             ></DupTable>
           </Box>
         </Modal>
@@ -384,7 +593,7 @@ function TableMenu(props: {
             <RenameTable
               uuid={uuid}
               table={table}
-              reloadTables={reloadTables}
+              reloadTables={reload}
               handleClose={() => {
                 setShowRename(false);
               }}
@@ -404,7 +613,7 @@ function TableMenu(props: {
             <DropTable
               uuid={uuid}
               table={table}
-              reloadTables={reloadTables}
+              reloadTables={reload}
               handleClose={() => {
                 setShowDrop(false);
               }}
@@ -413,7 +622,81 @@ function TableMenu(props: {
           </Box>
         </Modal>
       )}
-    </Stack>
+    </Paper>
+  );
+}
+
+function TableColumnMenu(props: {
+  uuid: string;
+  table: string;
+  col: string;
+  reload;
+}) {
+  const { table, col, reload, uuid } = props;
+  const { showNotification } = useContext(NotificationContext);
+  const [showModify, setShowModify] = useState(false);
+  const handleDrop = () => {
+    invoke('drop_table_column', {
+      name: uuid,
+      tableName: table,
+      columnName: col,
+    })
+      .then(() => {
+        showNotification('success', 'Drop column OK');
+        reload();
+      })
+      .catch((e) => {
+        showNotification('error', 'Drop column OK', e);
+      });
+  };
+
+  return (
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            setShowModify(true);
+          }}
+        >
+          <ListItemIcon>
+            <EditIcon> </EditIcon>
+          </ListItemIcon>
+          <ListItemText color='error'> modify column </ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            handleDrop();
+          }}
+          sx={{ color: 'error.main' }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon> </DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText color='error'> drop column </ListItemText>
+        </MenuItem>
+      </MenuList>
+      {showModify && (
+        <Modal
+          open={showModify}
+          onClose={() => {
+            setShowModify(false);
+          }}
+          aria-labelledby='set filter'
+        >
+          <Box sx={modalStyle} width='600px'>
+            <ModifyTableColumn
+              table={table}
+              uuid={uuid}
+              col={col}
+              handleClose={() => {
+                setShowModify(false);
+              }}
+              reload={reload}
+            ></ModifyTableColumn>
+          </Box>
+        </Modal>
+      )}
+    </Paper>
   );
 }
 

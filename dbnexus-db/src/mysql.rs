@@ -624,6 +624,58 @@ impl std::fmt::Debug for MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
+        anyhow::Ok(crate::mysql_completion::TYPES)
+    }
+    async fn modify_table_column(
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<String>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        if old_name != new_name {
+            let sql = format!(
+                r#"
+            ALTER TABLE {table}
+                RENAME COLUMN {old_name} TO {new_name};
+            "#
+            );
+            sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        }
+        if let Some(typ) = typ.as_ref() {
+            let sql = format!(
+                r#"
+            ALTER TABLE {table}
+                MODIFY {new_name} {typ};
+            "#
+            );
+            sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        }
+        anyhow::Ok(())
+    }
+
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"
+            ALTER TABLE {table} DROP COLUMN {col};
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
+        use sqlx::Statement;
+        let mut conn = self.get_conn().await?;
+        let sql = format!("select * from {view_name} limit 1");
+        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+        let ret = s
+            .columns()
+            .iter()
+            .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+            .collect::<Vec<_>>();
+        anyhow::Ok(ret)
+    }
+
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
 
@@ -1879,7 +1931,7 @@ pub(crate) mod test_fns {
         let db = &db as &dyn crate::db::DBTrait;
 
         let resp = db.list_schema().await.unwrap();
-        assert_eq!(resp, vec!["test"]);
+        assert_eq!(resp, vec!["sys", "test"]);
     }
 
     pub(crate) async fn test_query(db: MysqlDB) {

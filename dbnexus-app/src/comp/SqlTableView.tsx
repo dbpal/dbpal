@@ -33,30 +33,31 @@ function SqlTableView(props: {
     pageSize: number
   ) => Promise<types.MuiDataTableListResp>;
   updateOP: (
-    wheres: Map<string, string>,
-    updates: Map<string, string>
+    wheres: Map<string, string | null>,
+    values: Map<string, string | null>
   ) => Promise<types.SqlExecuteRet>;
-  deleteOP: (wheres: Map<string, string>) => Promise<void>;
-  addOP: (values: Map<string, string>) => Promise<void>;
+  deleteOP: (wheres: Map<string, string>) => Promise<types.SqlExecuteRet>;
+  addOP: (values: Map<string, string | null>) => Promise<types.SqlExecuteRet>;
 }) {
   let { reloadOP, updateOP, deleteOP, addOP } = props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
   const [orderBy, setOrderBy] = useState('');
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectIDs, setSelectIDs] = useState<GridRowSelectionModel>([]);
   const [showAdd, setShowAdd] = useState(false);
-  const uuid_key = 'qwertyuioplkjhgfdsazxcvbnm';
+  const key_not_in_table = 'qwertyuioplkjhgfdsazxcvbnm';
   const handleResp = (resp: types.MuiDataTableListResp) => {
     resp.data.data.forEach((e) => {
-      e[uuid_key] = uuidv4();
+      e[key_not_in_table] = uuidv4();
     });
     resp.data.fields.forEach((e) => {
-      //@ts-ignore
-      // e.flex = 1;
+      //@ts-ignore  TODO how to do this.
+      //e.flex = 1;
+
       //@ts-ignore
       e.renderHeader = (e) => {
         let def = e.colDef;
@@ -94,7 +95,7 @@ function SqlTableView(props: {
 
   const handleReload = () => {
     setLoading(false);
-    reloadOP(where, orderBy, page, pageSize)
+    reloadOP(where, orderBy, page + 1, pageSize)
       .then((resp) => {
         setLoading(false);
         handleResp(resp);
@@ -105,6 +106,7 @@ function SqlTableView(props: {
         showNotification('error', 'query data failed', e);
       });
   };
+
   const handleProcessRowUpdate = async (
     newRow: Map<string, string>,
     oldRow: Map<string, string>
@@ -119,8 +121,18 @@ function SqlTableView(props: {
       return m;
     };
     const updateRow = findDiff();
+    const old = new Map(Object.entries(oldRow));
+    old.delete(key_not_in_table);
+    if (updateRow.size == 0) {
+      return newRow;
+    }
     try {
-      await updateOP(oldRow, updateRow);
+      let ret = await updateOP(old, updateRow);
+      showNotification(
+        'success',
+        'Update OK',
+        `sql:${ret.sql} row affected:${ret.changes}`
+      );
     } catch (e) {
       throw e;
     }
@@ -135,19 +147,25 @@ function SqlTableView(props: {
 
     for (let i = 0; i < resp.data.data.length; i++) {
       let e = resp.data.data[i];
-      if (!selectSet.has(e[uuid_key])) {
+      if (!selectSet.has(e[key_not_in_table])) {
         continue;
       }
+
       try {
-        //@ts-ignore
-        await deleteOP(e);
+        const old = new Map(Object.entries(e));
+        old.delete(key_not_in_table);
+        const ret = await deleteOP(old);
+        showNotification(
+          'success',
+          'delete OK',
+          `sql:${ret.sql} row affected:${ret.changes}`
+        );
       } catch (e) {
         showNotification('error', 'delete failed', e);
       }
     }
     handleReload();
   };
-
   useEffect(() => {
     handleReload();
   }, [page, pageSize]);
@@ -157,7 +175,7 @@ function SqlTableView(props: {
       <Stack direction='row' spacing={1} alignItems='flex-start'>
         <TextField
           label='where'
-          variant='outlined' // 可以是 'outlined', 'filled', or 'standard'
+          variant='outlined'
           value={where}
           onChange={(event) => {
             setWhere(event.target.value);
@@ -166,7 +184,7 @@ function SqlTableView(props: {
         />
         <TextField
           label='orderby'
-          variant='outlined' // 可以是 'outlined', 'filled', or 'standard'
+          variant='outlined'
           value={orderBy}
           onChange={(event) => {
             setOrderBy(event.target.value);
@@ -174,15 +192,10 @@ function SqlTableView(props: {
           size='small'
         />
 
-        <Button
-          variant='contained' // 可以是 'text', 'outlined', 或 'contained'
-          color='primary' // 主题颜色
-          onClick={handleReload} // 点击事件处理
-        >
+        <Button variant='contained' color='primary' onClick={handleReload}>
           Reload
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
-
         {resp && <Alert color='info'> {resp.sql}</Alert>}
       </Stack>
 
@@ -237,7 +250,7 @@ function SqlTableView(props: {
           <DataGrid
             rowHeight={datagridRowHeight}
             columnHeaderHeight={datagridHeaderHeight}
-            getRowId={(e) => e[uuid_key]}
+            getRowId={(e) => e[key_not_in_table]}
             paginationModel={{ page, pageSize }}
             pageSizeOptions={pageSizeOptions}
             paginationMode='server'

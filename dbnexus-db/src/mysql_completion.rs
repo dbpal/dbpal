@@ -1126,7 +1126,8 @@ const KEY_WORDS: &'static [&'static str] = &[
     "ZEROFILL",
     "ZONE",
 ];
-const TYPES: &'static [&'static str] = &[
+
+pub(crate) const TYPES: &'static [&'static str] = &[
     "BOOLEAN",
     "BOOL",
     "TINYINT",

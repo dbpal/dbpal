@@ -1,9 +1,10 @@
 import { useContext, useEffect, useState } from 'react';
 import {
+  ConnTypeContext,
   DataSourceKind,
   MenuContext,
   MenuRefresh,
-  NameAndTypeContext,
+  UuidContext,
   progressBarSize,
   setUpMenu,
 } from './Common';
@@ -13,6 +14,8 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   CircularProgress,
   ListItem,
+  ListItemIcon,
+  ListItemText,
   MenuItem,
   MenuList,
   Stack,
@@ -26,7 +29,7 @@ import types from './ApiStruct';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ListIcon from '@mui/icons-material/List';
 function ViewsTree() {
-  const { uuid } = useContext(NameAndTypeContext);
+  const { uuid } = useContext(UuidContext);
   const [views, setViews] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
@@ -81,23 +84,82 @@ function ViewsTree() {
 
 function ViewTree(props: { view: string; reload }) {
   let { view, reload } = props;
-  const { uuid, conn_type } = useContext(NameAndTypeContext);
+  const { uuid } = useContext(UuidContext);
+  const { conn_type } = useContext(ConnTypeContext);
   let { setMenuContent } = useContext(MenuContext);
   return (
     <TreeItem
       itemId={uuid + '-view-' + view}
-      onContextMenu={(e) => {
-        setMenuContent(
-          <ViewMenu kind={conn_type} reload={reload} view={view} uuid={uuid} />
-        );
-        setUpMenu(e, 100);
-      }}
       label={
-        <>
-          <VisibilityIcon></VisibilityIcon> {view}
-        </>
+        <Stack
+          direction='row'
+          onContextMenu={(e) => {
+            setMenuContent(
+              <ViewMenu
+                kind={conn_type}
+                reload={reload}
+                view={view}
+                uuid={uuid}
+              />
+            );
+            setUpMenu(e, 100);
+          }}
+          spacing={1}
+        >
+          <VisibilityIcon></VisibilityIcon> <span> {view} </span>
+        </Stack>
       }
-    ></TreeItem>
+    >
+      <ViewColumnsTree view={view}></ViewColumnsTree>
+    </TreeItem>
+  );
+}
+
+function ViewColumnsTree(props: { view: string }) {
+  const { view } = props;
+  const [fields, setFields] = useState<types.Field[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const { uuid } = useContext(UuidContext);
+  const reload = () => {
+    invoke<types.Field[]>('show_view_coumns', { name: uuid, viewName: view })
+      .then((fs) => {
+        setFields(fs);
+      })
+      .catch((e) => {
+        showNotification('error', 'list column failed', e);
+      });
+  };
+  let { setMenuContent } = useContext(MenuContext);
+  useEffect(() => {
+    reload();
+  }, []);
+  let idPrefix = uuid + '-viees-' + view + 'columns';
+  return (
+    <TreeItem
+      itemId={idPrefix}
+      label=<Stack
+        onContextMenu={(e) => {
+          setMenuContent(
+            <MenuList>
+              <MenuRefresh reload={reload}></MenuRefresh>
+            </MenuList>
+          );
+          setUpMenu(e, 200);
+        }}
+      >
+        columns
+      </Stack>
+    >
+      {fields.map((f) => (
+        <TreeItem
+          key={f.field}
+          itemId={idPrefix + '-' + f.field}
+          label=<Stack direction='row' spacing={1}>
+            {f.field} <em>({f.typ}) </em>
+          </Stack>
+        ></TreeItem>
+      ))}
+    </TreeItem>
   );
 }
 
@@ -132,10 +194,10 @@ function ViewMenu(props: {
     <Stack>
       <MenuList>
         <MenuItem>
-          <ListItem>
+          <ListItemIcon>
             <ListIcon></ListIcon>
-          </ListItem>
-          <ListItem> open table list</ListItem>
+          </ListItemIcon>
+          <ListItemText> open table list</ListItemText>
           <Typography
             variant='body2'
             sx={{ color: 'text.secondary' }}
@@ -147,10 +209,10 @@ function ViewMenu(props: {
             handleDrop();
           }}
         >
-          <ListItem>
+          <ListItemIcon>
             <DeleteForeverIcon></DeleteForeverIcon>
-          </ListItem>
-          <ListItem>drop view </ListItem>
+          </ListItemIcon>
+          <ListItemText>drop view </ListItemText>
           <Typography
             variant='body2'
             sx={{ color: 'text.secondary' }}
