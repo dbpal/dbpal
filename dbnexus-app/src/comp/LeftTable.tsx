@@ -94,6 +94,7 @@ function TablesTree() {
         return (
           <TableTree
             key={e.name}
+            size={e.size}
             reloadTables={handleReload}
             table={e.name}
           ></TableTree>
@@ -103,8 +104,12 @@ function TablesTree() {
   );
 }
 
-function TableTree(props: { table: string; reloadTables }) {
-  let { table, reloadTables } = props;
+function TableTree(props: {
+  table: string;
+  reloadTables;
+  size: string | null;
+}) {
+  let { table, reloadTables, size } = props;
   const { uuid } = useContext(UuidContext);
   const { conn_type } = useContext(ConnTypeContext);
   let { setMenuContent } = useContext(MenuContext);
@@ -115,6 +120,8 @@ function TableTree(props: { table: string; reloadTables }) {
         <Stack
           direction='row'
           spacing={1}
+          justifyContent='space-between'
+          alignContent='center'
           onContextMenu={(e) => {
             setMenuContent(
               <TableMenu
@@ -127,7 +134,10 @@ function TableTree(props: { table: string; reloadTables }) {
             setUpMenu(e, 200);
           }}
         >
-          <TableViewIcon> </TableViewIcon> {table}
+          <Stack direction='row'>
+            <TableViewIcon> </TableViewIcon> {table}
+          </Stack>
+          <span> {size} </span>
         </Stack>
       }
     >
@@ -635,7 +645,15 @@ function TableColumnMenu(props: {
   const { table, col, reload, uuid } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showModify, setShowModify] = useState(false);
-  const handleDrop = () => {
+  const handleDrop = async () => {
+    const confirm = await secondConfirm({
+      title: `Drop Column '${col}'`,
+      content: '',
+      confirmText: 'DROP COLUMN',
+    });
+    if (!confirm) {
+      return;
+    }
     invoke('drop_table_column', {
       name: uuid,
       tableName: table,
@@ -719,11 +737,11 @@ function DupTable(props: {
     invoke('duplicate_table', { name: uuid, from: table, to: name })
       .then(() => {
         setLoading(false);
-        showNotification('success', 'Rename OK');
+        showNotification('success', 'Duplicate OK');
         reloadTables();
       })
       .catch((e) => {
-        showNotification('error', 'Rename failure', e);
+        showNotification('error', 'Duplicate failure', e);
       });
   };
 
