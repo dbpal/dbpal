@@ -4,8 +4,8 @@ use std::str::FromStr;
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, OpendKind, UserSettings};
 use dbnexus_db::db::{
-    ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, QueryResp, SqlExecuteRet,
-    TableListResp, TriggerDetail,
+    ExportKind, Field, FormatSqlOpts, Index, ListTable, ModifyTableColumnType, NamedStaff,
+    QueryResp, SqlExecuteRet, TableListResp, TriggerDetail,
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
@@ -81,7 +81,7 @@ pub async fn list_table(
 ) -> Result<Vec<ListTable>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("show table db:{}", name);
+    log::info!("show table_name db:{}", name);
     app.list_table(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -205,8 +205,8 @@ pub async fn drop_table_column(
 
 #[tauri::command]
 pub async fn modify_table_column(
-    name: String, table_name: String, old_name: String, new_name: String, typ: Option<String>,
-    app: tauri::State<'_, App>,
+    name: String, table_name: String, old_name: String, new_name: String,
+    typ: Option<ModifyTableColumnType>, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -593,7 +593,7 @@ pub async fn oracle_query_rollback(
 
 #[tauri::command]
 pub async fn list_trigger(
-    name: String, table: String, app: tauri::State<'_, App>,
+    name: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<NamedStaff>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -602,14 +602,14 @@ pub async fn list_trigger(
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
-    db.list_trigger(&table)
+    db.list_trigger(&table_name)
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 
 #[tauri::command]
 pub async fn show_trigger(
-    name: String, table: String, trigger: String, app: tauri::State<'_, App>,
+    name: String, table_name: String, trigger: String, app: tauri::State<'_, App>,
 ) -> Result<TriggerDetail, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -618,7 +618,7 @@ pub async fn show_trigger(
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
-    db.show_trigger(&table, &trigger)
+    db.show_trigger(&table_name, &trigger)
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))
 }
@@ -657,7 +657,7 @@ pub async fn duplicate_table(
 
 #[tauri::command]
 pub async fn mongo_insert(
-    name: String, table: String, doc: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table_name: String, doc: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<mongodb::results::InsertOneResult, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -668,14 +668,14 @@ pub async fn mongo_insert(
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
     match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => x.insert(table.as_str(), doc).await,
+        Some(x) => x.insert(table_name.as_str(), doc).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
 }
 #[tauri::command]
 pub async fn mongo_update(
-    name: String, table: String, update: Vec<u8>, query: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table_name: String, update: Vec<u8>, query: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<mongodb::results::UpdateResult, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -687,7 +687,7 @@ pub async fn mongo_update(
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
     match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => x.update(table.as_str(), update, query).await,
+        Some(x) => x.update(table_name.as_str(), update, query).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
@@ -695,7 +695,7 @@ pub async fn mongo_update(
 
 #[tauri::command]
 pub async fn mongo_delete(
-    name: String, table: String, query: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table_name: String, query: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<mongodb::results::DeleteResult, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -706,7 +706,7 @@ pub async fn mongo_delete(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => x.delete(table.as_str(), query).await,
+        Some(x) => x.delete(table_name.as_str(), query).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
@@ -714,7 +714,7 @@ pub async fn mongo_delete(
 
 #[tauri::command]
 pub async fn mongo_show_collection_table_list(
-    name: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table_name: String, filter: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -724,7 +724,10 @@ pub async fn mongo_show_collection_table_list(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => x.show_collection_table_list(table.as_str(), filter).await,
+        Some(x) => {
+            x.show_collection_table_list(table_name.as_str(), filter)
+                .await
+        }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))
@@ -733,7 +736,7 @@ pub async fn mongo_show_collection_table_list(
 
 #[tauri::command]
 pub async fn mongo_show_collection_docs(
-    name: String, table: String, filter: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table_name: String, filter: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<DocsAndCount, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -743,7 +746,7 @@ pub async fn mongo_show_collection_docs(
         .await
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => x.show_collection_docs(table.as_str(), filter).await,
+        Some(x) => x.show_collection_docs(table_name.as_str(), filter).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))?;
@@ -751,7 +754,7 @@ pub async fn mongo_show_collection_docs(
 }
 #[tauri::command]
 pub async fn mongo_get_one_document(
-    name: String, table: String, id: String, app: tauri::State<'_, App>,
+    name: String, table_name: String, id: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<u8>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -762,7 +765,7 @@ pub async fn mongo_get_one_document(
         .await
         .map_err(|e| e.to_string())?;
     let doc = match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => x.get_one_document(table.as_str(), id).await,
+        Some(x) => x.get_one_document(table_name.as_str(), id).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))?;

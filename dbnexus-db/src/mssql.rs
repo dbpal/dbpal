@@ -18,9 +18,10 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use crate::datasource_config::SqlServerDbConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts,
-    Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter, format_data_time_fix_offset,
+    Index, IndexKind, ListTable, ModifyTableColumnType, NamedStaff, ProcedureDetail, QueryResp,
+    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    format_data_time_fix_offset,
 };
 use crate::helper::{
     SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql,
@@ -444,7 +445,7 @@ impl SchemaTrait for MsSqlServer {
         anyhow::Ok(crate::mysql_completion::TYPES)
     }
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<String>,
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ModifyTableColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {
@@ -458,8 +459,14 @@ impl SchemaTrait for MsSqlServer {
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
                 r#"
-            ALTER TABLE {table} ALTER COLUMN {new_name} {typ};
-            "#
+            ALTER TABLE {table} ALTER COLUMN {new_name} {} {};
+            "#,
+                typ.typ,
+                if let Some(null) = typ.nullness.as_ref() {
+                    null.as_str()
+                } else {
+                    ""
+                }
             );
             conn.deref_mut().execute(&sql, &[]).await?;
         }

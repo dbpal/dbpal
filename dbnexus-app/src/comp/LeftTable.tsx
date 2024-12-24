@@ -5,7 +5,7 @@ import {
   MenuRefresh,
   modalStyle,
   UuidContext,
-  progressBarSize,
+  progressBarSizeSmall,
   setUpMenu,
   tabsHasId,
   TabsSetContext,
@@ -27,13 +27,16 @@ import {
   Button,
   Checkbox,
   CircularProgress,
+  FormControl,
   FormControlLabel,
+  InputLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
   Modal,
   Paper,
+  Select,
   Stack,
   Switch,
   TextField,
@@ -69,7 +72,7 @@ function TablesTree() {
     <TreeItem
       itemId={uuid + '-tables'}
       label=<Stack
-        justifyContent='space-between'
+        spacing={1}
         direction='row'
         onContextMenu={(e) => {
           setMenuContent(
@@ -81,15 +84,11 @@ function TablesTree() {
         }}
       >
         <span> tables </span>
+        {loading && (
+          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
+        )}
       </Stack>
     >
-      {loading && (
-        <TreeItem
-          itemId={uuid + '-tables' + 'loading'}
-          label={<CircularProgress size={progressBarSize}></CircularProgress>}
-        ></TreeItem>
-      )}
-
       {tables.map((e) => {
         return (
           <TableTree
@@ -152,14 +151,16 @@ function ModifyTableColumn(props: {
   col: string;
   handleClose;
   reload;
+  typ: string;
 }) {
-  let { uuid, table, col, handleClose, reload } = props;
+  let { uuid, table, col, handleClose, reload, typ } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
-  const [typ, setTyp] = useState('');
+  const [newTyp, setNewTyp] = useState(typ);
   const { showNotification } = useContext(NotificationContext);
   const [modifyType, setModifyType] = useState(false);
   const [types, setTypes] = useState([]);
+  const [nullness, setNullness] = useState('');
 
   useEffect(() => {
     invoke<string[]>('list_data_types', { name: uuid })
@@ -172,7 +173,7 @@ function ModifyTableColumn(props: {
   }, []);
 
   const handleModify = () => {
-    if (newName == col && !typ) {
+    if (newName == col && !newTyp) {
       showNotification('error', 'nothing is changed');
       return;
     }
@@ -181,12 +182,16 @@ function ModifyTableColumn(props: {
       return;
     }
     setLoading(true);
+    let typePara = null;
+    if (typ != newTyp) {
+      typePara = { typ: newTyp, null: nullness ? nullness : nullness };
+    }
     invoke('modify_table_column', {
       name: uuid,
       tableName: table,
       oldName: col,
       newName: newName,
-      typ: typ ? typ : null,
+      typ: typePara,
     })
       .then((_) => {
         setLoading(false);
@@ -212,58 +217,66 @@ function ModifyTableColumn(props: {
         required
         error={!newName}
       ></TextField>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={modifyType}
-            onChange={(e) => {
-              setModifyType(e.target.checked);
-            }}
-            name='myCheckbox'
-            color='primary'
-          />
-        }
-        label='modify TYPE'
-      />
-
+      {!modifyType && (
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={modifyType}
+              onChange={(e) => {
+                setModifyType(e.target.checked);
+              }}
+              name='myCheckbox'
+              color='primary'
+            />
+          }
+          label='modify TYPE'
+        />
+      )}
       {modifyType && (
         <Stack spacing={1}>
-          {chunkArray(types, 7).map((ts) => (
-            <Stack direction='row' spacing={1}>
-              {ts.map((t) => (
-                <Button
-                  onClick={() => {
-                    setTyp(t);
-                  }}
-                >
-                  {t}
-                </Button>
-              ))}
-            </Stack>
-          ))}
-          <TextField
-            fullWidth
-            label='Type'
-            value={typ}
-            onChange={(e) => {
-              setTyp(e.target.value);
-            }}
-          ></TextField>
+          <Stack direction='row' style={{ flexWrap: 'wrap' }}>
+            {types.map((t) => (
+              <Button
+                variant='outlined'
+                onClick={() => {
+                  setNewTyp(t);
+                }}
+              >
+                {t}
+              </Button>
+            ))}
+          </Stack>
+          <Stack direction='row' spacing={1}>
+            <TextField
+              label='Type'
+              value={newTyp}
+              onChange={(e) => {
+                setNewTyp(e.target.value);
+              }}
+            ></TextField>
+            <FormControl style={{ minWidth: '100px' }}>
+              <InputLabel id='dropdown-label'>select nullness </InputLabel>
+              <Select
+                labelId='dropdown-label'
+                value={nullness}
+                onChange={(e) => {
+                  setNullness(e.target.value);
+                }}
+              >
+                <MenuItem value=''>not set</MenuItem>
+                <MenuItem value='null'>null</MenuItem>
+                <MenuItem value='not null'>not null</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
         </Stack>
       )}
+
       <Stack direction='row' spacing={1}>
-        <Button
-          variant='outlined'
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button color='error' variant='contained' onClick={handleModify}>
           Modify
         </Button>
-        {loading && <CircularProgress size={progressBarSize} />}
+        {loading && <CircularProgress size={progressBarSizeSmall} />}
       </Stack>
     </Stack>
   );
@@ -276,12 +289,16 @@ function TableColumnsTree(props: { table: string }) {
   const { showNotification } = useContext(NotificationContext);
   const { uuid } = useContext(UuidContext);
   const { conn_type } = useContext(ConnTypeContext);
+  const [loading, setLoading] = useState(false);
   const reload = () => {
+    setLoading(true);
     invoke<types.Field[]>('show_columns', { name: uuid, tableName: table })
       .then((fs) => {
+        setLoading(false);
         setFields(fs);
       })
       .catch((e) => {
+        setLoading(false);
         showNotification('error', 'list column failed', e);
       });
   };
@@ -301,6 +318,8 @@ function TableColumnsTree(props: { table: string }) {
     <TreeItem
       itemId={uuid + '-table-' + table + 'columns'}
       label=<Stack
+        spacing={1}
+        direction='row'
         onContextMenu={
           support_modify_column
             ? (e) => {
@@ -314,7 +333,10 @@ function TableColumnsTree(props: { table: string }) {
             : undefined
         }
       >
-        columns
+        <span> columns</span>
+        {loading && (
+          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
+        )}
       </Stack>
     >
       {fields.map((f) => (
@@ -327,6 +349,7 @@ function TableColumnsTree(props: { table: string }) {
                 uuid={uuid}
                 col={f.field}
                 reload={reload}
+                typ={f.typ}
               ></TableColumnMenu>
             );
             setUpMenu(e, 70);
@@ -405,7 +428,7 @@ function DropTable(props: {
         <Button color='error' variant='contained' onClick={handleDrop}>
           Drop
         </Button>
-        {loading && <CircularProgress size={progressBarSize} />}
+        {loading && <CircularProgress size={progressBarSizeSmall} />}
       </Stack>
     </Stack>
   );
@@ -641,8 +664,9 @@ function TableColumnMenu(props: {
   table: string;
   col: string;
   reload;
+  typ: string;
 }) {
-  const { table, col, reload, uuid } = props;
+  const { table, col, reload, uuid, typ } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showModify, setShowModify] = useState(false);
   const handleDrop = async () => {
@@ -709,6 +733,7 @@ function TableColumnMenu(props: {
               handleClose={() => {
                 setShowModify(false);
               }}
+              typ={typ}
               reload={reload}
             ></ModifyTableColumn>
           </Box>
@@ -766,7 +791,7 @@ function DupTable(props: {
         <Button color='primary' variant='contained' onClick={handleRename}>
           Duplicate
         </Button>
-        {loading && <CircularProgress size={progressBarSize} />}
+        {loading && <CircularProgress size={progressBarSizeSmall} />}
       </Stack>
     </Stack>
   );
@@ -820,7 +845,7 @@ function RenameTable(props: {
         <Button color='primary' variant='contained' onClick={handleRename}>
           Rename
         </Button>
-        {loading && <CircularProgress size={progressBarSize} />}
+        {loading && <CircularProgress size={progressBarSizeSmall} />}
       </Stack>
     </Stack>
   );

@@ -16,9 +16,10 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDbConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
-    FormatSql, FormatSqlOpts, HumanSize, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    FormatSql, FormatSqlOpts, HumanSize, Index, IndexKind, ListTable, ModifyTableColumnType,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
+    UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
@@ -370,8 +371,9 @@ impl SchemaTrait for PostGresDB {
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         anyhow::Ok(crate::pg_completion::TYPES)
     }
+
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<String>,
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ModifyTableColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {
@@ -385,10 +387,30 @@ impl SchemaTrait for PostGresDB {
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
                 r#"
-            ALTER TABLE {table} ALTER COLUMN {new_name} TYPE {typ};
-            "#
+            ALTER TABLE {table} 
+                    ALTER COLUMN column_name SET DATA TYPE {};
+            "#,
+                typ.typ
             );
             sqlx::query(&sql).execute(conn.deref_mut()).await?;
+            if let Some(null) = typ.nullness.as_ref() {
+                let sql = if null.trim().to_lowercase() == "null" {
+                    format!(
+                        r#"
+                        ALTER TABLE {table} 
+                            ALTER COLUMN {new_name} DROP NOT NULL;
+                    "#
+                    )
+                } else {
+                    format!(
+                        r#"
+                        ALTER TABLE {table} 
+                            ALTER COLUMN {new_name} SET NOT NULL;
+                    "#
+                    )
+                };
+                sqlx::query(&sql).execute(conn.deref_mut()).await?;
+            }
         }
         anyhow::Ok(())
     }

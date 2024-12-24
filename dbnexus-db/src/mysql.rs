@@ -18,9 +18,9 @@ use crate::MemoryLimit;
 use crate::datasource_config::MysqlDbConfig;
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
-    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    FormatSqlOpts, Index, IndexKind, ListTable, ModifyTableColumnType, NamedStaff, ProcedureDetail,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
@@ -628,7 +628,7 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(crate::mysql_completion::TYPES)
     }
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<String>,
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ModifyTableColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {
@@ -644,8 +644,14 @@ impl SchemaTrait for MysqlDB {
             let sql = format!(
                 r#"
             ALTER TABLE {table}
-                MODIFY {new_name} {typ};
-            "#
+                MODIFY COLUMN {new_name} {} {};
+            "#,
+                &typ.typ,
+                if let Some(null) = typ.nullness.as_ref() {
+                    null.as_str()
+                } else {
+                    ""
+                }
             );
             sqlx::query(&sql).execute(conn.deref_mut()).await?;
         }

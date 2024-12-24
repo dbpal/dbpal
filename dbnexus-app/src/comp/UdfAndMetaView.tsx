@@ -1,48 +1,30 @@
-import { ReactNode, useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 
 import { NotificationContext } from './Notification';
-import {
-  Alert,
-  Button,
-  CircularProgress,
-  Stack,
-  Typography,
-} from '@mui/material';
+import { Button, CircularProgress, Stack, Typography } from '@mui/material';
 import {
   DefAndMetas,
   MetaValues,
   progressBarSize,
   SimpleResizeAbleEditor,
 } from './Common';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+
 import types from './ApiStruct';
 import { Variant } from '@mui/material/styles/createTypography';
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
-  dropOP: () => Promise<void>;
   language: string;
-  dropText: string;
-  afterDropMsg: string;
-  extra?: (x: DefAndMetas, handleReload: any) => ReactNode;
   titleVariant?: Variant;
 }) {
-  let {
-    reloadOP,
-    dropOP,
-    language,
-    dropText,
-    afterDropMsg,
-    extra,
-    titleVariant,
-  } = props;
+  let { reloadOP, language, titleVariant } = props;
   if (!titleVariant) {
     titleVariant = 'h3';
   }
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [droped, setDroped] = useState(loading);
+
   const handleReload = () => {
     setLoading(true);
     reloadOP()
@@ -60,27 +42,8 @@ function DefAndMetasView(props: {
     handleReload();
   }, []);
 
-  const handleDrop = () => {
-    setLoading(true);
-    dropOP()
-      .then(() => {
-        setLoading(false);
-        setDroped(true);
-      })
-      .catch((e) => {
-        setLoading(false);
-        showNotification('error', 'drop failed', e);
-      });
-  };
-
   return (
     <Stack spacing={1}>
-      {droped && (
-        <Alert color='error' severity='error'>
-          {afterDropMsg}
-        </Alert>
-      )}
-
       {loading && <CircularProgress size={progressBarSize} />}
       <Stack direction='row' spacing={1}>
         <Button
@@ -100,59 +63,29 @@ function DefAndMetasView(props: {
           ></SimpleResizeAbleEditor>
           <Typography variant={titleVariant}> Some Metas </Typography>
           <MetaValues values={detail.metas}></MetaValues>
-          {extra && extra(detail, handleReload)}
         </Stack>
       )}
-      <Typography color='error' variant={titleVariant}>
-        {dropText}
-      </Typography>
-      <Stack direction='row'>
-        <Button
-          variant='contained'
-          color='error'
-          disabled={droped}
-          onClick={() => {
-            handleDrop();
-          }}
-        >
-          <DeleteForeverIcon></DeleteForeverIcon>
-        </Button>
-      </Stack>
     </Stack>
   );
 }
 
 function UdfView(props: {
   reloadOP: () => Promise<types.UdfDetail>;
-  dropOP: () => Promise<void>;
   language: string;
 }) {
-  let { reloadOP, dropOP, language } = props;
+  let { reloadOP, language } = props;
   return (
-    <DefAndMetasView
-      language={language}
-      dropText='Drop UDF'
-      dropOP={dropOP}
-      afterDropMsg='The UDF is dropped,please close this tab'
-      reloadOP={reloadOP}
-    ></DefAndMetasView>
+    <DefAndMetasView language={language} reloadOP={reloadOP}></DefAndMetasView>
   );
 }
 
 function ProcudureView(props: {
   reloadOP: () => Promise<types.UdfDetail>;
-  dropOP: () => Promise<void>;
   language: string;
 }) {
-  let { reloadOP, dropOP, language } = props;
+  let { reloadOP, language } = props;
   return (
-    <DefAndMetasView
-      language={language}
-      dropText='Drop Precedure'
-      dropOP={dropOP}
-      afterDropMsg='The Precedure is dropped,please close this tab'
-      reloadOP={reloadOP}
-    ></DefAndMetasView>
+    <DefAndMetasView language={language} reloadOP={reloadOP}></DefAndMetasView>
   );
 }
 

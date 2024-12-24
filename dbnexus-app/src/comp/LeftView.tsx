@@ -5,7 +5,7 @@ import {
   MenuContext,
   MenuRefresh,
   UuidContext,
-  progressBarSize,
+  progressBarSizeSmall,
   setUpMenu,
 } from './Common';
 import { NotificationContext } from './Notification';
@@ -13,7 +13,6 @@ import { secondConfirm } from './Confirm';
 import { invoke } from '@tauri-apps/api/core';
 import {
   CircularProgress,
-  ListItem,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -28,6 +27,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import types from './ApiStruct';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ListIcon from '@mui/icons-material/List';
+
 function ViewsTree() {
   const { uuid } = useContext(UuidContext);
   const [views, setViews] = useState<types.NamedStaff[]>([]);
@@ -55,7 +55,9 @@ function ViewsTree() {
   return (
     <TreeItem
       itemId={uuid + '-views'}
-      label=<div
+      label=<Stack
+        direction='row'
+        spacing={1}
         onContextMenu={(e) => {
           setMenuContent(
             <MenuList>
@@ -65,16 +67,12 @@ function ViewsTree() {
           setUpMenu(e, 70);
         }}
       >
-        views
-      </div>
+        <span> views</span>
+        {loading && (
+          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
+        )}
+      </Stack>
     >
-      {loading && (
-        <TreeItem
-          itemId={uuid + '-views-' + 'loading'}
-          label={<CircularProgress size={progressBarSize}></CircularProgress>}
-        ></TreeItem>
-      )}
-
       {views.map((e) => (
         <ViewTree key={e.name} view={e.name} reload={handleReload}></ViewTree>
       ))}
@@ -120,12 +118,16 @@ function ViewColumnsTree(props: { view: string }) {
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const { uuid } = useContext(UuidContext);
+  const [loading, setLoading] = useState(false);
   const reload = () => {
+    setLoading(true);
     invoke<types.Field[]>('show_view_coumns', { name: uuid, viewName: view })
       .then((fs) => {
+        setLoading(false);
         setFields(fs);
       })
       .catch((e) => {
+        setLoading(false);
         showNotification('error', 'list column failed', e);
       });
   };
@@ -138,6 +140,8 @@ function ViewColumnsTree(props: { view: string }) {
     <TreeItem
       itemId={idPrefix}
       label=<Stack
+        spacing={1}
+        direction='row'
         onContextMenu={(e) => {
           setMenuContent(
             <MenuList>
@@ -147,7 +151,10 @@ function ViewColumnsTree(props: { view: string }) {
           setUpMenu(e, 200);
         }}
       >
-        columns
+        <span> columns </span>
+        {loading && (
+          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
+        )}
       </Stack>
     >
       {fields.map((f) => (

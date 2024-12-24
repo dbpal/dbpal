@@ -35,7 +35,6 @@ root.render(
         language='xxx'
         disableOP={voidTestFunction}
         enableOP={voidTestFunction}
-        dropOP={voidTestFunction}
       ></TriggerDetail> */}
 
       <ProcudureView
@@ -43,7 +42,6 @@ root.render(
           return testProcedure();
         }}
         language='xxx'
-        dropOP={voidTestFunction}
       ></ProcudureView>
 
       {/* <UdfView
@@ -51,7 +49,6 @@ root.render(
           return testUDF();
         }}
         language='xxx'
-        dropOP={voidTestFunction}
       ></UdfView> */}
     </React.StrictMode>
   </NotificationContext.Provider>

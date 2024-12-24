@@ -56,7 +56,7 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
     async fn modify_table_column(
-        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<String>,
+        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ModifyTableColumnType>,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
@@ -225,6 +225,13 @@ pub trait SchemaTrait:
             .any(|x| x.name.eq_ignore_ascii_case(table));
         anyhow::Ok(e)
     }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ModifyTableColumnType {
+    // type string like `varchar`
+    pub(crate) typ: String,
+    pub(crate) nullness: Option<String>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

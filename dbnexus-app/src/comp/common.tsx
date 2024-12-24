@@ -353,6 +353,7 @@ interface DefAndMetas {
   metas: types.MetaValue[];
 }
 const progressBarSize = '30px';
+const progressBarSizeSmall = '20px';
 
 function getViewportSize() {
   const width = window.innerWidth; // 获取视口的宽度
@@ -450,6 +451,7 @@ export {
   MenuRefresh,
   ConnTypeContext,
   chunkArray,
+  progressBarSizeSmall,
 };
 
 export type { DefAndMetas };
