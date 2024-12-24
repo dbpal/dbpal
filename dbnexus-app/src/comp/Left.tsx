@@ -100,11 +100,8 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
       {config.conn_type == 'mariadb' &&
         (config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>)}
 
-      {config.conn_type == 'postgres' && config.schema ? (
-        <SchemaTree />
-      ) : (
-        <DatabaseTree />
-      )}
+      {config.conn_type == 'postgres' &&
+        (config.schema ? <SchemaTree /> : <DatabaseTree />)}
     </SimpleTreeView>
   );
 }
