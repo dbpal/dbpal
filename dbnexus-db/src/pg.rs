@@ -4,8 +4,6 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Context;
-
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
@@ -13,6 +11,7 @@ use sqlx::postgres::PgRow;
 use sqlx::{Column, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
+use crate::MemoryLimit;
 use crate::datasource_config::PGDbConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
@@ -23,8 +22,8 @@ use crate::db::{
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
+use crate::pg_format::*;
 use crate::query_log::QueryLog;
-use crate::{MemoryLimit, pg_format::*};
 
 impl FormatSql for PostGresDB {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
@@ -428,8 +427,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
-        use sqlx::Executor;
-        use sqlx::Statement;
+        use sqlx::{Executor, Statement};
         let mut conn = self.get_conn().await?;
         let sql = format!("select * from {view_name} limit 1");
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
@@ -468,6 +466,7 @@ impl SchemaTrait for PostGresDB {
 
         anyhow::Ok(ret)
     }
+
     async fn show_procedure(
         &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
@@ -508,6 +507,7 @@ impl SchemaTrait for PostGresDB {
             ],
         })
     }
+
     async fn drop_procedure(
         &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
@@ -523,6 +523,7 @@ impl SchemaTrait for PostGresDB {
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
+
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
@@ -547,6 +548,7 @@ impl SchemaTrait for PostGresDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
         let sql = format!(
             r#"
@@ -570,17 +572,20 @@ impl SchemaTrait for PostGresDB {
             MetaValue::new_opt("arguments", arguments),
         ]))
     }
+
     async fn drop_udf(
         &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => match x {
-                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
-                #[allow(unreachable_patterns)]
-                _ => {
-                    anyhow::bail!("must be a postgres parameter")
+            Some(x) => {
+                match x {
+                    UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+                    #[allow(unreachable_patterns)]
+                    _ => {
+                        anyhow::bail!("must be a postgres parameter")
+                    }
                 }
-            },
+            }
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 
@@ -601,6 +606,7 @@ impl SchemaTrait for PostGresDB {
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
+
     async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let sql = format!("ALTER TABLE {table} ENABLE TRIGGER {name}");
@@ -706,15 +712,12 @@ impl SchemaTrait for PostGresDB {
     async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let schema = self.must_schema();
         let sql = format!(
-            r#"table
+            r#"
          DROP TRIGGER {name} ON {schema}.{table} 
         "#
         );
         let mut conn = self.get_conn().await?;
-        sqlx::query(&sql)
-            .execute(conn.deref_mut())
-            .await
-            .context("can't execute sql")?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
@@ -1294,6 +1297,7 @@ impl QuerySql for PostGresDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::PostgreSqlDialect {})
     }
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn().await?;
@@ -1423,6 +1427,9 @@ impl CatalogTrait for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
+            if name == "template0" || name == "template1" {
+                continue;
+            }
             ret.push(name);
         }
         anyhow::Ok(ret)
@@ -1466,6 +1473,7 @@ impl PostGresDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
         let schema = self.must_schema();
         let sql = format!(
@@ -1502,13 +1510,15 @@ impl PostGresDB {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::PostGresDB;
     use crate::datasource_config::PGDbConfig;
-    use crate::db::{CatalogTrait, QueryResp, UdfOrPrecedureExtraParameter};
-    use crate::db::{CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas};
-
+    use crate::db::{
+        CatalogTrait, CheckConn, ExportKind, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+        UdfOrPrecedureExtraParameter,
+    };
     use crate::{TEST_HOST, enable_test_log};
-    use std::collections::HashMap;
 
     async fn make_test_object() -> PostGresDB {
         let pg = PostGresDB::new(PGDbConfig {

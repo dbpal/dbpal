@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use crate::TEST_HOST;
+    use crate::datasource_config::MysqlDbConfig;
     use crate::mysql::test_fns::{self, make_test_object};
-    use crate::{TEST_HOST, datasource_config::MysqlDbConfig};
 
     pub(crate) fn make_config() -> MysqlDbConfig {
         MysqlDbConfig {

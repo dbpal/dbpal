@@ -4,7 +4,6 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Context;
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_core::future::BoxFuture;
@@ -235,20 +234,26 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -444,6 +449,7 @@ impl SchemaTrait for MsSqlServer {
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         anyhow::Ok(crate::mysql_completion::TYPES)
     }
+
     async fn modify_table_column(
         &self, table: &str, old_name: &str, new_name: &str, typ: Option<ModifyTableColumnType>,
     ) -> anyhow::Result<()> {
@@ -484,6 +490,7 @@ impl SchemaTrait for MsSqlServer {
         conn.execute(&sql, &[]).await?;
         anyhow::Ok(())
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -617,9 +624,7 @@ impl SchemaTrait for MsSqlServer {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
 
-        conn.execute(sql.as_str(), &[])
-            .await
-            .context("can't drop trigger")?;
+        conn.execute(sql.as_str(), &[]).await?;
 
         anyhow::Ok(())
     }
@@ -1000,6 +1005,7 @@ impl SchemaTrait for MsSqlServer {
             last_insert_id_string: None,
         })
     }
+
     async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -1008,6 +1014,7 @@ impl SchemaTrait for MsSqlServer {
         conn.execute(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
+
     async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -1048,6 +1055,7 @@ impl SchemaTrait for MsSqlServer {
 
         anyhow::Ok(ret)
     }
+
     async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
         let sql = format!(
             r#"
@@ -1128,6 +1136,7 @@ impl SchemaTrait for MsSqlServer {
         )
         .await
     }
+
     async fn show_procedure(
         &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
@@ -1170,6 +1179,7 @@ impl SchemaTrait for MsSqlServer {
         }
         anyhow::bail!("query precedure contains no result.")
     }
+
     async fn drop_procedure(
         &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
@@ -1278,46 +1288,57 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
             tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::String(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Guid(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Binary(x) => x
-                .as_ref()
-                .map(|x| format!("0X{}", hex::encode_upper(x)))
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Numeric(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::String(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Guid(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Binary(x) => {
+                x.as_ref()
+                    .map(|x| format!("0X{}", hex::encode_upper(x)))
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Numeric(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Xml(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Xml(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -1554,6 +1575,7 @@ impl QuerySql for MsSqlServer {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let conn = self.new_tcp_conn().await?;
 
@@ -1723,6 +1745,7 @@ impl CatalogTrait for MsSqlServer {
 
         anyhow::Ok(ret)
     }
+
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
         config.db = Some(name.to_owned());
@@ -1866,8 +1889,9 @@ mod tests {
 
     // when I test via `cargo test`
     // sometimes I have this error
-    // ERROR - Transaction (Process ID 76) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. code=1205
-    // maybe I need mutex to run one test a time.
+    // ERROR - Transaction (Process ID 76) was deadlocked on lock resources with
+    // another process and has been chosen as the deadlock victim. Rerun the
+    // transaction. code=1205 maybe I need mutex to run one test a time.
     fn test_lock() -> &'static Mutex<()> {
         static MUTEX: Mutex<()> = Mutex::const_new(());
         &MUTEX

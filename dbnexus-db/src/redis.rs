@@ -1,11 +1,17 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-
 use std::str::{FromStr, from_utf8};
 use std::sync::Arc;
-
 use std::time::Duration;
 use std::vec;
+
+use dashmap::DashMap;
+use futures_util::StreamExt;
+use redis::aio::{ConnectionManager, MultiplexedConnection};
+use redis::{AsyncCommands, AsyncIter, Value};
+use sqlparser::tokenizer::Token;
+use tokio::sync::Mutex;
+use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDbConfig;
 use crate::db::{
@@ -13,23 +19,10 @@ use crate::db::{
     QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet,
     TableListResp,
 };
-
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use crate::redis_completion::RedisDialet;
-
-use anyhow::Context;
-use dashmap::DashMap;
-use futures_util::StreamExt;
-
-use sqlparser::tokenizer::Token;
-
-use tokio::sync::Mutex;
-use typescript_type_def::TypeDef;
-
-use redis::aio::{ConnectionManager, MultiplexedConnection};
-use redis::{AsyncCommands, AsyncIter, Value};
 
 /// https://stackoverflow.com/questions/30611215/redis-how-to-limit-the-return-number-of-keys-command
 
@@ -95,6 +88,7 @@ impl RedisDB {
         let _: () = conn.lpush(key, value).await?;
         anyhow::Ok(())
     }
+
     pub async fn list_rpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.rpush(key, value).await?;
@@ -118,12 +112,10 @@ impl RedisDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.sadd(key, new_member).await?;
-        let _: () = conn
-            .srem(key, old_member)
-            .await
-            .context("set new key succeefully , but remove old key failed")?;
+        let _: () = conn.srem(key, old_member).await?;
         anyhow::Ok(())
     }
+
     pub async fn set_del(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.srem(key, member).await?;
@@ -141,17 +133,16 @@ impl RedisDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.hset(key, new_member, new_value).await?;
-        let _: () = conn
-            .hdel(key, old_member)
-            .await
-            .context("set new key succeefully , but remove old key failed")?;
+        let _: () = conn.hdel(key, old_member).await?;
         anyhow::Ok(())
     }
+
     pub async fn hash_del(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.hdel(key, member).await?;
         anyhow::Ok(())
     }
+
     pub async fn hash_add(&self, key: &str, member: &[u8], value: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.hset(key, member, value).await?;
@@ -163,12 +154,10 @@ impl RedisDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.zadd(key, new_member, new_value).await?;
-        let _: () = conn
-            .zrem(key, old_member)
-            .await
-            .context("set new key succeefully , but remove old key failed")?;
+        let _: () = conn.zrem(key, old_member).await?;
         anyhow::Ok(())
     }
+
     pub async fn zset_del(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.zrem(key, member).await?;
@@ -180,6 +169,7 @@ impl RedisDB {
         let _: () = conn.zadd(key, member, value).await?;
         anyhow::Ok(())
     }
+
     pub async fn string_set(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.set(key, value).await?;
@@ -548,6 +538,7 @@ impl RedisDB {
         }
         anyhow::Ok(())
     }
+
     async fn export_table_to_command(
         &self, key: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -809,14 +800,18 @@ impl SchemaTrait for RedisDB {
             RedisType::String => anyhow::Ok(vec![Field::from_name_type("value", "string")]),
             RedisType::List => anyhow::Ok(vec![Field::from_name_type("list element", "string")]),
             RedisType::Set => anyhow::Ok(vec![Field::from_name_type("set element", "string")]),
-            RedisType::Hash => anyhow::Ok(vec![
-                Field::from_name_type("key", "string"),
-                Field::from_name_type("value", "string"),
-            ]),
-            RedisType::Zset => anyhow::Ok(vec![
-                Field::from_name_type("value", "string"),
-                Field::from_name_type("score", "float64"),
-            ]),
+            RedisType::Hash => {
+                anyhow::Ok(vec![
+                    Field::from_name_type("key", "string"),
+                    Field::from_name_type("value", "string"),
+                ])
+            }
+            RedisType::Zset => {
+                anyhow::Ok(vec![
+                    Field::from_name_type("value", "string"),
+                    Field::from_name_type("score", "float64"),
+                ])
+            }
         }
     }
 
@@ -998,6 +993,7 @@ impl DBTrait for RedisDB {
 
         extract_db_from_info_key_space(&r)
     }
+
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
         config.db = Some(name.to_owned());
@@ -1115,6 +1111,7 @@ impl TryFrom<&str> for RedisType {
 
 impl FromStr for RedisType {
     type Err = anyhow::Error;
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "string" => Ok(Self::String),
@@ -1149,9 +1146,11 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialet, line).tokenize()?;
         let c = tokens
             .iter()
-            .filter(|x| match x {
-                Token::Whitespace(_) => false,
-                _ => true,
+            .filter(|x| {
+                match x {
+                    Token::Whitespace(_) => false,
+                    _ => true,
+                }
             })
             .map(|x| x.to_string())
             .collect();
@@ -1191,10 +1190,12 @@ async fn query_sql(
 fn encode_response_value_to_string(v: &Value) -> String {
     match v {
         Value::Int(v) => v.to_string(),
-        Value::BulkString(x) => match from_utf8(x.as_slice()) {
-            Ok(x) => x.to_owned(),
-            Err(_) => format!("0x{}", hex::encode(x.as_slice())),
-        },
+        Value::BulkString(x) => {
+            match from_utf8(x.as_slice()) {
+                Ok(x) => x.to_owned(),
+                Err(_) => format!("0x{}", hex::encode(x.as_slice())),
+            }
+        }
         Value::SimpleString(x) => x.to_owned(),
         Value::Double(d) => d.to_string(),
         Value::Boolean(x) => x.to_string(),
@@ -1342,14 +1343,12 @@ impl RedisDB {
     }
 }
 
-/*
-extract database from those vec result.
-
-```# Keyspace
-db0:keys=12,expires=0,avg_ttl=0
-db1:keys=1,expires=0,avg_ttl=0
-```
-*/
+// extract database from those vec result.
+//
+// ```# Keyspace
+// db0:keys=12,expires=0,avg_ttl=0
+// db1:keys=1,expires=0,avg_ttl=0
+// ```
 fn extract_db_from_info_key_space(result: &str) -> anyhow::Result<Vec<String>> {
     let mut ret = Vec::new();
     for r in result.lines().skip(1) {
@@ -1368,19 +1367,17 @@ fn extract_db_from_info_key_space(result: &str) -> anyhow::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
 
-    use std::{path::Path, time::Duration};
+    use std::path::Path;
+    use std::time::Duration;
 
     use futures_util::StreamExt;
     use redis::AsyncCommands;
 
     use super::{RedisDB, extract_db_from_info_key_space, split_info_colon};
-    use crate::{
-        TEST_HOST,
-        completion::completion_test::test_file_auto_completion,
-        datasource_config::RedisDbConfig,
-        db::{ExportKind, ServerMetas},
-        enable_test_log,
-    };
+    use crate::completion::completion_test::test_file_auto_completion;
+    use crate::datasource_config::RedisDbConfig;
+    use crate::db::{ExportKind, ServerMetas};
+    use crate::{TEST_HOST, enable_test_log};
 
     async fn make_test_object() -> RedisDB {
         let db = RedisDB::new(RedisDbConfig {

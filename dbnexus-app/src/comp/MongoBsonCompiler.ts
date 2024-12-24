@@ -18,7 +18,7 @@ class MongoBsonObject {
     public eles: MongoBsonKV[],
     public startLoc?: Location,
     public endLoc?: Location
-  ) {}
+  ) { }
   format(tableSize: number = 2): string {
     return new MongoBsonValue(MongoBsonValueKind.Object, this).format(
       1,
@@ -50,7 +50,7 @@ function trimQuoteMark(str: string): string {
 }
 
 class MongoBsonKV {
-  constructor(public key: Token, public value: MongoBsonValue) {}
+  constructor(public key: Token, public value: MongoBsonValue) { }
 }
 
 class MongoBsonAs {
@@ -58,7 +58,7 @@ class MongoBsonAs {
     public value: MongoBsonValue,
     public kind: Token,
     public extra?: MongoBsonBinaryAllSubType
-  ) {}
+  ) { }
   compile(): any {
     switch (this.kind.value.toLocaleLowerCase()) {
       case 'int':
@@ -208,7 +208,7 @@ enum MongoBsonValueKind {
 }
 
 class MongoBsonBinaryAllSubType {
-  constructor(public kind: Token, public extra?: Token[]) {}
+  constructor(public kind: Token, public extra?: Token[]) { }
 
   static Generic = 'generic';
   static Function = 'function';
@@ -322,7 +322,7 @@ class MongoBsonValue {
       | Binary
       | Float32Array
       | Int8Array
-  ) {}
+  ) { }
 
   asToken(): Token {
     return this.value as Token;
@@ -560,7 +560,7 @@ class MongoBsonArray {
     public eles: MongoBsonValue[],
     public startLoc?: Location,
     public endLoc?: Location
-  ) {}
+  ) { }
 
   compile(): any {
     return this.eles.map((e) => e.compile());
@@ -621,7 +621,7 @@ class MongoBsonError extends Error {
 
 class Parser {
   index: number = 0;
-  constructor(public tokens: Token[]) {}
+  constructor(public tokens: Token[]) { }
 
   tokenAllConsumed(): boolean {
     return this.index >= this.tokens.length;

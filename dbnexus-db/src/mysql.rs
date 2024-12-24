@@ -4,14 +4,12 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Context;
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
-use sqlx::Executor;
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
-use sqlx::{Column, MySqlConnection, Row, TypeInfo};
+use sqlx::{Column, Executor, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::MemoryLimit;
@@ -444,10 +442,7 @@ impl FunctionOrProcedure {
             self.sql_condtion_str()
         );
 
-        let rows = sqlx::query(&sql)
-            .fetch_all(conn)
-            .await
-            .context("can't query")?;
+        let rows = sqlx::query(&sql).fetch_all(conn).await?;
         let mut ret = Vec::new();
 
         for r in rows.iter() {
@@ -627,6 +622,7 @@ impl SchemaTrait for MysqlDB {
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         anyhow::Ok(crate::mysql_completion::TYPES)
     }
+
     async fn modify_table_column(
         &self, table: &str, old_name: &str, new_name: &str, typ: Option<ModifyTableColumnType>,
     ) -> anyhow::Result<()> {
@@ -690,6 +686,7 @@ impl SchemaTrait for MysqlDB {
             .await?;
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
+
     async fn show_procedure(
         &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
@@ -700,6 +697,7 @@ impl SchemaTrait for MysqlDB {
 
         anyhow::Ok(ProcedureDetail::new(def, metas))
     }
+
     async fn drop_procedure(
         &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
@@ -776,12 +774,12 @@ impl SchemaTrait for MysqlDB {
 
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
-
         let (event, timing, sql, metas) = query_trigger_detail(&mut conn, name).await?;
         let mut d = TriggerDetail::new(timing, event, sql, None);
         d.with_metas(metas);
         anyhow::Ok(d)
     }
+
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
@@ -789,7 +787,6 @@ impl SchemaTrait for MysqlDB {
         "#
         );
         let mut conn = self.get_conn().await?;
-
         conn.execute(sqlx::raw_sql(&sql)).await?;
 
         anyhow::Ok(())
@@ -801,8 +798,9 @@ impl SchemaTrait for MysqlDB {
             SELECT TRIGGER_NAME
                 FROM INFORMATION_SCHEMA.TRIGGERS
                 WHERE EVENT_OBJECT_TABLE = '{table_name}'
-                AND TRIGGER_SCHEMA = DATABASE();
-        "#
+                AND TRIGGER_SCHEMA = '{}';
+        "#,
+            self.config.db.as_ref().unwrap()
         );
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(sql.as_str())
@@ -1058,12 +1056,14 @@ impl SchemaTrait for MysqlDB {
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
                 Ok(x) => x,
-                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
-                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
-                    Err(_err) => {
-                        anyhow::bail!("can get column as string or vec<u8>")
+                Err(_) => {
+                    match r.try_get::<'_, Vec<u8>, _>(0) {
+                        Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                        Err(_err) => {
+                            anyhow::bail!("can get column as string or vec<u8>")
+                        }
                     }
-                },
+                }
             };
             let ty: String = r.try_get(1)?;
             let null: String = r.try_get(2)?;
@@ -1303,6 +1303,7 @@ impl QuerySql for MysqlDB {
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::MySqlDialect {})
     }
@@ -1541,6 +1542,12 @@ pub(crate) mod test_fns {
         let _ = db_trait
             .drop_table("test_create_trigger_update", false)
             .await;
+        let _ = db_trait
+            .drop_trigger("test_create_trigger", "after_insert_test_create_trigger")
+            .await;
+        let _ = db_trait
+            .drop_trigger("test_create_trigger", "after_insert_test_create_trigger2")
+            .await;
 
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
@@ -1595,8 +1602,6 @@ pub(crate) mod test_fns {
             } else if t.name == "after_insert_test_create_trigger" {
                 assert_eq!(detail.timing, TriggerTiming::After);
             }
-
-            db_trait.drop_trigger(table, &t.name).await.unwrap();
         }
     }
 
@@ -1986,7 +1991,8 @@ pub(crate) mod test_fns {
 #[cfg(test)]
 mod tests {
     use super::test_fns::{self, make_test_object};
-    use crate::{TEST_HOST, datasource_config::MysqlDbConfig};
+    use crate::TEST_HOST;
+    use crate::datasource_config::MysqlDbConfig;
 
     pub(crate) fn make_config() -> MysqlDbConfig {
         MysqlDbConfig {

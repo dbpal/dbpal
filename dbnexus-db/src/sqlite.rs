@@ -4,7 +4,6 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Context;
 use dashmap::DashMap;
 use futures_util::lock::Mutex;
 use futures_util::{StreamExt, TryStreamExt};
@@ -14,16 +13,15 @@ use sqlx::pool::PoolConnection;
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Row, SqliteConnection, TypeInfo};
 
+use crate::MemoryLimit;
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, ExportKind, Field, FormatSql, FormatSqlOpts,
     Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas,
     SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
-
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
-use crate::{CANNOT_GET_CONN_ERR, MemoryLimit};
 impl FormatSql for SqliteDB {
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
@@ -48,9 +46,8 @@ impl SqliteDB {
         );
         let row = sqlx::query(sql.as_str())
             .fetch_one(conn.deref_mut())
-            .await
-            .context("can't query create sql")?;
-        let sql: String = row.try_get(0).context("can't get sql def")?;
+            .await?;
+        let sql: String = row.try_get(0)?;
         anyhow::Ok(sql)
     }
 
@@ -61,12 +58,11 @@ impl SqliteDB {
         );
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
-            .await
-            .context("can't query sql")?;
+            .await?;
 
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
-            let sql: String = r.try_get(0).context("can't get sql def")?;
+            let sql: String = r.try_get(0)?;
             ret.push(sql);
         }
         anyhow::Ok(ret)
@@ -93,9 +89,9 @@ impl SqliteDB {
             .fetch(conn.deref_mut())
             .try_chunks(100);
         while let Some(rows) = stream.next().await {
-            let rows = rows.context("stream returns error")?;
+            let rows = rows?;
 
-            let data = encode_rows(&rows).context("encode rows error")?;
+            let data = encode_rows(&rows)?;
             for d in data.into_iter() {
                 let mut m = HashMap::new();
                 for (d, f) in d.into_iter().zip(cols.iter()) {
@@ -119,7 +115,7 @@ impl SqliteDB {
         let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
 
         while let Some(row) = stream.next().await {
-            let row = row.context("stream returns error")?;
+            let row = row?;
             let value = encode_row_as_json(&row)?;
 
             sender
@@ -150,7 +146,7 @@ impl SqliteDB {
         sender.send("[".into()).await?;
         let mut first = true;
         while let Some(row) = stream.next().await {
-            let row = row.context("stream returns error")?;
+            let row = row?;
             let value = encode_row_as_json(&row)?;
             if !first {
                 sender.send(",".into()).await?;
@@ -191,7 +187,7 @@ impl SqliteDB {
         let mut stream = sqlx::query(sql).fetch(conn.deref_mut()).try_chunks(100);
         let mut first = true;
         while let Some(rows) = stream.next().await {
-            let rows = rows.context("stream return error")?;
+            let rows = rows?;
             if first && rows.len() > 0 && include_header {
                 let fs = rows
                     .get(0)
@@ -324,11 +320,6 @@ fn test_extract_trigger_base_on_lexer() {
 }
 
 fn extract_trigger_detail_from_sql(sql: String) -> anyhow::Result<TriggerDetail> {
-    // let ss = sqlparser::parser::Parser::parse_sql(&
-    // sqlparser::dialect::SQLiteDialect {}, sql)     .map_err(|e| ->
-    // anyhow::Error { e.into() })     .map_err(|e| e.context("extract trigger
-    // detail fail to parse sql"))?;
-
     extract_trigger_base_on_lexer(sql)
 }
 
@@ -357,10 +348,7 @@ async fn query_trigger_detail(
     conn: &mut SqliteConnection, name: &str,
 ) -> anyhow::Result<TriggerDetail> {
     let s = format!("SELECT sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
-    let row = sqlx::query(&s)
-        .fetch_one(conn)
-        .await
-        .context("can't query trigger sql")?;
+    let row = sqlx::query(&s).fetch_one(conn).await?;
     let sql: String = row.get(0);
     extract_trigger_detail_from_sql(sql)
 }
@@ -427,8 +415,7 @@ impl BackendName for SqliteDB {
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
-        use sqlx::Executor;
-        use sqlx::Statement;
+        use sqlx::{Executor, Statement};
         let mut conn = self.get_conn().await?;
         let sql = format!("select * from {view_name} limit 1");
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
@@ -466,7 +453,7 @@ impl SchemaTrait for SqliteDB {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
         let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
-        let mut conn = self.get_conn().await.context("can't dup table")?;
+        let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
 
         anyhow::Ok(())
@@ -475,10 +462,7 @@ impl SchemaTrait for SqliteDB {
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let sql = format!("ALTER TABLE {old} RENAME TO {new}");
-        sqlx::query(sql.as_str())
-            .execute(conn.deref_mut())
-            .await
-            .context("can't rename table")?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
@@ -494,8 +478,7 @@ impl SchemaTrait for SqliteDB {
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
-            .await
-            .context("can query list triiger")?;
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
@@ -518,10 +501,7 @@ impl SchemaTrait for SqliteDB {
         );
         let mut conn = self.get_conn().await?;
 
-        sqlx::query(sql.as_str())
-            .execute(conn.deref_mut())
-            .await
-            .context("can't execute sql")?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
 
         anyhow::Ok(())
     }
@@ -589,8 +569,7 @@ impl SchemaTrait for SqliteDB {
         "#,
         )
         .fetch_all(conn.deref_mut())
-        .await
-        .context("can't query list view")?;
+        .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
@@ -605,10 +584,7 @@ impl SchemaTrait for SqliteDB {
 
         let s = format!("DROP VIEW {view_name}");
         let mut conn = self.get_conn().await?;
-        sqlx::query(s.as_str())
-            .execute(conn.deref_mut())
-            .await
-            .context("can't drop view")?;
+        sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
@@ -619,10 +595,7 @@ impl SchemaTrait for SqliteDB {
             if cascade { " CASCADE " } else { "" }
         );
         let mut conn = self.get_conn().await?;
-        sqlx::query(s.as_str())
-            .execute(conn.deref_mut())
-            .await
-            .context("can't drop table")?;
+        sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
@@ -652,10 +625,7 @@ impl SchemaTrait for SqliteDB {
         "#
         );
         let mut conn = self.get_conn().await?;
-        sqlx::query(s.as_str())
-            .execute(conn.deref_mut())
-            .await
-            .context("can't truncate table")?;
+        sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
@@ -720,8 +690,7 @@ impl SchemaTrait for SqliteDB {
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table';")
             .fetch_all(conn.deref_mut())
-            .await
-            .context("can't query sql")?;
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let table_name: String = r.get(0);
@@ -736,10 +705,7 @@ impl SchemaTrait for SqliteDB {
 
         let s = format!("pragma table_info({table_name})");
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(s.as_str())
-            .fetch_all(conn.deref_mut())
-            .await
-            .context("can't query sql")?;
+        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         // cid name type     notnull  delt_value pk
         // 0	id	INTEGER	 0		  null      1
@@ -1055,7 +1021,7 @@ impl SqliteDB {
     }
 
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<sqlx::Sqlite>> {
-        let conn = self.pool.acquire().await.context(CANNOT_GET_CONN_ERR)?;
+        let conn = self.pool.acquire().await?;
         return anyhow::Ok(conn);
     }
 }
@@ -1071,15 +1037,21 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }

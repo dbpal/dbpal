@@ -9,10 +9,8 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
-
 use dbnexus_db::redis::{RedisDB, RedisListTable};
-use tauri::AppHandle;
-use tauri::Emitter;
+use tauri::{AppHandle, Emitter};
 
 #[tauri::command]
 pub async fn add_config(
@@ -65,8 +63,8 @@ pub async fn delete_config(
 // }
 
 // #[tauri::command]
-// pub async fn open(name: String, app: tauri::State<'_, App>) -> Result<(), AnyhowErrorFrontend> {
-//     random_sleep().await;
+// pub async fn open(name: String, app: tauri::State<'_, App>) -> Result<(),
+// AnyhowErrorFrontend> {     random_sleep().await;
 //     random_error()?;
 //     log::info!("open db:{}", name);
 //     app.open(name.as_str())
@@ -349,11 +347,13 @@ pub async fn query_sql(
 
     result.map_err(AnyhowErrorFrontend::from).map(|x| {
         x.into_iter()
-            .map(|x| match x {
-                Err(e) => Err(e),
-                Ok(x) => {
-                    let QueryResp { fields, data } = x;
-                    Ok(MuiDataGridData::from((fields, data)))
+            .map(|x| {
+                match x {
+                    Err(e) => Err(e),
+                    Ok(x) => {
+                        let QueryResp { fields, data } = x;
+                        Ok(MuiDataGridData::from((fields, data)))
+                    }
                 }
             })
             .collect::<Vec<_>>()
@@ -504,6 +504,29 @@ pub async fn list_schema(
 > {
     random_sleep().await;
     random_error()?;
+    // 特殊的处理
+    if let Err(_) = app.get_opened(&name).await {
+        if name.contains(":") {
+            let (catelog, database) = name.split_once(":").unwrap();
+            let opened = app.open(catelog).await?;
+            match opened {
+                Open::Catalog(x) => {
+                    let x = x.open_db(database).await?;
+                    app.opens
+                        .lock()
+                        .await
+                        .insert(name.clone(), Open::DataBase(x));
+                }
+                _ => {
+                    return Err(AnyhowErrorFrontend::from(format!(
+                        "here must be a catelog,but:{:?}",
+                        opened
+                    )));
+                }
+            }
+        }
+    }
+
     let db = app.open(name.as_str()).await?;
     match db {
         app::Open::DataBase(x) => x.list_schema().await,
@@ -523,14 +546,17 @@ pub async fn oracle_query_set_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_set_autocommit(id, commit)
-            .await
-            .map_err(AnyhowErrorFrontend::from),
-        None => Err(AnyhowErrorFrontend::from(format!(
-            "db '{}' is not oracle",
-            name
-        ))),
+        Some(x) => {
+            x.query_set_autocommit(id, commit)
+                .await
+                .map_err(AnyhowErrorFrontend::from)
+        }
+        None => {
+            Err(AnyhowErrorFrontend::from(format!(
+                "db '{}' is not oracle",
+                name
+            )))
+        }
     }
 }
 #[tauri::command]
@@ -544,14 +570,17 @@ pub async fn oracle_query_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_autocommit(id)
-            .await
-            .map_err(AnyhowErrorFrontend::from),
-        None => Err(AnyhowErrorFrontend::from(format!(
-            "db '{}' is not oracle",
-            name
-        ))),
+        Some(x) => {
+            x.query_autocommit(id)
+                .await
+                .map_err(AnyhowErrorFrontend::from)
+        }
+        None => {
+            Err(AnyhowErrorFrontend::from(format!(
+                "db '{}' is not oracle",
+                name
+            )))
+        }
     }
 }
 #[tauri::command]
@@ -565,10 +594,11 @@ pub async fn oracle_query_commit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_commit(id)
-            .await
-            .map_err(|e| AnyhowErrorFrontend::from(e)),
+        Some(x) => {
+            x.query_commit(id)
+                .await
+                .map_err(|e| AnyhowErrorFrontend::from(e))
+        }
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -583,10 +613,11 @@ pub async fn oracle_query_rollback(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_rollback(id)
-            .await
-            .map_err(|e| AnyhowErrorFrontend::from(e)),
+        Some(x) => {
+            x.query_rollback(id)
+                .await
+                .map_err(|e| AnyhowErrorFrontend::from(e))
+        }
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -603,6 +634,53 @@ pub async fn list_trigger(
         .map_err(|e| AnyhowErrorFrontend::from(e))?;
 
     db.list_trigger(&table_name)
+        .await
+        .map_err(|e| AnyhowErrorFrontend::from(e))
+}
+
+#[tauri::command]
+pub async fn drop_trigger(
+    name: String, table_name: String, trigger: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| AnyhowErrorFrontend::from(e))?;
+
+    db.drop_trigger(&table_name, &trigger)
+        .await
+        .map_err(|e| AnyhowErrorFrontend::from(e))
+}
+
+#[tauri::command]
+pub async fn enable_trigger(
+    name: String, table_name: String, trigger: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| AnyhowErrorFrontend::from(e))?;
+
+    db.enable_trigger(&table_name, &trigger)
+        .await
+        .map_err(|e| AnyhowErrorFrontend::from(e))
+}
+#[tauri::command]
+pub async fn disable_trigger(
+    name: String, table_name: String, trigger: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| AnyhowErrorFrontend::from(e))?;
+
+    db.disable_trigger(&table_name, &trigger)
         .await
         .map_err(|e| AnyhowErrorFrontend::from(e))
 }
@@ -1234,16 +1312,15 @@ impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
             .into_iter()
             .map(|x| {
                 let mut m = HashMap::new();
-                fields
-                    .iter()
-                    .zip(x.into_iter())
-                    .for_each(|(f, value)| match value {
+                fields.iter().zip(x.into_iter()).for_each(|(f, value)| {
+                    match value {
                         Some(value) => {
                             m.insert(f.field.clone(), value);
                         }
 
                         None => {}
-                    });
+                    }
+                });
 
                 m
             })
@@ -1264,7 +1341,7 @@ mod tests {
     }
     #[test]
     fn test_anyhow_display_and_debug() {
-        let err = anyhow::Error::msg("aaaa").context("bbbb");
+        let err = anyhow::Error::msg("aaaa");
         println!("{}", err);
         println!("#####################################");
         println!("{:?}", err);

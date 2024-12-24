@@ -56,7 +56,7 @@ function ViewsTree() {
     <TreeItem
       itemId={uuid + '-views'}
       label=<Stack
-        direction='row'
+        direction="row"
         spacing={1}
         onContextMenu={(e) => {
           setMenuContent(
@@ -90,7 +90,7 @@ function ViewTree(props: { view: string; reload }) {
       itemId={uuid + '-view-' + view}
       label={
         <Stack
-          direction='row'
+          direction="row"
           onContextMenu={(e) => {
             setMenuContent(
               <ViewMenu
@@ -102,7 +102,6 @@ function ViewTree(props: { view: string; reload }) {
             );
             setUpMenu(e, 100);
           }}
-          spacing={1}
         >
           <VisibilityIcon></VisibilityIcon> <span> {view} </span>
         </Stack>
@@ -141,7 +140,7 @@ function ViewColumnsTree(props: { view: string }) {
       itemId={idPrefix}
       label=<Stack
         spacing={1}
-        direction='row'
+        direction="row"
         onContextMenu={(e) => {
           setMenuContent(
             <MenuList>
@@ -161,7 +160,7 @@ function ViewColumnsTree(props: { view: string }) {
         <TreeItem
           key={f.field}
           itemId={idPrefix + '-' + f.field}
-          label=<Stack direction='row' spacing={1}>
+          label=<Stack direction="row" spacing={1}>
             {f.field} <em>({f.typ}) </em>
           </Stack>
         ></TreeItem>
@@ -206,7 +205,7 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText> open table list</ListItemText>
           <Typography
-            variant='body2'
+            variant="body2"
             sx={{ color: 'text.secondary' }}
           ></Typography>
         </MenuItem>
@@ -221,7 +220,7 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText>drop view </ListItemText>
           <Typography
-            variant='body2'
+            variant="body2"
             sx={{ color: 'text.secondary' }}
           ></Typography>
         </MenuItem>

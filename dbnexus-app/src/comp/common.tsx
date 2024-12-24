@@ -73,17 +73,17 @@ function SelectPageSize({
         fullWidth
         // @ts-ignore
         variant={variant}
-        size='small'
+        size="small"
       >
-        <InputLabel id='simple-select-label'>{tital}</InputLabel>
+        <InputLabel id="simple-select-label">{tital}</InputLabel>
         <Select
-          labelId='simple-select-label'
-          id='simple-select'
+          labelId="simple-select-label"
+          id="simple-select"
           value={pageSize}
           onChange={(e) => {
             onChange(e.target.value as number);
           }}
-          label='select page size'
+          label="select page size"
         >
           {pageSizeOptions.map((e) => (
             <MenuItem key={e} value={e}>
@@ -228,9 +228,9 @@ function EditorBar(props: {
 }) {
   let { left, pos, style } = props;
   return (
-    <Stack justifyContent='space-between' direction='row' style={style}>
+    <Stack justifyContent="space-between" direction="row" style={style}>
       <div style={{ width: '40%' }}> {left}</div>
-      <Stack width='40%' direction='row' spacing={1}>
+      <Stack width="40%" direction="row" spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Column {pos ? pos.column : ''}</span>
       </Stack>
@@ -256,8 +256,9 @@ function SimpleResizeAbleEditor(props: {
   value: string;
   onMount?: OnMount;
   options?: editor.IStandaloneEditorConstructionOptions;
+  style?: CSSProperties;
 }) {
-  let { language, value, onMount, options } = props;
+  let { language, value, onMount, options, style } = props;
   return (
     <div
       style={{
@@ -265,6 +266,7 @@ function SimpleResizeAbleEditor(props: {
         flexDirection: 'column',
         resize: 'vertical',
         overflow: 'auto',
+        ...style,
       }}
     >
       <div
@@ -320,6 +322,8 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
       return DataSourceKind.MsSql;
     case 'sqlite':
       return DataSourceKind.Sqlite;
+    case 'postgres':
+      return DataSourceKind.Postgres;
   }
 }
 const ConnTypeContext = createContext<{
@@ -328,7 +332,6 @@ const ConnTypeContext = createContext<{
 
 const UuidContext = createContext<{
   uuid: string;
-  database?: string;
 }>(null);
 
 const MenuContext = createContext<{

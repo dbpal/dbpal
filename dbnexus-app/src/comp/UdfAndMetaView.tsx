@@ -34,7 +34,7 @@ function DefAndMetasView(props: {
       })
       .catch((e) => {
         setLoading(false);
-        showNotification('error', 'fetch triggre detail failure', e);
+        showNotification('error', 'fetch detail failed', e);
       });
   };
 
@@ -44,11 +44,11 @@ function DefAndMetasView(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
-      <Stack direction='row' spacing={1}>
+      {loading && <CircularProgress size={progressBarSize} />} 
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='contained' // 可以是 'text', 'outlined', 或 'contained'
-          color='primary' // 主题颜色
+          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
+          color="primary" // 主题颜色
           onClick={handleReload} // 点击事件处理
         >
           Reload
@@ -58,6 +58,7 @@ function DefAndMetasView(props: {
         <Stack spacing={1}>
           <Typography variant={titleVariant}> Sql </Typography>
           <SimpleResizeAbleEditor
+            style={{ minHeight: '300px' }}
             language={language}
             value={detail.def}
           ></SimpleResizeAbleEditor>

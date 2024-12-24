@@ -10,7 +10,6 @@ import {
   tabsHasId,
   TabsSetContext,
   ConnTypeContext,
-  chunkArray,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -44,6 +43,7 @@ import {
 import { secondConfirm } from './Confirm';
 import { TabContent } from './Tabs';
 import { SqlTableView } from './SqlTableView';
+import { TriggersTree } from './LeftTriggers';
 
 function TablesTree() {
   const { uuid } = useContext(UuidContext);
@@ -73,7 +73,7 @@ function TablesTree() {
       itemId={uuid + '-tables'}
       label=<Stack
         spacing={1}
-        direction='row'
+        direction="row"
         onContextMenu={(e) => {
           setMenuContent(
             <MenuList>
@@ -117,10 +117,10 @@ function TableTree(props: {
       itemId={uuid + '-table-' + table}
       label={
         <Stack
-          direction='row'
+          direction="row"
           spacing={1}
-          justifyContent='space-between'
-          alignContent='center'
+          justifyContent="space-between"
+          alignContent="center"
           onContextMenu={(e) => {
             setMenuContent(
               <TableMenu
@@ -133,7 +133,7 @@ function TableTree(props: {
             setUpMenu(e, 200);
           }}
         >
-          <Stack direction='row'>
+          <Stack direction="row">
             <TableViewIcon> </TableViewIcon> {table}
           </Stack>
           <span> {size} </span>
@@ -141,6 +141,7 @@ function TableTree(props: {
       }
     >
       <TableColumnsTree table={table}></TableColumnsTree>
+      <TriggersTree table={table}></TriggersTree>
     </TreeItem>
   );
 }
@@ -209,7 +210,7 @@ function ModifyTableColumn(props: {
     <Stack spacing={1}>
       <TextField
         fullWidth
-        label='New Name'
+        label="New Name"
         value={newName}
         onChange={(e) => {
           setNewName(e.target.value);
@@ -225,19 +226,19 @@ function ModifyTableColumn(props: {
               onChange={(e) => {
                 setModifyType(e.target.checked);
               }}
-              name='myCheckbox'
-              color='primary'
+              name="myCheckbox"
+              color="primary"
             />
           }
-          label='modify TYPE'
+          label="modify TYPE"
         />
       )}
       {modifyType && (
         <Stack spacing={1}>
-          <Stack direction='row' style={{ flexWrap: 'wrap' }}>
+          <Stack direction="row" style={{ flexWrap: 'wrap' }}>
             {types.map((t) => (
               <Button
-                variant='outlined'
+                variant="outlined"
                 onClick={() => {
                   setNewTyp(t);
                 }}
@@ -246,34 +247,34 @@ function ModifyTableColumn(props: {
               </Button>
             ))}
           </Stack>
-          <Stack direction='row' spacing={1}>
+          <Stack direction="row" spacing={1}>
             <TextField
-              label='Type'
+              label="Type"
               value={newTyp}
               onChange={(e) => {
                 setNewTyp(e.target.value);
               }}
             ></TextField>
             <FormControl style={{ minWidth: '100px' }}>
-              <InputLabel id='dropdown-label'>select nullness </InputLabel>
+              <InputLabel id="dropdown-label">select nullness </InputLabel>
               <Select
-                labelId='dropdown-label'
+                labelId="dropdown-label"
                 value={nullness}
                 onChange={(e) => {
                   setNullness(e.target.value);
                 }}
               >
-                <MenuItem value=''>not set</MenuItem>
-                <MenuItem value='null'>null</MenuItem>
-                <MenuItem value='not null'>not null</MenuItem>
+                <MenuItem value="">not set</MenuItem>
+                <MenuItem value="null">null</MenuItem>
+                <MenuItem value="not null">not null</MenuItem>
               </Select>
             </FormControl>
           </Stack>
         </Stack>
       )}
 
-      <Stack direction='row' spacing={1}>
-        <Button color='error' variant='contained' onClick={handleModify}>
+      <Stack direction="row" spacing={1}>
+        <Button color="error" variant="contained" onClick={handleModify}>
           Modify
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -319,7 +320,7 @@ function TableColumnsTree(props: { table: string }) {
       itemId={uuid + '-table-' + table + 'columns'}
       label=<Stack
         spacing={1}
-        direction='row'
+        direction="row"
         onContextMenu={
           support_modify_column
             ? (e) => {
@@ -355,7 +356,7 @@ function TableColumnsTree(props: { table: string }) {
             setUpMenu(e, 70);
           }}
           itemId={idPrefix + '-' + f.field}
-          label=<Stack direction='row' spacing={1}>
+          label=<Stack direction="row" spacing={1}>
             {f.field} <em>({f.typ}) </em>
           </Stack>
         ></TreeItem>
@@ -413,19 +414,19 @@ function DropTable(props: {
               onChange={(e) => setCascade(e.target.checked)}
             />
           }
-          label='CASCADE'
+          label="CASCADE"
         />
       )}
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='error' variant='contained' onClick={handleDrop}>
+        <Button color="error" variant="contained" onClick={handleDrop}>
           Drop
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -441,6 +442,7 @@ function TableMenu(props: {
   kind: DataSourceKind;
 }) {
   let { table, uuid, reload, kind } = props;
+
   const [showDup, setshowDup] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [showDrop, setShowDrop] = useState(false);
@@ -478,6 +480,7 @@ function TableMenu(props: {
         case DataSourceKind.Mysql:
         case DataSourceKind.MsSql:
         case DataSourceKind.Sqlite:
+        case DataSourceKind.Postgres:
           tableList = (
             <SqlTableView
               reloadOP={async (
@@ -519,9 +522,7 @@ function TableMenu(props: {
                   values,
                 });
               }}
-            >
-              table content
-            </SqlTableView>
+            ></SqlTableView>
           );
           break;
         case DataSourceKind.Redis:
@@ -600,9 +601,9 @@ function TableMenu(props: {
           onClose={() => {
             setshowDup(false);
           }}
-          aria-labelledby='set filter'
+          aria-labelledby="set filter"
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width="600px">
             <DupTable
               table={table}
               uuid={uuid}
@@ -620,9 +621,9 @@ function TableMenu(props: {
           onClose={() => {
             setShowRename(false);
           }}
-          aria-labelledby='rename'
+          aria-labelledby="rename"
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width="600px">
             <RenameTable
               uuid={uuid}
               table={table}
@@ -640,9 +641,9 @@ function TableMenu(props: {
           onClose={() => {
             setShowDrop(false);
           }}
-          aria-labelledby='drop'
+          aria-labelledby="drop"
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width="600px">
             <DropTable
               uuid={uuid}
               table={table}
@@ -696,6 +697,7 @@ function TableColumnMenu(props: {
     <Paper>
       <MenuList>
         <MenuItem
+          sx={{ color: 'error.main' }}
           onClick={() => {
             setShowModify(true);
           }}
@@ -703,7 +705,7 @@ function TableColumnMenu(props: {
           <ListItemIcon>
             <EditIcon> </EditIcon>
           </ListItemIcon>
-          <ListItemText color='error'> modify column </ListItemText>
+          <ListItemText color="error"> modify column </ListItemText>
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -714,7 +716,7 @@ function TableColumnMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon> </DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText color='error'> drop column </ListItemText>
+          <ListItemText color="error"> drop column </ListItemText>
         </MenuItem>
       </MenuList>
       {showModify && (
@@ -723,9 +725,9 @@ function TableColumnMenu(props: {
           onClose={() => {
             setShowModify(false);
           }}
-          aria-labelledby='set filter'
+          aria-labelledby="set filter"
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width="600px">
             <ModifyTableColumn
               table={table}
               uuid={uuid}
@@ -764,6 +766,7 @@ function DupTable(props: {
         setLoading(false);
         showNotification('success', 'Duplicate OK');
         reloadTables();
+        handleClose();
       })
       .catch((e) => {
         showNotification('error', 'Duplicate failure', e);
@@ -774,21 +777,21 @@ function DupTable(props: {
     <Stack spacing={1}>
       <TextField
         value={name}
-        label='Duplicate Name'
+        label="Duplicate Name"
         onChange={(e) => {
           setName(e.target.value);
         }}
       ></TextField>
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='primary' variant='contained' onClick={handleRename}>
+        <Button color="primary" variant="contained" onClick={handleRename}>
           Duplicate
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -818,6 +821,7 @@ function RenameTable(props: {
         setLoading(false);
         showNotification('success', 'Rename OK');
         reloadTables();
+        handleClose();
       })
       .catch((e) => {
         showNotification('error', 'Rename failure', e);
@@ -828,21 +832,21 @@ function RenameTable(props: {
     <Stack spacing={1}>
       <TextField
         value={newName}
-        label='New Name'
+        label="New Name"
         onChange={(e) => {
           setNewName(e.target.value);
         }}
       ></TextField>
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='primary' variant='contained' onClick={handleRename}>
+        <Button color="primary" variant="contained" onClick={handleRename}>
           Rename
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}

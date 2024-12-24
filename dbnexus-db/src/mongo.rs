@@ -1,14 +1,13 @@
-use anyhow::Context;
-
-use futures_util::StreamExt;
-use mongodb::bson::{Document, doc};
-use mongodb::options::ServerAddress;
-use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+
+use futures_util::StreamExt;
+use mongodb::bson::{Document, doc};
+use mongodb::options::ServerAddress;
+use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 
 use crate::completion::{AutoCompletionTrait, CompletionItem};
 use crate::datasource_config::MongoConfig;
@@ -220,8 +219,7 @@ impl Mongo {
         let ret = db
             .collection::<Document>(collection_name)
             .insert_one(doc)
-            .await
-            .context("insert failed")?;
+            .await?;
         anyhow::Ok(ret)
     }
 
@@ -245,8 +243,7 @@ impl Mongo {
         let ret = db
             .collection::<Document>(collection_name)
             .update_many(query, update)
-            .await
-            .context("update failed")?;
+            .await?;
         anyhow::Ok(ret)
     }
 
@@ -258,8 +255,7 @@ impl Mongo {
         let ret = db
             .collection::<Document>(collection_name)
             .delete_many(query)
-            .await
-            .context("delete failed")?;
+            .await?;
         anyhow::Ok(ret)
     }
 
@@ -270,22 +266,20 @@ impl Mongo {
         let count = db
             .collection::<u64>(collection_name)
             .count_documents(filter.clone())
-            .await
-            .context("query total count failed")?;
+            .await?;
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
-            .await
-            .context("get query stream")?;
+            .await?;
 
         let mut docs = Vec::new();
         while let Some(item) = stream.next().await {
-            let item = item.context("list doc failed")?;
+            let item = item?;
             docs.push(item);
         }
 
-        let cols = infer_multi_value_column_names(&docs[..]).context("infer columns failed")?;
-        let data = collect_table_resp(&cols, docs.as_slice()).context("make response failed")?;
+        let cols = infer_multi_value_column_names(&docs[..])?;
+        let data = collect_table_resp(&cols, docs.as_slice())?;
 
         anyhow::Ok(TableListResp::new(cols, count as usize, data, None))
     }
@@ -297,16 +291,14 @@ impl Mongo {
         let count = db
             .collection::<u64>(collection_name)
             .count_documents(filter.clone())
-            .await
-            .context("query docs count failed")?;
+            .await?;
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
-            .await
-            .context("get query result")?;
+            .await?;
         let mut docs = Vec::new();
         while let Some(item) = stream.next().await {
-            let item = item.context("list doc failed")?;
+            let item = item?;
             docs.push(item);
         }
         anyhow::Ok(DocsAndCount { docs, count })
@@ -332,25 +324,19 @@ impl Mongo {
         let db = self.get_db().await?;
         let old_table = db.collection::<Document>(old_collection);
         let new_table = db.collection::<Document>(dup);
-        let mut stream = old_table
-            .find(doc! {})
-            .await
-            .context("query duplicate table failed")?;
+        let mut stream = old_table.find(doc! {}).await?;
         while let Some(doc) = stream.next().await {
-            let d = doc.context("get doc failed")?;
-            new_table
-                .insert_one(d)
-                .await
-                .context("insert to new table failed")?;
+            let d = doc?;
+            new_table.insert_one(d).await?;
         }
         anyhow::Ok(())
     }
+
     async fn delete_collection(&self, collection_name: &str) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         db.collection::<bson::Document>(collection_name)
             .drop()
-            .await
-            .context("drop collection failed")?;
+            .await?;
         anyhow::Ok(())
     }
 }
@@ -418,11 +404,9 @@ impl Mongo {
         mut stream: mongodb::Cursor<Document>, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         while let Some(item) = stream.next().await {
-            let item = item.context("stream item failed")?;
+            let item = item?;
             sender
-                .send(Cow::Owned(
-                    serde_json::to_string(&item).context("encode json failed")?,
-                ))
+                .send(Cow::Owned(serde_json::to_string(&item)?))
                 .await?;
             sender.send("\n".into()).await?;
         }
@@ -436,7 +420,7 @@ impl Mongo {
         sender.send("[".into()).await?;
         let mut first = true;
         while let Some(item) = stream.next().await {
-            let item = item.context("stream doc failed")?;
+            let item = item?;
             if !first {
                 sender.send(",".into()).await?;
             }
@@ -445,9 +429,9 @@ impl Mongo {
             }
             sender
                 .send(Cow::Owned(if pretty {
-                    serde_json::to_string_pretty(&item).context("encode json failed")?
+                    serde_json::to_string_pretty(&item)?
                 } else {
-                    serde_json::to_string(&item).context("encode json failed")?
+                    serde_json::to_string(&item)?
                 }))
                 .await?;
 
@@ -464,13 +448,10 @@ impl Mongo {
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
-        let stream = db
-            .collection::<Document>(table_name)
-            .find(doc! {})
-            .await
-            .context("execute query stream failed")?;
+        let stream = db.collection::<Document>(table_name).find(doc! {}).await?;
         Self::export_stream_as_json(stream, pretty, sender).await
     }
+
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -506,6 +487,7 @@ impl Mongo {
 
         anyhow::Ok(ts.into_iter().map(NamedStaff::from).collect())
     }
+
     pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<()> {
         self.drop_table(name, false).await
     }
@@ -536,9 +518,7 @@ impl SchemaTrait for Mongo {
         let client = self.get_conn().await?;
         let db = client.database("admin");
 
-        db.run_command(cmd)
-            .await
-            .context("run rename command failed")?;
+        db.run_command(cmd).await?;
         anyhow::Ok(())
     }
 
@@ -698,7 +678,7 @@ impl QuerySql for Mongo {
 
 impl Mongo {
     async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
-        let client = self.get_conn().await.context("get conn failed")?;
+        let client = self.get_conn().await?;
         Ok(client.database(self.dbname.as_ref().unwrap()))
     }
 
@@ -718,11 +698,9 @@ mod tests {
     use bson::{Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
 
     use super::Mongo;
-
+    use crate::TEST_HOST;
     use crate::datasource_config::MongoConfig;
     use crate::db::{DBTrait, SchemaTrait, ServerMetas};
-
-    use crate::TEST_HOST;
 
     fn make_test_object() -> Mongo {
         let x = Mongo::new(MongoConfig {

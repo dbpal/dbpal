@@ -48,10 +48,10 @@ function Left() {
         overflow: 'auto',
       }}
     >
-      <Stack direction='row'>
+      <Stack direction="row">
         <Button
-          color='primary'
-          variant='contained'
+          color="primary"
+          variant="contained"
           onClick={() => {
             const id = 'add_config';
             let index = tabsHasId(tabs, 'add_config');
@@ -95,58 +95,84 @@ function Left() {
 
 function OneConfig(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-
   return (
     <SimpleTreeView>
       {config.conn_type == 'mariadb' &&
+        (config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>)}
+
+      {config.conn_type == 'postgres' &&
         (config.db ? (
-          <SchemaTree isTop={true}></SchemaTree>
+          config.schema ? (
+            <SchemaTree />
+          ) : (
+            <DatabaseTree />
+          )
         ) : (
-          <DatabaseTree isTop={true}></DatabaseTree>
+          <CatelogTree></CatelogTree>
         ))}
     </SimpleTreeView>
   );
 }
 
-function SchemaTree(prpos: { schemaname?: string; isTop: boolean }) {
-  const { uuid, database } = useContext(UuidContext);
-  const { conn_type } = useContext(ConnTypeContext);
-  let { schemaname, isTop } = prpos;
+function SchemaTree(prpos: { schemaname?: string }) {
+  const { uuid } = useContext(UuidContext);
+  let { schemaname } = prpos;
   const getPrefix = () => {
-    return uuid + database + schemaname;
+    return uuid + schemaname;
   };
-  const newUuid = () => {
-    switch (conn_type) {
-      case DataSourceKind.MariaDB:
-        if (schemaname) {
-          return uuid + ':' + schemaname;
-        } else {
-          return uuid;
-        }
-      default:
-        throw 'impl this.';
-    }
-  };
-
   return (
-    <TreeItem itemId={getPrefix()} label={isTop ? uuid : schemaname}>
-      <UuidContext.Provider value={{ uuid: newUuid(), database }}>
-        <TablesTree></TablesTree>
-        <ViewsTree></ViewsTree>
-      </UuidContext.Provider>
+    <TreeItem itemId={getPrefix()} label={schemaname ? schemaname : uuid}>
+      <TablesTree></TablesTree>
+      <ViewsTree></ViewsTree>
     </TreeItem>
   );
 }
 
-function DatabaseTree(props: { isTop: boolean }) {
-  const { uuid: name, database } = useContext(UuidContext);
+function CatelogTree() {
+  const { uuid: name } = useContext(UuidContext);
   const { showNotification } = useContext(NotificationContext);
   const [databases, setDatabases] = useState<string[]>([]);
-  let { isTop } = props;
+
+  const handleReload = () => {
+    invoke<string[]>('list_database', { name })
+      .then((ds) => {
+        setDatabases(ds);
+      })
+      .catch((e) => {
+        showNotification('error', 'list database failed', e);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+
+  return (
+    <TreeItem
+      itemId={name}
+      label=<Stack direction="row" spacing={1}>
+        <span> {name}</span>
+      </Stack>
+    >
+      {databases.map((e) => {
+        return (
+          <UuidContext.Provider value={{ uuid: name + ':' + e }}>
+            <DatabaseTree key={e} database={e}></DatabaseTree>
+          </UuidContext.Provider>
+        );
+      })}
+    </TreeItem>
+  );
+}
+
+function DatabaseTree(props: { database?: string }) {
+  const { uuid: name } = useContext(UuidContext);
+  const { showNotification } = useContext(NotificationContext);
+  const [schemas, setSchemas] = useState<string[]>([]);
+  let { database } = props;
   const handleReload = () => {
     invoke<string[]>('list_schema', { name })
       .then((ds) => {
-        setDatabases(ds);
+        setSchemas(ds);
       })
       .catch((e) => {
         showNotification('error', 'list schema failed', e);
@@ -156,13 +182,19 @@ function DatabaseTree(props: { isTop: boolean }) {
     handleReload();
   }, []);
   return (
-    <>
-      <TreeItem itemId={name + database} label={isTop ? name : database}>
-        {databases.map((e) => {
-          return <SchemaTree key={e} schemaname={e} isTop={false}></SchemaTree>;
-        })}
-      </TreeItem>
-    </>
+    <TreeItem
+      itemId={name}
+      label={database ? database : name}
+      key={name + database}
+    >
+      {schemas.map((e) => {
+        return (
+          <UuidContext.Provider value={{ uuid: name + ':' + e }}>
+            <SchemaTree key={e} schemaname={e}></SchemaTree>
+          </UuidContext.Provider>
+        );
+      })}
+    </TreeItem>
   );
 }
 
