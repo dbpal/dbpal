@@ -1,16 +1,16 @@
-use std::{borrow::Cow, ops::DerefMut, sync::Arc};
+use std::borrow::Cow;
+use std::ops::DerefMut;
+use std::sync::Arc;
 
 use futures_util::StreamExt;
 use tiberius::QueryItem;
 
-use crate::{
-    completion::{
-        AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
-        LexerCompletionTrait, try_completion_on_syntax,
-    },
-    db::{CatalogTrait, SchemaTrait},
-    mssql::MsSqlServer,
+use crate::completion::{
+    AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
+use crate::db::{CatalogTrait, SchemaTrait};
+use crate::mssql::MsSqlServer;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MsSqlServer {
@@ -28,8 +28,9 @@ impl MsSqlServer {
         if db.is_some() {
             return db;
         }
-        return self.config.db.as_deref();
+        return Some(self.config.db.as_str());
     }
+
     fn not_allow_empty_db<'a>(db: Option<&'a str>) -> anyhow::Result<&'a str> {
         match db {
             Some(x) => return anyhow::Ok(x),
@@ -106,6 +107,7 @@ impl CompletionOnSynTaxHelper for MsSqlServer {
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
+
     async fn list_constraint(
         &self, db: Option<&str>, _schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -143,6 +145,7 @@ impl CompletionOnSynTaxHelper for MsSqlServer {
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
+
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         CatalogTrait::list_database(self).await
     }
@@ -176,16 +179,19 @@ impl CompletionOnSynTaxHelper for MsSqlServer {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_function(
         &self, _db: Option<&str>, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = SchemaTrait::list_udf(self)
             .await
             .map(|x| {
-                x.into_iter().map(|x| CompletionItem {
-                    item: x.name.into(),
-                    desc: None,
-                    kind: CompletionKind::Function,
+                x.into_iter().map(|x| {
+                    CompletionItem {
+                        item: x.name.into(),
+                        desc: None,
+                        kind: CompletionKind::Function,
+                    }
                 })
             })?
             .collect::<Vec<_>>();
@@ -207,6 +213,7 @@ impl CompletionOnSynTaxHelper for MsSqlServer {
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         unimplemented!()
     }
+
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![MsSqlServer::ONLY_SCHEMA.to_string()])
     }
@@ -216,10 +223,10 @@ impl CompletionOnSynTaxHelper for MsSqlServer {
 mod tests {
     use std::path::Path;
 
-    use crate::{
-        completion::completion_test::test_file_auto_completion, db::QuerySql, enable_test_log,
-        mssql::make_test_object,
-    };
+    use crate::completion::completion_test::test_file_auto_completion;
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::mssql::make_test_object;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {

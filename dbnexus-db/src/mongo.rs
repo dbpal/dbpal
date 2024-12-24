@@ -74,6 +74,10 @@ impl AutoCompletionTrait for Mongo {
 
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let names = conn.list_database_names().await?;

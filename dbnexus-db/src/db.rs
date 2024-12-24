@@ -1,14 +1,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-
 use std::fmt::{Debug, Display};
 use std::ops::Deref;
-
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
-
 use serde::Serializer;
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
@@ -273,6 +270,7 @@ impl UdfDetail {
         Self { metas, def }
     }
 }
+
 #[async_trait::async_trait]
 pub trait CatalogTrait:
     Send + Sync + 'static + QuerySql + FormatSql + CheckConn + AutoCompletionTrait + Debug
@@ -397,6 +395,8 @@ impl dyn SchemaTrait {
 
 #[async_trait::async_trait]
 pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql + Debug {
+    fn as_any(&self) -> &dyn std::any::Any;
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
 }
@@ -543,6 +543,7 @@ impl dyn SchemaTrait {
         }
         anyhow::Ok(sql)
     }
+
     pub(crate) fn delete_sql(
         &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
         wheres: &HashMap<String, Option<String>>,

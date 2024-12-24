@@ -1267,6 +1267,10 @@ impl MysqlDB {
 
 #[async_trait::async_trait]
 impl DBTrait for MysqlDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn: PoolConnection<sqlx::MySql> = self.get_conn().await?;
         let rows = sqlx::query("show databases")

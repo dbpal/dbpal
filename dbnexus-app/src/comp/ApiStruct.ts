@@ -16,7 +16,7 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": (string | null);
-        "db": (string | null);
+        "db": string;
         "schema": (string | null);
         "read_only": boolean;
     };
@@ -25,7 +25,7 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": string;
-        "db": (string | null);
+        "db": string;
         "trust_cert": boolean;
         "schema": (string | null);
         "read_only": boolean;
@@ -208,7 +208,6 @@ export namespace types {
         "def": string;
         "metas": (types.MetaValue)[];
     };
-    export type OpendKind = ("Catalog" | "DataBase" | "Schema");
     export type U8 = number;
     export type FormatSqlOptsIndent = (({
         "ident": "spaces";

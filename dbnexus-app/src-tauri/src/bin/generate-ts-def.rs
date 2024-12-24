@@ -5,6 +5,7 @@ use std::io::prelude::*;
 use std::path::Path;
 
 use dbnexus_app_lib::handlers::{MuiDataGridData, MuiDataTableListResp};
+use dbnexus_db::app::{self};
 use dbnexus_db::completion::{CompletionItem, CompletionKind};
 use dbnexus_db::datasource_config::{
     MongoConfig, MysqlDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
@@ -14,11 +15,9 @@ use dbnexus_db::db::{
     ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
     UdfDetail,
 };
-
-use dbnexus_db::app::{self, OpendKind};
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::RedisListTable;
-use typescript_type_def::{write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef};
+use typescript_type_def::{DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos};
 
 fn main() {
     let dir = env!("CARGO_MANIFEST_DIR");
@@ -47,7 +46,6 @@ fn main() {
             &CompletionKind::INFO,
             &UdfDetail::INFO,
             &ProcedureDetail::INFO,
-            &OpendKind::INFO,
             &FormatSqlOpts::INFO,
             &FormatSqlOptsIndent::INFO,
             &RedisDbConfig::INFO,

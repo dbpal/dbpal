@@ -10,8 +10,7 @@ use crate::datasource_config::{
     MongoConfig, MysqlDbConfig, OracleDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
 };
 use crate::db::{
-    CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
-    TableListResp,
+    DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet, TableListResp,
 };
 use crate::redis::{RedisDB, RedisListTable};
 
@@ -229,25 +228,16 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
         }
         DBConnectionConfig::Postgres { conn, name: _ } => {
             let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
-
-            if conn.db.is_none() {
-                anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>))
-            } else {
-                match &conn.schema {
-                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
-                }
+            match &conn.schema {
+                None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
             }
         }
         DBConnectionConfig::SqlServer { conn, name: _ } => {
             let o = Arc::new(crate::mssql::MsSqlServer::new(conn.clone()).await?);
-            if conn.db.is_none() {
-                anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>))
-            } else {
-                match &conn.schema {
-                    Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                    None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
-                }
+            match &conn.schema {
+                Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
             }
         }
 
@@ -288,7 +278,6 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 /// opend database variant for frontend
 #[derive(Clone, Debug)]
 pub enum Open {
-    Catalog(Arc<dyn crate::db::CatalogTrait>),
     /// database can contains multi database
     DataBase(Arc<dyn crate::db::DBTrait>),
     /// a schema
@@ -296,23 +285,13 @@ pub enum Open {
 }
 
 impl Open {
-    pub fn get_open_kind(&self) -> OpendKind {
-        use OpendKind::*;
+    pub fn as_any(&self) -> &dyn std::any::Any {
         match self {
-            Open::Catalog(_) => Catalog,
-            Open::DataBase(_) => DataBase,
-            Open::Schema(_) => Schema,
+            Open::DataBase(dbtrait) => dbtrait.as_any(),
+            Open::Schema(schema_trait) => schema_trait.as_any(),
         }
     }
 }
-
-#[derive(Debug, Clone, Copy, serde::Serialize, TypeDef)]
-pub enum OpendKind {
-    Catalog,
-    DataBase,
-    Schema,
-}
-
 /// all the databases
 #[derive(Clone)]
 pub struct App {
@@ -343,32 +322,11 @@ impl App {
             Open::Schema(x) => {
                 x.check_conn().await?;
             }
-            Open::Catalog(x) => {
-                x.check_conn().await?;
-            }
         }
 
         self.opens.lock().await.insert(name.to_string(), db.clone());
 
         anyhow::Ok(db)
-    }
-
-    pub async fn open_db(&self, name: &str, db_name: &str) -> anyhow::Result<Open> {
-        let db = self.open(name).await?;
-        match db {
-            Open::Catalog(x) => {
-                let x = x.open_db(db_name).await?;
-                x.check_conn().await?;
-                let db = Open::DataBase(x.clone());
-                self.opens
-                    .lock()
-                    .await
-                    .insert(format!("{}-{}", name, db_name), db.clone());
-                anyhow::Ok(db)
-            }
-
-            _ => anyhow::bail!("this is not a catalog"),
-        }
     }
 
     pub async fn open_schema(&self, name: &str, db_name: &str) -> anyhow::Result<Open> {
@@ -506,13 +464,6 @@ impl App {
                 2 => {
                     // trying to open
                     match self.open(db_uuids[0]).await? {
-                        Open::Catalog(c) => {
-                            let db = c.open_db(db_uuids[1]).await?;
-                            self.opens.lock().await.insert(
-                                format!("{}:{}", db_uuids[0], db_uuids[1]),
-                                Open::DataBase(db),
-                            );
-                        }
                         Open::DataBase(d) => {
                             let s = d.open_schema(db_uuids[1]).await?;
                             self.opens.lock().await.insert(
@@ -521,46 +472,6 @@ impl App {
                             );
                         }
                         _ => anyhow::bail!("already a schema not a nest struct."),
-                    }
-                }
-
-                3 => {
-                    let db_uuid = format!("{}:{}", db_uuids[0], db_uuids[1]);
-                    // 直接试图去打开数据库
-                    // 如果已经打开过了`open` 会支持返回我们一个指针
-                    match self.open(db_uuids[0]).await? {
-                        Open::Catalog(c) => {
-                            if let Some(db) =
-                                self.opens.lock().await.get(&db_uuid).map(|x| x.clone())
-                            {
-                                // database已经打开了但是schema还没有打开的情况
-                                match db {
-                                    Open::DataBase(db) => {
-                                        let schema = db.open_schema(db_uuids[2]).await?;
-                                        self.opens
-                                            .lock()
-                                            .await
-                                            .insert(name.to_string(), Open::Schema(schema));
-                                    }
-                                    _ => anyhow::bail!("this should a database"),
-                                }
-                            } else {
-                                //  database没有打开的情况下 直接打开database和schema
-                                let db = c.open_db(db_uuids[1]).await?;
-                                self.opens
-                                    .lock()
-                                    .await
-                                    .insert(db_uuid, Open::DataBase(db.clone()));
-                                let schema = db.open_schema(db_uuids[2]).await?;
-                                self.opens
-                                    .lock()
-                                    .await
-                                    .insert(name.to_string(), Open::Schema(schema));
-                            }
-                        }
-                        _ => {
-                            anyhow::bail!("must be a catalog open")
-                        }
                     }
                 }
                 _ => {

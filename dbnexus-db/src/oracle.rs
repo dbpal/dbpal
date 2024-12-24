@@ -12,9 +12,8 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionTrait};
-
 use crate::MemoryLimit;
+use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionTrait};
 use crate::datasource_config::OracleDbConfig;
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
@@ -129,6 +128,7 @@ impl QuerySql for OracleDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let mut conn = self.get_conn().await?;
@@ -202,10 +202,12 @@ impl QuerySql for OracleDB {
                 SqlKind::Execution => {
                     let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
                     match stmt {
-                        Ok(x) => match x.row_count() {
-                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
-                            Err(err) => ret.push(Err(err.to_string())),
-                        },
+                        Ok(x) => {
+                            match x.row_count() {
+                                Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
+                                Err(err) => ret.push(Err(err.to_string())),
+                            }
+                        }
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
@@ -407,42 +409,60 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
     match f.typ.to_string().to_uppercase().as_str() {
-        "VARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NVARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "CHAR" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCHAR" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "RAW" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
-        "CLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCLOB" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "BLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
+        "VARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NVARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "CHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "RAW" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
+            anyhow::Ok(match value {
+                Some(x) => x.to_string(),
+                None => null_string,
+            })
+        }
+        "CLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "BLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -720,11 +740,12 @@ impl OracleDB {
         let rows: Vec<_> = rows.collect();
         if include_header && rows.len() > 0 {
             let fs = match rows.get(0).unwrap() {
-                Ok(x) => x
-                    .column_info()
-                    .iter()
-                    .map(|x| Some(x.name().to_owned()))
-                    .collect::<Vec<_>>(),
+                Ok(x) => {
+                    x.column_info()
+                        .iter()
+                        .map(|x| Some(x.name().to_owned()))
+                        .collect::<Vec<_>>()
+                }
                 Err(_) => vec![],
             };
 
@@ -1140,6 +1161,10 @@ impl AutoCompletionTrait for OracleDB {
 }
 #[async_trait::async_trait]
 impl DBTrait for OracleDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let rows = block_in_place(|| conn.query(r#"SELECT USERNAME FROM DBA_USERS"#, &[]))?;
@@ -1298,9 +1323,10 @@ impl OracleDB {
 //             category     VARCHAR2(30) NOT NULL,
 //             price        NUMBER(8,2)  NOT NULL
 //         )"#,
-//             "INSERT INTO TEST_VIEW_TABLE (product_name, category, price) VALUES ('iPhone 13', 'Electronics', 799.99)",
-//             "INSERT INTO TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21', 'Electronics', 699.99)",
-//             r#"
+//             "INSERT INTO TEST_VIEW_TABLE (product_name, category, price)
+// VALUES ('iPhone 13', 'Electronics', 799.99)",             "INSERT INTO
+// TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
+// 'Electronics', 699.99)",             r#"
 //             CREATE VIEW PRODUCT_VIEW AS
 //             SELECT product_id, product_name, category, price
 //             FROM  TEST_VIEW_TABLE"#,
@@ -1389,8 +1415,8 @@ impl OracleDB {
 //         "#,
 //             "INSERT INTO TEST_QUERY (id, name, age) VALUES (1, 'Alice', 25)",
 //             "INSERT INTO TEST_QUERY (id, name, age) VALUES (2, 'Bob', 32)",
-//             "INSERT INTO TEST_QUERY (id, name, age) VALUES (3, 'Charlie', 18)",
-//         ];
+//             "INSERT INTO TEST_QUERY (id, name, age) VALUES (3, 'Charlie',
+// 18)",         ];
 //         // test a rollback but we rollback nothings
 
 //         db.query_rollback(query_uuid).await.unwrap();
@@ -1446,8 +1472,9 @@ impl OracleDB {
 //             Some("这是一个 NVARCHAR2 列的值".to_string()),
 //         );
 //         values.insert("CHAR_COL".to_string(), Some("测试char".to_string()));
-//         values.insert("NCHAR_COL".to_string(), Some("测试nchar".to_string()));
-//         values.insert("RAW_COL".to_string(), Some("0A0B0C0D0E0F".to_string()));
+//         values.insert("NCHAR_COL".to_string(),
+// Some("测试nchar".to_string()));         values.insert("RAW_COL".to_string(),
+// Some("0A0B0C0D0E0F".to_string()));
 
 //         db.insert(&table_name, values).await.unwrap();
 
@@ -1480,8 +1507,8 @@ impl OracleDB {
 //                 .unwrap();
 //             println!("export csv:{}", e);
 //             let e = db
-//                 .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
-//                 .await
+//                 .export_table_to_string(table_name,
+// crate::db::ExportKind::Json { pretty: true })                 .await
 //                 .unwrap();
 //             println!("export json:{}", e);
 //             let e = db
@@ -1563,8 +1590,8 @@ impl OracleDB {
 //                 .unwrap();
 //             println!("export csv:{}", e);
 //             let e = db
-//                 .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
-//                 .await
+//                 .export_table_to_string(table_name,
+// crate::db::ExportKind::Json { pretty: true })                 .await
 //                 .unwrap();
 //             println!("export json:{}", e);
 //             let e = db
@@ -1647,8 +1674,8 @@ impl OracleDB {
 //                 .unwrap();
 //             println!("export csv:{}", e);
 //             let e = db
-//                 .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
-//                 .await
+//                 .export_table_to_string(table_name,
+// crate::db::ExportKind::Json { pretty: true })                 .await
 //                 .unwrap();
 //             println!("export json:{}", e);
 //             let e = db

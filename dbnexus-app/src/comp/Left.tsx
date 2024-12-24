@@ -100,16 +100,11 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
       {config.conn_type == 'mariadb' &&
         (config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>)}
 
-      {config.conn_type == 'postgres' &&
-        (config.db ? (
-          config.schema ? (
-            <SchemaTree />
-          ) : (
-            <DatabaseTree />
-          )
-        ) : (
-          <CatelogTree></CatelogTree>
-        ))}
+      {config.conn_type == 'postgres' && config.schema ? (
+        <SchemaTree />
+      ) : (
+        <DatabaseTree />
+      )}
     </SimpleTreeView>
   );
 }
@@ -124,42 +119,6 @@ function SchemaTree(prpos: { schemaname?: string }) {
     <TreeItem itemId={getPrefix()} label={schemaname ? schemaname : uuid}>
       <TablesTree></TablesTree>
       <ViewsTree></ViewsTree>
-    </TreeItem>
-  );
-}
-
-function CatelogTree() {
-  const { uuid: name } = useContext(UuidContext);
-  const { showNotification } = useContext(NotificationContext);
-  const [databases, setDatabases] = useState<string[]>([]);
-
-  const handleReload = () => {
-    invoke<string[]>('list_database', { name })
-      .then((ds) => {
-        setDatabases(ds);
-      })
-      .catch((e) => {
-        showNotification('error', 'list database failed', e);
-      });
-  };
-  useEffect(() => {
-    handleReload();
-  }, []);
-
-  return (
-    <TreeItem
-      itemId={name}
-      label=<Stack direction="row" spacing={1}>
-        <span> {name}</span>
-      </Stack>
-    >
-      {databases.map((e) => {
-        return (
-          <UuidContext.Provider value={{ uuid: name + ':' + e }}>
-            <DatabaseTree key={e} database={e}></DatabaseTree>
-          </UuidContext.Provider>
-        );
-      })}
     </TreeItem>
   );
 }

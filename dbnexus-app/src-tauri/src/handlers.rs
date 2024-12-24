@@ -2,13 +2,14 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use bson::{Document, doc};
-use dbnexus_db::app::{self, App, DBConnectionConfig, Open, OpendKind, UserSettings};
+use dbnexus_db::app::{self, App, DBConnectionConfig, Open, UserSettings, open};
 use dbnexus_db::db::{
-    ExportKind, Field, FormatSqlOpts, Index, ListTable, ModifyTableColumnType, NamedStaff,
-    QueryResp, SqlExecuteRet, TableListResp, TriggerDetail,
+    CatalogTrait, ExportKind, Field, FormatSqlOpts, Index, ListTable, ModifyTableColumnType,
+    NamedStaff, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail,
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
+use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use tauri::{AppHandle, Emitter};
 
@@ -314,20 +315,6 @@ pub async fn show_view_coumns(
 }
 
 #[tauri::command]
-pub async fn opened_kind(
-    name: String, app: tauri::State<'_, App>,
-) -> Result<OpendKind, AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let kind = app
-        .get_opened(&name)
-        .await
-        .map_err(AnyhowErrorFrontend::from)?
-        .get_open_kind();
-    Ok(kind)
-}
-
-#[tauri::command]
 pub async fn query_sql(
     name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Result<MuiDataGridData, String>>, AnyhowErrorFrontend> {
@@ -342,7 +329,6 @@ pub async fn query_sql(
     let result = match db {
         Open::DataBase(x) => x.query_sql(query_id, sql).await,
         Open::Schema(x) => x.query_sql(query_id, sql).await,
-        Open::Catalog(x) => x.query_sql(query_id, sql).await,
     };
 
     result.map_err(AnyhowErrorFrontend::from).map(|x| {
@@ -369,7 +355,6 @@ pub async fn query_sql_open_connection(
     let result = match db {
         Open::DataBase(x) => x.open_connection().await,
         Open::Schema(x) => x.open_connection().await,
-        Open::Catalog(x) => x.open_connection().await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
@@ -383,7 +368,6 @@ pub async fn query_sql_re_connection(
     let result = match db {
         Open::DataBase(x) => x.re_connect(query_id).await,
         Open::Schema(x) => x.re_connect(query_id).await,
-        app::Open::Catalog(x) => x.re_connect(query_id).await,
     };
     result.map_err(|e| AnyhowErrorFrontend::from(e))
 }
@@ -397,7 +381,6 @@ pub async fn query_sql_close_connection(
     let result = match db {
         Open::DataBase(x) => x.close_connection(query_id).await,
         Open::Schema(x) => x.close_connection(query_id).await,
-        Open::Catalog(x) => x.close_connection(query_id).await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
@@ -454,7 +437,6 @@ pub async fn format_sql(
     let ret = match db {
         Open::DataBase(x) => x.format_sql(sql.as_str(), opts),
         Open::Schema(x) => x.format_sql(sql.as_str(), opts),
-        Open::Catalog(x) => x.format_sql(sql.as_str(), opts),
     };
     ret.map_err(|e| AnyhowErrorFrontend::from(e))
 }
@@ -472,27 +454,58 @@ pub async fn test_connection(
     match db {
         app::Open::DataBase(x) => x.check_conn().await,
         app::Open::Schema(x) => x.check_conn().await,
-        app::Open::Catalog(x) => x.check_conn().await,
     }
     .map_err(AnyhowErrorFrontend::from)
     .map(|d| d.as_millis() as u64)
 }
 
 #[tauri::command]
-pub async fn list_database(
-    name: String, app: tauri::State<'_, App>,
-) -> Result<
-    Vec<String>, // milliseconds
-    AnyhowErrorFrontend,
-> {
-    random_sleep().await;
-    random_error()?;
-    let db = app.open(name.as_str()).await?;
-    match db {
-        app::Open::Catalog(x) => x.list_database().await,
-        _ => return Err(AnyhowErrorFrontend::from("not catalog trait")),
+pub async fn config_list_database_or_schema(
+    mut conn: DBConnectionConfig,
+) -> Result<Vec<String>, AnyhowErrorFrontend> {
+    let mut db_modified = false;
+    match &mut conn {
+        DBConnectionConfig::Postgres { conn, .. } => {
+            if conn.db == "" {
+                db_modified = true;
+                conn.db = "postgres".to_string();
+            }
+        }
+
+        DBConnectionConfig::SqlServer { conn, .. } => {
+            if conn.db == "" {
+                db_modified = true;
+                conn.db = "master".to_string();
+            }
+        }
+
+        _ => {}
+    };
+
+    let x = open(&conn).await?;
+    match conn {
+        DBConnectionConfig::Postgres { .. } => {
+            if db_modified {
+                // list database
+                let p = x.as_any().downcast_ref::<PostGresDB>().unwrap();
+                return CatalogTrait::list_database(p)
+                    .await
+                    .map_err(AnyhowErrorFrontend::from);
+            }
+        }
+
+        _ => {}
     }
-    .map_err(AnyhowErrorFrontend::from)
+
+    match x {
+        Open::DataBase(dbtrait) => {
+            return dbtrait
+                .list_schema()
+                .await
+                .map_err(|x| AnyhowErrorFrontend::from(x));
+        }
+        Open::Schema(_) => return Ok(vec![]),
+    }
 }
 
 #[tauri::command]
@@ -504,29 +517,6 @@ pub async fn list_schema(
 > {
     random_sleep().await;
     random_error()?;
-    // 特殊的处理
-    if let Err(_) = app.get_opened(&name).await {
-        if name.contains(":") {
-            let (catelog, database) = name.split_once(":").unwrap();
-            let opened = app.open(catelog).await?;
-            match opened {
-                Open::Catalog(x) => {
-                    let x = x.open_db(database).await?;
-                    app.opens
-                        .lock()
-                        .await
-                        .insert(name.clone(), Open::DataBase(x));
-                }
-                _ => {
-                    return Err(AnyhowErrorFrontend::from(format!(
-                        "here must be a catelog,but:{:?}",
-                        opened
-                    )));
-                }
-            }
-        }
-    }
-
     let db = app.open(name.as_str()).await?;
     match db {
         app::Open::DataBase(x) => x.list_schema().await,

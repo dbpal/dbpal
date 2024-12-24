@@ -52,6 +52,10 @@ impl CheckConn for PostGresDB {
 
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
@@ -1180,9 +1184,7 @@ impl PostGresDB {
         if let Some(pass) = &conn.password {
             opts = opts.password(&pass);
         }
-        if let Some(db) = &conn.db {
-            opts = opts.database(db);
-        }
+        opts = opts.database(&conn.db);
 
         let pool = sqlx::postgres::PgPool::connect_with(opts).await?;
         anyhow::Ok(Self {
@@ -1437,7 +1439,7 @@ impl CatalogTrait for PostGresDB {
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
-        config.db = Some(name.to_owned());
+        config.db = name.to_owned();
         let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
@@ -1526,7 +1528,7 @@ mod tests {
             port: 5432,
             username: "postgres".to_string(),
             password: Some("root".to_string()),
-            db: Some("test".to_string()),
+            db: "test".to_string(),
             schema: Some("test".to_string()),
             read_only: false,
         })

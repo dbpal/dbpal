@@ -984,6 +984,10 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let r: String = redis::cmd("info")

@@ -134,14 +134,14 @@ pub struct PGDbConfig {
     pub port: u16,
     pub username: String,
     pub password: Option<String>,
-    pub db: Option<String>,
+    pub db: String,
     pub schema: Option<String>,
     pub read_only: bool,
 }
 
 impl PGDbConfig {
     pub(crate) fn db_str(&self) -> &str {
-        self.db.as_ref().expect("must be some").as_str()
+        self.db.as_str()
     }
 }
 
@@ -152,7 +152,7 @@ pub struct SqlServerDbConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
-    pub db: Option<String>,
+    pub db: String,
     pub trust_cert: bool,
     pub schema: Option<String>,
     pub read_only: bool,
@@ -160,8 +160,9 @@ pub struct SqlServerDbConfig {
 
 impl SqlServerDbConfig {
     pub(crate) fn must_db(&self) -> &String {
-        self.db.as_ref().unwrap()
+        &self.db
     }
+
     pub(crate) fn must_schema(&self) -> &String {
         self.schema.as_ref().unwrap()
     }
@@ -170,7 +171,7 @@ impl SqlServerDbConfig {
 impl SqlServerDbConfig {
     #[allow(dead_code)]
     pub(crate) fn db_str(&self) -> &str {
-        self.db.as_ref().expect("must be some").as_str()
+        &self.db
     }
 }
 

@@ -33,22 +33,22 @@ async function selectFile() {
 function HostAndPort(props: { host; port; setHost; setPort }) {
   let { host, port, setHost, setPort } = props;
   return (
-    <Stack direction='row'>
+    <Stack direction="row">
       <TextField
-        margin='normal'
+        margin="normal"
         fullWidth
-        label='Host'
+        label="Host"
         value={host}
-        size='small'
+        size="small"
         sx={{ mr: 1 }}
         onChange={(e) => setHost(e.target.value)}
       />
       <TextField
-        margin='normal'
+        margin="normal"
         fullWidth
-        label='port'
+        label="port"
         error={isNaN(parseInt(port))}
-        size='small'
+        size="small"
         value={port}
         onChange={(e) => setPort(e.target.value)}
       />
@@ -78,22 +78,22 @@ function UserAndPassword(props: { user; password; setUser; setPassword }) {
   let { user, password, setUser, setPassword } = props;
 
   return (
-    <Stack direction='row'>
+    <Stack direction="row">
       <TextField
-        margin='normal'
+        margin="normal"
         fullWidth
-        label='User'
+        label="User"
         value={user}
         sx={{ mr: 1 }}
-        size='small'
+        size="small"
         onChange={(e) => setUser(e.target.value)}
       />
       <TextField
-        margin='normal'
+        margin="normal"
         fullWidth
-        label='Password'
-        size='small'
-        type='password'
+        label="Password"
+        size="small"
+        type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
@@ -111,7 +111,7 @@ function EnableSSL(props: { useSSL; setUseSSL }) {
           onChange={(e) => setUseSSL(e.target.checked)}
         />
       }
-      label='Enable SSL'
+      label="Enable SSL"
     />
   );
 }
@@ -126,23 +126,67 @@ function TrustCert(props: { trustCert; setTrustCert }) {
           onChange={(e) => setTrustCert(e.target.checked)}
         />
       }
-      label='Trust Cert'
+      label="Trust Cert"
     />
   );
 }
 
-function Database(props: { database; setDatabase }) {
-  let { database, setDatabase } = props;
+function Database(props: { database; setDatabase; candidates: string[] }) {
+  let { database, setDatabase, candidates } = props;
+
   return (
-    <Stack direction='row'>
-      <TextField
-        margin='normal'
-        label='database'
-        type='database'
-        size='small'
-        value={database}
-        onChange={(e) => setDatabase(e.target.value)}
-      />
+    <Stack>
+      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+        {candidates.map((e) => (
+          <Button
+            onClick={() => {
+              setDatabase(e);
+            }}
+          >
+            {e}
+          </Button>
+        ))}
+      </Stack>
+
+      <Stack direction="row">
+        <TextField
+          margin="normal"
+          label="database"
+          size="small"
+          value={database}
+          onChange={(e) => setDatabase(e.target.value)}
+        />
+      </Stack>
+    </Stack>
+  );
+}
+
+function Schema(props: { schema; setSchema; candidates: string[] }) {
+  let { schema, setSchema, candidates } = props;
+
+  return (
+    <Stack>
+      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+        {candidates.map((e) => (
+          <Button
+            onClick={() => {
+              setSchema(e);
+            }}
+          >
+            {e}
+          </Button>
+        ))}
+      </Stack>
+
+      <Stack direction="row">
+        <TextField
+          margin="normal"
+          label="schema"
+          size="small"
+          value={schema}
+          onChange={(e) => setSchema(e.target.value)}
+        />
+      </Stack>
     </Stack>
   );
 }
@@ -162,15 +206,22 @@ export default function AddConfig() {
   const { showNotification } = useContext(NotificationContext);
   const [testOk, setTestOk] = useState(false);
   const [trustCert, setTrustCert] = useState(false);
+  const [databaseCandidates, setDatabaseCandidats] = useState([]);
+  const [schema, setSchema] = useState('');
+
+  const [schemaCandidates, setSchemesCandidats] = useState([]);
+
   const makeConfig = (): types.DBConnectionConfig | null => {
     let portInt = parseInt(port);
     if (isNaN(portInt)) {
       showNotification('error', 'port is not a number');
       return null;
     }
+
     let user_null = user ? user : null;
     let pass_null = password ? password : null;
     let db_null = database ? database : null;
+    let schema_null = schema ? schema : null;
     switch (connectionType) {
       case DataSourceKind.Mysql:
         return {
@@ -201,10 +252,10 @@ export default function AddConfig() {
           port: portInt,
           username: user,
           password: pass_null,
-          db: db_null,
+          db: database,
           read_only: readOnly,
           name: connectionName,
-          schema: null,
+          schema: schema_null,
         };
 
       case DataSourceKind.Sqlite:
@@ -295,6 +346,13 @@ export default function AddConfig() {
         setPort('27017');
         break;
     }
+    setUser('');
+    setPassword('');
+    setDatabase('');
+    setPassword('');
+    setDatabaseCandidats([]);
+    setSchemesCandidats([]);
+    setSchema('');
   }, [connectionType]);
   const handleSaveConnection = () => {
     if (!connectionName) {
@@ -305,6 +363,13 @@ export default function AddConfig() {
     if (!config) {
       return;
     }
+    if (connectionType == DataSourceKind.Postgres || DataSourceKind.MsSql) {
+      if (!database) {
+        showNotification('error', "databse can't be null");
+        return null;
+      }
+    }
+
     invoke('add_config', { config })
       .then((_) => {
         showNotification('success', 'Add Connection OK');
@@ -313,17 +378,55 @@ export default function AddConfig() {
         showNotification('error', 'Add Connection failure', e);
       });
   };
+
+  useEffect(() => {
+    switch (connectionType) {
+      case DataSourceKind.MsSql:
+      case DataSourceKind.Postgres:
+      case DataSourceKind.MariaDB:
+      case DataSourceKind.Mysql:
+      case DataSourceKind.Redis:
+      case DataSourceKind.Mongo:
+        let config = makeConfig();
+        if (config) {
+          invoke<string[]>('config_list_database_or_schema', { conn: config })
+            .then((e) => {
+              setDatabaseCandidats(e);
+            })
+            .catch((e) => {
+              console.log('list database failed,', e);
+            });
+        }
+    }
+  }, [connectionType, user, password, host, port]);
+
+  useEffect(() => {
+    if (database && connectionType == DataSourceKind.Postgres) {
+      let config = makeConfig();
+      if (config) {
+        invoke<string[]>('config_list_database_or_schema', { conn: config })
+          .then((e) => {
+            setSchemesCandidats(e);
+          })
+
+          .catch((e) => {
+            console.log('list database failed,', e);
+          });
+      }
+    }
+  }, [connectionType, user, password, host, port, database]);
+
   return (
     <Stack spacing={1}>
-      <Typography variant='h6' gutterBottom>
+      <Typography variant="h6" gutterBottom>
         New Connection
       </Typography>
-      <FormControl fullWidth margin='normal'>
+      <FormControl fullWidth margin="normal">
         <InputLabel>Connection Type</InputLabel>
         <Select
-          size='small'
+          size="small"
           value={connectionType}
-          label='Connection Type'
+          label="Connection Type"
           onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
         >
           <MenuItem value={DataSourceKind.Mysql}>MySQL</MenuItem>
@@ -353,7 +456,11 @@ export default function AddConfig() {
             setUser={setUser}
             setPassword={setPassword}
           ></UserAndPassword>
-          <Database database={database} setDatabase={setDatabase}></Database>
+          <Database
+            database={database}
+            candidates={databaseCandidates}
+            setDatabase={setDatabase}
+          ></Database>
         </>
       )}
       {connectionType == DataSourceKind.Postgres && (
@@ -370,7 +477,18 @@ export default function AddConfig() {
             setUser={setUser}
             setPassword={setPassword}
           ></UserAndPassword>
-          <Database database={database} setDatabase={setDatabase}></Database>
+          <Database
+            candidates={databaseCandidates}
+            database={database}
+            setDatabase={setDatabase}
+          ></Database>
+          {database && (
+            <Schema
+              schema={schema}
+              setSchema={setSchema}
+              candidates={schemaCandidates}
+            ></Schema>
+          )}
         </>
       )}
       {connectionType == DataSourceKind.Redis && (
@@ -387,7 +505,11 @@ export default function AddConfig() {
             setUser={setUser}
             setPassword={setPassword}
           ></UserAndPassword>
-          <Database database={database} setDatabase={setDatabase}></Database>
+          <Database
+            candidates={databaseCandidates}
+            database={database}
+            setDatabase={setDatabase}
+          ></Database>
         </>
       )}
       {connectionType == DataSourceKind.Mongo && (
@@ -404,7 +526,11 @@ export default function AddConfig() {
             setUser={setUser}
             setPassword={setPassword}
           ></UserAndPassword>
-          <Database database={database} setDatabase={setDatabase}></Database>
+          <Database
+            candidates={databaseCandidates}
+            database={database}
+            setDatabase={setDatabase}
+          ></Database>
         </>
       )}
       {connectionType == DataSourceKind.MsSql && (
@@ -421,7 +547,11 @@ export default function AddConfig() {
             setUser={setUser}
             setPassword={setPassword}
           ></UserAndPassword>
-          <Database database={database} setDatabase={setDatabase}></Database>
+          <Database
+            database={database}
+            setDatabase={setDatabase}
+            candidates={databaseCandidates}
+          ></Database>
           <TrustCert
             trustCert={trustCert}
             setTrustCert={setTrustCert}
@@ -432,15 +562,15 @@ export default function AddConfig() {
         <Sqlite path={path} setPath={setPath}></Sqlite>
       )}
 
-      <Stack direction='row'>
+      <Stack direction="row">
         <Button
-          variant='outlined'
+          variant="outlined"
           sx={{ mr: 1 }}
           onClick={handleTestConnection}
         >
           Test
         </Button>
-        {testOk && <Alert severity='success'> Test OK </Alert>}
+        {testOk && <Alert severity="success"> Test OK </Alert>}
         {testLoading && <CircularProgress size={progressBarSize} />}
       </Stack>
       <FormControlLabel
@@ -450,24 +580,24 @@ export default function AddConfig() {
             onChange={(e) => setReadOnly(e.target.checked)}
           />
         }
-        label='Read Only'
+        label="Read Only"
       />
-      <Stack direction='row' spacing={1} alignContent='flex-start'>
+      <Stack direction="row" spacing={1} alignContent="flex-start">
         <TextField
-          margin='normal'
-          label='Connection Name'
+          margin="normal"
+          label="Connection Name"
           value={connectionName}
           error={!connectionName}
           required
-          size='small'
+          size="small"
           onChange={(e) => setConnectionName(e.target.value)}
-          helperText='Enter a name for this connection'
+          helperText="Enter a name for this connection"
         />
 
         <Button
-          variant='contained'
-          color='primary'
-          size='small'
+          variant="contained"
+          color="primary"
+          size="small"
           onClick={() => {
             handleSaveConnection();
           }}

@@ -1,15 +1,14 @@
-use std::{ops::DerefMut, sync::Arc};
+use std::ops::DerefMut;
+use std::sync::Arc;
 
 use sqlx::Row;
 
-use crate::{
-    completion::{
-        AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
-        LexerCompletionTrait, try_completion_on_syntax,
-    },
-    db::CatalogTrait,
-    pg::PostGresDB,
+use crate::completion::{
+    AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
+use crate::db::CatalogTrait;
+use crate::pg::PostGresDB;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
@@ -27,8 +26,9 @@ impl PostGresDB {
         if db.is_some() {
             return db;
         }
-        return self.config.db.as_deref();
+        return Some(self.config.db.as_str());
     }
+
     fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
     where
         'b: 'a,
@@ -36,7 +36,7 @@ impl PostGresDB {
         if schema.is_some() {
             return schema;
         }
-        return self.config.db.as_deref();
+        return self.config.schema.as_deref();
     }
 }
 
@@ -158,6 +158,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_column(
         &self, db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -238,6 +239,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = if let Some(schema) = self.schema_merge_config(schema) {
             format!(
@@ -332,6 +334,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
         let sql = r#"
         SELECT rolname AS role_name
@@ -346,13 +349,12 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_postgres_rule(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        /*
-           这里schemaname实际上是db的名字 我观察出来的
-           对吗？？？
-        */
+        // 这里schemaname实际上是db的名字 我观察出来的
+        // 对吗？？？
         let sql = if let Some(schema) = self.db_merge_config(schema) {
             format!(
                 r#"select rulename from pg_rules where tablename='{}' and schemaname='{}'"#,
@@ -373,6 +375,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_constraint(
         &self, db: Option<&str>, schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -427,6 +430,7 @@ impl CompletionOnSynTaxHelper for PostGresDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_table_trigger(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -506,10 +510,11 @@ impl AutoCompletionTrait for PostGresDB {
 mod tests {
     use std::path::Path;
 
-    use crate::{
-        TEST_HOST, completion::completion_test::test_file_auto_completion,
-        datasource_config::PGDbConfig, db::QuerySql, enable_test_log, pg::PostGresDB,
-    };
+    use crate::completion::completion_test::test_file_auto_completion;
+    use crate::datasource_config::PGDbConfig;
+    use crate::db::QuerySql;
+    use crate::pg::PostGresDB;
+    use crate::{TEST_HOST, enable_test_log};
 
     async fn make_test_object() -> PostGresDB {
         let pg = PostGresDB::new(PGDbConfig {
@@ -517,7 +522,7 @@ mod tests {
             port: 5432,
             username: "postgres".to_string(),
             password: Some("root".to_string()),
-            db: Some("test".to_string()),
+            db: "test".to_string(),
             schema: Some("test".to_string()),
             read_only: false,
         })

@@ -8,12 +8,12 @@ use dbnexus_db::app::{App, DbConfigLoader, FileJsonSaver};
 mod handlers;
 
 use handlers::{
-    add_config, delete, delete_config, disable_trigger, drop_table, drop_table_column,
-    drop_trigger, drop_view, duplicate_table, enable_trigger, export_table, format_sql,
-    get_user_settings, insert, list_all_config, list_data_types, list_database, list_schema,
+    add_config, config_list_database_or_schema, delete, delete_config, disable_trigger, drop_table,
+    drop_table_column, drop_trigger, drop_view, duplicate_table, enable_trigger, export_table,
+    format_sql, get_user_settings, insert, list_all_config, list_data_types, list_schema,
     list_table, list_trigger, list_view, modify_table_column, mongo_delete, mongo_get_one_document,
     mongo_insert, mongo_show_collection_docs, mongo_show_collection_table_list, mongo_update,
-    opened_kind, oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
+    oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
     oracle_query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
     query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
     redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_match_keys,
@@ -89,7 +89,6 @@ async fn main() {
             mongo_update,
             mongo_show_collection_docs,
             mongo_show_collection_table_list,
-            opened_kind,
             redis_match_keys,
             redis_hash_add,
             redis_hash_del,
@@ -106,7 +105,7 @@ async fn main() {
             redis_zset_replace,
             redis_string_set,
             mongo_get_one_document,
-            list_database,
+            config_list_database_or_schema,
             list_schema,
             drop_table_column,
             show_view_coumns,
