@@ -6,7 +6,7 @@ import {
   MenuRefresh,
   UuidContext,
   progressBarSizeSmall,
-  setUpMenu,
+  calMenuStyle,
 } from './Common';
 import { NotificationContext } from './Notification';
 import { secondConfirm } from './Confirm';
@@ -50,21 +50,23 @@ function ViewsTree() {
     handleReload();
   }, []);
 
-  let { setMenuContent } = useContext(MenuContext);
+  let { setUpMenu } = useContext(MenuContext);
 
   return (
     <TreeItem
       itemId={uuid + '-views'}
       label=<Stack
-        direction="row"
+        direction='row'
         spacing={1}
         onContextMenu={(e) => {
-          setMenuContent(
-            <MenuList>
-              <MenuRefresh reload={handleReload}></MenuRefresh>
-            </MenuList>
-          );
-          setUpMenu(e, 70);
+          setUpMenu({
+            content: (
+              <MenuList>
+                <MenuRefresh reload={handleReload}></MenuRefresh>
+              </MenuList>
+            ),
+            style: calMenuStyle(e, 70),
+          });
         }}
       >
         <span> views</span>
@@ -84,23 +86,25 @@ function ViewTree(props: { view: string; reload }) {
   let { view, reload } = props;
   const { uuid } = useContext(UuidContext);
   const { conn_type } = useContext(ConnTypeContext);
-  let { setMenuContent } = useContext(MenuContext);
+  let { setUpMenu } = useContext(MenuContext);
   return (
     <TreeItem
       itemId={uuid + '-view-' + view}
       label={
         <Stack
-          direction="row"
+          direction='row'
           onContextMenu={(e) => {
-            setMenuContent(
-              <ViewMenu
-                kind={conn_type}
-                reload={reload}
-                view={view}
-                uuid={uuid}
-              />
-            );
-            setUpMenu(e, 100);
+            setUpMenu({
+              content: (
+                <ViewMenu
+                  kind={conn_type}
+                  reload={reload}
+                  view={view}
+                  uuid={uuid}
+                />
+              ),
+              style: calMenuStyle(e, 100),
+            });
           }}
         >
           <VisibilityIcon></VisibilityIcon> <span> {view} </span>
@@ -130,7 +134,7 @@ function ViewColumnsTree(props: { view: string }) {
         showNotification('error', 'list column failed', e);
       });
   };
-  let { setMenuContent } = useContext(MenuContext);
+  let { setUpMenu } = useContext(MenuContext);
   useEffect(() => {
     reload();
   }, []);
@@ -140,14 +144,16 @@ function ViewColumnsTree(props: { view: string }) {
       itemId={idPrefix}
       label=<Stack
         spacing={1}
-        direction="row"
+        direction='row'
         onContextMenu={(e) => {
-          setMenuContent(
-            <MenuList>
-              <MenuRefresh reload={reload}></MenuRefresh>
-            </MenuList>
-          );
-          setUpMenu(e, 200);
+          setUpMenu({
+            content: (
+              <MenuList>
+                <MenuRefresh reload={reload}></MenuRefresh>
+              </MenuList>
+            ),
+            style: calMenuStyle(e, 200),
+          });
         }}
       >
         <span> columns </span>
@@ -160,7 +166,7 @@ function ViewColumnsTree(props: { view: string }) {
         <TreeItem
           key={f.field}
           itemId={idPrefix + '-' + f.field}
-          label=<Stack direction="row" spacing={1}>
+          label=<Stack direction='row' spacing={1}>
             {f.field} <em>({f.typ}) </em>
           </Stack>
         ></TreeItem>
@@ -205,7 +211,7 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText> open table list</ListItemText>
           <Typography
-            variant="body2"
+            variant='body2'
             sx={{ color: 'text.secondary' }}
           ></Typography>
         </MenuItem>
@@ -220,7 +226,7 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText>drop view </ListItemText>
           <Typography
-            variant="body2"
+            variant='body2'
             sx={{ color: 'text.secondary' }}
           ></Typography>
         </MenuItem>

@@ -3,7 +3,7 @@ import {
   MenuContext,
   MenuRefresh,
   progressBarSizeSmall,
-  setUpMenu,
+  calMenuStyle,
   tabsHasId,
   TabsSetContext,
   UuidContext,
@@ -52,20 +52,22 @@ function TriggersTree(props: { table: string }) {
   }, []);
   let idPrefix = uuid + '-tables-' + table + '-triggers-';
 
-  let { setMenuContent } = useContext(MenuContext);
+  let { setUpMenu } = useContext(MenuContext);
   return (
     <TreeItem
       itemId={idPrefix}
       label=<Stack
         spacing={1}
-        direction="row"
+        direction='row'
         onContextMenu={(e) => {
-          setMenuContent(
-            <MenuList>
-              <MenuRefresh reload={handleReload}></MenuRefresh>
-            </MenuList>
-          );
-          setUpMenu(e, 70);
+          setUpMenu({
+            content: (
+              <MenuList>
+                <MenuRefresh reload={handleReload}></MenuRefresh>
+              </MenuList>
+            ),
+            style: calMenuStyle(e, 70),
+          });
         }}
       >
         <span> triggers </span>
@@ -79,18 +81,20 @@ function TriggersTree(props: { table: string }) {
           key={trigger.name}
           itemId={idPrefix + '-' + trigger.name}
           label=<Stack
-            direction="row"
+            direction='row'
             spacing={1}
             onContextMenu={(event) => {
-              setMenuContent(
-                <TriggerMenu
-                  table={table}
-                  uuid={uuid}
-                  reload={handleReload}
-                  trigger={trigger.name}
-                ></TriggerMenu>
-              );
-              setUpMenu(event, 70);
+              setUpMenu({
+                content: (
+                  <TriggerMenu
+                    table={table}
+                    uuid={uuid}
+                    reload={handleReload}
+                    trigger={trigger.name}
+                  ></TriggerMenu>
+                ),
+                style: calMenuStyle(event, 70),
+              });
             }}
           >
             <span> {trigger.name} </span>
@@ -182,7 +186,7 @@ function TriggerMenu(props: {
                     trigger,
                   });
                 }}
-                language="xxx"
+                language='xxx'
               ></TriggerDetail>
             )
           ),
@@ -225,7 +229,7 @@ function TriggerMenu(props: {
               }}
             >
               <ListItemIcon>
-                <CheckCircleIcon color="error"></CheckCircleIcon>
+                <CheckCircleIcon color='error'></CheckCircleIcon>
               </ListItemIcon>
               <ListItemText>enable</ListItemText>
             </MenuItem>
@@ -237,7 +241,7 @@ function TriggerMenu(props: {
             handleDrop();
           }}
         >
-          <ListItemIcon color="error">
+          <ListItemIcon color='error'>
             <DeleteForeverIcon></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop</ListItemText>

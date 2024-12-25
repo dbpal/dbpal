@@ -73,17 +73,17 @@ function SelectPageSize({
         fullWidth
         // @ts-ignore
         variant={variant}
-        size="small"
+        size='small'
       >
-        <InputLabel id="simple-select-label">{tital}</InputLabel>
+        <InputLabel id='simple-select-label'>{tital}</InputLabel>
         <Select
-          labelId="simple-select-label"
-          id="simple-select"
+          labelId='simple-select-label'
+          id='simple-select'
           value={pageSize}
           onChange={(e) => {
             onChange(e.target.value as number);
           }}
-          label="select page size"
+          label='select page size'
         >
           {pageSizeOptions.map((e) => (
             <MenuItem key={e} value={e}>
@@ -228,9 +228,9 @@ function EditorBar(props: {
 }) {
   let { left, pos, style } = props;
   return (
-    <Stack justifyContent="space-between" direction="row" style={style}>
+    <Stack justifyContent='space-between' direction='row' style={style}>
       <div style={{ width: '40%' }}> {left}</div>
-      <Stack width="40%" direction="row" spacing={1}>
+      <Stack width='40%' direction='row' spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Column {pos ? pos.column : ''}</span>
       </Stack>
@@ -335,7 +335,7 @@ const UuidContext = createContext<{
 }>(null);
 
 const MenuContext = createContext<{
-  setMenuContent;
+  setMenuContent: ({ content, style }) => void;
 }>(null);
 
 const msgTimeout = 5000;
@@ -380,36 +380,44 @@ function MenuRefresh({ reload }) {
   );
 }
 
-function setUpMenu(e, eheigth) {
+function calMenuStyle(e, eheigth): CSSProperties {
   e.preventDefault();
   const x = e.clientX;
   const y = e.clientY;
+  let ret: CSSProperties = {};
+
   const leftSizeMenuDom = document.getElementById('left-side-menu');
   leftSizeMenuDom.style.display = 'block';
   const { height } = getViewportSize();
   {
     // reset to auto.
-    leftSizeMenuDom.style.top = 'auto';
-    leftSizeMenuDom.style.bottom = 'auto';
+    // leftSizeMenuDom.style.top = 'auto';
+    // leftSizeMenuDom.style.bottom = 'auto';
+    ret.top = 'auto';
+    ret.bottom = 'auto';
   }
+
   leftSizeMenuDom.style.left =
     x -
     10 + // 稍微靠左一点
     'px';
   if (height - y > eheigth) {
     // 这个是点击的位置下面有很大的空间
-    leftSizeMenuDom.style.top =
-      y -
-      10 + // 稍微靠上一点
-      'px';
+    // leftSizeMenuDom.style.top =
+    //   y -
+    //   10 + // 稍微靠上一点
+    //   'px';
+    ret.top = y - 10 + 'px';
   } else {
     // 没有空间了用bottom 定位
-    leftSizeMenuDom.style.bottom =
-      height -
-      y -
-      10 + // 稍微靠上一点
-      'px';
+    // leftSizeMenuDom.style.bottom =
+    //   height -
+    //   y -
+    //   10 + // 稍微靠上一点
+    //   'px';
+    ret.bottom = height - y - 10 + 'px';
   }
+  return ret;
 }
 
 function chunkArray(array: any[], chunkSize: number): any[][] {
@@ -450,7 +458,7 @@ export {
   connTypeToDataSourceKind,
   progressBarSize,
   MenuContext,
-  setUpMenu,
+  calMenuStyle,
   MenuRefresh,
   ConnTypeContext,
   chunkArray,
