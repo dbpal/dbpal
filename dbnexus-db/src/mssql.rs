@@ -9,16 +9,16 @@ use dashmap::DashMap;
 use futures_core::future::BoxFuture;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::tokenizer::Token;
-use tiberius::{Client, ColumnData, ColumnType, FromSql, Row};
+use tiberius::{Client, ColumnData, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use crate::datasource_config::SqlServerDbConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts,
-    Index, IndexKind, ListTable, ModifyTableColumnType, NamedStaff, ProcedureDetail, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
+    BackendName, CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, Field, FormatSql,
+    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
     TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
     format_data_time_fix_offset,
 };
@@ -194,7 +194,7 @@ fn make_config(c: &SqlServerDbConfig) -> tiberius::Config {
     config
 }
 
-fn get_column_type_string(c: ColumnType) -> String {
+fn get_column_type_string(c: tiberius::ColumnType) -> String {
     let x = format!("{:?}", c);
     x.to_lowercase()
 }
@@ -440,12 +440,40 @@ impl BackendName for MsSqlServer {
 
 #[async_trait::async_trait]
 impl SchemaTrait for MsSqlServer {
+    async fn add_table_column(
+        &self, table: &str, name: &str, col: ColumnType,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "ALTER TABLE {table} ADD COLUMN {name} {} {} {}",
+            col.typ,
+            if let Some(nullness) = col.nullness.as_ref() {
+                nullness.as_str()
+            } else {
+                ""
+            },
+            if let Some(d) = col.default_value.as_ref() {
+                format!(
+                    "DEFAULT {}",
+                    self.put_value_in_sql(
+                        &Field::from_name_type(name, col.typ.clone()),
+                        Some(d.as_str())
+                    )?
+                )
+            } else {
+                "".to_owned()
+            }
+        );
+        let mut conn = self.get_conn().await?;
+        conn.deref_mut().execute(&sql, &[]).await?;
+        anyhow::Ok(())
+    }
+
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         anyhow::Ok(crate::mysql_completion::TYPES)
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ModifyTableColumnType>,
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<crate::db::ColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {

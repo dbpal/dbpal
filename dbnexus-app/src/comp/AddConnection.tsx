@@ -16,16 +16,16 @@ import {
 } from '@mui/material';
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
+import { open } from '@tauri-apps/plugin-dialog';
 
 import { invoke } from '@tauri-apps/api/core';
 import { DataSourceKind, msgTimeout, progressBarSize } from './Common';
-import { open } from '@tauri-apps/plugin-dialog';
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 
-async function selectFile() {
+async function selectOneFile() {
   const selected = await open({
-    multiple: false, // 是否允许选择多个文件
+    multiple: false,
   });
   return selected;
 }
@@ -63,7 +63,7 @@ function Sqlite(props: { path; setPath }) {
       <Typography>path:{path}</Typography>
       <Button
         onClick={() => {
-          selectFile().then((e) => {
+          selectOneFile().then((e) => {
             setPath(e);
           });
         }}

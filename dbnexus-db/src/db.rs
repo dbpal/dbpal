@@ -53,7 +53,12 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
     async fn modify_table_column(
-        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ModifyTableColumnType>,
+        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
+    ) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+    async fn add_table_column(
+        &self, _table: &str, _name: &str, _col: ColumnType,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
@@ -229,10 +234,14 @@ pub trait SchemaTrait:
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct ModifyTableColumnType {
+pub struct ColumnType {
     // type string like `varchar`
     pub(crate) typ: String,
     pub(crate) nullness: Option<String>,
+    // mysql add column can have this field
+    pub(crate) after: Option<String>,
+
+    pub(crate) default_value: Option<String>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

@@ -15,10 +15,10 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::MysqlDbConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
-    FormatSqlOpts, Index, IndexKind, ListTable, ModifyTableColumnType, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
+    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
@@ -619,12 +619,43 @@ impl std::fmt::Debug for MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    async fn add_table_column(
+        &self, table: &str, name: &str, col: ColumnType,
+    ) -> anyhow::Result<()> {
+        let mut sql = format!(
+            "ALTER TABLE {table} ADD COLUMN {name} {} {} {}",
+            col.typ,
+            if let Some(nullness) = col.nullness.as_ref() {
+                nullness.as_str()
+            } else {
+                ""
+            },
+            if let Some(d) = col.default_value.as_ref() {
+                format!(
+                    "DEFAULT {}",
+                    self.put_value_in_sql(
+                        &Field::from_name_type(name, col.typ.clone()),
+                        Some(d.as_str())
+                    )?
+                )
+            } else {
+                "".to_owned()
+            }
+        );
+        if let Some(a) = col.after.as_ref() {
+            sql.push_str(format!("after {}", a).as_str());
+        }
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         anyhow::Ok(crate::mysql_completion::TYPES)
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ModifyTableColumnType>,
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {

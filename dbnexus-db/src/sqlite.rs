@@ -15,9 +15,9 @@ use sqlx::{Column, Row, SqliteConnection, TypeInfo};
 
 use crate::MemoryLimit;
 use crate::db::{
-    BackendName, CheckConn, CreateTableAndIndexSql, ExportKind, Field, FormatSql, FormatSqlOpts,
-    Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, FormatSql,
+    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
@@ -414,6 +414,34 @@ impl BackendName for SqliteDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
+    async fn add_table_column(
+        &self, table: &str, name: &str, col: ColumnType,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "ALTER TABLE {table} ADD COLUMN {name} {} {} {}",
+            col.typ,
+            if let Some(nullness) = col.nullness.as_ref() {
+                nullness.as_str()
+            } else {
+                ""
+            },
+            if let Some(d) = col.default_value.as_ref() {
+                format!(
+                    "DEFAULT {}",
+                    self.put_value_in_sql(
+                        &Field::from_name_type(name, col.typ.clone()),
+                        Some(d.as_str())
+                    )?
+                )
+            } else {
+                "".to_owned()
+            }
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         use sqlx::{Executor, Statement};
         let mut conn = self.get_conn().await?;
@@ -1037,21 +1065,15 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }

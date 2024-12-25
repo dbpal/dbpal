@@ -64,7 +64,6 @@ export default function MainPage() {
               </SplitPane>
             </div>
             <div id='left-side-menu' style={menu && menu.style}>
-              {' '}
               {menu && menu.content}
             </div>
           </NotificationProvider>

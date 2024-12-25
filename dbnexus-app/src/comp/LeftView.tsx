@@ -224,7 +224,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop view </ListItemText>
+          <ListItemText>drop </ListItemText>
           <Typography
             variant='body2'
             sx={{ color: 'text.secondary' }}

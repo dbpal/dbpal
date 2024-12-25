@@ -4,8 +4,8 @@ use std::str::FromStr;
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, UserSettings, open};
 use dbnexus_db::db::{
-    ExportKind, Field, FormatSqlOpts, Index, ListTable, ModifyTableColumnType, NamedStaff,
-    ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
+    ColumnType, ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, ProcedureDetail,
+    QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
     UdfOrPrecedureExtraParameter,
 };
 use dbnexus_db::mongo::Mongo;
@@ -205,8 +205,8 @@ pub async fn drop_table_column(
 
 #[tauri::command]
 pub async fn modify_table_column(
-    name: String, table_name: String, old_name: String, new_name: String,
-    typ: Option<ModifyTableColumnType>, app: tauri::State<'_, App>,
+    name: String, table_name: String, old_name: String, new_name: String, typ: Option<ColumnType>,
+    app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -216,6 +216,23 @@ pub async fn modify_table_column(
         .map_err(AnyhowErrorFrontend::from)?;
     schema
         .modify_table_column(&table_name, &old_name, &new_name, typ)
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn add_table_column(
+    name: String, table_name: String, col_name: String, typ: ColumnType, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    schema
+        .add_table_column(&table_name, &col_name, typ)
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     Ok(())
