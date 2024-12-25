@@ -7,7 +7,6 @@ import {
   tabsHasId,
   TabsSetContext,
   UuidContext,
-  DataSourceKind,
   ConnTypeContext,
 } from './Common';
 import AddConfig from './AddConnection';
@@ -20,6 +19,7 @@ import { listen } from '@tauri-apps/api/event';
 
 import { TablesTree } from './LeftTable';
 import { ViewsTree } from './LeftView';
+import { ProceduresTree } from './LeftProcedure';
 
 function Left() {
   let { setTabs, tabs, setSelectIndex } = useContext(TabsSetContext);
@@ -75,7 +75,7 @@ function Left() {
         {configs.map((e) => {
           return (
             <ConnTypeContext.Provider
-              value={{ conn_type: connTypeToDataSourceKind(e.conn_type) }}
+              value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
             >
               <UuidContext.Provider
                 value={{
@@ -126,6 +126,7 @@ function SchemaTree(prpos: { schemaname?: string }) {
     <TreeItem itemId={getPrefix()} label={schemaname ? schemaname : uuid}>
       <TablesTree></TablesTree>
       <ViewsTree></ViewsTree>
+      <ProceduresTree></ProceduresTree>
     </TreeItem>
   );
 }

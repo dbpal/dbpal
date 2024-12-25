@@ -191,7 +191,10 @@ pub trait SchemaTrait:
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         not_support_features(self.backend_name())
     }
-    async fn show_udf(&self, _name: &str) -> anyhow::Result<UdfDetail> {
+
+    async fn show_udf(
+        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<UdfDetail> {
         not_support_features(self.backend_name())
     }
 
@@ -214,6 +217,7 @@ pub trait SchemaTrait:
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
+
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
         let e = self
             .list_table()
@@ -232,7 +236,7 @@ pub struct ModifyTableColumnType {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "drop_udf_extra_paramter", rename_all = "lowercase")]
+#[serde(tag = "extra", rename_all = "lowercase")]
 pub enum UdfOrPrecedureExtraParameter {
     PostGres {
         parameters: String, // a integer , b integer
@@ -997,4 +1001,18 @@ pub fn monaco_editor_keyword_regexp(keywords: &[&str]) -> String {
     ret.push_str(")\\b/");
 
     return ret;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::UdfOrPrecedureExtraParameter;
+
+    #[test]
+    fn test_serde_udf_or_precedure_extra_parameter() {
+        let x = Some(UdfOrPrecedureExtraParameter::PostGres {
+            parameters: "int".to_string(),
+        });
+        let s = serde_json::to_string_pretty(&x).unwrap();
+        println!("{:?}", s);
+    }
 }

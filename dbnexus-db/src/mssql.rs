@@ -1050,7 +1050,9 @@ impl SchemaTrait for MsSqlServer {
         anyhow::Ok(ret)
     }
 
-    async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
+    async fn show_udf(
+        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<UdfDetail> {
         let sql = format!(
             r#"
         SELECT 
@@ -1815,7 +1817,7 @@ mod tests {
         .unwrap();
         let list = db.list_udf().await.unwrap();
         for l in list.iter() {
-            let details = db.show_udf(&l.name).await.unwrap();
+            let details = db.show_udf(&l.name, None).await.unwrap();
             println!("udf:{},details:{:?}", l.name, details);
         }
     }

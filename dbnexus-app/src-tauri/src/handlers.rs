@@ -5,7 +5,8 @@ use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, UserSettings, open};
 use dbnexus_db::db::{
     ExportKind, Field, FormatSqlOpts, Index, ListTable, ModifyTableColumnType, NamedStaff,
-    QueryResp, SqlExecuteRet, TableListResp, TriggerDetail,
+    ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
+    UdfOrPrecedureExtraParameter,
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
@@ -1101,6 +1102,94 @@ pub async fn redis_zset_add(
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());
+}
+
+#[tauri::command]
+pub async fn list_procedure(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<NamedStaff>, AnyhowErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    schema
+        .list_procedure()
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
+#[tauri::command]
+pub async fn show_procedure(
+    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    app: tauri::State<'_, App>,
+) -> Result<ProcedureDetail, AnyhowErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    schema
+        .show_procedure(&procedure, arg)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
+#[tauri::command]
+pub async fn drop_procedure(
+    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    schema
+        .drop_procedure(&procedure, arg)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
+#[tauri::command]
+pub async fn list_udf(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<NamedStaff>, AnyhowErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    schema
+        .list_udf()
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
+#[tauri::command]
+pub async fn show_udf(
+    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    app: tauri::State<'_, App>,
+) -> Result<UdfDetail, AnyhowErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    schema
+        .show_udf(&procedure, arg)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
+#[tauri::command]
+pub async fn drop_udf(
+    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    schema
+        .drop_udf(&procedure, arg)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
 }
 
 #[tauri::command]

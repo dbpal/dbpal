@@ -464,7 +464,7 @@ impl SchemaTrait for PostGresDB {
             let p: String = r.try_get(1)?;
             ret.push(NamedStaff {
                 name,
-                metas: vec![MetaValue::new("parameter", p)],
+                metas: vec![MetaValue::new("parameters", p)],
             });
         }
 
@@ -532,10 +532,13 @@ impl SchemaTrait for PostGresDB {
         let sql = format!(
             r#"
             SELECT  
-                p.proname AS function_name
+                p.proname AS function_name,
+                pg_catalog.pg_get_function_result(p.oid) AS return_type,
+                pg_catalog.pg_get_function_arguments(p.oid) AS arguments
             FROM pg_catalog.pg_proc p
-                JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname = '{}'  -- 替换为您要查询的模式名称
+            AND p.prokind = 'f'  -- 只选择普通函数
             ORDER BY p.proname;
         "#,
             self.must_schema()
@@ -545,15 +548,29 @@ impl SchemaTrait for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
+            let return_type: Option<String> = r.get(1);
+            let arguments: Option<String> = r.get(2);
             ret.push(NamedStaff {
                 name,
-                metas: vec![],
+                metas: vec![
+                    MetaValue::new_opt("return_type", return_type),
+                    MetaValue::new_opt("parameters", arguments),
+                ],
             });
         }
         anyhow::Ok(ret)
     }
 
-    async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
+    async fn show_udf(
+        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<UdfDetail> {
+        let arg = match &arg {
+            Some(x) => match x {
+                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+            },
+            None => anyhow::bail!(format!("postgres need extra parameter")),
+        };
+
         let sql = format!(
             r#"
             SELECT  
@@ -562,9 +579,11 @@ impl SchemaTrait for PostGresDB {
                 pg_get_functiondef(p.oid) AS function_definition
             FROM pg_catalog.pg_proc p
                 JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            WHERE p.proname = '{name}' and n.nspname ='{}';  -- 替换为您要查询的函数名称
+            WHERE p.proname = '{name}' and n.nspname ='{}'  -- 替换为您要查询的函数名称
+                 AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'
        "#,
-            self.must_schema()
+            self.must_schema(),
+            arg
         );
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
@@ -573,7 +592,7 @@ impl SchemaTrait for PostGresDB {
         let function_definition: String = row.try_get(2)?;
         anyhow::Ok(UdfDetail::new(function_definition, vec![
             MetaValue::new_opt("result_type", result_type),
-            MetaValue::new_opt("arguments", arguments),
+            MetaValue::new_opt("parameters", arguments),
         ]))
     }
 
@@ -1837,10 +1856,23 @@ mod tests {
         )
         .await
         .unwrap();
-
         let list = pg.list_udf().await.unwrap();
         for l in list.iter() {
-            let details = pg.show_udf(&l.name).await.unwrap();
+            // I created some other functions to test.
+            // so we only test on `test_udf`.
+            if l.name != "test_udf" {
+                continue;
+            }
+            println!("udf:{:?}", l);
+            let details = pg
+                .show_udf(
+                    &l.name,
+                    Some(UdfOrPrecedureExtraParameter::PostGres {
+                        parameters: "a integer, b integer".to_string(),
+                    }),
+                )
+                .await
+                .unwrap();
             println!("name:{} , udf:{:?}", l.name, details);
             if l.name == "test_udf" {
                 pg.drop_udf(

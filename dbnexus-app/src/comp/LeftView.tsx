@@ -85,7 +85,7 @@ function ViewsTree() {
 function ViewTree(props: { view: string; reload }) {
   let { view, reload } = props;
   const { uuid } = useContext(UuidContext);
-  const { conn_type } = useContext(ConnTypeContext);
+  const { kind: conn_type } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(MenuContext);
   return (
     <TreeItem

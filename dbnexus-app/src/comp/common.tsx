@@ -327,7 +327,7 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
   }
 }
 const ConnTypeContext = createContext<{
-  conn_type: DataSourceKind;
+  kind: DataSourceKind;
 }>(null);
 
 const UuidContext = createContext<{
@@ -335,7 +335,7 @@ const UuidContext = createContext<{
 }>(null);
 
 const MenuContext = createContext<{
-  setMenuContent: ({ content, style }) => void;
+  setUpMenu: ({ content, style }) => void;
 }>(null);
 
 const msgTimeout = 5000;
@@ -348,6 +348,18 @@ function tabsHasId(tabs: TabContent[], id: string): number | null {
     }
   }
 
+  return null;
+}
+
+function extraParametersFromMetaValues(
+  values: types.MetaValue[]
+): string | null {
+  for (let i = 0; i < values.length; i++) {
+    let v = values[i];
+    if (v.name == 'parameters') {
+      return v.value;
+    }
+  }
   return null;
 }
 
@@ -385,38 +397,23 @@ function calMenuStyle(e, eheigth): CSSProperties {
   const x = e.clientX;
   const y = e.clientY;
   let ret: CSSProperties = {};
-
   const leftSizeMenuDom = document.getElementById('left-side-menu');
   leftSizeMenuDom.style.display = 'block';
   const { height } = getViewportSize();
-  {
-    // reset to auto.
-    // leftSizeMenuDom.style.top = 'auto';
-    // leftSizeMenuDom.style.bottom = 'auto';
-    ret.top = 'auto';
-    ret.bottom = 'auto';
-  }
+  ret.top = 'auto';
+  ret.bottom = 'auto';
 
-  leftSizeMenuDom.style.left =
+  ret.left =
     x -
     10 + // 稍微靠左一点
     'px';
   if (height - y > eheigth) {
     // 这个是点击的位置下面有很大的空间
-    // leftSizeMenuDom.style.top =
-    //   y -
-    //   10 + // 稍微靠上一点
-    //   'px';
     ret.top = y - 10 + 'px';
   } else {
-    // 没有空间了用bottom 定位
-    // leftSizeMenuDom.style.bottom =
-    //   height -
-    //   y -
-    //   10 + // 稍微靠上一点
-    //   'px';
     ret.bottom = height - y - 10 + 'px';
   }
+
   return ret;
 }
 
@@ -463,6 +460,7 @@ export {
   ConnTypeContext,
   chunkArray,
   progressBarSizeSmall,
+  extraParametersFromMetaValues,
 };
 
 export type { DefAndMetas };

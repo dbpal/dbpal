@@ -112,7 +112,7 @@ function TableTree(props: {
 }) {
   let { table, reloadTables, size } = props;
   const { uuid } = useContext(UuidContext);
-  const { conn_type } = useContext(ConnTypeContext);
+  const { kind: conn_type } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(MenuContext);
   return (
     <TreeItem
@@ -293,7 +293,7 @@ function TableColumnsTree(props: { table: string }) {
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const { uuid } = useContext(UuidContext);
-  const { conn_type } = useContext(ConnTypeContext);
+  const { kind: conn_type } = useContext(ConnTypeContext);
   const [loading, setLoading] = useState(false);
   const reload = () => {
     setLoading(true);
