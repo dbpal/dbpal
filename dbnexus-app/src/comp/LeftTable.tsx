@@ -302,7 +302,60 @@ function ModifyTableColumn(props: {
     </Stack>
   );
 }
+function TableColumnsMenu(props: {
+  support_add_column: boolean;
+  reload;
+  table;
+  uuid;
+  fields;
+  kind: DataSourceKind;
+}) {
+  let { support_add_column, reload, table, uuid, fields, kind } = props;
 
+  const [showAdd, setShowAdd] = useState(false);
+
+  return (
+    <Paper>
+      <MenuList>
+        <MenuRefresh reload={reload}></MenuRefresh>
+        {support_add_column && (
+          <MenuItem
+            onClick={() => {
+              setShowAdd(true);
+            }}
+          >
+            <ListItemIcon>
+              <AddIcon></AddIcon>
+            </ListItemIcon>
+            <ListItemText> add column </ListItemText>
+          </MenuItem>
+        )}
+      </MenuList>
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={() => {
+            setShowAdd(false);
+          }}
+          aria-labelledby='add column'
+        >
+          <Box sx={modalStyle} width='600px'>
+            <TableAddColumn
+              table={table}
+              uuid={uuid}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+              kind={kind}
+              reload={reload}
+              fields={fields}
+            ></TableAddColumn>
+          </Box>
+        </Modal>
+      )}
+    </Paper>
+  );
+}
 function TableAddColumn(props: {
   table: string;
   uuid;
@@ -447,7 +500,7 @@ function TableColumnsTree(props: { table: string }) {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const [loading, setLoading] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
+
   const reload = () => {
     setLoading(true);
     invoke<types.Field[]>('show_columns', { name: uuid, tableName: table })
@@ -481,23 +534,14 @@ function TableColumnsTree(props: { table: string }) {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={reload}></MenuRefresh>
-                  {support_add_column && (
-                    <MenuItem
-                      onClick={() => {
-                        setShowAdd(true);
-                      }}
-                    >
-                      <ListItemIcon>
-                        <AddIcon></AddIcon>
-                      </ListItemIcon>
-                      <ListItemText> add column </ListItemText>
-                    </MenuItem>
-                  )}
-                </MenuList>
-              </Paper>
+              <TableColumnsMenu
+                table={table}
+                uuid={uuid}
+                reload={reload}
+                kind={kind}
+                fields={fields}
+                support_add_column={support_add_column}
+              ></TableColumnsMenu>
             ),
             style: calMenuStyle(e, 200),
           });
@@ -532,29 +576,6 @@ function TableColumnsTree(props: { table: string }) {
           </Stack>
         ></TreeItem>
       ))}
-
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={() => {
-            setShowAdd(false);
-          }}
-          aria-labelledby='add column'
-        >
-          <Box sx={modalStyle} width='600px'>
-            <TableAddColumn
-              table={table}
-              uuid={uuid}
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              kind={kind}
-              reload={reload}
-              fields={fields}
-            ></TableAddColumn>
-          </Box>
-        </Modal>
-      )}
     </TreeItem>
   );
 }
