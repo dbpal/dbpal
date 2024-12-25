@@ -581,15 +581,13 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => {
-                match x {
-                    UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
-                    #[allow(unreachable_patterns)]
-                    _ => {
-                        anyhow::bail!("must be a postgres parameter")
-                    }
+            Some(x) => match x {
+                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+                #[allow(unreachable_patterns)]
+                _ => {
+                    anyhow::bail!("must be a postgres parameter")
                 }
-            }
+            },
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 
@@ -1184,7 +1182,9 @@ impl PostGresDB {
         if let Some(pass) = &conn.password {
             opts = opts.password(&pass);
         }
-        opts = opts.database(&conn.db);
+        if let Some(db) = conn.db.as_ref() {
+            opts = opts.database(&db);
+        }
 
         let pool = sqlx::postgres::PgPool::connect_with(opts).await?;
         anyhow::Ok(Self {
@@ -1439,7 +1439,7 @@ impl CatalogTrait for PostGresDB {
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
-        config.db = name.to_owned();
+        config.db = Some(name.to_string());
         let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
@@ -1528,7 +1528,7 @@ mod tests {
             port: 5432,
             username: "postgres".to_string(),
             password: Some("root".to_string()),
-            db: "test".to_string(),
+            db: Some("test".into()),
             schema: Some("test".to_string()),
             read_only: false,
         })

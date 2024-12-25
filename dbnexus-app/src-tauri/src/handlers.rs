@@ -4,12 +4,12 @@ use std::str::FromStr;
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, UserSettings, open};
 use dbnexus_db::db::{
-    CatalogTrait, ExportKind, Field, FormatSqlOpts, Index, ListTable, ModifyTableColumnType,
-    NamedStaff, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail,
+    ExportKind, Field, FormatSqlOpts, Index, ListTable, ModifyTableColumnType, NamedStaff,
+    QueryResp, SqlExecuteRet, TableListResp, TriggerDetail,
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
-use dbnexus_db::pg::PostGresDB;
+
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use tauri::{AppHandle, Emitter};
 
@@ -329,17 +329,16 @@ pub async fn query_sql(
     let result = match db {
         Open::DataBase(x) => x.query_sql(query_id, sql).await,
         Open::Schema(x) => x.query_sql(query_id, sql).await,
+        Open::Catalog(x) => x.query_sql(query_id, sql).await,
     };
 
     result.map_err(AnyhowErrorFrontend::from).map(|x| {
         x.into_iter()
-            .map(|x| {
-                match x {
-                    Err(e) => Err(e),
-                    Ok(x) => {
-                        let QueryResp { fields, data } = x;
-                        Ok(MuiDataGridData::from((fields, data)))
-                    }
+            .map(|x| match x {
+                Err(e) => Err(e),
+                Ok(x) => {
+                    let QueryResp { fields, data } = x;
+                    Ok(MuiDataGridData::from((fields, data)))
                 }
             })
             .collect::<Vec<_>>()
@@ -355,6 +354,7 @@ pub async fn query_sql_open_connection(
     let result = match db {
         Open::DataBase(x) => x.open_connection().await,
         Open::Schema(x) => x.open_connection().await,
+        Open::Catalog(x) => x.open_connection().await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
@@ -368,6 +368,7 @@ pub async fn query_sql_re_connection(
     let result = match db {
         Open::DataBase(x) => x.re_connect(query_id).await,
         Open::Schema(x) => x.re_connect(query_id).await,
+        Open::Catalog(x) => x.re_connect(query_id).await,
     };
     result.map_err(|e| AnyhowErrorFrontend::from(e))
 }
@@ -381,6 +382,7 @@ pub async fn query_sql_close_connection(
     let result = match db {
         Open::DataBase(x) => x.close_connection(query_id).await,
         Open::Schema(x) => x.close_connection(query_id).await,
+        Open::Catalog(x) => x.close_connection(query_id).await,
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
@@ -437,6 +439,7 @@ pub async fn format_sql(
     let ret = match db {
         Open::DataBase(x) => x.format_sql(sql.as_str(), opts),
         Open::Schema(x) => x.format_sql(sql.as_str(), opts),
+        Open::Catalog(x) => x.format_sql(sql.as_str(), opts),
     };
     ret.map_err(|e| AnyhowErrorFrontend::from(e))
 }
@@ -454,6 +457,7 @@ pub async fn test_connection(
     match db {
         app::Open::DataBase(x) => x.check_conn().await,
         app::Open::Schema(x) => x.check_conn().await,
+        app::Open::Catalog(x) => x.check_conn().await,
     }
     .map_err(AnyhowErrorFrontend::from)
     .map(|d| d.as_millis() as u64)
@@ -461,51 +465,37 @@ pub async fn test_connection(
 
 #[tauri::command]
 pub async fn config_list_database_or_schema(
-    mut conn: DBConnectionConfig,
+    conn: DBConnectionConfig,
 ) -> Result<Vec<String>, AnyhowErrorFrontend> {
-    let mut db_modified = false;
-    match &mut conn {
-        DBConnectionConfig::Postgres { conn, .. } => {
-            if conn.db == "" {
-                db_modified = true;
-                conn.db = "postgres".to_string();
-            }
-        }
-
-        DBConnectionConfig::SqlServer { conn, .. } => {
-            if conn.db == "" {
-                db_modified = true;
-                conn.db = "master".to_string();
-            }
-        }
-
-        _ => {}
-    };
-
     let x = open(&conn).await?;
-    match conn {
-        DBConnectionConfig::Postgres { .. } => {
-            if db_modified {
-                // list database
-                let p = x.as_any().downcast_ref::<PostGresDB>().unwrap();
-                return CatalogTrait::list_database(p)
-                    .await
-                    .map_err(AnyhowErrorFrontend::from);
-            }
-        }
-
-        _ => {}
-    }
-
     match x {
-        Open::DataBase(dbtrait) => {
-            return dbtrait
-                .list_schema()
-                .await
-                .map_err(|x| AnyhowErrorFrontend::from(x));
-        }
-        Open::Schema(_) => return Ok(vec![]),
+        Open::Catalog(catalog_trait) => catalog_trait
+            .list_database()
+            .await
+            .map_err(AnyhowErrorFrontend::from),
+        Open::DataBase(dbtrait) => dbtrait
+            .list_schema()
+            .await
+            .map_err(AnyhowErrorFrontend::from),
+        Open::Schema(_) => Ok(vec![]),
     }
+}
+
+#[tauri::command]
+pub async fn list_database(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<
+    Vec<String>, // milliseconds
+    AnyhowErrorFrontend,
+> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.open(name.as_str()).await?;
+    match db {
+        app::Open::Catalog(x) => x.list_database().await,
+        _ => return Err(AnyhowErrorFrontend::from("not catalog trait")),
+    }
+    .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -536,17 +526,14 @@ pub async fn oracle_query_set_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_set_autocommit(id, commit)
-                .await
-                .map_err(AnyhowErrorFrontend::from)
-        }
-        None => {
-            Err(AnyhowErrorFrontend::from(format!(
-                "db '{}' is not oracle",
-                name
-            )))
-        }
+        Some(x) => x
+            .query_set_autocommit(id, commit)
+            .await
+            .map_err(AnyhowErrorFrontend::from),
+        None => Err(AnyhowErrorFrontend::from(format!(
+            "db '{}' is not oracle",
+            name
+        ))),
     }
 }
 #[tauri::command]
@@ -560,17 +547,14 @@ pub async fn oracle_query_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_autocommit(id)
-                .await
-                .map_err(AnyhowErrorFrontend::from)
-        }
-        None => {
-            Err(AnyhowErrorFrontend::from(format!(
-                "db '{}' is not oracle",
-                name
-            )))
-        }
+        Some(x) => x
+            .query_autocommit(id)
+            .await
+            .map_err(AnyhowErrorFrontend::from),
+        None => Err(AnyhowErrorFrontend::from(format!(
+            "db '{}' is not oracle",
+            name
+        ))),
     }
 }
 #[tauri::command]
@@ -584,11 +568,10 @@ pub async fn oracle_query_commit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_commit(id)
-                .await
-                .map_err(|e| AnyhowErrorFrontend::from(e))
-        }
+        Some(x) => x
+            .query_commit(id)
+            .await
+            .map_err(|e| AnyhowErrorFrontend::from(e)),
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -603,11 +586,10 @@ pub async fn oracle_query_rollback(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_rollback(id)
-                .await
-                .map_err(|e| AnyhowErrorFrontend::from(e))
-        }
+        Some(x) => x
+            .query_rollback(id)
+            .await
+            .map_err(|e| AnyhowErrorFrontend::from(e)),
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -1302,15 +1284,16 @@ impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
             .into_iter()
             .map(|x| {
                 let mut m = HashMap::new();
-                fields.iter().zip(x.into_iter()).for_each(|(f, value)| {
-                    match value {
+                fields
+                    .iter()
+                    .zip(x.into_iter())
+                    .for_each(|(f, value)| match value {
                         Some(value) => {
                             m.insert(f.field.clone(), value);
                         }
 
                         None => {}
-                    }
-                });
+                    });
 
                 m
             })

@@ -48,10 +48,10 @@ function Left() {
         overflow: 'auto',
       }}
     >
-      <Stack direction="row">
+      <Stack direction='row'>
         <Button
-          color="primary"
-          variant="contained"
+          color='primary'
+          variant='contained'
           onClick={() => {
             const id = 'add_config';
             let index = tabsHasId(tabs, 'add_config');
@@ -95,15 +95,25 @@ function Left() {
 
 function OneConfig(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-  return (
-    <SimpleTreeView>
-      {config.conn_type == 'mariadb' &&
-        (config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>)}
 
-      {config.conn_type == 'postgres' &&
-        (config.schema ? <SchemaTree /> : <DatabaseTree />)}
-    </SimpleTreeView>
-  );
+  const makeTree = () => {
+    switch (config.conn_type) {
+      case 'postgres':
+        if (!config.db) {
+          return <CatalogTree />;
+        }
+        return config.schema ? <SchemaTree /> : <DatabaseTree />;
+
+      case 'mariadb':
+        return config.db ? (
+          <SchemaTree></SchemaTree>
+        ) : (
+          <DatabaseTree></DatabaseTree>
+        );
+    }
+  };
+
+  return <SimpleTreeView>{makeTree()}</SimpleTreeView>;
 }
 
 function SchemaTree(prpos: { schemaname?: string }) {
@@ -116,6 +126,36 @@ function SchemaTree(prpos: { schemaname?: string }) {
     <TreeItem itemId={getPrefix()} label={schemaname ? schemaname : uuid}>
       <TablesTree></TablesTree>
       <ViewsTree></ViewsTree>
+    </TreeItem>
+  );
+}
+
+function CatalogTree(props: {}) {
+  const { uuid: name } = useContext(UuidContext);
+  const { showNotification } = useContext(NotificationContext);
+  const [databases, setDatabases] = useState<string[]>([]);
+
+  const handleReload = () => {
+    invoke<string[]>('list_database', { name })
+      .then((ds) => {
+        setDatabases(ds);
+      })
+      .catch((e) => {
+        showNotification('error', 'list schema failed', e);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+  return (
+    <TreeItem itemId={name} label={name} key={name}>
+      {databases.map((e) => {
+        return (
+          <UuidContext.Provider value={{ uuid: name + ':' + e }}>
+            <DatabaseTree key={e} database={e}></DatabaseTree>
+          </UuidContext.Provider>
+        );
+      })}
     </TreeItem>
   );
 }

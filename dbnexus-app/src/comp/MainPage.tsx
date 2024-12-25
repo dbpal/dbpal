@@ -18,7 +18,7 @@ import { Left } from './Left';
 export default function MainPage() {
   const lightTheme = createTheme();
   const [theme, setTheme] = useState('light'); // 默认为明亮主题
-  const isDarkMode = theme === 'dark';
+
   let [tabs, setTabs] = useState([
     new TabContent('welcome', 'welcome', <WelCome></WelCome>),
   ]);

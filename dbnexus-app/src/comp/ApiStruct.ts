@@ -16,7 +16,7 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": (string | null);
-        "db": string;
+        "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
     };

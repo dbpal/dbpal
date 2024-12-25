@@ -26,7 +26,7 @@ impl PostGresDB {
         if db.is_some() {
             return db;
         }
-        return Some(self.config.db.as_str());
+        return self.config.db.as_ref().map(|x| x.as_str());
     }
 
     fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
@@ -522,7 +522,7 @@ mod tests {
             port: 5432,
             username: "postgres".to_string(),
             password: Some("root".to_string()),
-            db: "test".to_string(),
+            db: Some("test".to_string()),
             schema: Some("test".to_string()),
             read_only: false,
         })

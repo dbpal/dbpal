@@ -33,22 +33,22 @@ async function selectFile() {
 function HostAndPort(props: { host; port; setHost; setPort }) {
   let { host, port, setHost, setPort } = props;
   return (
-    <Stack direction="row">
+    <Stack direction='row'>
       <TextField
-        margin="normal"
+        margin='normal'
         fullWidth
-        label="Host"
+        label='Host'
         value={host}
-        size="small"
+        size='small'
         sx={{ mr: 1 }}
         onChange={(e) => setHost(e.target.value)}
       />
       <TextField
-        margin="normal"
+        margin='normal'
         fullWidth
-        label="port"
+        label='port'
         error={isNaN(parseInt(port))}
-        size="small"
+        size='small'
         value={port}
         onChange={(e) => setPort(e.target.value)}
       />
@@ -78,22 +78,22 @@ function UserAndPassword(props: { user; password; setUser; setPassword }) {
   let { user, password, setUser, setPassword } = props;
 
   return (
-    <Stack direction="row">
+    <Stack direction='row'>
       <TextField
-        margin="normal"
+        margin='normal'
         fullWidth
-        label="User"
+        label='User'
         value={user}
         sx={{ mr: 1 }}
-        size="small"
+        size='small'
         onChange={(e) => setUser(e.target.value)}
       />
       <TextField
-        margin="normal"
+        margin='normal'
         fullWidth
-        label="Password"
-        size="small"
-        type="password"
+        label='Password'
+        size='small'
+        type='password'
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
@@ -111,7 +111,7 @@ function EnableSSL(props: { useSSL; setUseSSL }) {
           onChange={(e) => setUseSSL(e.target.checked)}
         />
       }
-      label="Enable SSL"
+      label='Enable SSL'
     />
   );
 }
@@ -126,7 +126,7 @@ function TrustCert(props: { trustCert; setTrustCert }) {
           onChange={(e) => setTrustCert(e.target.checked)}
         />
       }
-      label="Trust Cert"
+      label='Trust Cert'
     />
   );
 }
@@ -136,7 +136,7 @@ function Database(props: { database; setDatabase; candidates: string[] }) {
 
   return (
     <Stack>
-      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+      <Stack direction='row' style={{ flexWrap: 'wrap' }}>
         {candidates.map((e) => (
           <Button
             onClick={() => {
@@ -148,11 +148,11 @@ function Database(props: { database; setDatabase; candidates: string[] }) {
         ))}
       </Stack>
 
-      <Stack direction="row">
+      <Stack direction='row'>
         <TextField
-          margin="normal"
-          label="database"
-          size="small"
+          margin='normal'
+          label='database'
+          size='small'
           value={database}
           onChange={(e) => setDatabase(e.target.value)}
         />
@@ -166,7 +166,7 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
 
   return (
     <Stack>
-      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+      <Stack direction='row' style={{ flexWrap: 'wrap' }}>
         {candidates.map((e) => (
           <Button
             onClick={() => {
@@ -178,11 +178,11 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
         ))}
       </Stack>
 
-      <Stack direction="row">
+      <Stack direction='row'>
         <TextField
-          margin="normal"
-          label="schema"
-          size="small"
+          margin='normal'
+          label='schema'
+          size='small'
           value={schema}
           onChange={(e) => setSchema(e.target.value)}
         />
@@ -252,7 +252,7 @@ export default function AddConfig() {
           port: portInt,
           username: user,
           password: pass_null,
-          db: database,
+          db: db_null,
           read_only: readOnly,
           name: connectionName,
           schema: schema_null,
@@ -363,12 +363,6 @@ export default function AddConfig() {
     if (!config) {
       return;
     }
-    if (connectionType == DataSourceKind.Postgres || DataSourceKind.MsSql) {
-      if (!database) {
-        showNotification('error', "databse can't be null");
-        return null;
-      }
-    }
 
     invoke('add_config', { config })
       .then((_) => {
@@ -418,15 +412,15 @@ export default function AddConfig() {
 
   return (
     <Stack spacing={1}>
-      <Typography variant="h6" gutterBottom>
+      <Typography variant='h6' gutterBottom>
         New Connection
       </Typography>
-      <FormControl fullWidth margin="normal">
+      <FormControl fullWidth margin='normal'>
         <InputLabel>Connection Type</InputLabel>
         <Select
-          size="small"
+          size='small'
           value={connectionType}
-          label="Connection Type"
+          label='Connection Type'
           onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
         >
           <MenuItem value={DataSourceKind.Mysql}>MySQL</MenuItem>
@@ -562,15 +556,15 @@ export default function AddConfig() {
         <Sqlite path={path} setPath={setPath}></Sqlite>
       )}
 
-      <Stack direction="row">
+      <Stack direction='row'>
         <Button
-          variant="outlined"
+          variant='outlined'
           sx={{ mr: 1 }}
           onClick={handleTestConnection}
         >
           Test
         </Button>
-        {testOk && <Alert severity="success"> Test OK </Alert>}
+        {testOk && <Alert severity='success'> Test OK </Alert>}
         {testLoading && <CircularProgress size={progressBarSize} />}
       </Stack>
       <FormControlLabel
@@ -580,24 +574,24 @@ export default function AddConfig() {
             onChange={(e) => setReadOnly(e.target.checked)}
           />
         }
-        label="Read Only"
+        label='Read Only'
       />
-      <Stack direction="row" spacing={1} alignContent="flex-start">
+      <Stack direction='row' spacing={1} alignContent='flex-start'>
         <TextField
-          margin="normal"
-          label="Connection Name"
+          margin='normal'
+          label='Connection Name'
           value={connectionName}
           error={!connectionName}
           required
-          size="small"
+          size='small'
           onChange={(e) => setConnectionName(e.target.value)}
-          helperText="Enter a name for this connection"
+          helperText='Enter a name for this connection'
         />
 
         <Button
-          variant="contained"
-          color="primary"
-          size="small"
+          variant='contained'
+          color='primary'
+          size='small'
           onClick={() => {
             handleSaveConnection();
           }}

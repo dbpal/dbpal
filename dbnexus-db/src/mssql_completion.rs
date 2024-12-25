@@ -28,7 +28,7 @@ impl MsSqlServer {
         if db.is_some() {
             return db;
         }
-        return Some(self.config.db.as_str());
+        return self.config.db.as_ref().map(|x| x.as_str());
     }
 
     fn not_allow_empty_db<'a>(db: Option<&'a str>) -> anyhow::Result<&'a str> {
@@ -186,12 +186,10 @@ impl CompletionOnSynTaxHelper for MsSqlServer {
         let mut ret = SchemaTrait::list_udf(self)
             .await
             .map(|x| {
-                x.into_iter().map(|x| {
-                    CompletionItem {
-                        item: x.name.into(),
-                        desc: None,
-                        kind: CompletionKind::Function,
-                    }
+                x.into_iter().map(|x| CompletionItem {
+                    item: x.name.into(),
+                    desc: None,
+                    kind: CompletionKind::Function,
                 })
             })?
             .collect::<Vec<_>>();

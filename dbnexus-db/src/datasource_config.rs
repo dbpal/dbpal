@@ -128,20 +128,21 @@ fn test_redis_make_conn_string() {
         "redis://aaa@127.0.0.1/1"
     );
 }
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
 pub struct PGDbConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
     pub password: Option<String>,
-    pub db: String,
+    pub db: Option<String>,
     pub schema: Option<String>,
     pub read_only: bool,
 }
 
 impl PGDbConfig {
     pub(crate) fn db_str(&self) -> &str {
-        self.db.as_str()
+        self.db.as_ref().unwrap().as_str()
     }
 }
 
@@ -152,7 +153,7 @@ pub struct SqlServerDbConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
-    pub db: String,
+    pub db: Option<String>,
     pub trust_cert: bool,
     pub schema: Option<String>,
     pub read_only: bool,
@@ -160,18 +161,11 @@ pub struct SqlServerDbConfig {
 
 impl SqlServerDbConfig {
     pub(crate) fn must_db(&self) -> &String {
-        &self.db
+        self.db.as_ref().unwrap()
     }
 
     pub(crate) fn must_schema(&self) -> &String {
         self.schema.as_ref().unwrap()
-    }
-}
-
-impl SqlServerDbConfig {
-    #[allow(dead_code)]
-    pub(crate) fn db_str(&self) -> &str {
-        &self.db
     }
 }
 
