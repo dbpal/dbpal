@@ -824,6 +824,7 @@ function RenameTable(props: {
         handleClose();
       })
       .catch((e) => {
+        setLoading(false);
         showNotification('error', 'Rename failure', e);
       });
   };
