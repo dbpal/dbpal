@@ -15,11 +15,13 @@ import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import { BSON } from 'bson';
-import { createContext, CSSProperties } from 'react';
+import { createContext, CSSProperties, useContext } from 'react';
 import { Editor, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import RefreshIcon from '@mui/icons-material/Refresh';
-
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import { invoke } from '@tauri-apps/api/core';
+import { NotificationContext } from './Notification';
 // TOOD 适配黑暗模式
 const modalStyle: SxProps = {
   position: 'absolute',
@@ -392,6 +394,47 @@ function MenuRefresh({ reload }) {
   );
 }
 
+function MenuDeleteConfig({ name }) {
+  const { showNotification } = useContext(NotificationContext);
+  const handleDelete = () => {
+    invoke('delete_config', { name })
+      .then(() => {
+        showNotification('success', 'Drop database connection OK');
+      })
+      .catch((e) => {
+        showNotification('error', 'Drop database connection Failure.', e);
+      });
+  };
+
+  return (
+    <MenuItem
+      onClick={() => {
+        handleDelete();
+      }}
+    >
+      <ListItemIcon>
+        <DeleteForeverIcon></DeleteForeverIcon>
+      </ListItemIcon>
+      <ListItemText> drop connection </ListItemText>
+    </MenuItem>
+  );
+}
+
+function MenuNewQuery({ handle }) {
+  return (
+    <MenuItem
+      onClick={() => {
+        handle();
+      }}
+    >
+      <ListItemIcon>
+        <RefreshIcon></RefreshIcon>
+      </ListItemIcon>
+      <ListItemText> New query </ListItemText>
+    </MenuItem>
+  );
+}
+
 function calMenuStyle(e, eheigth): CSSProperties {
   e.preventDefault();
   const x = e.clientX;
@@ -461,6 +504,8 @@ export {
   chunkArray,
   progressBarSizeSmall,
   extraParametersFromMetaValues,
+  MenuDeleteConfig,
+  MenuNewQuery,
 };
 
 export type { DefAndMetas };

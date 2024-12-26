@@ -23,7 +23,10 @@ use handlers::{
     save_user_settings, show_columns, show_indexes, show_procedure, show_table, show_trigger,
     show_udf, show_view, show_view_coumns, test_connection, truncate_table, update,
 };
-use tauri::Manager;
+use tauri::{
+    Manager,
+    menu::{Menu, Submenu},
+};
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
@@ -49,6 +52,7 @@ async fn main() {
             }
             Ok(())
         })
+        .menu(|handle| Menu::with_items(handle, &[&Submenu::with_items(handle, "add connection")]))
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             list_database,

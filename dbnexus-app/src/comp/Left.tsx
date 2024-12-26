@@ -1,5 +1,5 @@
 import AddIcon from '@mui/icons-material/Add';
-import { Button, Stack } from '@mui/material';
+import { Button, MenuList, Paper, Stack } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 import { TabContent } from './Tabs';
 import {
@@ -8,6 +8,10 @@ import {
   TabsSetContext,
   UuidContext,
   ConnTypeContext,
+  MenuNewQuery,
+  MenuDeleteConfig,
+  MenuContext,
+  calMenuStyle,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -41,7 +45,7 @@ function Left() {
   useEffect(() => {
     handleReload();
   }, []);
-  listen('config_added', () => {
+  listen('connection_config_changed', () => {
     handleReload();
   });
 
@@ -119,25 +123,50 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
   return <SimpleTreeView>{makeTree()}</SimpleTreeView>;
 }
 
-function SchemaTree(prpos: { schemaname?: string }) {
+function SchemaTree(prpos: { schema?: string }) {
   const { uuid } = useContext(UuidContext);
-  let { schemaname } = prpos;
+  let { schema } = prpos;
   const getPrefix = () => {
-    return uuid + schemaname;
+    return uuid + schema;
   };
+  let { setUpMenu } = useContext(MenuContext);
   return (
     <TreeItem
       itemId={getPrefix()}
-      label=<Stack direction='row'>
-        {schemaname && <LuDatabase></LuDatabase>}
-        <span> {schemaname ? schemaname : uuid}</span>
+      label=<Stack
+        direction='row'
+        onContextMenu={(e) => {
+          setUpMenu({
+            content: <SchemaMenu schema={schema} uuid={uuid}></SchemaMenu>,
+            style: calMenuStyle(e, 70),
+          });
+        }}
+      >
+        {schema && <LuDatabase></LuDatabase>}
+        <span> {schema ? schema : uuid}</span>
       </Stack>
     >
       <TablesTree></TablesTree>
       <ViewsTree></ViewsTree>
       <ProceduresTree></ProceduresTree>
-      <UdfsTree> </UdfsTree>
+      <UdfsTree></UdfsTree>
     </TreeItem>
+  );
+}
+
+function SchemaMenu(props: { schema?: string; uuid }) {
+  const { schema, uuid } = props;
+  return (
+    <Paper>
+      <MenuList>
+        <MenuNewQuery
+          handle={() => {
+            alert('new query');
+          }}
+        ></MenuNewQuery>
+      </MenuList>
+      {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
+    </Paper>
   );
 }
 
@@ -200,7 +229,7 @@ function DatabaseTree(props: { database?: string }) {
       {schemas.map((e) => {
         return (
           <UuidContext.Provider value={{ uuid: name + ':' + e }}>
-            <SchemaTree key={e} schemaname={e}></SchemaTree>
+            <SchemaTree key={e} schema={e}></SchemaTree>
           </UuidContext.Provider>
         );
       })}

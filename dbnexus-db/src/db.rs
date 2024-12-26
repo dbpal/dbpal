@@ -1024,4 +1024,41 @@ mod tests {
         let s = serde_json::to_string_pretty(&x).unwrap();
         println!("{:?}", s);
     }
+
+    #[test]
+    fn test_sql_parse() {
+        let s = r#"
+        CREATE OR REPLACE FUNCTION test.factorial(n integer)
+            RETURNS integer
+            LANGUAGE plpgsql
+            AS $function$
+            DECLARE
+                result INT := 1;
+            BEGIN
+                IF n < 0 THEN
+                    RETURN NULL;  -- 负数的阶乘未定义
+                ELSIF n = 0 THEN
+                    RETURN 1;  -- 0 的阶乘为 1
+                ELSE
+                    FOR i IN 1..n LOOP
+                        result := result * i;
+                    END LOOP;
+                    RETURN result;
+                END IF;
+            END;
+            $function$
+"#;
+
+        let r = sqlformat::format(
+            s,
+            &sqlformat::QueryParams::None,
+            &sqlformat::FormatOptions {
+                indent: sqlformat::Indent::Tabs,
+                uppercase: None,
+                lines_between_queries: 1,
+                ignore_case_convert: None,
+            },
+        );
+        println!("{}", r)
+    }
 }

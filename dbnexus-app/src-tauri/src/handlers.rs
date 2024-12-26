@@ -27,7 +27,7 @@ pub async fn add_config(
     app.add_config(config)
         .await
         .map_err(AnyhowErrorFrontend::from)?;
-    handler.emit("config_added", "").unwrap();
+    handler.emit("connection_config_changed", "").unwrap();
     Ok(())
 }
 #[tauri::command]
@@ -42,11 +42,12 @@ pub async fn list_all_config(
 
 #[tauri::command]
 pub async fn delete_config(
-    name: String, app: tauri::State<'_, App>,
+    name: String, app: tauri::State<'_, App>, handler: AppHandle,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     log::info!("del config:{}", name);
+    handler.emit("connection_config_changed", "").unwrap();
     app.delete_config(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)

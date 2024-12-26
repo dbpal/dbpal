@@ -766,7 +766,7 @@ function TableMenu(props: {
           <ListItemIcon>
             <ListIcon></ListIcon>
           </ListItemIcon>
-          <ListItemText> open table list</ListItemText>
+          <ListItemText> view data</ListItemText>
         </MenuItem>
 
         <MenuItem

@@ -209,7 +209,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <ListIcon></ListIcon>
           </ListItemIcon>
-          <ListItemText> open table list</ListItemText>
+          <ListItemText> view data</ListItemText>
           <Typography
             variant='body2'
             sx={{ color: 'text.secondary' }}
