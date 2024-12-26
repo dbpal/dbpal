@@ -296,11 +296,13 @@ function SqlTableView(props: {
             onSortModelChange={(sorts) => {
               if (sorts.length == 0) {
                 setOrderBy('');
+                setTriggerReload((e) => !e);
                 return;
               }
               let sort = sorts[0];
               if (!sort.sort) {
                 setOrderBy('');
+                setTriggerReload((e) => !e);
                 return;
               }
               setOrderBy(`${sort.field} ${sort.sort}`);
