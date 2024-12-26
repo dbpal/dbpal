@@ -22,6 +22,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
+import AddIcon from '@mui/icons-material/Add';
 // TOOD 适配黑暗模式
 const modalStyle: SxProps = {
   position: 'absolute',
@@ -428,9 +429,9 @@ function MenuNewQuery({ handle }) {
       }}
     >
       <ListItemIcon>
-        <RefreshIcon></RefreshIcon>
+        <AddIcon></AddIcon>
       </ListItemIcon>
-      <ListItemText> New query </ListItemText>
+      <ListItemText> New Query </ListItemText>
     </MenuItem>
   );
 }

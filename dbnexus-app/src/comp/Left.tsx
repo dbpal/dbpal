@@ -1,10 +1,8 @@
-import AddIcon from '@mui/icons-material/Add';
-import { Button, MenuList, Paper, Stack } from '@mui/material';
+import { Box, MenuList, Modal, Paper, Stack, Typography } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
-import { TabContent } from './Tabs';
+
 import {
   connTypeToDataSourceKind,
-  tabsHasId,
   TabsSetContext,
   UuidContext,
   ConnTypeContext,
@@ -12,6 +10,7 @@ import {
   MenuDeleteConfig,
   MenuContext,
   calMenuStyle,
+  modalStyle,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -29,9 +28,9 @@ import { ProceduresTree } from './LeftProcedure';
 import { UdfsTree } from './LeftUdf';
 
 function Left() {
-  let { setTabs, tabs, setSelectIndex } = useContext(TabsSetContext);
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
+  const [showAddConnection, setShowAddConnection] = useState(false);
   const handleReload = () => {
     invoke<types.DBConnectionConfig[]>('list_all_config')
       .then((e) => {
@@ -49,35 +48,30 @@ function Left() {
     handleReload();
   });
 
+  listen('add_connection', () => {
+    setShowAddConnection(true);
+  });
+
   return (
     <Stack
       style={{
         overflow: 'auto',
       }}
     >
-      <Stack direction='row'>
-        <Button
-          color='primary'
-          variant='contained'
-          onClick={() => {
-            const id = 'add_config';
-            let index = tabsHasId(tabs, 'add_config');
-            if (typeof index != 'number') {
-              setTabs((e) => {
-                setSelectIndex(tabs.length);
-                return [
-                  ...e,
-                  new TabContent(id, 'add config', <AddConfig></AddConfig>),
-                ];
-              });
-            } else {
-              setSelectIndex(index);
-            }
+      {showAddConnection && (
+        <Modal
+          open={showAddConnection}
+          onClose={() => {
+            setShowAddConnection(false);
           }}
+          aria-labelledby='add column'
         >
-          <AddIcon></AddIcon>
-        </Button>
-      </Stack>
+          <Box sx={modalStyle} width='600px'>
+            <AddConfig></AddConfig>
+          </Box>
+        </Modal>
+      )}
+
       <Stack>
         {configs.map((e) => {
           return (
@@ -154,6 +148,37 @@ function SchemaTree(prpos: { schema?: string }) {
   );
 }
 
+function DatabaseMenu(props: { database?: string; uuid }) {
+  const { database, uuid } = props;
+  return (
+    <Paper>
+      <MenuList>
+        <MenuNewQuery
+          handle={() => {
+            alert('new query');
+          }}
+        ></MenuNewQuery>
+      </MenuList>
+      {!database && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
+    </Paper>
+  );
+}
+
+function CatalogMenu(props: { uuid }) {
+  const { database, uuid } = props;
+  return (
+    <Paper>
+      <MenuList>
+        <MenuNewQuery
+          handle={() => {
+            alert('new query');
+          }}
+        ></MenuNewQuery>
+      </MenuList>
+      <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
+    </Paper>
+  );
+}
 function SchemaMenu(props: { schema?: string; uuid }) {
   const { schema, uuid } = props;
   return (
@@ -187,8 +212,23 @@ function CatalogTree(props: {}) {
   useEffect(() => {
     handleReload();
   }, []);
+  let { setUpMenu } = useContext(MenuContext);
+
   return (
-    <TreeItem itemId={name} label={name} key={name}>
+    <TreeItem
+      itemId={name}
+      label=<Stack
+        onContextMenu={(e) => {
+          setUpMenu({
+            content: <CatalogMenu uuid={name}></CatalogMenu>,
+            style: calMenuStyle(e, 70),
+          });
+        }}
+      >
+        <Typography>{name} </Typography>
+      </Stack>
+      key={name}
+    >
       {databases.map((e) => {
         return (
           <UuidContext.Provider value={{ uuid: name + ':' + e }}>
@@ -217,10 +257,23 @@ function DatabaseTree(props: { database?: string }) {
   useEffect(() => {
     handleReload();
   }, []);
+  let { setUpMenu } = useContext(MenuContext);
+
   return (
     <TreeItem
       itemId={name}
-      label=<Stack direction='row' alignContent='baseline'>
+      label=<Stack
+        direction='row'
+        alignContent='baseline'
+        onContextMenu={(e) => {
+          setUpMenu({
+            content: (
+              <DatabaseMenu database={database} uuid={name}></DatabaseMenu>
+            ),
+            style: calMenuStyle(e, 70),
+          });
+        }}
+      >
         <FaDatabase />
         <span>{database ? database : name}</span>
       </Stack>

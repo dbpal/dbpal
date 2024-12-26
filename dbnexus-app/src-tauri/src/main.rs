@@ -24,8 +24,8 @@ use handlers::{
     show_udf, show_view, show_view_coumns, test_connection, truncate_table, update,
 };
 use tauri::{
-    Manager,
-    menu::{Menu, Submenu},
+    Emitter, Manager,
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
 };
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -52,7 +52,35 @@ async fn main() {
             }
             Ok(())
         })
-        .menu(|handle| Menu::with_items(handle, &[&Submenu::with_items(handle, "add connection")]))
+        .menu(|handle| {
+            Menu::with_items(handle, &[
+                &Submenu::with_items(handle, "file", true, &[
+                    &MenuItem::with_id(
+                        handle,
+                        "add_config",
+                        "Add Connection",
+                        true,
+                        Some("xxxxx"),
+                    )?,
+                    &PredefinedMenuItem::maximize(handle, None).unwrap(),
+                    &PredefinedMenuItem::minimize(handle, None).unwrap(),
+                    &PredefinedMenuItem::fullscreen(handle, None).unwrap(),
+                    &PredefinedMenuItem::close_window(handle, None).unwrap(),
+                ])
+                .unwrap(),
+                &Submenu::with_items(handle, "about", true, &[&PredefinedMenuItem::about(
+                    handle, None, None,
+                )
+                .unwrap()])
+                .unwrap(),
+            ])
+        })
+        .on_menu_event(|handle, event| {
+            log::info!("on_menu_event:{:?}", event);
+            if event.id.0 == "add_config" {
+                handle.emit("add_connection", "").unwrap();
+            }
+        })
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             list_database,
