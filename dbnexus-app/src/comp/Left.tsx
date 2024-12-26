@@ -1,5 +1,5 @@
 import AddIcon from '@mui/icons-material/Add';
-import { Button, Stack } from '@mui/material';
+import { Button, MenuList, Paper, Stack } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 import { TabContent } from './Tabs';
 import {
@@ -7,9 +7,14 @@ import {
   tabsHasId,
   TabsSetContext,
   UuidContext,
-  DataSourceKind,
   ConnTypeContext,
+  MenuNewQuery,
+  MenuDeleteConfig,
+  MenuContext,
+  calMenuStyle,
 } from './Common';
+import { LuDatabase } from 'react-icons/lu';
+import { FaDatabase } from 'react-icons/fa';
 import AddConfig from './AddConnection';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
@@ -20,6 +25,8 @@ import { listen } from '@tauri-apps/api/event';
 
 import { TablesTree } from './LeftTable';
 import { ViewsTree } from './LeftView';
+import { ProceduresTree } from './LeftProcedure';
+import { UdfsTree } from './LeftUdf';
 
 function Left() {
   let { setTabs, tabs, setSelectIndex } = useContext(TabsSetContext);
@@ -38,7 +45,7 @@ function Left() {
   useEffect(() => {
     handleReload();
   }, []);
-  listen('config_added', () => {
+  listen('connection_config_changed', () => {
     handleReload();
   });
 
@@ -48,10 +55,10 @@ function Left() {
         overflow: 'auto',
       }}
     >
-      <Stack direction="row">
+      <Stack direction='row'>
         <Button
-          color="primary"
-          variant="contained"
+          color='primary'
+          variant='contained'
           onClick={() => {
             const id = 'add_config';
             let index = tabsHasId(tabs, 'add_config');
@@ -75,7 +82,7 @@ function Left() {
         {configs.map((e) => {
           return (
             <ConnTypeContext.Provider
-              value={{ conn_type: connTypeToDataSourceKind(e.conn_type) }}
+              value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
             >
               <UuidContext.Provider
                 value={{
@@ -95,27 +102,100 @@ function Left() {
 
 function OneConfig(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-  return (
-    <SimpleTreeView>
-      {config.conn_type == 'mariadb' &&
-        (config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>)}
 
-      {config.conn_type == 'postgres' &&
-        (config.schema ? <SchemaTree /> : <DatabaseTree />)}
-    </SimpleTreeView>
+  const makeTree = () => {
+    switch (config.conn_type) {
+      case 'postgres':
+        if (!config.db) {
+          return <CatalogTree />;
+        }
+        return config.schema ? <SchemaTree /> : <DatabaseTree />;
+
+      case 'mariadb':
+        return config.db ? (
+          <SchemaTree></SchemaTree>
+        ) : (
+          <DatabaseTree></DatabaseTree>
+        );
+    }
+  };
+
+  return <SimpleTreeView>{makeTree()}</SimpleTreeView>;
+}
+
+function SchemaTree(prpos: { schema?: string }) {
+  const { uuid } = useContext(UuidContext);
+  let { schema } = prpos;
+  const getPrefix = () => {
+    return uuid + schema;
+  };
+  let { setUpMenu } = useContext(MenuContext);
+  return (
+    <TreeItem
+      itemId={getPrefix()}
+      label=<Stack
+        direction='row'
+        onContextMenu={(e) => {
+          setUpMenu({
+            content: <SchemaMenu schema={schema} uuid={uuid}></SchemaMenu>,
+            style: calMenuStyle(e, 70),
+          });
+        }}
+      >
+        {schema && <LuDatabase></LuDatabase>}
+        <span> {schema ? schema : uuid}</span>
+      </Stack>
+    >
+      <TablesTree></TablesTree>
+      <ViewsTree></ViewsTree>
+      <ProceduresTree></ProceduresTree>
+      <UdfsTree></UdfsTree>
+    </TreeItem>
   );
 }
 
-function SchemaTree(prpos: { schemaname?: string }) {
-  const { uuid } = useContext(UuidContext);
-  let { schemaname } = prpos;
-  const getPrefix = () => {
-    return uuid + schemaname;
-  };
+function SchemaMenu(props: { schema?: string; uuid }) {
+  const { schema, uuid } = props;
   return (
-    <TreeItem itemId={getPrefix()} label={schemaname ? schemaname : uuid}>
-      <TablesTree></TablesTree>
-      <ViewsTree></ViewsTree>
+    <Paper>
+      <MenuList>
+        <MenuNewQuery
+          handle={() => {
+            alert('new query');
+          }}
+        ></MenuNewQuery>
+      </MenuList>
+      {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
+    </Paper>
+  );
+}
+
+function CatalogTree(props: {}) {
+  const { uuid: name } = useContext(UuidContext);
+  const { showNotification } = useContext(NotificationContext);
+  const [databases, setDatabases] = useState<string[]>([]);
+
+  const handleReload = () => {
+    invoke<string[]>('list_database', { name })
+      .then((ds) => {
+        setDatabases(ds);
+      })
+      .catch((e) => {
+        showNotification('error', 'list schema failed', e);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+  return (
+    <TreeItem itemId={name} label={name} key={name}>
+      {databases.map((e) => {
+        return (
+          <UuidContext.Provider value={{ uuid: name + ':' + e }}>
+            <DatabaseTree key={e} database={e}></DatabaseTree>
+          </UuidContext.Provider>
+        );
+      })}
     </TreeItem>
   );
 }
@@ -140,13 +220,16 @@ function DatabaseTree(props: { database?: string }) {
   return (
     <TreeItem
       itemId={name}
-      label={database ? database : name}
+      label=<Stack direction='row' alignContent='baseline'>
+        <FaDatabase />
+        <span>{database ? database : name}</span>
+      </Stack>
       key={name + database}
     >
       {schemas.map((e) => {
         return (
           <UuidContext.Provider value={{ uuid: name + ':' + e }}>
-            <SchemaTree key={e} schemaname={e}></SchemaTree>
+            <SchemaTree key={e} schema={e}></SchemaTree>
           </UuidContext.Provider>
         );
       })}

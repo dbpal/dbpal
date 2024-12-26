@@ -15,11 +15,13 @@ import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import { BSON } from 'bson';
-import { createContext, CSSProperties } from 'react';
+import { createContext, CSSProperties, useContext } from 'react';
 import { Editor, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import RefreshIcon from '@mui/icons-material/Refresh';
-
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import { invoke } from '@tauri-apps/api/core';
+import { NotificationContext } from './Notification';
 // TOOD 适配黑暗模式
 const modalStyle: SxProps = {
   position: 'absolute',
@@ -73,17 +75,17 @@ function SelectPageSize({
         fullWidth
         // @ts-ignore
         variant={variant}
-        size="small"
+        size='small'
       >
-        <InputLabel id="simple-select-label">{tital}</InputLabel>
+        <InputLabel id='simple-select-label'>{tital}</InputLabel>
         <Select
-          labelId="simple-select-label"
-          id="simple-select"
+          labelId='simple-select-label'
+          id='simple-select'
           value={pageSize}
           onChange={(e) => {
             onChange(e.target.value as number);
           }}
-          label="select page size"
+          label='select page size'
         >
           {pageSizeOptions.map((e) => (
             <MenuItem key={e} value={e}>
@@ -228,9 +230,9 @@ function EditorBar(props: {
 }) {
   let { left, pos, style } = props;
   return (
-    <Stack justifyContent="space-between" direction="row" style={style}>
+    <Stack justifyContent='space-between' direction='row' style={style}>
       <div style={{ width: '40%' }}> {left}</div>
-      <Stack width="40%" direction="row" spacing={1}>
+      <Stack width='40%' direction='row' spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Column {pos ? pos.column : ''}</span>
       </Stack>
@@ -327,7 +329,7 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
   }
 }
 const ConnTypeContext = createContext<{
-  conn_type: DataSourceKind;
+  kind: DataSourceKind;
 }>(null);
 
 const UuidContext = createContext<{
@@ -335,10 +337,10 @@ const UuidContext = createContext<{
 }>(null);
 
 const MenuContext = createContext<{
-  setMenuContent;
+  setUpMenu: ({ content, style }) => void;
 }>(null);
 
-const msgTimeout = 5000;
+const msgTimeout = 15000;
 
 function tabsHasId(tabs: TabContent[], id: string): number | null {
   for (let i = 0; i < tabs.length; i++) {
@@ -348,6 +350,18 @@ function tabsHasId(tabs: TabContent[], id: string): number | null {
     }
   }
 
+  return null;
+}
+
+function extraParametersFromMetaValues(
+  values: types.MetaValue[]
+): string | null {
+  for (let i = 0; i < values.length; i++) {
+    let v = values[i];
+    if (v.name == 'parameters') {
+      return v.value;
+    }
+  }
   return null;
 }
 
@@ -380,36 +394,70 @@ function MenuRefresh({ reload }) {
   );
 }
 
-function setUpMenu(e, eheigth) {
+function MenuDeleteConfig({ name }) {
+  const { showNotification } = useContext(NotificationContext);
+  const handleDelete = () => {
+    invoke('delete_config', { name })
+      .then(() => {
+        showNotification('success', 'Drop database connection OK');
+      })
+      .catch((e) => {
+        showNotification('error', 'Drop database connection Failure.', e);
+      });
+  };
+
+  return (
+    <MenuItem
+      onClick={() => {
+        handleDelete();
+      }}
+    >
+      <ListItemIcon>
+        <DeleteForeverIcon></DeleteForeverIcon>
+      </ListItemIcon>
+      <ListItemText> drop connection </ListItemText>
+    </MenuItem>
+  );
+}
+
+function MenuNewQuery({ handle }) {
+  return (
+    <MenuItem
+      onClick={() => {
+        handle();
+      }}
+    >
+      <ListItemIcon>
+        <RefreshIcon></RefreshIcon>
+      </ListItemIcon>
+      <ListItemText> New query </ListItemText>
+    </MenuItem>
+  );
+}
+
+function calMenuStyle(e, eheigth): CSSProperties {
   e.preventDefault();
   const x = e.clientX;
   const y = e.clientY;
+  let ret: CSSProperties = {};
   const leftSizeMenuDom = document.getElementById('left-side-menu');
   leftSizeMenuDom.style.display = 'block';
   const { height } = getViewportSize();
-  {
-    // reset to auto.
-    leftSizeMenuDom.style.top = 'auto';
-    leftSizeMenuDom.style.bottom = 'auto';
-  }
-  leftSizeMenuDom.style.left =
+  ret.top = 'auto';
+  ret.bottom = 'auto';
+
+  ret.left =
     x -
     10 + // 稍微靠左一点
     'px';
   if (height - y > eheigth) {
     // 这个是点击的位置下面有很大的空间
-    leftSizeMenuDom.style.top =
-      y -
-      10 + // 稍微靠上一点
-      'px';
+    ret.top = y - 10 + 'px';
   } else {
-    // 没有空间了用bottom 定位
-    leftSizeMenuDom.style.bottom =
-      height -
-      y -
-      10 + // 稍微靠上一点
-      'px';
+    ret.bottom = height - y - 10 + 'px';
   }
+
+  return ret;
 }
 
 function chunkArray(array: any[], chunkSize: number): any[][] {
@@ -450,11 +498,14 @@ export {
   connTypeToDataSourceKind,
   progressBarSize,
   MenuContext,
-  setUpMenu,
+  calMenuStyle,
   MenuRefresh,
   ConnTypeContext,
   chunkArray,
   progressBarSizeSmall,
+  extraParametersFromMetaValues,
+  MenuDeleteConfig,
+  MenuNewQuery,
 };
 
 export type { DefAndMetas };

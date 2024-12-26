@@ -53,7 +53,12 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
     async fn modify_table_column(
-        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ModifyTableColumnType>,
+        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
+    ) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+    async fn add_table_column(
+        &self, _table: &str, _name: &str, _col: ColumnType,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
@@ -191,7 +196,10 @@ pub trait SchemaTrait:
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         not_support_features(self.backend_name())
     }
-    async fn show_udf(&self, _name: &str) -> anyhow::Result<UdfDetail> {
+
+    async fn show_udf(
+        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<UdfDetail> {
         not_support_features(self.backend_name())
     }
 
@@ -214,6 +222,7 @@ pub trait SchemaTrait:
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
+
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
         let e = self
             .list_table()
@@ -225,14 +234,18 @@ pub trait SchemaTrait:
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct ModifyTableColumnType {
+pub struct ColumnType {
     // type string like `varchar`
     pub(crate) typ: String,
     pub(crate) nullness: Option<String>,
+    // mysql add column can have this field
+    pub(crate) after: Option<String>,
+
+    pub(crate) default_value: Option<String>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "drop_udf_extra_paramter", rename_all = "lowercase")]
+#[serde(tag = "extra", rename_all = "lowercase")]
 pub enum UdfOrPrecedureExtraParameter {
     PostGres {
         parameters: String, // a integer , b integer
@@ -997,4 +1010,55 @@ pub fn monaco_editor_keyword_regexp(keywords: &[&str]) -> String {
     ret.push_str(")\\b/");
 
     return ret;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::UdfOrPrecedureExtraParameter;
+
+    #[test]
+    fn test_serde_udf_or_precedure_extra_parameter() {
+        let x = Some(UdfOrPrecedureExtraParameter::PostGres {
+            parameters: "int".to_string(),
+        });
+        let s = serde_json::to_string_pretty(&x).unwrap();
+        println!("{:?}", s);
+    }
+
+    #[test]
+    fn test_sql_parse() {
+        let s = r#"
+        CREATE OR REPLACE FUNCTION test.factorial(n integer)
+            RETURNS integer
+            LANGUAGE plpgsql
+            AS $function$
+            DECLARE
+                result INT := 1;
+            BEGIN
+                IF n < 0 THEN
+                    RETURN NULL;  -- 负数的阶乘未定义
+                ELSIF n = 0 THEN
+                    RETURN 1;  -- 0 的阶乘为 1
+                ELSE
+                    FOR i IN 1..n LOOP
+                        result := result * i;
+                    END LOOP;
+                    RETURN result;
+                END IF;
+            END;
+            $function$
+"#;
+
+        let r = sqlformat::format(
+            s,
+            &sqlformat::QueryParams::None,
+            &sqlformat::FormatOptions {
+                indent: sqlformat::Indent::Tabs,
+                uppercase: None,
+                lines_between_queries: 1,
+                ignore_case_convert: None,
+            },
+        );
+        println!("{}", r)
+    }
 }

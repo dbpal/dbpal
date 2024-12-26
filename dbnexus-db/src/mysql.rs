@@ -15,10 +15,10 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::MysqlDbConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
-    FormatSqlOpts, Index, IndexKind, ListTable, ModifyTableColumnType, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
+    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
@@ -619,12 +619,43 @@ impl std::fmt::Debug for MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    async fn add_table_column(
+        &self, table: &str, name: &str, col: ColumnType,
+    ) -> anyhow::Result<()> {
+        let mut sql = format!(
+            "ALTER TABLE {table} ADD COLUMN {name} {} {} {}",
+            col.typ,
+            if let Some(nullness) = col.nullness.as_ref() {
+                nullness.as_str()
+            } else {
+                ""
+            },
+            if let Some(d) = col.default_value.as_ref() {
+                format!(
+                    "DEFAULT {}",
+                    self.put_value_in_sql(
+                        &Field::from_name_type(name, col.typ.clone()),
+                        Some(d.as_str())
+                    )?
+                )
+            } else {
+                "".to_owned()
+            }
+        );
+        if let Some(a) = col.after.as_ref() {
+            sql.push_str(format!("after {}", a).as_str());
+        }
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         anyhow::Ok(crate::mysql_completion::TYPES)
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ModifyTableColumnType>,
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {
@@ -707,7 +738,9 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
+    async fn show_udf(
+        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<UdfDetail> {
         let mut conn = self.get_conn().await?;
         let (def, metas) = FunctionOrProcedure::Function
             .query_details(conn.deref_mut(), self.config.db.as_ref().unwrap(), name)
@@ -1056,14 +1089,12 @@ impl SchemaTrait for MysqlDB {
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
                 Ok(x) => x,
-                Err(_) => {
-                    match r.try_get::<'_, Vec<u8>, _>(0) {
-                        Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
-                        Err(_err) => {
-                            anyhow::bail!("can get column as string or vec<u8>")
-                        }
+                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
+                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                    Err(_err) => {
+                        anyhow::bail!("can get column as string or vec<u8>")
                     }
-                }
+                },
             };
             let ty: String = r.try_get(1)?;
             let null: String = r.try_get(2)?;
@@ -1462,7 +1493,7 @@ pub(crate) mod test_fns {
 
         let udfs = db_trait.list_udf().await.unwrap();
         for udf in udfs.iter() {
-            let details = db_trait.show_udf(&udf.name).await.unwrap();
+            let details = db_trait.show_udf(&udf.name, None).await.unwrap();
             println!("details:{:?}", details);
         }
     }

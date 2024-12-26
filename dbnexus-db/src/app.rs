@@ -10,7 +10,8 @@ use crate::datasource_config::{
     MongoConfig, MysqlDbConfig, OracleDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
 };
 use crate::db::{
-    DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet, TableListResp,
+    CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
+    TableListResp,
 };
 use crate::redis::{RedisDB, RedisListTable};
 
@@ -211,23 +212,25 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Mysql { conn, name: _ }
-        | DBConnectionConfig::MariaDB { conn, name: _ } => {
-            match &conn.db {
-                Some(_) => {
-                    let db: Arc<dyn SchemaTrait> =
-                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+        | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
+            Some(_) => {
+                let db: Arc<dyn SchemaTrait> =
+                    Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
 
-                    anyhow::Ok(Open::Schema(db))
-                }
-                None => {
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
-                    anyhow::Ok(Open::DataBase(db))
-                }
+                anyhow::Ok(Open::Schema(db))
             }
-        }
+            None => {
+                let db: Arc<dyn DBTrait> =
+                    Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+                anyhow::Ok(Open::DataBase(db))
+            }
+        },
         DBConnectionConfig::Postgres { conn, name: _ } => {
             let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
+            if conn.db.is_none() {
+                return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+            }
+
             match &conn.schema {
                 None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
                 Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
@@ -235,6 +238,9 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
         }
         DBConnectionConfig::SqlServer { conn, name: _ } => {
             let o = Arc::new(crate::mssql::MsSqlServer::new(conn.clone()).await?);
+            if conn.db.is_none() {
+                return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+            }
             match &conn.schema {
                 Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
                 None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
@@ -256,42 +262,49 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 
             anyhow::Ok(db)
         }
-        DBConnectionConfig::Oracle { conn, name: _ } => {
-            match conn.schema.as_ref() {
-                Some(_) => {
-                    let db: Arc<dyn SchemaTrait> =
-                        Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
+        DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
+            Some(_) => {
+                let db: Arc<dyn SchemaTrait> =
+                    Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
 
-                    anyhow::Ok(Open::Schema(db))
-                }
-                None => {
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
-
-                    anyhow::Ok(Open::DataBase(db))
-                }
+                anyhow::Ok(Open::Schema(db))
             }
-        }
+            None => {
+                let db: Arc<dyn DBTrait> = Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
+
+                anyhow::Ok(Open::DataBase(db))
+            }
+        },
     }
 }
 
 /// opend database variant for frontend
 #[derive(Clone, Debug)]
 pub enum Open {
+    Catalog(Arc<dyn crate::db::CatalogTrait>),
     /// database can contains multi database
     DataBase(Arc<dyn crate::db::DBTrait>),
     /// a schema
     Schema(Arc<dyn crate::db::SchemaTrait>),
 }
 
-impl Open {
-    pub fn as_any(&self) -> &dyn std::any::Any {
-        match self {
-            Open::DataBase(dbtrait) => dbtrait.as_any(),
-            Open::Schema(schema_trait) => schema_trait.as_any(),
-        }
+impl From<Arc<dyn crate::db::CatalogTrait>> for Open {
+    fn from(value: Arc<dyn crate::db::CatalogTrait>) -> Self {
+        Self::Catalog(value)
     }
 }
+
+impl From<Arc<dyn crate::db::DBTrait>> for Open {
+    fn from(value: Arc<dyn crate::db::DBTrait>) -> Self {
+        Self::DataBase(value)
+    }
+}
+impl From<Arc<dyn crate::db::SchemaTrait>> for Open {
+    fn from(value: Arc<dyn crate::db::SchemaTrait>) -> Self {
+        Self::Schema(value)
+    }
+}
+
 /// all the databases
 #[derive(Clone)]
 pub struct App {
@@ -322,9 +335,44 @@ impl App {
             Open::Schema(x) => {
                 x.check_conn().await?;
             }
+            Open::Catalog(x) => {
+                x.check_conn().await?;
+            }
         }
 
         self.opens.lock().await.insert(name.to_string(), db.clone());
+        match &db {
+            Open::Catalog(catalog_trait) => {
+                let databases = catalog_trait.list_database().await?;
+                for database in databases.iter() {
+                    let dbtrait = catalog_trait.open_db(&database).await?;
+                    self.opens
+                        .lock()
+                        .await
+                        .insert(format!("{}:{}", name, database), dbtrait.clone().into());
+
+                    let schemas = dbtrait.list_schema().await?;
+                    for schema in schemas.iter() {
+                        let s = dbtrait.open_schema(&schema).await?;
+                        self.opens
+                            .lock()
+                            .await
+                            .insert(format!("{}:{}:{}", name, database, schema), s.into());
+                    }
+                }
+            }
+            Open::DataBase(dbtrait) => {
+                let schemas = dbtrait.list_schema().await?;
+                for database in schemas.iter() {
+                    let s = dbtrait.open_schema(&database).await?;
+                    self.opens
+                        .lock()
+                        .await
+                        .insert(format!("{}:{}", name, database), s.into());
+                }
+            }
+            Open::Schema(_) => {}
+        }
 
         anyhow::Ok(db)
     }
@@ -455,29 +503,7 @@ impl App {
 
     pub async fn get_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         if !self.opens.lock().await.contains_key(name) {
-            let db_uuids: Vec<_> = name.split(":").collect();
-            match db_uuids.len() {
-                1 => {
-                    // I am trying to open the database so the frontend no need call `open` himself
-                    self.open(name).await?;
-                }
-                2 => {
-                    // trying to open
-                    match self.open(db_uuids[0]).await? {
-                        Open::DataBase(d) => {
-                            let s = d.open_schema(db_uuids[1]).await?;
-                            self.opens.lock().await.insert(
-                                format!("{}:{}", db_uuids[0], db_uuids[1]),
-                                Open::Schema(s),
-                            );
-                        }
-                        _ => anyhow::bail!("already a schema not a nest struct."),
-                    }
-                }
-                _ => {
-                    unreachable!()
-                }
-            }
+            self.open(name).await?;
         }
 
         match self.get_opened(name).await? {

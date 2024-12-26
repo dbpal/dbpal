@@ -14,11 +14,10 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::PGDbConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
-    FormatSql, FormatSqlOpts, HumanSize, Index, IndexKind, ListTable, ModifyTableColumnType,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
-    UdfOrPrecedureExtraParameter,
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind,
+    Field, FormatSql, FormatSqlOpts, HumanSize, Index, IndexKind, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
@@ -371,12 +370,40 @@ impl ServerMetas for PostGresDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn add_table_column(
+        &self, table: &str, name: &str, col: ColumnType,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "ALTER TABLE {table} ADD COLUMN {name} {} {} {}",
+            col.typ,
+            if let Some(nullness) = col.nullness.as_ref() {
+                nullness.as_str()
+            } else {
+                ""
+            },
+            if let Some(d) = col.default_value.as_ref() {
+                format!(
+                    "DEFAULT {}",
+                    self.put_value_in_sql(
+                        &Field::from_name_type(name, col.typ.clone()),
+                        Some(d.as_str())
+                    )?
+                )
+            } else {
+                "".to_owned()
+            }
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         anyhow::Ok(crate::pg_completion::TYPES)
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ModifyTableColumnType>,
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {
@@ -464,7 +491,7 @@ impl SchemaTrait for PostGresDB {
             let p: String = r.try_get(1)?;
             ret.push(NamedStaff {
                 name,
-                metas: vec![MetaValue::new("parameter", p)],
+                metas: vec![MetaValue::new("parameters", p)],
             });
         }
 
@@ -532,10 +559,13 @@ impl SchemaTrait for PostGresDB {
         let sql = format!(
             r#"
             SELECT  
-                p.proname AS function_name
+                p.proname AS function_name,
+                pg_catalog.pg_get_function_result(p.oid) AS return_type,
+                pg_catalog.pg_get_function_arguments(p.oid) AS arguments
             FROM pg_catalog.pg_proc p
-                JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname = '{}'  -- 替换为您要查询的模式名称
+            AND p.prokind = 'f'  -- 只选择普通函数
             ORDER BY p.proname;
         "#,
             self.must_schema()
@@ -545,15 +575,29 @@ impl SchemaTrait for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
+            let return_type: Option<String> = r.get(1);
+            let arguments: Option<String> = r.get(2);
             ret.push(NamedStaff {
                 name,
-                metas: vec![],
+                metas: vec![
+                    MetaValue::new_opt("return_type", return_type),
+                    MetaValue::new_opt("parameters", arguments),
+                ],
             });
         }
         anyhow::Ok(ret)
     }
 
-    async fn show_udf(&self, name: &str) -> anyhow::Result<UdfDetail> {
+    async fn show_udf(
+        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<UdfDetail> {
+        let arg = match &arg {
+            Some(x) => match x {
+                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+            },
+            None => anyhow::bail!(format!("postgres need extra parameter")),
+        };
+
         let sql = format!(
             r#"
             SELECT  
@@ -562,9 +606,11 @@ impl SchemaTrait for PostGresDB {
                 pg_get_functiondef(p.oid) AS function_definition
             FROM pg_catalog.pg_proc p
                 JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            WHERE p.proname = '{name}' and n.nspname ='{}';  -- 替换为您要查询的函数名称
+            WHERE p.proname = '{name}' and n.nspname ='{}'  -- 替换为您要查询的函数名称
+                 AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'
        "#,
-            self.must_schema()
+            self.must_schema(),
+            arg
         );
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
@@ -573,7 +619,7 @@ impl SchemaTrait for PostGresDB {
         let function_definition: String = row.try_get(2)?;
         anyhow::Ok(UdfDetail::new(function_definition, vec![
             MetaValue::new_opt("result_type", result_type),
-            MetaValue::new_opt("arguments", arguments),
+            MetaValue::new_opt("parameters", arguments),
         ]))
     }
 
@@ -581,15 +627,13 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => {
-                match x {
-                    UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
-                    #[allow(unreachable_patterns)]
-                    _ => {
-                        anyhow::bail!("must be a postgres parameter")
-                    }
+            Some(x) => match x {
+                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+                #[allow(unreachable_patterns)]
+                _ => {
+                    anyhow::bail!("must be a postgres parameter")
                 }
-            }
+            },
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 
@@ -1184,7 +1228,9 @@ impl PostGresDB {
         if let Some(pass) = &conn.password {
             opts = opts.password(&pass);
         }
-        opts = opts.database(&conn.db);
+        if let Some(db) = conn.db.as_ref() {
+            opts = opts.database(&db);
+        }
 
         let pool = sqlx::postgres::PgPool::connect_with(opts).await?;
         anyhow::Ok(Self {
@@ -1439,7 +1485,7 @@ impl CatalogTrait for PostGresDB {
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
-        config.db = name.to_owned();
+        config.db = Some(name.to_string());
         let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
@@ -1528,7 +1574,7 @@ mod tests {
             port: 5432,
             username: "postgres".to_string(),
             password: Some("root".to_string()),
-            db: "test".to_string(),
+            db: Some("test".into()),
             schema: Some("test".to_string()),
             read_only: false,
         })
@@ -1837,10 +1883,23 @@ mod tests {
         )
         .await
         .unwrap();
-
         let list = pg.list_udf().await.unwrap();
         for l in list.iter() {
-            let details = pg.show_udf(&l.name).await.unwrap();
+            // I created some other functions to test.
+            // so we only test on `test_udf`.
+            if l.name != "test_udf" {
+                continue;
+            }
+            println!("udf:{:?}", l);
+            let details = pg
+                .show_udf(
+                    &l.name,
+                    Some(UdfOrPrecedureExtraParameter::PostGres {
+                        parameters: "a integer, b integer".to_string(),
+                    }),
+                )
+                .await
+                .unwrap();
             println!("name:{} , udf:{:?}", l.name, details);
             if l.name == "test_udf" {
                 pg.drop_udf(

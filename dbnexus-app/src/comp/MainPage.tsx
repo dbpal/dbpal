@@ -8,7 +8,7 @@ import { NotificationProvider } from './Notification';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
 import { createTheme, ThemeProvider } from '@mui/material';
-import { ReactNode, useEffect, useState } from 'react';
+import { CSSProperties, ReactNode, useEffect, useState } from 'react';
 
 import { TabContent, TabsWithCloseButton } from './Tabs';
 import { WelCome } from './WelCome';
@@ -18,12 +18,15 @@ import { Left } from './Left';
 export default function MainPage() {
   const lightTheme = createTheme();
   const [theme, setTheme] = useState('light'); // 默认为明亮主题
-  const isDarkMode = theme === 'dark';
+
   let [tabs, setTabs] = useState([
     new TabContent('welcome', 'welcome', <WelCome></WelCome>),
   ]);
   const [selectIndex, setSelectIndex] = useState(0);
-  const [menu, setMenuContent] = useState<ReactNode>(null);
+  const [menu, setUpMenu] = useState<{
+    content: ReactNode;
+    style: CSSProperties;
+  }>();
   useEffect(() => {
     // cancel the menu
     const customMenu = document.getElementById('left-side-menu');
@@ -31,11 +34,10 @@ export default function MainPage() {
       customMenu.style.display = 'none';
     });
   });
-
   return (
     <ThemeProvider theme={theme === 'light' ? lightTheme : darkTheme}>
       <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
-        <MenuContext.Provider value={{ setMenuContent }}>
+        <MenuContext.Provider value={{ setUpMenu }}>
           <NotificationProvider>
             <div>
               <SplitPane
@@ -61,7 +63,9 @@ export default function MainPage() {
                 ></TabsWithCloseButton>
               </SplitPane>
             </div>
-            <div id='left-side-menu'>{menu}</div>
+            <div id='left-side-menu' style={menu && menu.style}>
+              {menu && menu.content}
+            </div>
           </NotificationProvider>
         </MenuContext.Provider>
       </TabsSetContext.Provider>
