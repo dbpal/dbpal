@@ -561,20 +561,24 @@ function TableColumnsTree(props: { table: string }) {
       {fields.map((f) => (
         <TreeItem
           key={f.field}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <TableColumnMenu
-                  table={table}
-                  uuid={uuid}
-                  col={f.field}
-                  reload={reload}
-                  typ={f.typ}
-                ></TableColumnMenu>
-              ),
-              style: calMenuStyle(e, 70),
-            });
-          }}
+          onContextMenu={
+            support_modify_column
+              ? (e) => {
+                  setUpMenu({
+                    content: (
+                      <TableColumnMenu
+                        table={table}
+                        uuid={uuid}
+                        col={f.field}
+                        reload={reload}
+                        typ={f.typ}
+                      ></TableColumnMenu>
+                    ),
+                    style: calMenuStyle(e, 70),
+                  });
+                }
+              : undefined
+          }
           itemId={idPrefix + '-' + f.field}
           label=<Stack direction='row' spacing={1}>
             {f.field} <em>({f.typ}) </em>

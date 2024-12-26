@@ -304,6 +304,7 @@ function SqlTableView(props: {
                 return;
               }
               setOrderBy(`${sort.field} ${sort.sort}`);
+              setTriggerReload((e) => !e);
             }}
             columns={resp.data.fields}
             rows={resp.data.data}
