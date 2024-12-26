@@ -1181,7 +1181,7 @@ pub async fn list_udf(
 
 #[tauri::command]
 pub async fn show_udf(
-    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, udf: String, arg: Option<UdfOrPrecedureExtraParameter>,
     app: tauri::State<'_, App>,
 ) -> Result<UdfDetail, AnyhowErrorFrontend> {
     let schema = app
@@ -1189,14 +1189,14 @@ pub async fn show_udf(
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     schema
-        .show_udf(&procedure, arg)
+        .show_udf(&udf, arg)
         .await
         .map_err(|x| AnyhowErrorFrontend::from(x))
 }
 
 #[tauri::command]
 pub async fn drop_udf(
-    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, udf: String, arg: Option<UdfOrPrecedureExtraParameter>,
     app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     let schema = app
@@ -1204,7 +1204,7 @@ pub async fn drop_udf(
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     schema
-        .drop_udf(&procedure, arg)
+        .drop_udf(&udf, arg)
         .await
         .map_err(|x| AnyhowErrorFrontend::from(x))
 }

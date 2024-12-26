@@ -26,7 +26,7 @@ import { NotificationContext } from './Notification';
 import { TabContent } from './Tabs';
 import { ProcudureView } from './UdfAndMetaView';
 import { secondConfirm } from './Confirm';
-
+import { SiProcessingfoundation } from 'react-icons/si';
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -79,6 +79,7 @@ function ProceduresTree() {
         <TreeItem
           itemId={getItemId(p)}
           label=<Stack
+            spacing={1}
             direction='row'
             onContextMenu={(e) => {
               setUpMenu({
@@ -95,11 +96,11 @@ function ProceduresTree() {
               });
             }}
           >
+            <SiProcessingfoundation></SiProcessingfoundation>
             <span>{p.name}</span>
-            <em>
-              {kind == DataSourceKind.Postgres &&
-                extraParametersFromMetaValues(p.metas)}
-            </em>
+            {kind == DataSourceKind.Postgres && (
+              <em> ( {extraParametersFromMetaValues(p.metas)} ) </em>
+            )}
           </Stack>
         ></TreeItem>
       ))}

@@ -179,6 +179,7 @@ function TableTypesButton(props: { handleChange; uuid }) {
       {show &&
         types.map((t) => (
           <Button
+            style={{ padding: '3px' }}
             variant='outlined'
             onClick={() => {
               handleChange(t);

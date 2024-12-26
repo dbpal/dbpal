@@ -9,6 +9,8 @@ import {
   UuidContext,
   ConnTypeContext,
 } from './Common';
+import { LuDatabase } from 'react-icons/lu';
+import { FaDatabase } from 'react-icons/fa';
 import AddConfig from './AddConnection';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
@@ -20,6 +22,7 @@ import { listen } from '@tauri-apps/api/event';
 import { TablesTree } from './LeftTable';
 import { ViewsTree } from './LeftView';
 import { ProceduresTree } from './LeftProcedure';
+import { UdfsTree } from './LeftUdf';
 
 function Left() {
   let { setTabs, tabs, setSelectIndex } = useContext(TabsSetContext);
@@ -123,10 +126,17 @@ function SchemaTree(prpos: { schemaname?: string }) {
     return uuid + schemaname;
   };
   return (
-    <TreeItem itemId={getPrefix()} label={schemaname ? schemaname : uuid}>
+    <TreeItem
+      itemId={getPrefix()}
+      label=<Stack direction='row'>
+        {schemaname && <LuDatabase></LuDatabase>}
+        <span> {schemaname ? schemaname : uuid}</span>
+      </Stack>
+    >
       <TablesTree></TablesTree>
       <ViewsTree></ViewsTree>
       <ProceduresTree></ProceduresTree>
+      <UdfsTree> </UdfsTree>
     </TreeItem>
   );
 }
@@ -181,7 +191,10 @@ function DatabaseTree(props: { database?: string }) {
   return (
     <TreeItem
       itemId={name}
-      label={database ? database : name}
+      label=<Stack direction='row' alignContent='baseline'>
+        <FaDatabase />
+        <span>{database ? database : name}</span>
+      </Stack>
       key={name + database}
     >
       {schemas.map((e) => {
