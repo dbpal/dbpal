@@ -412,6 +412,7 @@ impl BackendName for SqliteDB {
         "sqlite"
     }
 }
+
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
     async fn add_table_column(
@@ -716,12 +717,13 @@ impl SchemaTrait for SqliteDB {
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table';")
+        let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table' and name not in ('sqlite_sequence' , 'sqlite_stat1' , 'sqlite_stat4') ;")
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let table_name: String = r.get(0);
+
             ret.push(table_name);
         }
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
@@ -768,7 +770,8 @@ impl SchemaTrait for SqliteDB {
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
-            .await?;
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
 
         let data = encode_rows(&row)?;
         let fields = self.show_columns(table_name).await?;
@@ -925,18 +928,26 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
             }
 
             // non-standard extensions 这些实际上不存在？
-            // "BOOLEAN" => {
-            //
-            // }
-            // "DATE" => {
-            //
-            // }
-            // "TIME" => {
-            //
-            // }
-            // "DATETIME" => {
-            //
-            // }
+            "BOOLEAN" => {
+                let v: Option<bool> = r.get(c);
+                v.map(|x| serde_json::Value::from(x))
+                    .unwrap_or(null_value.clone())
+            }
+            "DATE" => {
+                let v: Option<chrono::NaiveDate> = r.get(c);
+                v.map(|x| serde_json::Value::from(x.to_string()))
+                    .unwrap_or(null_value.clone())
+            }
+            "TIME" => {
+                let v: Option<chrono::NaiveTime> = r.get(c);
+                v.map(|x| serde_json::Value::from(x.to_string()))
+                    .unwrap_or(null_value.clone())
+            }
+            "DATETIME" => {
+                let v: Option<chrono::NaiveDateTime> = r.get(c);
+                v.map(|x| serde_json::Value::from(x.to_string()))
+                    .unwrap_or(null_value.clone())
+            }
             _ => anyhow::bail!(format!("type '{ty}' not supported")),
         };
 
@@ -992,19 +1003,22 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
                     v.map(|x| format!("{}", x))
                 }
 
-                // non-standard extensions 这些实际上不存在？
-                // "BOOLEAN" => {
-                //
-                // }
-                // "DATE" => {
-                //
-                // }
-                // "TIME" => {
-                //
-                // }
-                // "DATETIME" => {
-                //
-                // }
+                "BOOLEAN" => {
+                    let v: Option<bool> = r.get(c);
+                    v.map(|x| format!("{}", x))
+                }
+                "DATE" => {
+                    let v: Option<chrono::NaiveDate> = r.get(c);
+                    v.map(|x| format!("{}", x))
+                }
+                "TIME" => {
+                    let v: Option<chrono::NaiveDate> = r.get(c);
+                    v.map(|x| format!("{}", x))
+                }
+                "DATETIME" => {
+                    let v: Option<chrono::NaiveDateTime> = r.get(c);
+                    v.map(|x| format!("{}", x))
+                }
                 _ => anyhow::bail!(format!("type '{ty}' not supported")),
             };
 
@@ -1043,7 +1057,10 @@ impl SqliteDB {
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
-        let row = sqlx::query(s.as_str()).fetch_one(conn.deref_mut()).await?;
+        let row = sqlx::query(s.as_str())
+            .fetch_one(conn.deref_mut())
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, s)))?;
         let count: i64 = row.get(0);
         anyhow::Ok(count as usize)
     }
@@ -1574,7 +1591,8 @@ mod tests {
                 real_col REAL,
                 blob_col BLOB,
                 int_col INTEGER,
-                numeric_col NUMERIC
+                numeric_col NUMERIC,
+                datetime_col datetime
             );
             CREATE INDEX idx ON test_table (real_col , int_col );
         "#,

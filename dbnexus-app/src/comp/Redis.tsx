@@ -25,8 +25,8 @@ import {
   pageSizeOptions,
   datagridRowHeight,
   datagridHeaderHeight,
-  defaultPageSize,
   progressBarSize,
+  SettingsContext,
 } from './Common.tsx';
 
 import { types } from './ApiStruct.ts';
@@ -959,7 +959,9 @@ function RedisListTable(props: {
   const [selectionModel, setSelectionModel] = useState('');
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(defaultPageSize);
+  const [pageSize, setPageSize] = useState(
+    useContext(SettingsContext).page_size
+  );
   const { showNotification } = useContext(NotificationContext);
   const [deleteCount, setDeleteCunnt] = useState<string | number>(0);
   const [deleteCountErr, setDeleteCountErr] = useState(false);

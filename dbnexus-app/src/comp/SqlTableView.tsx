@@ -10,6 +10,7 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
 import { DataGrid, GridRowSelectionModel } from '@mui/x-data-grid';
@@ -17,11 +18,11 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   datagridHeaderHeight,
   datagridRowHeight,
-  defaultPageSize,
   isTypeLargeText,
   modalStyle,
   pageSizeOptions,
   progressBarSize,
+  SettingsContext,
 } from './Common';
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
@@ -42,21 +43,25 @@ function SqlTableView(props: {
   let { reloadOP, updateOP, deleteOP, addOP } = props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
+  const [triggerReload, setTriggerReload] = useState(false);
   const [orderBy, setOrderBy] = useState('');
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(defaultPageSize);
+  const [pageSize, setPageSize] = useState(
+    useContext(SettingsContext).page_size
+  );
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectIDs, setSelectIDs] = useState<GridRowSelectionModel>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [lastLoadTime, setLastLoadTime] = useState(new Date());
   const key_not_in_table = 'qwertyuioplkjhgfdsazxcvbnm';
   const handleResp = (resp: types.MuiDataTableListResp) => {
     resp.data.data.forEach((e) => {
       e[key_not_in_table] = uuidv4();
     });
     resp.data.fields.forEach((e) => {
-      //@ts-ignore  TODO how to do this.
-      //e.flex = 1;
+      //@ts-ignore
+      e.flex = 1;
 
       //@ts-ignore
       e.renderHeader = (e) => {
@@ -95,7 +100,7 @@ function SqlTableView(props: {
 
   const handleReload = () => {
     setLoading(false);
-    reloadOP(where, orderBy, page + 1, pageSize)
+    reloadOP(where.trim(), orderBy.trim(), page + 1, pageSize)
       .then((resp) => {
         setLoading(false);
         handleResp(resp);
@@ -168,7 +173,11 @@ function SqlTableView(props: {
   };
   useEffect(() => {
     handleReload();
-  }, [page, pageSize]);
+  }, [page, pageSize, triggerReload]);
+  useEffect(() => {}, [orderBy]);
+  useEffect(() => {
+    setLastLoadTime(new Date());
+  }, [resp]);
 
   return (
     <Stack spacing={1}>
@@ -177,6 +186,9 @@ function SqlTableView(props: {
           label='where'
           variant='outlined'
           value={where}
+          onBlur={() => {
+            setTriggerReload((e) => !e);
+          }}
           onChange={(event) => {
             setWhere(event.target.value);
           }}
@@ -189,19 +201,27 @@ function SqlTableView(props: {
           onChange={(event) => {
             setOrderBy(event.target.value);
           }}
+          onBlur={() => {
+            setTriggerReload((e) => !e);
+          }}
           size='small'
         />
 
-        <Button variant='contained' color='primary' onClick={handleReload}>
+        <Button
+          variant='contained'
+          color='primary'
+          onClick={() => {
+            handleReload();
+          }}
+        >
           Reload
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
-        {resp && <Alert color='info'> {resp.sql}</Alert>}
       </Stack>
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction='row' spacing={1}>
+          <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-end' }}>
             <Button
               variant='contained'
               color='error'
@@ -221,7 +241,16 @@ function SqlTableView(props: {
             >
               <AddIcon></AddIcon>
             </Button>
-
+            {resp && (
+              <Alert color='info' severity='info'>
+                {resp.sql}
+              </Alert>
+            )}
+            {resp && (
+              <Typography>
+                last data loaded at:{lastLoadTime.toLocaleString()}
+              </Typography>
+            )}
             {showAdd && (
               <Modal
                 open={showAdd}

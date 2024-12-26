@@ -3,12 +3,12 @@ import { types } from './ApiStruct.ts';
 import { DataGrid } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import {
   datagridHeaderHeight,
   datagridRowHeight,
-  defaultPageSize,
   modalStyle,
+  SettingsContext,
 } from './Common.tsx';
 import { Editor } from '@monaco-editor/react';
 import DoneIcon from '@mui/icons-material/Done';
@@ -49,7 +49,9 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
 
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize, setPagesize] = useState(defaultPageSize);
+  const [pageSize, setPagesize] = useState(
+    useContext(SettingsContext).page_size
+  );
   return (
     <Stack>
       <DataGrid

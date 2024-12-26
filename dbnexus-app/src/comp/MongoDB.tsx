@@ -37,13 +37,14 @@ import {
   SelectPageSize,
   datagridRowHeight,
   datagridHeaderHeight,
-  defaultPageSize,
   editorInitHeight,
   progressBarSize,
+  SettingsContext,
 } from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import { secondConfirm } from './Confirm';
+
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code|float32|int8)\b/;
 function mongoBsonAutoCompletion(): languages.CompletionList {
@@ -517,7 +518,9 @@ function MongoTable(props: {
   const [filter, setFilter] = useState<BSON.Document>({});
   const [orderBy, setOrderby] = useState<BSON.Document>({});
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(defaultPageSize);
+  const [pageSize, setPageSize] = useState(
+    useContext(SettingsContext).page_size
+  );
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
@@ -743,7 +746,7 @@ function MongoTable(props: {
             />
             <SelectPageSize
               pageSize={pageSize}
-              onChange={(size) => {
+              handleChange={(size) => {
                 setPage(size);
               }}
             ></SelectPageSize>

@@ -1,9 +1,19 @@
-import { Box, MenuList, Modal, Paper, Stack, Typography } from '@mui/material';
+import {
+  Box,
+  CircularProgress,
+  ListItemIcon,
+  ListItemText,
+  MenuItem,
+  MenuList,
+  Modal,
+  Paper,
+  Stack,
+  Typography,
+} from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 
 import {
   connTypeToDataSourceKind,
-  TabsSetContext,
   UuidContext,
   ConnTypeContext,
   MenuNewQuery,
@@ -11,6 +21,9 @@ import {
   MenuContext,
   calMenuStyle,
   modalStyle,
+  ConnStatus,
+  progressBarSizeSmall,
+  DataSourceKind,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -26,11 +39,12 @@ import { TablesTree } from './LeftTable';
 import { ViewsTree } from './LeftView';
 import { ProceduresTree } from './LeftProcedure';
 import { UdfsTree } from './LeftUdf';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const [showAddConnection, setShowAddConnection] = useState(false);
+
   const handleReload = () => {
     invoke<types.DBConnectionConfig[]>('list_all_config')
       .then((e) => {
@@ -48,30 +62,12 @@ function Left() {
     handleReload();
   });
 
-  listen('add_connection', () => {
-    setShowAddConnection(true);
-  });
-
   return (
     <Stack
       style={{
         overflow: 'auto',
       }}
     >
-      {showAddConnection && (
-        <Modal
-          open={showAddConnection}
-          onClose={() => {
-            setShowAddConnection(false);
-          }}
-          aria-labelledby='add column'
-        >
-          <Box sx={modalStyle} width='600px'>
-            <AddConfig></AddConfig>
-          </Box>
-        </Modal>
-      )}
-
       <Stack>
         {configs.map((e) => {
           return (
@@ -104,13 +100,32 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
           return <CatalogTree />;
         }
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
-
       case 'mariadb':
+      case 'mysql':
         return config.db ? (
           <SchemaTree></SchemaTree>
         ) : (
           <DatabaseTree></DatabaseTree>
         );
+      case 'sqlite':
+        return <SchemaTree></SchemaTree>;
+      case 'redis':
+        return config.db ? (
+          <SchemaTree></SchemaTree>
+        ) : (
+          <DatabaseTree></DatabaseTree>
+        );
+      case 'mongo':
+        return config.db ? (
+          <SchemaTree></SchemaTree>
+        ) : (
+          <DatabaseTree></DatabaseTree>
+        );
+      case 'sqlserver':
+        if (!config.db) {
+          return <CatalogTree />;
+        }
+        return config.schema ? <SchemaTree /> : <DatabaseTree />;
     }
   };
 
@@ -123,11 +138,23 @@ function SchemaTree(prpos: { schema?: string }) {
   const getPrefix = () => {
     return uuid + schema;
   };
+  const { kind } = useContext(ConnTypeContext);
+  let support_procedure =
+    kind == DataSourceKind.MariaDB ||
+    kind == DataSourceKind.Mysql ||
+    kind == DataSourceKind.Postgres ||
+    kind == DataSourceKind.MsSql;
+  let support_udf =
+    kind == DataSourceKind.MariaDB ||
+    kind == DataSourceKind.Mysql ||
+    kind == DataSourceKind.Postgres ||
+    kind == DataSourceKind.MsSql;
   let { setUpMenu } = useContext(MenuContext);
   return (
     <TreeItem
       itemId={getPrefix()}
       label=<Stack
+        spacing={1}
         direction='row'
         onContextMenu={(e) => {
           setUpMenu({
@@ -138,18 +165,20 @@ function SchemaTree(prpos: { schema?: string }) {
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
+
+        {!schema && <ConnStatus uuid={uuid}></ConnStatus>}
       </Stack>
     >
       <TablesTree></TablesTree>
       <ViewsTree></ViewsTree>
-      <ProceduresTree></ProceduresTree>
-      <UdfsTree></UdfsTree>
+      {support_procedure && <ProceduresTree></ProceduresTree>}
+      {support_udf && <UdfsTree></UdfsTree>}
     </TreeItem>
   );
 }
 
-function DatabaseMenu(props: { database?: string; uuid }) {
-  const { database, uuid } = props;
+function DatabaseMenu(props: { database?: string; uuid; reload }) {
+  const { database, uuid, reload } = props;
   return (
     <Paper>
       <MenuList>
@@ -159,13 +188,24 @@ function DatabaseMenu(props: { database?: string; uuid }) {
           }}
         ></MenuNewQuery>
       </MenuList>
+      <MenuItem
+        onClick={() => {
+          reload();
+        }}
+      >
+        <ListItemIcon>
+          <RefreshIcon></RefreshIcon>
+        </ListItemIcon>
+        <ListItemText> refresh </ListItemText>
+      </MenuItem>
+
       {!database && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
     </Paper>
   );
 }
 
-function CatalogMenu(props: { uuid }) {
-  const { database, uuid } = props;
+function CatalogMenu(props: { uuid; reload }) {
+  const { uuid, reload } = props;
   return (
     <Paper>
       <MenuList>
@@ -174,11 +214,22 @@ function CatalogMenu(props: { uuid }) {
             alert('new query');
           }}
         ></MenuNewQuery>
+        <MenuItem
+          onClick={() => {
+            reload();
+          }}
+        >
+          <ListItemIcon>
+            <RefreshIcon></RefreshIcon>
+          </ListItemIcon>
+          <ListItemText> refresh </ListItemText>
+        </MenuItem>
+        <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
       </MenuList>
-      <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
     </Paper>
   );
 }
+
 function SchemaMenu(props: { schema?: string; uuid }) {
   const { schema, uuid } = props;
   return (
@@ -199,14 +250,17 @@ function CatalogTree(props: {}) {
   const { uuid: name } = useContext(UuidContext);
   const { showNotification } = useContext(NotificationContext);
   const [databases, setDatabases] = useState<string[]>([]);
-
+  const [loading, setLoading] = useState(false);
   const handleReload = () => {
+    setLoading(true);
     invoke<string[]>('list_database', { name })
       .then((ds) => {
+        setLoading(false);
         setDatabases(ds);
       })
       .catch((e) => {
-        showNotification('error', 'list schema failed', e);
+        setLoading(false);
+        showNotification('error', 'list database failed', e);
       });
   };
   useEffect(() => {
@@ -218,14 +272,20 @@ function CatalogTree(props: {}) {
     <TreeItem
       itemId={name}
       label=<Stack
+        direction='row'
+        spacing={1}
         onContextMenu={(e) => {
           setUpMenu({
-            content: <CatalogMenu uuid={name}></CatalogMenu>,
+            content: (
+              <CatalogMenu uuid={name} reload={handleReload}></CatalogMenu>
+            ),
             style: calMenuStyle(e, 70),
           });
         }}
       >
         <Typography>{name} </Typography>
+        {loading && <CircularProgress size={progressBarSizeSmall} />}
+        <ConnStatus uuid={name}></ConnStatus>
       </Stack>
       key={name}
     >
@@ -245,15 +305,21 @@ function DatabaseTree(props: { database?: string }) {
   const { showNotification } = useContext(NotificationContext);
   const [schemas, setSchemas] = useState<string[]>([]);
   let { database } = props;
+  const [loading, setLoading] = useState(false);
+
   const handleReload = () => {
+    setLoading(true);
     invoke<string[]>('list_schema', { name })
       .then((ds) => {
+        setLoading(false);
         setSchemas(ds);
       })
       .catch((e) => {
+        setLoading(false);
         showNotification('error', 'list schema failed', e);
       });
   };
+
   useEffect(() => {
     handleReload();
   }, []);
@@ -263,12 +329,17 @@ function DatabaseTree(props: { database?: string }) {
     <TreeItem
       itemId={name}
       label=<Stack
+        spacing={1}
         direction='row'
         alignContent='baseline'
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <DatabaseMenu database={database} uuid={name}></DatabaseMenu>
+              <DatabaseMenu
+                database={database}
+                uuid={name}
+                reload={handleReload}
+              ></DatabaseMenu>
             ),
             style: calMenuStyle(e, 70),
           });
@@ -276,6 +347,8 @@ function DatabaseTree(props: { database?: string }) {
       >
         <FaDatabase />
         <span>{database ? database : name}</span>
+        {loading && <CircularProgress size={progressBarSizeSmall} />}
+        {!database && <ConnStatus uuid={name}></ConnStatus>}
       </Stack>
       key={name + database}
     >

@@ -854,7 +854,7 @@ impl SchemaTrait for MsSqlServer {
         let mut stream = conn
             .query(&sql, &[])
             .await
-            .expect(format!("sql :{}", sql).as_str());
+            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let mut meta = None;
         let mut rows = Vec::with_capacity(page_size);
         while let Some(item) = stream.next().await {
@@ -1219,15 +1219,14 @@ impl MsSqlServer {
     async fn query_count(
         conn: &mut Connection, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<i32> {
+        let sql = format!("SELECT count(*) from {name} {}", match where_str {
+            Some(x) => format!("  where {} ", x),
+            None => "".to_string(),
+        });
         let mut stream = conn
-            .query(
-                format!("SELECT count(*) from {name} {}", match where_str {
-                    Some(x) => format!("  where {} ", x),
-                    None => "".to_string(),
-                }),
-                &[],
-            )
-            .await?;
+            .query(&sql, &[])
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
 
         let mut count: Option<i32> = None;
         while let Some(item) = stream.next().await {

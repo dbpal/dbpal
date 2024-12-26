@@ -8,11 +8,11 @@ use dbnexus_db::app::{App, DbConfigLoader, FileJsonSaver};
 mod handlers;
 
 use handlers::{
-    add_config, add_table_column, config_list_database_or_schema, delete, delete_config,
-    disable_trigger, drop_procedure, drop_table, drop_table_column, drop_trigger, drop_udf,
-    drop_view, duplicate_table, enable_trigger, export_table, format_sql, get_user_settings,
-    insert, list_all_config, list_data_types, list_database, list_procedure, list_schema,
-    list_table, list_trigger, list_udf, list_view, modify_table_column, mongo_delete,
+    add_config, add_table_column, check_conn, config_list_database_or_schema, delete,
+    delete_config, disable_trigger, drop_procedure, drop_table, drop_table_column, drop_trigger,
+    drop_udf, drop_view, duplicate_table, enable_trigger, export_table, format_sql,
+    get_user_settings, insert, list_all_config, list_data_types, list_database, list_procedure,
+    list_schema, list_table, list_trigger, list_udf, list_view, modify_table_column, mongo_delete,
     mongo_get_one_document, mongo_insert, mongo_show_collection_docs,
     mongo_show_collection_table_list, mongo_update, oracle_query_autocommit, oracle_query_commit,
     oracle_query_rollback, oracle_query_set_autocommit, query_sql, query_sql_close_connection,
@@ -42,6 +42,7 @@ async fn main() {
     let app = App::new(loader);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .manage(app)
         .setup(|app| {
             #[cfg(debug_assertions)] // only include this code on debug builds
@@ -60,7 +61,14 @@ async fn main() {
                         "add_config",
                         "Add Connection",
                         true,
-                        Some("xxxxx"),
+                        None as Option<&'static str>,
+                    )?,
+                    &MenuItem::with_id(
+                        handle,
+                        "show_settings",
+                        "settings",
+                        true,
+                        None as Option<&'static str>,
                     )?,
                     &PredefinedMenuItem::maximize(handle, None).unwrap(),
                     &PredefinedMenuItem::minimize(handle, None).unwrap(),
@@ -79,6 +87,9 @@ async fn main() {
             log::info!("on_menu_event:{:?}", event);
             if event.id.0 == "add_config" {
                 handle.emit("add_connection", "").unwrap();
+            }
+            if event.id.0 == "show_settings" {
+                handle.emit("show_settings", "").unwrap();
             }
         })
         .plugin(tauri_plugin_dialog::init())
@@ -154,7 +165,8 @@ async fn main() {
             list_udf,
             show_udf,
             drop_udf,
-            add_table_column
+            add_table_column,
+            check_conn,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

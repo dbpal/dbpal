@@ -22,6 +22,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { DataSourceKind, msgTimeout, progressBarSize } from './Common';
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import { TbReload } from 'react-icons/tb';
 
 async function selectOneFile() {
   const selected = await open({
@@ -191,7 +192,9 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
   );
 }
 
-export default function AddConfig() {
+export default function AddConfig(props: { handleClose: () => void }) {
+  let { handleClose } = props;
+
   const [connectionType, setConnectionType] = useState(DataSourceKind.Mysql);
   const [connectionName, setConnectionName] = useState('');
   const [host, setHost] = useState('localhost');
@@ -367,6 +370,7 @@ export default function AddConfig() {
     invoke('add_config', { config })
       .then((_) => {
         showNotification('success', 'Add Connection OK');
+        handleClose();
       })
       .catch((e) => {
         showNotification('error', 'Add Connection failure', e);

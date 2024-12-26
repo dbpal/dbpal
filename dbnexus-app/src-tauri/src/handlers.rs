@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Duration;
 
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, UserSettings, open};
@@ -27,9 +28,10 @@ pub async fn add_config(
     app.add_config(config)
         .await
         .map_err(AnyhowErrorFrontend::from)?;
-    handler.emit("connection_config_changed", "").unwrap();
+    handler.emit("connection_config_changed", "")?;
     Ok(())
 }
+
 #[tauri::command]
 pub async fn list_all_config(
     app: tauri::State<'_, App>,
@@ -47,7 +49,7 @@ pub async fn delete_config(
     random_sleep().await;
     random_error()?;
     log::info!("del config:{}", name);
-    handler.emit("connection_config_changed", "").unwrap();
+    handler.emit("connection_config_changed", "")?;
     app.delete_config(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
@@ -408,14 +410,16 @@ pub async fn query_sql_close_connection(
 
 #[tauri::command]
 pub async fn save_user_settings(
-    user_settings: UserSettings, app: tauri::State<'_, App>,
+    user_settings: UserSettings, app: tauri::State<'_, App>, handle: AppHandle,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     app.loader
         .save_user_settings(user_settings)
         .await
-        .map_err(AnyhowErrorFrontend::from)
+        .map_err(AnyhowErrorFrontend::from)?;
+    handle.emit("settings_changed", "")?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -464,13 +468,42 @@ pub async fn format_sql(
 }
 
 #[tauri::command]
+pub async fn check_conn(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<
+    String, // human readable time
+    AnyhowErrorFrontend,
+> {
+    random_sleep().await;
+    random_error()?;
+
+    tokio::time::timeout(Duration::from_secs(2), async move {
+        let db = app.open(&name).await?;
+        match db {
+            app::Open::DataBase(x) => x.check_conn().await,
+            app::Open::Schema(x) => x.check_conn().await,
+            app::Open::Catalog(x) => x.check_conn().await,
+        }
+        .map_err(AnyhowErrorFrontend::from)
+        .map(|d| {
+            //
+            humantime::format_duration(Duration::from_millis(
+                d.as_millis() as u64, //最小单位毫秒
+            ))
+            .to_string()
+        })
+    })
+    .await
+    .map_err(|_| AnyhowErrorFrontend::from(format!("check connection status not finished in 2s")))?
+}
+
+#[tauri::command]
 pub async fn test_connection(
     config: DBConnectionConfig,
 ) -> Result<
     u64, // milliseconds
     AnyhowErrorFrontend,
 > {
-    random_sleep().await;
     random_error()?;
     let db = app::open(&config).await.map_err(|e| e.to_string())?;
     match db {
@@ -1273,6 +1306,16 @@ pub struct AnyhowErrorFrontend {
     detail: String,
 }
 
+impl From<tauri::Error> for AnyhowErrorFrontend {
+    fn from(value: tauri::Error) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+        };
+        log::error!("msg:{},details:{}", x.reason, x.detail);
+        x
+    }
+}
 impl From<anyhow::Error> for AnyhowErrorFrontend {
     fn from(value: anyhow::Error) -> Self {
         let x = Self {
