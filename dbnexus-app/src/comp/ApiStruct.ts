@@ -25,7 +25,7 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": string;
-        "db": string;
+        "db": (string | null);
         "trust_cert": boolean;
         "schema": (string | null);
         "read_only": boolean;
@@ -98,6 +98,7 @@ export namespace types {
     export type Usize = number;
     export type UserSettings = {
         "page_size": types.Usize;
+        "theme": string;
     };
     export type ListTable = {
         "name": string;

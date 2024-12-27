@@ -16,7 +16,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import { useContext, useEffect, useState } from 'react';
 import { editor, Position } from 'monaco-editor';
-import { EditorBar, progressBarSize } from './Common.tsx';
+import { EditorBar, progressBarSize, SettingsContext } from './Common.tsx';
 import { NotificationContext } from './Notification.tsx';
 import types from './ApiStruct.ts';
 import { QueryLog } from './QueryLog.tsx';
@@ -37,8 +37,11 @@ function SqlQuery(props: {
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [queryLogs, setQueryLogs] = useState([]);
-
-  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
+  const { theme } = useContext(SettingsContext);
+  const handleEditorDidMount = (
+    editor: editor.IStandaloneCodeEditor,
+    monaco
+  ) => {
     editor.onDidChangeModelContent((_event) => {
       let text = editor.getValue();
       setText(text);
@@ -57,6 +60,9 @@ function SqlQuery(props: {
       const selection = editor.getSelection();
       setSelectText(editor.getModel().getValueInRange(selection));
     });
+    if (theme == 'dark') {
+      monaco.editor.setTheme('vs-dark');
+    }
   };
 
   const handleLoadQueryLog = () => {

@@ -37,13 +37,14 @@ import {
   SelectPageSize,
   datagridRowHeight,
   datagridHeaderHeight,
-  defaultPageSize,
   editorInitHeight,
   progressBarSize,
+  SettingsContext,
 } from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import { secondConfirm } from './Confirm';
+
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code|float32|int8)\b/;
 function mongoBsonAutoCompletion(): languages.CompletionList {
@@ -204,8 +205,8 @@ function MongoBsonEditor(props: {
   const [cursorColumn, setCursorColumn] = useState(1);
   const [err, setErr] = useState<MongoBsonError | null>(null);
   const [docHasChange, setDocHasChange] = useState(false);
-
-  const handleEditorDidMount = (ce: editor.IStandaloneCodeEditor) => {
+  const { theme } = useContext(SettingsContext);
+  const handleEditorDidMount = (ce: editor.IStandaloneCodeEditor, monaco) => {
     ce.onDidChangeModelContent((_event) => {
       let text = ce.getValue();
       try {
@@ -218,11 +219,13 @@ function MongoBsonEditor(props: {
         return;
       }
     });
-
     ce.onDidChangeCursorPosition((event) => {
       setCursorLine(event.position.lineNumber);
       setCursorColumn(event.position.column);
     });
+    if (theme == 'dark') {
+      monaco.editor.setTheme('vs-dark');
+    }
   };
   const initHeigth = editorInitHeight(content);
   return (
@@ -517,7 +520,9 @@ function MongoTable(props: {
   const [filter, setFilter] = useState<BSON.Document>({});
   const [orderBy, setOrderby] = useState<BSON.Document>({});
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(defaultPageSize);
+  const [pageSize, setPageSize] = useState(
+    useContext(SettingsContext).page_size
+  );
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
@@ -743,7 +748,7 @@ function MongoTable(props: {
             />
             <SelectPageSize
               pageSize={pageSize}
-              onChange={(size) => {
+              handleChange={(size) => {
                 setPage(size);
               }}
             ></SelectPageSize>

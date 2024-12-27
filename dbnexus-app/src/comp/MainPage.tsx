@@ -7,17 +7,36 @@ import { NotificationProvider } from './Notification';
 // import { createTheme, ThemeProvider } from '@mui/material';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
-import { createTheme, ThemeProvider } from '@mui/material';
+import {
+  Box,
+  createTheme,
+  CssBaseline,
+  Modal,
+  Stack,
+  ThemeProvider,
+} from '@mui/material';
 import { CSSProperties, ReactNode, useEffect, useState } from 'react';
 
 import { TabContent, TabsWithCloseButton } from './Tabs';
 import { WelCome } from './WelCome';
-import { MenuContext, TabsSetContext } from './Common.tsx';
+import { MenuContext, modalStyle, TabsSetContext } from './Common.tsx';
 import { Left } from './Left';
+import { listen } from '@tauri-apps/api/event';
+import AddConfig from './AddConnection.tsx';
+import { ModifySettings, SettingComp } from './Settings.tsx';
+import types from './ApiStruct.ts';
 
 export default function MainPage() {
-  const lightTheme = createTheme();
-  const [theme, setTheme] = useState('light'); // 默认为明亮主题
+  const [showAddConnection, setShowAddConnection] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  listen('add_connection', () => {
+    setShowAddConnection(true);
+  });
+
+  listen('show_settings', () => {
+    setShowSettings(true);
+  });
 
   let [tabs, setTabs] = useState([
     new TabContent('welcome', 'welcome', <WelCome></WelCome>),
@@ -34,8 +53,9 @@ export default function MainPage() {
       customMenu.style.display = 'none';
     });
   });
+
   return (
-    <ThemeProvider theme={theme === 'light' ? lightTheme : darkTheme}>
+    <SettingComp>
       <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
         <MenuContext.Provider value={{ setUpMenu }}>
           <NotificationProvider>
@@ -63,12 +83,47 @@ export default function MainPage() {
                 ></TabsWithCloseButton>
               </SplitPane>
             </div>
+
             <div id='left-side-menu' style={menu && menu.style}>
               {menu && menu.content}
             </div>
+            {showAddConnection && (
+              <Modal
+                open={showAddConnection}
+                onClose={() => {
+                  setShowAddConnection(false);
+                }}
+                aria-labelledby='add column'
+              >
+                <Box sx={modalStyle} width='600px'>
+                  <AddConfig
+                    handleClose={() => {
+                      setShowAddConnection(false);
+                    }}
+                  ></AddConfig>
+                </Box>
+              </Modal>
+            )}
+            {showSettings && (
+              <Modal
+                open={showSettings}
+                onClose={() => {
+                  setShowSettings(false);
+                }}
+                aria-labelledby='add column'
+              >
+                <Box sx={modalStyle} width='700px'>
+                  <ModifySettings
+                    handleClose={() => {
+                      setShowSettings(false);
+                    }}
+                  ></ModifySettings>
+                </Box>
+              </Modal>
+            )}
           </NotificationProvider>
         </MenuContext.Provider>
       </TabsSetContext.Provider>
-    </ThemeProvider>
+    </SettingComp>
   );
 }

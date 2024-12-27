@@ -62,9 +62,11 @@ function TriggersTree(props: { table: string }) {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <MenuList>
-                <MenuRefresh reload={handleReload}></MenuRefresh>
-              </MenuList>
+              <Paper>
+                <MenuList>
+                  <MenuRefresh reload={handleReload}></MenuRefresh>
+                </MenuList>
+              </Paper>
             ),
             style: calMenuStyle(e, 70),
           });

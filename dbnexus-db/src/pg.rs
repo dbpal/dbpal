@@ -1141,7 +1141,8 @@ impl SchemaTrait for PostGresDB {
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
-            .await?;
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let data = encode_rows(&row)?;
         let fields = self.show_columns(table_name).await?;
         anyhow::Ok(TableListResp::new(fields, total, data, sql))
@@ -1203,11 +1204,14 @@ impl PostGresDB {
         let mut conn = self.get_conn().await?;
         let schema = self.must_schema();
 
-        let mut s = format!("SELECT count(1) from {schema}.{name} ");
+        let mut sql = format!("SELECT count(1) from {schema}.{name} ");
         if let Some(where_str) = where_str {
-            s.push_str(format!(" where {where_str}").as_str());
+            sql.push_str(format!(" where {where_str}").as_str());
         }
-        let row = sqlx::query(s.as_str()).fetch_one(conn.deref_mut()).await?;
+        let row = sqlx::query(sql.as_str())
+            .fetch_one(conn.deref_mut())
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let count: i64 = row.get(0);
         anyhow::Ok(count as usize)
     }

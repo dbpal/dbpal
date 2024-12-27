@@ -24,6 +24,7 @@ import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
 import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import CloseIcon from '@mui/icons-material/Close';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   Box,
   Button,
@@ -50,6 +51,7 @@ import { SqlTableView } from './SqlTableView';
 import { TriggersTree } from './LeftTriggers';
 import { ExportTableView } from './Export';
 import AddIcon from '@mui/icons-material/Add';
+
 function TablesTree() {
   const { uuid } = useContext(UuidContext);
   const [tables, setTables] = useState<types.ListTable[]>([]);
@@ -82,9 +84,11 @@ function TablesTree() {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <MenuList>
-                <MenuRefresh reload={handleReload}></MenuRefresh>
-              </MenuList>
+              <Paper>
+                <MenuList>
+                  <MenuRefresh reload={handleReload}></MenuRefresh>
+                </MenuList>
+              </Paper>
             ),
             style: calMenuStyle(e, 70),
           });
@@ -293,7 +297,6 @@ function ModifyTableColumn(props: {
           </Stack>
         </Stack>
       )}
-
       <Stack direction='row' spacing={1}>
         <Button color='error' variant='contained' onClick={handleModify}>
           Modify
@@ -303,15 +306,15 @@ function ModifyTableColumn(props: {
     </Stack>
   );
 }
+
 function TableColumnsMenu(props: {
-  support_add_column: boolean;
   reload;
   table;
   uuid;
   fields;
   kind: DataSourceKind;
 }) {
-  let { support_add_column, reload, table, uuid, fields, kind } = props;
+  let { reload, table, uuid, fields, kind } = props;
 
   const [showAdd, setShowAdd] = useState(false);
 
@@ -319,18 +322,17 @@ function TableColumnsMenu(props: {
     <Paper>
       <MenuList>
         <MenuRefresh reload={reload}></MenuRefresh>
-        {support_add_column && (
-          <MenuItem
-            onClick={() => {
-              setShowAdd(true);
-            }}
-          >
-            <ListItemIcon>
-              <AddIcon></AddIcon>
-            </ListItemIcon>
-            <ListItemText> add column </ListItemText>
-          </MenuItem>
-        )}
+
+        <MenuItem
+          onClick={() => {
+            setShowAdd(true);
+          }}
+        >
+          <ListItemIcon>
+            <AddIcon></AddIcon>
+          </ListItemIcon>
+          <ListItemText> add column </ListItemText>
+        </MenuItem>
       </MenuList>
       {showAdd && (
         <Modal
@@ -427,6 +429,7 @@ function TableAddColumn(props: {
           setTyp(e);
         }}
       ></TableTypesButton>
+      {/*   TODO some mariadb require a length parameter    */}
       <Stack direction='row'>
         <TextField
           value={typ}
@@ -444,12 +447,12 @@ function TableAddColumn(props: {
             <InputLabel id='dropdown-label'>Select After column </InputLabel>
             <Select
               labelId='dropdown-label'
-              value={nullness}
+              value={after}
               onChange={(e) => {
                 setAfter(e.target.value);
               }}
             >
-              <MenuItem value=''>not set</MenuItem>
+              <MenuItem value=''>none</MenuItem>
               {fields.map((e) => (
                 <MenuItem value={e.field}> {e.field} </MenuItem>
               ))}
@@ -485,7 +488,7 @@ function ColumnNullness({ nullness, handleNullness }) {
           handleNullness(e.target.value);
         }}
       >
-        <MenuItem value=''>not set</MenuItem>
+        <MenuItem value=''>none</MenuItem>
         <MenuItem value='null'>null</MenuItem>
         <MenuItem value='not null'>not null</MenuItem>
       </Select>
@@ -515,7 +518,7 @@ function TableColumnsTree(props: { table: string }) {
       });
   };
 
-  const support_add_column =
+  const support_modify_column =
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Mysql ||
@@ -532,21 +535,24 @@ function TableColumnsTree(props: { table: string }) {
       label=<Stack
         spacing={1}
         direction='row'
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <TableColumnsMenu
-                table={table}
-                uuid={uuid}
-                reload={reload}
-                kind={kind}
-                fields={fields}
-                support_add_column={support_add_column}
-              ></TableColumnsMenu>
-            ),
-            style: calMenuStyle(e, 200),
-          });
-        }}
+        onContextMenu={
+          support_modify_column
+            ? (e) => {
+                setUpMenu({
+                  content: (
+                    <TableColumnsMenu
+                      table={table}
+                      uuid={uuid}
+                      reload={reload}
+                      kind={kind}
+                      fields={fields}
+                    ></TableColumnsMenu>
+                  ),
+                  style: calMenuStyle(e, 200),
+                });
+              }
+            : undefined
+        }
       >
         <span> columns</span>
         {loading && (
@@ -557,20 +563,24 @@ function TableColumnsTree(props: { table: string }) {
       {fields.map((f) => (
         <TreeItem
           key={f.field}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <TableColumnMenu
-                  table={table}
-                  uuid={uuid}
-                  col={f.field}
-                  reload={reload}
-                  typ={f.typ}
-                ></TableColumnMenu>
-              ),
-              style: calMenuStyle(e, 70),
-            });
-          }}
+          onContextMenu={
+            support_modify_column
+              ? (e) => {
+                  setUpMenu({
+                    content: (
+                      <TableColumnMenu
+                        table={table}
+                        uuid={uuid}
+                        col={f.field}
+                        reload={reload}
+                        typ={f.typ}
+                      ></TableColumnMenu>
+                    ),
+                    style: calMenuStyle(e, 70),
+                  });
+                }
+              : undefined
+          }
           itemId={idPrefix + '-' + f.field}
           label=<Stack direction='row' spacing={1}>
             {f.field} <em>({f.typ}) </em>

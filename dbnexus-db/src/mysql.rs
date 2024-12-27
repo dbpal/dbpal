@@ -1124,7 +1124,8 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
-            .await?;
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let data = encode_rows(&row)?;
         let fields = self.show_columns(table_name).await?;
         anyhow::Ok(TableListResp::new(fields, total, data, sql))

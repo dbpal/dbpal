@@ -541,11 +541,15 @@ impl App {
 #[derive(Clone, serde::Deserialize, serde::Serialize, Debug, TypeDef)]
 pub struct UserSettings {
     pub page_size: usize,
+    pub theme: String,
 }
 
 impl Default for UserSettings {
     fn default() -> Self {
-        Self { page_size: 100 }
+        Self {
+            page_size: 100,
+            theme: "light".to_string(),
+        }
     }
 }
 
@@ -558,7 +562,10 @@ mod tests {
     #[test]
     fn print_config() {
         let s = DBNexusConfigs {
-            user_settings: super::UserSettings { page_size: 100 },
+            user_settings: super::UserSettings {
+                page_size: 100,
+                theme: "light".to_string(),
+            },
             connection_configs: {
                 let mut m = Vec::new();
                 m.push(DBConnectionConfig::Sqlite {

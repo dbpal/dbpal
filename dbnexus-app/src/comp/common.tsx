@@ -8,6 +8,8 @@ import {
   Select,
   Stack,
   SxProps,
+  Tooltip,
+  Typography,
 } from '@mui/material';
 
 import { languages, Position as EditorPositon, editor } from 'monaco-editor';
@@ -15,13 +17,21 @@ import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import { BSON } from 'bson';
-import { createContext, CSSProperties, useContext } from 'react';
+import {
+  createContext,
+  CSSProperties,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 import { Editor, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
+import AddIcon from '@mui/icons-material/Add';
+import { secondConfirm } from './Confirm';
 // TOOD 适配黑暗模式
 const modalStyle: SxProps = {
   position: 'absolute',
@@ -64,10 +74,8 @@ function SelectPageSize({
   width = '130px',
   variant = 'outlined',
   tital = 'select page size',
-  pageSize = 50,
-  onChange = (_: number) => {
-    // a function which will do nothing.
-  },
+  pageSize,
+  handleChange,
 }) {
   return (
     <Box width={width}>
@@ -83,7 +91,7 @@ function SelectPageSize({
           id='simple-select'
           value={pageSize}
           onChange={(e) => {
-            onChange(e.target.value as number);
+            handleChange(e.target.value);
           }}
           label='select page size'
         >
@@ -292,7 +300,6 @@ function SimpleResizeAbleEditor(props: {
 
 const datagridRowHeight = 25;
 const datagridHeaderHeight = 36;
-const defaultPageSize = 10;
 
 const TabsSetContext = createContext<{
   tabs: TabContent[];
@@ -375,7 +382,6 @@ const progressBarSizeSmall = '20px';
 function getViewportSize() {
   const width = window.innerWidth; // 获取视口的宽度
   const height = window.innerHeight; // 获取视口的高度
-
   return { width, height }; // 返回一个对象，包含宽度和高度
 }
 
@@ -396,7 +402,14 @@ function MenuRefresh({ reload }) {
 
 function MenuDeleteConfig({ name }) {
   const { showNotification } = useContext(NotificationContext);
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    const confirm = await secondConfirm({
+      title: `drop connection '${name}'`,
+      confirmText: 'drop',
+    });
+    if (!confirm) {
+      return;
+    }
     invoke('delete_config', { name })
       .then(() => {
         showNotification('success', 'Drop database connection OK');
@@ -428,9 +441,9 @@ function MenuNewQuery({ handle }) {
       }}
     >
       <ListItemIcon>
-        <RefreshIcon></RefreshIcon>
+        <AddIcon></AddIcon>
       </ListItemIcon>
-      <ListItemText> New query </ListItemText>
+      <ListItemText> New Query </ListItemText>
     </MenuItem>
   );
 }
@@ -456,7 +469,6 @@ function calMenuStyle(e, eheigth): CSSProperties {
   } else {
     ret.bottom = height - y - 10 + 'px';
   }
-
   return ret;
 }
 
@@ -467,6 +479,60 @@ function chunkArray(array: any[], chunkSize: number): any[][] {
   }
   return result;
 }
+
+function errToString(message) {
+  if (typeof message == 'object' && 'reason' in message) {
+    // TODO show message
+    message = message['reason'];
+  }
+  if (typeof message == 'object' && message instanceof Error) {
+    // TODO show message
+    message = message.toString();
+  }
+  return message;
+}
+
+function ConnStatus({ uuid }) {
+  const [status, setStatus] = useState('');
+  const [err, setErr] = useState('');
+  const reloadStatus = () => {
+    invoke<string>('check_conn', { name: uuid })
+      .then((ping) => {
+        setStatus(ping);
+      })
+      .catch((e) => {
+        setErr(errToString(e));
+      });
+  };
+
+  useEffect(() => {
+    reloadStatus();
+    let r = setInterval(() => {
+      reloadStatus();
+    }, 5000);
+    return () => {
+      clearInterval(r);
+    };
+  }, []);
+
+  return (
+    (status || err) &&
+    (status ? (
+      <Tooltip title='ping time'>
+        <Typography color='green'> {status} </Typography>
+      </Tooltip>
+    ) : (
+      <Tooltip title={err}>
+        <Typography color='error'> err </Typography>
+      </Tooltip>
+    ))
+  );
+}
+
+const SettingsContext = createContext<types.UserSettings>({
+  page_size: 100,
+  theme: 'dark',
+});
 
 export {
   modalStyle,
@@ -486,7 +552,6 @@ export {
   EditorBar,
   datagridRowHeight,
   datagridHeaderHeight,
-  defaultPageSize,
   countLines,
   SimpleResizeAbleEditor,
   editorInitHeight,
@@ -506,6 +571,8 @@ export {
   extraParametersFromMetaValues,
   MenuDeleteConfig,
   MenuNewQuery,
+  ConnStatus,
+  SettingsContext,
 };
 
 export type { DefAndMetas };

@@ -6,6 +6,7 @@ import {
   DefAndMetas,
   MetaValues,
   progressBarSize,
+  SettingsContext,
   SimpleResizeAbleEditor,
 } from './Common';
 
@@ -41,14 +42,14 @@ function DefAndMetasView(props: {
   useEffect(() => {
     handleReload();
   }, []);
-
+  const { theme } = useContext(SettingsContext);
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />} 
-      <Stack direction="row" spacing={1}>
+      {loading && <CircularProgress size={progressBarSize} />}
+      <Stack direction='row' spacing={1}>
         <Button
-          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
-          color="primary" // 主题颜色
+          variant='contained' // 可以是 'text', 'outlined', 或 'contained'
+          color='primary' // 主题颜色
           onClick={handleReload} // 点击事件处理
         >
           Reload
@@ -61,6 +62,11 @@ function DefAndMetasView(props: {
             style={{ minHeight: '300px' }}
             language={language}
             value={detail.def}
+            onMount={(_editor, monaco) => {
+              if (theme == 'dark') {
+                monaco.editor.setTheme('vs-dark');
+              }
+            }}
           ></SimpleResizeAbleEditor>
           <Typography variant={titleVariant}> Some Metas </Typography>
           <MetaValues values={detail.metas}></MetaValues>

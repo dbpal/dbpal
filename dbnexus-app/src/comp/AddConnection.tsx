@@ -30,8 +30,8 @@ async function selectOneFile() {
   return selected;
 }
 
-function HostAndPort(props: { host; port; setHost; setPort }) {
-  let { host, port, setHost, setPort } = props;
+function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
+  let { host, port, setHost, setPort, onBlur } = props;
   return (
     <Stack direction='row'>
       <TextField
@@ -40,6 +40,7 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
         label='Host'
         value={host}
         size='small'
+        onBlur={onBlur}
         sx={{ mr: 1 }}
         onChange={(e) => setHost(e.target.value)}
       />
@@ -47,6 +48,7 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
         margin='normal'
         fullWidth
         label='port'
+        onBlur={onBlur}
         error={isNaN(parseInt(port))}
         size='small'
         value={port}
@@ -74,8 +76,14 @@ function Sqlite(props: { path; setPath }) {
   );
 }
 
-function UserAndPassword(props: { user; password; setUser; setPassword }) {
-  let { user, password, setUser, setPassword } = props;
+function UserAndPassword(props: {
+  user;
+  password;
+  setUser;
+  setPassword;
+  onBlur;
+}) {
+  let { user, password, setUser, setPassword, onBlur } = props;
 
   return (
     <Stack direction='row'>
@@ -86,12 +94,14 @@ function UserAndPassword(props: { user; password; setUser; setPassword }) {
         value={user}
         sx={{ mr: 1 }}
         size='small'
+        onBlur={onBlur}
         onChange={(e) => setUser(e.target.value)}
       />
       <TextField
         margin='normal'
         fullWidth
         label='Password'
+        onBlur={onBlur}
         size='small'
         type='password'
         value={password}
@@ -131,8 +141,13 @@ function TrustCert(props: { trustCert; setTrustCert }) {
   );
 }
 
-function Database(props: { database; setDatabase; candidates: string[] }) {
-  let { database, setDatabase, candidates } = props;
+function Database(props: {
+  database;
+  setDatabase;
+  candidates: string[];
+  onBlur?;
+}) {
+  let { database, setDatabase, candidates, onBlur } = props;
 
   return (
     <Stack>
@@ -154,6 +169,7 @@ function Database(props: { database; setDatabase; candidates: string[] }) {
           label='database'
           size='small'
           value={database}
+          onBlur={onBlur}
           onChange={(e) => setDatabase(e.target.value)}
         />
       </Stack>
@@ -191,7 +207,9 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
   );
 }
 
-export default function AddConfig() {
+export default function AddConfig(props: { handleClose: () => void }) {
+  let { handleClose } = props;
+
   const [connectionType, setConnectionType] = useState(DataSourceKind.Mysql);
   const [connectionName, setConnectionName] = useState('');
   const [host, setHost] = useState('localhost');
@@ -202,13 +220,16 @@ export default function AddConfig() {
   const [readOnly, setReadOnly] = useState(false);
   const [useSSL, setUseSSL] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
+  const [triggerReLoad, setTriggerReload] = useState(false);
   const [path, setPath] = useState('');
   const { showNotification } = useContext(NotificationContext);
   const [testOk, setTestOk] = useState(false);
   const [trustCert, setTrustCert] = useState(false);
   const [databaseCandidates, setDatabaseCandidats] = useState([]);
   const [schema, setSchema] = useState('');
-
+  const toggleTriggerReload = () => {
+    setTriggerReload((e) => !e);
+  };
   const [schemaCandidates, setSchemesCandidats] = useState([]);
 
   const makeConfig = (): types.DBConnectionConfig | null => {
@@ -363,10 +384,10 @@ export default function AddConfig() {
     if (!config) {
       return;
     }
-
     invoke('add_config', { config })
       .then((_) => {
         showNotification('success', 'Add Connection OK');
+        handleClose();
       })
       .catch((e) => {
         showNotification('error', 'Add Connection failure', e);
@@ -389,10 +410,11 @@ export default function AddConfig() {
             })
             .catch((e) => {
               console.log('list database failed,', e);
+              setDatabaseCandidats([]);
             });
         }
     }
-  }, [connectionType, user, password, host, port]);
+  }, [triggerReLoad]);
 
   useEffect(() => {
     if (database && connectionType == DataSourceKind.Postgres) {
@@ -402,13 +424,13 @@ export default function AddConfig() {
           .then((e) => {
             setSchemesCandidats(e);
           })
-
           .catch((e) => {
             console.log('list database failed,', e);
+            setSchemesCandidats([]);
           });
       }
     }
-  }, [connectionType, user, password, host, port, database]);
+  }, [database]);
 
   return (
     <Stack spacing={1}>
@@ -441,11 +463,13 @@ export default function AddConfig() {
           <HostAndPort
             host={host}
             port={port}
+            onBlur={toggleTriggerReload}
             setHost={setHost}
             setPort={setPort}
           ></HostAndPort>
           <UserAndPassword
             user={user}
+            onBlur={toggleTriggerReload}
             password={password}
             setUser={setUser}
             setPassword={setPassword}
@@ -464,17 +488,20 @@ export default function AddConfig() {
             port={port}
             setHost={setHost}
             setPort={setPort}
+            onBlur={toggleTriggerReload}
           ></HostAndPort>
           <UserAndPassword
             user={user}
             password={password}
             setUser={setUser}
+            onBlur={toggleTriggerReload}
             setPassword={setPassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
             database={database}
             setDatabase={setDatabase}
+            onBlur={toggleTriggerReload}
           ></Database>
           {database && (
             <Schema
@@ -490,10 +517,12 @@ export default function AddConfig() {
           <HostAndPort
             host={host}
             port={port}
+            onBlur={toggleTriggerReload}
             setHost={setHost}
             setPort={setPort}
           ></HostAndPort>
           <UserAndPassword
+            onBlur={toggleTriggerReload}
             user={user}
             password={password}
             setUser={setUser}
@@ -509,12 +538,14 @@ export default function AddConfig() {
       {connectionType == DataSourceKind.Mongo && (
         <>
           <HostAndPort
+            onBlur={toggleTriggerReload}
             host={host}
             port={port}
             setHost={setHost}
             setPort={setPort}
           ></HostAndPort>
           <UserAndPassword
+            onBlur={toggleTriggerReload}
             user={user}
             password={password}
             setUser={setUser}
@@ -530,12 +561,14 @@ export default function AddConfig() {
       {connectionType == DataSourceKind.MsSql && (
         <>
           <HostAndPort
+            onBlur={toggleTriggerReload}
             host={host}
             port={port}
             setHost={setHost}
             setPort={setPort}
           ></HostAndPort>
           <UserAndPassword
+            onBlur={toggleTriggerReload}
             user={user}
             password={password}
             setUser={setUser}
