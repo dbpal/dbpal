@@ -224,7 +224,6 @@ function SqlTableView(props: {
           <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-end' }}>
             <Button
               variant='contained'
-              color='error'
               disabled={selectIDs.length == 0}
               onClick={() => {
                 handleDetele();

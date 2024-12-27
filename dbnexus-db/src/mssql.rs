@@ -372,7 +372,7 @@ impl MsSqlServer {
                     r#"
             SELECT TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG='{}' AND TABLE_SCHEMA='{}';
+            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG='{}' AND TABLE_SCHEMA='{}' ORDER BY TABLE_NAME ;
         "#,
                     db, schema
                 )
@@ -436,6 +436,10 @@ impl BackendName for MsSqlServer {
     fn backend_name(&self) -> &str {
         "sqlserver"
     }
+}
+
+fn type_support_compare(tpe: &str) -> bool {
+    true
 }
 
 #[async_trait::async_trait]
@@ -962,6 +966,7 @@ impl SchemaTrait for MsSqlServer {
             &fs,
             &values,
             &wheres,
+            type_support_compare,
         )?;
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -1015,6 +1020,7 @@ impl SchemaTrait for MsSqlServer {
             table_name,
             &fields,
             &wheres,
+            type_support_compare,
         )?;
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();

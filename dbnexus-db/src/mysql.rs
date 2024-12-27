@@ -577,7 +577,7 @@ impl MysqlDB {
         let s = format!(
             r#"SELECT table_name ,data_length
         FROM information_schema.tables
-        WHERE table_schema = '{}' AND  table_type = 'BASE TABLE';"#,
+        WHERE table_schema = '{}' AND  table_type = 'BASE TABLE'  ORDER BY  table_name;"#,
             schema
         );
         let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
@@ -609,7 +609,9 @@ impl MysqlDB {
         anyhow::Ok(ret)
     }
 }
-
+fn type_support_compare(tpe: &str) -> bool {
+    true
+}
 impl std::fmt::Debug for MysqlDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "mysql on:{:?}", self.config)
@@ -959,8 +961,13 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
+        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
+            None,
+            table_name,
+            &fields,
+            &wheres,
+            type_support_compare,
+        )?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -1045,8 +1052,14 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::SchemaTrait)
-            .update_sql(None, table_name, &fs, &values, &wheres)?;
+        let s = (self as &dyn crate::db::SchemaTrait).update_sql(
+            None,
+            table_name,
+            &fs,
+            &values,
+            &wheres,
+            type_support_compare,
+        )?;
         let mut conn = self.get_conn().await?;
 
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;

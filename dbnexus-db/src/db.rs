@@ -524,7 +524,7 @@ pub trait ServerMetas {
 impl dyn SchemaTrait {
     pub(crate) fn make_where(
         &self, fs: &Vec<Field>, wheres: &HashMap<String, Option<String>>,
-        field_by_name: &HashMap<&String, &Field>,
+        field_by_name: &HashMap<&String, &Field>, type_support_compare: impl Fn(&str) -> bool,
     ) -> anyhow::Result<String> {
         // if contains primary key should use primary key to delete
         // otherwise should use all value
@@ -540,7 +540,13 @@ impl dyn SchemaTrait {
             if f.is_none() {
                 anyhow::bail!("field  '{}' not found", k);
             }
-            if contains_pri && !f.unwrap().is_primary {
+            let f = f.unwrap();
+            // some type can't compare
+            // so they can't appear in where condition
+            if !type_support_compare(f.typ.as_str()) {
+                continue;
+            }
+            if contains_pri && !f.is_primary {
                 continue;
             }
             sql.push_str(
@@ -548,7 +554,7 @@ impl dyn SchemaTrait {
                     "{} {} = {}",
                     if !first { " AND " } else { "" },
                     k,
-                    self.put_value_in_sql(f.unwrap(), v.as_ref().map(|x| x.as_str()))?
+                    self.put_value_in_sql(f, v.as_ref().map(|x| x.as_str()))?
                 )
                 .as_str(),
             );
@@ -559,7 +565,7 @@ impl dyn SchemaTrait {
 
     pub(crate) fn delete_sql(
         &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
-        wheres: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>, type_support_compare: impl Fn(&str) -> bool,
     ) -> anyhow::Result<String> {
         let mut field_by_name = HashMap::new();
         for f in fs.iter() {
@@ -575,7 +581,10 @@ impl dyn SchemaTrait {
             }
         );
 
-        sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
+        sql.push_str(
+            self.make_where(fs, wheres, &field_by_name, type_support_compare)?
+                .as_str(),
+        );
         log::info!("delete sql:{}", sql);
         anyhow::Ok(sql)
     }
@@ -583,6 +592,7 @@ impl dyn SchemaTrait {
     pub(crate) fn update_sql(
         &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
         values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
+        type_support_compare: impl Fn(&str) -> bool,
     ) -> anyhow::Result<String> {
         //
 
@@ -621,7 +631,10 @@ impl dyn SchemaTrait {
             }
         }
         sql.push_str(" WHERE ");
-        sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
+        sql.push_str(
+            self.make_where(fs, wheres, &field_by_name, type_support_compare)?
+                .as_str(),
+        );
         log::info!("update sql:{}", sql);
         anyhow::Ok(sql)
     }
