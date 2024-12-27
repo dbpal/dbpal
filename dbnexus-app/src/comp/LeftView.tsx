@@ -17,6 +17,7 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
+  Paper,
   Stack,
   Typography,
 } from '@mui/material';
@@ -61,9 +62,11 @@ function ViewsTree() {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <MenuList>
-                <MenuRefresh reload={handleReload}></MenuRefresh>
-              </MenuList>
+              <Paper>
+                <MenuList>
+                  <MenuRefresh reload={handleReload}></MenuRefresh>
+                </MenuList>
+              </Paper>
             ),
             style: calMenuStyle(e, 70),
           });
@@ -148,9 +151,11 @@ function ViewColumnsTree(props: { view: string }) {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <MenuList>
-                <MenuRefresh reload={reload}></MenuRefresh>
-              </MenuList>
+              <Paper>
+                <MenuList>
+                  <MenuRefresh reload={reload}></MenuRefresh>
+                </MenuList>
+              </Paper>
             ),
             style: calMenuStyle(e, 200),
           });
@@ -203,7 +208,7 @@ function ViewMenu(props: {
   };
 
   return (
-    <Stack>
+    <Paper>
       <MenuList>
         <MenuItem>
           <ListItemIcon>
@@ -231,7 +236,7 @@ function ViewMenu(props: {
           ></Typography>
         </MenuItem>
       </MenuList>
-    </Stack>
+    </Paper>
   );
 }
 

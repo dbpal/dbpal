@@ -88,6 +88,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
                 language={language}
                 height='300px'
                 value={selectSql}
+                onMount={}
               ></Editor>
             </Box>
           </Stack>

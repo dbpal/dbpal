@@ -519,7 +519,7 @@ function ConnStatus({ uuid }) {
     (status || err) &&
     (status ? (
       <Tooltip title='ping time'>
-        <Typography color='green'> {status}ms </Typography>
+        <Typography color='green'> {status} </Typography>
       </Tooltip>
     ) : (
       <Tooltip title={err}>
@@ -530,8 +530,8 @@ function ConnStatus({ uuid }) {
 }
 
 const SettingsContext = createContext<types.UserSettings>({
-  page_size: 10,
-  theme: 'light',
+  page_size: 100,
+  theme: 'dark',
 });
 
 export {

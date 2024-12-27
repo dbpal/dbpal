@@ -7,7 +7,14 @@ import { NotificationProvider } from './Notification';
 // import { createTheme, ThemeProvider } from '@mui/material';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
-import { Box, createTheme, Modal, ThemeProvider } from '@mui/material';
+import {
+  Box,
+  createTheme,
+  CssBaseline,
+  Modal,
+  Stack,
+  ThemeProvider,
+} from '@mui/material';
 import { CSSProperties, ReactNode, useEffect, useState } from 'react';
 
 import { TabContent, TabsWithCloseButton } from './Tabs';
@@ -20,8 +27,6 @@ import { ModifySettings, SettingComp } from './Settings.tsx';
 import types from './ApiStruct.ts';
 
 export default function MainPage() {
-  const lightTheme = createTheme();
-  const [theme, setTheme] = useState('light'); // 默认为明亮主题
   const [showAddConnection, setShowAddConnection] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -50,79 +55,75 @@ export default function MainPage() {
   });
 
   return (
-    <ThemeProvider theme={theme === 'light' ? lightTheme : darkTheme}>
+    <SettingComp>
       <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
         <MenuContext.Provider value={{ setUpMenu }}>
           <NotificationProvider>
-            <SettingComp>
-              <div>
-                <SplitPane
-                  split='vertical'
-                  minSize={0}
-                  defaultSize={300}
-                  style={{ minHeight: '100vh', height: 'auto' }}
-                >
-                  <Left></Left>
-                  <TabsWithCloseButton
-                    handleClose={(index: number) => {
-                      let id = tabs[index].id;
-                      setTabs((prevTabs) =>
-                        prevTabs.filter((x) => x.id !== id)
-                      );
-                      if (selectIndex >= index && selectIndex > 0) {
-                        setSelectIndex(selectIndex - 1);
-                      }
-                    }}
-                    tabs={tabs}
-                    selectIndex={selectIndex}
-                    changeTab={(index) => {
-                      setSelectIndex(index as number);
-                    }}
-                  ></TabsWithCloseButton>
-                </SplitPane>
-              </div>
-              <div id='left-side-menu' style={menu && menu.style}>
-                {menu && menu.content}
-              </div>
+            <div>
+              <SplitPane
+                split='vertical'
+                minSize={0}
+                defaultSize={300}
+                style={{ minHeight: '100vh', height: 'auto' }}
+              >
+                <Left></Left>
+                <TabsWithCloseButton
+                  handleClose={(index: number) => {
+                    let id = tabs[index].id;
+                    setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
+                    if (selectIndex >= index && selectIndex > 0) {
+                      setSelectIndex(selectIndex - 1);
+                    }
+                  }}
+                  tabs={tabs}
+                  selectIndex={selectIndex}
+                  changeTab={(index) => {
+                    setSelectIndex(index as number);
+                  }}
+                ></TabsWithCloseButton>
+              </SplitPane>
+            </div>
 
-              {showAddConnection && (
-                <Modal
-                  open={showAddConnection}
-                  onClose={() => {
-                    setShowAddConnection(false);
-                  }}
-                  aria-labelledby='add column'
-                >
-                  <Box sx={modalStyle} width='600px'>
-                    <AddConfig
-                      handleClose={() => {
-                        setShowAddConnection(false);
-                      }}
-                    ></AddConfig>
-                  </Box>
-                </Modal>
-              )}
-              {showSettings && (
-                <Modal
-                  open={showSettings}
-                  onClose={() => {
-                    setShowSettings(false);
-                  }}
-                  aria-labelledby='add column'
-                >
-                  <Box sx={modalStyle} width='700px'>
-                    <ModifySettings
-                      handleClose={() => {
-                        setShowSettings(false);
-                      }}
-                    ></ModifySettings>
-                  </Box>
-                </Modal>
-              )}
-            </SettingComp>
+            <div id='left-side-menu' style={menu && menu.style}>
+              {menu && menu.content}
+            </div>
+            {showAddConnection && (
+              <Modal
+                open={showAddConnection}
+                onClose={() => {
+                  setShowAddConnection(false);
+                }}
+                aria-labelledby='add column'
+              >
+                <Box sx={modalStyle} width='600px'>
+                  <AddConfig
+                    handleClose={() => {
+                      setShowAddConnection(false);
+                    }}
+                  ></AddConfig>
+                </Box>
+              </Modal>
+            )}
+            {showSettings && (
+              <Modal
+                open={showSettings}
+                onClose={() => {
+                  setShowSettings(false);
+                }}
+                aria-labelledby='add column'
+              >
+                <Box sx={modalStyle} width='700px'>
+                  <ModifySettings
+                    handleClose={() => {
+                      setShowSettings(false);
+                    }}
+                  ></ModifySettings>
+                </Box>
+              </Modal>
+            )}
           </NotificationProvider>
         </MenuContext.Provider>
       </TabsSetContext.Provider>
-    </ThemeProvider>
+    </SettingComp>
   );
 }

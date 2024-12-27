@@ -3,11 +3,14 @@ import { useContext, useEffect, useState } from 'react';
 import types from './ApiStruct';
 import {
   Button,
+  createTheme,
+  CssBaseline,
   FormControl,
   InputLabel,
   MenuItem,
   Select,
   Stack,
+  ThemeProvider,
   Typography,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
@@ -94,20 +97,28 @@ function ModifySettings(props: { handleClose }) {
   );
 }
 
+const lightTheme = createTheme();
+const darkTheme = createTheme({ palette: { mode: 'dark' } });
+
 function SettingComp(props: { children }) {
   const { children } = props;
   const [setting, setSetting] = useState<types.UserSettings>(null);
-  const { showNotification } = useContext(NotificationContext);
   const reload = () => {
     invoke<types.UserSettings>('get_user_settings')
       .then((s) => {
         setSetting(s);
       })
       .catch((e) => {
-        showNotification('error', 'port is not a number', e);
+        alert(`list user settings failed`);
+        console.log('list user settting failed', e);
       });
   };
-
+  const isDark = () => {
+    if (!setting) {
+      return false;
+    }
+    return setting.theme == 'dark';
+  };
   listen('settings_changed', () => {
     reload();
   });
@@ -116,9 +127,12 @@ function SettingComp(props: { children }) {
   }, []);
 
   return (
-    <SettingsContext.Provider value={setting}>
-      {children}
-    </SettingsContext.Provider>
+    <ThemeProvider theme={!isDark() ? lightTheme : darkTheme}>
+      <CssBaseline />
+      <SettingsContext.Provider value={setting}>
+        {children}
+      </SettingsContext.Provider>
+    </ThemeProvider>
   );
 }
 

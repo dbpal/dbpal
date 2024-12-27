@@ -205,8 +205,8 @@ function MongoBsonEditor(props: {
   const [cursorColumn, setCursorColumn] = useState(1);
   const [err, setErr] = useState<MongoBsonError | null>(null);
   const [docHasChange, setDocHasChange] = useState(false);
-
-  const handleEditorDidMount = (ce: editor.IStandaloneCodeEditor) => {
+  const { theme } = useContext(SettingsContext);
+  const handleEditorDidMount = (ce: editor.IStandaloneCodeEditor, monaco) => {
     ce.onDidChangeModelContent((_event) => {
       let text = ce.getValue();
       try {
@@ -219,11 +219,13 @@ function MongoBsonEditor(props: {
         return;
       }
     });
-
     ce.onDidChangeCursorPosition((event) => {
       setCursorLine(event.position.lineNumber);
       setCursorColumn(event.position.column);
     });
+    if (theme == 'dark') {
+      monaco.editor.setTheme('vs-dark');
+    }
   };
   const initHeigth = editorInitHeight(content);
   return (

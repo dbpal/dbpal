@@ -3,6 +3,7 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
+  Paper,
   Stack,
 } from '@mui/material';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
@@ -64,9 +65,11 @@ function ProceduresTree() {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <MenuList>
-                <MenuRefresh reload={reload}></MenuRefresh>
-              </MenuList>
+              <Paper>
+                <MenuList>
+                  <MenuRefresh reload={reload}></MenuRefresh>
+                </MenuList>
+              </Paper>
             ),
             style: calMenuStyle(e, 70),
           });
@@ -172,30 +175,32 @@ function ProcedureMenu(props: {
       });
   };
   return (
-    <MenuList>
-      <MenuItem
-        onClick={() => {
-          handleOpenDetails();
-        }}
-      >
-        <ListItemIcon>
-          <InfoIcon></InfoIcon>
-        </ListItemIcon>
-        <ListItemText> detail </ListItemText>
-      </MenuItem>
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleOpenDetails();
+          }}
+        >
+          <ListItemIcon>
+            <InfoIcon></InfoIcon>
+          </ListItemIcon>
+          <ListItemText> detail </ListItemText>
+        </MenuItem>
 
-      <MenuItem
-        sx={{ color: 'error.main' }}
-        onClick={() => {
-          handleDrop();
-        }}
-      >
-        <ListItemIcon>
-          <DeleteForeverIcon></DeleteForeverIcon>
-        </ListItemIcon>
-        <ListItemText>drop</ListItemText>
-      </MenuItem>
-    </MenuList>
+        <MenuItem
+          sx={{ color: 'error.main' }}
+          onClick={() => {
+            handleDrop();
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText>drop</ListItemText>
+        </MenuItem>
+      </MenuList>
+    </Paper>
   );
 }
 

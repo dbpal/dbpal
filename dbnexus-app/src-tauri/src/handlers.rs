@@ -476,8 +476,8 @@ pub async fn check_conn(
 > {
     random_sleep().await;
     random_error()?;
-
-    tokio::time::timeout(Duration::from_secs(2), async move {
+    let t = 5;
+    tokio::time::timeout(Duration::from_secs(t), async move {
         let db = app.open(&name).await?;
         match db {
             app::Open::DataBase(x) => x.check_conn().await,
@@ -494,7 +494,9 @@ pub async fn check_conn(
         })
     })
     .await
-    .map_err(|_| AnyhowErrorFrontend::from(format!("check connection status not finished in 2s")))?
+    .map_err(|_| {
+        AnyhowErrorFrontend::from(format!("check connection status not finished in {}s", t))
+    })?
 }
 
 #[tauri::command]
