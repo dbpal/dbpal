@@ -221,30 +221,37 @@ function SqlTableView(props: {
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-end' }}>
-            <Button
-              variant='contained'
-              disabled={selectIDs.length == 0}
-              onClick={() => {
-                handleDetele();
-              }}
-            >
-              <DeleteForeverIcon color='error'></DeleteForeverIcon>
-            </Button>
-            <Button
-              color='primary'
-              variant='contained'
-              onClick={() => {
-                setShowAdd(true);
-              }}
-            >
-              <AddIcon></AddIcon>
-            </Button>
-            {resp && (
-              <Alert color='info' severity='info'>
-                {resp.sql}
-              </Alert>
-            )}
+          <Stack
+            direction='row'
+            spacing={1}
+            sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
+          >
+            <Stack direction='row' spacing={1}>
+              <Button
+                variant='contained'
+                disabled={selectIDs.length == 0}
+                onClick={() => {
+                  handleDetele();
+                }}
+              >
+                <DeleteForeverIcon color='error'></DeleteForeverIcon>
+              </Button>
+              <Button
+                color='primary'
+                variant='contained'
+                onClick={() => {
+                  setShowAdd(true);
+                }}
+              >
+                <AddIcon></AddIcon>
+              </Button>
+              {resp && (
+                <Alert color='info' severity='info'>
+                  {resp.sql}
+                </Alert>
+              )}
+            </Stack>
+
             {resp && (
               <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
             )}
