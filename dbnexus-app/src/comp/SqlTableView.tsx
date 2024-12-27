@@ -247,9 +247,7 @@ function SqlTableView(props: {
               </Alert>
             )}
             {resp && (
-              <Typography>
-                last data loaded at:{lastLoadTime.toLocaleString()}
-              </Typography>
+              <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
             )}
             {showAdd && (
               <Modal
