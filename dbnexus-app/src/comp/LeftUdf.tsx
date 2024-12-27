@@ -63,6 +63,8 @@ function UdfsTree() {
       itemId={idPrefix}
       label=<Stack
         spacing={1}
+        direction='row'
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -76,15 +78,18 @@ function UdfsTree() {
           });
         }}
       >
+        <TbMathFunction></TbMathFunction>
         <span> udfs </span>
       </Stack>
     >
       {udfs.map((p) => (
         <TreeItem
+          key={p.name + '-' + extraParametersFromMetaValues(p.metas)}
           itemId={getItemId(p)}
           label=<Stack
             direction='row'
             spacing={1}
+            sx={{ alignItems: 'center' }}
             onContextMenu={(e) => {
               setUpMenu({
                 content: (
@@ -197,7 +202,7 @@ function UdfMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <DeleteForeverIcon color='error'></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop</ListItemText>
         </MenuItem>

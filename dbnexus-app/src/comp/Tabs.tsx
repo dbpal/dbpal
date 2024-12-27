@@ -44,21 +44,14 @@ function TabsWithCloseButton(props: {
         {tabs.map((tab, index) => (
           <Tab
             key={index}
-            label={
-              <Stack direction='row'>
-                {tab.header}
-                <IconButton
-                  size='small'
-                  onClick={() => handleClose(index)}
-                  sx={{ ml: 1, p: 0 }}
-                >
-                  <CloseIcon fontSize='small' />
-                </IconButton>
-              </Stack>
-            }
+            label=<Stack direction='row'>
+              {tab.header}
+              <CloseIcon onClick={() => handleClose(index)} fontSize='small' />
+            </Stack>
           />
         ))}
       </Tabs>
+
       {tabs.map((tab, index) => (
         <TabPanel key={index} value={selectIndex} id={index}>
           {tab.content}

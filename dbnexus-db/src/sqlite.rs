@@ -357,8 +357,7 @@ async fn query_trigger_detail(
 impl CheckConn for SqliteDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
-        let mut conn = self.get_conn().await?;
-        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
+        self.list_table().await?;
 
         anyhow::Ok(ins.elapsed())
     }

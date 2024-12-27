@@ -507,14 +507,20 @@ pub async fn test_connection(
     AnyhowErrorFrontend,
 > {
     random_error()?;
-    let db = app::open(&config).await.map_err(|e| e.to_string())?;
-    match db {
-        app::Open::DataBase(x) => x.check_conn().await,
-        app::Open::Schema(x) => x.check_conn().await,
-        app::Open::Catalog(x) => x.check_conn().await,
-    }
-    .map_err(AnyhowErrorFrontend::from)
-    .map(|d| d.as_millis() as u64)
+
+    let t = 5;
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let db = app::open(&config).await.map_err(|e| e.to_string())?;
+        match db {
+            app::Open::DataBase(x) => x.check_conn().await,
+            app::Open::Schema(x) => x.check_conn().await,
+            app::Open::Catalog(x) => x.check_conn().await,
+        }
+        .map_err(AnyhowErrorFrontend::from)
+        .map(|d| d.as_millis() as u64)
+    })
+    .await
+    .map_err(|_| AnyhowErrorFrontend::from(format!("test connection not finished in {}s", t)))?
 }
 
 #[tauri::command]

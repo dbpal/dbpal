@@ -231,7 +231,7 @@ function TriggerMenu(props: {
               }}
             >
               <ListItemIcon>
-                <CheckCircleIcon color='error'></CheckCircleIcon>
+                <CheckCircleIcon></CheckCircleIcon>
               </ListItemIcon>
               <ListItemText>enable</ListItemText>
             </MenuItem>
@@ -244,7 +244,7 @@ function TriggerMenu(props: {
           }}
         >
           <ListItemIcon color='error'>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <DeleteForeverIcon color='error'></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop</ListItemText>
         </MenuItem>

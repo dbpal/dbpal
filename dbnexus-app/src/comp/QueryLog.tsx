@@ -82,7 +82,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
           }}
           aria-labelledby='sql'
         >
-          <Stack sx={modalStyle} width='600px'>
+          <Stack sx={modalStyle} width='800px'>
             <Box>
               <Editor
                 language={language}

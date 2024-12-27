@@ -426,7 +426,7 @@ function MenuDeleteConfig({ name }) {
       }}
     >
       <ListItemIcon>
-        <DeleteForeverIcon></DeleteForeverIcon>
+        <DeleteForeverIcon color='error'></DeleteForeverIcon>
       </ListItemIcon>
       <ListItemText> drop connection </ListItemText>
     </MenuItem>

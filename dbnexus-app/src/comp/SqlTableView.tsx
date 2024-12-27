@@ -230,7 +230,7 @@ function SqlTableView(props: {
                 handleDetele();
               }}
             >
-              <DeleteForeverIcon></DeleteForeverIcon>
+              <DeleteForeverIcon color='error'></DeleteForeverIcon>
             </Button>
             <Button
               color='primary'
@@ -257,7 +257,7 @@ function SqlTableView(props: {
                 }}
                 aria-labelledby='add data'
               >
-                <Box sx={modalStyle} width='600px'>
+                <Box sx={modalStyle} width='800px'>
                   <SqlTableViewAdd
                     addOP={async (args) => {
                       try {
@@ -275,6 +275,12 @@ function SqlTableView(props: {
           </Stack>
 
           <DataGrid
+            onColumnVisibilityModelChange={(e) => {
+              console.log('onColumnVisibilityModelChange', e);
+            }}
+            onColumnResize={(e) => {
+              console.log('onColumnWidthChange', e);
+            }}
             rowHeight={datagridRowHeight}
             columnHeaderHeight={datagridHeaderHeight}
             getRowId={(e) => e[key_not_in_table]}

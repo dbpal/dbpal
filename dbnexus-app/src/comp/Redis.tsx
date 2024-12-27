@@ -846,7 +846,7 @@ function RedisSetTable(props: {
                 });
               }}
             >
-              <DeleteForeverIcon></DeleteForeverIcon>
+              <DeleteForeverIcon color='error'></DeleteForeverIcon>
             </Button>
             <Button
               variant='contained'
@@ -883,7 +883,7 @@ function RedisSetTable(props: {
               }}
               aria-labelledby='modify set'
             >
-              <Box sx={modalStyle} width='600px'>
+              <Box sx={modalStyle} width='800px'>
                 <RedisEditSet
                   modifyOP={async (oldValue, newValue) => {
                     try {
@@ -915,7 +915,7 @@ function RedisSetTable(props: {
         }}
         aria-labelledby='modify set'
       >
-        <Box sx={modalStyle} width='600px'>
+        <Box sx={modalStyle} width='800px'>
           <RedisAddSet
             addOP={async (value) => {
               try {
@@ -1062,7 +1062,7 @@ function RedisListTable(props: {
                 });
               }}
             >
-              <DeleteForeverIcon></DeleteForeverIcon>
+              <DeleteForeverIcon color='error'></DeleteForeverIcon>
             </Button>
             <Button
               variant='contained'
@@ -1115,7 +1115,7 @@ function RedisListTable(props: {
               }}
               aria-labelledby='modify list'
             >
-              <Box sx={modalStyle} width='600px'>
+              <Box sx={modalStyle} width='800px'>
                 <RedisEditList
                   modifyOP={async (index, newValue) => {
                     try {
@@ -1146,7 +1146,7 @@ function RedisListTable(props: {
         }}
         aria-labelledby='modify list'
       >
-        <Box sx={modalStyle} width='600px'>
+        <Box sx={modalStyle} width='800px'>
           <RedisListAdd
             lpushOP={async (value) => {
               try {
@@ -1315,7 +1315,7 @@ function RedisZsetTable(props: {
                 });
               }}
             >
-              <DeleteForeverIcon></DeleteForeverIcon>
+              <DeleteForeverIcon color='error'></DeleteForeverIcon>
             </Button>
             <Button
               variant='contained'
@@ -1352,7 +1352,7 @@ function RedisZsetTable(props: {
               }}
               aria-labelledby='modify zset'
             >
-              <Box sx={modalStyle} width='600px'>
+              <Box sx={modalStyle} width='800px'>
                 <RedisEditZset
                   modifyOP={async (req) => {
                     try {
@@ -1384,7 +1384,7 @@ function RedisZsetTable(props: {
         }}
         aria-labelledby='modify zset'
       >
-        <Box sx={modalStyle} width='600px'>
+        <Box sx={modalStyle} width='800px'>
           <RedisAddZset
             addOP={async (key, value) => {
               try {
@@ -1513,7 +1513,7 @@ function RedisHashTable(props: {
                 });
               }}
             >
-              <DeleteForeverIcon></DeleteForeverIcon>
+              <DeleteForeverIcon color='error'></DeleteForeverIcon>
             </Button>
             <Button
               variant='contained'
@@ -1550,7 +1550,7 @@ function RedisHashTable(props: {
               }}
               aria-labelledby='modify hash'
             >
-              <Box sx={modalStyle} width='600px'>
+              <Box sx={modalStyle} width='800px'>
                 <RedisEditHash
                   modifyOP={async (req) => {
                     try {
@@ -1581,7 +1581,7 @@ function RedisHashTable(props: {
         }}
         aria-labelledby='modify hash'
       >
-        <Box sx={modalStyle} width='600px'>
+        <Box sx={modalStyle} width='800px'>
           <RedisAddHash
             addOP={async (key, value) => {
               try {

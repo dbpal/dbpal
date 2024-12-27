@@ -24,7 +24,7 @@ import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
 import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import CloseIcon from '@mui/icons-material/Close';
-import RefreshIcon from '@mui/icons-material/Refresh';
+
 import {
   Box,
   Button,
@@ -81,6 +81,7 @@ function TablesTree() {
       label=<Stack
         spacing={1}
         direction='row'
+        sx={{ alignItems: 'flex-start' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -94,6 +95,7 @@ function TablesTree() {
           });
         }}
       >
+        <TableViewIcon></TableViewIcon>
         <span> tables </span>
         {loading && (
           <CircularProgress size={progressBarSizeSmall}></CircularProgress>
@@ -146,8 +148,8 @@ function TableTree(props: {
             });
           }}
         >
-          <Stack direction='row'>
-            <TableViewIcon> </TableViewIcon> {table}
+          <Stack direction='row' spacing={1}>
+            <TableViewIcon> </TableViewIcon> <span>{table}</span>
           </Stack>
           <span> {size} </span>
         </Stack>
@@ -176,15 +178,15 @@ function TableTypesButton(props: { handleChange; uuid }) {
     setShow((e) => !e);
   };
   return (
-    <Stack direction='row' style={{ flexWrap: 'wrap' }}>
+    <Stack direction='row' spacing={1} style={{ flexWrap: 'wrap' }}>
       <Button onClick={toggleShow}>
         {show && <CloseIcon></CloseIcon>} all types
       </Button>
       {show &&
         types.map((t) => (
           <Button
+            key={t}
             style={{ padding: '3px' }}
-            variant='outlined'
             onClick={() => {
               handleChange(t);
             }}
@@ -342,7 +344,7 @@ function TableColumnsMenu(props: {
           }}
           aria-labelledby='add column'
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width='800px'>
             <TableAddColumn
               table={table}
               uuid={uuid}
@@ -818,9 +820,9 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <DeleteForeverIcon color='error'></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop table</ListItemText>
+          <ListItemText>drop</ListItemText>
         </MenuItem>
         <MenuItem
           sx={{ color: 'error.main' }}
@@ -829,7 +831,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <PlaylistRemoveIcon></PlaylistRemoveIcon>
+            <PlaylistRemoveIcon color='error'></PlaylistRemoveIcon>
           </ListItemIcon>
           <ListItemText> truncate </ListItemText>
         </MenuItem>
@@ -842,7 +844,7 @@ function TableMenu(props: {
           }}
           aria-labelledby='set filter'
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width='800px'>
             <DupTable
               table={table}
               uuid={uuid}
@@ -862,7 +864,7 @@ function TableMenu(props: {
           }}
           aria-labelledby='rename'
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width='800px'>
             <RenameTable
               uuid={uuid}
               table={table}
@@ -882,7 +884,7 @@ function TableMenu(props: {
           }}
           aria-labelledby='drop'
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width='800px'>
             <ExportTableView
               uuid={uuid}
               table={table}
@@ -902,7 +904,7 @@ function TableMenu(props: {
           }}
           aria-labelledby='drop'
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width='800px'>
             <DropTable
               uuid={uuid}
               table={table}
@@ -964,7 +966,7 @@ function TableColumnMenu(props: {
           <ListItemIcon>
             <EditIcon> </EditIcon>
           </ListItemIcon>
-          <ListItemText color='error'> modify </ListItemText>
+          <ListItemText> modify </ListItemText>
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -973,7 +975,7 @@ function TableColumnMenu(props: {
           sx={{ color: 'error.main' }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon> </DeleteForeverIcon>
+            <DeleteForeverIcon color='error'> </DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText color='error'> drop </ListItemText>
         </MenuItem>
@@ -986,7 +988,7 @@ function TableColumnMenu(props: {
           }}
           aria-labelledby='set filter'
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width='800px'>
             <ModifyTableColumn
               table={table}
               uuid={uuid}
