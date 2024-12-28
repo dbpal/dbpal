@@ -1,7 +1,8 @@
-import { ReactNode } from 'react';
-import { Tabs, Tab, Box, IconButton, Stack } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
+import { ReactNode, useState } from 'react';
+import { Box, Stack, Button, List, ListItem } from '@mui/material';
 
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 class TabContent {
   constructor(
     public id: string,
@@ -17,9 +18,9 @@ function TabsWithCloseButton(props: {
   selectIndex: number;
 }) {
   let { tabs, handleClose, selectIndex, changeTab } = props;
+  const [show, setShow] = useState(true);
   function TabPanel(props) {
     const { children, value, id, ...other } = props;
-
     return (
       <div
         role='tabpanel'
@@ -35,25 +36,52 @@ function TabsWithCloseButton(props: {
 
   return (
     <div>
-      <Tabs
-        value={selectIndex}
-        onChange={(_e, index) => {
-          changeTab(index);
-        }}
-      >
-        {tabs.map((tab, index) => (
-          <Tab
-            key={index}
-            label=<Stack direction='row'>
-              {tab.header}
-              <CloseIcon onClick={() => handleClose(index)} fontSize='small' />
-            </Stack>
-          />
-        ))}
-      </Tabs>
+      {tabs.length > 0 && (
+        <Stack>
+          <Button
+            onClick={() => {
+              setShow((e) => !e);
+            }}
+          >
+            {show ? (
+              <KeyboardArrowDownIcon fontSize='small'> </KeyboardArrowDownIcon>
+            ) : (
+              <KeyboardArrowRightIcon fontSize='small'></KeyboardArrowRightIcon>
+            )}
+          </Button>
+        </Stack>
+      )}
+      {show && (
+        <Stack
+          direction='row'
+          style={{
+            flexWrap: 'wrap',
+          }}
+        >
+          {tabs.map((tab, index) => {
+            return (
+              <Button
+                draggable
+                onDragEnd={() => {
+                  handleClose(index);
+                }}
+                size='small'
+                style={{ padding: '' }}
+                //@ts-ignore
+                variant={index == selectIndex ? 'outlined' : ''}
+                onClick={() => {
+                  changeTab(index);
+                }}
+              >
+                {tab.header}
+              </Button>
+            );
+          })}
+        </Stack>
+      )}
 
       {tabs.map((tab, index) => (
-        <TabPanel key={index} value={selectIndex} id={index}>
+        <TabPanel key={tab.id} value={selectIndex} id={index}>
           {tab.content}
         </TabPanel>
       ))}

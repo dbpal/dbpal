@@ -183,6 +183,7 @@ function SqlTableView(props: {
     <Stack spacing={1}>
       <Stack direction='row' spacing={1} alignItems='flex-start'>
         <TextField
+          fullWidth
           label='where'
           variant='outlined'
           value={where}
@@ -195,6 +196,7 @@ function SqlTableView(props: {
           size='small'
         />
         <TextField
+          fullWidth
           label='orderby'
           variant='outlined'
           value={orderBy}
@@ -378,7 +380,9 @@ function SqlTableViewAdd(props: {
           <TextField
             value={args[f.field]}
             key={f.field}
-            label={f.field + ' ' + f.typ}
+            label={
+              f.field + ' ' + f.typ + ' ' + (f.nullable ? 'null' : 'not null')
+            }
             required={!f.nullable}
             multiline={isTypeLargeText(f.typ)}
             rows={4}
