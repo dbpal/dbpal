@@ -65,10 +65,9 @@ function TabsWithCloseButton(props: {
                 onDragEnd={() => {
                   handleClose(index);
                 }}
-                size='small'
                 style={{ padding: '' }}
                 //@ts-ignore
-                variant={index == selectIndex ? 'outlined' : ''}
+                variant={index == selectIndex ? 'outlined' : 'text'}
                 onClick={() => {
                   changeTab(index);
                 }}
