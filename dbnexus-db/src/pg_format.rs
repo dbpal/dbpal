@@ -1010,8 +1010,9 @@ pub(crate) fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result
         "type '{}' not supported",
         f.typ
     ))) as anyhow::Result<String>;
+    let typ = f.typ.to_uppercase();
 
-    let encode = match f.typ.to_uppercase().as_str() {
+    let encode = match typ.as_str() {
         "BOOL" => default_str,
         "BYTEA" => single_quote_str,
 
@@ -1025,6 +1026,7 @@ pub(crate) fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result
             return err;
         }
         "CHAR" | "CHARACTER" => single_quote_str,
+        _ if typ.starts_with("CHAR") || typ.starts_with("CHARACTER") => single_quote_str,
         "OID" => default_str,
         "JSON" => format!("{}::json", single_quote_str),
         "JSON[]" => return err,
