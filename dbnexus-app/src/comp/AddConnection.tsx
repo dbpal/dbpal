@@ -13,6 +13,7 @@ import {
   Stack,
   CircularProgress,
   Alert,
+  Divider,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
@@ -61,8 +62,7 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
 function Sqlite(props: { path; setPath }) {
   let { path, setPath } = props;
   return (
-    <Stack>
-      <Typography>path:{path}</Typography>
+    <Stack direction='row' sx={{ alignItems: 'flex-end' }}>
       <Button
         onClick={() => {
           selectOneFile().then((e) => {
@@ -72,6 +72,7 @@ function Sqlite(props: { path; setPath }) {
       >
         <AttachFileIcon></AttachFileIcon>
       </Button>
+      <Typography>path:{path}</Typography>
     </Stack>
   );
 }
@@ -238,7 +239,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
       showNotification('error', 'port is not a number');
       return null;
     }
-
     let user_null = user ? user : null;
     let pass_null = password ? password : null;
     let db_null = database ? database : null;
@@ -327,6 +327,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   const handleTestConnection = () => {
     const config = makeConfig();
     if (config) {
+      console.log('test config:', config);
       setTestLoading(true);
       invoke('test_connection', { config })
         .then(() => {
@@ -433,7 +434,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   }, [database]);
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={2}>
       <Typography variant='h6' gutterBottom>
         New Connection
       </Typography>
@@ -588,7 +589,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
       {connectionType == DataSourceKind.Sqlite && (
         <Sqlite path={path} setPath={setPath}></Sqlite>
       )}
-
       <Stack direction='row'>
         <Button
           variant='outlined'
@@ -600,27 +600,30 @@ export default function AddConfig(props: { handleClose: () => void }) {
         {testOk && <Alert severity='success'> Test OK </Alert>}
         {testLoading && <CircularProgress size={progressBarSize} />}
       </Stack>
-      <FormControlLabel
-        control={
-          <Switch
-            checked={readOnly}
-            onChange={(e) => setReadOnly(e.target.checked)}
-          />
-        }
-        label='Read Only'
-      />
-      <Stack direction='row' spacing={1} alignContent='flex-start'>
+      <Stack direction='row' alignItems='flex-start' spacing={2}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={readOnly}
+              onChange={(e) => setReadOnly(e.target.checked)}
+            />
+          }
+          label='Read Only'
+        />
         <TextField
           margin='normal'
           label='Connection Name'
           value={connectionName}
+          fullWidth
           error={!connectionName}
           required
           size='small'
           onChange={(e) => setConnectionName(e.target.value)}
           helperText='Enter a name for this connection'
         />
-
+      </Stack>
+      <Divider></Divider>
+      <Stack direction='row' spacing={1} alignContent='flex-start'>
         <Button
           variant='contained'
           color='primary'

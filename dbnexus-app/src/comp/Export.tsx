@@ -53,7 +53,6 @@ function ExportView(props: {
       return;
     }
     setLoading(true);
-
     try {
       await exportOP(config, file);
     } catch (e) {
@@ -148,7 +147,7 @@ function ExportView(props: {
       {/* json line have no setttings */}
 
       {kind == 'jsonline' && <></>}
-      <Stack direction='row' spacing={1} alignContent='center'>
+      <Stack direction='row' sx={{ alignItems: 'flex-end' }}>
         <Button
           onClick={async () => {
             let file = await save({ title: 'save file' });

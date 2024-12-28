@@ -324,6 +324,14 @@ impl PostGresDB {
         self.config.schema.as_ref().unwrap()
     }
 }
+
+fn type_support_compare(t: &str) -> bool {
+    match t.to_uppercase().as_str() {
+        "JSON" | "JSON[]" => false,
+        "JSONPATH" | "JSONPATH[]" => false,
+        _ => true,
+    }
+}
 #[async_trait::async_trait]
 
 impl ServerMetas for PostGresDB {
@@ -945,6 +953,7 @@ impl SchemaTrait for PostGresDB {
             table_name,
             &fields,
             &wheres,
+            type_support_compare,
         )?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -978,18 +987,20 @@ impl SchemaTrait for PostGresDB {
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_columns(table_name).await?;
-        let s = (self as &dyn crate::db::SchemaTrait).update_sql(
+        let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &values,
             &wheres,
+            type_support_compare,
         )?;
+        log::trace!("update sql:{}", sql);
         let mut conn = self.get_conn().await?;
 
-        let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
+        let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
-            sql: s,
+            sql,
             changes: r.rows_affected(),
             last_insert_row_id: None,
             last_insert_id_string: None,
@@ -1023,7 +1034,7 @@ impl SchemaTrait for PostGresDB {
         let sql = format!(
             r#"SELECT table_name
              FROM information_schema.tables
-             WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}'
+             WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}' ORDER BY table_name
      "#,
             self.must_schema(),
             &self.config.db_str()
@@ -1640,7 +1651,7 @@ mod tests {
                 query_id,
                 r#"
         CREATE TABLE empty_table (
-            id SERIAL PRIMARY KEY,
+            
             name VARCHAR(100) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -1670,7 +1681,7 @@ mod tests {
                 query_id,
                 r#"
             CREATE TABLE test_material_view_table (
-                id SERIAL PRIMARY KEY,
+                
                 name TEXT,
                 value INT
             );
@@ -1721,7 +1732,7 @@ mod tests {
                 query_id,
                 r#"
                 CREATE TABLE test_rename (
-                    id SERIAL PRIMARY KEY,
+                    
                     name VARCHAR(255) NOT NULL,
                     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );"#,
@@ -1753,7 +1764,7 @@ mod tests {
                 query_id,
                 r#"
                 CREATE TABLE test_duplicate (
-                    id SERIAL PRIMARY KEY,
+                    
                     data TEXT,
                     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
@@ -1787,7 +1798,7 @@ mod tests {
 
         let sql = r#"drop table if exists test_export; 
                 CREATE TABLE test_export (
-                id SERIAL PRIMARY KEY,
+                
                 name VARCHAR(50),
                 age INT,
                 email VARCHAR(100)
@@ -1930,7 +1941,7 @@ mod tests {
                 query_id,
                 r#"
           CREATE TABLE test_create_trigger (
-            id SERIAL PRIMARY KEY,
+            
             name VARCHAR(50)
           );
         "#,
@@ -1947,7 +1958,7 @@ mod tests {
                 query_id,
                 r#"
             CREATE TABLE test_create_trigger_update (
-                id SERIAL PRIMARY KEY,
+                
                 name VARCHAR(50),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -2021,7 +2032,7 @@ mod tests {
                 query_id,
                 r#"
             CREATE TABLE test_export_table (
-                id SERIAL PRIMARY KEY,
+                
                 name VARCHAR(100) NOT NULL,
                 date DATE
             );
@@ -2122,7 +2133,6 @@ mod tests {
             format!(
                 r#"
         CREATE TABLE {table_name} (
-            id SERIAL PRIMARY KEY,
             bool_column BOOL,
             bytea_column BYTEA,
             char_column CHAR,
@@ -2161,13 +2171,6 @@ mod tests {
         pg.insert(table_name, values.clone()).await.unwrap();
         let mut wheres = values.clone();
         wheres.insert("id".to_string(), Some("1".to_string()));
-        let update_ret = pg.update(table_name, values, wheres).await.unwrap();
-        println!("update ret:{:?}", update_ret);
-        let x = pg
-            .show_table("test_types1", None, None, 1, 100)
-            .await
-            .unwrap();
-        println!("{:?}", x);
 
         let json = pg
             .export_table_to_string("test_types1", ExportKind::Json { pretty: true })
@@ -2225,7 +2228,10 @@ mod tests {
         let mut values = HashMap::new();
         values.insert("text_column".to_string(), Some("Sample text".to_string()));
         values.insert("oid_column".to_string(), Some("12345".to_string()));
-        values.insert("json_column".to_string(), Some("3.14".to_string()));
+        values.insert(
+            "json_column".to_string(),
+            Some("{\"key\": \"value\"}".to_string()),
+        );
         values.insert("float4_column".to_string(), Some("3.14".to_string()));
         values.insert("float8_column".to_string(), Some("5.6789".to_string()));
         values.insert(
@@ -2397,6 +2403,7 @@ mod tests {
             format!(
                 r#"
         CREATE TABLE {table_name} (
+            id SERIAL PRIMARY KEY,
             path_column PATH,
             path_array_column PATH[],
             float4_array_column FLOAT4[],
@@ -2794,6 +2801,7 @@ mod tests {
             format!(
                 r#"
             CREATE TABLE {table_name} (
+                id SERIAL PRIMARY KEY,
                 date_range DATERANGE,
                 date_range_array DATERANGE[],
                 int8_range INT8RANGE,

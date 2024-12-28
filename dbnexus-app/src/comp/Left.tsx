@@ -73,6 +73,7 @@ function Left() {
           return (
             <ConnTypeContext.Provider
               value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
+              key={e.name}
             >
               <UuidContext.Provider
                 value={{
@@ -162,10 +163,10 @@ function SchemaTree(prpos: { schema?: string }) {
             style: calMenuStyle(e, 70),
           });
         }}
+        sx={{ alignItems: 'center' }}
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
-
         {!schema && <ConnStatus uuid={uuid}></ConnStatus>}
       </Stack>
     >
@@ -291,7 +292,7 @@ function CatalogTree(props: {}) {
     >
       {databases.map((e) => {
         return (
-          <UuidContext.Provider value={{ uuid: name + ':' + e }}>
+          <UuidContext.Provider key={e} value={{ uuid: name + ':' + e }}>
             <DatabaseTree key={e} database={e}></DatabaseTree>
           </UuidContext.Provider>
         );
@@ -344,8 +345,9 @@ function DatabaseTree(props: { database?: string }) {
             style: calMenuStyle(e, 70),
           });
         }}
+        sx={{ alignItems: 'center' }}
       >
-        <FaDatabase />
+        {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
         {!database && <ConnStatus uuid={name}></ConnStatus>}
@@ -354,7 +356,7 @@ function DatabaseTree(props: { database?: string }) {
     >
       {schemas.map((e) => {
         return (
-          <UuidContext.Provider value={{ uuid: name + ':' + e }}>
+          <UuidContext.Provider key={e} value={{ uuid: name + ':' + e }}>
             <SchemaTree key={e} schema={e}></SchemaTree>
           </UuidContext.Provider>
         );

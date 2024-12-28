@@ -1,11 +1,11 @@
 use chrono::FixedOffset;
+use sqlx::Column;
 use sqlx::postgres::types::{PgInterval, PgMoney, PgRange, PgTimeTz};
 use sqlx::postgres::{PgRow, PgValueRef};
 use sqlx::types::BigDecimal;
-use sqlx::Column;
 use sqlx::{Row, ValueRef};
 
-use crate::db::{format_data_time_fix_offset, Field};
+use crate::db::{Field, format_data_time_fix_offset};
 
 /// right now sqlx not implement macaddr8
 /// impl it myself.
@@ -412,7 +412,6 @@ pub(crate) fn encode_row_as_json(
 
             "INTERVAL[]" => {
                 let value: Option<Vec<PgInterval>> = r.get(c);
-
                 let value = value.map(|x| {
                     x.into_iter()
                         .map(|x| serde_json::Value::from(output_pg_interval(&x)))
@@ -919,7 +918,7 @@ pub(crate) fn encode_rows(rows: &Vec<PgRow>) -> anyhow::Result<Vec<Vec<Option<St
                 }
                 "JSONB[]" => {
                     let value: Option<Vec<serde_json::Value>> = r.get(c);
-                    value.map(|x| output_array(&x))
+                    value.map(|x| output_jsonb_array(&x))
                 }
                 "INT4RANGE" => {
                     let value: Option<PgRange<i32>> = r.get(c);
@@ -977,7 +976,7 @@ pub(crate) fn encode_rows(rows: &Vec<PgRow>) -> anyhow::Result<Vec<Vec<Option<St
                 }
                 "JSONPATH[]" => {
                     let value: Option<Vec<JsonPath>> = r.get_unchecked(c);
-                    value.map(|x| output_array(&x))
+                    value.map(|x| output_jsonpath_array(&x))
                 }
 
                 "MONEY" => {
@@ -1011,10 +1010,11 @@ pub(crate) fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result
         "type '{}' not supported",
         f.typ
     ))) as anyhow::Result<String>;
+    let typ = f.typ.to_uppercase();
 
-    let encode = match f.typ.to_uppercase().as_str() {
+    let encode = match typ.as_str() {
         "BOOL" => default_str,
-        "BYTEA" => default_str,
+        "BYTEA" => single_quote_str,
 
         "NAME" => single_quote_str,
 
@@ -1026,8 +1026,9 @@ pub(crate) fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result
             return err;
         }
         "CHAR" | "CHARACTER" => single_quote_str,
+        _ if typ.starts_with("CHAR") || typ.starts_with("CHARACTER") => single_quote_str,
         "OID" => default_str,
-        "JSON" => single_quote_str,
+        "JSON" => format!("{}::json", single_quote_str),
         "JSON[]" => return err,
         "POINT" => return err,
         "LSEG" => return err,
@@ -1276,7 +1277,7 @@ pub(crate) fn output_bit_vec_array(array: &Vec<bit_vec::BitVec>) -> String {
     let last = array.len() - 1;
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("'{}'", output_bit_vec(v)).as_str());
+        ret.push_str(output_bit_vec(v).as_str());
         if index != last {
             ret.push_str(",")
         }
@@ -1296,7 +1297,7 @@ pub(crate) fn output_pg_timez_array(array: &Vec<PgTimeTz>) -> String {
     let last = array.len() - 1;
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("'{}'", output_pg_timez(v)).as_str());
+        ret.push_str(output_pg_timez(v).as_str());
         if index != last {
             ret.push_str(",")
         }
@@ -1317,7 +1318,7 @@ pub(crate) fn output_pg_interval_array(array: &Vec<PgInterval>) -> String {
     let last = array.len() - 1;
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("'{}'", output_pg_interval(v)).as_str());
+        ret.push_str(format!("\"{}\"", output_pg_interval(v)).as_str());
         if index != last {
             ret.push_str(",")
         }
@@ -1391,6 +1392,38 @@ pub(crate) fn output_naive_datetime_array(array: &Vec<chrono::NaiveDateTime>) ->
     ret
 }
 
+pub(crate) fn output_jsonb_array(array: &Vec<serde_json::Value>) -> String {
+    if array.len() == 0 {
+        return "{}".to_string();
+    }
+    let last = array.len() - 1;
+    let mut ret = "{".to_string();
+    for (index, v) in array.iter().enumerate() {
+        ret.push_str(format!("\"{}\"", v.to_string().replace("\"", "\\\"")).as_str());
+        if index != last {
+            ret.push_str(",")
+        }
+    }
+    ret.push_str("}");
+    ret
+}
+
+pub(crate) fn output_jsonpath_array(array: &Vec<JsonPath>) -> String {
+    if array.len() == 0 {
+        return "{}".to_string();
+    }
+    let last = array.len() - 1;
+    let mut ret = "{".to_string();
+    for (index, v) in array.iter().enumerate() {
+        ret.push_str(format!("{}", v.path.replace("\"", "\\\"")).as_str());
+        if index != last {
+            ret.push_str(",")
+        }
+    }
+    ret.push_str("}");
+    ret
+}
+
 pub(crate) fn output_array<T: std::fmt::Display>(array: &Vec<T>) -> String {
     if array.len() == 0 {
         return "{}".to_string();
@@ -1413,7 +1446,7 @@ pub(crate) fn output_bytes_array(array: &Vec<Vec<u8>>) -> String {
     let last = array.len() - 1;
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
-        ret.push_str(&output_bytes(v));
+        ret.push_str(format!("\"\\{}\"", &output_bytes(v)).as_str());
         if index != last {
             ret.push_str(",")
         }
@@ -1423,7 +1456,7 @@ pub(crate) fn output_bytes_array(array: &Vec<Vec<u8>>) -> String {
 }
 
 pub(crate) fn output_bytes(bs: &[u8]) -> String {
-    format!("0x{}", hex::encode_upper(bs))
+    format!("\\x{}", hex::encode_upper(bs))
 }
 
 pub(crate) fn output_macaddr8_array(array: &Vec<MacAddr8>) -> String {

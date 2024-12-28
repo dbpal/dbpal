@@ -183,6 +183,7 @@ function SqlTableView(props: {
     <Stack spacing={1}>
       <Stack direction='row' spacing={1} alignItems='flex-start'>
         <TextField
+          fullWidth
           label='where'
           variant='outlined'
           value={where}
@@ -195,6 +196,7 @@ function SqlTableView(props: {
           size='small'
         />
         <TextField
+          fullWidth
           label='orderby'
           variant='outlined'
           value={orderBy}
@@ -221,35 +223,39 @@ function SqlTableView(props: {
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-end' }}>
-            <Button
-              variant='contained'
-              color='error'
-              disabled={selectIDs.length == 0}
-              onClick={() => {
-                handleDetele();
-              }}
-            >
-              <DeleteForeverIcon></DeleteForeverIcon>
-            </Button>
-            <Button
-              color='primary'
-              variant='contained'
-              onClick={() => {
-                setShowAdd(true);
-              }}
-            >
-              <AddIcon></AddIcon>
-            </Button>
+          <Stack
+            direction='row'
+            spacing={1}
+            sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
+          >
+            <Stack direction='row' spacing={1}>
+              <Button
+                variant='contained'
+                disabled={selectIDs.length == 0}
+                onClick={() => {
+                  handleDetele();
+                }}
+              >
+                <DeleteForeverIcon color='error'></DeleteForeverIcon>
+              </Button>
+              <Button
+                color='primary'
+                variant='contained'
+                onClick={() => {
+                  setShowAdd(true);
+                }}
+              >
+                <AddIcon></AddIcon>
+              </Button>
+              {resp && (
+                <Alert color='info' severity='info'>
+                  {resp.sql}
+                </Alert>
+              )}
+            </Stack>
+
             {resp && (
-              <Alert color='info' severity='info'>
-                {resp.sql}
-              </Alert>
-            )}
-            {resp && (
-              <Typography>
-                last data loaded at:{lastLoadTime.toLocaleString()}
-              </Typography>
+              <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
             )}
             {showAdd && (
               <Modal
@@ -259,7 +265,7 @@ function SqlTableView(props: {
                 }}
                 aria-labelledby='add data'
               >
-                <Box sx={modalStyle} width='600px'>
+                <Box sx={modalStyle} width='800px'>
                   <SqlTableViewAdd
                     addOP={async (args) => {
                       try {
@@ -277,6 +283,12 @@ function SqlTableView(props: {
           </Stack>
 
           <DataGrid
+            onColumnVisibilityModelChange={(e) => {
+              console.log('onColumnVisibilityModelChange', e);
+            }}
+            onColumnResize={(e) => {
+              console.log('onColumnWidthChange', e);
+            }}
             rowHeight={datagridRowHeight}
             columnHeaderHeight={datagridHeaderHeight}
             getRowId={(e) => e[key_not_in_table]}
@@ -368,7 +380,9 @@ function SqlTableViewAdd(props: {
           <TextField
             value={args[f.field]}
             key={f.field}
-            label={f.field + ' ' + f.typ}
+            label={
+              f.field + ' ' + f.typ + ' ' + (f.nullable ? 'null' : 'not null')
+            }
             required={!f.nullable}
             multiline={isTypeLargeText(f.typ)}
             rows={4}

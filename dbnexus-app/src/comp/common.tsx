@@ -49,8 +49,8 @@ const modalStyle: SxProps = {
 function MetaValues(props: { values: types.MetaValue[] }) {
   let { values } = props;
   let columns = [
-    { field: 'name' },
-    { field: 'value' },
+    { field: 'name', flex: 1 },
+    { field: 'value', flex: 1 },
     { field: 'desc', flex: 1 },
   ];
 
@@ -426,7 +426,7 @@ function MenuDeleteConfig({ name }) {
       }}
     >
       <ListItemIcon>
-        <DeleteForeverIcon></DeleteForeverIcon>
+        <DeleteForeverIcon color='error'></DeleteForeverIcon>
       </ListItemIcon>
       <ListItemText> drop connection </ListItemText>
     </MenuItem>

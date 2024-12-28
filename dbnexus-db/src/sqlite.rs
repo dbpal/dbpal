@@ -28,6 +28,10 @@ impl FormatSql for SqliteDB {
     }
 }
 
+fn type_support_compare(_t: &str) -> bool {
+    true
+}
+
 #[derive(Clone)]
 pub struct SqliteDB {
     pool: sqlx::SqlitePool,
@@ -357,8 +361,7 @@ async fn query_trigger_detail(
 impl CheckConn for SqliteDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
-        let mut conn = self.get_conn().await?;
-        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
+        self.list_table().await?;
 
         anyhow::Ok(ins.elapsed())
     }
@@ -633,8 +636,13 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
+        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
+            None,
+            table_name,
+            &fields,
+            &wheres,
+            type_support_compare,
+        )?;
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -686,8 +694,14 @@ impl SchemaTrait for SqliteDB {
         let fields = self.show_columns(table_name).await?;
 
         let mut conn = self.get_conn().await?;
-        let s = (self as &dyn crate::db::SchemaTrait)
-            .update_sql(None, table_name, &fields, &values, &wheres)?;
+        let s = (self as &dyn crate::db::SchemaTrait).update_sql(
+            None,
+            table_name,
+            &fields,
+            &values,
+            &wheres,
+            type_support_compare,
+        )?;
 
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -717,7 +731,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table' and name not in ('sqlite_sequence' , 'sqlite_stat1' , 'sqlite_stat4') ;")
+        let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table' AND name not in ('sqlite_sequence' , 'sqlite_stat1' , 'sqlite_stat4') ORDER BY name ")
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());

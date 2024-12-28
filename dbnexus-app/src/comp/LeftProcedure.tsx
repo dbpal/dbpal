@@ -61,7 +61,9 @@ function ProceduresTree() {
     <TreeItem
       itemId={idPrefix}
       label=<Stack
+        direction='row'
         spacing={1}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -75,12 +77,15 @@ function ProceduresTree() {
           });
         }}
       >
+        <SiProcessingfoundation></SiProcessingfoundation>
         <span> procedures </span>
       </Stack>
     >
       {ps.map((p) => (
         <TreeItem
+          key={p.name + '-' + extraParametersFromMetaValues(p.metas)}
           itemId={getItemId(p)}
+          sx={{ alignItems: 'flex-end' }}
           label=<Stack
             spacing={1}
             direction='row'
@@ -98,6 +103,7 @@ function ProceduresTree() {
                 style: calMenuStyle(e, 100),
               });
             }}
+            sx={{ alignItems: 'center' }}
           >
             <SiProcessingfoundation></SiProcessingfoundation>
             <span>{p.name}</span>
@@ -195,7 +201,7 @@ function ProcedureMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <DeleteForeverIcon color='error'></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop</ListItemText>
         </MenuItem>

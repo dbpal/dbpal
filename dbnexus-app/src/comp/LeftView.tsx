@@ -72,6 +72,7 @@ function ViewsTree() {
           });
         }}
       >
+        <VisibilityIcon></VisibilityIcon>
         <span> views</span>
         {loading && (
           <CircularProgress size={progressBarSizeSmall}></CircularProgress>
@@ -96,6 +97,7 @@ function ViewTree(props: { view: string; reload }) {
       label={
         <Stack
           direction='row'
+          spacing={1}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -227,7 +229,7 @@ function ViewMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <DeleteForeverIcon color='error'></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop </ListItemText>
           <Typography

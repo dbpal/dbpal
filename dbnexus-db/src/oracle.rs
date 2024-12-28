@@ -202,12 +202,10 @@ impl QuerySql for OracleDB {
                 SqlKind::Execution => {
                     let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
                     match stmt {
-                        Ok(x) => {
-                            match x.row_count() {
-                                Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
-                                Err(err) => ret.push(Err(err.to_string())),
-                            }
-                        }
+                        Ok(x) => match x.row_count() {
+                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
+                            Err(err) => ret.push(Err(err.to_string())),
+                        },
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
@@ -409,60 +407,42 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
     match f.typ.to_string().to_uppercase().as_str() {
-        "VARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NVARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "CHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "RAW" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
-            anyhow::Ok(match value {
-                Some(x) => x.to_string(),
-                None => null_string,
-            })
-        }
-        "CLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "BLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
+        "VARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NVARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "CHAR" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCHAR" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "RAW" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
+            Some(x) => x.to_string(),
+            None => null_string,
+        }),
+        "CLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCLOB" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "BLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -740,12 +720,11 @@ impl OracleDB {
         let rows: Vec<_> = rows.collect();
         if include_header && rows.len() > 0 {
             let fs = match rows.get(0).unwrap() {
-                Ok(x) => {
-                    x.column_info()
-                        .iter()
-                        .map(|x| Some(x.name().to_owned()))
-                        .collect::<Vec<_>>()
-                }
+                Ok(x) => x
+                    .column_info()
+                    .iter()
+                    .map(|x| Some(x.name().to_owned()))
+                    .collect::<Vec<_>>(),
                 Err(_) => vec![],
             };
 
@@ -795,6 +774,10 @@ impl CheckConn for OracleDB {
         let _ = block_in_place(|| conn.query("SELECT 1 FROM DUAL", &[]))?;
         anyhow::Ok(ins.elapsed())
     }
+}
+
+fn type_support_compare(typ: &str) -> bool {
+    true
 }
 
 #[async_trait::async_trait]
@@ -1052,8 +1035,14 @@ impl SchemaTrait for OracleDB {
         self.can_write()?;
 
         let fs = self.show_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait)
-            .update_sql(None, table_name, &fs, &values, &wheres)?;
+        let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
+            None,
+            table_name,
+            &fs,
+            &values,
+            &wheres,
+            type_support_compare,
+        )?;
         let conn = self.get_conn().await?;
 
         let stmt = block_in_place(|| conn.execute(sql.as_str(), &[]))?;
@@ -1085,8 +1074,13 @@ impl SchemaTrait for OracleDB {
         self.can_write()?;
 
         let fields = self.show_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
+        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
+            None,
+            table_name,
+            &fields,
+            &wheres,
+            type_support_compare,
+        )?;
         let conn = self.get_conn().await?;
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
         let row_count = stmt.row_count()?;

@@ -402,7 +402,7 @@ function MongoTableListToolBar(props: {
             }}
             aria-labelledby='set filter'
           >
-            <Box sx={modalStyle} width='600px'>
+            <Box sx={modalStyle} width='800px'>
               <MongoDBModify
                 buttonName='Set'
                 verify={() => {
@@ -436,7 +436,7 @@ function MongoTableListToolBar(props: {
             }}
             aria-labelledby='order by'
           >
-            <Box sx={modalStyle} width='600px'>
+            <Box sx={modalStyle} width='800px'>
               <MongoDBModify
                 buttonName='Set'
                 verify={() => {
@@ -622,7 +622,7 @@ function MongoTable(props: {
                 handleDetele(selectIDs);
               }}
             >
-              <DeleteForeverIcon></DeleteForeverIcon>
+              <DeleteForeverIcon color='error'></DeleteForeverIcon>
             </Button>
           </Stack>
           <DataGrid
@@ -678,7 +678,7 @@ function MongoTable(props: {
           }}
           aria-labelledby='modify set'
         >
-          <Box sx={modalStyle} width='600px'>
+          <Box sx={modalStyle} width='800px'>
             <MongoDBModify
               verify={() => {
                 return true;
