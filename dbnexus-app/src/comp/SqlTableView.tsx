@@ -33,12 +33,12 @@ function SqlTableView(props: {
     page: number,
     pageSize: number
   ) => Promise<types.MuiDataTableListResp>;
-  updateOP: (
+  updateOP?: (
     wheres: Map<string, string | null>,
     values: Map<string, string | null>
   ) => Promise<types.SqlExecuteRet>;
-  deleteOP: (wheres: Map<string, string>) => Promise<types.SqlExecuteRet>;
-  addOP: (values: Map<string, string | null>) => Promise<types.SqlExecuteRet>;
+  deleteOP?: (wheres: Map<string, string>) => Promise<types.SqlExecuteRet>;
+  addOP?: (values: Map<string, string | null>) => Promise<types.SqlExecuteRet>;
 }) {
   let { reloadOP, updateOP, deleteOP, addOP } = props;
   const [loading, setLoading] = useState(false);
@@ -116,6 +116,9 @@ function SqlTableView(props: {
     newRow: Map<string, string>,
     oldRow: Map<string, string>
   ) => {
+    if (!updateOP) {
+      return newRow;
+    }
     const findDiff = (): Map<string, string | null> => {
       let m = new Map();
       for (const key in newRow) {
@@ -229,24 +232,29 @@ function SqlTableView(props: {
             sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
           >
             <Stack direction='row' spacing={1}>
-              <Button
-                variant='contained'
-                disabled={selectIDs.length == 0}
-                onClick={() => {
-                  handleDetele();
-                }}
-              >
-                <DeleteForeverIcon color='error'></DeleteForeverIcon>
-              </Button>
-              <Button
-                color='primary'
-                variant='contained'
-                onClick={() => {
-                  setShowAdd(true);
-                }}
-              >
-                <AddIcon></AddIcon>
-              </Button>
+              {deleteOP && (
+                <Button
+                  variant='contained'
+                  disabled={selectIDs.length == 0}
+                  onClick={() => {
+                    handleDetele();
+                  }}
+                >
+                  <DeleteForeverIcon color='error'></DeleteForeverIcon>
+                </Button>
+              )}
+              {addOP && (
+                <Button
+                  color='primary'
+                  variant='contained'
+                  onClick={() => {
+                    setShowAdd(true);
+                  }}
+                >
+                  <AddIcon></AddIcon>
+                </Button>
+              )}
+
               {resp && (
                 <Alert color='info' severity='info'>
                   {resp.sql}

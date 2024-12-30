@@ -697,7 +697,7 @@ function TableMenu(props: {
       });
   };
 
-  const handleOpenTableList = () => {
+  const handleViewData = () => {
     const id = uuid + '-table-' + table;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
@@ -772,7 +772,7 @@ function TableMenu(props: {
       <MenuList>
         <MenuItem
           onClick={() => {
-            handleOpenTableList();
+            handleViewData();
           }}
         >
           <ListItemIcon>

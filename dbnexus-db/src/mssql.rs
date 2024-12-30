@@ -438,7 +438,7 @@ impl BackendName for MsSqlServer {
     }
 }
 
-fn type_support_compare(tpe: &str) -> bool {
+fn type_support_compare(_tpe: &str) -> bool {
     true
 }
 

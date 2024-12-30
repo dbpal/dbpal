@@ -2,7 +2,7 @@ use std::{borrow::Cow, ops::DerefMut, sync::Arc};
 
 use crate::{
     completion::{
-        AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
+        AstCompletionHelper, AutoCompletionTrait, CompletionItem, CompletionKind,
         LexerCompletionTrait, try_completion_on_syntax,
     },
     db::SchemaTrait,
@@ -22,7 +22,7 @@ impl crate::completion::LexerCompletionTrait for SqliteDB {
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
-        CompletionOnSynTaxHelper::sqlite_pragma(self)
+        AstCompletionHelper::sqlite_pragma(self)
     }
 }
 
@@ -81,7 +81,7 @@ impl SqliteDB {
 }
 
 #[async_trait::async_trait]
-impl CompletionOnSynTaxHelper for SqliteDB {
+impl AstCompletionHelper for SqliteDB {
     async fn list_view(
         &self, _db: Option<&str>, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {

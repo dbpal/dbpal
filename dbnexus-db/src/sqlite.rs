@@ -28,7 +28,7 @@ impl FormatSql for SqliteDB {
     }
 }
 
-fn type_support_compare(_t: &str) -> bool {
+fn type_support_compare(_typ: &str) -> bool {
     true
 }
 
@@ -793,18 +793,22 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_view(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize,
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
-        let total = self.query_count(table_name, where_str.clone()).await?;
-        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
+        let total = self.query_count(view_name, where_str.clone()).await?;
+        let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
         log::trace!("show table sql:{}", sql);
-        let row = sqlx::query(sql.as_str())
+        let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
             .await?;
-        let data = encode_rows(&row)?;
-        let fields = get_rows_types(&row);
+        if rows.len() == 0 {
+            let f = self.show_view_columns(view_name).await?;
+            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql));
+        }
+        let data = encode_rows(&rows)?;
+        let fields = get_rows_types(&rows);
 
         anyhow::Ok(TableListResp::new(fields, total, data, sql))
     }

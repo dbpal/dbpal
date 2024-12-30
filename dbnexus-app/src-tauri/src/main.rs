@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use dbnexus_db::app::{App, DbConfigLoader, FileJsonSaver};
+use dbnexus_db::app::{App, DbConfigLoader, SqliteLoader};
 
 mod handlers;
 
@@ -38,10 +38,12 @@ async fn greet(name: String) -> Result<String, String> {
 async fn main() {
     env_logger::init();
 
-    let loader: Arc<dyn DbConfigLoader> = Arc::new(FileJsonSaver::new("dbnexus.json").unwrap());
+    let loader: Arc<dyn DbConfigLoader> =
+        Arc::new(SqliteLoader::new("./dbnexus.sqlite.db").await.unwrap());
     let app = App::new(loader);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .manage(app)
         .setup(|app| {
@@ -70,10 +72,21 @@ async fn main() {
                         true,
                         None as Option<&'static str>,
                     )?,
+                    &PredefinedMenuItem::close_window(handle, None).unwrap(),
+                ])
+                .unwrap(),
+                &Submenu::with_items(handle, "Edit", true, &[
+                    &PredefinedMenuItem::copy(handle, None).unwrap(),
+                    &PredefinedMenuItem::paste(handle, None).unwrap(),
+                    &PredefinedMenuItem::cut(handle, None).unwrap(),
+                    &PredefinedMenuItem::select_all(handle, None).unwrap(),
+                    &PredefinedMenuItem::undo(handle, None).unwrap(),
+                ])
+                .unwrap(),
+                &Submenu::with_items(handle, "window", true, &[
                     &PredefinedMenuItem::maximize(handle, None).unwrap(),
                     &PredefinedMenuItem::minimize(handle, None).unwrap(),
                     &PredefinedMenuItem::fullscreen(handle, None).unwrap(),
-                    &PredefinedMenuItem::close_window(handle, None).unwrap(),
                 ])
                 .unwrap(),
                 &Submenu::with_items(handle, "about", true, &[&PredefinedMenuItem::about(

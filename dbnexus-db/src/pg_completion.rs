@@ -4,7 +4,7 @@ use std::sync::Arc;
 use sqlx::Row;
 
 use crate::completion::{
-    AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
+    AutoCompletionTrait, CompletionItem, CompletionKind, AstCompletionHelper,
     LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::db::CatalogTrait;
@@ -67,7 +67,7 @@ impl PostGresDB {
 
 #[async_trait::async_trait]
 
-impl CompletionOnSynTaxHelper for PostGresDB {
+impl AstCompletionHelper for PostGresDB {
     async fn list_table(
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {

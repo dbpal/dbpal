@@ -776,7 +776,7 @@ impl CheckConn for OracleDB {
     }
 }
 
-fn type_support_compare(typ: &str) -> bool {
+fn type_support_compare(_typ: &str) -> bool {
     true
 }
 

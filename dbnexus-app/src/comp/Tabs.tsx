@@ -61,6 +61,7 @@ function TabsWithCloseButton(props: {
           {tabs.map((tab, index) => {
             return (
               <Button
+                key={tab.id}
                 draggable
                 onDragEnd={() => {
                   handleClose(index);

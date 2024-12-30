@@ -325,8 +325,8 @@ impl PostGresDB {
     }
 }
 
-fn type_support_compare(t: &str) -> bool {
-    match t.to_uppercase().as_str() {
+fn type_support_compare(typ: &str) -> bool {
+    match typ.to_uppercase().as_str() {
         "JSON" | "JSON[]" => false,
         "JSONPATH" | "JSONPATH[]" => false,
         _ => true,
@@ -890,6 +890,11 @@ impl SchemaTrait for PostGresDB {
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
             .await?;
+
+        if rows.len() == 0 {
+            let f = self.show_view_columns(view_name).await?;
+            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql));
+        }
 
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);

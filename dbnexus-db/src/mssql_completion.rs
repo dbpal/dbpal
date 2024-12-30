@@ -6,7 +6,7 @@ use futures_util::StreamExt;
 use tiberius::QueryItem;
 
 use crate::completion::{
-    AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
+    AutoCompletionTrait, CompletionItem, CompletionKind, AstCompletionHelper,
     LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::db::{CatalogTrait, SchemaTrait};
@@ -76,7 +76,7 @@ impl AutoCompletionTrait for MsSqlServer {
 }
 
 #[async_trait::async_trait]
-impl CompletionOnSynTaxHelper for MsSqlServer {
+impl AstCompletionHelper for MsSqlServer {
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
         let sql = r#"
         SELECT name AS RoleName

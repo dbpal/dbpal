@@ -609,7 +609,7 @@ impl MysqlDB {
         anyhow::Ok(ret)
     }
 }
-fn type_support_compare(tpe: &str) -> bool {
+fn type_support_compare(_tpe: &str) -> bool {
     true
 }
 impl std::fmt::Debug for MysqlDB {
@@ -926,6 +926,10 @@ impl SchemaTrait for MysqlDB {
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
             .await?;
+        if rows.len() == 0 {
+            let f = self.show_view_columns(view_name).await?;
+            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql));
+        }
 
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);

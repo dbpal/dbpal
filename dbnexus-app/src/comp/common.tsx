@@ -32,7 +32,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import AddIcon from '@mui/icons-material/Add';
 import { secondConfirm } from './Confirm';
-// TOOD 适配黑暗模式
+
 const modalStyle: SxProps = {
   position: 'absolute',
   top: '50%',
@@ -45,6 +45,9 @@ const modalStyle: SxProps = {
   p: 4,
   resize: 'both',
 };
+
+import { load } from '@tauri-apps/plugin-store';
+const store = await load('store.json', { autoSave: 100 });
 
 function MetaValues(props: { values: types.MetaValue[] }) {
   let { values } = props;
@@ -60,14 +63,12 @@ function MetaValues(props: { values: types.MetaValue[] }) {
   });
 
   return (
-    <>
-      <DataGrid
-        rowHeight={datagridRowHeight}
-        columnHeaderHeight={datagridHeaderHeight}
-        columns={columns}
-        rows={values}
-      ></DataGrid>
-    </>
+    <DataGrid
+      rowHeight={datagridRowHeight}
+      columnHeaderHeight={datagridHeaderHeight}
+      columns={columns}
+      rows={values}
+    ></DataGrid>
   );
 }
 function SelectPageSize({

@@ -1,13 +1,15 @@
 use std::collections::HashMap;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::sync::Arc;
 
+use sqlx::sqlite::SqliteRow;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
 use crate::datasource_config::{
     MongoConfig, MysqlDbConfig, OracleDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
+    SqliteDbConfig,
 };
 use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
@@ -34,14 +36,27 @@ impl DBConnectionConfig {
             | DBConnectionConfig::Oracle { name, .. } => name.as_str(),
         }
     }
+
+    pub fn get_kind_str(&self) -> &str {
+        match self {
+            DBConnectionConfig::Sqlite { .. } => "sqlite",
+            DBConnectionConfig::Mysql { .. } => "mysql",
+            DBConnectionConfig::MariaDB { .. } => "mariadb",
+            DBConnectionConfig::Postgres { .. } => "postgres",
+            DBConnectionConfig::SqlServer { .. } => "mssql",
+            DBConnectionConfig::Mongo { .. } => "mongo",
+            DBConnectionConfig::Redis { .. } => "redis",
+            DBConnectionConfig::Oracle { .. } => "oracle",
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
 #[serde(tag = "conn_type", rename_all = "lowercase")]
 pub enum DBConnectionConfig {
     Sqlite {
-        path: String,
-        read_only: bool,
+        #[serde(flatten)]
+        conn: SqliteDbConfig,
         name: String,
     },
     Mysql {
@@ -70,9 +85,9 @@ pub enum DBConnectionConfig {
         name: String,
     },
     Redis {
-        name: String,
         #[serde(flatten)]
         conn: RedisDbConfig,
+        name: String,
     },
     Oracle {
         #[serde(flatten)]
@@ -96,16 +111,89 @@ pub trait DbConfigLoader: Send + Sync + 'static {
     async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings>;
     async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()>;
 }
+pub struct SqliteLoader {
+    sqlite: crate::sqlite::SqliteDB,
+}
 
-pub struct FileJsonSaver {
+impl SqliteLoader {
+    pub async fn new(path: impl Into<String>) -> anyhow::Result<Self> {
+        let path = path.into();
+        let sqlite = crate::sqlite::SqliteDB::new(path, false).await?;
+        anyhow::Ok(Self { sqlite })
+    }
+
+    fn extract_one_config(&self, row: &SqliteRow) -> anyhow::Result<DBConnectionConfig> {
+        unimplemented!()
+    }
+}
+
+#[async_trait::async_trait]
+impl DbConfigLoader for SqliteLoader {
+    async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
+        let conn = match &config {
+            DBConnectionConfig::Sqlite { conn, .. } => serde_json::to_string_pretty(conn),
+            DBConnectionConfig::Mysql { conn, .. } => serde_json::to_string_pretty(conn),
+            DBConnectionConfig::MariaDB { conn, .. } => serde_json::to_string_pretty(conn),
+            DBConnectionConfig::Postgres { conn, .. } => serde_json::to_string_pretty(conn),
+            DBConnectionConfig::SqlServer { conn, .. } => serde_json::to_string_pretty(conn),
+            DBConnectionConfig::Mongo { conn, .. } => serde_json::to_string_pretty(conn),
+            DBConnectionConfig::Redis { conn, .. } => serde_json::to_string_pretty(conn),
+            DBConnectionConfig::Oracle { conn, .. } => serde_json::to_string_pretty(conn),
+        };
+        let conn = conn?;
+        let sql = "replace into dbconnectionconfig(name,kind,config,update_at ) values(?,?,?,CURRENT_TIMESTAMP)";
+
+        sqlx::query(&sql)
+            .bind(config.get_name())
+            .bind(config.get_kind_str())
+            .bind(conn)
+            .execute(self.sqlite.get_conn().await?.deref_mut())
+            .await?;
+
+        anyhow::Ok(())
+    }
+
+    /// delete one config
+    async fn delete(&self, name: &str) -> anyhow::Result<()> {
+        anyhow::Ok(())
+    }
+
+    ///
+    async fn get_config_cloned(&self, uuid: &str) -> anyhow::Result<DBConnectionConfig> {
+        unimplemented!()
+    }
+
+    async fn list_all_configs_cloned(&self) -> anyhow::Result<Vec<DBConnectionConfig>> {
+        let sql = "select * from dbconnectionconfig order by update_at desc";
+        let mut conn = self.sqlite.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let config = self.extract_one_config(r)?;
+            ret.push(config);
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings> {
+        unimplemented!()
+    }
+    async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+}
+
+pub struct FileJsonLoader {
     filepath: String,
     config: tokio::sync::Mutex<DBNexusConfigs>,
 }
 
-impl FileJsonSaver {
+impl FileJsonLoader {
     pub fn new(filepath: impl Into<String>) -> anyhow::Result<Self> {
         let filepath = filepath.into();
-        let config = FileJsonSaver::load_from_file(&filepath)?;
+        let config = FileJsonLoader::load_from_file(&filepath)?;
         anyhow::Ok(Self {
             filepath,
             config: Mutex::new(config),
@@ -113,7 +201,7 @@ impl FileJsonSaver {
     }
 }
 
-impl FileJsonSaver {
+impl FileJsonLoader {
     async fn save(&self, config: &DBNexusConfigs) -> anyhow::Result<()> {
         let s = serde_json::to_string_pretty(config)?;
 
@@ -133,7 +221,7 @@ impl FileJsonSaver {
 }
 
 #[async_trait::async_trait]
-impl DbConfigLoader for FileJsonSaver {
+impl DbConfigLoader for FileJsonLoader {
     async fn list_all_configs_cloned(&self) -> anyhow::Result<Vec<DBConnectionConfig>> {
         anyhow::Ok(self.config.lock().await.connection_configs.clone())
     }
@@ -202,13 +290,10 @@ impl DbConfigLoader for FileJsonSaver {
 /// open a
 pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
     match config {
-        DBConnectionConfig::Sqlite {
-            path,
-            read_only,
-            name: _,
-        } => {
+        DBConnectionConfig::Sqlite { conn, name: _ } => {
             let db: Arc<dyn SchemaTrait> =
-                Arc::new(crate::sqlite::SqliteDB::new(path.clone(), *read_only).await?);
+                Arc::new(crate::sqlite::SqliteDB::new(conn.path.clone(), conn.read_only).await?);
+
             anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Mysql { conn, name: _ }

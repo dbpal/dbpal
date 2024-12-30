@@ -2,7 +2,7 @@ use std::{borrow::Cow, ops::DerefMut, sync::Arc};
 
 use crate::{
     completion::{
-        AutoCompletionTrait, CompletionItem, CompletionKind, CompletionOnSynTaxHelper,
+        AstCompletionHelper, AutoCompletionTrait, CompletionItem, CompletionKind,
         LexerCompletionTrait, try_completion_on_syntax,
     },
     db::{BackendName, DBTrait, not_support_features},
@@ -101,7 +101,7 @@ impl MysqlDB {
 }
 
 #[async_trait::async_trait]
-impl CompletionOnSynTaxHelper for MysqlDB {
+impl AstCompletionHelper for MysqlDB {
     async fn list_table(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
