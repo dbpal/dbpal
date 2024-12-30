@@ -227,11 +227,6 @@ enum MongoDataViewModel {
 
 const pageSizeOptions = [10, 20, 50, 100];
 
-interface ColumnVisibilityAndWidth {
-  visiable?: boolean;
-  width?: number;
-}
-
 // TODO Add more
 // if type large text should use multiline
 // textfield
@@ -423,13 +418,17 @@ function MenuDeleteConfig({ name }) {
     if (!confirm) {
       return;
     }
-    invoke('delete_config', { name })
-      .then(() => {
-        showNotification('success', 'Drop database connection OK');
-      })
-      .catch((e) => {
-        showNotification('error', 'Drop database connection Failure.', e);
-      });
+
+    try {
+      let old = await appStore.get<types.DBConnectionConfig[]>(
+        AppStoreKey.ConnectionConfig
+      );
+      let newdata = old.filter((e) => e.name != name);
+      await appStore.set(AppStoreKey.ConnectionConfig, newdata);
+      await invoke('clean_db_connection', { name });
+    } catch (e) {
+      showNotification('error', 'drop connection failed', e);
+    }
   };
 
   return (
@@ -589,7 +588,6 @@ export {
   AppStoreKey,
   appStore,
   UserSettings,
-  ColumnVisibilityAndWidth,
 };
 
 export type { DefAndMetas };

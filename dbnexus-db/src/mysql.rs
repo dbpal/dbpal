@@ -1003,10 +1003,14 @@ impl SchemaTrait for MysqlDB {
 
         let v = match ty.as_str() {
             "TINYINT" => default_str,
+            _ if ty.starts_with("TINYINT") => default_str,
             "BOOLEAN" | "BOOL" => default_str,
             "SMALLINT" => default_str,
+            _ if ty.starts_with("SMALLINT") => default_str,
             "INT" => default_str,
+            _ if ty.starts_with("INT") => default_str,
             "BIGINT" => default_str,
+            _ if ty.starts_with("BIGINT") => default_str,
             "TINYINT UNSIGNED" => default_str,
             "SMALLINT UNSIGNED" => default_str,
             "INT UNSIGNED" => default_str,
@@ -1027,7 +1031,6 @@ impl SchemaTrait for MysqlDB {
                 default_str
             }
         };
-
         log::trace!("type '{ty}' encode '{:?}' as #{v}#", value);
         anyhow::Ok(v)
     }

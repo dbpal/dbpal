@@ -20,7 +20,13 @@ import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 
 import { invoke } from '@tauri-apps/api/core';
-import { DataSourceKind, msgTimeout, progressBarSize } from './Common';
+import {
+  appStore,
+  AppStoreKey,
+  DataSourceKind,
+  msgTimeout,
+  progressBarSize,
+} from './Common';
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 
@@ -376,7 +382,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
     setSchemesCandidats([]);
     setSchema('');
   }, [connectionType]);
-  const handleSaveConnection = () => {
+  const handleSaveConnection = async () => {
     if (!connectionName) {
       showNotification('error', 'Connection Name is empty.');
       return;
@@ -385,7 +391,14 @@ export default function AddConfig(props: { handleClose: () => void }) {
     if (!config) {
       return;
     }
-    invoke('add_config', { config })
+    let old = await appStore.get(AppStoreKey.ConnectionConfig);
+    if (!old) {
+      old = [];
+    }
+    //@ts-ignore
+    old = [config, ...old];
+    appStore
+      .set(AppStoreKey.ConnectionConfig, old)
       .then((_) => {
         showNotification('success', 'Add Connection OK');
         handleClose();

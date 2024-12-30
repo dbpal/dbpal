@@ -1,11 +1,9 @@
 import {
-  Box,
   CircularProgress,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Paper,
   Stack,
   Typography,
@@ -20,20 +18,20 @@ import {
   MenuDeleteConfig,
   MenuContext,
   calMenuStyle,
-  modalStyle,
   ConnStatus,
   progressBarSizeSmall,
   DataSourceKind,
+  appStore,
+  AppStoreKey,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
-import AddConfig from './AddConnection';
+
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { listen } from '@tauri-apps/api/event';
 
 import { TablesTree } from './LeftTable';
 import { ViewsTree } from './LeftView';
@@ -46,19 +44,23 @@ function Left() {
   const { showNotification } = useContext(NotificationContext);
 
   const handleReload = () => {
-    invoke<types.DBConnectionConfig[]>('list_all_config')
+    appStore
+      .get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig)
       .then((e) => {
+        if (!e) {
+          e = [];
+        }
         setConfigs(e);
       })
       .catch((e) => {
         showNotification('error', 'list all config failure', e);
       });
   };
-
   useEffect(() => {
     handleReload();
   }, []);
-  listen('connection_config_changed', () => {
+
+  appStore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
     handleReload();
   });
 

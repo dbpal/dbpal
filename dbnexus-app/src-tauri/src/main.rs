@@ -1,19 +1,16 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Arc;
-
-use dbnexus_db::app::{App, DbConfigLoader, FileJsonLoader};
-
+use dbnexus_db::app::{App, DBConnectionConfig};
 mod handlers;
 
 use handlers::{
-    add_config, add_table_column, check_conn, config_list_database_or_schema, delete,
-    delete_config, disable_trigger, drop_procedure, drop_table, drop_table_column, drop_trigger,
-    drop_udf, drop_view, duplicate_table, enable_trigger, export_table, format_sql, insert,
-    list_all_config, list_data_types, list_database, list_procedure, list_schema, list_table,
-    list_trigger, list_udf, list_view, modify_table_column, mongo_delete, mongo_get_one_document,
-    mongo_insert, mongo_show_collection_docs, mongo_show_collection_table_list, mongo_update,
+    add_table_column, check_conn, clean_db_connection, config_list_database_or_schema, delete,
+    disable_trigger, drop_procedure, drop_table, drop_table_column, drop_trigger, drop_udf,
+    drop_view, duplicate_table, enable_trigger, export_table, format_sql, insert, list_data_types,
+    list_database, list_procedure, list_schema, list_table, list_trigger, list_udf, list_view,
+    modify_table_column, mongo_delete, mongo_get_one_document, mongo_insert,
+    mongo_show_collection_docs, mongo_show_collection_table_list, mongo_update,
     oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
     oracle_query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
     query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
@@ -27,6 +24,7 @@ use tauri::{
     Emitter, Manager,
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
 };
+use tauri_plugin_store::StoreExt;
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
@@ -37,9 +35,8 @@ async fn greet(name: String) -> Result<String, String> {
 #[tokio::main]
 async fn main() {
     env_logger::init();
+    let app = App::new();
 
-    let loader: Arc<dyn DbConfigLoader> = Arc::new(FileJsonLoader::new("./dbnexus.json").unwrap());
-    let app = App::new(loader);
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
@@ -52,6 +49,24 @@ async fn main() {
                 window.open_devtools();
                 window.close_devtools();
             }
+            Ok(())
+        })
+        .setup(|app| {
+            let store = app.store("store.json").unwrap();
+            *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
+                let configs = store.get("connection_config");
+                let json_str = match configs {
+                    Some(x) => serde_json::to_string(&x).unwrap(),
+                    None => "[]".to_string(),
+                };
+                let configs: Vec<DBConnectionConfig> = serde_json::from_str(&json_str)?;
+                for c in configs.into_iter() {
+                    if c.get_name() == name {
+                        return anyhow::Ok(c);
+                    }
+                }
+                unimplemented!();
+            }));
             Ok(())
         })
         .menu(|handle| {
@@ -105,8 +120,6 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             list_database,
             greet,
-            add_config,
-            delete_config,
             list_table,
             show_columns,
             show_table,
@@ -120,7 +133,6 @@ async fn main() {
             drop_table,
             show_view,
             query_sql,
-            list_all_config,
             redis_list_table,
             query_sql_close_connection,
             query_sql_open_connection,
@@ -174,6 +186,7 @@ async fn main() {
             drop_udf,
             add_table_column,
             check_conn,
+            clean_db_connection
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

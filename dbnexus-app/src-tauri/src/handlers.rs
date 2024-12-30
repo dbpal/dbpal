@@ -11,62 +11,7 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
-
 use dbnexus_db::redis::{RedisDB, RedisListTable};
-use tauri::{AppHandle, Emitter};
-use tauri_plugin_store::{Store, StoreExt};
-
-#[tauri::command]
-pub async fn add_config(
-    config: DBConnectionConfig, app: tauri::State<'_, App>, handler: AppHandle,
-) -> Result<(), AnyhowErrorFrontend> {
-    log::info!("add config:{:?}", config);
-    if config.get_name().contains(":") {
-        return Err(AnyhowErrorFrontend::from(
-            "connection name can't contains ':'",
-        ));
-    }
-    app.add_config(config)
-        .await
-        .map_err(AnyhowErrorFrontend::from)?;
-    handler.emit("connection_config_changed", "")?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn list_all_config(
-    app: tauri::State<'_, App>, handler: AppHandle,
-) -> Result<Vec<DBConnectionConfig>, AnyhowErrorFrontend> {
-    app.loader
-        .list_all_configs()
-        .await
-        .map_err(AnyhowErrorFrontend::from)
-}
-
-#[tauri::command]
-pub async fn delete_config(
-    name: String, app: tauri::State<'_, App>, handler: AppHandle,
-) -> Result<(), AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    log::info!("del config:{}", name);
-    handler.emit("connection_config_changed", "")?;
-    app.delete_config(name.as_str())
-        .await
-        .map_err(AnyhowErrorFrontend::from)
-}
-
-// #[tauri::command]
-// pub async fn update_config(
-//     name: String, config: DBConnectionConfig, app: tauri::State<'_, App>,
-// ) -> Result<(), AnyhowErrorFrontend> {
-//     random_sleep().await;
-//     random_error()?;
-//     log::info!("update config:{} {:?}", name, config);
-//     app.update_config(name.as_str(), config)
-//         .await
-//         .map_err(AnyhowErrorFrontend::from)
-// }
 
 // #[tauri::command]
 // pub async fn open(name: String, app: tauri::State<'_, App>) -> Result<(),
@@ -78,6 +23,13 @@ pub async fn delete_config(
 //         .map_err(AnyhowErrorFrontend::from)
 //         .map(|_| ())
 // }
+
+#[tauri::command]
+pub async fn clean_db_connection(name: String, app: tauri::State<'_, App>) -> Result<(), ()> {
+    random_sleep().await;
+    app.delete_prefix_dbs(name.as_str()).await;
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn list_table(

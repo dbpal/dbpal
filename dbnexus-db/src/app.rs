@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::ops::Deref;
-use std::path::Path;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
@@ -92,110 +90,6 @@ pub enum DBConnectionConfig {
         conn: OracleDbConfig,
         name: String,
     },
-}
-
-#[async_trait::async_trait]
-
-pub trait DbConfigLoader: Send + Sync + 'static {
-    /// add one config
-    async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()>;
-    /// delete one config
-    async fn delete(&self, name: &str) -> anyhow::Result<()>;
-
-    ///
-    async fn get_config(&self, uuid: &str) -> anyhow::Result<DBConnectionConfig>;
-    async fn list_all_configs(&self) -> anyhow::Result<Vec<DBConnectionConfig>>;
-}
-
-pub struct FileJsonLoader {
-    filepath: String,
-    config: tokio::sync::Mutex<DBNexusConfigs>,
-}
-
-impl FileJsonLoader {
-    pub fn new(filepath: impl Into<String>) -> anyhow::Result<Self> {
-        let filepath = filepath.into();
-        let config = FileJsonLoader::load_from_file(&filepath)?;
-        anyhow::Ok(Self {
-            filepath,
-            config: Mutex::new(config),
-        })
-    }
-}
-
-impl FileJsonLoader {
-    async fn save(&self, config: &DBNexusConfigs) -> anyhow::Result<()> {
-        let s = serde_json::to_string_pretty(config)?;
-
-        tokio::fs::write(&Path::new(self.filepath.as_str()), s.as_bytes()).await?;
-        anyhow::Ok(())
-    }
-
-    fn load_from_file(filepath: &str) -> anyhow::Result<DBNexusConfigs> {
-        let path = Path::new(filepath);
-        if !path.exists() {
-            return anyhow::Ok(Default::default());
-        }
-        let bs = std::fs::read(&path)?;
-        let config: DBNexusConfigs = serde_json::from_slice(bs.as_slice())?;
-        anyhow::Ok(config)
-    }
-}
-
-#[async_trait::async_trait]
-impl DbConfigLoader for FileJsonLoader {
-    async fn list_all_configs(&self) -> anyhow::Result<Vec<DBConnectionConfig>> {
-        anyhow::Ok(self.config.lock().await.connection_configs.clone())
-    }
-
-    async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
-        let mut lock = self.config.lock().await;
-        for old in lock.connection_configs.iter() {
-            if old.get_name().eq_ignore_ascii_case(config.get_name()) {
-                anyhow::bail!(format!("name '{}' already exists.", config.get_name()))
-            }
-        }
-        lock.connection_configs.push(config);
-        self.save(&lock).await?;
-        anyhow::Ok(())
-    }
-
-    async fn delete(&self, name: &str) -> anyhow::Result<()> {
-        let mut lock = self.config.lock().await;
-        let mut index = None;
-        lock.connection_configs
-            .iter()
-            .enumerate()
-            .for_each(|(i, x)| {
-                if x.get_name() == name {
-                    index = Some(i);
-                }
-            });
-
-        if let Some(index) = index {
-            lock.connection_configs.remove(index);
-            self.save(&lock).await?;
-        }
-        anyhow::Ok(())
-    }
-
-    async fn get_config(&self, name: &str) -> anyhow::Result<DBConnectionConfig> {
-        let ret = self
-            .config
-            .lock()
-            .await
-            .deref()
-            .connection_configs
-            .iter()
-            .find(|x| x.get_name() == name)
-            .map(|x| x.clone());
-        match ret {
-            Some(x) => return anyhow::Ok(x),
-            None => {
-                anyhow::bail!(format!("config named '{}' not found", name))
-            }
-        }
-    }
 }
 
 /// open a
@@ -304,25 +198,30 @@ impl From<Arc<dyn crate::db::SchemaTrait>> for Open {
 /// all the databases
 #[derive(Clone)]
 pub struct App {
-    pub loader: Arc<dyn DbConfigLoader>,
     pub opens: Arc<Mutex<HashMap<String, Open>>>,
 }
 
 impl App {
-    pub fn new(loader: Arc<dyn DbConfigLoader>) -> Self {
+    pub fn new() -> Self {
         Self {
-            loader,
             opens: Default::default(),
         }
     }
 }
+type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
 impl App {
+    pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
+        static mut XXX: Option<GetConfigFN> = None;
+        &mut XXX
+    }
+
     pub async fn open(&self, name: &str) -> anyhow::Result<Open> {
         if let Some(x) = self.opens.lock().await.get(&name.to_string()) {
             return anyhow::Ok(x.clone());
         }
-        let config = self.loader.get_config(name).await?;
+        let config = unsafe { (Self::get_config_ref().as_ref().map(|x| x(name))).unwrap()? };
+
         let db = open(&config).await?;
         match &db {
             Open::DataBase(x) => {
@@ -390,25 +289,7 @@ impl App {
         }
     }
 
-    pub async fn add_config(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
-        self.loader.add(config).await
-    }
-
-    pub async fn delete_config(&self, name: &str) -> anyhow::Result<()> {
-        self.loader.delete(name).await?;
-        self.delete_prefix_dbs(name).await;
-        anyhow::Ok(())
-    }
-
-    // pub async fn update_config(
-    //     &self, uuid: &str, config: DBConnectionConfig,
-    // ) -> anyhow::Result<()> {
-    //     self.loader.update(uuid, config).await?;
-    //     self.delete_prefix_dbs(uuid).await;
-    //     anyhow::Ok(())
-    // }
-
-    async fn delete_prefix_dbs(&self, name: &str) {
+    pub async fn delete_prefix_dbs(&self, name: &str) {
         let mut v = Vec::new();
         for k in self.opens.lock().await.keys() {
             if k.starts_with(name) {
