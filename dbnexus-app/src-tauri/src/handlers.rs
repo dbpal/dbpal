@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use bson::{Document, doc};
-use dbnexus_db::app::{self, App, DBConnectionConfig, Open, UserSettings, open};
+use dbnexus_db::app::{self, App, DBConnectionConfig, Open, open};
 use dbnexus_db::db::{
     ColumnType, ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, ProcedureDetail,
     QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
@@ -14,6 +14,7 @@ use dbnexus_db::oracle::OracleDB;
 
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_store::{Store, StoreExt};
 
 #[tauri::command]
 pub async fn add_config(
@@ -34,10 +35,10 @@ pub async fn add_config(
 
 #[tauri::command]
 pub async fn list_all_config(
-    app: tauri::State<'_, App>,
+    app: tauri::State<'_, App>, handler: AppHandle,
 ) -> Result<Vec<DBConnectionConfig>, AnyhowErrorFrontend> {
     app.loader
-        .list_all_configs_cloned()
+        .list_all_configs()
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
@@ -406,32 +407,6 @@ pub async fn query_sql_close_connection(
         Open::Catalog(x) => x.close_connection(query_id).await,
     };
     result.map_err(AnyhowErrorFrontend::from)
-}
-
-#[tauri::command]
-pub async fn save_user_settings(
-    user_settings: UserSettings, app: tauri::State<'_, App>, handle: AppHandle,
-) -> Result<(), AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    app.loader
-        .save_user_settings(user_settings)
-        .await
-        .map_err(AnyhowErrorFrontend::from)?;
-    handle.emit("settings_changed", "")?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn get_user_settings(
-    app: tauri::State<'_, App>,
-) -> Result<UserSettings, AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    app.loader
-        .get_user_settings_cloned()
-        .await
-        .map_err(AnyhowErrorFrontend::from)
 }
 
 #[tauri::command]

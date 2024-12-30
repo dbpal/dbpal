@@ -2,6 +2,10 @@
 
 export default types;
 export namespace types {
+    export type SqliteDbConfig = {
+        "path": string;
+        "read_only": boolean;
+    };
     export type U16 = number;
     export type MysqlDbConfig = {
         "host": string;
@@ -62,11 +66,9 @@ export namespace types {
     };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
-    } & {
-        "path": string;
-        "read_only": boolean;
+    } & (types.SqliteDbConfig & {
         "name": string;
-    }) | ({
+    })) | ({
         "conn_type": "mysql";
     } & (types.MysqlDbConfig & {
         "name": string;
@@ -95,11 +97,6 @@ export namespace types {
     } & (types.OracleDbConfig & {
         "name": string;
     })));
-    export type Usize = number;
-    export type UserSettings = {
-        "page_size": types.Usize;
-        "theme": string;
-    };
     export type ListTable = {
         "name": string;
         "size": (string | null);
@@ -224,6 +221,7 @@ export namespace types {
         "uppercase": (boolean | null);
         "lines_between_queries": types.U8;
     };
+    export type Usize = number;
     export type MuiDataGridData = {
         "fields": (types.Field)[];
         "data": (Record<string, string>)[];

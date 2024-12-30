@@ -11,6 +11,8 @@ import {
   TabsSetContext,
   ConnTypeContext,
   progressBarSize,
+  AppStoreKey,
+  appStore,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -700,6 +702,8 @@ function TableMenu(props: {
   const handleViewData = () => {
     const id = uuid + '-table-' + table;
     let index = tabsHasId(tabs, id);
+    let widthKey =
+      AppStoreKey.ConnectionConfig + '-' + uuid + '-' + table + '-' + '-widths';
     if (typeof index == 'number') {
       setSelectIndex(index);
     } else {
@@ -749,6 +753,22 @@ function TableMenu(props: {
                   name: uuid,
                   tableName: table,
                   values,
+                });
+              }}
+              saveWidth={async (name, width) => {
+                let old = await appStore.get<object>(widthKey);
+                if (!old) {
+                  old = {};
+                }
+                old[name] = width;
+                await appStore.set(widthKey, old);
+              }}
+              loadWidths={() => {
+                return appStore.get<{}>(widthKey).then((x) => {
+                  if (!x) {
+                    x = {};
+                  }
+                  return x;
                 });
               }}
             ></SqlTableView>

@@ -47,7 +47,12 @@ const modalStyle: SxProps = {
 };
 
 import { load } from '@tauri-apps/plugin-store';
-const store = await load('store.json', { autoSave: 100 });
+const appStore = await load('store.json');
+
+enum AppStoreKey {
+  UserSetttings = 'user_settings',
+  ConnectionConfig = 'connection_config',
+}
 
 function MetaValues(props: { values: types.MetaValue[] }) {
   let { values } = props;
@@ -58,8 +63,10 @@ function MetaValues(props: { values: types.MetaValue[] }) {
   ];
 
   values.forEach((e) => {
-    //@ts-ignore
-    e.id = uuidv4();
+    if (!('id' in e)) {
+      //@ts-ignore
+      e.id = uuidv4();
+    }
   });
 
   return (
@@ -219,6 +226,11 @@ enum MongoDataViewModel {
 }
 
 const pageSizeOptions = [10, 20, 50, 100];
+
+interface ColumnVisibilityAndWidth {
+  visiable?: boolean;
+  width?: number;
+}
 
 // TODO Add more
 // if type large text should use multiline
@@ -529,11 +541,11 @@ function ConnStatus({ uuid }) {
     ))
   );
 }
+class UserSettings {
+  constructor(public theme: string = 'light', public pageSize: number = 100) {}
+}
 
-const SettingsContext = createContext<types.UserSettings>({
-  page_size: 100,
-  theme: 'dark',
-});
+const SettingsContext = createContext<UserSettings>(new UserSettings());
 
 export {
   modalStyle,
@@ -574,6 +586,10 @@ export {
   MenuNewQuery,
   ConnStatus,
   SettingsContext,
+  AppStoreKey,
+  appStore,
+  UserSettings,
+  ColumnVisibilityAndWidth,
 };
 
 export type { DefAndMetas };

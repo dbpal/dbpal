@@ -9,6 +9,8 @@ import {
   calMenuStyle,
   tabsHasId,
   TabsSetContext,
+  appStore,
+  AppStoreKey,
 } from './Common';
 import { NotificationContext } from './Notification';
 import { secondConfirm } from './Confirm';
@@ -221,6 +223,15 @@ function ViewMenu(props: {
       setSelectIndex(index);
     } else {
       let list: ReactNode = null;
+      let widthKey =
+        AppStoreKey.ConnectionConfig +
+        '-' +
+        uuid +
+        '-' +
+        view +
+        '-' +
+        '-widths';
+
       switch (kind) {
         case DataSourceKind.MariaDB:
         case DataSourceKind.Mysql:
@@ -244,6 +255,22 @@ function ViewMenu(props: {
                   orderBy: orderBy_null,
                   page,
                   pageSize,
+                });
+              }}
+              saveWidth={async (name, width) => {
+                let old = await appStore.get<object>(widthKey);
+                if (!old) {
+                  old = {};
+                }
+                old[name] = width;
+                await appStore.set(widthKey, old);
+              }}
+              loadWidths={() => {
+                return appStore.get<{}>(widthKey).then((x) => {
+                  if (!x) {
+                    x = {};
+                  }
+                  return x;
                 });
               }}
             ></SqlTableView>

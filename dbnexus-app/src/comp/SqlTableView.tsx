@@ -26,6 +26,7 @@ import {
 } from './Common';
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
+
 function SqlTableView(props: {
   reloadOP: (
     where: string,
@@ -39,32 +40,54 @@ function SqlTableView(props: {
   ) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: Map<string, string>) => Promise<types.SqlExecuteRet>;
   addOP?: (values: Map<string, string | null>) => Promise<types.SqlExecuteRet>;
+  saveWidth: (name: string, width: number) => void;
+  loadWidths: () => Promise<object>;
 }) {
-  let { reloadOP, updateOP, deleteOP, addOP } = props;
+  let { reloadOP, updateOP, deleteOP, addOP, saveWidth, loadWidths } = props;
+
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
   const [triggerReload, setTriggerReload] = useState(false);
   const [orderBy, setOrderBy] = useState('');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(
-    useContext(SettingsContext).page_size
+    useContext(SettingsContext).pageSize
   );
+
+  const [widths, setWidths] = useState(null);
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectIDs, setSelectIDs] = useState<GridRowSelectionModel>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
   const key_not_in_table = 'qwertyuioplkjhgfdsazxcvbnm';
-  const handleResp = (resp: types.MuiDataTableListResp) => {
-    resp.data.data.forEach((e) => {
-      e[key_not_in_table] = uuidv4();
-    });
-    resp.data.fields.forEach((e) => {
-      //@ts-ignore
-      e.flex = 1;
 
+  const handleResp = async (resp: types.MuiDataTableListResp) => {
+    resp.data.data.forEach((data) => {
+      data[key_not_in_table] = uuidv4();
+    });
+    // https://www.geeksforgeeks.org/is-setstate-method-async/
+    // set state 是异步的也就说setWidths 可能读不到它的值呢
+    let widths2;
+    if (widths == null) {
+      let x = await loadWidths();
+      setWidths(x);
+      widths2 = x;
+    } else {
+      widths2 = widths;
+    }
+    for (let i = 0; i < resp.data.fields.length; i++) {
+      let field = resp.data.fields[i];
       //@ts-ignore
-      e.renderHeader = (e) => {
+      field.flex = 1;
+      if (widths2[field.field]) {
+        //@ts-ignore
+        field.width = widths2[field.field];
+        //@ts-ignore
+        field.flex = 0;
+      }
+      //@ts-ignore
+      field.renderHeader = (e) => {
         let def = e.colDef;
         const makeTitle = (): string => {
           let f = def as types.Field;
@@ -91,25 +114,30 @@ function SqlTableView(props: {
         );
       };
 
-      if (!e.is_auto_increment) {
+      if (!field.is_auto_increment) {
         //@ts-ignore
-        e.editable = true;
+        field.editable = true;
       }
-    });
+    }
   };
 
-  const handleReload = () => {
+  const handleReload = async () => {
     setLoading(false);
-    reloadOP(where.trim(), orderBy.trim(), page + 1, pageSize)
-      .then((resp) => {
-        setLoading(false);
-        handleResp(resp);
-        setResp(resp);
-      })
-      .catch((e) => {
-        setLoading(false);
-        showNotification('error', 'query data failed', e);
-      });
+    try {
+      let resp = await reloadOP(
+        where.trim(),
+        orderBy.trim(),
+        page + 1,
+        pageSize
+      );
+      setLoading(false);
+      await handleResp(resp);
+      setResp(resp);
+    } catch (e) {
+      setLoading(false);
+      showNotification('error', 'query data failed', e);
+      return;
+    }
   };
 
   const handleProcessRowUpdate = async (
@@ -174,9 +202,10 @@ function SqlTableView(props: {
     }
     handleReload();
   };
+
   useEffect(() => {
     handleReload();
-  }, [page, pageSize, triggerReload]);
+  }, [page, pageSize, triggerReload, widths]);
   useEffect(() => {}, [orderBy]);
   useEffect(() => {
     setLastLoadTime(new Date());
@@ -289,13 +318,11 @@ function SqlTableView(props: {
               </Modal>
             )}
           </Stack>
-
           <DataGrid
-            onColumnVisibilityModelChange={(e) => {
-              console.log('onColumnVisibilityModelChange', e);
-            }}
             onColumnResize={(e) => {
-              console.log('onColumnWidthChange', e);
+              if (saveWidth) {
+                saveWidth(e.colDef.field, e.width);
+              }
             }}
             rowHeight={datagridRowHeight}
             columnHeaderHeight={datagridHeaderHeight}
@@ -354,13 +381,12 @@ function SqlTableViewAdd(props: {
   const handleAdd = () => {
     // verify not null
     // TODO more check
-
     for (let i = 0; i < fields.length; i++) {
       let f = fields[i];
       if (f.is_auto_increment) {
         continue;
       }
-      console.log(args[f.field], f.nullable);
+
       if (!args[f.field] && !f.nullable) {
         showNotification('error', `filed '${f.field}' need be filled`);
         return;

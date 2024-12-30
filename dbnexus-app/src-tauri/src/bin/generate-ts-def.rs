@@ -28,7 +28,6 @@ fn main() {
     let ts_module = {
         let api = vec![
             &app::DBConnectionConfig::INFO,
-            &app::UserSettings::INFO,
             &PGDbConfig::INFO,
             &SqlServerDbConfig::INFO,
             &ListTable::INFO,

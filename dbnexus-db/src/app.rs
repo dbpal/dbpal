@@ -1,9 +1,8 @@
 use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
-use sqlx::sqlite::SqliteRow;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -20,7 +19,6 @@ use crate::redis::{RedisDB, RedisListTable};
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct DBNexusConfigs {
     connection_configs: Vec<DBConnectionConfig>,
-    user_settings: UserSettings,
 }
 
 impl DBConnectionConfig {
@@ -105,84 +103,8 @@ pub trait DbConfigLoader: Send + Sync + 'static {
     async fn delete(&self, name: &str) -> anyhow::Result<()>;
 
     ///
-    async fn get_config_cloned(&self, uuid: &str) -> anyhow::Result<DBConnectionConfig>;
-    async fn list_all_configs_cloned(&self) -> anyhow::Result<Vec<DBConnectionConfig>>;
-
-    async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings>;
-    async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()>;
-}
-pub struct SqliteLoader {
-    sqlite: crate::sqlite::SqliteDB,
-}
-
-impl SqliteLoader {
-    pub async fn new(path: impl Into<String>) -> anyhow::Result<Self> {
-        let path = path.into();
-        let sqlite = crate::sqlite::SqliteDB::new(path, false).await?;
-        anyhow::Ok(Self { sqlite })
-    }
-
-    fn extract_one_config(&self, row: &SqliteRow) -> anyhow::Result<DBConnectionConfig> {
-        unimplemented!()
-    }
-}
-
-#[async_trait::async_trait]
-impl DbConfigLoader for SqliteLoader {
-    async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
-        let conn = match &config {
-            DBConnectionConfig::Sqlite { conn, .. } => serde_json::to_string_pretty(conn),
-            DBConnectionConfig::Mysql { conn, .. } => serde_json::to_string_pretty(conn),
-            DBConnectionConfig::MariaDB { conn, .. } => serde_json::to_string_pretty(conn),
-            DBConnectionConfig::Postgres { conn, .. } => serde_json::to_string_pretty(conn),
-            DBConnectionConfig::SqlServer { conn, .. } => serde_json::to_string_pretty(conn),
-            DBConnectionConfig::Mongo { conn, .. } => serde_json::to_string_pretty(conn),
-            DBConnectionConfig::Redis { conn, .. } => serde_json::to_string_pretty(conn),
-            DBConnectionConfig::Oracle { conn, .. } => serde_json::to_string_pretty(conn),
-        };
-        let conn = conn?;
-        let sql = "replace into dbconnectionconfig(name,kind,config,update_at ) values(?,?,?,CURRENT_TIMESTAMP)";
-
-        sqlx::query(&sql)
-            .bind(config.get_name())
-            .bind(config.get_kind_str())
-            .bind(conn)
-            .execute(self.sqlite.get_conn().await?.deref_mut())
-            .await?;
-
-        anyhow::Ok(())
-    }
-
-    /// delete one config
-    async fn delete(&self, name: &str) -> anyhow::Result<()> {
-        anyhow::Ok(())
-    }
-
-    ///
-    async fn get_config_cloned(&self, uuid: &str) -> anyhow::Result<DBConnectionConfig> {
-        unimplemented!()
-    }
-
-    async fn list_all_configs_cloned(&self) -> anyhow::Result<Vec<DBConnectionConfig>> {
-        let sql = "select * from dbconnectionconfig order by update_at desc";
-        let mut conn = self.sqlite.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let config = self.extract_one_config(r)?;
-            ret.push(config);
-        }
-
-        anyhow::Ok(ret)
-    }
-
-    async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings> {
-        unimplemented!()
-    }
-    async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()> {
-        unimplemented!()
-    }
+    async fn get_config(&self, uuid: &str) -> anyhow::Result<DBConnectionConfig>;
+    async fn list_all_configs(&self) -> anyhow::Result<Vec<DBConnectionConfig>>;
 }
 
 pub struct FileJsonLoader {
@@ -222,19 +144,8 @@ impl FileJsonLoader {
 
 #[async_trait::async_trait]
 impl DbConfigLoader for FileJsonLoader {
-    async fn list_all_configs_cloned(&self) -> anyhow::Result<Vec<DBConnectionConfig>> {
+    async fn list_all_configs(&self) -> anyhow::Result<Vec<DBConnectionConfig>> {
         anyhow::Ok(self.config.lock().await.connection_configs.clone())
-    }
-
-    async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings> {
-        Ok(self.config.lock().await.user_settings.clone())
-    }
-
-    async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()> {
-        let mut g = self.config.lock().await;
-        g.user_settings = x;
-        self.save(g.deref()).await?;
-        anyhow::Ok(())
     }
 
     async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
@@ -268,7 +179,7 @@ impl DbConfigLoader for FileJsonLoader {
         anyhow::Ok(())
     }
 
-    async fn get_config_cloned(&self, name: &str) -> anyhow::Result<DBConnectionConfig> {
+    async fn get_config(&self, name: &str) -> anyhow::Result<DBConnectionConfig> {
         let ret = self
             .config
             .lock()
@@ -411,7 +322,7 @@ impl App {
         if let Some(x) = self.opens.lock().await.get(&name.to_string()) {
             return anyhow::Ok(x.clone());
         }
-        let config = self.loader.get_config_cloned(name).await?;
+        let config = self.loader.get_config(name).await?;
         let db = open(&config).await?;
         match &db {
             Open::DataBase(x) => {
@@ -623,21 +534,6 @@ impl App {
     }
 }
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, TypeDef)]
-pub struct UserSettings {
-    pub page_size: usize,
-    pub theme: String,
-}
-
-impl Default for UserSettings {
-    fn default() -> Self {
-        Self {
-            page_size: 100,
-            theme: "light".to_string(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::DBNexusConfigs;
@@ -647,17 +543,9 @@ mod tests {
     #[test]
     fn print_config() {
         let s = DBNexusConfigs {
-            user_settings: super::UserSettings {
-                page_size: 100,
-                theme: "light".to_string(),
-            },
             connection_configs: {
                 let mut m = Vec::new();
-                m.push(DBConnectionConfig::Sqlite {
-                    path: "d:\\sqlite.test.db".to_string(),
-                    read_only: false,
-                    name: "haha".to_string(),
-                });
+
                 m.push(DBConnectionConfig::Mysql {
                     conn: MysqlDbConfig {
                         host: "127.0.0.1".to_string(),
