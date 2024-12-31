@@ -2,7 +2,6 @@ import { useContext, useEffect, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import types from './ApiStruct';
 import {
-  Alert,
   Box,
   Button,
   CircularProgress,
@@ -26,6 +25,7 @@ import {
 } from './Common';
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
+import { secondConfirm } from './Confirm';
 
 function SqlTableView(props: {
   reloadOP: (
@@ -121,8 +121,18 @@ function SqlTableView(props: {
     }
   };
 
+  const confrimAboutPrimary = async (): Promise<boolean> => {
+    const hasPri = !!resp.data.fields.find((x) => x.is_primary);
+    if (hasPri) {
+      return true;
+    }
+    return secondConfirm({
+      title: 'No Primary key found.',
+      content: 'No Primary key found,maybe multi row affected.',
+    });
+  };
   const handleReload = async () => {
-    setLoading(false);
+    setLoading(true);
     try {
       let resp = await reloadOP(
         where.trim(),
@@ -144,6 +154,9 @@ function SqlTableView(props: {
     newRow: Map<string, string>,
     oldRow: Map<string, string>
   ) => {
+    if (!(await confrimAboutPrimary())) {
+      return oldRow;
+    }
     if (!updateOP) {
       return newRow;
     }
@@ -176,6 +189,9 @@ function SqlTableView(props: {
   };
 
   const handleDetele = async () => {
+    if (!(await confrimAboutPrimary())) {
+      return;
+    }
     let selectSet = new Set();
     selectIDs.forEach((e) => {
       selectSet.add(e);
@@ -205,7 +221,7 @@ function SqlTableView(props: {
 
   useEffect(() => {
     handleReload();
-  }, [page, pageSize, triggerReload, widths]);
+  }, [page, pageSize, triggerReload]);
   useEffect(() => {}, [orderBy]);
   useEffect(() => {
     setLastLoadTime(new Date());
@@ -229,7 +245,7 @@ function SqlTableView(props: {
         />
         <TextField
           fullWidth
-          label='orderby'
+          label='order by'
           variant='outlined'
           value={orderBy}
           onChange={(event) => {
@@ -260,7 +276,7 @@ function SqlTableView(props: {
             spacing={1}
             sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
           >
-            <Stack direction='row' spacing={1}>
+            <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-end' }}>
               {deleteOP && (
                 <Button
                   variant='contained'
@@ -268,6 +284,7 @@ function SqlTableView(props: {
                   onClick={() => {
                     handleDetele();
                   }}
+                  size='small'
                 >
                   <DeleteForeverIcon color='error'></DeleteForeverIcon>
                 </Button>
@@ -279,18 +296,13 @@ function SqlTableView(props: {
                   onClick={() => {
                     setShowAdd(true);
                   }}
+                  size='small'
                 >
                   <AddIcon></AddIcon>
                 </Button>
               )}
-
-              {resp && (
-                <Alert color='info' severity='info'>
-                  {resp.sql}
-                </Alert>
-              )}
+              {resp && <Typography variant='subtitle1'>{resp.sql}</Typography>}
             </Stack>
-
             {resp && (
               <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
             )}

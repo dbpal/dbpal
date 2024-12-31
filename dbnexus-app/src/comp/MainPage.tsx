@@ -1,20 +1,8 @@
-// import Box from '@mui/material/Box';
-
-import { darkTheme } from './theme';
-// import { useState } from 'react';
-
 import { NotificationProvider } from './Notification';
-// import { createTheme, ThemeProvider } from '@mui/material';
+
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
-import {
-  Box,
-  createTheme,
-  CssBaseline,
-  Modal,
-  Stack,
-  ThemeProvider,
-} from '@mui/material';
+import { Box, Modal } from '@mui/material';
 import { CSSProperties, ReactNode, useEffect, useState } from 'react';
 
 import { TabContent, TabsWithCloseButton } from './Tabs';
@@ -24,7 +12,6 @@ import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import AddConfig from './AddConnection.tsx';
 import { ModifySettings, SettingComp } from './Settings.tsx';
-import types from './ApiStruct.ts';
 
 export default function MainPage() {
   const [showAddConnection, setShowAddConnection] = useState(false);

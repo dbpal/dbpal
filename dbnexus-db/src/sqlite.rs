@@ -665,24 +665,26 @@ impl SchemaTrait for SqliteDB {
         sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
-
     fn put_value_in_sql(&self, f: &Field, value: Option<&str>) -> anyhow::Result<String> {
-        let v = if f.typ == "TEXT" {
-            // escape '
-            format!(
-                "'{}'",
-                value
-                    .map(|x| x.replace("'", "''"))
-                    .unwrap_or("null".to_string())
-            )
-        } else {
-            let mut x = value.unwrap_or("null").to_string();
-            if x.is_empty() {
-                // todo null return "" string sometimes??
-                x = "null".to_string();
+        let v = match f.typ.to_uppercase().as_str() {
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" => {
+                format!(
+                    "'{}'",
+                    value
+                        .map(|x| x.replace("'", "''"))
+                        .unwrap_or("null".to_string())
+                )
             }
-            x
+            "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
+            "BLOB" => value.unwrap_or("null").to_string(),
+
+            _ => {
+                let e = format!("type '{}' not handled ,field:{:?}", f.typ, f);
+                log::error!("{}", e);
+                anyhow::bail!(e)
+            }
         };
+
         anyhow::Ok(v)
     }
 
@@ -719,6 +721,7 @@ impl SchemaTrait for SqliteDB {
         let fields = self.show_columns(table_name).await?;
         let sql =
             (self as &dyn crate::db::SchemaTrait).insert_sql(None, table_name, &fields, &values)?;
+        log::trace!("insert sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -901,8 +904,8 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
         let ty = r.column(c).type_info().name();
         let v: serde_json::Value = match ty {
             "NULL" | "" => {
-                // null table is not always null. I quote 'suitable for
-                // representing missing or unknown data'
+                // null table is not always null. I quote `suitable for
+                // representing missing or unknown data`
                 // try get possible values
                 if let Result::Ok(s) = r.try_get::<'_, f64, _>(c) {
                     serde_json::Value::from(s)
@@ -918,51 +921,51 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
             }
 
             "TEXT" => {
-                let v: Option<String> = r.get(c);
+                let v: Option<String> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::String(x))
                     .unwrap_or(null_value.clone())
             }
             "REAL" => {
-                let v: Option<f64> = r.get(c);
+                let v: Option<f64> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::from(x))
                     .unwrap_or(null_value.clone())
             }
             "BLOB" => {
-                let v: Option<Vec<u8>> = r.get(c);
+                let v: Option<Vec<u8>> = r.try_get(c)?;
                 v.map(|x| format!("X'{}'", encode_bytes(x.as_slice())))
                     .map(|x| serde_json::Value::from(x))
                     .unwrap_or(null_value.clone())
             }
 
             "INTEGER" => {
-                let v: Option<i64> = r.get(c);
+                let v: Option<i64> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::from(x))
                     .unwrap_or(null_value.clone())
             }
             "NUMERIC" => {
-                let v: Option<f64> = r.get(c);
+                let v: Option<f64> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::from(x))
                     .unwrap_or(null_value.clone())
             }
 
             // non-standard extensions 这些实际上不存在？
             "BOOLEAN" => {
-                let v: Option<bool> = r.get(c);
+                let v: Option<bool> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::from(x))
                     .unwrap_or(null_value.clone())
             }
             "DATE" => {
-                let v: Option<chrono::NaiveDate> = r.get(c);
+                let v: Option<chrono::NaiveDate> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::from(x.to_string()))
                     .unwrap_or(null_value.clone())
             }
             "TIME" => {
-                let v: Option<chrono::NaiveTime> = r.get(c);
+                let v: Option<chrono::NaiveTime> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::from(x.to_string()))
                     .unwrap_or(null_value.clone())
             }
             "DATETIME" => {
-                let v: Option<chrono::NaiveDateTime> = r.get(c);
+                let v: Option<chrono::NaiveDateTime> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::from(x.to_string()))
                     .unwrap_or(null_value.clone())
             }
@@ -988,53 +991,55 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
                     // try get possible values
                     if let Result::Ok(s) = r.try_get::<'_, f64, _>(c) {
                         Some(s.to_string())
-                    } else if let Result::Ok(s) = r.try_get::<'_, Vec<u8>, _>(c) {
-                        Some(encode_bytes(s.as_slice()))
                     } else if let Result::Ok(s) = r.try_get::<'_, i64, _>(c) {
                         Some(s.to_string())
                     } else if let Result::Ok(s) = r.try_get(c) {
                         Some(s)
+                    } else if let Result::Ok(s) = r.try_get::<'_, bool, _>(c) {
+                        Some(s.to_string())
+                    } else if let Result::Ok(s) = r.try_get::<'_, Vec<u8>, _>(c) {
+                        Some(encode_bytes(s.as_slice()))
                     } else {
                         None
                     }
                 }
 
                 "TEXT" => {
-                    let v: Option<String> = r.get(c);
+                    let v: Option<String> = r.try_get(c)?;
                     v
                 }
                 "REAL" => {
-                    let v: Option<f64> = r.get(c);
+                    let v: Option<f64> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
                 "BLOB" => {
-                    let v: Option<Vec<u8>> = r.get(c);
+                    let v: Option<Vec<u8>> = r.try_get(c)?;
                     v.map(|x| encode_bytes(x.as_slice()))
                 }
 
                 "INTEGER" => {
-                    let v: Option<i64> = r.get(c);
+                    let v: Option<i64> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
                 "NUMERIC" => {
-                    let v: Option<f64> = r.get(c);
+                    let v: Option<f64> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
 
                 "BOOLEAN" => {
-                    let v: Option<bool> = r.get(c);
+                    let v: Option<bool> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
                 "DATE" => {
-                    let v: Option<chrono::NaiveDate> = r.get(c);
+                    let v: Option<chrono::NaiveDate> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
                 "TIME" => {
-                    let v: Option<chrono::NaiveDate> = r.get(c);
+                    let v: Option<chrono::NaiveTime> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
                 "DATETIME" => {
-                    let v: Option<chrono::NaiveDateTime> = r.get(c);
+                    let v: Option<chrono::NaiveDateTime> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
                 _ => anyhow::bail!(format!("type '{ty}' not supported")),
@@ -1370,7 +1375,9 @@ mod tests {
 
     // this test no need clean up, we use memory sqlite db.
     async fn make_test_object() -> SqliteDB {
-        let db = SqliteDB::new(":memory:".to_string(), false).await.unwrap();
+        let path = std::env::var("NEXUS_TEST_SQLITE")
+            .unwrap_or("/Users/yuyang/tests/test.sqlite.db".to_string());
+        let db = SqliteDB::new(path, false).await.unwrap();
         db
     }
 
@@ -1391,6 +1398,8 @@ mod tests {
     async fn test_rename() {
         let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
+        let _ = db_trait.drop_table("test_rename", false).await;
+        let _ = db_trait.drop_table("test_rename2", false).await;
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
             .query_sql(
@@ -1419,6 +1428,8 @@ mod tests {
     async fn test_duplicate() {
         let db = make_test_object().await;
         let db_trait = &db as &dyn SchemaTrait;
+        let _ = db_trait.drop_table("test_duplicate", false).await;
+        let _ = db_trait.drop_table("test_duplicate2", false).await;
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
             .query_sql(
@@ -1445,6 +1456,8 @@ mod tests {
 
     async fn test_triggers() {
         let db = make_test_object().await;
+        let _ = db.drop_table("test_create_trigger", false).await;
+        let _ = db.drop_table("test_create_trigger_update", false).await;
         let mut conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn SchemaTrait;
         sqlx::query(
@@ -1493,15 +1506,15 @@ mod tests {
                 .await
                 .unwrap();
             println!("name:{} , detail:{:?}", trigger.name, details);
-            // drop trigger now.
-            db_trait.drop_trigger(table, &trigger.name).await.unwrap();
         }
     }
     #[tokio::test]
     async fn test_export_table() {
         let db = make_test_object().await;
+
         let mut conn = db.get_conn().await.unwrap();
         let table_name = "Persons";
+        let _ = db.drop_table(table_name, false).await;
         sqlx::query(
             r#"
         -- 创建表
@@ -1596,13 +1609,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_standard() {
+    async fn test_all_types() {
         enable_test_log();
         let db = make_test_object().await;
+        let table_name = "test_table";
+        let _ = db.drop_table(table_name, false).await;
         let mut conn = db.get_conn().await.unwrap();
         sqlx::query(
             r#"
-            CREATE TABLE IF NOT EXISTS test_table (
+            CREATE table test_table (
                 id INTEGER PRIMARY KEY autoincrement,
                 null_col NULL,
                 text_col TEXT,
@@ -1610,7 +1625,9 @@ mod tests {
                 blob_col BLOB,
                 int_col INTEGER,
                 numeric_col NUMERIC,
-                datetime_col datetime
+                datetime_col datetime,
+                time_col time,
+                date_col date
             );
             CREATE INDEX idx ON test_table (real_col , int_col );
         "#,
@@ -1618,17 +1635,6 @@ mod tests {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-
-        // sqlx::query(
-        //     r#"
-        //     INSERT INTO test_table (null_col, text_col, real_col, blob_col, int_col,
-        // numeric_col)         VALUES (NULL, 'Some text', 3.14,
-        // X'0123456789ABCDEF', 42, 123.45); "#,
-        // )
-        // .execute(conn.deref_mut())
-        // .await
-        // .unwrap();
-        let table_name = "test_table";
 
         let db = &db as &dyn crate::db::SchemaTrait;
         let mut values: HashMap<String, Option<String>> = HashMap::new();
@@ -1640,6 +1646,12 @@ mod tests {
         );
         values.insert("int_col".to_string(), Some("42".to_string()));
         values.insert("numeric_col".to_string(), Some("123.45".to_string()));
+        values.insert(
+            "datetime_col".to_string(),
+            Some("2024-01-01 12:00:00".to_string()),
+        );
+        values.insert("time_col".to_string(), Some("12:00:00".to_string()));
+        values.insert("date_col".to_string(), Some("2024-01-01".to_string()));
 
         let r = db.insert(table_name, values.clone()).await.unwrap();
         let mut wheres = HashMap::new();
@@ -1657,7 +1669,7 @@ mod tests {
         let indexes = db.show_indexes(table_name).await.unwrap();
         println!("{:?}", indexes);
         let id = db.open_connection().await.unwrap();
-
+        let _ = db.drop_view("test_view").await;
         {
             let r = db
                 .query_sql(
@@ -1689,8 +1701,5 @@ mod tests {
                 .unwrap();
             println!("view value:{:?}", list);
         }
-
-        db.drop_view("test_view").await.unwrap();
-        db.drop_table(table_name, false).await.unwrap();
     }
 }

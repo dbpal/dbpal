@@ -2127,6 +2127,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types1() {
+        enable_test_log();
         let table_name = "test_types1";
         let pg = make_test_object().await;
 
@@ -2166,7 +2167,7 @@ mod tests {
         values.insert("bool_column".to_string(), Some("true".to_string()));
         values.insert(
             "bytea_column".to_string(),
-            Some("E'\\x0123456789ABCDEF'".to_string()),
+            Some("\\\\x0123456789ABCDEF".to_string()),
         );
         values.insert("char_column".to_string(), Some("A".to_string()));
         values.insert("name_column".to_string(), Some("John".to_string()));

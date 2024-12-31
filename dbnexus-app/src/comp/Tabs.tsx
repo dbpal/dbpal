@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Box, Stack, Button, List, ListItem } from '@mui/material';
+import { Box, Stack, Button } from '@mui/material';
 
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
@@ -39,6 +39,7 @@ function TabsWithCloseButton(props: {
       {tabs.length > 0 && (
         <Stack>
           <Button
+            style={{ padding: 2 }}
             onClick={() => {
               setShow((e) => !e);
             }}
@@ -66,6 +67,7 @@ function TabsWithCloseButton(props: {
                 onDragEnd={() => {
                   handleClose(index);
                 }}
+                size='small'
                 style={{ padding: '' }}
                 //@ts-ignore
                 variant={index == selectIndex ? 'outlined' : 'text'}

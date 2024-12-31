@@ -643,7 +643,16 @@ impl dyn SchemaTrait {
         &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
         values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
-        // fields
+        let mut field_by_name = HashMap::new();
+        for f in fs.iter() {
+            field_by_name.insert(&f.field, f);
+        }
+        // check
+        for col in values.keys() {
+            if field_by_name.get(col).is_none() {
+                anyhow::bail!(format!("col '{}' not found", col))
+            }
+        }
         let mut sql = format!(
             "INSERT INTO {}{table_name}(",
             if let Some(schema) = schema {
@@ -652,13 +661,14 @@ impl dyn SchemaTrait {
                 "".to_string()
             }
         );
+        // fields
         {
-            let last = fs.len() - 1;
-            for (index, f) in fs.iter().enumerate() {
-                if f.is_auto_increment {
+            let last = values.len() - 1;
+            for (index, f) in values.iter().enumerate() {
+                if field_by_name.get(f.0).map(|x| x.is_auto_increment).unwrap() {
                     continue;
                 }
-                sql.push_str(&f.field);
+                sql.push_str(f.0.as_str());
                 if index != last {
                     sql.push_str(",");
                 }
@@ -668,16 +678,13 @@ impl dyn SchemaTrait {
         // values
         sql.push_str(" VALUES (");
         {
-            let last = fs.len() - 1;
-            for (index, f) in fs.iter().enumerate() {
-                if f.is_auto_increment {
+            let last = values.len() - 1;
+            for (index, f) in values.iter().enumerate() {
+                if field_by_name.get(f.0).map(|x| x.is_auto_increment).unwrap() {
                     continue;
                 }
-                let value = values
-                    .get(&f.field)
-                    .map(|x| x.as_ref().map(|x| x.as_str()))
-                    .flatten();
-
+                let value = f.1.as_ref().map(|x| x.as_str());
+                let f = field_by_name.get(f.0).unwrap();
                 sql.push_str(&self.put_value_in_sql(f, value)?);
                 if index != last {
                     sql.push_str(",");

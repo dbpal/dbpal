@@ -355,7 +355,7 @@ const MenuContext = createContext<{
   setUpMenu: ({ content, style }) => void;
 }>(null);
 
-const msgTimeout = 15000;
+const msgTimeout = 5000;
 
 function tabsHasId(tabs: TabContent[], id: string): number | null {
   for (let i = 0; i < tabs.length; i++) {

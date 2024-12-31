@@ -1033,9 +1033,7 @@ mod tests {
 
     use std::path::Path;
     fn test_db() -> String {
-        std::env::var("DBNEXUS_SQLITE_COMPLETION_DB")
-            .unwrap()
-            .to_string()
+        std::env::var("NEXUS_TEST_SQLITE").unwrap().to_string()
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
