@@ -319,8 +319,9 @@ function TableColumnsMenu(props: {
   uuid;
   fields;
   kind: DataSourceKind;
+  supportModifyColumn;
 }) {
-  let { reload, table, uuid, fields, kind } = props;
+  let { reload, table, uuid, fields, kind, supportModifyColumn } = props;
 
   const [showAdd, setShowAdd] = useState(false);
 
@@ -328,16 +329,19 @@ function TableColumnsMenu(props: {
     <Paper>
       <MenuList>
         <MenuRefresh reload={reload}></MenuRefresh>
-        <MenuItem
-          onClick={() => {
-            setShowAdd(true);
-          }}
-        >
-          <ListItemIcon>
-            <AddIcon></AddIcon>
-          </ListItemIcon>
-          <ListItemText> add column </ListItemText>
-        </MenuItem>
+
+        {supportModifyColumn && (
+          <MenuItem
+            onClick={() => {
+              setShowAdd(true);
+            }}
+          >
+            <ListItemIcon>
+              <AddIcon></AddIcon>
+            </ListItemIcon>
+            <ListItemText> add column </ListItemText>
+          </MenuItem>
+        )}
       </MenuList>
       {showAdd && (
         <Modal
@@ -523,7 +527,7 @@ function TableColumnsTree(props: { table: string }) {
       });
   };
 
-  const support_modify_column =
+  const supportModifyColumn =
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Mysql ||
@@ -540,24 +544,21 @@ function TableColumnsTree(props: { table: string }) {
       label=<Stack
         spacing={1}
         direction='row'
-        onContextMenu={
-          support_modify_column
-            ? (e) => {
-                setUpMenu({
-                  content: (
-                    <TableColumnsMenu
-                      table={table}
-                      uuid={uuid}
-                      reload={reload}
-                      kind={kind}
-                      fields={fields}
-                    ></TableColumnsMenu>
-                  ),
-                  style: calMenuStyle(e, 200),
-                });
-              }
-            : undefined
-        }
+        onContextMenu={(e) => {
+          setUpMenu({
+            content: (
+              <TableColumnsMenu
+                table={table}
+                uuid={uuid}
+                reload={reload}
+                kind={kind}
+                fields={fields}
+                supportModifyColumn={supportModifyColumn}
+              ></TableColumnsMenu>
+            ),
+            style: calMenuStyle(e, 200),
+          });
+        }}
       >
         <span> columns</span>
         {loading && (
@@ -569,7 +570,7 @@ function TableColumnsTree(props: { table: string }) {
         <TreeItem
           key={f.field}
           onContextMenu={
-            support_modify_column
+            supportModifyColumn
               ? (e) => {
                   setUpMenu({
                     content: (
