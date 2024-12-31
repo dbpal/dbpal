@@ -263,6 +263,7 @@ function SqlTableView(props: {
           onClick={() => {
             handleReload();
           }}
+          size='small'
         >
           Reload
         </Button>

@@ -109,6 +109,41 @@ pub async fn show_indexes(
 }
 
 #[tauri::command]
+pub async fn rename_index(
+    name: String, table_name: String, old_name: String, new_name: String,
+    app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+
+    schema
+        .rename_index(&table_name, &old_name, &new_name)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
+#[tauri::command]
+pub async fn drop_index(
+    name: String, table_name: String, index: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+
+    schema
+        .drop_index(&table_name, &index)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
+#[tauri::command]
 pub async fn insert(
     name: String, table_name: String, values: HashMap<String, Option<String>>,
     app: tauri::State<'_, App>,
@@ -362,8 +397,8 @@ pub async fn query_sql_close_connection(
 }
 
 #[tauri::command]
-pub async fn export_table(
-    name: String, table_name: String, filepath: String, kind: ExportKind,
+pub async fn export_table_or_view(
+    name: String, table_or_view: String, filepath: String, kind: ExportKind,
     app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
@@ -372,7 +407,7 @@ pub async fn export_table(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    db.export_table_to_file(table_name.as_str(), filepath.as_str(), kind)
+    db.export_table_to_file(table_or_view.as_str(), filepath.as_str(), kind)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }

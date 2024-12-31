@@ -11,20 +11,24 @@ import {
   TabsSetContext,
   appStore,
   AppStoreKey,
+  modalStyle,
 } from './Common';
 import { NotificationContext } from './Notification';
 import { secondConfirm } from './Confirm';
 import { invoke } from '@tauri-apps/api/core';
 import {
+  Box,
   CircularProgress,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
+  Modal,
   Paper,
   Stack,
   Typography,
 } from '@mui/material';
+import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -34,6 +38,7 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ListIcon from '@mui/icons-material/List';
 import { SqlTableView } from './SqlTableView';
 import { TabContent } from './Tabs';
+import { ExportTableOrView } from './Export';
 
 function ViewsTree() {
   const { uuid } = useContext(UuidContext);
@@ -196,6 +201,7 @@ function ViewMenu(props: {
 }) {
   let { view, uuid, reload, kind } = props;
   const { showNotification } = useContext(NotificationContext);
+  const [showExport, setShowExport] = useState(false);
   const handleDrop = async () => {
     let confirm = await secondConfirm({
       title: 'Drop view',
@@ -302,6 +308,18 @@ function ViewMenu(props: {
             sx={{ color: 'text.secondary' }}
           ></Typography>
         </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            setShowExport(true);
+          }}
+        >
+          <ListItemIcon>
+            <ArrowCircleDownIcon></ArrowCircleDownIcon>
+          </ListItemIcon>
+          <ListItemText> export </ListItemText>
+        </MenuItem>
+
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {
@@ -318,6 +336,27 @@ function ViewMenu(props: {
           ></Typography>
         </MenuItem>
       </MenuList>
+
+      {showExport && (
+        <Modal
+          open={showExport}
+          onClose={() => {
+            setShowExport(false);
+          }}
+          aria-labelledby='drop'
+        >
+          <Box sx={modalStyle} width='800px'>
+            <ExportTableOrView
+              uuid={uuid}
+              name={view}
+              handleClose={() => {
+                setShowExport(false);
+              }}
+              support_kind={['csv', 'json', 'jsonline']}
+            ></ExportTableOrView>
+          </Box>
+        </Modal>
+      )}
     </Paper>
   );
 }

@@ -767,7 +767,7 @@ impl SchemaTrait for RedisDB {
         Box::new(Clone::clone(self))
     }
 
-    async fn export_table(
+    async fn export_table_or_view(
         &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -800,18 +800,14 @@ impl SchemaTrait for RedisDB {
             RedisType::String => anyhow::Ok(vec![Field::from_name_type("value", "string")]),
             RedisType::List => anyhow::Ok(vec![Field::from_name_type("list element", "string")]),
             RedisType::Set => anyhow::Ok(vec![Field::from_name_type("set element", "string")]),
-            RedisType::Hash => {
-                anyhow::Ok(vec![
-                    Field::from_name_type("key", "string"),
-                    Field::from_name_type("value", "string"),
-                ])
-            }
-            RedisType::Zset => {
-                anyhow::Ok(vec![
-                    Field::from_name_type("value", "string"),
-                    Field::from_name_type("score", "float64"),
-                ])
-            }
+            RedisType::Hash => anyhow::Ok(vec![
+                Field::from_name_type("key", "string"),
+                Field::from_name_type("value", "string"),
+            ]),
+            RedisType::Zset => anyhow::Ok(vec![
+                Field::from_name_type("value", "string"),
+                Field::from_name_type("score", "float64"),
+            ]),
         }
     }
 
@@ -984,10 +980,6 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let r: String = redis::cmd("info")
@@ -1150,11 +1142,9 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialet, line).tokenize()?;
         let c = tokens
             .iter()
-            .filter(|x| {
-                match x {
-                    Token::Whitespace(_) => false,
-                    _ => true,
-                }
+            .filter(|x| match x {
+                Token::Whitespace(_) => false,
+                _ => true,
             })
             .map(|x| x.to_string())
             .collect();
@@ -1194,12 +1184,10 @@ async fn query_sql(
 fn encode_response_value_to_string(v: &Value) -> String {
     match v {
         Value::Int(v) => v.to_string(),
-        Value::BulkString(x) => {
-            match from_utf8(x.as_slice()) {
-                Ok(x) => x.to_owned(),
-                Err(_) => format!("0x{}", hex::encode(x.as_slice())),
-            }
-        }
+        Value::BulkString(x) => match from_utf8(x.as_slice()) {
+            Ok(x) => x.to_owned(),
+            Err(_) => format!("0x{}", hex::encode(x.as_slice())),
+        },
         Value::SimpleString(x) => x.to_owned(),
         Value::Double(d) => d.to_string(),
         Value::Boolean(x) => x.to_string(),

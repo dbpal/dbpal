@@ -418,6 +418,13 @@ impl BackendName for SqliteDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP INDEX {index};");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
@@ -554,26 +561,23 @@ impl SchemaTrait for SqliteDB {
         })
     }
 
-    async fn export_table(
-        &self, table_name: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    async fn export_table_or_view(
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
             } => {
-                self.export_table_as_csv(table_name, include_header, delimiter, sender)
+                self.export_table_as_csv(name, include_header, delimiter, sender)
                     .await
             }
-            ExportKind::Json { pretty } => {
-                self.export_table_as_json(table_name, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
+            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
+            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(table_name, include_table_schema, sender)
+                self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
         }
@@ -817,9 +821,12 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let s = format!("PRAGMA index_list({table_name})");
+        let sql = format!("PRAGMA index_list({table_name})");
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(sql.as_str())
+            .fetch_all(conn.deref_mut())
+            .await?;
+
         // seq name unique origin partial
         // 0   xxx  1      c      0
 
@@ -829,24 +836,17 @@ impl SchemaTrait for SqliteDB {
             let name: String = r.get(1);
             let unique: i64 = r.get(2);
             // query create index sql
-            let s = format!(
-                "SELECT sql from sqlite_master where type='index' and name='{name}' and tbl_name='{table_name}'; "
-            );
-            let row = sqlx::query(s.as_str()).fetch_one(conn.deref_mut()).await?;
-            let create_index_sql: String = row.get(0);
+            let sql = format!("PRAGMA index_info('{name}')");
 
-            let indexs = extract_index(&create_index_sql)?;
-            if indexs.is_none() {
-                anyhow::bail!(format!(
-                    "some we can't extract indexes this statement {}",
-                    create_index_sql
-                ));
-            }
-            let (name2, on) = indexs.unwrap();
-            if let Some(name2) = &name2 {
-                debug_assert_eq!(&name, name2);
-            }
+            let rows = sqlx::query(sql.as_str())
+                .fetch_all(conn.deref_mut())
+                .await?;
+            let mut on = Vec::with_capacity(rows.len());
 
+            for r in rows.iter() {
+                let name: String = r.try_get(2)?;
+                on.push(name);
+            }
             ret.push(Index::new(
                 name,
                 if unique == 1 {
@@ -1100,7 +1100,6 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     if ss.len() != 1 {
         anyhow::bail!("should contains one statement");
     }
-
     let s = ss.get(0).unwrap();
     match s {
         Statement::CreateTable(create_table) => {
@@ -1310,11 +1309,13 @@ fn test_detect_auto_increment() {
     assert!(x == None);
 }
 
+#[allow(unused)]
 fn extract_index(sql: &str) -> anyhow::Result<Option<(Option<String>, Vec<String>)>> {
     use sqlparser::dialect::SQLiteDialect;
     let ss = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, sql)?;
     if ss.len() != 1 {
-        anyhow::bail!("should contains one statement");
+        log::error!("statements are:{:?}", ss);
+        anyhow::bail!("should contains one statement.");
     }
     let s = ss.get(0).unwrap();
 
@@ -1327,13 +1328,11 @@ fn extract_index(sql: &str) -> anyhow::Result<Option<(Option<String>, Vec<String
                     Expr::Identifier(x) => {
                         on.push(x.to_string());
                     }
-
                     _ => {
                         anyhow::bail!(format!("not a valid index expr:{:?}", &c.expr));
                     }
                 }
             }
-
             anyhow::Ok(Some((name, on)))
         }
 
@@ -1667,7 +1666,7 @@ mod tests {
         println!("{:?}", cols);
 
         let indexes = db.show_indexes(table_name).await.unwrap();
-        println!("{:?}", indexes);
+        println!("indexes{:?}", indexes);
         let id = db.open_connection().await.unwrap();
         let _ = db.drop_view("test_view").await;
         {

@@ -51,8 +51,9 @@ import { secondConfirm } from './Confirm';
 import { TabContent } from './Tabs';
 import { SqlTableView } from './SqlTableView';
 import { TriggersTree } from './LeftTriggers';
-import { ExportTableView } from './Export';
+import { ExportTableOrView } from './Export';
 import AddIcon from '@mui/icons-material/Add';
+import { LeftIndexes } from './LeftTableIndexes';
 
 function TablesTree() {
   const { uuid } = useContext(UuidContext);
@@ -159,6 +160,7 @@ function TableTree(props: {
     >
       <TableColumnsTree table={table}></TableColumnsTree>
       <TriggersTree table={table}></TriggersTree>
+      <LeftIndexes table={table}></LeftIndexes>
     </TreeItem>
   );
 }
@@ -326,7 +328,6 @@ function TableColumnsMenu(props: {
     <Paper>
       <MenuList>
         <MenuRefresh reload={reload}></MenuRefresh>
-
         <MenuItem
           onClick={() => {
             setShowAdd(true);
@@ -905,13 +906,14 @@ function TableMenu(props: {
           aria-labelledby='drop'
         >
           <Box sx={modalStyle} width='800px'>
-            <ExportTableView
+            <ExportTableOrView
               uuid={uuid}
-              table={table}
+              name={table}
               handleClose={() => {
                 setShowExport(false);
               }}
-            ></ExportTableView>
+              support_kind={['csv', 'sql', 'json', 'jsonline']}
+            ></ExportTableOrView>
           </Box>
         </Modal>
       )}
@@ -1119,14 +1121,6 @@ function RenameTable(props: {
         }}
       ></TextField>
       <Stack direction='row' spacing={1}>
-        <Button
-          variant='outlined'
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button color='primary' variant='contained' onClick={handleRename}>
           Rename
         </Button>

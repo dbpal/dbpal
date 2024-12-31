@@ -18,11 +18,11 @@ import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';
 function ExportView(props: {
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
+  support_kind: string[];
   handleClose;
 }) {
-  const { exportOP, handleClose } = props;
+  const { exportOP, handleClose, support_kind } = props;
   const [kind, setKind] = useState('csv');
-  const exportKinds = ['csv', 'sql', 'json', 'jsonline'];
   const [includeHeader, setIncludeHeader] = useState(false);
   const [delimiter, setDelimiter] = useState(',');
   const [pretty, setPretty] = useState(true);
@@ -70,7 +70,7 @@ function ExportView(props: {
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
       <Stack direction='row' spacing={1}>
-        {exportKinds.map((e) => (
+        {support_kind.map((e) => (
           <Button
             disabled={kind == e}
             onClick={() => {
@@ -175,22 +175,28 @@ function ExportView(props: {
   );
 }
 
-function ExportTableView(props: { handleClose; uuid: string; table: string }) {
-  let { handleClose, uuid, table } = props;
+function ExportTableOrView(props: {
+  handleClose;
+  uuid: string;
+  name: string;
+  support_kind: string[];
+}) {
+  let { handleClose, uuid, name, support_kind } = props;
 
   return (
     <ExportView
       handleClose={handleClose}
       exportOP={async (kind, filepath) => {
-        return await invoke('export_table', {
+        return await invoke('export_table_or_view', {
           name: uuid,
-          tableName: table,
+          tableOrView: name,
           filepath,
           kind,
         });
       }}
+      support_kind={support_kind}
     ></ExportView>
   );
 }
 
-export { ExportView, ExportTableView };
+export { ExportView, ExportTableOrView };

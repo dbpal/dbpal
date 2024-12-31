@@ -74,10 +74,6 @@ impl AutoCompletionTrait for Mongo {
 
 #[async_trait::async_trait]
 impl DBTrait for Mongo {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let names = conn.list_database_names().await?;
@@ -534,15 +530,12 @@ impl SchemaTrait for Mongo {
         Box::new(Clone::clone(self))
     }
 
-    async fn export_table(
-        &self, table_name: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    async fn export_table_or_view(
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::Json { pretty } => {
-                self.export_table_as_json(table_name, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
+            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
+            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
             _ => anyhow::bail!("mongo only support export json."),
         }
     }

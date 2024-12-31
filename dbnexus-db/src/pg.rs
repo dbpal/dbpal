@@ -51,10 +51,6 @@ impl CheckConn for PostGresDB {
 
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
@@ -378,6 +374,22 @@ impl ServerMetas for PostGresDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP INDEX {index};");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn rename_index(
+        &self, _table: &str, old_name: &str, new_name: &str,
+    ) -> anyhow::Result<()> {
+        let sql = format!("ALTER INDEX {old_name} RENAME TO {new_name};");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
@@ -777,26 +789,23 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn export_table(
-        &self, table_name: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    async fn export_table_or_view(
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
             } => {
-                self.export_table_as_csv(table_name, include_header, delimiter, sender)
+                self.export_table_as_csv(name, include_header, delimiter, sender)
                     .await
             }
-            ExportKind::Json { pretty } => {
-                self.export_table_as_json(table_name, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
+            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
+            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(table_name, include_table_schema, sender)
+                self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
         }

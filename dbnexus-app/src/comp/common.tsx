@@ -43,7 +43,6 @@ const modalStyle: SxProps = {
   boxShadow: 24,
   margin: 0,
   p: 4,
-  resize: 'both',
 };
 
 import { load } from '@tauri-apps/plugin-store';

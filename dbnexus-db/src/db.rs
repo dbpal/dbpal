@@ -32,6 +32,17 @@ pub trait SchemaTrait:
         page_size: usize,
     ) -> anyhow::Result<TableListResp>;
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>>;
+
+    async fn rename_index(
+        &self, _table_name: &str, _oldname: &str, _newname: &str,
+    ) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
+    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet>;
@@ -91,8 +102,8 @@ pub trait SchemaTrait:
             .map(|x| x.fields)
     }
 
-    async fn export_table(
-        &self, _table_name: &str, _kind: ExportKind,
+    async fn export_table_or_view(
+        &self, _name: &str, _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
@@ -136,7 +147,10 @@ pub trait SchemaTrait:
         let h1 = {
             let x = self.clone();
             let table_name = table_name.to_string();
-            let h1 = tokio::spawn(async move { x.export_table(&table_name, kind, sender).await });
+            let h1 =
+                tokio::spawn(
+                    async move { x.export_table_or_view(&table_name, kind, sender).await },
+                );
             h1
         };
         let h2 = {
@@ -365,7 +379,10 @@ impl dyn SchemaTrait {
         let h1 = {
             let x = self.clone();
             let table_name = table_name.to_string();
-            let h1 = tokio::spawn(async move { x.export_table(&table_name, kind, sender).await });
+            let h1 =
+                tokio::spawn(
+                    async move { x.export_table_or_view(&table_name, kind, sender).await },
+                );
             h1
         };
         let h2 = {
@@ -408,8 +425,6 @@ impl dyn SchemaTrait {
 
 #[async_trait::async_trait]
 pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql + Debug {
-    fn as_any(&self) -> &dyn std::any::Any;
-
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
 }
