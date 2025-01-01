@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Box, Stack, Button } from '@mui/material';
+import { Stack, Button } from '@mui/material';
 
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
@@ -19,20 +19,6 @@ function TabsWithCloseButton(props: {
 }) {
   let { tabs, handleClose, selectIndex, changeTab } = props;
   const [show, setShow] = useState(true);
-  function TabPanel(props) {
-    const { children, value, id, ...other } = props;
-    return (
-      <div
-        role='tabpanel'
-        hidden={value !== id}
-        id={`tabpanel-${id}`}
-        aria-labelledby={`tab-${id}`}
-        {...other}
-      >
-        {value === id && <Box p={3}>{children}</Box>}
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -64,11 +50,11 @@ function TabsWithCloseButton(props: {
               <Button
                 key={tab.id}
                 draggable
+                sx={{ textTransform: 'none' }}
                 onDragEnd={() => {
                   handleClose(index);
                 }}
                 size='small'
-                style={{ padding: '' }}
                 //@ts-ignore
                 variant={index == selectIndex ? 'outlined' : 'text'}
                 onClick={() => {
@@ -81,11 +67,8 @@ function TabsWithCloseButton(props: {
           })}
         </Stack>
       )}
-
       {tabs.map((tab, index) => (
-        <TabPanel key={tab.id} value={selectIndex} id={index}>
-          {tab.content}
-        </TabPanel>
+        <div hidden={selectIndex !== index}>{tab.content}</div>
       ))}
     </div>
   );

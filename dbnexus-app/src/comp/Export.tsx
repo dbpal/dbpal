@@ -76,6 +76,7 @@ function ExportView(props: {
             onClick={() => {
               setKind(e);
             }}
+            key={e}
             variant='contained'
           >
             {e}

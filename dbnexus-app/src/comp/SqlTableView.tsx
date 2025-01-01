@@ -42,8 +42,17 @@ function SqlTableView(props: {
   addOP?: (values: Map<string, string | null>) => Promise<types.SqlExecuteRet>;
   saveWidth: (name: string, width: number) => void;
   loadWidths: () => Promise<object>;
+  notWarnPri?: boolean;
 }) {
-  let { reloadOP, updateOP, deleteOP, addOP, saveWidth, loadWidths } = props;
+  let {
+    reloadOP,
+    updateOP,
+    deleteOP,
+    addOP,
+    saveWidth,
+    loadWidths,
+    notWarnPri,
+  } = props;
 
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -122,6 +131,9 @@ function SqlTableView(props: {
   };
 
   const confrimAboutPrimary = async (): Promise<boolean> => {
+    if (notWarnPri) {
+      return true;
+    }
     const hasPri = !!resp.data.fields.find((x) => x.is_primary);
     if (hasPri) {
       return true;

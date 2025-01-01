@@ -246,6 +246,7 @@ function ViewMenu(props: {
         case DataSourceKind.Postgres:
           list = (
             <SqlTableView
+              notWarnPri={true}
               reloadOP={async (
                 where: string,
                 orderBy: string,
