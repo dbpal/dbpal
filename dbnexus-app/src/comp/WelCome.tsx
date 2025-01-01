@@ -3,7 +3,7 @@ import { Stack } from '@mui/material';
 function WelCome() {
   return (
     <Stack>
-      <h1>welcome!!!!!!!!!!!!!!!</h1>
+      <h1>welcome</h1>
     </Stack>
   );
 }

@@ -43,12 +43,16 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       message = message.toString();
     }
     // 首先关闭 Snackbar，确保每次可以重新打开
-    setOpen(false);
+    // setOpen(false);
     setNotification({ severity, title, message });
-    setTimeout(() => setOpen(true), 0); // 延时打开，确保状态变化
+    // setTimeout(() => , 0); // 延时打开，确保状态变化
+    setOpen(true);
   };
 
-  const handleClose = () => {
+  const handleClose = (_event, reason) => {
+    if (reason === 'clickaway') {
+      return; // 阻止关闭
+    }
     setOpen(false);
   };
 

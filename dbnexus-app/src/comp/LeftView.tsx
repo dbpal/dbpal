@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { ReactNode, useContext, useEffect, useState } from 'react';
 import {
   ConnTypeContext,
   DataSourceKind,
@@ -7,20 +7,28 @@ import {
   UuidContext,
   progressBarSizeSmall,
   calMenuStyle,
+  tabsHasId,
+  TabsSetContext,
+  appStore,
+  AppStoreKey,
+  modalStyle,
 } from './Common';
 import { NotificationContext } from './Notification';
 import { secondConfirm } from './Confirm';
 import { invoke } from '@tauri-apps/api/core';
 import {
+  Box,
   CircularProgress,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
+  Modal,
   Paper,
   Stack,
   Typography,
 } from '@mui/material';
+import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -28,6 +36,9 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import types from './ApiStruct';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ListIcon from '@mui/icons-material/List';
+import { SqlTableView } from './SqlTableView';
+import { TabContent } from './Tabs';
+import { ExportTableOrView } from './Export';
 
 function ViewsTree() {
   const { uuid } = useContext(UuidContext);
@@ -188,8 +199,9 @@ function ViewMenu(props: {
   reload;
   kind: DataSourceKind;
 }) {
-  let { view, uuid, reload } = props;
+  let { view, uuid, reload, kind } = props;
   const { showNotification } = useContext(NotificationContext);
+  const [showExport, setShowExport] = useState(false);
   const handleDrop = async () => {
     let confirm = await secondConfirm({
       title: 'Drop view',
@@ -208,11 +220,85 @@ function ViewMenu(props: {
         showNotification('error', 'Drop View Failure', e);
       });
   };
+  const { tabs, setTabs, setSelectIndex } = useContext(TabsSetContext);
+
+  const handleViewData = () => {
+    const id = uuid + '-view-' + view;
+    let index = tabsHasId(tabs, id);
+    if (typeof index == 'number') {
+      setSelectIndex(index);
+    } else {
+      let list: ReactNode = null;
+      let widthKey =
+        AppStoreKey.ConnectionConfig +
+        '-' +
+        uuid +
+        '-' +
+        view +
+        '-' +
+        '-widths';
+
+      switch (kind) {
+        case DataSourceKind.MariaDB:
+        case DataSourceKind.Mysql:
+        case DataSourceKind.MsSql:
+        case DataSourceKind.Sqlite:
+        case DataSourceKind.Postgres:
+          list = (
+            <SqlTableView
+              reloadOP={async (
+                where: string,
+                orderBy: string,
+                page: number,
+                pageSize: number
+              ) => {
+                let where_null = where ? where : null;
+                let orderBy_null = orderBy ? orderBy : null;
+                return await invoke<types.MuiDataTableListResp>('show_view', {
+                  name: uuid,
+                  viewName: view,
+                  whereStr: where_null,
+                  orderBy: orderBy_null,
+                  page,
+                  pageSize,
+                });
+              }}
+              saveWidth={async (name, width) => {
+                let old = await appStore.get<object>(widthKey);
+                if (!old) {
+                  old = {};
+                }
+                old[name] = width;
+                await appStore.set(widthKey, old);
+              }}
+              loadWidths={() => {
+                return appStore.get<{}>(widthKey).then((x) => {
+                  if (!x) {
+                    x = {};
+                  }
+                  return x;
+                });
+              }}
+            ></SqlTableView>
+          );
+          break;
+        case DataSourceKind.Redis:
+          throw 'impl this';
+        case DataSourceKind.Mongo:
+          throw 'impl this';
+      }
+
+      setTabs((e) => {
+        setSelectIndex(tabs.length);
+        return [...e, new TabContent(id, view, list)];
+      });
+    }
+  };
 
   return (
     <Paper>
       <MenuList>
-        <MenuItem>
+        <MenuItem onClick={handleViewData}>
           <ListItemIcon>
             <ListIcon></ListIcon>
           </ListItemIcon>
@@ -222,6 +308,18 @@ function ViewMenu(props: {
             sx={{ color: 'text.secondary' }}
           ></Typography>
         </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            setShowExport(true);
+          }}
+        >
+          <ListItemIcon>
+            <ArrowCircleDownIcon></ArrowCircleDownIcon>
+          </ListItemIcon>
+          <ListItemText> export </ListItemText>
+        </MenuItem>
+
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {
@@ -238,6 +336,27 @@ function ViewMenu(props: {
           ></Typography>
         </MenuItem>
       </MenuList>
+
+      {showExport && (
+        <Modal
+          open={showExport}
+          onClose={() => {
+            setShowExport(false);
+          }}
+          aria-labelledby='drop'
+        >
+          <Box sx={modalStyle} width='800px'>
+            <ExportTableOrView
+              uuid={uuid}
+              name={view}
+              handleClose={() => {
+                setShowExport(false);
+              }}
+              support_kind={['csv', 'json', 'jsonline']}
+            ></ExportTableOrView>
+          </Box>
+        </Modal>
+      )}
     </Paper>
   );
 }

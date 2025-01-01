@@ -21,6 +21,13 @@ pub struct MysqlDbConfig {
     pub db: Option<String>,
     pub read_only: bool,
 }
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+pub struct SqliteDbConfig {
+    pub path: String,
+    pub read_only: bool,
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
 pub struct RedisDbConfig {
     pub host: String,

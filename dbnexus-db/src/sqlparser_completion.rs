@@ -14,12 +14,12 @@ use sqlparser::{
     tokenizer::{Location, Span},
 };
 
-use crate::completion::{CompletionItem, CompletionKind, CompletionOnSynTaxHelper};
+use crate::completion::{CompletionItem, CompletionKind, AstCompletionHelper};
 
 pub struct CompletionStament {
     pub(crate) loc: Location,
     pub(crate) result: Option<Vec<CompletionItem>>,
-    pub(crate) helper: Arc<dyn CompletionOnSynTaxHelper>,
+    pub(crate) helper: Arc<dyn AstCompletionHelper>,
     pub(crate) scopes: Scopes,
     pub(crate) on_def: bool,
     pub(crate) has_err: bool,
@@ -280,7 +280,7 @@ impl CompletionStament {
         self.result.is_some() || self.on_def || self.has_err
     }
     pub(crate) fn new(
-        loc: Location, helper: Arc<dyn CompletionOnSynTaxHelper>, query_id: uuid::Uuid,
+        loc: Location, helper: Arc<dyn AstCompletionHelper>, query_id: uuid::Uuid,
     ) -> Self {
         Self {
             loc,

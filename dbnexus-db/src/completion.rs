@@ -182,7 +182,7 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
 }
 
 #[async_trait::async_trait]
-pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
+pub trait AstCompletionHelper: Send + Sync + 'static + BackendName {
     async fn list_table(
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>>;
@@ -256,7 +256,7 @@ pub trait CompletionOnSynTaxHelper: Send + Sync + 'static + BackendName {
 
 pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Send + Sync>(
     sql: &str, query_id: uuid::Uuid, line: u32, col: u32, dialet: T,
-    helper: Arc<dyn CompletionOnSynTaxHelper>,
+    helper: Arc<dyn AstCompletionHelper>,
 ) -> anyhow::Result<Vec<CompletionItem>> {
     let loc = Location {
         line: line as u64,

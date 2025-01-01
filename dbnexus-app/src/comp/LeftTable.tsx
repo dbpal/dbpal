@@ -11,6 +11,8 @@ import {
   TabsSetContext,
   ConnTypeContext,
   progressBarSize,
+  AppStoreKey,
+  appStore,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -49,8 +51,9 @@ import { secondConfirm } from './Confirm';
 import { TabContent } from './Tabs';
 import { SqlTableView } from './SqlTableView';
 import { TriggersTree } from './LeftTriggers';
-import { ExportTableView } from './Export';
+import { ExportTableOrView } from './Export';
 import AddIcon from '@mui/icons-material/Add';
+import { LeftIndexes } from './LeftTableIndexes';
 
 function TablesTree() {
   const { uuid } = useContext(UuidContext);
@@ -157,6 +160,7 @@ function TableTree(props: {
     >
       <TableColumnsTree table={table}></TableColumnsTree>
       <TriggersTree table={table}></TriggersTree>
+      <LeftIndexes table={table}></LeftIndexes>
     </TreeItem>
   );
 }
@@ -315,8 +319,9 @@ function TableColumnsMenu(props: {
   uuid;
   fields;
   kind: DataSourceKind;
+  supportModifyColumn;
 }) {
-  let { reload, table, uuid, fields, kind } = props;
+  let { reload, table, uuid, fields, kind, supportModifyColumn } = props;
 
   const [showAdd, setShowAdd] = useState(false);
 
@@ -325,16 +330,18 @@ function TableColumnsMenu(props: {
       <MenuList>
         <MenuRefresh reload={reload}></MenuRefresh>
 
-        <MenuItem
-          onClick={() => {
-            setShowAdd(true);
-          }}
-        >
-          <ListItemIcon>
-            <AddIcon></AddIcon>
-          </ListItemIcon>
-          <ListItemText> add column </ListItemText>
-        </MenuItem>
+        {supportModifyColumn && (
+          <MenuItem
+            onClick={() => {
+              setShowAdd(true);
+            }}
+          >
+            <ListItemIcon>
+              <AddIcon></AddIcon>
+            </ListItemIcon>
+            <ListItemText> add column </ListItemText>
+          </MenuItem>
+        )}
       </MenuList>
       {showAdd && (
         <Modal
@@ -520,7 +527,7 @@ function TableColumnsTree(props: { table: string }) {
       });
   };
 
-  const support_modify_column =
+  const supportModifyColumn =
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Mysql ||
@@ -537,24 +544,21 @@ function TableColumnsTree(props: { table: string }) {
       label=<Stack
         spacing={1}
         direction='row'
-        onContextMenu={
-          support_modify_column
-            ? (e) => {
-                setUpMenu({
-                  content: (
-                    <TableColumnsMenu
-                      table={table}
-                      uuid={uuid}
-                      reload={reload}
-                      kind={kind}
-                      fields={fields}
-                    ></TableColumnsMenu>
-                  ),
-                  style: calMenuStyle(e, 200),
-                });
-              }
-            : undefined
-        }
+        onContextMenu={(e) => {
+          setUpMenu({
+            content: (
+              <TableColumnsMenu
+                table={table}
+                uuid={uuid}
+                reload={reload}
+                kind={kind}
+                fields={fields}
+                supportModifyColumn={supportModifyColumn}
+              ></TableColumnsMenu>
+            ),
+            style: calMenuStyle(e, 200),
+          });
+        }}
       >
         <span> columns</span>
         {loading && (
@@ -566,7 +570,7 @@ function TableColumnsTree(props: { table: string }) {
         <TreeItem
           key={f.field}
           onContextMenu={
-            support_modify_column
+            supportModifyColumn
               ? (e) => {
                   setUpMenu({
                     content: (
@@ -697,9 +701,11 @@ function TableMenu(props: {
       });
   };
 
-  const handleOpenTableList = () => {
+  const handleViewData = () => {
     const id = uuid + '-table-' + table;
     let index = tabsHasId(tabs, id);
+    let widthKey =
+      AppStoreKey.ConnectionConfig + '-' + uuid + '-' + table + '-' + '-widths';
     if (typeof index == 'number') {
       setSelectIndex(index);
     } else {
@@ -751,6 +757,22 @@ function TableMenu(props: {
                   values,
                 });
               }}
+              saveWidth={async (name, width) => {
+                let old = await appStore.get<object>(widthKey);
+                if (!old) {
+                  old = {};
+                }
+                old[name] = width;
+                await appStore.set(widthKey, old);
+              }}
+              loadWidths={() => {
+                return appStore.get<{}>(widthKey).then((x) => {
+                  if (!x) {
+                    x = {};
+                  }
+                  return x;
+                });
+              }}
             ></SqlTableView>
           );
           break;
@@ -772,7 +794,7 @@ function TableMenu(props: {
       <MenuList>
         <MenuItem
           onClick={() => {
-            handleOpenTableList();
+            handleViewData();
           }}
         >
           <ListItemIcon>
@@ -885,13 +907,14 @@ function TableMenu(props: {
           aria-labelledby='drop'
         >
           <Box sx={modalStyle} width='800px'>
-            <ExportTableView
+            <ExportTableOrView
               uuid={uuid}
-              table={table}
+              name={table}
               handleClose={() => {
                 setShowExport(false);
               }}
-            ></ExportTableView>
+              support_kind={['csv', 'sql', 'json', 'jsonline']}
+            ></ExportTableOrView>
           </Box>
         </Modal>
       )}
@@ -1100,14 +1123,6 @@ function RenameTable(props: {
         }}
       ></TextField>
       <Stack direction='row' spacing={1}>
-        <Button
-          variant='outlined'
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button color='primary' variant='contained' onClick={handleRename}>
           Rename
         </Button>

@@ -1,6 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
 import { useContext, useEffect, useState } from 'react';
-import types from './ApiStruct';
+
 import {
   Button,
   createTheme,
@@ -14,8 +13,13 @@ import {
   Typography,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
-import { SelectPageSize, SettingsContext } from './Common';
-import { listen } from '@tauri-apps/api/event';
+import {
+  appStore,
+  AppStoreKey,
+  SelectPageSize,
+  SettingsContext,
+  UserSettings,
+} from './Common';
 
 function ModifySettings(props: { handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -24,9 +28,10 @@ function ModifySettings(props: { handleClose }) {
   const [theme, setTheme] = useState('');
 
   const reload = () => {
-    invoke<types.UserSettings>('get_user_settings')
+    appStore
+      .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((settings) => {
-        setPageSize(settings.page_size);
+        setPageSize(settings.pageSize);
         setTheme(settings.theme);
       })
       .catch((e) => {
@@ -38,12 +43,8 @@ function ModifySettings(props: { handleClose }) {
   }, []);
 
   const handleSave = () => {
-    invoke('save_user_settings', {
-      userSettings: {
-        page_size: pageSize,
-        theme,
-      } as types.UserSettings,
-    })
+    appStore
+      .set(AppStoreKey.UserSetttings, new UserSettings(theme, pageSize))
       .then(() => {
         showNotification('success', 'Save Setting OK');
         handleClose();
@@ -102,12 +103,17 @@ const darkTheme = createTheme({ palette: { mode: 'dark' } });
 
 function SettingComp(props: { children }) {
   const { children } = props;
-  const [setting, setSetting] = useState<types.UserSettings>(null);
+  const [setting, setSetting] = useState<UserSettings>(null);
   const reload = () => {
-    invoke<types.UserSettings>('get_user_settings')
+    appStore
+      .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((s) => {
+        if (!s) {
+          s = new UserSettings();
+        }
         setSetting(s);
       })
+
       .catch((e) => {
         alert(`list user settings failed`);
         console.log('list user settting failed', e);
@@ -119,8 +125,10 @@ function SettingComp(props: { children }) {
     }
     return setting.theme == 'dark';
   };
-  listen('settings_changed', () => {
-    reload();
+  appStore.onChange((key) => {
+    if (key == AppStoreKey.UserSetttings) {
+      reload();
+    }
   });
   useEffect(() => {
     reload();

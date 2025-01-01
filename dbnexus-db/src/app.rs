@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::ops::Deref;
-use std::path::Path;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
@@ -8,6 +6,7 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource_config::{
     MongoConfig, MysqlDbConfig, OracleDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
+    SqliteDbConfig,
 };
 use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
@@ -18,7 +17,6 @@ use crate::redis::{RedisDB, RedisListTable};
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct DBNexusConfigs {
     connection_configs: Vec<DBConnectionConfig>,
-    user_settings: UserSettings,
 }
 
 impl DBConnectionConfig {
@@ -34,14 +32,27 @@ impl DBConnectionConfig {
             | DBConnectionConfig::Oracle { name, .. } => name.as_str(),
         }
     }
+
+    pub fn get_kind_str(&self) -> &str {
+        match self {
+            DBConnectionConfig::Sqlite { .. } => "sqlite",
+            DBConnectionConfig::Mysql { .. } => "mysql",
+            DBConnectionConfig::MariaDB { .. } => "mariadb",
+            DBConnectionConfig::Postgres { .. } => "postgres",
+            DBConnectionConfig::SqlServer { .. } => "mssql",
+            DBConnectionConfig::Mongo { .. } => "mongo",
+            DBConnectionConfig::Redis { .. } => "redis",
+            DBConnectionConfig::Oracle { .. } => "oracle",
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
 #[serde(tag = "conn_type", rename_all = "lowercase")]
 pub enum DBConnectionConfig {
     Sqlite {
-        path: String,
-        read_only: bool,
+        #[serde(flatten)]
+        conn: SqliteDbConfig,
         name: String,
     },
     Mysql {
@@ -70,9 +81,9 @@ pub enum DBConnectionConfig {
         name: String,
     },
     Redis {
-        name: String,
         #[serde(flatten)]
         conn: RedisDbConfig,
+        name: String,
     },
     Oracle {
         #[serde(flatten)]
@@ -81,134 +92,13 @@ pub enum DBConnectionConfig {
     },
 }
 
-#[async_trait::async_trait]
-
-pub trait DbConfigLoader: Send + Sync + 'static {
-    /// add one config
-    async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()>;
-    /// delete one config
-    async fn delete(&self, name: &str) -> anyhow::Result<()>;
-
-    ///
-    async fn get_config_cloned(&self, uuid: &str) -> anyhow::Result<DBConnectionConfig>;
-    async fn list_all_configs_cloned(&self) -> anyhow::Result<Vec<DBConnectionConfig>>;
-
-    async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings>;
-    async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()>;
-}
-
-pub struct FileJsonSaver {
-    filepath: String,
-    config: tokio::sync::Mutex<DBNexusConfigs>,
-}
-
-impl FileJsonSaver {
-    pub fn new(filepath: impl Into<String>) -> anyhow::Result<Self> {
-        let filepath = filepath.into();
-        let config = FileJsonSaver::load_from_file(&filepath)?;
-        anyhow::Ok(Self {
-            filepath,
-            config: Mutex::new(config),
-        })
-    }
-}
-
-impl FileJsonSaver {
-    async fn save(&self, config: &DBNexusConfigs) -> anyhow::Result<()> {
-        let s = serde_json::to_string_pretty(config)?;
-
-        tokio::fs::write(&Path::new(self.filepath.as_str()), s.as_bytes()).await?;
-        anyhow::Ok(())
-    }
-
-    fn load_from_file(filepath: &str) -> anyhow::Result<DBNexusConfigs> {
-        let path = Path::new(filepath);
-        if !path.exists() {
-            return anyhow::Ok(Default::default());
-        }
-        let bs = std::fs::read(&path)?;
-        let config: DBNexusConfigs = serde_json::from_slice(bs.as_slice())?;
-        anyhow::Ok(config)
-    }
-}
-
-#[async_trait::async_trait]
-impl DbConfigLoader for FileJsonSaver {
-    async fn list_all_configs_cloned(&self) -> anyhow::Result<Vec<DBConnectionConfig>> {
-        anyhow::Ok(self.config.lock().await.connection_configs.clone())
-    }
-
-    async fn get_user_settings_cloned(&self) -> anyhow::Result<UserSettings> {
-        Ok(self.config.lock().await.user_settings.clone())
-    }
-
-    async fn save_user_settings(&self, x: UserSettings) -> anyhow::Result<()> {
-        let mut g = self.config.lock().await;
-        g.user_settings = x;
-        self.save(g.deref()).await?;
-        anyhow::Ok(())
-    }
-
-    async fn add(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
-        let mut lock = self.config.lock().await;
-        for old in lock.connection_configs.iter() {
-            if old.get_name().eq_ignore_ascii_case(config.get_name()) {
-                anyhow::bail!(format!("name '{}' already exists.", config.get_name()))
-            }
-        }
-        lock.connection_configs.push(config);
-        self.save(&lock).await?;
-        anyhow::Ok(())
-    }
-
-    async fn delete(&self, name: &str) -> anyhow::Result<()> {
-        let mut lock = self.config.lock().await;
-        let mut index = None;
-        lock.connection_configs
-            .iter()
-            .enumerate()
-            .for_each(|(i, x)| {
-                if x.get_name() == name {
-                    index = Some(i);
-                }
-            });
-
-        if let Some(index) = index {
-            lock.connection_configs.remove(index);
-            self.save(&lock).await?;
-        }
-        anyhow::Ok(())
-    }
-
-    async fn get_config_cloned(&self, name: &str) -> anyhow::Result<DBConnectionConfig> {
-        let ret = self
-            .config
-            .lock()
-            .await
-            .deref()
-            .connection_configs
-            .iter()
-            .find(|x| x.get_name() == name)
-            .map(|x| x.clone());
-        match ret {
-            Some(x) => return anyhow::Ok(x),
-            None => {
-                anyhow::bail!(format!("config named '{}' not found", name))
-            }
-        }
-    }
-}
-
 /// open a
 pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
     match config {
-        DBConnectionConfig::Sqlite {
-            path,
-            read_only,
-            name: _,
-        } => {
+        DBConnectionConfig::Sqlite { conn, name: _ } => {
             let db: Arc<dyn SchemaTrait> =
-                Arc::new(crate::sqlite::SqliteDB::new(path.clone(), *read_only).await?);
+                Arc::new(crate::sqlite::SqliteDB::new(conn.path.clone(), conn.read_only).await?);
+
             anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Mysql { conn, name: _ }
@@ -308,25 +198,30 @@ impl From<Arc<dyn crate::db::SchemaTrait>> for Open {
 /// all the databases
 #[derive(Clone)]
 pub struct App {
-    pub loader: Arc<dyn DbConfigLoader>,
     pub opens: Arc<Mutex<HashMap<String, Open>>>,
 }
 
 impl App {
-    pub fn new(loader: Arc<dyn DbConfigLoader>) -> Self {
+    pub fn new() -> Self {
         Self {
-            loader,
             opens: Default::default(),
         }
     }
 }
+type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
 impl App {
+    pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
+        static mut XXX: Option<GetConfigFN> = None;
+        &mut XXX
+    }
+
     pub async fn open(&self, name: &str) -> anyhow::Result<Open> {
         if let Some(x) = self.opens.lock().await.get(&name.to_string()) {
             return anyhow::Ok(x.clone());
         }
-        let config = self.loader.get_config_cloned(name).await?;
+        let config = unsafe { (Self::get_config_ref().as_ref().map(|x| x(name))).unwrap()? };
+
         let db = open(&config).await?;
         match &db {
             Open::DataBase(x) => {
@@ -394,25 +289,7 @@ impl App {
         }
     }
 
-    pub async fn add_config(&self, config: DBConnectionConfig) -> anyhow::Result<()> {
-        self.loader.add(config).await
-    }
-
-    pub async fn delete_config(&self, name: &str) -> anyhow::Result<()> {
-        self.loader.delete(name).await?;
-        self.delete_prefix_dbs(name).await;
-        anyhow::Ok(())
-    }
-
-    // pub async fn update_config(
-    //     &self, uuid: &str, config: DBConnectionConfig,
-    // ) -> anyhow::Result<()> {
-    //     self.loader.update(uuid, config).await?;
-    //     self.delete_prefix_dbs(uuid).await;
-    //     anyhow::Ok(())
-    // }
-
-    async fn delete_prefix_dbs(&self, name: &str) {
+    pub async fn delete_prefix_dbs(&self, name: &str) {
         let mut v = Vec::new();
         for k in self.opens.lock().await.keys() {
             if k.starts_with(name) {
@@ -538,21 +415,6 @@ impl App {
     }
 }
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, TypeDef)]
-pub struct UserSettings {
-    pub page_size: usize,
-    pub theme: String,
-}
-
-impl Default for UserSettings {
-    fn default() -> Self {
-        Self {
-            page_size: 100,
-            theme: "light".to_string(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::DBNexusConfigs;
@@ -562,17 +424,9 @@ mod tests {
     #[test]
     fn print_config() {
         let s = DBNexusConfigs {
-            user_settings: super::UserSettings {
-                page_size: 100,
-                theme: "light".to_string(),
-            },
             connection_configs: {
                 let mut m = Vec::new();
-                m.push(DBConnectionConfig::Sqlite {
-                    path: "d:\\sqlite.test.db".to_string(),
-                    read_only: false,
-                    name: "haha".to_string(),
-                });
+
                 m.push(DBConnectionConfig::Mysql {
                     conn: MysqlDbConfig {
                         host: "127.0.0.1".to_string(),

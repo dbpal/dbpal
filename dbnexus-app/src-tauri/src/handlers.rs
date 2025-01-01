@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use bson::{Document, doc};
-use dbnexus_db::app::{self, App, DBConnectionConfig, Open, UserSettings, open};
+use dbnexus_db::app::{self, App, DBConnectionConfig, Open, open};
 use dbnexus_db::db::{
     ColumnType, ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, ProcedureDetail,
     QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
@@ -11,61 +11,7 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
-
 use dbnexus_db::redis::{RedisDB, RedisListTable};
-use tauri::{AppHandle, Emitter};
-
-#[tauri::command]
-pub async fn add_config(
-    config: DBConnectionConfig, app: tauri::State<'_, App>, handler: AppHandle,
-) -> Result<(), AnyhowErrorFrontend> {
-    log::info!("add config:{:?}", config);
-    if config.get_name().contains(":") {
-        return Err(AnyhowErrorFrontend::from(
-            "connection name can't contains ':'",
-        ));
-    }
-    app.add_config(config)
-        .await
-        .map_err(AnyhowErrorFrontend::from)?;
-    handler.emit("connection_config_changed", "")?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn list_all_config(
-    app: tauri::State<'_, App>,
-) -> Result<Vec<DBConnectionConfig>, AnyhowErrorFrontend> {
-    app.loader
-        .list_all_configs_cloned()
-        .await
-        .map_err(AnyhowErrorFrontend::from)
-}
-
-#[tauri::command]
-pub async fn delete_config(
-    name: String, app: tauri::State<'_, App>, handler: AppHandle,
-) -> Result<(), AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    log::info!("del config:{}", name);
-    handler.emit("connection_config_changed", "")?;
-    app.delete_config(name.as_str())
-        .await
-        .map_err(AnyhowErrorFrontend::from)
-}
-
-// #[tauri::command]
-// pub async fn update_config(
-//     name: String, config: DBConnectionConfig, app: tauri::State<'_, App>,
-// ) -> Result<(), AnyhowErrorFrontend> {
-//     random_sleep().await;
-//     random_error()?;
-//     log::info!("update config:{} {:?}", name, config);
-//     app.update_config(name.as_str(), config)
-//         .await
-//         .map_err(AnyhowErrorFrontend::from)
-// }
 
 // #[tauri::command]
 // pub async fn open(name: String, app: tauri::State<'_, App>) -> Result<(),
@@ -77,6 +23,13 @@ pub async fn delete_config(
 //         .map_err(AnyhowErrorFrontend::from)
 //         .map(|_| ())
 // }
+
+#[tauri::command]
+pub async fn clean_db_connection(name: String, app: tauri::State<'_, App>) -> Result<(), ()> {
+    random_sleep().await;
+    app.delete_prefix_dbs(name.as_str()).await;
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn list_table(
@@ -153,6 +106,41 @@ pub async fn show_indexes(
     app.show_indexes(name.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn rename_index(
+    name: String, table_name: String, old_name: String, new_name: String,
+    app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+
+    schema
+        .rename_index(&table_name, &old_name, &new_name)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
+#[tauri::command]
+pub async fn drop_index(
+    name: String, table_name: String, index: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+
+    schema
+        .drop_index(&table_name, &index)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))
 }
 
 #[tauri::command]
@@ -409,34 +397,8 @@ pub async fn query_sql_close_connection(
 }
 
 #[tauri::command]
-pub async fn save_user_settings(
-    user_settings: UserSettings, app: tauri::State<'_, App>, handle: AppHandle,
-) -> Result<(), AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    app.loader
-        .save_user_settings(user_settings)
-        .await
-        .map_err(AnyhowErrorFrontend::from)?;
-    handle.emit("settings_changed", "")?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn get_user_settings(
-    app: tauri::State<'_, App>,
-) -> Result<UserSettings, AnyhowErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    app.loader
-        .get_user_settings_cloned()
-        .await
-        .map_err(AnyhowErrorFrontend::from)
-}
-
-#[tauri::command]
-pub async fn export_table(
-    name: String, table_name: String, filepath: String, kind: ExportKind,
+pub async fn export_table_or_view(
+    name: String, table_or_view: String, filepath: String, kind: ExportKind,
     app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
     random_sleep().await;
@@ -445,7 +407,7 @@ pub async fn export_table(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    db.export_table_to_file(table_name.as_str(), filepath.as_str(), kind)
+    db.export_table_to_file(table_or_view.as_str(), filepath.as_str(), kind)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }

@@ -82,85 +82,85 @@ fn encode_row_as_json(row: &MySqlRow) -> anyhow::Result<serde_json::Value> {
 
         let v = match ty.to_uppercase().as_str() {
             "BOOLEAN" | "BOOL" => {
-                let value: Option<bool> = row.get(c);
+                let value: Option<bool> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "TINYINT" => {
-                let value: Option<i8> = row.get(c);
+                let value: Option<i8> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "SMALLINT" => {
-                let value: Option<i16> = row.get(c);
+                let value: Option<i16> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "INT" => {
-                let value: Option<i32> = row.get(c);
+                let value: Option<i32> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "BIGINT" => {
-                let value: Option<i64> = row.get(c);
+                let value: Option<i64> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "TINYINT UNSIGNED" => {
-                let value: Option<u8> = row.get(c);
+                let value: Option<u8> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "SMALLINT UNSIGNED" => {
-                let value: Option<u16> = row.get(c);
+                let value: Option<u16> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "INT UNSIGNED" => {
-                let value: Option<u32> = row.get(c);
+                let value: Option<u32> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "BIGINT UNSIGNED" => {
-                let value: Option<u64> = row.get(c);
+                let value: Option<u64> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "FLOAT" => {
-                let value: Option<f32> = row.get(c);
+                let value: Option<f32> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "DOUBLE" => {
-                let value: Option<f64> = row.get(c);
+                let value: Option<f64> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "VARCHAR" | "CHAR" | "TEXT" => {
-                let value: Option<String> = row.get(c);
+                let value: Option<String> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             _ if ty.starts_with("VARCHAR") || ty.starts_with("CHAR") || ty.starts_with("TEXT") => {
-                let value: Option<String> = row.get(c);
+                let value: Option<String> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "VARBINARY" | "BINARY" | "BLOB" => {
-                let value: Option<Vec<u8>> = row.get(c);
+                let value: Option<Vec<u8>> = row.try_get(c)?;
                 value
                     .map(|x| format!("0x{}", hex::encode_upper(x.as_slice())))
                     .map(serde_json::Value::from)
@@ -168,28 +168,28 @@ fn encode_row_as_json(row: &MySqlRow) -> anyhow::Result<serde_json::Value> {
             }
 
             "TIMESTAMP" => {
-                let value: Option<chrono::DateTime<Utc>> = row.get(c);
+                let value: Option<chrono::DateTime<Utc>> = row.try_get(c)?;
                 value
                     .map(|x| x.naive_utc().to_string())
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "DATETIME" => {
-                let value: Option<chrono::NaiveDateTime> = row.get(c);
+                let value: Option<chrono::NaiveDateTime> = row.try_get(c)?;
                 value
                     .map(|x| x.to_string())
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "DATE" => {
-                let value: Option<chrono::NaiveDate> = row.get(c);
+                let value: Option<chrono::NaiveDate> = row.try_get(c)?;
                 value
                     .map(|x| x.to_string())
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
             "TIME" => {
-                let value: Option<chrono::NaiveTime> = row.get(c);
+                let value: Option<chrono::NaiveTime> = row.try_get(c)?;
                 value
                     .map(|x| x.to_string())
                     .map(serde_json::Value::from)
@@ -609,7 +609,7 @@ impl MysqlDB {
         anyhow::Ok(ret)
     }
 }
-fn type_support_compare(tpe: &str) -> bool {
+fn type_support_compare(_tpe: &str) -> bool {
     true
 }
 impl std::fmt::Debug for MysqlDB {
@@ -621,6 +621,12 @@ impl std::fmt::Debug for MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
+        let sql = format!("ALTER TABLE {table_name} DROP INDEX {index};");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
@@ -850,26 +856,23 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
-    async fn export_table(
-        &self, table_name: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    async fn export_table_or_view(
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
             } => {
-                self.export_table_as_csv(table_name, include_header, delimiter, sender)
+                self.export_table_as_csv(name, include_header, delimiter, sender)
                     .await
             }
-            ExportKind::Json { pretty } => {
-                self.export_table_as_json(table_name, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
+            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
+            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(table_name, include_table_schema, sender)
+                self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
         }
@@ -926,6 +929,10 @@ impl SchemaTrait for MysqlDB {
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
             .await?;
+        if rows.len() == 0 {
+            let f = self.show_view_columns(view_name).await?;
+            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql));
+        }
 
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);
@@ -999,10 +1006,14 @@ impl SchemaTrait for MysqlDB {
 
         let v = match ty.as_str() {
             "TINYINT" => default_str,
+            _ if ty.starts_with("TINYINT") => default_str,
             "BOOLEAN" | "BOOL" => default_str,
             "SMALLINT" => default_str,
+            _ if ty.starts_with("SMALLINT") => default_str,
             "INT" => default_str,
+            _ if ty.starts_with("INT") => default_str,
             "BIGINT" => default_str,
+            _ if ty.starts_with("BIGINT") => default_str,
             "TINYINT UNSIGNED" => default_str,
             "SMALLINT UNSIGNED" => default_str,
             "INT UNSIGNED" => default_str,
@@ -1023,7 +1034,6 @@ impl SchemaTrait for MysqlDB {
                 default_str
             }
         };
-
         log::trace!("type '{ty}' encode '{:?}' as #{v}#", value);
         anyhow::Ok(v)
     }
@@ -1186,78 +1196,78 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
 
             let v = match ty.to_uppercase().as_str() {
                 "BOOLEAN" | "BOOL" => {
-                    let value: Option<bool> = r.get(c);
+                    let value: Option<bool> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "TINYINT" => {
-                    let value: Option<i8> = r.get(c);
+                    let value: Option<i8> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "SMALLINT" => {
-                    let value: Option<i16> = r.get(c);
+                    let value: Option<i16> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "INT" => {
-                    let value: Option<i32> = r.get(c);
+                    let value: Option<i32> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "BIGINT" => {
-                    let value: Option<i64> = r.get(c);
+                    let value: Option<i64> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "TINYINT UNSIGNED" => {
-                    let value: Option<u8> = r.get(c);
+                    let value: Option<u8> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "SMALLINT UNSIGNED" => {
-                    let value: Option<u16> = r.get(c);
+                    let value: Option<u16> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "INT UNSIGNED" => {
-                    let value: Option<u32> = r.get(c);
+                    let value: Option<u32> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "BIGINT UNSIGNED" => {
-                    let value: Option<u64> = r.get(c);
+                    let value: Option<u64> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "FLOAT" => {
-                    let value: Option<f32> = r.get(c);
+                    let value: Option<f32> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "DOUBLE" => {
-                    let value: Option<f64> = r.get(c);
+                    let value: Option<f64> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "VARCHAR" | "CHAR" | "TEXT" => {
-                    let value: Option<String> = r.get(c);
+                    let value: Option<String> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 _ if ty.starts_with("VARCHAR")
                     || ty.starts_with("CHAR")
                     || ty.starts_with("TEXT") =>
                 {
-                    let value: Option<String> = r.get(c);
+                    let value: Option<String> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
                 "VARBINARY" | "BINARY" | "BLOB" => {
-                    let value: Option<Vec<u8>> = r.get(c);
+                    let value: Option<Vec<u8>> = r.try_get(c)?;
                     value.map(|x| format!("0x{}", hex::encode_upper(x.as_slice())))
                 }
                 "TIMESTAMP" => {
-                    let value: Option<chrono::DateTime<Utc>> = r.get(c);
+                    let value: Option<chrono::DateTime<Utc>> = r.try_get(c)?;
                     value.map(|x| x.naive_utc().to_string())
                 }
                 "DATETIME" => {
-                    let value: Option<chrono::NaiveDateTime> = r.get(c);
+                    let value: Option<chrono::NaiveDateTime> = r.try_get(c)?;
                     value.map(|x| x.to_string())
                 }
                 "DATE" => {
-                    let value: Option<chrono::NaiveDate> = r.get(c);
+                    let value: Option<chrono::NaiveDate> = r.try_get(c)?;
                     value.map(|x| x.to_string())
                 }
                 "TIME" => {
-                    let value: Option<chrono::NaiveTime> = r.get(c);
+                    let value: Option<chrono::NaiveTime> = r.try_get(c)?;
                     value.map(|x| x.to_string())
                 }
 
@@ -1312,10 +1322,6 @@ impl MysqlDB {
 
 #[async_trait::async_trait]
 impl DBTrait for MysqlDB {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn: PoolConnection<sqlx::MySql> = self.get_conn().await?;
         let rows = sqlx::query("show databases")

@@ -1,32 +1,30 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Arc;
-
-use dbnexus_db::app::{App, DbConfigLoader, FileJsonSaver};
-
+use dbnexus_db::app::{App, DBConnectionConfig};
 mod handlers;
 
 use handlers::{
-    add_config, add_table_column, check_conn, config_list_database_or_schema, delete,
-    delete_config, disable_trigger, drop_procedure, drop_table, drop_table_column, drop_trigger,
-    drop_udf, drop_view, duplicate_table, enable_trigger, export_table, format_sql,
-    get_user_settings, insert, list_all_config, list_data_types, list_database, list_procedure,
-    list_schema, list_table, list_trigger, list_udf, list_view, modify_table_column, mongo_delete,
-    mongo_get_one_document, mongo_insert, mongo_show_collection_docs,
-    mongo_show_collection_table_list, mongo_update, oracle_query_autocommit, oracle_query_commit,
-    oracle_query_rollback, oracle_query_set_autocommit, query_sql, query_sql_close_connection,
-    query_sql_open_connection, query_sql_re_connection, redis_hash_add, redis_hash_del,
-    redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
-    redis_list_table, redis_match_keys, redis_set_add, redis_set_del, redis_set_replace,
-    redis_string_set, redis_zset_add, redis_zset_del, redis_zset_replace, rename_table,
-    save_user_settings, show_columns, show_indexes, show_procedure, show_table, show_trigger,
-    show_udf, show_view, show_view_coumns, test_connection, truncate_table, update,
+    add_table_column, check_conn, clean_db_connection, config_list_database_or_schema, delete,
+    disable_trigger, drop_index, drop_procedure, drop_table, drop_table_column, drop_trigger,
+    drop_udf, drop_view, duplicate_table, enable_trigger, export_table_or_view, format_sql, insert,
+    list_data_types, list_database, list_procedure, list_schema, list_table, list_trigger,
+    list_udf, list_view, modify_table_column, mongo_delete, mongo_get_one_document, mongo_insert,
+    mongo_show_collection_docs, mongo_show_collection_table_list, mongo_update,
+    oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
+    oracle_query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
+    query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
+    redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_match_keys,
+    redis_set_add, redis_set_del, redis_set_replace, redis_string_set, redis_zset_add,
+    redis_zset_del, redis_zset_replace, rename_index, rename_table, show_columns, show_indexes,
+    show_procedure, show_table, show_trigger, show_udf, show_view, show_view_coumns,
+    test_connection, truncate_table, update,
 };
 use tauri::{
     Emitter, Manager,
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
 };
+use tauri_plugin_store::StoreExt;
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
@@ -37,12 +35,12 @@ async fn greet(name: String) -> Result<String, String> {
 #[tokio::main]
 async fn main() {
     env_logger::init();
-
-    let loader: Arc<dyn DbConfigLoader> = Arc::new(FileJsonSaver::new("dbnexus.json").unwrap());
-    let app = App::new(loader);
+    let app = App::new();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .manage(app)
         .setup(|app| {
             #[cfg(debug_assertions)] // only include this code on debug builds
@@ -51,6 +49,24 @@ async fn main() {
                 window.open_devtools();
                 window.close_devtools();
             }
+            Ok(())
+        })
+        .setup(|app| {
+            let store = app.store("store.json").unwrap();
+            *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
+                let configs = store.get("connection_config");
+                let json_str = match configs {
+                    Some(x) => serde_json::to_string(&x).unwrap(),
+                    None => "[]".to_string(),
+                };
+                let configs: Vec<DBConnectionConfig> = serde_json::from_str(&json_str)?;
+                for c in configs.into_iter() {
+                    if c.get_name() == name {
+                        return anyhow::Ok(c);
+                    }
+                }
+                unimplemented!();
+            }));
             Ok(())
         })
         .menu(|handle| {
@@ -70,17 +86,25 @@ async fn main() {
                         true,
                         None as Option<&'static str>,
                     )?,
-                    &PredefinedMenuItem::maximize(handle, None).unwrap(),
-                    &PredefinedMenuItem::minimize(handle, None).unwrap(),
-                    &PredefinedMenuItem::fullscreen(handle, None).unwrap(),
-                    &PredefinedMenuItem::close_window(handle, None).unwrap(),
-                ])
-                .unwrap(),
+                    &PredefinedMenuItem::close_window(handle, None)?,
+                    &PredefinedMenuItem::quit(handle, None)?,
+                ])?,
+                &Submenu::with_items(handle, "Edit", true, &[
+                    &PredefinedMenuItem::copy(handle, None)?,
+                    &PredefinedMenuItem::paste(handle, None)?,
+                    &PredefinedMenuItem::cut(handle, None)?,
+                    &PredefinedMenuItem::select_all(handle, None)?,
+                    &PredefinedMenuItem::undo(handle, None)?,
+                    &PredefinedMenuItem::redo(handle, None)?,
+                ])?,
+                &Submenu::with_items(handle, "window", true, &[
+                    &PredefinedMenuItem::maximize(handle, None)?,
+                    &PredefinedMenuItem::minimize(handle, None)?,
+                    &PredefinedMenuItem::fullscreen(handle, None)?,
+                ])?,
                 &Submenu::with_items(handle, "about", true, &[&PredefinedMenuItem::about(
                     handle, None, None,
-                )
-                .unwrap()])
-                .unwrap(),
+                )?])?,
             ])
         })
         .on_menu_event(|handle, event| {
@@ -96,12 +120,10 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             list_database,
             greet,
-            add_config,
-            delete_config,
             list_table,
+            rename_index,
             show_columns,
             show_table,
-            show_indexes,
             insert,
             update,
             truncate_table,
@@ -111,14 +133,11 @@ async fn main() {
             drop_table,
             show_view,
             query_sql,
-            get_user_settings,
-            save_user_settings,
-            list_all_config,
             redis_list_table,
             query_sql_close_connection,
             query_sql_open_connection,
             query_sql_re_connection,
-            export_table,
+            export_table_or_view,
             oracle_query_autocommit,
             oracle_query_commit,
             oracle_query_rollback,
@@ -167,6 +186,9 @@ async fn main() {
             drop_udf,
             add_table_column,
             check_conn,
+            clean_db_connection,
+            show_indexes,
+            drop_index
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

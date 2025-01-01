@@ -438,12 +438,27 @@ impl BackendName for MsSqlServer {
     }
 }
 
-fn type_support_compare(tpe: &str) -> bool {
+fn type_support_compare(_tpe: &str) -> bool {
     true
 }
 
 #[async_trait::async_trait]
 impl SchemaTrait for MsSqlServer {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP INDEX {index} ON {table_name};");
+        let mut conn = self.get_conn().await?;
+        conn.deref_mut().execute(&sql, &[]).await?;
+        anyhow::Ok(())
+    }
+
+    async fn rename_index(
+        &self, table: &str, old_name: &str, new_name: &str,
+    ) -> anyhow::Result<()> {
+        let sql = format!("EXEC sp_rename '{table}.{old_name}', '{new_name}', 'INDEX';");
+        let mut conn = self.get_conn().await?;
+        conn.deref_mut().execute(&sql, &[]).await?;
+        anyhow::Ok(())
+    }
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
@@ -655,7 +670,7 @@ impl SchemaTrait for MsSqlServer {
         anyhow::Ok(())
     }
 
-    async fn export_table(
+    async fn export_table_or_view(
         &self, table_name: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1724,10 +1739,6 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
 
 #[async_trait::async_trait]
 impl crate::db::DBTrait for MsSqlServer {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec!["dbo".to_string()])
     }

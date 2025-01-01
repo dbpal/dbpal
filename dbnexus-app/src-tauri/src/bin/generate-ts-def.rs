@@ -1,6 +1,3 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
 use std::io::prelude::*;
 use std::path::Path;
 
@@ -28,7 +25,6 @@ fn main() {
     let ts_module = {
         let api = vec![
             &app::DBConnectionConfig::INFO,
-            &app::UserSettings::INFO,
             &PGDbConfig::INFO,
             &SqlServerDbConfig::INFO,
             &ListTable::INFO,
