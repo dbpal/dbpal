@@ -21,7 +21,7 @@ function TabsWithCloseButton(props: {
   const [show, setShow] = useState(true);
 
   return (
-    <div>
+    <Stack spacing={1}>
       {tabs.length > 0 && (
         <Stack>
           <Button
@@ -55,7 +55,6 @@ function TabsWithCloseButton(props: {
                   handleClose(index);
                 }}
                 size='small'
-                //@ts-ignore
                 variant={index == selectIndex ? 'outlined' : 'text'}
                 onClick={() => {
                   changeTab(index);
@@ -68,9 +67,11 @@ function TabsWithCloseButton(props: {
         </Stack>
       )}
       {tabs.map((tab, index) => (
-        <div hidden={selectIndex !== index}>{tab.content}</div>
+        <div key={tab.id} hidden={selectIndex !== index}>
+          {tab.content}
+        </div>
       ))}
-    </div>
+    </Stack>
   );
 }
 
