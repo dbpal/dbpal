@@ -22,6 +22,7 @@ import {
   pageSizeOptions,
   progressBarSize,
   SettingsContext,
+  VisiableContext,
 } from './Common';
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
@@ -42,8 +43,17 @@ function SqlTableView(props: {
   addOP?: (values: Map<string, string | null>) => Promise<types.SqlExecuteRet>;
   saveWidth: (name: string, width: number) => void;
   loadWidths: () => Promise<object>;
+  notWarnPri?: boolean;
 }) {
-  let { reloadOP, updateOP, deleteOP, addOP, saveWidth, loadWidths } = props;
+  let {
+    reloadOP,
+    updateOP,
+    deleteOP,
+    addOP,
+    saveWidth,
+    loadWidths,
+    notWarnPri,
+  } = props;
 
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -61,6 +71,8 @@ function SqlTableView(props: {
   const [showAdd, setShowAdd] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
   const key_not_in_table = 'qwertyuioplkjhgfdsazxcvbnm';
+
+  const visiable = useContext(VisiableContext);
 
   const handleResp = async (resp: types.MuiDataTableListResp) => {
     resp.data.data.forEach((data) => {
@@ -122,6 +134,9 @@ function SqlTableView(props: {
   };
 
   const confrimAboutPrimary = async (): Promise<boolean> => {
+    if (notWarnPri) {
+      return true;
+    }
     const hasPri = !!resp.data.fields.find((x) => x.is_primary);
     if (hasPri) {
       return true;
@@ -154,9 +169,6 @@ function SqlTableView(props: {
     newRow: Map<string, string>,
     oldRow: Map<string, string>
   ) => {
-    if (!(await confrimAboutPrimary())) {
-      return oldRow;
-    }
     if (!updateOP) {
       return newRow;
     }
@@ -174,6 +186,9 @@ function SqlTableView(props: {
     old.delete(key_not_in_table);
     if (updateRow.size == 0) {
       return newRow;
+    }
+    if (!(await confrimAboutPrimary())) {
+      return oldRow;
     }
     try {
       let ret = await updateOP(old, updateRow);
@@ -202,7 +217,6 @@ function SqlTableView(props: {
       if (!selectSet.has(e[key_not_in_table])) {
         continue;
       }
-
       try {
         const old = new Map(Object.entries(e));
         old.delete(key_not_in_table);
@@ -331,51 +345,53 @@ function SqlTableView(props: {
               </Modal>
             )}
           </Stack>
-          <DataGrid
-            onColumnResize={(e) => {
-              if (saveWidth) {
-                saveWidth(e.colDef.field, e.width);
-              }
-            }}
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
-            getRowId={(e) => e[key_not_in_table]}
-            paginationModel={{ page, pageSize }}
-            pageSizeOptions={pageSizeOptions}
-            paginationMode='server'
-            onPaginationModelChange={(e) => {
-              setPage(e.page);
-              setPageSize(e.pageSize);
-            }}
-            checkboxSelection
-            onRowSelectionModelChange={(e) => {
-              setSelectIDs(e);
-            }}
-            rowCount={resp.total}
-            sortingMode='server'
-            onSortModelChange={(sorts) => {
-              if (sorts.length == 0) {
-                setOrderBy('');
+          {visiable && (
+            <DataGrid
+              onColumnResize={(e) => {
+                if (saveWidth) {
+                  saveWidth(e.colDef.field, e.width);
+                }
+              }}
+              rowHeight={datagridRowHeight}
+              columnHeaderHeight={datagridHeaderHeight}
+              getRowId={(e) => e[key_not_in_table]}
+              paginationModel={{ page, pageSize }}
+              pageSizeOptions={pageSizeOptions}
+              paginationMode='server'
+              onPaginationModelChange={(e) => {
+                setPage(e.page);
+                setPageSize(e.pageSize);
+              }}
+              checkboxSelection
+              onRowSelectionModelChange={(e) => {
+                setSelectIDs(e);
+              }}
+              rowCount={resp.total}
+              sortingMode='server'
+              onSortModelChange={(sorts) => {
+                if (sorts.length == 0) {
+                  setOrderBy('');
+                  setTriggerReload((e) => !e);
+                  return;
+                }
+                let sort = sorts[0];
+                if (!sort.sort) {
+                  setOrderBy('');
+                  setTriggerReload((e) => !e);
+                  return;
+                }
+                setOrderBy(`${sort.field} ${sort.sort}`);
                 setTriggerReload((e) => !e);
-                return;
-              }
-              let sort = sorts[0];
-              if (!sort.sort) {
-                setOrderBy('');
-                setTriggerReload((e) => !e);
-                return;
-              }
-              setOrderBy(`${sort.field} ${sort.sort}`);
-              setTriggerReload((e) => !e);
-            }}
-            columns={resp.data.fields}
-            rows={resp.data.data}
-            //@ts-ignore
-            processRowUpdate={handleProcessRowUpdate}
-            onProcessRowUpdateError={(e) => {
-              showNotification('error', 'update failed', e);
-            }}
-          ></DataGrid>
+              }}
+              columns={resp.data.fields}
+              rows={resp.data.data}
+              //@ts-ignore
+              processRowUpdate={handleProcessRowUpdate}
+              onProcessRowUpdateError={(e) => {
+                showNotification('error', 'update failed', e);
+              }}
+            ></DataGrid>
+          )}
         </Stack>
       )}
     </Stack>

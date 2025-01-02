@@ -1,8 +1,9 @@
 import { ReactNode, useState } from 'react';
-import { Box, Stack, Button } from '@mui/material';
+import { Stack, Button } from '@mui/material';
 
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
+import { VisiableContext } from './Common';
 class TabContent {
   constructor(
     public id: string,
@@ -19,23 +20,9 @@ function TabsWithCloseButton(props: {
 }) {
   let { tabs, handleClose, selectIndex, changeTab } = props;
   const [show, setShow] = useState(true);
-  function TabPanel(props) {
-    const { children, value, id, ...other } = props;
-    return (
-      <div
-        role='tabpanel'
-        hidden={value !== id}
-        id={`tabpanel-${id}`}
-        aria-labelledby={`tab-${id}`}
-        {...other}
-      >
-        {value === id && <Box p={3}>{children}</Box>}
-      </div>
-    );
-  }
 
   return (
-    <div>
+    <Stack spacing={1}>
       {tabs.length > 0 && (
         <Stack>
           <Button
@@ -64,12 +51,10 @@ function TabsWithCloseButton(props: {
               <Button
                 key={tab.id}
                 draggable
+                sx={{ textTransform: 'none' }}
                 onDragEnd={() => {
                   handleClose(index);
                 }}
-                size='small'
-                style={{ padding: '' }}
-                //@ts-ignore
                 variant={index == selectIndex ? 'outlined' : 'text'}
                 onClick={() => {
                   changeTab(index);
@@ -81,13 +66,14 @@ function TabsWithCloseButton(props: {
           })}
         </Stack>
       )}
-
       {tabs.map((tab, index) => (
-        <TabPanel key={tab.id} value={selectIndex} id={index}>
-          {tab.content}
-        </TabPanel>
+        <VisiableContext.Provider value={selectIndex == index}>
+          <div key={tab.id} hidden={selectIndex !== index}>
+            {tab.content}
+          </div>
+        </VisiableContext.Provider>
       ))}
-    </div>
+    </Stack>
   );
 }
 

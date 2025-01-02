@@ -9,7 +9,7 @@ use futures_util::lock::Mutex;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::ast::{ColumnOption, Expr, Statement};
 use sqlparser::tokenizer::Token;
-use sqlx::pool::PoolConnection;
+use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Row, SqliteConnection, TypeInfo};
 
@@ -1054,7 +1054,9 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
 
 impl SqliteDB {
     pub async fn new(path: String, read_only: bool) -> anyhow::Result<Self> {
-        let pool = sqlx::sqlite::SqlitePool::connect(path.as_str()).await?;
+        let mut opts: PoolOptions<sqlx::sqlite::Sqlite> = PoolOptions::new();
+        opts = opts.max_connections(100);
+        let pool = opts.connect(path.as_str()).await?;
 
         if read_only {
             let r = sqlx::query("PRAGMA query_only = true;")
@@ -1065,7 +1067,6 @@ impl SqliteDB {
                 Err(err) => anyhow::bail!(format!("execute query only failed,err:{}", err)),
             }
         }
-
         anyhow::Ok(Self {
             pool,
             read_only,
@@ -1126,14 +1127,14 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
     async fn query_sql(
-        &self, id: uuid::Uuid, sql: &str,
+        &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(id, sql);
+        let mut query_log = QueryLog::get_guard(query_id, sql);
 
-        let conn = self.query_connection.get(&id);
+        let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
-            None => anyhow::bail!("id '{}' have no connection", id),
+            None => anyhow::bail!("id '{}' have no connection", query_id),
         };
 
         let mut conn = conn.lock().await;
@@ -1378,6 +1379,30 @@ mod tests {
             .unwrap_or("/Users/yuyang/tests/test.sqlite.db".to_string());
         let db = SqliteDB::new(path, false).await.unwrap();
         db
+    }
+
+    #[tokio::test]
+    async fn test_do_has_data() {
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        for _ in 0..1550 {
+            let sql = format!(
+                "insert into has_data values({} , {} , {} , {} ,{} ,{} ,{});",
+                rand::random::<f64>(),
+                rand::random::<f64>(),
+                rand::random::<f64>(),
+                rand::random::<f64>(),
+                rand::random::<f64>(),
+                rand::random::<f64>(),
+                rand::random::<f64>(),
+            );
+            let _ = db.query_sql(query_id.clone(), &sql).await.unwrap();
+        }
+        for i in 1..=10 {
+            db.duplicate_table("has_data", format!("has_data_{}", i).as_str())
+                .await
+                .unwrap();
+        }
     }
 
     #[tokio::test]

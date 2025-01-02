@@ -10,3 +10,7 @@ pnpm run dev
 cargo r
 ~~~
 
+
+
+
+/Users/yuyang/Library/Application Support/com.tauri.dev

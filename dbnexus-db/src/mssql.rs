@@ -1633,12 +1633,12 @@ impl QuerySql for MsSqlServer {
     }
 
     async fn query_sql(
-        &self, id: uuid::Uuid, sql: &str,
+        &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(id, sql);
-        let conn = match self.query_connections.get(&id) {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", id)),
+            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
