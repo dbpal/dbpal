@@ -545,6 +545,7 @@ class UserSettings {
 
 const SettingsContext = createContext<UserSettings>(new UserSettings());
 
+const VisiableContext = createContext(true);
 export {
   modalStyle,
   SelectPageSize,
@@ -587,6 +588,7 @@ export {
   AppStoreKey,
   appStore,
   UserSettings,
+  VisiableContext,
 };
 
 export type { DefAndMetas };

@@ -3,6 +3,7 @@ import { Stack, Button } from '@mui/material';
 
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
+import { VisiableContext } from './Common';
 class TabContent {
   constructor(
     public id: string,
@@ -54,7 +55,6 @@ function TabsWithCloseButton(props: {
                 onDragEnd={() => {
                   handleClose(index);
                 }}
-                size='small'
                 variant={index == selectIndex ? 'outlined' : 'text'}
                 onClick={() => {
                   changeTab(index);
@@ -67,9 +67,11 @@ function TabsWithCloseButton(props: {
         </Stack>
       )}
       {tabs.map((tab, index) => (
-        <div key={tab.id} hidden={selectIndex !== index}>
-          {tab.content}
-        </div>
+        <VisiableContext.Provider value={selectIndex == index}>
+          <div key={tab.id} hidden={selectIndex !== index}>
+            {tab.content}
+          </div>
+        </VisiableContext.Provider>
       ))}
     </Stack>
   );

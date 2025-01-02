@@ -67,7 +67,7 @@ pub struct MemoryLimit;
 impl MemoryLimit {
     pub fn instance() -> &'static AtomicUsize {
         // default to 200M
-        static SIZE: AtomicUsize = AtomicUsize::new(200 * 1024 * 1024);
+        static SIZE: AtomicUsize = AtomicUsize::new(1200 * 1024 * 1024);
         &SIZE
     }
 
@@ -88,8 +88,8 @@ impl MemoryLimit {
     pub fn exceed_error() -> anyhow::Result<()> {
         if Self::exceed() {
             Err(anyhow::Error::msg(format!(
-                "exceed max memory of {}",
-                Self::get_limit()
+                "exceed max memory of {}m",
+                Self::get_limit() >> 20
             )))
         } else {
             Ok(())
