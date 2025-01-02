@@ -12,7 +12,7 @@ class TabContent {
   ) {}
 }
 
-function TabsWithCloseButton(props: {
+function TabsWithContent(props: {
   tabs: TabContent[];
   handleClose: (index: number) => void;
   changeTab: (index: Number) => void;
@@ -67,14 +67,12 @@ function TabsWithCloseButton(props: {
         </Stack>
       )}
       {tabs.map((tab, index) => (
-        <VisiableContext.Provider value={selectIndex == index}>
-          <div key={tab.id} hidden={selectIndex !== index}>
-            {tab.content}
-          </div>
+        <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
+          <div hidden={selectIndex !== index}>{tab.content}</div>
         </VisiableContext.Provider>
       ))}
     </Stack>
   );
 }
 
-export { TabsWithCloseButton, TabContent };
+export { TabsWithContent, TabContent };

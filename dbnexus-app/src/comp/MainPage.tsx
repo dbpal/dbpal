@@ -5,7 +5,7 @@ import './style/react-split-pane.css';
 import { Box, Modal } from '@mui/material';
 import { CSSProperties, ReactNode, useEffect, useState } from 'react';
 
-import { TabContent, TabsWithCloseButton } from './Tabs';
+import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
 import { MenuContext, modalStyle, TabsSetContext } from './Common.tsx';
 import { Left } from './Left';
@@ -54,7 +54,7 @@ export default function MainPage() {
                 style={{ minHeight: '100vh', height: 'auto' }}
               >
                 <Left></Left>
-                <TabsWithCloseButton
+                <TabsWithContent
                   handleClose={(index: number) => {
                     let id = tabs[index].id;
                     setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
@@ -67,7 +67,7 @@ export default function MainPage() {
                   changeTab={(index) => {
                     setSelectIndex(index as number);
                   }}
-                ></TabsWithCloseButton>
+                ></TabsWithContent>
               </SplitPane>
             </div>
 
