@@ -27,8 +27,8 @@ function ModifySettings(props: { handleClose }) {
   const [pageSize, setPageSize] = useState(0);
   const [theme, setTheme] = useState('');
 
-  const reload = () => {
-    appStore
+  const reload = async () => {
+    (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((settings) => {
         setPageSize(settings.pageSize);
@@ -42,8 +42,9 @@ function ModifySettings(props: { handleClose }) {
     reload();
   }, []);
 
-  const handleSave = () => {
-    appStore
+  const handleSave = async () => {
+    (await appStore())
+
       .set(AppStoreKey.UserSetttings, new UserSettings(theme, pageSize))
       .then(() => {
         showNotification('success', 'Save Setting OK');
@@ -104,8 +105,8 @@ const darkTheme = createTheme({ palette: { mode: 'dark' } });
 function SettingComp(props: { children }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSettings>(null);
-  const reload = () => {
-    appStore
+  const reload = async () => {
+    (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((s) => {
         if (!s) {
@@ -125,10 +126,12 @@ function SettingComp(props: { children }) {
     }
     return setting.theme == 'dark';
   };
-  appStore.onChange((key) => {
-    if (key == AppStoreKey.UserSetttings) {
-      reload();
-    }
+  appStore().then((appStore) => {
+    appStore.onChange((key) => {
+      if (key == AppStoreKey.UserSetttings) {
+        reload();
+      }
+    });
   });
   useEffect(() => {
     reload();

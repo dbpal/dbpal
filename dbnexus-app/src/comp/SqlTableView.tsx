@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import types from './ApiStruct';
 import {
@@ -27,6 +27,23 @@ import {
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
 import { secondConfirm } from './Confirm';
+
+const confrimAboutPrimary = async (
+  notWarnPri,
+  resp: types.MuiDataTableListResp
+): Promise<boolean> => {
+  if (notWarnPri) {
+    return true;
+  }
+  const hasPri = !!resp.data.fields.find((x) => x.is_primary);
+  if (hasPri) {
+    return true;
+  }
+  return secondConfirm({
+    title: 'No Primary key found.',
+    content: 'No Primary key found,maybe multi row affected.',
+  });
+};
 
 function SqlTableView(props: {
   reloadOP: (
@@ -133,19 +150,6 @@ function SqlTableView(props: {
     }
   };
 
-  const confrimAboutPrimary = async (): Promise<boolean> => {
-    if (notWarnPri) {
-      return true;
-    }
-    const hasPri = !!resp.data.fields.find((x) => x.is_primary);
-    if (hasPri) {
-      return true;
-    }
-    return secondConfirm({
-      title: 'No Primary key found.',
-      content: 'No Primary key found,maybe multi row affected.',
-    });
-  };
   const handleReload = async () => {
     setLoading(true);
     try {
@@ -165,46 +169,45 @@ function SqlTableView(props: {
     }
   };
 
-  const handleProcessRowUpdate = async (
-    newRow: Map<string, string>,
-    oldRow: Map<string, string>
-  ) => {
-    if (!updateOP) {
-      return newRow;
-    }
-    const findDiff = (): Map<string, string | null> => {
-      let m = new Map();
-      for (const key in newRow) {
-        if (newRow[key] != oldRow[key]) {
-          m.set(key, newRow[key]);
-        }
+  const handleProcessRowUpdate = useMemo(() => {
+    return async (newRow: Map<string, string>, oldRow: Map<string, string>) => {
+      if (!updateOP) {
+        return newRow;
       }
-      return m;
-    };
-    const updateRow = findDiff();
-    const old = new Map(Object.entries(oldRow));
-    old.delete(key_not_in_table);
-    if (updateRow.size == 0) {
+      const findDiff = (): Map<string, string | null> => {
+        let m = new Map();
+        for (const key in newRow) {
+          if (newRow[key] != oldRow[key]) {
+            m.set(key, newRow[key]);
+          }
+        }
+        return m;
+      };
+      const updateRow = findDiff();
+      const old = new Map(Object.entries(oldRow));
+      old.delete(key_not_in_table);
+      if (updateRow.size == 0) {
+        return newRow;
+      }
+      if (!(await confrimAboutPrimary(notWarnPri, resp))) {
+        return oldRow;
+      }
+      try {
+        let ret = await updateOP(old, updateRow);
+        showNotification(
+          'success',
+          'Update OK',
+          `sql:${ret.sql} row affected:${ret.changes}`
+        );
+      } catch (e) {
+        throw e;
+      }
       return newRow;
-    }
-    if (!(await confrimAboutPrimary())) {
-      return oldRow;
-    }
-    try {
-      let ret = await updateOP(old, updateRow);
-      showNotification(
-        'success',
-        'Update OK',
-        `sql:${ret.sql} row affected:${ret.changes}`
-      );
-    } catch (e) {
-      throw e;
-    }
-    return newRow;
-  };
+    };
+  }, [resp]);
 
   const handleDetele = async () => {
-    if (!(await confrimAboutPrimary())) {
+    if (!(await confrimAboutPrimary(notWarnPri, resp))) {
       return;
     }
     let selectSet = new Set();
@@ -240,6 +243,57 @@ function SqlTableView(props: {
   useEffect(() => {
     setLastLoadTime(new Date());
   }, [resp]);
+
+  const onColumnResize = useMemo(() => {
+    return (e) => {
+      if (saveWidth) {
+        saveWidth(e.colDef.field, e.width);
+      }
+    };
+  }, []);
+
+  const paginationModel = useMemo(() => {
+    return { page, pageSize };
+  }, [page, pageSize]);
+  const onPaginationModelChange = useMemo(() => {
+    return (e) => {
+      setPage(e.page);
+      setPageSize(e.pageSize);
+    };
+  }, []);
+
+  const onRowSelectionModelChange = useMemo(() => {
+    return (e) => {
+      setSelectIDs(e);
+    };
+  }, []);
+
+  const onSortModelChange = useMemo(() => {
+    return (sorts) => {
+      if (sorts.length == 0) {
+        setOrderBy('');
+        setTriggerReload((e) => !e);
+        return;
+      }
+      let sort = sorts[0];
+      if (!sort.sort) {
+        setOrderBy('');
+        setTriggerReload((e) => !e);
+        return;
+      }
+      setOrderBy(`${sort.field} ${sort.sort}`);
+      setTriggerReload((e) => !e);
+    };
+  }, []);
+
+  const onProcessRowUpdateError = useMemo(() => {
+    return (e) => {
+      showNotification('error', 'update failed', e);
+    };
+  }, []);
+  const getRowId = useMemo(() => {
+    return (e) => e[key_not_in_table];
+  }, []);
 
   return (
     <Stack spacing={1}>
@@ -347,49 +401,24 @@ function SqlTableView(props: {
           </Stack>
           {visiable && (
             <DataGrid
-              onColumnResize={(e) => {
-                if (saveWidth) {
-                  saveWidth(e.colDef.field, e.width);
-                }
-              }}
+              onColumnResize={onColumnResize}
               rowHeight={datagridRowHeight}
               columnHeaderHeight={datagridHeaderHeight}
-              getRowId={(e) => e[key_not_in_table]}
-              paginationModel={{ page, pageSize }}
+              getRowId={getRowId}
+              paginationModel={paginationModel}
               pageSizeOptions={pageSizeOptions}
               paginationMode='server'
-              onPaginationModelChange={(e) => {
-                setPage(e.page);
-                setPageSize(e.pageSize);
-              }}
+              onPaginationModelChange={onPaginationModelChange}
               checkboxSelection
-              onRowSelectionModelChange={(e) => {
-                setSelectIDs(e);
-              }}
+              onRowSelectionModelChange={onRowSelectionModelChange}
               rowCount={resp.total}
               sortingMode='server'
-              onSortModelChange={(sorts) => {
-                if (sorts.length == 0) {
-                  setOrderBy('');
-                  setTriggerReload((e) => !e);
-                  return;
-                }
-                let sort = sorts[0];
-                if (!sort.sort) {
-                  setOrderBy('');
-                  setTriggerReload((e) => !e);
-                  return;
-                }
-                setOrderBy(`${sort.field} ${sort.sort}`);
-                setTriggerReload((e) => !e);
-              }}
+              onSortModelChange={onSortModelChange}
               columns={resp.data.fields}
               rows={resp.data.data}
               //@ts-ignore
               processRowUpdate={handleProcessRowUpdate}
-              onProcessRowUpdateError={(e) => {
-                showNotification('error', 'update failed', e);
-              }}
+              onProcessRowUpdateError={onProcessRowUpdateError}
             ></DataGrid>
           )}
         </Stack>

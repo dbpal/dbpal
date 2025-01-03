@@ -43,8 +43,8 @@ function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
 
-  const handleReload = () => {
-    appStore
+  const handleReload = async () => {
+    (await appStore())
       .get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig)
       .then((e) => {
         if (!e) {
@@ -60,8 +60,10 @@ function Left() {
     handleReload();
   }, []);
 
-  appStore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
-    handleReload();
+  appStore().then((appstore) => {
+    appstore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
+      handleReload();
+    });
   });
 
   return (

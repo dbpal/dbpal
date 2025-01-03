@@ -758,15 +758,15 @@ function TableMenu(props: {
                 });
               }}
               saveWidth={async (name, width) => {
-                let old = await appStore.get<object>(widthKey);
+                let old = await (await appStore()).get<object>(widthKey);
                 if (!old) {
                   old = {};
                 }
                 old[name] = width;
-                await appStore.set(widthKey, old);
+                await (await appStore()).set(widthKey, old);
               }}
-              loadWidths={() => {
-                return appStore.get<{}>(widthKey).then((x) => {
+              loadWidths={async () => {
+                return (await appStore()).get<{}>(widthKey).then((x) => {
                   if (!x) {
                     x = {};
                   }

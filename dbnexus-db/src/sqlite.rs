@@ -1106,21 +1106,15 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1158,7 +1152,7 @@ impl QuerySql for SqliteDB {
                 Err(err) => {
                     ret.push(Err(err.to_string()));
 
-                    continue;
+                    break;
                 }
             };
             match item {
@@ -1378,7 +1372,7 @@ fn gen_show_sql(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db, enable_test_log};
+    use crate::enable_test_log;
 
     // this test no need clean up, we use memory sqlite db.
     async fn make_test_object() -> SqliteDB {
@@ -1412,13 +1406,13 @@ mod tests {
             for _ in 0..1550 {
                 let sql = format!(
                     "insert into {tablename} values({} , {} , {} , {} ,{} ,{} ,{});",
-                    rand::random::<f64>(),
-                    rand::random::<f64>(),
-                    rand::random::<f64>(),
-                    rand::random::<f64>(),
-                    rand::random::<f64>(),
-                    rand::random::<f64>(),
-                    rand::random::<f64>(),
+                    rand::random::<f64>() * 100000f64,
+                    rand::random::<f64>() * 100000f64,
+                    rand::random::<f64>() * 100000f64,
+                    rand::random::<f64>() * 100000f64,
+                    rand::random::<f64>() * 100000f64,
+                    rand::random::<f64>() * 100000f64,
+                    rand::random::<f64>() * 1100000f64,
                 );
                 let _ = db.query_sql(query_id.clone(), &sql).await.unwrap();
             }

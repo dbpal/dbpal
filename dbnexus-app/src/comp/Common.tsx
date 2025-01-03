@@ -46,7 +46,9 @@ const modalStyle: SxProps = {
 };
 
 import { load } from '@tauri-apps/plugin-store';
-const appStore = await load('store.json');
+const appStore = async () => {
+  return await load('store.json');
+};
 
 enum AppStoreKey {
   UserSetttings = 'user_settings',
@@ -419,11 +421,11 @@ function MenuDeleteConfig({ name }) {
     }
 
     try {
-      let old = await appStore.get<types.DBConnectionConfig[]>(
-        AppStoreKey.ConnectionConfig
-      );
+      let old = await (
+        await appStore()
+      ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
       let newdata = old.filter((e) => e.name != name);
-      await appStore.set(AppStoreKey.ConnectionConfig, newdata);
+      await (await appStore()).set(AppStoreKey.ConnectionConfig, newdata);
       await invoke('clean_db_connection', { name });
     } catch (e) {
       showNotification('error', 'drop connection failed', e);
