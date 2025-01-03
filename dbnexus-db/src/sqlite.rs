@@ -669,6 +669,7 @@ impl SchemaTrait for SqliteDB {
         sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
+
     fn put_value_in_sql(&self, f: &Field, value: Option<&str>) -> anyhow::Result<String> {
         let v = match f.typ.to_uppercase().as_str() {
             "" | "TEXT" | "DATE" | "TIME" | "DATETIME" => {
@@ -1105,15 +1106,21 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1371,7 +1378,7 @@ fn gen_show_sql(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enable_test_log;
+    use crate::{db, enable_test_log};
 
     // this test no need clean up, we use memory sqlite db.
     async fn make_test_object() -> SqliteDB {
@@ -1385,23 +1392,36 @@ mod tests {
     async fn test_do_has_data() {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
-        for _ in 0..1550 {
-            let sql = format!(
-                "insert into has_data values({} , {} , {} , {} ,{} ,{} ,{});",
-                rand::random::<f64>(),
-                rand::random::<f64>(),
-                rand::random::<f64>(),
-                rand::random::<f64>(),
-                rand::random::<f64>(),
-                rand::random::<f64>(),
-                rand::random::<f64>(),
+        for i in 0..10 {
+            let tablename = format!("has_data_{}", i);
+            let _ = db.drop_table(&tablename, false).await;
+            let create_table = format!(
+                r#"create table {tablename} (
+                col1 real,
+                col2 real,
+                col3 real,
+                col4 real,
+                col5 real,
+                col6 real,
+                col7 real
+
+        )
+            "#
             );
-            let _ = db.query_sql(query_id.clone(), &sql).await.unwrap();
-        }
-        for i in 1..=10 {
-            db.duplicate_table("has_data", format!("has_data_{}", i).as_str())
-                .await
-                .unwrap();
+            let _ = db.query_sql(query_id.clone(), &create_table).await.unwrap();
+            for _ in 0..1550 {
+                let sql = format!(
+                    "insert into {tablename} values({} , {} , {} , {} ,{} ,{} ,{});",
+                    rand::random::<f64>(),
+                    rand::random::<f64>(),
+                    rand::random::<f64>(),
+                    rand::random::<f64>(),
+                    rand::random::<f64>(),
+                    rand::random::<f64>(),
+                    rand::random::<f64>(),
+                );
+                let _ = db.query_sql(query_id.clone(), &sql).await.unwrap();
+            }
         }
     }
 
