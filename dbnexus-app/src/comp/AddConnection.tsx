@@ -40,24 +40,24 @@ async function selectOneFile() {
 function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
   let { host, port, setHost, setPort, onBlur } = props;
   return (
-    <Stack direction='row'>
+    <Stack direction="row">
       <TextField
-        margin='normal'
+        margin="normal"
         fullWidth
-        label='Host'
+        label="Host"
         value={host}
-        size='small'
+        size="small"
         onBlur={onBlur}
         sx={{ mr: 1 }}
         onChange={(e) => setHost(e.target.value)}
       />
       <TextField
-        margin='normal'
+        margin="normal"
         fullWidth
-        label='port'
+        label="port"
         onBlur={onBlur}
         error={isNaN(parseInt(port))}
-        size='small'
+        size="small"
         value={port}
         onChange={(e) => setPort(e.target.value)}
       />
@@ -68,7 +68,7 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
 function Sqlite(props: { path; setPath }) {
   let { path, setPath } = props;
   return (
-    <Stack direction='row' sx={{ alignItems: 'flex-end' }}>
+    <Stack direction="row" sx={{ alignItems: 'flex-end' }}>
       <Button
         onClick={() => {
           selectOneFile().then((e) => {
@@ -93,24 +93,24 @@ function UserAndPassword(props: {
   let { user, password, setUser, setPassword, onBlur } = props;
 
   return (
-    <Stack direction='row'>
+    <Stack direction="row">
       <TextField
-        margin='normal'
+        margin="normal"
         fullWidth
-        label='User'
+        label="User"
         value={user}
         sx={{ mr: 1 }}
-        size='small'
+        size="small"
         onBlur={onBlur}
         onChange={(e) => setUser(e.target.value)}
       />
       <TextField
-        margin='normal'
+        margin="normal"
         fullWidth
-        label='Password'
+        label="Password"
         onBlur={onBlur}
-        size='small'
-        type='password'
+        size="small"
+        type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
@@ -128,7 +128,7 @@ function EnableSSL(props: { useSSL; setUseSSL }) {
           onChange={(e) => setUseSSL(e.target.checked)}
         />
       }
-      label='Enable SSL'
+      label="Enable SSL"
     />
   );
 }
@@ -143,7 +143,7 @@ function TrustCert(props: { trustCert; setTrustCert }) {
           onChange={(e) => setTrustCert(e.target.checked)}
         />
       }
-      label='Trust Cert'
+      label="Trust Cert"
     />
   );
 }
@@ -158,7 +158,7 @@ function Database(props: {
 
   return (
     <Stack>
-      <Stack direction='row' style={{ flexWrap: 'wrap' }}>
+      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
         {candidates.map((e) => (
           <Button
             onClick={() => {
@@ -170,11 +170,11 @@ function Database(props: {
         ))}
       </Stack>
 
-      <Stack direction='row'>
+      <Stack direction="row">
         <TextField
-          margin='normal'
-          label='database'
-          size='small'
+          margin="normal"
+          label="database"
+          size="small"
           value={database}
           onBlur={onBlur}
           onChange={(e) => setDatabase(e.target.value)}
@@ -189,7 +189,7 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
 
   return (
     <Stack>
-      <Stack direction='row' style={{ flexWrap: 'wrap' }}>
+      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
         {candidates.map((e) => (
           <Button
             onClick={() => {
@@ -201,11 +201,11 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
         ))}
       </Stack>
 
-      <Stack direction='row'>
+      <Stack direction="row">
         <TextField
-          margin='normal'
-          label='schema'
-          size='small'
+          margin="normal"
+          label="schema"
+          size="small"
           value={schema}
           onChange={(e) => setSchema(e.target.value)}
         />
@@ -391,13 +391,13 @@ export default function AddConfig(props: { handleClose: () => void }) {
     if (!config) {
       return;
     }
-    let old = await appStore.get(AppStoreKey.ConnectionConfig);
+    let old = await (await appStore()).get(AppStoreKey.ConnectionConfig);
     if (!old) {
       old = [];
     }
     //@ts-ignore
     old = [config, ...old];
-    appStore
+    (await appStore())
       .set(AppStoreKey.ConnectionConfig, old)
       .then((_) => {
         showNotification('success', 'Add Connection OK');
@@ -448,15 +448,15 @@ export default function AddConfig(props: { handleClose: () => void }) {
 
   return (
     <Stack spacing={2}>
-      <Typography variant='h6' gutterBottom>
+      <Typography variant="h6" gutterBottom>
         New Connection
       </Typography>
-      <FormControl fullWidth margin='normal'>
+      <FormControl fullWidth margin="normal">
         <InputLabel>Connection Type</InputLabel>
         <Select
-          size='small'
+          size="small"
           value={connectionType}
-          label='Connection Type'
+          label="Connection Type"
           onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
         >
           <MenuItem value={DataSourceKind.Mysql}>MySQL</MenuItem>
@@ -602,18 +602,18 @@ export default function AddConfig(props: { handleClose: () => void }) {
       {connectionType == DataSourceKind.Sqlite && (
         <Sqlite path={path} setPath={setPath}></Sqlite>
       )}
-      <Stack direction='row'>
+      <Stack direction="row">
         <Button
-          variant='outlined'
+          variant="outlined"
           sx={{ mr: 1 }}
           onClick={handleTestConnection}
         >
           Test
         </Button>
-        {testOk && <Alert severity='success'> Test OK </Alert>}
+        {testOk && <Alert severity="success"> Test OK </Alert>}
         {testLoading && <CircularProgress size={progressBarSize} />}
       </Stack>
-      <Stack direction='row' alignItems='flex-start' spacing={2}>
+      <Stack direction="row" alignItems="flex-start" spacing={2}>
         <FormControlLabel
           control={
             <Switch
@@ -621,26 +621,26 @@ export default function AddConfig(props: { handleClose: () => void }) {
               onChange={(e) => setReadOnly(e.target.checked)}
             />
           }
-          label='Read Only'
+          label="Read Only"
         />
         <TextField
-          margin='normal'
-          label='Connection Name'
+          margin="normal"
+          label="Connection Name"
           value={connectionName}
           fullWidth
           error={!connectionName}
           required
-          size='small'
+          size="small"
           onChange={(e) => setConnectionName(e.target.value)}
-          helperText='Enter a name for this connection'
+          helperText="Enter a name for this connection"
         />
       </Stack>
       <Divider></Divider>
-      <Stack direction='row' spacing={1} alignContent='flex-start'>
+      <Stack direction="row" spacing={1} alignContent="flex-start">
         <Button
-          variant='contained'
-          color='primary'
-          size='small'
+          variant="contained"
+          color="primary"
+          size="small"
           onClick={() => {
             handleSaveConnection();
           }}
