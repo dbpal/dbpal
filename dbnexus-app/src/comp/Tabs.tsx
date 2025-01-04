@@ -22,7 +22,7 @@ function TabsWithContent(props: {
   const [show, setShow] = useState(true);
 
   return (
-    <div style={{ border: '1px solid  red' }}>
+    <div>
       {tabs.length > 0 && (
         <Stack>
           <Button
@@ -32,16 +32,16 @@ function TabsWithContent(props: {
             }}
           >
             {show ? (
-              <KeyboardArrowDownIcon fontSize="small"> </KeyboardArrowDownIcon>
+              <KeyboardArrowDownIcon fontSize='small'> </KeyboardArrowDownIcon>
             ) : (
-              <KeyboardArrowRightIcon fontSize="small"></KeyboardArrowRightIcon>
+              <KeyboardArrowRightIcon fontSize='small'></KeyboardArrowRightIcon>
             )}
           </Button>
         </Stack>
       )}
       {show && (
         <Stack
-          direction="row"
+          direction='row'
           style={{
             flexWrap: 'wrap',
           }}
