@@ -11,6 +11,7 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
+use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 
 // #[tauri::command]
@@ -266,6 +267,30 @@ pub async fn list_view(
     app.list_view(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn list_materialized_view(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<ListTable>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let s = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+    match s.as_any().downcast_ref::<PostGresDB>() {
+        Some(x) => x
+            .list_materialized_view()
+            .await
+            .map_err(|e| AnyhowErrorFrontend::from(e)),
+        None => {
+            return Err(AnyhowErrorFrontend::from(format!(
+                "open named '{}' is not postgres",
+                name
+            )));
+        }
+    }
 }
 #[tauri::command]
 pub async fn drop_view(

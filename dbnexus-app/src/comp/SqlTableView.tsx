@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import types from './ApiStruct';
 import {
@@ -44,6 +44,8 @@ const confrimAboutPrimary = async (
     content: 'No Primary key found,maybe multi row affected.',
   });
 };
+const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
+const getRowId = (e) => e[keyNotInTable];
 
 function SqlTableView(props: {
   reloadOP: (
@@ -87,13 +89,12 @@ function SqlTableView(props: {
   const [selectIDs, setSelectIDs] = useState<GridRowSelectionModel>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
-  const key_not_in_table = 'qwertyuioplkjhgfdsazxcvbnm';
 
   const visiable = useContext(VisiableContext);
 
   const handleResp = async (resp: types.MuiDataTableListResp) => {
     resp.data.data.forEach((data) => {
-      data[key_not_in_table] = uuidv4();
+      data[keyNotInTable] = uuidv4();
     });
     // https://www.geeksforgeeks.org/is-setstate-method-async/
     // set state 是异步的也就说setWidths 可能读不到它的值呢
@@ -185,7 +186,7 @@ function SqlTableView(props: {
       };
       const updateRow = findDiff();
       const old = new Map(Object.entries(oldRow));
-      old.delete(key_not_in_table);
+      old.delete(keyNotInTable);
       if (updateRow.size == 0) {
         return newRow;
       }
@@ -217,12 +218,12 @@ function SqlTableView(props: {
 
     for (let i = 0; i < resp.data.data.length; i++) {
       let e = resp.data.data[i];
-      if (!selectSet.has(e[key_not_in_table])) {
+      if (!selectSet.has(e[keyNotInTable])) {
         continue;
       }
       try {
         const old = new Map(Object.entries(e));
-        old.delete(key_not_in_table);
+        old.delete(keyNotInTable);
         const ret = await deleteOP(old);
         showNotification(
           'success',
@@ -291,12 +292,17 @@ function SqlTableView(props: {
       showNotification('error', 'update failed', e);
     };
   }, []);
-  const getRowId = useMemo(() => {
-    return (e) => e[key_not_in_table];
-  }, []);
 
+  const parentRef = useRef(null); // 创建一个 ref 来引用父容器
+  const [width, setWidth] = useState('1200px');
+  useEffect(() => {
+    // 在组件挂载时获取父容器的宽度
+    if (parentRef.current) {
+      setWidth(parentRef.current.offsetWidth);
+    }
+  }, []);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} ref={parentRef}>
       <Stack direction='row' spacing={1} alignItems='flex-start'>
         <TextField
           fullWidth
@@ -399,8 +405,10 @@ function SqlTableView(props: {
               </Modal>
             )}
           </Stack>
+
           {visiable && (
             <DataGrid
+              style={{ width }}
               onColumnResize={onColumnResize}
               rowHeight={datagridRowHeight}
               columnHeaderHeight={datagridHeaderHeight}

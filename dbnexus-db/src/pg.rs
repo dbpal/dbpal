@@ -1524,7 +1524,7 @@ pub type ListMaterializedView = ListTable;
 
 #[allow(dead_code)]
 impl PostGresDB {
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+    pub async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
         let schema = self.must_schema();
 
         let sql = format!(
