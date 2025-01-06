@@ -599,7 +599,7 @@ class UserSettings {
 
 const SettingsContext = createContext<UserSettings>(new UserSettings());
 
-const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
+const OpenedContext = createContext<{ opened: boolean; setOpened }>(undefined);
 
 const VisiableContext = createContext(true);
 export {
