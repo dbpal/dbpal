@@ -21,10 +21,8 @@ use handlers::{
     show_indexes, show_procedure, show_table, show_trigger, show_udf, show_view, show_view_coumns,
     test_connection, truncate_table, update,
 };
-use tauri::{
-    Emitter, Manager,
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
-};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::{Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -48,7 +46,7 @@ async fn main() {
             {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
-                window.close_devtools();
+                // window.close_devtools();
             }
             Ok(())
         })

@@ -1,5 +1,6 @@
 import {
   Box,
+  Button,
   FormControl,
   InputLabel,
   ListItemIcon,
@@ -49,7 +50,7 @@ const modalStyle: SxProps = {
 };
 
 import { load } from '@tauri-apps/plugin-store';
-import { ConnInfo } from './ConnInfo';
+
 const appStore = async () => {
   return await load('store.json');
 };
@@ -658,6 +659,60 @@ class UserSettings {
 const SettingsContext = createContext<UserSettings>(new UserSettings());
 
 const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
+
+function ConnInfo(props: { uuid }) {
+  let { uuid } = props;
+  const { showNotification } = useContext(NotificationContext);
+  const [metas, setMetas] = useState<types.MetaValue[]>([]);
+  const handleInfo = async () => {
+    try {
+      let metas = await invoke<types.MetaValue[]>('server_metas', {
+        name: uuid,
+      });
+      let config = await getNamedConfig(uuid);
+      let configMetas = [];
+      switch (config.conn_type) {
+        case 'mysql':
+        case 'mariadb':
+        case 'postgres':
+        case 'redis':
+        case 'mongo':
+          configMetas = [
+            { name: 'host', value: config.host } as types.MetaValue,
+            { name: 'port', value: config.port + '' } as types.MetaValue,
+            { name: 'user', value: config.username } as types.MetaValue,
+          ];
+          break;
+        case 'sqlite':
+          configMetas = [
+            { name: 'host', value: config.path } as types.MetaValue,
+          ];
+          break;
+      }
+      setMetas([...configMetas, ...metas]);
+    } catch (e) {
+      showNotification('error', 'call server_metas failed', e);
+      console.log(e);
+    }
+  };
+
+  useEffect(() => {
+    handleInfo();
+  }, []);
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row">
+        <Button variant="contained" color="primary" onClick={handleInfo}>
+          reload
+        </Button>
+      </Stack>
+      <div style={{ display: 'grid' }}>
+        <MetaValuesView values={metas}></MetaValuesView>
+      </div>
+    </Stack>
+  );
+}
 
 const VisiableContext = createContext(true);
 export {
