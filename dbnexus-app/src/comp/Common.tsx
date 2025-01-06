@@ -32,7 +32,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import AddIcon from '@mui/icons-material/Add';
 import { secondConfirm } from './Confirm';
-
+import CloseIcon from '@mui/icons-material/Close';
+import LinkIcon from '@mui/icons-material/Link';
+import LinkOffIcon from '@mui/icons-material/LinkOff';
 const modalStyle: SxProps = {
   position: 'absolute',
   top: '50%',
@@ -426,7 +428,7 @@ function MenuDeleteConfig({ name }) {
       ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
       let newdata = old.filter((e) => e.name != name);
       await (await appStore()).set(AppStoreKey.ConnectionConfig, newdata);
-      await invoke('clean_db_connection', { name });
+      await invoke('close_conn', { name });
     } catch (e) {
       showNotification('error', 'drop connection failed', e);
     }
@@ -457,6 +459,50 @@ function MenuNewQuery({ handle }) {
         <AddIcon></AddIcon>
       </ListItemIcon>
       <ListItemText> New Query </ListItemText>
+    </MenuItem>
+  );
+}
+
+function MenuOpenConn({ handleOpend, name }) {
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <MenuItem
+      onClick={() => {
+        invoke('open_conn', { name })
+          .then(() => {
+            handleOpend();
+          })
+          .catch((e) => {
+            showNotification('error', 'open connection failed', e);
+          });
+      }}
+    >
+      <ListItemIcon>
+        <LinkIcon></LinkIcon>
+      </ListItemIcon>
+      <ListItemText> open connection </ListItemText>
+    </MenuItem>
+  );
+}
+
+function MenuCloseConn({ handleClose, name }) {
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <MenuItem
+      onClick={() => {
+        invoke('close_conn', { name })
+          .then(() => {
+            handleClose();
+          })
+          .catch((e) => {
+            showNotification('error', 'open connection failed', e);
+          });
+      }}
+    >
+      <ListItemIcon>
+        <LinkOffIcon></LinkOffIcon>
+      </ListItemIcon>
+      <ListItemText> close connection </ListItemText>
     </MenuItem>
   );
 }
@@ -553,6 +599,8 @@ class UserSettings {
 
 const SettingsContext = createContext<UserSettings>(new UserSettings());
 
+const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
+
 const VisiableContext = createContext(true);
 export {
   modalStyle,
@@ -597,6 +645,9 @@ export {
   appStore,
   UserSettings,
   VisiableContext,
+  MenuOpenConn,
+  OpenedContext,
+  MenuCloseConn,
 };
 
 export type { DefAndMetas };

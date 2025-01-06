@@ -83,7 +83,7 @@ function TablesTree() {
       itemId={uuid + '-tables'}
       label=<Stack
         spacing={1}
-        direction='row'
+        direction="row"
         sx={{ alignItems: 'flex-start' }}
         onContextMenu={(e) => {
           setUpMenu({
@@ -133,10 +133,10 @@ function TableTree(props: {
       itemId={uuid + '-table-' + table}
       label={
         <Stack
-          direction='row'
+          direction="row"
           spacing={1}
-          justifyContent='space-between'
-          alignContent='center'
+          justifyContent="space-between"
+          alignContent="center"
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -151,7 +151,7 @@ function TableTree(props: {
             });
           }}
         >
-          <Stack direction='row' spacing={1}>
+          <Stack direction="row" spacing={1}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
           </Stack>
           <span> {size} </span>
@@ -182,7 +182,7 @@ function TableTypesButton(props: { handleChange; uuid }) {
     setShow((e) => !e);
   };
   return (
-    <Stack direction='row' spacing={1} style={{ flexWrap: 'wrap' }}>
+    <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
       <Button onClick={toggleShow}>
         {show && <CloseIcon></CloseIcon>} all types
       </Button>
@@ -256,7 +256,7 @@ function ModifyTableColumn(props: {
     <Stack spacing={1}>
       <TextField
         fullWidth
-        label='New Name'
+        label="New Name"
         value={newName}
         onChange={(e) => {
           setNewName(e.target.value);
@@ -272,11 +272,11 @@ function ModifyTableColumn(props: {
               onChange={(e) => {
                 setModifyType(e.target.checked);
               }}
-              name='myCheckbox'
-              color='primary'
+              name="myCheckbox"
+              color="primary"
             />
           }
-          label='modify TYPE'
+          label="modify TYPE"
         />
       )}
       {modifyType && (
@@ -288,9 +288,9 @@ function ModifyTableColumn(props: {
             }}
           ></TableTypesButton>
 
-          <Stack direction='row' spacing={1}>
+          <Stack direction="row" spacing={1}>
             <TextField
-              label='Type'
+              label="Type"
               value={newTyp}
               onChange={(e) => {
                 setNewTyp(e.target.value);
@@ -303,8 +303,8 @@ function ModifyTableColumn(props: {
           </Stack>
         </Stack>
       )}
-      <Stack direction='row' spacing={1}>
-        <Button color='error' variant='contained' onClick={handleModify}>
+      <Stack direction="row" spacing={1}>
+        <Button color="error" variant="contained" onClick={handleModify}>
           Modify
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -329,7 +329,6 @@ function TableColumnsMenu(props: {
     <Paper>
       <MenuList>
         <MenuRefresh reload={reload}></MenuRefresh>
-
         {supportModifyColumn && (
           <MenuItem
             onClick={() => {
@@ -349,9 +348,9 @@ function TableColumnsMenu(props: {
           onClose={() => {
             setShowAdd(false);
           }}
-          aria-labelledby='add column'
+          aria-labelledby="add column"
         >
-          <Box sx={modalStyle} width='800px'>
+          <Box sx={modalStyle} width="800px">
             <TableAddColumn
               table={table}
               uuid={uuid}
@@ -430,7 +429,7 @@ function TableAddColumn(props: {
         onChange={(e) => {
           setName(e.target.value);
         }}
-        label='column name'
+        label="column name"
       ></TextField>
       <TableTypesButton
         uuid={uuid}
@@ -439,11 +438,11 @@ function TableAddColumn(props: {
         }}
       ></TableTypesButton>
       {/*   TODO some mariadb require a length parameter    */}
-      <Stack direction='row'>
+      <Stack direction="row">
         <TextField
           value={typ}
           onChange={(e) => setTyp(e.target.value)}
-          label='type'
+          label="type"
         ></TextField>
         <ColumnNullness
           nullness={nullness}
@@ -453,15 +452,15 @@ function TableAddColumn(props: {
         ></ColumnNullness>
         {supportAfter && (
           <FormControl style={{ minWidth: '180px' }}>
-            <InputLabel id='dropdown-label'>Select After column </InputLabel>
+            <InputLabel id="dropdown-label">Select After column </InputLabel>
             <Select
-              labelId='dropdown-label'
+              labelId="dropdown-label"
               value={after}
               onChange={(e) => {
                 setAfter(e.target.value);
               }}
             >
-              <MenuItem value=''>none</MenuItem>
+              <MenuItem value="">none</MenuItem>
               {fields.map((e) => (
                 <MenuItem value={e.field}> {e.field} </MenuItem>
               ))}
@@ -473,12 +472,12 @@ function TableAddColumn(props: {
         <TextField
           value={defaultValue}
           onChange={(e) => setDefaultValue(e.target.value)}
-          label='default value'
+          label="default value"
         ></TextField>
       </Stack>
       <Divider></Divider>
-      <Stack direction='row'>
-        <Button variant='contained' color='primary' onClick={handleAdd}>
+      <Stack direction="row">
+        <Button variant="contained" color="primary" onClick={handleAdd}>
           add
         </Button>
       </Stack>
@@ -489,17 +488,17 @@ function TableAddColumn(props: {
 function ColumnNullness({ nullness, handleNullness }) {
   return (
     <FormControl style={{ minWidth: '180px' }}>
-      <InputLabel id='dropdown-label'>select nullness </InputLabel>
+      <InputLabel id="dropdown-label">select nullness </InputLabel>
       <Select
-        labelId='dropdown-label'
+        labelId="dropdown-label"
         value={nullness}
         onChange={(e) => {
           handleNullness(e.target.value);
         }}
       >
-        <MenuItem value=''>none</MenuItem>
-        <MenuItem value='null'>null</MenuItem>
-        <MenuItem value='not null'>not null</MenuItem>
+        <MenuItem value="">none</MenuItem>
+        <MenuItem value="null">null</MenuItem>
+        <MenuItem value="not null">not null</MenuItem>
       </Select>
     </FormControl>
   );
@@ -543,7 +542,7 @@ function TableColumnsTree(props: { table: string }) {
       itemId={uuid + '-table-' + table + 'columns'}
       label=<Stack
         spacing={1}
-        direction='row'
+        direction="row"
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -588,7 +587,7 @@ function TableColumnsTree(props: { table: string }) {
               : undefined
           }
           itemId={idPrefix + '-' + f.field}
-          label=<Stack direction='row' spacing={1}>
+          label=<Stack direction="row" spacing={1}>
             {f.field} <em>({f.typ}) </em>
           </Stack>
         ></TreeItem>
@@ -646,19 +645,19 @@ function DropTable(props: {
               onChange={(e) => setCascade(e.target.checked)}
             />
           }
-          label='CASCADE'
+          label="CASCADE"
         />
       )}
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='error' variant='contained' onClick={handleDrop}>
+        <Button color="error" variant="contained" onClick={handleDrop}>
           Drop
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -842,7 +841,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color='error'></DeleteForeverIcon>
+            <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop</ListItemText>
         </MenuItem>
@@ -853,7 +852,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <PlaylistRemoveIcon color='error'></PlaylistRemoveIcon>
+            <PlaylistRemoveIcon color="error"></PlaylistRemoveIcon>
           </ListItemIcon>
           <ListItemText> truncate </ListItemText>
         </MenuItem>
@@ -864,9 +863,9 @@ function TableMenu(props: {
           onClose={() => {
             setshowDup(false);
           }}
-          aria-labelledby='set filter'
+          aria-labelledby="set filter"
         >
-          <Box sx={modalStyle} width='800px'>
+          <Box sx={modalStyle} width="800px">
             <DupTable
               table={table}
               uuid={uuid}
@@ -884,9 +883,9 @@ function TableMenu(props: {
           onClose={() => {
             setShowRename(false);
           }}
-          aria-labelledby='rename'
+          aria-labelledby="rename"
         >
-          <Box sx={modalStyle} width='800px'>
+          <Box sx={modalStyle} width="800px">
             <RenameTable
               uuid={uuid}
               table={table}
@@ -904,9 +903,9 @@ function TableMenu(props: {
           onClose={() => {
             setShowExport(false);
           }}
-          aria-labelledby='drop'
+          aria-labelledby="drop"
         >
-          <Box sx={modalStyle} width='800px'>
+          <Box sx={modalStyle} width="800px">
             <ExportTableOrView
               uuid={uuid}
               name={table}
@@ -925,9 +924,9 @@ function TableMenu(props: {
           onClose={() => {
             setShowDrop(false);
           }}
-          aria-labelledby='drop'
+          aria-labelledby="drop"
         >
-          <Box sx={modalStyle} width='800px'>
+          <Box sx={modalStyle} width="800px">
             <DropTable
               uuid={uuid}
               table={table}
@@ -998,9 +997,9 @@ function TableColumnMenu(props: {
           sx={{ color: 'error.main' }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color='error'> </DeleteForeverIcon>
+            <DeleteForeverIcon color="error"> </DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText color='error'> drop </ListItemText>
+          <ListItemText color="error"> drop </ListItemText>
         </MenuItem>
       </MenuList>
       {showModify && (
@@ -1009,9 +1008,9 @@ function TableColumnMenu(props: {
           onClose={() => {
             setShowModify(false);
           }}
-          aria-labelledby='set filter'
+          aria-labelledby="set filter"
         >
-          <Box sx={modalStyle} width='800px'>
+          <Box sx={modalStyle} width="800px">
             <ModifyTableColumn
               table={table}
               uuid={uuid}
@@ -1061,21 +1060,21 @@ function DupTable(props: {
     <Stack spacing={1}>
       <TextField
         value={name}
-        label='Duplicate Name'
+        label="Duplicate Name"
         onChange={(e) => {
           setName(e.target.value);
         }}
       ></TextField>
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='primary' variant='contained' onClick={handleRename}>
+        <Button color="primary" variant="contained" onClick={handleRename}>
           Duplicate
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -1117,13 +1116,13 @@ function RenameTable(props: {
     <Stack spacing={1}>
       <TextField
         value={newName}
-        label='New Name'
+        label="New Name"
         onChange={(e) => {
           setNewName(e.target.value);
         }}
       ></TextField>
-      <Stack direction='row' spacing={1}>
-        <Button color='primary' variant='contained' onClick={handleRename}>
+      <Stack direction="row" spacing={1}>
+        <Button color="primary" variant="contained" onClick={handleRename}>
           Rename
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}

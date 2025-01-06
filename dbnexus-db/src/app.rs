@@ -168,7 +168,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
     }
 }
 
-/// opend database variant for frontend
+/// opened database variant for frontend
 #[derive(Clone, Debug)]
 pub enum Open {
     Catalog(Arc<dyn crate::db::CatalogTrait>),
@@ -289,13 +289,14 @@ impl App {
         }
     }
 
-    pub async fn delete_prefix_dbs(&self, name: &str) {
+    pub async fn close_conn(&self, name: &str) {
         let mut v = Vec::new();
         for k in self.opens.lock().await.keys() {
             if k.starts_with(name) {
                 v.push(k.clone());
             }
         }
+
         for k in v.into_iter() {
             self.opens.lock().await.remove(&k);
         }

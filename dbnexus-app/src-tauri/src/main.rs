@@ -5,7 +5,7 @@ use dbnexus_db::app::{App, DBConnectionConfig};
 mod handlers;
 
 use handlers::{
-    add_table_column, check_conn, clean_db_connection, config_list_database_or_schema, delete,
+    add_table_column, check_conn, close_conn, config_list_database_or_schema, delete,
     disable_trigger, drop_index, drop_materialized_view, drop_procedure, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
     export_table_or_view, format_sql, insert, list_data_types, list_database,
@@ -191,7 +191,7 @@ async fn main() {
             drop_udf,
             add_table_column,
             check_conn,
-            clean_db_connection,
+            close_conn,
             show_indexes,
             drop_index,
             list_materialized_view,

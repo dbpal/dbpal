@@ -23,6 +23,9 @@ import {
   DataSourceKind,
   appStore,
   AppStoreKey,
+  MenuOpenConn,
+  OpenedContext,
+  MenuCloseConn,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -97,7 +100,7 @@ function Left() {
 
 function OneConfig(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-
+  const [opened, setOpened] = useState(false);
   const makeTree = () => {
     switch (config.conn_type) {
       case 'postgres':
@@ -134,7 +137,11 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
     }
   };
 
-  return <SimpleTreeView>{makeTree()}</SimpleTreeView>;
+  return (
+    <OpenedContext.Provider value={{ opened, setOpened }}>
+      <SimpleTreeView disableSelection>{makeTree()}</SimpleTreeView>
+    </OpenedContext.Provider>
+  );
 }
 
 function SchemaTree(prpos: { schema?: string }) {
@@ -143,6 +150,7 @@ function SchemaTree(prpos: { schema?: string }) {
   const getPrefix = () => {
     return uuid + schema;
   };
+  const { opened, setOpened } = useContext(OpenedContext);
   const { kind } = useContext(ConnTypeContext);
   let support_procedure =
     kind == DataSourceKind.MariaDB ||
@@ -155,6 +163,7 @@ function SchemaTree(prpos: { schema?: string }) {
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.MsSql;
   let { setUpMenu } = useContext(MenuContext);
+
   return (
     <TreeItem
       itemId={getPrefix()}
@@ -163,7 +172,19 @@ function SchemaTree(prpos: { schema?: string }) {
         direction="row"
         onContextMenu={(e) => {
           setUpMenu({
-            content: <SchemaMenu schema={schema} uuid={uuid}></SchemaMenu>,
+            content: (
+              <SchemaMenu
+                opened={opened}
+                schema={schema}
+                handleOpend={() => {
+                  setOpened(true);
+                }}
+                handleCloseConn={() => {
+                  setOpened(false);
+                }}
+                uuid={uuid}
+              ></SchemaMenu>
+            ),
             style: calMenuStyle(e, 70),
           });
         }}
@@ -171,52 +192,42 @@ function SchemaTree(prpos: { schema?: string }) {
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
-        {!schema && <ConnStatus uuid={uuid}></ConnStatus>}
+        {!schema && opened && <ConnStatus uuid={uuid}></ConnStatus>}
       </Stack>
     >
-      <TablesTree></TablesTree>
-      <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
-      {kind == DataSourceKind.Postgres && (
-        <ViewsTree viewkind={ViewKind.PostGresMaterrialized}></ViewsTree>
+      {opened && (
+        <>
+          <TablesTree></TablesTree>
+          <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
+          {kind == DataSourceKind.Postgres && (
+            <ViewsTree viewkind={ViewKind.PostGresMaterrialized}></ViewsTree>
+          )}
+          {support_procedure && <ProceduresTree></ProceduresTree>}
+          {support_udf && <UdfsTree></UdfsTree>}
+        </>
       )}
-      {support_procedure && <ProceduresTree></ProceduresTree>}
-      {support_udf && <UdfsTree></UdfsTree>}
     </TreeItem>
   );
 }
 
-function DatabaseMenu(props: { database?: string; uuid; reload }) {
-  const { database, uuid, reload } = props;
+function DatabaseMenu(props: {
+  database?: string;
+  uuid;
+  reload;
+  handleOpend;
+  opened;
+  handleCloseConn;
+}) {
+  const { database, uuid, reload, handleOpend, opened, handleCloseConn } =
+    props;
+
   return (
     <Paper>
       <MenuList>
-        <MenuNewQuery
-          handle={() => {
-            alert('new query');
-          }}
-        ></MenuNewQuery>
-      </MenuList>
-      <MenuItem
-        onClick={() => {
-          reload();
-        }}
-      >
-        <ListItemIcon>
-          <RefreshIcon></RefreshIcon>
-        </ListItemIcon>
-        <ListItemText> refresh </ListItemText>
-      </MenuItem>
+        {!opened && !database && (
+          <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
+        )}
 
-      {!database && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
-    </Paper>
-  );
-}
-
-function CatalogMenu(props: { uuid; reload }) {
-  const { uuid, reload } = props;
-  return (
-    <Paper>
-      <MenuList>
         <MenuNewQuery
           handle={() => {
             alert('new query');
@@ -232,24 +243,88 @@ function CatalogMenu(props: { uuid; reload }) {
           </ListItemIcon>
           <ListItemText> refresh </ListItemText>
         </MenuItem>
+
+        {opened && !database && (
+          <MenuCloseConn
+            name={uuid}
+            handleClose={handleCloseConn}
+          ></MenuCloseConn>
+        )}
+        {!database && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
+      </MenuList>
+    </Paper>
+  );
+}
+
+function CatalogMenu(props: {
+  uuid;
+  reload;
+  handleOpend;
+  opened;
+  handleCloseConn;
+}) {
+  const { uuid, reload, handleOpend, opened, handleCloseConn } = props;
+  return (
+    <Paper>
+      <MenuList>
+        {!opened && (
+          <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
+        )}
+        <MenuNewQuery
+          handle={() => {
+            alert('new query');
+          }}
+        ></MenuNewQuery>
+        <MenuItem
+          onClick={() => {
+            reload();
+          }}
+        >
+          <ListItemIcon>
+            <RefreshIcon></RefreshIcon>
+          </ListItemIcon>
+          <ListItemText> refresh </ListItemText>
+        </MenuItem>
+        {opened && (
+          <MenuCloseConn
+            name={uuid}
+            handleClose={handleCloseConn}
+          ></MenuCloseConn>
+        )}
         <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
       </MenuList>
     </Paper>
   );
 }
 
-function SchemaMenu(props: { schema?: string; uuid }) {
-  const { schema, uuid } = props;
+function SchemaMenu(props: {
+  schema?: string;
+  uuid;
+  handleOpend;
+  opened;
+  handleCloseConn;
+}) {
+  const { schema, uuid, handleOpend, opened, handleCloseConn } = props;
   return (
     <Paper>
       <MenuList>
+        {!schema && !opened && (
+          <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
+        )}
         <MenuNewQuery
           handle={() => {
             alert('new query');
           }}
         ></MenuNewQuery>
+        {!schema && opened && (
+          <MenuCloseConn
+            name={uuid}
+            handleClose={handleCloseConn}
+          ></MenuCloseConn>
+        )}
+
+        {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
       </MenuList>
-      {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
     </Paper>
   );
 }
@@ -259,6 +334,7 @@ function CatalogTree(props: {}) {
   const { showNotification } = useContext(NotificationContext);
   const [databases, setDatabases] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
   const handleReload = () => {
     setLoading(true);
     invoke<string[]>('list_database', { name })
@@ -271,9 +347,13 @@ function CatalogTree(props: {}) {
         showNotification('error', 'list database failed', e);
       });
   };
+  const { opened, setOpened } = useContext(OpenedContext);
   useEffect(() => {
-    handleReload();
-  }, []);
+    if (opened) {
+      handleReload();
+    }
+  }, [opened]);
+
   let { setUpMenu } = useContext(MenuContext);
 
   return (
@@ -285,7 +365,18 @@ function CatalogTree(props: {}) {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <CatalogMenu uuid={name} reload={handleReload}></CatalogMenu>
+              <CatalogMenu
+                uuid={name}
+                reload={handleReload}
+                opened={opened}
+                handleOpend={() => {
+                  setOpened(true);
+                }}
+                handleCloseConn={() => {
+                  setOpened(false);
+                  setDatabases([]);
+                }}
+              ></CatalogMenu>
             ),
             style: calMenuStyle(e, 70),
           });
@@ -293,7 +384,7 @@ function CatalogTree(props: {}) {
       >
         <Typography>{name} </Typography>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
-        <ConnStatus uuid={name}></ConnStatus>
+        {opened && <ConnStatus uuid={name}></ConnStatus>}
       </Stack>
       key={name}
     >
@@ -314,6 +405,7 @@ function DatabaseTree(props: { database?: string }) {
   const [schemas, setSchemas] = useState<string[]>([]);
   let { database } = props;
   const [loading, setLoading] = useState(false);
+  const { opened, setOpened } = useContext(OpenedContext);
 
   const handleReload = () => {
     setLoading(true);
@@ -329,8 +421,10 @@ function DatabaseTree(props: { database?: string }) {
   };
 
   useEffect(() => {
-    handleReload();
-  }, []);
+    if (opened) {
+      handleReload();
+    }
+  }, [opened]);
   let { setUpMenu } = useContext(MenuContext);
 
   return (
@@ -344,6 +438,14 @@ function DatabaseTree(props: { database?: string }) {
           setUpMenu({
             content: (
               <DatabaseMenu
+                opened={opened}
+                handleOpend={() => {
+                  setOpened(true);
+                }}
+                handleCloseConn={() => {
+                  setOpened(false);
+                  setSchemas([]);
+                }}
                 database={database}
                 uuid={name}
                 reload={handleReload}
@@ -357,7 +459,7 @@ function DatabaseTree(props: { database?: string }) {
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
-        {!database && <ConnStatus uuid={name}></ConnStatus>}
+        {!database && opened && <ConnStatus uuid={name}></ConnStatus>}
       </Stack>
       key={name + database}
     >

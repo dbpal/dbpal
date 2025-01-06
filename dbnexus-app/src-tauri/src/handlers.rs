@@ -28,9 +28,9 @@ pub async fn open_conn(
 }
 
 #[tauri::command]
-pub async fn clean_db_connection(name: String, app: tauri::State<'_, App>) -> Result<(), ()> {
+pub async fn close_conn(name: String, app: tauri::State<'_, App>) -> Result<(), ()> {
     random_sleep().await;
-    app.delete_prefix_dbs(name.as_str()).await;
+    app.close_conn(name.as_str()).await;
     Ok(())
 }
 
