@@ -18,11 +18,12 @@ use crate::datasource_config::OracleDbConfig;
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
     FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
-    SqlExecuteRet, TableListResp, not_support_features,
+    ServerMetas, SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::helper::{
     SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql,
 };
+use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 
 impl FormatSql for OracleDB {
@@ -39,6 +40,12 @@ pub struct OracleDB {
     call_timeout: Option<Duration>,
 }
 
+#[async_trait::async_trait]
+impl ServerMetas for OracleDB {
+    async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
+        unimplemented!()
+    }
+}
 impl std::fmt::Debug for OracleDB {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unimplemented!()

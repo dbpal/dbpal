@@ -26,7 +26,7 @@ import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import { TabContent } from './Tabs';
-import { ProcudureView } from './UdfAndMetaView';
+import { DefAndMetasView } from './UdfAndMetaView';
 import { secondConfirm } from './Confirm';
 import { TbMathFunction } from 'react-icons/tb';
 function UdfsTree() {
@@ -63,7 +63,7 @@ function UdfsTree() {
       itemId={idPrefix}
       label=<Stack
         spacing={1}
-        direction='row'
+        direction="row"
         sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
@@ -87,7 +87,7 @@ function UdfsTree() {
           key={p.name + '-' + extraParametersFromMetaValues(p.metas)}
           itemId={getItemId(p)}
           label=<Stack
-            direction='row'
+            direction="row"
             spacing={1}
             sx={{ alignItems: 'center' }}
             onContextMenu={(e) => {
@@ -145,7 +145,7 @@ function UdfMenu(props: {
             id,
             udf,
             (
-              <ProcudureView
+              <DefAndMetasView
                 reloadOP={async () => {
                   return await invoke<types.UdfDetail>('show_udf', {
                     name: uuid,
@@ -153,8 +153,8 @@ function UdfMenu(props: {
                     arg,
                   });
                 }}
-                language='xxx'
-              ></ProcudureView>
+                language="xxx"
+              ></DefAndMetasView>
             )
           ),
         ];
@@ -202,7 +202,7 @@ function UdfMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color='error'></DeleteForeverIcon>
+            <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop</ListItemText>
         </MenuItem>

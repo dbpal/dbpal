@@ -9,6 +9,7 @@ use dbnexus_db::db::{
     QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
     UdfOrPrecedureExtraParameter,
 };
+use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
@@ -269,6 +270,23 @@ pub async fn list_view(
     app.list_view(name.as_str())
         .await
         .map_err(AnyhowErrorFrontend::from)
+}
+#[tauri::command]
+pub async fn server_metas(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<MetaValue>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let o = app
+        .get_opened(&name)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+    match o {
+        Open::Catalog(x) => x.show_metas().await,
+        Open::DataBase(x) => x.show_metas().await,
+        Open::Schema(x) => x.show_metas().await,
+    }
+    .map_err(|x| AnyhowErrorFrontend::from(x))
 }
 
 #[tauri::command]

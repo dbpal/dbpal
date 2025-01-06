@@ -7,7 +7,12 @@ import { CSSProperties, ReactNode, useEffect, useState } from 'react';
 
 import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
-import { MenuContext, modalStyle, TabsSetContext } from './Common.tsx';
+import {
+  MenuContext,
+  modalStyle,
+  tabsHasId,
+  TabsSetContext,
+} from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import AddConfig from './AddConnection.tsx';
@@ -15,20 +20,35 @@ import { ModifySettings, SettingComp } from './Settings.tsx';
 
 export default function MainPage() {
   const [showAddConnection, setShowAddConnection] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-
-  listen('add_connection', () => {
-    setShowAddConnection(true);
-  });
-
-  listen('show_settings', () => {
-    setShowSettings(true);
-  });
 
   let [tabs, setTabs] = useState([
     new TabContent('welcome', 'welcome', <WelCome></WelCome>),
   ]);
   const [selectIndex, setSelectIndex] = useState(0);
+
+  useEffect(() => {
+    let unlisten = listen('show_settings', () => {
+      let id = 'setting';
+      let index = tabsHasId(tabs, id);
+      if (typeof index == 'number') {
+        setSelectIndex(index);
+      } else {
+        setTabs((e) => {
+          setSelectIndex(e.length);
+          return [
+            ...e,
+            new TabContent(id, id, <ModifySettings></ModifySettings>),
+          ];
+        });
+      }
+    });
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, [tabs]);
+
   const [menu, setUpMenu] = useState<{
     content: ReactNode;
     style: CSSProperties;
@@ -43,8 +63,8 @@ export default function MainPage() {
 
   return (
     <SettingComp>
-      <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
-        <MenuContext.Provider value={{ setUpMenu }}>
+      <MenuContext.Provider value={{ setUpMenu }}>
+        <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
           <NotificationProvider>
             <div>
               <SplitPane
@@ -97,26 +117,9 @@ export default function MainPage() {
                 </Box>
               </Modal>
             )}
-            {showSettings && (
-              <Modal
-                open={showSettings}
-                onClose={() => {
-                  setShowSettings(false);
-                }}
-                aria-labelledby="add column"
-              >
-                <Box sx={modalStyle} width="700px">
-                  <ModifySettings
-                    handleClose={() => {
-                      setShowSettings(false);
-                    }}
-                  ></ModifySettings>
-                </Box>
-              </Modal>
-            )}
           </NotificationProvider>
-        </MenuContext.Provider>
-      </TabsSetContext.Provider>
+        </TabsSetContext.Provider>
+      </MenuContext.Provider>
     </SettingComp>
   );
 }

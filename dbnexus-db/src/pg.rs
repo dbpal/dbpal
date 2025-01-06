@@ -19,6 +19,7 @@ use crate::db::{
     ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
     TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
+
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
@@ -1564,31 +1565,31 @@ impl PostGresDB {
 }
 
 #[cfg(test)]
+pub(crate) async fn make_test_object() -> PostGresDB {
+    let pg = PostGresDB::new(PGDbConfig {
+        host: crate::TEST_HOST.to_string(),
+        port: 5432,
+        username: "postgres".to_string(),
+        password: Some("root".to_string()),
+        db: Some("test".into()),
+        schema: Some("xxx".to_string()),
+        read_only: false,
+    })
+    .await
+    .unwrap();
+    pg
+}
+#[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use super::make_test_object;
 
-    use super::PostGresDB;
-    use crate::datasource_config::PGDbConfig;
     use crate::db::{
         CatalogTrait, CheckConn, ExportKind, QueryResp, QuerySql, SchemaTrait, ServerMetas,
         UdfOrPrecedureExtraParameter,
     };
-    use crate::{TEST_HOST, enable_test_log};
+    use crate::enable_test_log;
+    use std::collections::HashMap;
 
-    async fn make_test_object() -> PostGresDB {
-        let pg = PostGresDB::new(PGDbConfig {
-            host: TEST_HOST.to_string(),
-            port: 5432,
-            username: "postgres".to_string(),
-            password: Some("root".to_string()),
-            db: Some("test".into()),
-            schema: Some("test".to_string()),
-            read_only: false,
-        })
-        .await
-        .unwrap();
-        pg
-    }
     #[tokio::test]
     async fn test_procedure() {
         let db = make_test_object().await;
@@ -2256,7 +2257,7 @@ mod tests {
         let db = &db as &dyn crate::db::DBTrait;
 
         let resp = db.list_schema().await.unwrap();
-        assert_eq!(resp, vec!["public", "test"]);
+        assert_eq!(resp, vec!["public", "xxx"]);
     }
     #[tokio::test]
     async fn test_types3() {

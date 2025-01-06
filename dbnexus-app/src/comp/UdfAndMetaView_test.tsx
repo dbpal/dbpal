@@ -1,18 +1,12 @@
 import { AlertColor } from '@mui/material';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { NotificationContext } from './Notification';
+import { NotificationContext } from './Notification.tsx';
 
-import { TriggerDetail } from './TriggerDetail.tsx';
+import { testProcedure } from './exampleTest.ts';
 
-import {
-  testProcedure,
-  testQueryRespTableList,
-  testTriggerDetail,
-  testUDF,
-} from './exampleTest.ts';
-import { voidTestFunction } from './helper.ts';
-import { ProcudureView, UdfView } from './UdfAndMetaView.tsx';
+import { DefAndMetasView } from './UdfAndMetaView.tsx';
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
 root.render(
@@ -36,13 +30,12 @@ root.render(
         disableOP={voidTestFunction}
         enableOP={voidTestFunction}
       ></TriggerDetail> */}
-
-      <ProcudureView
+      <DefAndMetasView
         reloadOP={async () => {
           return testProcedure();
         }}
-        language='xxx'
-      ></ProcudureView>
+        language="xxx"
+      ></DefAndMetasView>
 
       {/* <UdfView
         reloadOP={async () => {

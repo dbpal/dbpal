@@ -1,8 +1,5 @@
 import {
   CircularProgress,
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
   MenuList,
   Paper,
   Stack,
@@ -26,6 +23,8 @@ import {
   MenuOpenConn,
   OpenedContext,
   MenuCloseConn,
+  MenuRefresh,
+  MenuConnectionInfo,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -40,7 +39,6 @@ import { TablesTree } from './LeftTable';
 import { ViewKind, ViewsTree } from './LeftView';
 import { ProceduresTree } from './LeftProcedure';
 import { UdfsTree } from './LeftUdf';
-import RefreshIcon from '@mui/icons-material/Refresh';
 
 function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
@@ -228,21 +226,17 @@ function DatabaseMenu(props: {
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
         )}
 
-        <MenuNewQuery
-          handle={() => {
-            alert('new query');
-          }}
-        ></MenuNewQuery>
-        <MenuItem
-          onClick={() => {
-            reload();
-          }}
-        >
-          <ListItemIcon>
-            <RefreshIcon></RefreshIcon>
-          </ListItemIcon>
-          <ListItemText> refresh </ListItemText>
-        </MenuItem>
+        {opened && (
+          <MenuNewQuery
+            handle={() => {
+              alert('new query');
+            }}
+          ></MenuNewQuery>
+        )}
+        {opened && <MenuRefresh reload={reload}></MenuRefresh>}
+        {opened && !database && (
+          <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>
+        )}
 
         {opened && !database && (
           <MenuCloseConn
@@ -270,21 +264,18 @@ function CatalogMenu(props: {
         {!opened && (
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
         )}
-        <MenuNewQuery
-          handle={() => {
-            alert('new query');
-          }}
-        ></MenuNewQuery>
-        <MenuItem
-          onClick={() => {
-            reload();
-          }}
-        >
-          <ListItemIcon>
-            <RefreshIcon></RefreshIcon>
-          </ListItemIcon>
-          <ListItemText> refresh </ListItemText>
-        </MenuItem>
+
+        {opened && (
+          <MenuNewQuery
+            handle={() => {
+              alert('new query');
+            }}
+          ></MenuNewQuery>
+        )}
+
+        {opened && <MenuRefresh reload={reload}></MenuRefresh>}
+        {opened && <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>}
+
         {opened && (
           <MenuCloseConn
             name={uuid}
@@ -311,11 +302,18 @@ function SchemaMenu(props: {
         {!schema && !opened && (
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
         )}
-        <MenuNewQuery
-          handle={() => {
-            alert('new query');
-          }}
-        ></MenuNewQuery>
+
+        {opened && (
+          <MenuNewQuery
+            handle={() => {
+              alert('new query');
+            }}
+          ></MenuNewQuery>
+        )}
+        {opened && !schema && (
+          <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>
+        )}
+
         {!schema && opened && (
           <MenuCloseConn
             name={uuid}

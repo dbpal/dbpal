@@ -4,11 +4,13 @@ import {
   Button,
   createTheme,
   CssBaseline,
+  Divider,
   FormControl,
   InputLabel,
   MenuItem,
   Select,
   Stack,
+  TextField,
   ThemeProvider,
   Typography,
 } from '@mui/material';
@@ -21,9 +23,9 @@ import {
   UserSettings,
 } from './Common';
 
-function ModifySettings(props: { handleClose }) {
+function ModifySettings() {
   const { showNotification } = useContext(NotificationContext);
-  const { handleClose } = props;
+
   const [pageSize, setPageSize] = useState(0);
   const [theme, setTheme] = useState('');
 
@@ -48,17 +50,16 @@ function ModifySettings(props: { handleClose }) {
       .set(AppStoreKey.UserSetttings, new UserSettings(theme, pageSize))
       .then(() => {
         showNotification('success', 'Save Setting OK');
-        handleClose();
       })
       .catch((e) => {
         showNotification('success', 'Save Setting Failure', e);
       });
   };
 
-  const headerSize = '100px';
+  const headerSize = '200px';
   return (
-    <Stack spacing={1}>
-      <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-start' }}>
+    <Stack spacing={2}>
+      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
         <Typography width={headerSize}> page size: </Typography>
         <SelectPageSize
           pageSize={pageSize}
@@ -67,27 +68,28 @@ function ModifySettings(props: { handleClose }) {
           }}
         ></SelectPageSize>
       </Stack>
-      <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-start' }}>
+
+      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
         <Typography width={headerSize}> theme: </Typography>
-        <FormControl style={{ width: '200px' }} size='small' variant='outlined'>
-          <InputLabel id='dropdown-label'>select a theme</InputLabel>
+        <FormControl style={{ width: '200px' }} size="small" variant="outlined">
+          <InputLabel id="dropdown-label">select a theme</InputLabel>
           <Select
-            labelId='dropdown-label'
+            labelId="dropdown-label"
             value={theme}
             onChange={(e) => {
               setTheme(e.target.value);
             }}
-            label='选择一个选项'
           >
-            <MenuItem value='dark'>dark</MenuItem>
-            <MenuItem value='light'>light</MenuItem>
+            <MenuItem value="dark">dark</MenuItem>
+            <MenuItem value="light">light</MenuItem>
           </Select>
         </FormControl>
       </Stack>
-      <div></div>
-      <Stack direction='row'>
+
+      <Divider></Divider>
+      <Stack direction="row">
         <Button
-          variant='contained'
+          variant="contained"
           onClick={() => {
             handleSave();
           }}

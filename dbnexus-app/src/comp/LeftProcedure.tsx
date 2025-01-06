@@ -25,7 +25,7 @@ import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import { TabContent } from './Tabs';
-import { ProcudureView } from './UdfAndMetaView';
+import { DefAndMetasView } from './UdfAndMetaView';
 import { secondConfirm } from './Confirm';
 import { SiProcessingfoundation } from 'react-icons/si';
 function ProceduresTree() {
@@ -61,7 +61,7 @@ function ProceduresTree() {
     <TreeItem
       itemId={idPrefix}
       label=<Stack
-        direction='row'
+        direction="row"
         spacing={1}
         sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
@@ -88,7 +88,7 @@ function ProceduresTree() {
           sx={{ alignItems: 'flex-end' }}
           label=<Stack
             spacing={1}
-            direction='row'
+            direction="row"
             onContextMenu={(e) => {
               setUpMenu({
                 content: (
@@ -145,7 +145,7 @@ function ProcedureMenu(props: {
             id,
             procedure,
             (
-              <ProcudureView
+              <DefAndMetasView
                 reloadOP={async () => {
                   return await invoke<types.ProcedureDetail>('show_procedure', {
                     name: uuid,
@@ -153,8 +153,8 @@ function ProcedureMenu(props: {
                     arg,
                   });
                 }}
-                language='xxx'
-              ></ProcudureView>
+                language="xxx"
+              ></DefAndMetasView>
             )
           ),
         ];
@@ -201,7 +201,7 @@ function ProcedureMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color='error'></DeleteForeverIcon>
+            <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop</ListItemText>
         </MenuItem>

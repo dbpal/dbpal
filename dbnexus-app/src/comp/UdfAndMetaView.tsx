@@ -4,13 +4,12 @@ import { NotificationContext } from './Notification';
 import { Button, CircularProgress, Stack, Typography } from '@mui/material';
 import {
   DefAndMetas,
-  MetaValues,
+  MetaValuesView,
   progressBarSize,
   SettingsContext,
-  SimpleResizeAbleEditor,
+  SimpleResizeEditor,
 } from './Common';
 
-import types from './ApiStruct';
 import { Variant } from '@mui/material/styles/createTypography';
 
 function DefAndMetasView(props: {
@@ -42,24 +41,21 @@ function DefAndMetasView(props: {
   useEffect(() => {
     handleReload();
   }, []);
+
   const { theme } = useContext(SettingsContext);
   return (
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
-      <Stack direction='row' spacing={1}>
-        <Button
-          variant='contained' // 可以是 'text', 'outlined', 或 'contained'
-          color='primary' // 主题颜色
-          onClick={handleReload} // 点击事件处理
-        >
+      <Stack direction="row" spacing={1}>
+        <Button variant="contained" color="primary" onClick={handleReload}>
           Reload
         </Button>
       </Stack>
       {detail && (
-        <Stack spacing={1}>
+        <div style={{ display: 'grid' }}>
           <Typography variant={titleVariant}> Sql </Typography>
-          <SimpleResizeAbleEditor
-            style={{ minHeight: '300px' }}
+          <SimpleResizeEditor
+            style={{ minHeight: '200px' }}
             language={language}
             value={detail.def}
             onMount={(_editor, monaco) => {
@@ -67,33 +63,13 @@ function DefAndMetasView(props: {
                 monaco.editor.setTheme('vs-dark');
               }
             }}
-          ></SimpleResizeAbleEditor>
+          ></SimpleResizeEditor>
           <Typography variant={titleVariant}> Some Metas </Typography>
-          <MetaValues values={detail.metas}></MetaValues>
-        </Stack>
+          <MetaValuesView values={detail.metas}></MetaValuesView>
+        </div>
       )}
     </Stack>
   );
 }
 
-function UdfView(props: {
-  reloadOP: () => Promise<types.UdfDetail>;
-  language: string;
-}) {
-  let { reloadOP, language } = props;
-  return (
-    <DefAndMetasView language={language} reloadOP={reloadOP}></DefAndMetasView>
-  );
-}
-
-function ProcudureView(props: {
-  reloadOP: () => Promise<types.UdfDetail>;
-  language: string;
-}) {
-  let { reloadOP, language } = props;
-  return (
-    <DefAndMetasView language={language} reloadOP={reloadOP}></DefAndMetasView>
-  );
-}
-
-export { DefAndMetasView, ProcudureView, UdfView };
+export { DefAndMetasView };

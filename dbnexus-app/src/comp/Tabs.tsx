@@ -98,7 +98,7 @@ function TabsWithContent(props: {
   const [show, setShow] = useState(true);
   const { setUpMenu } = useContext(MenuContext);
   return (
-    <div>
+    <Stack spacing={1}>
       {tabs.length > 0 && (
         <Stack>
           <Button
@@ -158,7 +158,7 @@ function TabsWithContent(props: {
           <div hidden={selectIndex !== index}>{tab.content}</div>
         </VisiableContext.Provider>
       ))}
-    </div>
+    </Stack>
   );
 }
 

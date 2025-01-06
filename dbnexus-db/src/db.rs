@@ -21,7 +21,7 @@ pub trait BackendName {
 /// A db representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait:
-    Sync + Send + QuerySql + CheckConn + FormatSql + std::fmt::Debug + 'static
+    Sync + Send + QuerySql + CheckConn + FormatSql + std::fmt::Debug + ServerMetas + 'static
 {
     fn as_any(&self) -> &dyn std::any::Any;
 
@@ -300,7 +300,7 @@ impl UdfDetail {
 
 #[async_trait::async_trait]
 pub trait CatalogTrait:
-    Send + Sync + 'static + QuerySql + FormatSql + CheckConn + AutoCompletionTrait + Debug
+    Send + Sync + 'static + QuerySql + FormatSql + CheckConn + AutoCompletionTrait + Debug + ServerMetas
 {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
@@ -424,7 +424,9 @@ impl dyn SchemaTrait {
 }
 
 #[async_trait::async_trait]
-pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + FormatSql + Debug {
+pub trait DBTrait:
+    Sync + Send + QuerySql + 'static + CheckConn + FormatSql + Debug + ServerMetas
+{
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
 }

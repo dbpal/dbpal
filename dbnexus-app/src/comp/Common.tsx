@@ -32,9 +32,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import AddIcon from '@mui/icons-material/Add';
 import { secondConfirm } from './Confirm';
-import CloseIcon from '@mui/icons-material/Close';
+
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
+import InfoIcon from '@mui/icons-material/Info';
 const modalStyle: SxProps = {
   position: 'absolute',
   top: '50%',
@@ -48,8 +49,19 @@ const modalStyle: SxProps = {
 };
 
 import { load } from '@tauri-apps/plugin-store';
+import { ConnInfo } from './ConnInfo';
 const appStore = async () => {
   return await load('store.json');
+};
+
+const getNamedConfig = async (name: string) => {
+  let x = await (
+    await appStore()
+  ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
+  if (!x) {
+    return undefined;
+  }
+  return x.find((x) => x.name == name);
 };
 
 enum AppStoreKey {
@@ -57,12 +69,16 @@ enum AppStoreKey {
   ConnectionConfig = 'connection_config',
 }
 
-function MetaValues(props: { values: types.MetaValue[] }) {
-  let { values } = props;
+function MetaValuesView(props: { values: types.MetaValue[]; flex?: number }) {
+  let { values, flex } = props;
+  if (flex == undefined) {
+    flex = 1;
+  }
+
   let columns = [
-    { field: 'name', flex: 1 },
-    { field: 'value', flex: 1 },
-    { field: 'desc', flex: 1 },
+    { field: 'name', flex },
+    { field: 'value', flex },
+    { field: 'desc', flex },
   ];
 
   values.forEach((e) => {
@@ -260,26 +276,39 @@ function EditorBar(props: {
 }
 
 function countLines(str) {
-  if (!str) return 0; // 如果字符串为空，返回 0
+  if (!str) return undefined; // 如果字符串为空，返回 0
   return str.split('\n').length; // 按换行符分割并计算长度
 }
 
-function editorInitHeight(str): number {
+function editorInitHeight(str, maxPrecent = 0.5): number {
   let lines = countLines(str);
   if (!lines) {
     lines = 10;
   }
-  return lines * 22;
+  let height = lines * 22;
+  let viewHeigth = getViewportSize().height;
+  let maxHeigth = viewHeigth * maxPrecent;
+  if (height > maxHeigth) {
+    height = maxHeigth;
+  }
+  return height;
 }
 
-function SimpleResizeAbleEditor(props: {
+function SimpleResizeEditor(props: {
   language: string;
   value: string;
   onMount?: OnMount;
   options?: editor.IStandaloneEditorConstructionOptions;
   style?: CSSProperties;
+  minHeigth?: number;
 }) {
-  let { language, value, onMount, options, style } = props;
+  let { language, value, onMount, options, style, minHeigth } = props;
+
+  let height = editorInitHeight(value);
+  if (minHeigth && height < minHeigth) {
+    height = minHeigth;
+  }
+
   return (
     <div
       style={{
@@ -287,6 +316,7 @@ function SimpleResizeAbleEditor(props: {
         flexDirection: 'column',
         resize: 'vertical',
         overflow: 'auto',
+        marginRight: '20px',
         ...style,
       }}
     >
@@ -295,7 +325,8 @@ function SimpleResizeAbleEditor(props: {
           flexGrow: 1,
           flexShrink: 1,
           minHeight: 0,
-          height: editorInitHeight(value) + 'px',
+          width: '99%',
+          height: height + 'px',
         }}
       >
         <Editor
@@ -367,7 +398,6 @@ function tabsHasId(tabs: TabContent[], id: string): number | null {
       return i;
     }
   }
-
   return null;
 }
 
@@ -407,6 +437,34 @@ function MenuRefresh({ reload }) {
         <RefreshIcon></RefreshIcon>
       </ListItemIcon>
       <ListItemText> refresh </ListItemText>
+    </MenuItem>
+  );
+}
+
+function MenuConnectionInfo({ uuid }) {
+  const { tabs, setSelectIndex, setTabs } = useContext(TabsSetContext);
+
+  const handleInfo = async () => {
+    let id = uuid + '-info';
+    let index = tabsHasId(tabs, id);
+    if (typeof index == 'number') {
+      setSelectIndex(index);
+    } else {
+      setTabs((e) => {
+        setSelectIndex(tabs.length);
+        return [
+          ...e,
+          new TabContent(id, uuid, <ConnInfo uuid={uuid}></ConnInfo>),
+        ];
+      });
+    }
+  };
+  return (
+    <MenuItem onClick={handleInfo}>
+      <ListItemIcon>
+        <InfoIcon></InfoIcon>
+      </ListItemIcon>
+      <ListItemText> info </ListItemText>
     </MenuItem>
   );
 }
@@ -599,7 +657,7 @@ class UserSettings {
 
 const SettingsContext = createContext<UserSettings>(new UserSettings());
 
-const OpenedContext = createContext<{ opened: boolean; setOpened }>(undefined);
+const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
 
 const VisiableContext = createContext(true);
 export {
@@ -611,7 +669,7 @@ export {
   hexToUtf8,
   hexToUint8Array,
   stringToHex,
-  MetaValues,
+  MetaValuesView,
   backendCompletionItemToEditor,
   DocsAndCount,
   MongoDataViewModel,
@@ -621,7 +679,7 @@ export {
   datagridRowHeight,
   datagridHeaderHeight,
   countLines,
-  SimpleResizeAbleEditor,
+  SimpleResizeEditor,
   editorInitHeight,
   TabsSetContext,
   tabsHasId,
@@ -648,6 +706,8 @@ export {
   MenuOpenConn,
   OpenedContext,
   MenuCloseConn,
+  MenuConnectionInfo,
+  getNamedConfig,
 };
 
 export type { DefAndMetas };

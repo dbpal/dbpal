@@ -17,8 +17,8 @@ use handlers::{
     query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
     redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_match_keys,
     redis_set_add, redis_set_del, redis_set_replace, redis_string_set, redis_zset_add,
-    redis_zset_del, redis_zset_replace, rename_index, rename_table, show_columns, show_indexes,
-    show_procedure, show_table, show_trigger, show_udf, show_view, show_view_coumns,
+    redis_zset_del, redis_zset_replace, rename_index, rename_table, server_metas, show_columns,
+    show_indexes, show_procedure, show_table, show_trigger, show_udf, show_view, show_view_coumns,
     test_connection, truncate_table, update,
 };
 use tauri::{
@@ -196,7 +196,8 @@ async fn main() {
             drop_index,
             list_materialized_view,
             open_conn,
-            drop_materialized_view
+            drop_materialized_view,
+            server_metas,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -174,7 +174,7 @@ function ViewTree(props: {
             });
           }}
         >
-          <Stack direction="row">
+          <Stack direction="row" spacing={1}>
             <VisibilityIcon></VisibilityIcon> <span> {view} </span>
           </Stack>
           {viewkind == ViewKind.PostGresMaterrialized && <span> {size} </span>}

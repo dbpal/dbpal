@@ -4,8 +4,8 @@ use std::sync::Arc;
 use sqlx::Row;
 
 use crate::completion::{
-    AutoCompletionTrait, CompletionItem, CompletionKind, AstCompletionHelper,
-    LexerCompletionTrait, try_completion_on_syntax,
+    AstCompletionHelper, AutoCompletionTrait, CompletionItem, CompletionKind, LexerCompletionTrait,
+    try_completion_on_syntax,
 };
 use crate::db::CatalogTrait;
 use crate::pg::PostGresDB;
@@ -149,6 +149,13 @@ impl AstCompletionHelper for PostGresDB {
         if let Some(schema) = self.schema_merge_config(schema) {
             sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
         }
+        // postgres has materilized view in other table
+        sql.push_str(format!("UNION SELECT matviewname from pg_matviews").as_str());
+
+        if let Some(schema) = self.schema_merge_config(schema) {
+            sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
+        }
+
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -156,6 +163,7 @@ impl AstCompletionHelper for PostGresDB {
             let name: String = r.try_get(0)?;
             ret.push(name);
         }
+
         anyhow::Ok(ret)
     }
 
@@ -511,25 +519,10 @@ mod tests {
     use std::path::Path;
 
     use crate::completion::completion_test::test_file_auto_completion;
-    use crate::datasource_config::PGDbConfig;
-    use crate::db::QuerySql;
-    use crate::pg::PostGresDB;
-    use crate::{TEST_HOST, enable_test_log};
 
-    async fn make_test_object() -> PostGresDB {
-        let pg = PostGresDB::new(PGDbConfig {
-            host: TEST_HOST.to_string(),
-            port: 5432,
-            username: "postgres".to_string(),
-            password: Some("root".to_string()),
-            db: Some("test".to_string()),
-            schema: Some("test".to_string()),
-            read_only: false,
-        })
-        .await
-        .unwrap();
-        pg
-    }
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::pg::make_test_object;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
