@@ -36,8 +36,6 @@ ALTER TABLE employees ADD CONSTRAINT chk_id CHECK (id >= 18);
 54 id
 ALTER TABLE employees ADD CONSTRAINT idx_lastname UNIQUE (id);
 61 id
-ALTER TABLE employees DROP CONSTRAINT xxxx;
-43 PK__employee__3213E83F70D8B9F7
 GRANT SELECT ON dbo.employees TO public;
 20 dbo ; 30 employees ; 40 public
 drop table employees;

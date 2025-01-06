@@ -290,10 +290,11 @@ pub(crate) mod completion_test {
     /// test if completion items contains a centains string
     /// use in test to see if completion is ok.
     /// this fn not returns just panic if not contains.
-    pub fn test_completion_items_contains(items: &[CompletionItem], name: &str) {
+    pub fn test_completion_items_contains(items: &[CompletionItem], line: usize, name: &str) {
         assert!(
             items.iter().any(|x| x.item.eq_ignore_ascii_case(name)),
-            "items:{:?},expect:{:?}",
+            "line:{} items:{:?},expect:{:?}",
+            line,
             items,
             name
         )
@@ -311,6 +312,7 @@ pub(crate) mod completion_test {
                 kind: CompletionKind::Text,
                 desc: None,
             }],
+            1,
             "aaa",
         );
     }
@@ -318,12 +320,14 @@ pub(crate) mod completion_test {
     pub(crate) struct CompletionOneTest {
         pub(crate) sql: String,
         pub(crate) tests: Vec<(u64, Vec<String>)>,
+        pub(crate) line: usize,
     }
 
     pub(crate) fn parse_auto_completion_test_file(s: &str) -> Vec<CompletionOneTest> {
         let x: Vec<_> = s.lines().collect();
         x.chunks(2)
-            .map(|x| {
+            .enumerate()
+            .map(|(index, x)| {
                 let cmd = &x[0];
                 let e = &x[1];
                 let es = e.split(";");
@@ -340,6 +344,7 @@ pub(crate) mod completion_test {
                 CompletionOneTest {
                     sql: cmd.to_string(),
                     tests: es,
+                    line: (index + 1) * 2,
                 }
             })
             .collect()
@@ -361,14 +366,16 @@ select xxxx
                 tests: vec![
                     (1, vec!["append".to_string()]),
                     (11, vec!["str".to_string()])
-                ]
+                ],
+                line: 2
             },
             CompletionOneTest {
                 sql: "select xxxx".to_string(),
                 tests: vec![
                     (1, vec!["select".to_string()]),
                     (4, vec!["xxxx".to_string()])
-                ]
+                ],
+                line: 4
             }
         ]);
     }
@@ -378,7 +385,6 @@ select xxxx
     ) {
         let items = parse_auto_completion_test_file(&content);
         for item in items.iter() {
-            // log::trace!("########completion on {:?}", item.sql);
             for i in item.tests.iter() {
                 log::trace!("on pos:{}", i.0);
                 let items = db
@@ -386,7 +392,7 @@ select xxxx
                     .await
                     .unwrap();
                 for should in i.1.iter() {
-                    test_completion_items_contains(&items[..], &should);
+                    test_completion_items_contains(&items[..], item.line, &should);
                 }
             }
         }

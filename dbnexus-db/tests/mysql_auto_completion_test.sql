@@ -36,8 +36,6 @@ ALTER TABLE employees ADD CONSTRAINT fk_department FOREIGN KEY (department_id) R
 102 departments ; 105 id
 ALTER TABLE employees ADD CONSTRAINT chk_id CHECK (id > 0);
 54 id
-ALTER TABLE employees ADD INDEX idx_name (name);
-47 id
 ALTER TABLE employees ADD FULLTEXT INDEX idx_fulltext (name);
 60 name
 ALTER TABLE employees ADD xxx INT after id

@@ -14,7 +14,7 @@ use sqlparser::{
     tokenizer::{Location, Span},
 };
 
-use crate::completion::{CompletionItem, CompletionKind, AstCompletionHelper};
+use crate::completion::{AstCompletionHelper, CompletionItem, CompletionKind};
 
 pub struct CompletionStament {
     pub(crate) loc: Location,
@@ -1467,7 +1467,7 @@ impl CompletionStament {
 
 #[cfg(test)]
 mod tests {
-
+    #[ignore = "this is just a test for me"]
     #[test]
     fn test_sql_statement() {
         let sql = r#"

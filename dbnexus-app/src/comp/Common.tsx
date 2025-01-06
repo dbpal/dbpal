@@ -92,17 +92,17 @@ function SelectPageSize({
         fullWidth
         // @ts-ignore
         variant={variant}
-        size='small'
+        size="small"
       >
-        <InputLabel id='simple-select-label'>{tital}</InputLabel>
+        <InputLabel id="simple-select-label">{tital}</InputLabel>
         <Select
-          labelId='simple-select-label'
-          id='simple-select'
+          labelId="simple-select-label"
+          id="simple-select"
           value={pageSize}
           onChange={(e) => {
             handleChange(e.target.value);
           }}
-          label='select page size'
+          label="select page size"
         >
           {pageSizeOptions.map((e) => (
             <MenuItem key={e} value={e}>
@@ -247,9 +247,9 @@ function EditorBar(props: {
 }) {
   let { left, pos, style } = props;
   return (
-    <Stack justifyContent='space-between' direction='row' style={style}>
+    <Stack justifyContent="space-between" direction="row" style={style}>
       <div style={{ width: '40%' }}> {left}</div>
-      <Stack width='40%' direction='row' spacing={1}>
+      <Stack width="40%" direction="row" spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Column {pos ? pos.column : ''}</span>
       </Stack>
@@ -439,7 +439,7 @@ function MenuDeleteConfig({ name }) {
       }}
     >
       <ListItemIcon>
-        <DeleteForeverIcon color='error'></DeleteForeverIcon>
+        <DeleteForeverIcon color="error"></DeleteForeverIcon>
       </ListItemIcon>
       <ListItemText> drop connection </ListItemText>
     </MenuItem>
@@ -461,21 +461,27 @@ function MenuNewQuery({ handle }) {
   );
 }
 
-function calMenuStyle(e, eheigth): CSSProperties {
+function calMenuStyle(e, eheigth: number): CSSProperties {
   e.preventDefault();
   const x = e.clientX;
   const y = e.clientY;
   let ret: CSSProperties = {};
   const leftSizeMenuDom = document.getElementById('left-side-menu');
   leftSizeMenuDom.style.display = 'block';
-  const { height } = getViewportSize();
+  const { height, width } = getViewportSize();
   ret.top = 'auto';
   ret.bottom = 'auto';
+  const menuWidth = 150;
+  if (width - x > menuWidth) {
+    // this is click have a lot of space on the right
+    ret.left =
+      x -
+      10 + // 稍微靠左一点
+      'px';
+  } else {
+    ret.right = width - x - 10 + 'px';
+  }
 
-  ret.left =
-    x -
-    10 + // 稍微靠左一点
-    'px';
   if (height - y > eheigth) {
     // 这个是点击的位置下面有很大的空间
     ret.top = y - 10 + 'px';
@@ -531,12 +537,12 @@ function ConnStatus({ uuid }) {
   return (
     (status || err) &&
     (status ? (
-      <Tooltip title='ping time'>
-        <Typography color='green'> {status} </Typography>
+      <Tooltip title="ping time">
+        <Typography color="green"> {status} </Typography>
       </Tooltip>
     ) : (
       <Tooltip title={err}>
-        <Typography color='error'> err </Typography>
+        <Typography color="error"> err </Typography>
       </Tooltip>
     ))
   );

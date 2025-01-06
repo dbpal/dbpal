@@ -40,15 +40,33 @@ import { SqlTableView } from './SqlTableView';
 import { TabContent } from './Tabs';
 import { ExportTableOrView } from './Export';
 
-function ViewsTree() {
+enum ViewKind {
+  Normal,
+  PostGresMaterrialized,
+}
+
+function ViewsTree(props: { viewkind: ViewKind }) {
+  const { viewkind } = props;
+
   const { uuid } = useContext(UuidContext);
-  const [views, setViews] = useState<types.NamedStaff[]>([]);
+  const [views, setViews] = useState<types.NamedStaff[] | types.ListTable[]>(
+    []
+  );
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
+  let invokeName = '';
+  switch (viewkind) {
+    case ViewKind.Normal:
+      invokeName = 'list_view';
+      break;
+    case ViewKind.PostGresMaterrialized:
+      invokeName = 'list_materialized_view';
+      break;
+  }
 
   const handleReload = () => {
     setLoading(true);
-    invoke<types.NamedStaff[]>('list_view', { name: uuid })
+    invoke<types.NamedStaff[] | types.ListTable[]>(invokeName, { name: uuid })
       .then((ts) => {
         setLoading(false);
         setViews(ts);
@@ -63,12 +81,31 @@ function ViewsTree() {
   }, []);
 
   let { setUpMenu } = useContext(MenuContext);
+  let itemId;
+  switch (viewkind) {
+    case ViewKind.Normal:
+      itemId = uuid + '-views';
+      break;
+    case ViewKind.PostGresMaterrialized:
+      itemId = uuid + '-materialized-views';
+      break;
+  }
+
+  let name;
+  switch (viewkind) {
+    case ViewKind.Normal:
+      name = 'views';
+      break;
+    case ViewKind.PostGresMaterrialized:
+      name = 'materizlized views';
+      break;
+  }
 
   return (
     <TreeItem
-      itemId={uuid + '-views'}
+      itemId={itemId}
       label=<Stack
-        direction='row'
+        direction="row"
         spacing={1}
         onContextMenu={(e) => {
           setUpMenu({
@@ -84,21 +121,33 @@ function ViewsTree() {
         }}
       >
         <VisibilityIcon></VisibilityIcon>
-        <span> views</span>
+        <span> {name} </span>
         {loading && (
           <CircularProgress size={progressBarSizeSmall}></CircularProgress>
         )}
       </Stack>
     >
       {views.map((e) => (
-        <ViewTree key={e.name} view={e.name} reload={handleReload}></ViewTree>
+        <ViewTree
+          viewkind={viewkind}
+          key={e.name}
+          view={e.name}
+          reload={handleReload}
+          size={e.size}
+        ></ViewTree>
       ))}
     </TreeItem>
   );
 }
 
-function ViewTree(props: { view: string; reload }) {
-  let { view, reload } = props;
+function ViewTree(props: {
+  view: string;
+  reload;
+  viewkind: ViewKind;
+  size?: string;
+}) {
+  let { view, reload, viewkind, size } = props;
+
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(MenuContext);
@@ -107,8 +156,9 @@ function ViewTree(props: { view: string; reload }) {
       itemId={uuid + '-view-' + view}
       label={
         <Stack
-          direction='row'
+          direction="row"
           spacing={1}
+          sx={{ justifyContent: 'space-between' }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -117,13 +167,17 @@ function ViewTree(props: { view: string; reload }) {
                   reload={reload}
                   view={view}
                   uuid={uuid}
+                  viewkind={viewkind}
                 />
               ),
               style: calMenuStyle(e, 100),
             });
           }}
         >
-          <VisibilityIcon></VisibilityIcon> <span> {view} </span>
+          <Stack direction="row">
+            <VisibilityIcon></VisibilityIcon> <span> {view} </span>
+          </Stack>
+          {viewkind == ViewKind.PostGresMaterrialized && <span> {size} </span>}
         </Stack>
       }
     >
@@ -160,7 +214,7 @@ function ViewColumnsTree(props: { view: string }) {
       itemId={idPrefix}
       label=<Stack
         spacing={1}
-        direction='row'
+        direction="row"
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -184,7 +238,7 @@ function ViewColumnsTree(props: { view: string }) {
         <TreeItem
           key={f.field}
           itemId={idPrefix + '-' + f.field}
-          label=<Stack direction='row' spacing={1}>
+          label=<Stack direction="row" spacing={1}>
             {f.field} <em>({f.typ}) </em>
           </Stack>
         ></TreeItem>
@@ -198,8 +252,9 @@ function ViewMenu(props: {
   uuid: string;
   reload;
   kind: DataSourceKind;
+  viewkind: ViewKind;
 }) {
-  let { view, uuid, reload, kind } = props;
+  let { view, uuid, reload, kind, viewkind } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showExport, setShowExport] = useState(false);
   const handleDrop = async () => {
@@ -211,7 +266,16 @@ function ViewMenu(props: {
     if (!confirm) {
       return;
     }
-    invoke('drop_view', { name: uuid, viewName: view })
+    let invokeName;
+    switch (viewkind) {
+      case ViewKind.Normal:
+        invokeName = 'drop_view';
+        break;
+      case ViewKind.PostGresMaterrialized:
+        invokeName = 'drop_materialized_view';
+        break;
+    }
+    invoke(invokeName, { name: uuid, viewName: view })
       .then((_) => {
         showNotification('success', 'Drop View OK');
         reload();
@@ -305,7 +369,7 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText> view data</ListItemText>
           <Typography
-            variant='body2'
+            variant="body2"
             sx={{ color: 'text.secondary' }}
           ></Typography>
         </MenuItem>
@@ -328,11 +392,11 @@ function ViewMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color='error'></DeleteForeverIcon>
+            <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop </ListItemText>
           <Typography
-            variant='body2'
+            variant="body2"
             sx={{ color: 'text.secondary' }}
           ></Typography>
         </MenuItem>
@@ -344,9 +408,9 @@ function ViewMenu(props: {
           onClose={() => {
             setShowExport(false);
           }}
-          aria-labelledby='drop'
+          aria-labelledby="drop"
         >
-          <Box sx={modalStyle} width='800px'>
+          <Box sx={modalStyle} width="800px">
             <ExportTableOrView
               uuid={uuid}
               name={view}
@@ -362,4 +426,4 @@ function ViewMenu(props: {
   );
 }
 
-export { ViewsTree };
+export { ViewsTree, ViewKind };

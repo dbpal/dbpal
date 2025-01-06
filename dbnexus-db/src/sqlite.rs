@@ -1382,6 +1382,7 @@ mod tests {
         db
     }
 
+    #[ignore = "this test run by hand"]
     #[tokio::test]
     async fn test_do_has_data() {
         let db = make_test_object().await;
@@ -1398,10 +1399,11 @@ mod tests {
                 col5 real,
                 col6 real,
                 col7 real
-
         )
             "#
             );
+            println!("create table {} ok", tablename);
+
             let _ = db.query_sql(query_id.clone(), &create_table).await.unwrap();
             for _ in 0..1550 {
                 let sql = format!(

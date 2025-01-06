@@ -1302,7 +1302,7 @@ fn get_rows_types(rows: &Vec<PgRow>) -> Vec<Field> {
 #[test]
 fn test_output_bytes() {
     let x = output_bytes(&[98, 126]);
-    assert_eq!(x, "0x627E")
+    assert_eq!(x, "\\x627E")
 }
 
 ///
@@ -1498,15 +1498,15 @@ impl BackendName for PostGresDB {
 impl CatalogTrait for PostGresDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query("SELECT datname FROM pg_database")
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = sqlx::query(
+            "SELECT datname FROM pg_database where datname not in ('template0' , 'template1') order by datname",
+        )
+        .fetch_all(conn.deref_mut())
+        .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
-            if name == "template0" || name == "template1" {
-                continue;
-            }
+
             ret.push(name);
         }
         anyhow::Ok(ret)
@@ -1551,7 +1551,7 @@ impl PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
+    pub async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
         let schema = self.must_schema();
         let sql = format!(
             r#"DROP MATERIALIZED VIEW  "{}"."{}" RESTRICT"#,
@@ -1560,28 +1560,6 @@ impl PostGresDB {
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
-    }
-
-    async fn show_materialized_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
-    ) -> anyhow::Result<TableListResp> {
-        let total = self.query_count(view_name, where_str.clone()).await?;
-        let sql = gen_show_sql(
-            self.must_schema(),
-            view_name,
-            where_str,
-            order_by,
-            page,
-            page_size,
-        );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(sql.as_str())
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let fields = get_rows_types(&rows);
-        let data = encode_rows(&rows)?;
-        anyhow::Ok(TableListResp::new(fields, total, data, sql))
     }
 }
 
@@ -1650,7 +1628,7 @@ mod tests {
         let db = make_test_object().await;
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
-        assert_eq!(dbs, vec!["postgres", "test", "template1", "template0"]);
+        assert_eq!(dbs, vec!["postgres", "test"]);
     }
     // test on empty table query can still have column info
     #[ignore = "sqlx don't return column info on empty result, see https://github.com/launchbadge/sqlx/issues/3552"]
@@ -1687,7 +1665,7 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         let _ = db.drop_materialized_view("test_material_view").await;
-        let _ = db.drop_table("test_material_view_table", false).await;
+        let _ = db.drop_table("test_material_view_table", true).await;
 
         let query_id = db.open_connection().await.unwrap();
         let query_resp = db
@@ -1710,13 +1688,14 @@ mod tests {
             )
             .await
             .unwrap();
-        assert!(query_resp.iter().all(|x| x.is_ok()));
+        assert!(
+            query_resp.iter().all(|x| x.is_ok()),
+            "result:{:?}",
+            query_resp
+        );
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
-            let table_resp = db
-                .show_materialized_view(&l.name, None, None, 1, 100)
-                .await
-                .unwrap();
+            let table_resp = db.show_view(&l.name, None, None, 1, 100).await.unwrap();
             println!("resp:{:?}", table_resp);
         }
     }

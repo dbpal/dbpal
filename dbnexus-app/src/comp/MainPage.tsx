@@ -46,14 +46,15 @@ export default function MainPage() {
       <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
         <MenuContext.Provider value={{ setUpMenu }}>
           <NotificationProvider>
-            <div style={{ padding: 8 }}>
+            <div>
               <SplitPane
-                split='vertical'
+                split="vertical"
                 minSize={0}
                 defaultSize={300}
                 style={{
                   minHeight: '100vh',
                   height: 'auto',
+                  padding: '8px',
                 }}
               >
                 <Left></Left>
@@ -70,22 +71,24 @@ export default function MainPage() {
                   changeTab={(index) => {
                     setSelectIndex(index as number);
                   }}
+                  setTabs={setTabs}
                 ></TabsWithContent>
               </SplitPane>
             </div>
 
-            <div id='left-side-menu' style={menu && menu.style}>
+            <div id="left-side-menu" style={menu && menu.style}>
               {menu && menu.content}
             </div>
+
             {showAddConnection && (
               <Modal
                 open={showAddConnection}
                 onClose={() => {
                   setShowAddConnection(false);
                 }}
-                aria-labelledby='add column'
+                aria-labelledby="add column"
               >
-                <Box sx={modalStyle} width='800px'>
+                <Box sx={modalStyle} width="800px">
                   <AddConfig
                     handleClose={() => {
                       setShowAddConnection(false);
@@ -100,9 +103,9 @@ export default function MainPage() {
                 onClose={() => {
                   setShowSettings(false);
                 }}
-                aria-labelledby='add column'
+                aria-labelledby="add column"
               >
-                <Box sx={modalStyle} width='700px'>
+                <Box sx={modalStyle} width="700px">
                   <ModifySettings
                     handleClose={() => {
                       setShowSettings(false);

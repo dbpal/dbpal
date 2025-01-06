@@ -6,8 +6,8 @@ use futures_util::StreamExt;
 use tiberius::QueryItem;
 
 use crate::completion::{
-    AutoCompletionTrait, CompletionItem, CompletionKind, AstCompletionHelper,
-    LexerCompletionTrait, try_completion_on_syntax,
+    AstCompletionHelper, AutoCompletionTrait, CompletionItem, CompletionKind, LexerCompletionTrait,
+    try_completion_on_syntax,
 };
 use crate::db::{CatalogTrait, SchemaTrait};
 use crate::mssql::MsSqlServer;
@@ -264,8 +264,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"select * from test.dbo.employees
-19 test ; 23 dbo ; 31 employees"#,
+            r#"ALTER TABLE employees ADD CONSTRAINT idx_lastname UNIQUE (id);
+61 id"#,
             &db,
             uuid::Uuid::new_v4(),
             false,

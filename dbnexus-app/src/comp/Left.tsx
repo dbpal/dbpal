@@ -34,7 +34,7 @@ import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 
 import { TablesTree } from './LeftTable';
-import { ViewsTree } from './LeftView';
+import { ViewKind, ViewsTree } from './LeftView';
 import { ProceduresTree } from './LeftProcedure';
 import { UdfsTree } from './LeftUdf';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -160,7 +160,7 @@ function SchemaTree(prpos: { schema?: string }) {
       itemId={getPrefix()}
       label=<Stack
         spacing={1}
-        direction='row'
+        direction="row"
         onContextMenu={(e) => {
           setUpMenu({
             content: <SchemaMenu schema={schema} uuid={uuid}></SchemaMenu>,
@@ -175,7 +175,10 @@ function SchemaTree(prpos: { schema?: string }) {
       </Stack>
     >
       <TablesTree></TablesTree>
-      <ViewsTree></ViewsTree>
+      <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
+      {kind == DataSourceKind.Postgres && (
+        <ViewsTree viewkind={ViewKind.PostGresMaterrialized}></ViewsTree>
+      )}
       {support_procedure && <ProceduresTree></ProceduresTree>}
       {support_udf && <UdfsTree></UdfsTree>}
     </TreeItem>
@@ -277,7 +280,7 @@ function CatalogTree(props: {}) {
     <TreeItem
       itemId={name}
       label=<Stack
-        direction='row'
+        direction="row"
         spacing={1}
         onContextMenu={(e) => {
           setUpMenu({
@@ -335,8 +338,8 @@ function DatabaseTree(props: { database?: string }) {
       itemId={name}
       label=<Stack
         spacing={1}
-        direction='row'
-        alignContent='baseline'
+        direction="row"
+        alignContent="baseline"
         onContextMenu={(e) => {
           setUpMenu({
             content: (

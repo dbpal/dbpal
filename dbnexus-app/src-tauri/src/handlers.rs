@@ -14,16 +14,18 @@ use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 
-// #[tauri::command]
-// pub async fn open(name: String, app: tauri::State<'_, App>) -> Result<(),
-// AnyhowErrorFrontend> {     random_sleep().await;
-//     random_error()?;
-//     log::info!("open db:{}", name);
-//     app.open(name.as_str())
-//         .await
-//         .map_err(AnyhowErrorFrontend::from)
-//         .map(|_| ())
-// }
+#[tauri::command]
+pub async fn open_conn(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    log::info!("open db:{}", name);
+    app.open(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)
+        .map(|_| ())
+}
 
 #[tauri::command]
 pub async fn clean_db_connection(name: String, app: tauri::State<'_, App>) -> Result<(), ()> {
@@ -302,6 +304,33 @@ pub async fn drop_view(
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
+
+#[tauri::command]
+pub async fn drop_materialized_view(
+    name: String, view_name: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(&name)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+    match schema.as_any().downcast_ref::<PostGresDB>() {
+        Some(x) => {
+            x.drop_materialized_view(&view_name)
+                .await
+                .map_err(|x| AnyhowErrorFrontend::from(x))?;
+            Ok(())
+        }
+
+        None => Err(AnyhowErrorFrontend::from(format!(
+            "'{}' is not a postgres",
+            name
+        ))),
+    }
+}
+
 #[tauri::command]
 pub async fn drop_table(
     name: String, table_name: String, cascade: bool, app: tauri::State<'_, App>,
