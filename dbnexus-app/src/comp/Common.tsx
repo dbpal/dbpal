@@ -9,6 +9,7 @@ import {
   Select,
   Stack,
   SxProps,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -33,10 +34,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import AddIcon from '@mui/icons-material/Add';
 import { secondConfirm } from './Confirm';
-
+import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import InfoIcon from '@mui/icons-material/Info';
+import CloseIcon from '@mui/icons-material/Close';
 const modalStyle: SxProps = {
   position: 'absolute',
   top: '50%',
@@ -48,7 +50,7 @@ const modalStyle: SxProps = {
   margin: 0,
   p: 4,
 };
-
+import { BsDatabaseAdd } from 'react-icons/bs';
 import { load } from '@tauri-apps/plugin-store';
 
 const appStore = async () => {
@@ -276,6 +278,175 @@ function EditorBar(props: {
   );
 }
 
+function MenuCreateDatabase({ handleCreate }) {
+  return (
+    <MenuItem
+      onClick={() => {
+        handleCreate();
+      }}
+    >
+      <ListItemIcon>
+        <BsDatabaseAdd></BsDatabaseAdd>
+      </ListItemIcon>
+      <ListItemText> create database </ListItemText>
+    </MenuItem>
+  );
+}
+
+function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
+  const { handleCreate, kind } = props;
+  return (
+    <MenuItem
+      onClick={() => {
+        handleCreate();
+      }}
+    >
+      <ListItemIcon>
+        <TbDatabasePlus></TbDatabasePlus>
+      </ListItemIcon>
+      <ListItemText>
+        create
+        {kind == DataSourceKind.MsSql || kind == DataSourceKind.Postgres
+          ? ' schema'
+          : ' database'}
+      </ListItemText>
+    </MenuItem>
+  );
+}
+
+function CreateDatabase({ uuid, handleClose }) {
+  const { showNotification } = useContext(NotificationContext);
+  const [database, setDatabase] = useState('');
+
+  const handleCreate = () => {
+    if (!database) {
+      return;
+    }
+
+    invoke('create_database', { name: uuid, database })
+      .then(() => {
+        showNotification('success', 'Create OK');
+        handleClose();
+      })
+      .catch((e) => {
+        showNotification('error', 'Create Failure', e);
+      });
+  };
+
+  return (
+    <Stack>
+      <Stack>
+        <TextField
+          value={database}
+          onChange={(e) => {
+            setDatabase(e.target.value);
+          }}
+          error={database == ''}
+          label="dadtabase name"
+        ></TextField>
+      </Stack>
+      <Stack direction="row">
+        <Button
+          onClick={() => {
+            handleCreate();
+          }}
+        >
+          create
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+function CreateSchema(props: { uuid; handleClose; kind: DataSourceKind }) {
+  const { uuid, handleClose, kind } = props;
+
+  const { showNotification } = useContext(NotificationContext);
+  const [schema, setSchema] = useState('');
+
+  const handleCreate = () => {
+    if (!schema) {
+      return;
+    }
+    invoke('create_schema', { name: uuid, schema })
+      .then(() => {
+        showNotification('success', 'Create OK');
+        handleClose();
+      })
+      .catch((e) => {
+        showNotification('error', 'Create Failure', e);
+      });
+  };
+
+  return (
+    <Stack>
+      <Stack>
+        <TextField
+          value={schema}
+          onChange={(e) => {
+            setSchema(e.target.value);
+          }}
+          label="name"
+        ></TextField>
+      </Stack>
+      <Stack direction="row">
+        <Button
+          onClick={() => {
+            handleCreate();
+          }}
+        >
+          create
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+async function dropDatabase(props: {
+  uuid: string;
+  database;
+  showNotification;
+  okCallback?;
+}) {
+  const { uuid, database, showNotification, okCallback } = props;
+
+  const confirm = await secondConfirm({
+    title: `drop database ${database}`,
+    confirmText: 'drop',
+  });
+  if (!confirm) {
+    return;
+  }
+  invoke('drop_database', { name: uuid, database })
+    .then(() => {
+      showNotification('success', 'Drop OK');
+      if (okCallback) {
+        okCallback();
+      }
+    })
+    .catch((e) => {
+      showNotification('error', 'Drop failure', e);
+    });
+}
+
+async function dropSchema({ uuid, schema, showNotification, okCallback }) {
+  const confirm = await secondConfirm({
+    title: `drop ${schema}`,
+    confirmText: 'drop',
+  });
+  if (!confirm) {
+    return;
+  }
+  invoke('drop_schema', { name: uuid, schema })
+    .then(() => {
+      showNotification('success', 'Drop OK');
+      okCallback();
+    })
+    .catch((e) => {
+      showNotification('error', 'Drop failure', e);
+    });
+}
+
 function countLines(str) {
   if (!str) return undefined; // 如果字符串为空，返回 0
   return str.split('\n').length; // 按换行符分割并计算长度
@@ -500,7 +671,7 @@ function MenuDeleteConfig({ name }) {
       }}
     >
       <ListItemIcon>
-        <DeleteForeverIcon color="error"></DeleteForeverIcon>
+        <CloseIcon></CloseIcon>
       </ListItemIcon>
       <ListItemText> drop connection </ListItemText>
     </MenuItem>
@@ -571,7 +742,7 @@ function calMenuStyle(e, eheigth: number): CSSProperties {
   const x = e.clientX;
   const y = e.clientY;
   let ret: CSSProperties = {};
-  const leftSizeMenuDom = document.getElementById('left-side-menu');
+  const leftSizeMenuDom = document.getElementById('menu-div');
   leftSizeMenuDom.style.display = 'block';
   const { height, width } = getViewportSize();
   ret.top = 'auto';
@@ -713,6 +884,9 @@ function ConnInfo(props: { uuid }) {
     </Stack>
   );
 }
+function reloadOK(showNotification) {
+  showNotification('success', 'Reload OK');
+}
 
 const VisiableContext = createContext(true);
 export {
@@ -763,6 +937,13 @@ export {
   MenuCloseConn,
   MenuConnectionInfo,
   getNamedConfig,
+  MenuCreateDatabase,
+  CreateDatabase,
+  CreateSchema,
+  dropDatabase,
+  dropSchema,
+  MenuCreateSchema,
+  reloadOK,
 };
 
 export type { DefAndMetas };

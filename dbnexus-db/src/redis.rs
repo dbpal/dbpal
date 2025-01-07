@@ -1,11 +1,11 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::{FromStr, from_utf8};
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use futures_util::StreamExt;
 use redis::aio::{ConnectionManager, MultiplexedConnection};
 use redis::{AsyncCommands, AsyncIter, Value};
@@ -31,6 +31,7 @@ pub struct RedisDB {
     config: RedisDbConfig,
     m: ConnectionManager,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
+    created_database: Arc<DashSet<String>>,
 }
 
 impl RedisDB {
@@ -44,6 +45,7 @@ impl RedisDB {
             config,
             m,
             query_connections: Default::default(),
+            created_database: Default::default(),
         })
     }
 }
@@ -977,6 +979,14 @@ impl RedisDB {
         anyhow::Ok(ret)
     }
 }
+fn parse_db_number(db: &str) -> anyhow::Result<i32> {
+    (&db[2..]).parse::<i32>().map_err(|err| {
+        anyhow::Error::msg(format!(
+            "can't parse redis db number,err:{:?} db:{}",
+            err, db
+        ))
+    })
+}
 
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
@@ -987,7 +997,25 @@ impl DBTrait for RedisDB {
             .query_async(&mut conn)
             .await?;
 
-        extract_db_from_info_key_space(&r)
+        let mut db_has_keys = extract_db_from_info_key_space(&r)?
+            .into_iter()
+            .collect::<HashSet<_>>();
+        for r in self.created_database.clone().iter() {
+            db_has_keys.insert(r.as_str().to_owned());
+        }
+
+        let mut ret = db_has_keys.into_iter().collect::<Vec<_>>();
+
+        ret.sort_by(|x, y| {
+            let index_x = parse_db_number(&x)
+                .map_err(|x| log::error!("parse db number failed,err:{}", x))
+                .unwrap_or_default();
+            let index_y = parse_db_number(&y)
+                .map_err(|x| log::error!("parse db number failed,err:{}", x))
+                .unwrap_or_default();
+            index_x.cmp(&index_y)
+        });
+        anyhow::Ok(ret)
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
@@ -995,6 +1023,36 @@ impl DBTrait for RedisDB {
         config.db = Some(name.to_owned());
         let db = Self::new(config).await?;
         anyhow::Ok(Arc::new(db))
+    }
+    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
+        // In Redis, the concept of a "database" is somewhat different from traditional relational databases. Redis uses a single instance with multiple logical databases, each identified by an index number (default is 0-15 for most installations). To switch between these databases, you typically use the SELECT command.
+
+        // so we don't create database send a request to redis server we just save it memory.
+        // but there is a problem if user don't create any data
+        // when restart we will not have the create database
+        // I think this is rare.
+
+        self.created_database.insert(name.to_owned());
+        anyhow::Ok(())
+    }
+
+    async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        let mut config = self.config.clone();
+        config.db = Some(name.to_owned());
+        let db = Self::new(config).await?;
+        db.drop_all_keys().await?;
+        anyhow::Ok(())
+    }
+}
+
+impl RedisDB {
+    async fn drop_all_keys(&self) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let keys: Vec<String> = conn.keys("*").await?;
+        for key in keys.iter() {
+            let _: () = conn.del(key).await?;
+        }
+        anyhow::Ok(())
     }
 }
 
@@ -1368,7 +1426,7 @@ mod tests {
     use super::{RedisDB, extract_db_from_info_key_space, split_info_colon};
     use crate::completion::completion_test::test_file_auto_completion;
     use crate::datasource_config::RedisDbConfig;
-    use crate::db::{ExportKind, ServerMetas};
+    use crate::db::{DBTrait, ExportKind, ServerMetas};
     use crate::{TEST_HOST, enable_test_log};
 
     async fn make_test_object() -> RedisDB {
@@ -1498,15 +1556,21 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     }
 
     #[tokio::test]
-    async fn test_list_schema() {
+    async fn test_schema() {
         enable_test_log();
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::DBTrait;
-
+        db.create_schema("db11").await.unwrap();
+        let db11 = db.open_schema("db11").await.unwrap();
+        let db11 = db11.as_any().downcast_ref::<RedisDB>().unwrap();
+        db11.string_set("xxxxx", "yyyy".as_bytes()).await.unwrap();
         let dbnames = db.list_schema().await.unwrap();
+        assert_eq!(dbnames, vec!["db0", "db11"]);
         for dbname in dbnames.iter() {
+            println!("db:{:?}", dbnames);
             db.open_schema(&dbname).await.unwrap();
         }
+
+        db.drop_schema("db11").await.unwrap();
     }
 
     #[ignore = "run me by hand"]

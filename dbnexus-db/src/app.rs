@@ -216,26 +216,7 @@ impl App {
         &mut XXX
     }
 
-    pub async fn open(&self, name: &str) -> anyhow::Result<Open> {
-        if let Some(x) = self.opens.lock().await.get(&name.to_string()) {
-            return anyhow::Ok(x.clone());
-        }
-        let config = unsafe { (Self::get_config_ref().as_ref().map(|x| x(name))).unwrap()? };
-
-        let db = open(&config).await?;
-        match &db {
-            Open::DataBase(x) => {
-                x.check_conn().await?;
-            }
-            Open::Schema(x) => {
-                x.check_conn().await?;
-            }
-            Open::Catalog(x) => {
-                x.check_conn().await?;
-            }
-        }
-
-        self.opens.lock().await.insert(name.to_string(), db.clone());
+    pub async fn enter_open_child(&self, name: &str, db: &Open) -> anyhow::Result<()> {
         match &db {
             Open::Catalog(catalog_trait) => {
                 let databases = catalog_trait.list_database().await?;
@@ -268,7 +249,29 @@ impl App {
             }
             Open::Schema(_) => {}
         }
+        anyhow::Ok(())
+    }
 
+    pub async fn open(&self, name: &str) -> anyhow::Result<Open> {
+        if let Some(x) = self.opens.lock().await.get(&name.to_string()) {
+            return anyhow::Ok(x.clone());
+        }
+        let config = unsafe { (Self::get_config_ref().as_ref().map(|x| x(name))).unwrap()? };
+
+        let db = open(&config).await?;
+        match &db {
+            Open::DataBase(x) => {
+                x.check_conn().await?;
+            }
+            Open::Schema(x) => {
+                x.check_conn().await?;
+            }
+            Open::Catalog(x) => {
+                x.check_conn().await?;
+            }
+        }
+        self.enter_open_child(name, &db).await?;
+        self.opens.lock().await.insert(name.to_string(), db.clone());
         anyhow::Ok(db)
     }
 
@@ -289,7 +292,7 @@ impl App {
         }
     }
 
-    pub async fn close_conn(&self, name: &str) {
+    pub async fn close_conn_has_prefix(&self, name: &str) {
         let mut v = Vec::new();
         for k in self.opens.lock().await.keys() {
             if k.starts_with(name) {

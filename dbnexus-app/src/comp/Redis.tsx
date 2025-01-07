@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Stack,
@@ -27,12 +27,18 @@ import {
   datagridHeaderHeight,
   progressBarSize,
   SettingsContext,
+  reloadOK,
 } from './Common.tsx';
 
 import { types } from './ApiStruct.ts';
 
 import { NotificationContext } from './Notification';
-import { DataGrid, GridSortModel } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  GridPaginationModel,
+  GridRowSelectionModel,
+  GridSortModel,
+} from '@mui/x-data-grid';
 import HexEditor from 'react-hex-editor';
 import oneDarkPro from 'react-hex-editor/themes/oneDarkPro';
 import AddIcon from '@mui/icons-material/Add';
@@ -80,35 +86,35 @@ function RedisListAdd(props: {
   return (
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
-      <Box width='200px'>
+      <Box width="200px">
         <FormControl fullWidth>
-          <InputLabel id='simple-select-label'>Direction</InputLabel>
+          <InputLabel id="simple-select-label">Direction</InputLabel>
           <Select
-            labelId='simple-select-label'
-            id='simple-select'
+            labelId="simple-select-label"
+            id="simple-select"
             value={lOrR}
             onChange={(e) => {
               setLOrR(e.target.value);
             }}
-            label=''
+            label=""
           >
-            <MenuItem value='lpush'>List head (LPUSH)</MenuItem>
-            <MenuItem value='rpush'>List tail (RPUSH)</MenuItem>
+            <MenuItem value="lpush">List head (LPUSH)</MenuItem>
+            <MenuItem value="rpush">List tail (RPUSH)</MenuItem>
           </Select>
         </FormControl>
       </Box>
       <RedisEditHexOrText handleValue={(e) => setKey(e)}></RedisEditHexOrText>
 
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='primary' variant='contained' onClick={handleAdd}>
+        <Button color="primary" variant="contained" onClick={handleAdd}>
           PUSH
         </Button>
       </Stack>
@@ -151,10 +157,10 @@ function RedisStringTable(props: {
         hexRows={0x10}
       ></RedisEditHexOrText>
 
-      <Stack width='100px' direction='row' spacing={1}>
+      <Stack width="100px" direction="row" spacing={1}>
         <Button
-          color='primary'
-          variant='contained'
+          color="primary"
+          variant="contained"
           onClick={() => {
             handleModify();
           }}
@@ -197,16 +203,16 @@ function RedisAddSet(props: {
         }}
       ></RedisEditHexOrText>
 
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='primary' variant='contained' onClick={handleAdd}>
+        <Button color="primary" variant="contained" onClick={handleAdd}>
           Add
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
@@ -242,14 +248,14 @@ function RedisAddHash(props: {
   return (
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
-      <Typography variant='h5'> key </Typography>
+      <Typography variant="h5"> key </Typography>
       <RedisEditHexOrText
         oldValue={key}
         handleValue={(e) => {
           setKey(e);
         }}
       ></RedisEditHexOrText>
-      <Typography variant='h5'> value </Typography>
+      <Typography variant="h5"> value </Typography>
       <RedisEditHexOrText
         oldValue={value}
         handleValue={(e) => {
@@ -257,16 +263,16 @@ function RedisAddHash(props: {
         }}
       ></RedisEditHexOrText>
 
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='primary' variant='contained' onClick={handleAdd}>
+        <Button color="primary" variant="contained" onClick={handleAdd}>
           Add
         </Button>
       </Stack>
@@ -305,9 +311,9 @@ function RedisAddZset(props: {
       {loading && <CircularProgress size={progressBarSize} />}
       <TextField
         value={score}
-        label='score'
+        label="score"
         error={scoreErr}
-        helperText='put a valid float64 value'
+        helperText="put a valid float64 value"
         onChange={(event) => {
           setScore(event.target.value);
           setScoreErr(isNaN(parseFloat(event.target.value)));
@@ -320,16 +326,16 @@ function RedisAddZset(props: {
         }}
       ></RedisEditHexOrText>
 
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='primary' variant='contained' onClick={handleAdd}>
+        <Button color="primary" variant="contained" onClick={handleAdd}>
           Add
         </Button>
       </Stack>
@@ -366,14 +372,14 @@ function RedisEditHash(props: {
   return (
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
-      <Typography variant='h5'>key</Typography>
+      <Typography variant="h5">key</Typography>
       <RedisEditHexOrText
         oldValue={newKey}
         handleValue={(e) => {
           setNewKey(e);
         }}
       ></RedisEditHexOrText>
-      <Typography variant='h5'>value</Typography>
+      <Typography variant="h5">value</Typography>
       <RedisEditHexOrText
         oldValue={newValue}
         handleValue={(e) => {
@@ -381,16 +387,16 @@ function RedisEditHash(props: {
         }}
       ></RedisEditHexOrText>
 
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='primary' variant='contained' onClick={handleModify}>
+        <Button color="primary" variant="contained" onClick={handleModify}>
           Modify
         </Button>
       </Stack>
@@ -435,9 +441,9 @@ function RedisEditZset(props: {
       {loading && <CircularProgress size={progressBarSize} />}
       <TextField
         value={newValue}
-        label='score'
+        label="score"
         error={newValueErr}
-        helperText='put a valid float64 value'
+        helperText="put a valid float64 value"
         onChange={(event) => {
           setNewValue(event.target.value);
           if (isNaN(parseFloat(event.target.value))) {
@@ -454,16 +460,16 @@ function RedisEditZset(props: {
         }}
       ></RedisEditHexOrText>
 
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color='primary' variant='contained' onClick={handleModify}>
+        <Button color="primary" variant="contained" onClick={handleModify}>
           Modify
         </Button>
       </Stack>
@@ -480,15 +486,15 @@ function RedisEditModeSelect(props: {
   return (
     <Box sx={{ minWidth: 100 }}>
       <FormControl fullWidth>
-        <InputLabel id='simple-select-label'>viewer</InputLabel>
+        <InputLabel id="simple-select-label">viewer</InputLabel>
         <Select
-          labelId='simple-select-label'
-          id='simple-select'
+          labelId="simple-select-label"
+          id="simple-select"
           value={mode}
           onChange={(e) => {
             handleChange(e.target.value as RedisEditMode);
           }}
-          label='viewer'
+          label="viewer"
         >
           <MenuItem value={RedisEditMode.Hex}>hex</MenuItem>
           <MenuItem value={RedisEditMode.Text}>text</MenuItem>
@@ -579,7 +585,7 @@ function RedisEditHexOrText(props: {
       {editModel == RedisEditMode.Text && (
         <TextField
           value={newValue}
-          label='key'
+          label="key"
           multiline
           rows={textRows}
           onChange={(event) => {
@@ -602,20 +608,20 @@ function RedisEditHexOrText(props: {
             showRowLabels={true}
             showColumnLabels={true}
           ></HexEditor>
-          <Stack direction='row' spacing={1} alignItems='flex-start'>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
             <TextField
               error={addLengthErr}
               value={addLength}
-              helperText='length add the hex'
+              helperText="length add the hex"
               onChange={(e) => {
                 setAddLength(e.target.value);
               }}
-              size='small'
+              size="small"
             ></TextField>
 
             <Button
-              color='primary'
-              variant='contained'
+              color="primary"
+              variant="contained"
               onClick={handleAddLength}
             >
               <AddIcon></AddIcon>
@@ -662,9 +668,9 @@ function RedisEditList(props: {
           setNewValue(e);
         }}
       ></RedisEditHexOrText>
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
@@ -672,8 +678,8 @@ function RedisEditList(props: {
           Cancel
         </Button>
         <Button
-          color='primary'
-          variant='contained'
+          color="primary"
+          variant="contained"
           disabled={newValue == ''}
           onClick={handleModify}
         >
@@ -718,9 +724,9 @@ function RedisEditSet(props: {
           setNewValue(e);
         }}
       ></RedisEditHexOrText>
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
@@ -728,8 +734,8 @@ function RedisEditSet(props: {
           Cancel
         </Button>
         <Button
-          color='primary'
-          variant='contained'
+          color="primary"
+          variant="contained"
           disabled={newValue == ''}
           onClick={handleModify}
         >
@@ -773,6 +779,7 @@ function RedisSetTable(props: {
           return redisRenderCell(p.row.value);
         };
         setResp(resp);
+        reloadOK(showNotification);
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
@@ -806,21 +813,31 @@ function RedisSetTable(props: {
     }
     handleReload();
   };
+  const onRowDoubleClick = useMemo(() => {
+    return (e) => {
+      setSelectRow(e.row);
+    };
+  }, []);
+  const onRowSelectionModelChange = useMemo(() => {
+    return (rows: GridRowSelectionModel) => {
+      setSelectionModel(rows as string[]);
+    };
+  }, []);
   return (
     <Stack spacing={1}>
-      <Stack direction='row' spacing={1} alignItems='flex-start'>
+      <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
-          label='key match could be *key,key*,*key*'
-          variant='outlined' // 可以是 'outlined', 'filled', or 'standard'
+          label="key match could be *key,key*,*key*"
+          variant="outlined" // 可以是 'outlined', 'filled', or 'standard'
           value={keyMatch}
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
-          size='small'
+          size="small"
         />
         <Button
-          variant='contained' // 可以是 'text', 'outlined', 或 'contained'
-          color='primary' // 主题颜色
+          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
+          color="primary" // 主题颜色
           onClick={handleReload} // 点击事件处理
         >
           Reload
@@ -829,10 +846,10 @@ function RedisSetTable(props: {
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction='row' spacing={1}>
+          <Stack direction="row" spacing={1}>
             <Button
-              variant='contained'
-              color='error'
+              variant="contained"
+              color="error"
               disabled={selectionModel.length == 0}
               onClick={() => {
                 secondConfirm({
@@ -846,11 +863,11 @@ function RedisSetTable(props: {
                 });
               }}
             >
-              <DeleteForeverIcon color='error'></DeleteForeverIcon>
+              <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
             <Button
-              variant='contained'
-              color='primary'
+              variant="contained"
+              color="primary"
               onClick={() => {
                 setShowAdd(true);
               }}
@@ -865,25 +882,22 @@ function RedisSetTable(props: {
             columnHeaderHeight={datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection
-            editMode='row'
-            onRowDoubleClick={(e) => {
-              setSelectRow(e.row);
-            }}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
             columns={resp.data.fields}
             disableColumnFilter
-            onRowSelectionModelChange={(rows) => {
-              setSelectionModel(rows as string[]);
-            }}
+            onRowSelectionModelChange={onRowSelectionModelChange}
           ></DataGrid>
+
           {selectRow && (
             <Modal
               open={!!selectRow}
               onClose={() => {
                 setSelectRow(null);
               }}
-              aria-labelledby='modify set'
+              aria-labelledby="modify set"
             >
-              <Box sx={modalStyle} width='800px'>
+              <Box sx={modalStyle} width="800px">
                 <RedisEditSet
                   modifyOP={async (oldValue, newValue) => {
                     try {
@@ -913,9 +927,9 @@ function RedisSetTable(props: {
         onClose={() => {
           setSelectRow(null);
         }}
-        aria-labelledby='modify set'
+        aria-labelledby="modify set"
       >
-        <Box sx={modalStyle} width='800px'>
+        <Box sx={modalStyle} width="800px">
           <RedisAddSet
             addOP={async (value) => {
               try {
@@ -933,7 +947,7 @@ function RedisSetTable(props: {
       </Modal>
 
       {resp && (
-        <Typography variant='h3'>
+        <Typography variant="h3">
           Result {resp.data.data.length} of {resp.total}
         </Typography>
       )}
@@ -960,7 +974,7 @@ function RedisListTable(props: {
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(
-    useContext(SettingsContext).page_size
+    useContext(SettingsContext).pageSize
   );
   const { showNotification } = useContext(NotificationContext);
   const [deleteCount, setDeleteCunnt] = useState<string | number>(0);
@@ -987,6 +1001,7 @@ function RedisListTable(props: {
           return redisRenderCell(p.row.value);
         };
         setResp(resp);
+        reloadOK(showNotification);
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
@@ -1020,12 +1035,39 @@ function RedisListTable(props: {
     }
     handleReload();
   };
+  const onRowDoubleClick = useMemo(() => {
+    return (e) => {
+      setSelectRow(e.row);
+    };
+  }, []);
+  const onRowSelectionModelChange = useMemo(() => {
+    return (rows: GridRowSelectionModel) => {
+      setSelectionModel(rows.length > 0 ? (rows[0] as string) : '');
+    };
+  }, []);
+  const onSortModelChange = useMemo(() => {
+    return (e: GridSortModel) => {
+      setSortModel(e);
+    };
+  }, []);
+  const paginationMeta = useMemo(() => {
+    return { hasNextPage: true };
+  }, []);
+  const paginationModel = useMemo(() => {
+    return { page: page, pageSize: pageSize };
+  }, [page, pageSize]);
+  const onPaginationModelChange = useMemo(() => {
+    return (model: GridPaginationModel) => {
+      setPage(model.page);
+      setPageSize(model.pageSize);
+    };
+  }, []);
   return (
     <Stack spacing={1}>
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='contained' // 可以是 'text', 'outlined', 或 'contained'
-          color='primary' // 主题颜色
+          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
+          color="primary" // 主题颜色
           onClick={handleReload} // 点击事件处理
         >
           Reload
@@ -1034,12 +1076,12 @@ function RedisListTable(props: {
       {resp && (
         <Stack spacing={1}>
           {/* delete Button  */}
-          <Stack direction='row' spacing={1} alignItems='flex-start'>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
             <TextField
-              size='small'
+              size="small"
               value={deleteCount}
               error={deleteCountErr}
-              helperText='put a valid integer'
+              helperText="put a valid integer"
               onChange={(e) => {
                 setDeleteCountErr(isNaN(parseInt(e.target.value)));
                 setDeleteCunnt(e.target.value);
@@ -1047,8 +1089,8 @@ function RedisListTable(props: {
               inputProps={{ type: 'number' }}
             />
             <Button
-              variant='contained'
-              color='error'
+              variant="contained"
+              color="error"
               disabled={selectionModel === '' || deleteCountErr}
               onClick={() => {
                 secondConfirm({
@@ -1062,11 +1104,11 @@ function RedisListTable(props: {
                 });
               }}
             >
-              <DeleteForeverIcon color='error'></DeleteForeverIcon>
+              <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
             <Button
-              variant='contained'
-              color='primary'
+              variant="contained"
+              color="primary"
               onClick={() => {
                 setShowAdd(true);
               }}
@@ -1081,31 +1123,22 @@ function RedisListTable(props: {
             columnHeaderHeight={datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection
-            editMode='row'
-            onRowDoubleClick={(e) => {
-              setSelectRow(e.row);
-            }}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
             columns={resp.data.fields}
             disableColumnFilter
             disableMultipleRowSelection
-            onRowSelectionModelChange={(rows) => {
-              setSelectionModel(rows.length > 0 ? (rows[0] as string) : '');
-            }}
+            onRowSelectionModelChange={onRowSelectionModelChange}
             sortModel={sortModel}
-            onSortModelChange={(e) => {
-              setSortModel(e);
-            }}
+            onSortModelChange={onSortModelChange}
             autoPageSize={false}
             pageSizeOptions={pageSizeOptions}
-            paginationMeta={{ hasNextPage: true }}
-            paginationMode='server'
-            paginationModel={{ page: page, pageSize: pageSize }}
+            paginationMeta={paginationMeta}
+            paginationMode="server"
+            paginationModel={paginationModel}
             rowCount={resp.total}
-            onPaginationModelChange={(model) => {
-              setPage(model.page);
-              setPageSize(model.pageSize);
-            }}
-            sortingMode='server'
+            onPaginationModelChange={onPaginationModelChange}
+            sortingMode="server"
           ></DataGrid>
           {selectRow && (
             <Modal
@@ -1113,9 +1146,9 @@ function RedisListTable(props: {
               onClose={() => {
                 setSelectRow(null);
               }}
-              aria-labelledby='modify list'
+              aria-labelledby="modify list"
             >
-              <Box sx={modalStyle} width='800px'>
+              <Box sx={modalStyle} width="800px">
                 <RedisEditList
                   modifyOP={async (index, newValue) => {
                     try {
@@ -1144,9 +1177,9 @@ function RedisListTable(props: {
         onClose={() => {
           setSelectRow(null);
         }}
-        aria-labelledby='modify list'
+        aria-labelledby="modify list"
       >
-        <Box sx={modalStyle} width='800px'>
+        <Box sx={modalStyle} width="800px">
           <RedisListAdd
             lpushOP={async (value) => {
               try {
@@ -1171,7 +1204,7 @@ function RedisListTable(props: {
         </Box>
       </Modal>
       {resp && (
-        <Typography variant='h3'>
+        <Typography variant="h3">
           Result {resp.data.data.length} of {resp.total}
         </Typography>
       )}
@@ -1221,6 +1254,7 @@ function RedisZsetTable(props: {
           return redisRenderCell(p.row.key);
         };
         setResp(resp);
+        reloadOK(showNotification);
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
@@ -1253,55 +1287,64 @@ function RedisZsetTable(props: {
     }
     handleReload();
   };
-
+  const onRowDoubleClick = useMemo(() => {
+    return (e) => {
+      setSelectRow(e.row);
+    };
+  }, []);
+  const onRowSelectionModelChange = useMemo(() => {
+    return (rows: GridRowSelectionModel) => {
+      setSelectionModel(rows as string[]);
+    };
+  }, []);
   return (
     <Stack spacing={1}>
-      <Stack direction='row' spacing={1} alignItems='flex-start'>
+      <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
-          label='key match could be *key,key*,*key*'
-          variant='outlined'
+          label="key match could be *key,key*,*key*"
+          variant="outlined"
           value={keyMatch}
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
-          size='small'
+          size="small"
         />
         <TextField
-          label='minimum value'
-          variant='outlined'
+          label="minimum value"
+          variant="outlined"
           value={min}
           error={minErr}
-          helperText='put a valid float64'
+          helperText="put a valid float64"
           onChange={(event) => {
             setMinErr(isNaN(parseFloat(event.target.value)));
             setMin(event.target.value);
           }}
-          size='small'
+          size="small"
         />
 
         <TextField
-          label='maxiumn value'
-          variant='outlined'
+          label="maxiumn value"
+          variant="outlined"
           value={max}
           error={maxErr}
-          helperText='put a valid float64'
+          helperText="put a valid float64"
           onChange={(event) => {
             setMaxErr(isNaN(parseFloat(event.target.value)));
             setMax(event.target.value);
           }}
-          size='small'
+          size="small"
         />
-        <Button variant='contained' color='primary' onClick={handleReload}>
+        <Button variant="contained" color="primary" onClick={handleReload}>
           Reload
         </Button>
       </Stack>
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction='row' spacing={1}>
+          <Stack direction="row" spacing={1}>
             <Button
-              variant='contained'
-              color='error'
+              variant="contained"
+              color="error"
               disabled={selectionModel.length == 0}
               onClick={() => {
                 secondConfirm({
@@ -1315,11 +1358,11 @@ function RedisZsetTable(props: {
                 });
               }}
             >
-              <DeleteForeverIcon color='error'></DeleteForeverIcon>
+              <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
             <Button
-              variant='contained'
-              color='primary'
+              variant="contained"
+              color="primary"
               onClick={() => {
                 setShowAdd(true);
               }}
@@ -1334,15 +1377,11 @@ function RedisZsetTable(props: {
             columnHeaderHeight={datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection
-            editMode='row'
-            onRowDoubleClick={(e) => {
-              setSelectRow(e.row);
-            }}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
             columns={resp.data.fields}
             disableColumnFilter
-            onRowSelectionModelChange={(rows) => {
-              setSelectionModel(rows as string[]);
-            }}
+            onRowSelectionModelChange={onRowSelectionModelChange}
           ></DataGrid>
           {selectRow && (
             <Modal
@@ -1350,9 +1389,9 @@ function RedisZsetTable(props: {
               onClose={() => {
                 setSelectRow(null);
               }}
-              aria-labelledby='modify zset'
+              aria-labelledby="modify zset"
             >
-              <Box sx={modalStyle} width='800px'>
+              <Box sx={modalStyle} width="800px">
                 <RedisEditZset
                   modifyOP={async (req) => {
                     try {
@@ -1382,9 +1421,9 @@ function RedisZsetTable(props: {
         onClose={() => {
           setSelectRow(null);
         }}
-        aria-labelledby='modify zset'
+        aria-labelledby="modify zset"
       >
-        <Box sx={modalStyle} width='800px'>
+        <Box sx={modalStyle} width="800px">
           <RedisAddZset
             addOP={async (key, value) => {
               try {
@@ -1402,7 +1441,7 @@ function RedisZsetTable(props: {
       </Modal>
 
       {resp && (
-        <Typography variant='h3'>
+        <Typography variant="h3">
           Result {resp.data.data.length} of {resp.total}
         </Typography>
       )}
@@ -1438,6 +1477,7 @@ function RedisHashTable(props: {
           return redisRenderCell(p.row.value);
         };
         setResp(resp);
+        reloadOK(showNotification);
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
@@ -1472,22 +1512,31 @@ function RedisHashTable(props: {
     }
     handleReload();
   };
-
+  const onRowDoubleClick = useMemo(() => {
+    return (e) => {
+      setSelctRow(e.row);
+    };
+  }, []);
+  const onRowSelectionModelChange = useMemo(() => {
+    return (rows: GridRowSelectionModel) => {
+      setSelectionModel(rows as string[]);
+    };
+  }, []);
   return (
     <Stack spacing={1}>
-      <Stack direction='row' spacing={1} alignItems='flex-start'>
+      <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
-          label='key match could be *key,key*,*key*'
-          variant='outlined' // 可以是 'outlined', 'filled', or 'standard'
+          label="key match could be *key,key*,*key*"
+          variant="outlined" // 可以是 'outlined', 'filled', or 'standard'
           value={keyMatch}
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
-          size='small'
+          size="small"
         />
         <Button
-          variant='contained' // 可以是 'text', 'outlined', 或 'contained'
-          color='primary' // 主题颜色
+          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
+          color="primary" // 主题颜色
           onClick={handleReload} // 点击事件处理
         >
           Reload
@@ -1496,10 +1545,10 @@ function RedisHashTable(props: {
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction='row' spacing={1}>
+          <Stack direction="row" spacing={1}>
             <Button
-              variant='contained'
-              color='error'
+              variant="contained"
+              color="error"
               disabled={selectionModel.length == 0}
               onClick={() => {
                 secondConfirm({
@@ -1513,11 +1562,11 @@ function RedisHashTable(props: {
                 });
               }}
             >
-              <DeleteForeverIcon color='error'></DeleteForeverIcon>
+              <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
             <Button
-              variant='contained'
-              color='primary'
+              variant="contained"
+              color="primary"
               onClick={() => {
                 setShowAdd(true);
               }}
@@ -1532,15 +1581,11 @@ function RedisHashTable(props: {
             columnHeaderHeight={datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection
-            editMode='row'
-            onRowDoubleClick={(e) => {
-              setSelctRow(e.row);
-            }}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
             columns={resp.data.fields}
             disableColumnFilter
-            onRowSelectionModelChange={(rows) => {
-              setSelectionModel(rows as string[]);
-            }}
+            onRowSelectionModelChange={onRowSelectionModelChange}
           ></DataGrid>
           {selectRow && (
             <Modal
@@ -1548,9 +1593,9 @@ function RedisHashTable(props: {
               onClose={() => {
                 setSelctRow(null);
               }}
-              aria-labelledby='modify hash'
+              aria-labelledby="modify hash"
             >
-              <Box sx={modalStyle} width='800px'>
+              <Box sx={modalStyle} width="800px">
                 <RedisEditHash
                   modifyOP={async (req) => {
                     try {
@@ -1579,9 +1624,9 @@ function RedisHashTable(props: {
         onClose={() => {
           setSelctRow(null);
         }}
-        aria-labelledby='modify hash'
+        aria-labelledby="modify hash"
       >
-        <Box sx={modalStyle} width='800px'>
+        <Box sx={modalStyle} width="800px">
           <RedisAddHash
             addOP={async (key, value) => {
               try {
@@ -1598,7 +1643,7 @@ function RedisHashTable(props: {
         </Box>
       </Modal>
       {resp && (
-        <Typography variant='h3'>
+        <Typography variant="h3">
           Result {resp.data.data.length} of {resp.total}
         </Typography>
       )}
@@ -1631,8 +1676,8 @@ function RedisModifyKeyName(props: {
 
   return (
     <Stack spacing={1}>
-      <Stack direction='row'>
-        <Typography variant='subtitle1'> New name: </Typography>
+      <Stack direction="row">
+        <Typography variant="subtitle1"> New name: </Typography>
         {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
 
@@ -1641,11 +1686,11 @@ function RedisModifyKeyName(props: {
         onChange={(e) => {
           setNewName(e.target.value);
         }}
-        label='name'
+        label="name"
       ></TextField>
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         <Button
-          variant='outlined'
+          variant="outlined"
           onClick={() => {
             handleClose();
           }}
@@ -1654,8 +1699,8 @@ function RedisModifyKeyName(props: {
         </Button>
         <Button
           disabled={name == newName}
-          color='primary'
-          variant='contained'
+          color="primary"
+          variant="contained"
           onClick={handleModify}
         >
           Save

@@ -1,9 +1,10 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use dashmap::DashSet;
 use futures_util::StreamExt;
 use mongodb::bson::{Document, doc};
 use mongodb::options::ServerAddress;
@@ -23,6 +24,7 @@ pub struct Mongo {
     client: mongodb::Client,
     dbname: Option<String>,
     read_only: bool,
+    created_databases: Arc<DashSet<String>>,
 }
 
 impl std::fmt::Debug for Mongo {
@@ -54,6 +56,7 @@ impl Mongo {
             client,
             dbname: ds.db.clone(),
             read_only: ds.read_only,
+            created_databases: Default::default(),
         })
     }
 }
@@ -76,14 +79,31 @@ impl AutoCompletionTrait for Mongo {
 impl DBTrait for Mongo {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
-        let names = conn.list_database_names().await?;
+        let mut names = conn
+            .list_database_names()
+            .await?
+            .into_iter()
+            .collect::<HashSet<String>>();
+        names.extend(
+            <DashSet<std::string::String> as Clone>::clone(&self.created_databases).into_iter(),
+        );
+        let mut names = names.into_iter().collect::<Vec<_>>();
+        names.sort();
         anyhow::Ok(names)
     }
-
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.dbname = Some(name.to_string());
         return anyhow::Ok(Arc::new(x));
+    }
+    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
+        self.created_databases.insert(name.to_owned());
+        anyhow::Ok(())
+    }
+    async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+        conn.database(name).drop().await?;
+        anyhow::Ok(())
     }
 }
 
@@ -715,11 +735,13 @@ mod tests {
     #[tokio::test]
     async fn test_multi_db() {
         let multi = make_test_object();
+        let _ = multi.create_schema("abc").await;
         let dbs = DBTrait::list_schema(&multi).await.unwrap();
         println!("{:?}", dbs);
         for db in dbs.iter() {
             let _ = DBTrait::open_schema(&multi, db.as_str()).await.unwrap();
         }
+        multi.drop_schema("abc").await.unwrap();
     }
 
     #[tokio::test]

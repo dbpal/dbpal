@@ -5,12 +5,12 @@ use dbnexus_db::app::{App, DBConnectionConfig};
 mod handlers;
 
 use handlers::{
-    add_table_column, check_conn, close_conn, config_list_database_or_schema, delete,
-    disable_trigger, drop_index, drop_materialized_view, drop_procedure, drop_table,
-    drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
-    export_table_or_view, format_sql, insert, list_data_types, list_database,
-    list_materialized_view, list_procedure, list_schema, list_table, list_trigger, list_udf,
-    list_view, modify_table_column, mongo_delete, mongo_get_one_document, mongo_insert,
+    add_table_column, check_conn, close_conn, config_list_database_or_schema, create_database,
+    create_schema, delete, disable_trigger, drop_database, drop_index, drop_materialized_view,
+    drop_procedure, drop_schema, drop_table, drop_table_column, drop_trigger, drop_udf, drop_view,
+    duplicate_table, enable_trigger, export_table_or_view, format_sql, insert, list_data_types,
+    list_database, list_materialized_view, list_procedure, list_schema, list_table, list_trigger,
+    list_udf, list_view, modify_table_column, mongo_delete, mongo_get_one_document, mongo_insert,
     mongo_show_collection_docs, mongo_show_collection_table_list, mongo_update, open_conn,
     oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
     oracle_query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
@@ -64,7 +64,7 @@ async fn main() {
                         return anyhow::Ok(c);
                     }
                 }
-                unimplemented!();
+                anyhow::bail!(format!("config named '{}' not found", name))
             }));
             Ok(())
         })
@@ -121,6 +121,10 @@ async fn main() {
         })
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            create_database,
+            create_schema,
+            drop_database,
+            drop_schema,
             list_database,
             greet,
             list_table,

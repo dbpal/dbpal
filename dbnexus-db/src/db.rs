@@ -304,6 +304,8 @@ pub trait CatalogTrait:
 {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
+    async fn create_database(&self, name: &str) -> anyhow::Result<()>;
+    async fn drop_database(&self, name: &str) -> anyhow::Result<()>;
 }
 
 /// named staff maybe used for view udf etc...
@@ -429,6 +431,8 @@ pub trait DBTrait:
 {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
+    async fn create_schema(&self, name: &str) -> anyhow::Result<()>;
+    async fn drop_schema(&self, name: &str) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]

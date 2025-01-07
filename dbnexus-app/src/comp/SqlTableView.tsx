@@ -28,6 +28,7 @@ import {
   modalStyle,
   pageSizeOptions,
   progressBarSize,
+  reloadOK,
   SettingsContext,
   VisiableContext,
 } from './Common';
@@ -169,6 +170,7 @@ function SqlTableView(props: {
       setLoading(false);
       await handleResp(resp);
       setResp(resp);
+      reloadOK(showNotification);
     } catch (e) {
       setLoading(false);
       showNotification('error', 'query data failed', e);
@@ -306,11 +308,11 @@ function SqlTableView(props: {
 
   return (
     <Stack spacing={1} style={{ display: 'grid', gridTemplateColumns: '1fr' }}>
-      <Stack direction='row' spacing={1} alignItems='flex-start'>
+      <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
           fullWidth
-          label='where'
-          variant='outlined'
+          label="where"
+          variant="outlined"
           value={where}
           onBlur={() => {
             setTriggerReload((e) => !e);
@@ -318,12 +320,12 @@ function SqlTableView(props: {
           onChange={(event) => {
             setWhere(event.target.value);
           }}
-          size='small'
+          size="small"
         />
         <TextField
           fullWidth
-          label='order by'
-          variant='outlined'
+          label="order by"
+          variant="outlined"
           value={orderBy}
           onChange={(event) => {
             setOrderBy(event.target.value);
@@ -331,16 +333,16 @@ function SqlTableView(props: {
           onBlur={() => {
             setTriggerReload((e) => !e);
           }}
-          size='small'
+          size="small"
         />
 
         <Button
-          variant='contained'
-          color='primary'
+          variant="contained"
+          color="primary"
           onClick={() => {
             handleReload();
           }}
-          size='small'
+          size="small"
         >
           Reload
         </Button>
@@ -349,36 +351,36 @@ function SqlTableView(props: {
       {resp && (
         <>
           <Stack
-            direction='row'
+            direction="row"
             spacing={1}
             sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
           >
-            <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-end' }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
               {deleteOP && (
                 <Button
-                  variant='contained'
+                  variant="contained"
                   disabled={selectIDs.length == 0}
                   onClick={() => {
                     handleDetele();
                   }}
-                  size='small'
+                  size="small"
                 >
-                  <DeleteForeverIcon color='error'></DeleteForeverIcon>
+                  <DeleteForeverIcon color="error"></DeleteForeverIcon>
                 </Button>
               )}
               {addOP && (
                 <Button
-                  color='primary'
-                  variant='contained'
+                  color="primary"
+                  variant="contained"
                   onClick={() => {
                     setShowAdd(true);
                   }}
-                  size='small'
+                  size="small"
                 >
                   <AddIcon></AddIcon>
                 </Button>
               )}
-              {resp && <Typography variant='subtitle1'>{resp.sql}</Typography>}
+              {resp && <Typography variant="subtitle1">{resp.sql}</Typography>}
             </Stack>
             {resp && (
               <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
@@ -389,9 +391,9 @@ function SqlTableView(props: {
                 onClose={() => {
                   setShowAdd(false);
                 }}
-                aria-labelledby='add data'
+                aria-labelledby="add data"
               >
-                <Box sx={modalStyle} width='800px'>
+                <Box sx={modalStyle} width="800px">
                   <SqlTableViewAdd
                     addOP={async (args) => {
                       try {
@@ -417,12 +419,12 @@ function SqlTableView(props: {
               getRowId={getRowId}
               paginationModel={paginationModel}
               pageSizeOptions={pageSizeOptions}
-              paginationMode='server'
+              paginationMode="server"
               onPaginationModelChange={onPaginationModelChange}
               checkboxSelection
               onRowSelectionModelChange={onRowSelectionModelChange}
               rowCount={resp.total}
-              sortingMode='server'
+              sortingMode="server"
               onSortModelChange={onSortModelChange}
               columns={resp.data.fields}
               rows={resp.data.data}
@@ -500,8 +502,8 @@ function SqlTableViewAdd(props: {
           ></TextField>
         );
       })}
-      <Stack direction='row' spacing={1}>
-        <Button variant='contained' onClick={handleAdd}>
+      <Stack direction="row" spacing={1}>
+        <Button variant="contained" onClick={handleAdd}>
           Add
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}

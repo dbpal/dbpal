@@ -1,6 +1,11 @@
 import {
+  Box,
   CircularProgress,
+  ListItemIcon,
+  ListItemText,
+  MenuItem,
   MenuList,
+  Modal,
   Paper,
   Stack,
   Typography,
@@ -25,6 +30,13 @@ import {
   MenuCloseConn,
   MenuRefresh,
   MenuConnectionInfo,
+  MenuCreateDatabase,
+  CreateDatabase,
+  modalStyle,
+  dropDatabase,
+  MenuCreateSchema,
+  CreateSchema,
+  dropSchema,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -39,7 +51,7 @@ import { TablesTree } from './LeftTable';
 import { ViewKind, ViewsTree } from './LeftView';
 import { ProceduresTree } from './LeftProcedure';
 import { UdfsTree } from './LeftUdf';
-
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
@@ -142,9 +154,9 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
   );
 }
 
-function SchemaTree(prpos: { schema?: string }) {
+function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
   const { uuid } = useContext(UuidContext);
-  let { schema } = prpos;
+  const { schema, reloadSchemas } = prpos;
   const getPrefix = () => {
     return uuid + schema;
   };
@@ -181,6 +193,7 @@ function SchemaTree(prpos: { schema?: string }) {
                   setOpened(false);
                 }}
                 uuid={uuid}
+                reloadSchemas={reloadSchemas}
               ></SchemaMenu>
             ),
             style: calMenuStyle(e, 70),
@@ -210,18 +223,38 @@ function SchemaTree(prpos: { schema?: string }) {
 
 function DatabaseMenu(props: {
   database?: string;
-  uuid;
+  uuid: string;
   reload;
   handleOpend;
   opened;
   handleCloseConn;
+  reloadDatabase;
+  kind: DataSourceKind;
 }) {
-  const { database, uuid, reload, handleOpend, opened, handleCloseConn } =
-    props;
-
+  const {
+    database,
+    uuid,
+    reload,
+    handleOpend,
+    opened,
+    handleCloseConn,
+    reloadDatabase,
+    kind,
+  } = props;
+  const { showNotification } = useContext(NotificationContext);
+  const [showCreateSchema, setShowCreateSchema] = useState(false);
   return (
     <Paper>
       <MenuList>
+        {opened && (
+          <MenuCreateSchema
+            handleCreate={() => {
+              setShowCreateSchema(true);
+            }}
+            kind={kind}
+          ></MenuCreateSchema>
+        )}
+
         {!opened && !database && (
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
         )}
@@ -244,8 +277,51 @@ function DatabaseMenu(props: {
             handleClose={handleCloseConn}
           ></MenuCloseConn>
         )}
+        {database && (
+          <MenuItem
+            onClick={() => {
+              // we are in database context uuid contains the databse name
+              // we need remove that
+              let index = uuid.indexOf(':');
+              dropDatabase({
+                uuid: uuid.substring(0, index),
+                database,
+                showNotification,
+                okCallback: () => {
+                  reloadDatabase(true);
+                },
+              });
+            }}
+          >
+            <ListItemIcon>
+              <DeleteForeverIcon color="error"></DeleteForeverIcon>
+            </ListItemIcon>
+            <ListItemText color="error"> drop </ListItemText>
+          </MenuItem>
+        )}
+
         {!database && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
       </MenuList>
+
+      {showCreateSchema && (
+        <Modal
+          open={showCreateSchema}
+          onClose={() => {
+            setShowCreateSchema(false);
+          }}
+          aria-labelledby="create database"
+        >
+          <Box sx={modalStyle} width="800px">
+            <CreateSchema
+              uuid={uuid}
+              handleClose={() => {
+                reload();
+                setShowCreateSchema(false);
+              }}
+            ></CreateSchema>
+          </Box>
+        </Modal>
+      )}
     </Paper>
   );
 }
@@ -258,11 +334,20 @@ function CatalogMenu(props: {
   handleCloseConn;
 }) {
   const { uuid, reload, handleOpend, opened, handleCloseConn } = props;
+  const [showCreateDB, setShowCreateDB] = useState(false);
   return (
     <Paper>
       <MenuList>
         {!opened && (
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
+        )}
+
+        {opened && (
+          <MenuCreateDatabase
+            handleCreate={() => {
+              setShowCreateDB(true);
+            }}
+          ></MenuCreateDatabase>
         )}
 
         {opened && (
@@ -282,8 +367,28 @@ function CatalogMenu(props: {
             handleClose={handleCloseConn}
           ></MenuCloseConn>
         )}
+
         <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
       </MenuList>
+      {showCreateDB && (
+        <Modal
+          open={showCreateDB}
+          onClose={() => {
+            setShowCreateDB(false);
+          }}
+          aria-labelledby="create database"
+        >
+          <Box sx={modalStyle} width="800px">
+            <CreateDatabase
+              uuid={uuid}
+              handleClose={() => {
+                reload();
+                setShowCreateDB(false);
+              }}
+            ></CreateDatabase>
+          </Box>
+        </Modal>
+      )}
     </Paper>
   );
 }
@@ -294,8 +399,11 @@ function SchemaMenu(props: {
   handleOpend;
   opened;
   handleCloseConn;
+  reloadSchemas?;
 }) {
-  const { schema, uuid, handleOpend, opened, handleCloseConn } = props;
+  const { schema, uuid, handleOpend, opened, handleCloseConn, reloadSchemas } =
+    props;
+  const { showNotification } = useContext(NotificationContext);
   return (
     <Paper>
       <MenuList>
@@ -320,14 +428,35 @@ function SchemaMenu(props: {
             handleClose={handleCloseConn}
           ></MenuCloseConn>
         )}
-
+        {schema && (
+          <MenuItem
+            onClick={() => {
+              // we are in database context uuid contains the databse name
+              // we need remove that
+              let index = uuid.indexOf(':');
+              dropSchema({
+                uuid: uuid.substring(0, index),
+                schema,
+                showNotification,
+                okCallback: () => {
+                  reloadSchemas(true);
+                },
+              });
+            }}
+          >
+            <ListItemIcon>
+              <DeleteForeverIcon color="error"></DeleteForeverIcon>
+            </ListItemIcon>
+            <ListItemText color="error"> drop </ListItemText>
+          </MenuItem>
+        )}
         {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
       </MenuList>
     </Paper>
   );
 }
 
-function CatalogTree(props: {}) {
+function CatalogTree(_props: {}) {
   const { uuid: name } = useContext(UuidContext);
   const { showNotification } = useContext(NotificationContext);
   const [databases, setDatabases] = useState<string[]>([]);
@@ -389,7 +518,11 @@ function CatalogTree(props: {}) {
       {databases.map((e) => {
         return (
           <UuidContext.Provider key={e} value={{ uuid: name + ':' + e }}>
-            <DatabaseTree key={e} database={e}></DatabaseTree>
+            <DatabaseTree
+              key={e}
+              database={e}
+              reloadDatabase={handleReload}
+            ></DatabaseTree>
           </UuidContext.Provider>
         );
       })}
@@ -397,14 +530,17 @@ function CatalogTree(props: {}) {
   );
 }
 
-function DatabaseTree(props: { database?: string }) {
+function DatabaseTree(props: {
+  database?: string;
+  reloadDatabase?: () => void;
+}) {
   const { uuid: name } = useContext(UuidContext);
   const { showNotification } = useContext(NotificationContext);
   const [schemas, setSchemas] = useState<string[]>([]);
-  let { database } = props;
+  const { database, reloadDatabase } = props;
   const [loading, setLoading] = useState(false);
   const { opened, setOpened } = useContext(OpenedContext);
-
+  const { kind } = useContext(ConnTypeContext);
   const handleReload = () => {
     setLoading(true);
     invoke<string[]>('list_schema', { name })
@@ -447,6 +583,8 @@ function DatabaseTree(props: { database?: string }) {
                 database={database}
                 uuid={name}
                 reload={handleReload}
+                reloadDatabase={reloadDatabase}
+                kind={kind}
               ></DatabaseMenu>
             ),
             style: calMenuStyle(e, 70),
@@ -464,7 +602,9 @@ function DatabaseTree(props: { database?: string }) {
       {schemas.map((e) => {
         return (
           <UuidContext.Provider key={e} value={{ uuid: name + ':' + e }}>
-            <SchemaTree key={e} schema={e}></SchemaTree>
+            <SchemaTree key={e} schema={e} reloadSchemas={handleReload}>
+              {' '}
+            </SchemaTree>
           </UuidContext.Provider>
         );
       })}

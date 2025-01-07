@@ -16,6 +16,150 @@ use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 
 #[tauri::command]
+pub async fn drop_database(
+    name: String, database: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    log::info!("open db:{}", name);
+    let x = app
+        .get_opened(name.as_str())
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+    // first close connections because we want delete it
+
+    app.close_conn_has_prefix(&format!("{}:{}", name, database))
+        .await;
+
+    match x {
+        Open::Catalog(x) => {
+            x.drop_database(&database)
+                .await
+                .map_err(|x| AnyhowErrorFrontend::from(x))?;
+            app.opens
+                .lock()
+                .await
+                .remove(&format!("{}:{}", name, database));
+
+            Ok(())
+        }
+
+        _ => Err(AnyhowErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
+    }
+}
+
+#[tauri::command]
+pub async fn drop_schema(
+    name: String, schema: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    // first close connections because we want delete it
+
+    app.close_conn_has_prefix(&format!("{}:{}", name, schema))
+        .await;
+    let x = app
+        .get_opened(name.as_str())
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+    match x {
+        Open::DataBase(x) => {
+            x.drop_schema(&schema)
+                .await
+                .map_err(|x| AnyhowErrorFrontend::from(x))?;
+            app.opens
+                .lock()
+                .await
+                .remove(&format!("{}:{}", name, schema));
+
+            Ok(())
+        }
+        _ => Err(AnyhowErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
+    }
+}
+
+#[tauri::command]
+pub async fn create_database(
+    name: String, database: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+
+    let x = app
+        .get_opened(name.as_str())
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+    match x {
+        Open::Catalog(x) => {
+            x.create_database(&database)
+                .await
+                .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+            let db_name = format!("{}:{}", name, database);
+
+            let db = x
+                .open_db(&database)
+                .await
+                .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+            app.enter_open_child(&db_name, &Open::from(db.clone()))
+                .await
+                .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+            app.opens.lock().await.insert(db_name, db.into());
+
+            Ok(())
+        }
+
+        _ => Err(AnyhowErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
+    }
+}
+
+#[tauri::command]
+pub async fn create_schema(
+    name: String, schema: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+
+    let x = app
+        .get_opened(name.as_str())
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+    match x {
+        Open::DataBase(x) => {
+            x.create_schema(&schema)
+                .await
+                .map_err(|x| AnyhowErrorFrontend::from(x))?;
+            let db = x
+                .open_schema(&schema)
+                .await
+                .map_err(|x| AnyhowErrorFrontend::from(x))?;
+            app.opens
+                .lock()
+                .await
+                .insert(format!("{}:{}", name, schema), db.into());
+
+            Ok(())
+        }
+        _ => Err(AnyhowErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
+    }
+}
+
+#[tauri::command]
 pub async fn open_conn(
     name: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
@@ -31,7 +175,7 @@ pub async fn open_conn(
 #[tauri::command]
 pub async fn close_conn(name: String, app: tauri::State<'_, App>) -> Result<(), ()> {
     random_sleep().await;
-    app.close_conn(name.as_str()).await;
+    app.close_conn_has_prefix(name.as_str()).await;
     Ok(())
 }
 

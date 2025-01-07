@@ -55,7 +55,7 @@ export default function MainPage() {
   }>();
   useEffect(() => {
     // cancel the menu
-    const customMenu = document.getElementById('left-side-menu');
+    const customMenu = document.getElementById('menu-div');
     window.addEventListener('click', () => {
       customMenu.style.display = 'none';
     });
@@ -96,7 +96,7 @@ export default function MainPage() {
               </SplitPane>
             </div>
 
-            <div id="left-side-menu" style={menu && menu.style}>
+            <div id="menu-div" style={menu && menu.style}>
               {menu && menu.content}
             </div>
 

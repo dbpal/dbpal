@@ -59,7 +59,7 @@ impl DBTrait for PostGresDB {
         SELECT schema_name 
             FROM information_schema.schemata
             WHERE schema_name NOT IN ('information_schema', 'pg_catalog' , 'pg_toast') and 
-            schemata.catalog_name ='{}'
+            schemata.catalog_name ='{}' order by schema_name
     "#,
             self.config.db_str()
         );
@@ -79,6 +79,19 @@ impl DBTrait for PostGresDB {
         x.config.schema = Some(name.to_owned());
         x.query_connection = Default::default();
         Ok(Arc::new(x))
+    }
+    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("CREATE SCHEMA {name};");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP SCHEMA {name};");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
     }
 }
 
@@ -1519,6 +1532,19 @@ impl CatalogTrait for PostGresDB {
         let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
+    async fn create_database(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("CREATE DATABASE {name}");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP DATABASE {name};");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
 }
 
 pub type ListMaterializedView = ListTable;
@@ -1587,6 +1613,7 @@ mod tests {
         CatalogTrait, CheckConn, ExportKind, QueryResp, QuerySql, SchemaTrait, ServerMetas,
         UdfOrPrecedureExtraParameter,
     };
+
     use crate::enable_test_log;
     use std::collections::HashMap;
 
@@ -1627,9 +1654,11 @@ mod tests {
     #[tokio::test]
     async fn test_list_database() {
         let db = make_test_object().await;
+        db.create_database("abc").await.unwrap();
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
-        assert_eq!(dbs, vec!["postgres", "test"]);
+        assert_eq!(dbs, vec!["abc", "postgres", "test"]);
+        db.drop_database("abc").await.unwrap();
     }
     // test on empty table query can still have column info
     #[ignore = "sqlx don't return column info on empty result, see https://github.com/launchbadge/sqlx/issues/3552"]
@@ -2253,11 +2282,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_schema() {
-        let db = make_test_object().await;
-        let db = &db as &dyn crate::db::DBTrait;
+        let pg = make_test_object().await;
 
-        let resp = db.list_schema().await.unwrap();
-        assert_eq!(resp, vec!["public", "xxx"]);
+        let tr = &pg as &dyn crate::db::DBTrait;
+        let _ = tr.create_schema("abc").await;
+
+        let resp = tr.list_schema().await.unwrap();
+        assert_eq!(resp, vec!["abc", "public", "xxx"]);
+        tr.drop_schema("abc").await.unwrap();
     }
     #[tokio::test]
     async fn test_types3() {

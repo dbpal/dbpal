@@ -1177,6 +1177,12 @@ impl DBTrait for OracleDB {
         x.query_connections = Default::default();
         anyhow::Ok(Arc::new(x))
     }
+    async fn create_schema(&self, _name: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+    async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
 }
 
 impl OracleDB {

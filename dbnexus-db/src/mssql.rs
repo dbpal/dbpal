@@ -20,7 +20,7 @@ use crate::db::{
     FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
     SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
     TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
-    format_data_time_fix_offset,
+    format_data_time_fix_offset, not_support_features,
 };
 use crate::helper::{
     SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql,
@@ -1749,6 +1749,13 @@ impl crate::db::DBTrait for MsSqlServer {
         x.query_connections = Default::default();
         Ok(Arc::new(x))
     }
+
+    async fn create_schema(&self, _name: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+    async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
 }
 
 #[async_trait::async_trait]
@@ -1760,7 +1767,7 @@ impl CatalogTrait for MsSqlServer {
             .simple_query(
                 r#"
             SELECT name
-            FROM sys.databases
+            FROM sys.databases order by name
         "#,
             )
             .await?;
@@ -1784,6 +1791,19 @@ impl CatalogTrait for MsSqlServer {
         config.db = Some(name.to_owned());
         let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
+    }
+
+    async fn create_database(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("CREATE DATABASE {name}");
+        let mut conn = self.get_conn().await?;
+        conn.execute(&sql, &[]).await?;
+        anyhow::Ok(())
+    }
+    async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP DATABASE {name};");
+        let mut conn = self.get_conn().await?;
+        conn.execute(&sql, &[]).await?;
+        anyhow::Ok(())
     }
 }
 
@@ -1943,9 +1963,13 @@ mod tests {
     async fn test_list_database() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
+        let _ = db.create_database("abc").await;
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
-        assert_eq!(dbs, vec!["master", "tempdb", "model", "msdb", "test"]);
+        assert_eq!(dbs, vec![
+            "abc", "master", "model", "msdb", "tempdb", "test"
+        ]);
+        db.drop_database("abc").await.unwrap();
     }
 
     #[tokio::test]

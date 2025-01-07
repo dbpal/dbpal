@@ -51,7 +51,7 @@ root.render(
       ></RedisEditHexOrText>
       <hr></hr> */}
 
-      <RedisListTable
+      {/* <RedisListTable
         // @ts-ignore
         reloadOP={async (page, pageSize, asc) => {
           console.log('request data:', page, pageSize, asc);
@@ -66,9 +66,9 @@ root.render(
         lpushOP={voidTestFunction}
         rpushOP={voidTestFunction}
         delOP={voidTestFunction}
-      ></RedisListTable>
+      ></RedisListTable> */}
 
-      <RedisSetTable
+      {/* <RedisSetTable
         reloadOP={async (_: string) => {
           try {
             await voidTestFunction();
@@ -80,7 +80,7 @@ root.render(
         modifyOP={voidTestFunction}
         addOP={voidTestFunction}
         delOP={async () => {}}
-      ></RedisSetTable>
+      ></RedisSetTable> */}
 
       <RedisHashTable
         reloadOP={async (_keyMatch) => {
@@ -91,19 +91,19 @@ root.render(
         delOP={voidTestFunction}
       ></RedisHashTable>
 
-      <RedisZsetTable
+      {/* <RedisZsetTable
         reloadOP={async (_keyMatch, _min, _max) => {
           return testRedisZset();
         }}
         addOP={voidTestFunction}
         modifyOP={voidTestFunction}
         delOP={voidTestFunction}
-      ></RedisZsetTable>
+      ></RedisZsetTable> */}
 
-      <RedisStringTable
-        content='aaaaaabbb'
+      {/* <RedisStringTable
+        content="aaaaaabbb"
         modifyOP={voidTestFunction}
-      ></RedisStringTable>
+      ></RedisStringTable> */}
 
       {/* // end  */}
     </React.StrictMode>

@@ -1339,6 +1339,7 @@ impl DBTrait for MysqlDB {
             }
             ret.push(name);
         }
+        ret.sort();
         anyhow::Ok(ret)
     }
 
@@ -1347,6 +1348,18 @@ impl DBTrait for MysqlDB {
         config.db = Some(name.to_owned());
         let x = Self::new(config).await?;
         Ok(Arc::new(x))
+    }
+    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("CREATE DATABASE {name}");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+    async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP DATABASE {name}");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
     }
 }
 
@@ -1995,9 +2008,11 @@ pub(crate) mod test_fns {
 
     pub(crate) async fn test_list_database(db: MysqlDB) {
         let db = &db as &dyn crate::db::DBTrait;
+        db.create_schema("abc").await.unwrap();
 
         let resp = db.list_schema().await.unwrap();
-        assert_eq!(resp, vec!["sys", "test"]);
+        assert_eq!(resp, vec!["abc", "sys", "test"]);
+        db.drop_schema("abc").await.unwrap();
     }
 
     pub(crate) async fn test_query(db: MysqlDB) {
