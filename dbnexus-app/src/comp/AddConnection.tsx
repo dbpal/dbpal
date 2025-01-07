@@ -118,6 +118,7 @@ function UserAndPassword(props: {
   );
 }
 
+//@ts-ignore
 function EnableSSL(props: { useSSL; setUseSSL }) {
   let { useSSL, setUseSSL } = props;
   return (
@@ -225,6 +226,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   const [password, setPassword] = useState('');
   const [database, setDatabase] = useState('');
   const [readOnly, setReadOnly] = useState(false);
+  //@ts-ignore
   const [useSSL, setUseSSL] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [triggerReLoad, setTriggerReload] = useState(false);

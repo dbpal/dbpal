@@ -1,11 +1,4 @@
-import {
-  CSSProperties,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { CSSProperties, useContext, useEffect, useMemo, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import types from './ApiStruct';
 import {

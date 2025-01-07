@@ -30,9 +30,9 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
       renderCell: (p) => {
         let s = p.row.success;
         if (s) {
-          return <DoneIcon color='success'></DoneIcon>;
+          return <DoneIcon color="success"></DoneIcon>;
         } else {
-          return <CloseIcon color='error'></CloseIcon>;
+          return <CloseIcon color="error"></CloseIcon>;
         }
       },
       filterable: false,
@@ -50,7 +50,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPagesize] = useState(
-    useContext(SettingsContext).page_size
+    useContext(SettingsContext).pageSize
   );
   return (
     <Stack>
@@ -80,15 +80,14 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
           onClose={() => {
             setSelectSql('');
           }}
-          aria-labelledby='sql'
+          aria-labelledby="sql"
         >
-          <Stack sx={modalStyle} width='800px'>
+          <Stack sx={modalStyle} width="800px">
             <Box>
               <Editor
                 language={language}
-                height='300px'
+                height="300px"
                 value={selectSql}
-                onMount={}
               ></Editor>
             </Box>
           </Stack>

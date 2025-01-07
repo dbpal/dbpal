@@ -1,7 +1,7 @@
 {
   "productName": "dvnexus-app",
   "version": "0.0.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.dbpal.dev",
   "build": {
     "beforeDevCommand": "yarn dev",
     "devUrl": "http://localhost:1420",
@@ -19,9 +19,7 @@
     ],
     "security": {
       "csp": null,
-      "capabilities": [
-        "main-capability"
-      ]
+      "capabilities": ["main-capability"]
     }
   },
   "bundle": {

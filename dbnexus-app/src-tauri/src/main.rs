@@ -113,7 +113,7 @@ async fn main() {
         .on_menu_event(|handle, event| {
             log::info!("on_menu_event:{:?}", event);
             if event.id.0 == "add_config" {
-                handle.emit("add_connection", "").unwrap();
+                handle.emit("add_config", "").unwrap();
             }
             if event.id.0 == "show_settings" {
                 handle.emit("show_settings", "").unwrap();

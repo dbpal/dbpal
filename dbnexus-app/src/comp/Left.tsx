@@ -318,6 +318,7 @@ function DatabaseMenu(props: {
                 reload();
                 setShowCreateSchema(false);
               }}
+              kind={kind}
             ></CreateSchema>
           </Box>
         </Modal>
@@ -602,9 +603,11 @@ function DatabaseTree(props: {
       {schemas.map((e) => {
         return (
           <UuidContext.Provider key={e} value={{ uuid: name + ':' + e }}>
-            <SchemaTree key={e} schema={e} reloadSchemas={handleReload}>
-              {' '}
-            </SchemaTree>
+            <SchemaTree
+              key={e}
+              schema={e}
+              reloadSchemas={handleReload}
+            ></SchemaTree>
           </UuidContext.Provider>
         );
       })}

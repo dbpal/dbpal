@@ -49,6 +49,17 @@ export default function MainPage() {
     };
   }, [tabs]);
 
+  useEffect(() => {
+    let unlisten = listen('add_config', () => {
+      setShowAddConnection(true);
+    });
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, []);
+
   const [menu, setUpMenu] = useState<{
     content: ReactNode;
     style: CSSProperties;
@@ -60,46 +71,47 @@ export default function MainPage() {
       customMenu.style.display = 'none';
     });
   });
+  let mainContent = (
+    //@ts-ignore
+    <SplitPane
+      split="vertical"
+      minSize={0}
+      defaultSize={300}
+      style={{
+        minHeight: '100vh',
+        height: 'auto',
+        padding: '8px',
+      }}
+    >
+      <Left></Left>
+      <TabsWithContent
+        handleClose={(index: number) => {
+          let id = tabs[index].id;
+          setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
+          if (selectIndex >= index && selectIndex > 0) {
+            setSelectIndex(selectIndex - 1);
+          }
+        }}
+        tabs={tabs}
+        selectIndex={selectIndex}
+        changeTab={(index) => {
+          setSelectIndex(index as number);
+        }}
+        setTabs={setTabs}
+      ></TabsWithContent>
+    </SplitPane>
+  );
 
   return (
     <SettingComp>
       <MenuContext.Provider value={{ setUpMenu }}>
         <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
           <NotificationProvider>
-            <div>
-              <SplitPane
-                split="vertical"
-                minSize={0}
-                defaultSize={300}
-                style={{
-                  minHeight: '100vh',
-                  height: 'auto',
-                  padding: '8px',
-                }}
-              >
-                <Left></Left>
-                <TabsWithContent
-                  handleClose={(index: number) => {
-                    let id = tabs[index].id;
-                    setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
-                    if (selectIndex >= index && selectIndex > 0) {
-                      setSelectIndex(selectIndex - 1);
-                    }
-                  }}
-                  tabs={tabs}
-                  selectIndex={selectIndex}
-                  changeTab={(index) => {
-                    setSelectIndex(index as number);
-                  }}
-                  setTabs={setTabs}
-                ></TabsWithContent>
-              </SplitPane>
-            </div>
+            <div> {mainContent} </div>
 
             <div id="menu-div" style={menu && menu.style}>
               {menu && menu.content}
             </div>
-
             {showAddConnection && (
               <Modal
                 open={showAddConnection}

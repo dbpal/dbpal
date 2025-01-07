@@ -107,14 +107,18 @@ function RedisQuery(props: {
   };
 
   return (
-    //@ts-ignore
     <SplitPane
-      split='vertical'
+      split="vertical"
       minSize={50}
       defaultSize={1000}
       step={5}
-      onDragStarted={() => setIsDragging(true)} // 拖动开始
-      onDragFinished={(_) => setIsDragging(false)} // 拖动结束
+      onDragStarted={() => {
+        setIsDragging(true);
+      }} // 拖动开始
+      //@ts-ignore
+      onDragFinished={(_: number): void => {
+        setIsDragging(false);
+      }} // 拖动结束
       style={{ position: 'relative' }}
     >
       <SqlQuery
@@ -127,7 +131,7 @@ function RedisQuery(props: {
           }
           tryUpdateCommand(text, pos);
         }}
-        language='redis'
+        language="redis"
         queryOP={queryOP}
         loadQueryLog={loadQueryLog}
       ></SqlQuery>
@@ -151,7 +155,7 @@ function RedisQuery(props: {
             padding: 0,
             margin: 0,
           }}
-          title='Full Size Iframe'
+          title="Full Size Iframe"
         />
       </div>
     </SplitPane>

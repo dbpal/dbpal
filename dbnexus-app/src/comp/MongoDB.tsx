@@ -248,14 +248,14 @@ function MongoBsonEditor(props: {
       >
         <Editor
           onMount={handleEditorDidMount}
-          language='mongoBson'
+          language="mongoBson"
           value={content}
-          height='100%'
+          height="100%"
         ></Editor>
       </div>
 
-      <Stack direction='row' justifyContent='space-between'>
-        <Stack direction='row' alignContent='flex-start' spacing={1}>
+      <Stack direction="row" justifyContent="space-between">
+        <Stack direction="row" alignContent="flex-start" spacing={1}>
           {buttons.map((button) => {
             return (
               // @ts-ignore
@@ -275,14 +275,14 @@ function MongoBsonEditor(props: {
             );
           })}
 
-          {err == null && <Alert severity='success'>Valid Document</Alert>}
-          {!!err && <Alert severity='error'>{err.msgWithLoc}</Alert>}
+          {err == null && <Alert severity="success">Valid Document</Alert>}
+          {!!err && <Alert severity="error">{err.msgWithLoc}</Alert>}
         </Stack>
         <Stack
-          width='40%'
+          width="40%"
           spacing={1}
-          direction='row'
-          alignContent='flex-start'
+          direction="row"
+          alignContent="flex-start"
         >
           <span> Ln {cursorLine} </span>
           <span> Col {cursorColumn} </span>
@@ -381,15 +381,15 @@ function MongoTableListToolBar(props: {
   }, [viewModel]);
 
   return (
-    <Stack direction='row' justifyContent='space-between'>
-      <Stack direction='row' spacing={1} alignContent='flex-end'>
+    <Stack direction="row" justifyContent="space-between">
+      <Stack direction="row" spacing={1} alignContent="flex-end">
         <span>filter:</span>
         <Typography
           onClick={() => {
             setShowModifyFilter(true);
           }}
           style={{ cursor: 'pointer' }}
-          variant='subtitle1'
+          variant="subtitle1"
         >
           {bsonValue2MongoBson(filter).format()}
         </Typography>
@@ -400,11 +400,11 @@ function MongoTableListToolBar(props: {
             onClose={() => {
               setShowModifyFilter(false);
             }}
-            aria-labelledby='set filter'
+            aria-labelledby="set filter"
           >
-            <Box sx={modalStyle} width='800px'>
+            <Box sx={modalStyle} width="800px">
               <MongoDBModify
-                buttonName='Set'
+                buttonName="Set"
                 verify={() => {
                   return true;
                 }}
@@ -423,7 +423,7 @@ function MongoTableListToolBar(props: {
             setShowModifyOrderBy(true);
           }}
           style={{ cursor: 'pointer' }}
-          variant='subtitle1'
+          variant="subtitle1"
         >
           {bsonValue2MongoBson(orderBy).format()}
         </Typography>
@@ -434,11 +434,11 @@ function MongoTableListToolBar(props: {
             onClose={() => {
               setShowModifyOrderBy(false);
             }}
-            aria-labelledby='order by'
+            aria-labelledby="order by"
           >
-            <Box sx={modalStyle} width='800px'>
+            <Box sx={modalStyle} width="800px">
               <MongoDBModify
-                buttonName='Set'
+                buttonName="Set"
                 verify={() => {
                   return true;
                 }}
@@ -452,24 +452,24 @@ function MongoTableListToolBar(props: {
         )}
 
         <Button
-          variant='contained' // 可以是 'text', 'outlined', 或 'contained'
-          color='primary' // 主题颜色
+          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
+          color="primary" // 主题颜色
           onClick={doReload} // 点击事件处理
         >
           Reload
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
-      <Stack direction='row' style={{ padding: '5px' }}>
-        <ButtonGroup variant='contained' aria-label='Basic button group'>
+      <Stack direction="row" style={{ padding: '5px' }}>
+        <ButtonGroup variant="contained" aria-label="Basic button group">
           <IconButton
             onClick={() => {
               handleViewModel(MongoDataViewModel.List);
             }}
             disabled={viewModel == MongoDataViewModel.List}
-            edge='start'
-            color='inherit'
-            aria-label='list'
+            edge="start"
+            color="inherit"
+            aria-label="list"
           >
             <ListIcon />
           </IconButton>
@@ -478,9 +478,9 @@ function MongoTableListToolBar(props: {
             onClick={() => {
               handleViewModel(MongoDataViewModel.Object);
             }}
-            edge='start'
-            color='inherit'
-            aria-label='object'
+            edge="start"
+            color="inherit"
+            aria-label="object"
           >
             <DataObjectIcon />
           </IconButton>
@@ -521,7 +521,7 @@ function MongoTable(props: {
   const [orderBy, setOrderby] = useState<BSON.Document>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(
-    useContext(SettingsContext).page_size
+    useContext(SettingsContext).pageSize
   );
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
@@ -613,16 +613,16 @@ function MongoTable(props: {
       {/* // datagrid modeal */}
       {resp && viewModel == MongoDataViewModel.List && (
         <Stack spacing={1}>
-          <Stack direction='row'>
+          <Stack direction="row">
             <Button
-              variant='contained'
-              color='error'
+              variant="contained"
+              color="error"
               disabled={selectIDs.length == 0}
               onClick={() => {
                 handleDetele(selectIDs);
               }}
             >
-              <DeleteForeverIcon color='error'></DeleteForeverIcon>
+              <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
           </Stack>
           <DataGrid
@@ -637,7 +637,7 @@ function MongoTable(props: {
             rows={resp.data.data}
             pageSizeOptions={pageSizeOptions}
             disableColumnFilter
-            paginationMode='server'
+            paginationMode="server"
             paginationMeta={{ hasNextPage: true }}
             paginationModel={{ page: page, pageSize: pageSize }}
             onPaginationModelChange={(m) => {
@@ -649,7 +649,7 @@ function MongoTable(props: {
                 setSelectModifyDoc(doc);
               });
             }}
-            sortingMode='server'
+            sortingMode="server"
             onSortModelChange={(e) => {
               if (e.length == 0) {
                 setOrderby({});
@@ -676,9 +676,9 @@ function MongoTable(props: {
           onClose={() => {
             setSelectModifyDoc(null);
           }}
-          aria-labelledby='modify set'
+          aria-labelledby="modify set"
         >
-          <Box sx={modalStyle} width='800px'>
+          <Box sx={modalStyle} width="800px">
             <MongoDBModify
               verify={() => {
                 return true;
@@ -692,7 +692,7 @@ function MongoTable(props: {
                 handleReload();
               }}
               doc={selectModifyDoc}
-              buttonName='Modify'
+              buttonName="Modify"
             ></MongoDBModify>
           </Box>
         </Modal>
@@ -735,7 +735,7 @@ function MongoTable(props: {
             );
           })}
           {/* // here is pagination */}
-          <Stack direction='row' spacing={1} alignItems='flex-end'>
+          <Stack direction="row" spacing={1} alignItems="flex-end">
             <Pagination
               page={page}
               defaultPage={1}

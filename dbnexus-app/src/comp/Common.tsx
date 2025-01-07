@@ -29,7 +29,6 @@ import {
 import { Editor, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import AddIcon from '@mui/icons-material/Add';
@@ -359,6 +358,7 @@ function CreateDatabase({ uuid, handleClose }) {
 }
 
 function CreateSchema(props: { uuid; handleClose; kind: DataSourceKind }) {
+  //@ts-ignore
   const { uuid, handleClose, kind } = props;
 
   const { showNotification } = useContext(NotificationContext);

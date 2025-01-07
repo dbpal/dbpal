@@ -1,5 +1,5 @@
 import { types } from './ApiStruct.ts';
-import { Alert, Box, Tab, Tabs, Tooltip } from '@mui/material';
+import { Alert, Tab, Tabs, Tooltip } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import { generateRandomString } from './helper.ts';
 import { DataGrid } from '@mui/x-data-grid';
@@ -32,7 +32,7 @@ function QueryResp(props: { data: types.MuiDataGridData }) {
       columnHeaderHeight={datagridHeaderHeight}
       columns={data.fields}
       rows={data.data}
-      filterMode='client' // 使用客户端过滤
+      filterMode="client" // 使用客户端过滤
     ></DataGrid>
   );
 }
@@ -48,7 +48,7 @@ function CustomTabPanel(props: TabPanelProps) {
   const { children, value, index, idPrefix, ...other } = props;
   return (
     <div
-      role='tabpanel'
+      role="tabpanel"
       hidden={value !== index}
       id={`${idPrefix}-tabpanel-${index}`}
       aria-labelledby={`${idPrefix}-tab-${index}`}
@@ -73,7 +73,7 @@ function MultiQueryResp(props: { data: any[] }) {
   }
   if (data.length == 1) {
     return data[0].Err ? (
-      <Alert severity='error'>{data[0].Err}</Alert>
+      <Alert severity="error">{data[0].Err}</Alert>
     ) : (
       <QueryResp data={data[0].Ok}></QueryResp>
     );
@@ -87,7 +87,7 @@ function MultiQueryResp(props: { data: any[] }) {
     <div>
       <h1 style={{ backgroundColor: 'blue' }}>1234</h1>
       <div>
-        <Tabs value={value} onChange={handleChange} aria-label='query results.'>
+        <Tabs value={value} onChange={handleChange} aria-label="query results.">
           {data.map((_, index) => (
             <Tab
               label={`Result ${index + 1}`}
@@ -107,7 +107,7 @@ function MultiQueryResp(props: { data: any[] }) {
             index={index}
           >
             {e.Err ? (
-              <Alert severity='error'>{e.Err}</Alert>
+              <Alert severity="error">{e.Err}</Alert>
             ) : (
               <QueryResp data={e.Ok}></QueryResp>
             )}
