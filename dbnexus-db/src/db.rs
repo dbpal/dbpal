@@ -172,11 +172,13 @@ pub trait SchemaTrait:
     async fn create_table_and_index_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        not_support_features(self.backend_name())
+        anyhow::bail!(format!(
+            "sql server don't support create_table_and_index_sql"
+        ))
     }
 
     async fn create_view_sql(&self, _view_name: &str) -> anyhow::Result<String> {
-        not_support_features(self.backend_name())
+        anyhow::bail!(format!("sql server don't support create_view_sql"))
     }
     /// if this connection is read only
     fn read_only(&self) -> bool;

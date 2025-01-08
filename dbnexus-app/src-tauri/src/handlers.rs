@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, open};
+use dbnexus_db::completion::CompletionItem;
 use dbnexus_db::db::{
     ColumnType, ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, ProcedureDetail,
     QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
@@ -13,6 +14,7 @@ use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
+use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 
 #[tauri::command]
@@ -569,6 +571,26 @@ pub async fn query_sql(
             .collect::<Vec<_>>()
     })
 }
+
+#[tauri::command]
+pub async fn query_logs(
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+) -> Result<Vec<QueryLogEvent>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .open(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+
+    match db {
+        Open::DataBase(x) => x.get_query_log(query_id).await,
+        Open::Schema(x) => x.get_query_log(query_id).await,
+        Open::Catalog(x) => x.get_query_log(query_id).await,
+    }
+    .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
 #[tauri::command]
 pub async fn query_sql_open_connection(
     name: String, app: tauri::State<'_, App>,
@@ -583,6 +605,7 @@ pub async fn query_sql_open_connection(
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
+
 #[tauri::command]
 pub async fn query_sql_re_connection(
     name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
@@ -597,6 +620,7 @@ pub async fn query_sql_re_connection(
     };
     result.map_err(|e| AnyhowErrorFrontend::from(e))
 }
+
 #[tauri::command]
 pub async fn query_sql_close_connection(
     name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
@@ -752,7 +776,37 @@ pub async fn list_schema(
     }
     .map_err(AnyhowErrorFrontend::from)
 }
-
+#[tauri::command]
+pub async fn auto_completion(
+    name: String, sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
+) -> Result<
+    Vec<CompletionItem>, // milliseconds
+    AnyhowErrorFrontend,
+> {
+    random_sleep().await;
+    random_error()?;
+    // TODO front is very hard to pass this parameter to the server
+    // because of manoca language is global registerd.
+    let query_id = uuid::Uuid::new_v4();
+    let use_lexer = true;
+    let db = app.get_opened(name.as_str()).await?;
+    let ret = match db {
+        Open::Catalog(x) => {
+            x.auto_completion(query_id, &sql, line, col, use_lexer)
+                .await
+        }
+        Open::DataBase(x) => {
+            x.auto_completion(query_id, &sql, line, col, use_lexer)
+                .await
+        }
+        Open::Schema(x) => {
+            x.auto_completion(query_id, &sql, line, col, use_lexer)
+                .await
+        }
+    }
+    .map_err(|x| AnyhowErrorFrontend::from(x))?;
+    Ok(ret)
+}
 #[tauri::command]
 pub async fn oracle_query_set_autocommit(
     name: String, id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,

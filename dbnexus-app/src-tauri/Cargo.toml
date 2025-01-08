@@ -36,6 +36,7 @@ rand = "*"
 tauri-plugin-fs = "2.2.0"
 humantime = "*"
 tauri-plugin-store = "2"
+
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]

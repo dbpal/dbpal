@@ -8,35 +8,6 @@ import { redisKeywords } from './keywords.ts';
 import { SqlQuery } from './SqlQuery.tsx';
 import { loader } from '@monaco-editor/react';
 
-function initRedisLanguage(
-  autoCompletion: (
-    text: string,
-    pos: Position
-  ) => Promise<languages.CompletionList>
-) {
-  loader.init().then((monaco) => {
-    monaco.languages.register({ id: 'redis' });
-    monaco.languages.setMonarchTokensProvider('monaco', {
-      ignoreCase: true,
-      tokenizer: {
-        root: [[redisKeywords, 'keyword']],
-      },
-    });
-
-    monaco.languages.registerCompletionItemProvider('redis', {
-      provideCompletionItems: (
-        model: editor.ITextModel,
-        position: Position,
-        _context: any,
-        _token: CancellationToken
-      ) => {
-        let text = model.getValue();
-        return autoCompletion(text, position);
-      },
-    });
-  });
-}
-
 function RedisQuery(props: {
   queryOP: (code: string) => Promise<any[]>;
   validURL: (string) => Promise<boolean>;
@@ -107,6 +78,7 @@ function RedisQuery(props: {
   };
 
   return (
+    //@ts-ignore
     <SplitPane
       split="vertical"
       minSize={50}
@@ -162,4 +134,4 @@ function RedisQuery(props: {
   );
 }
 
-export { RedisQuery, initRedisLanguage };
+export { RedisQuery, initLanguageXXX };

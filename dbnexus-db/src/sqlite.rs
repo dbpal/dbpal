@@ -13,7 +13,6 @@ use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Row, SqliteConnection, TypeInfo};
 
-use crate::MemoryLimit;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, FormatSql,
     FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
@@ -1146,7 +1145,7 @@ impl QuerySql for SqliteDB {
 
         let mut rows = Vec::new();
         while let Some(item) = stream.next().await {
-            MemoryLimit::exceed_error()?;
+            // MemoryLimit::exceed_error()?;
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
@@ -1381,7 +1380,20 @@ mod tests {
         let db = SqliteDB::new(path, false).await.unwrap();
         db
     }
+    #[ignore = "this test run by hand"]
+    #[tokio::test]
+    async fn test_do_has_data_query() {
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        let now = std::time::Instant::now();
+        let x = db
+            .query_sql(query_id, "SELECT * from has_data_0")
+            .await
+            .unwrap();
 
+        // println!("{:?}", x);
+        println!("time used:{:?}", std::time::Instant::now() - now);
+    }
     #[ignore = "this test run by hand"]
     #[tokio::test]
     async fn test_do_has_data() {

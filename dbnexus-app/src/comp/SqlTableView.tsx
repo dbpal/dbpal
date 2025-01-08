@@ -61,19 +61,9 @@ function SqlTableView(props: {
   ) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: Map<string, string>) => Promise<types.SqlExecuteRet>;
   addOP?: (values: Map<string, string | null>) => Promise<types.SqlExecuteRet>;
-  saveWidth: (name: string, width: number) => void;
-  loadWidths: () => Promise<object>;
   notWarnPri?: boolean;
 }) {
-  let {
-    reloadOP,
-    updateOP,
-    deleteOP,
-    addOP,
-    saveWidth,
-    loadWidths,
-    notWarnPri,
-  } = props;
+  let { reloadOP, updateOP, deleteOP, addOP, notWarnPri } = props;
 
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -84,7 +74,6 @@ function SqlTableView(props: {
     useContext(SettingsContext).pageSize
   );
 
-  const [widths, setWidths] = useState(null);
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectIDs, setSelectIDs] = useState<GridRowSelectionModel>([]);
@@ -93,29 +82,15 @@ function SqlTableView(props: {
 
   const visiable = useContext(VisiableContext);
 
-  const handleResp = async (resp: types.MuiDataTableListResp) => {
+  const handleResp = (resp: types.MuiDataTableListResp) => {
     resp.data.data.forEach((data) => {
       data[keyNotInTable] = uuidv4();
     });
-    // https://www.geeksforgeeks.org/is-setstate-method-async/
-    // set state 是异步的也就说setWidths 可能读不到它的值呢
-    let widths2;
-    if (widths == null) {
-      let x = await loadWidths();
-      setWidths(x);
-      widths2 = x;
-    } else {
-      widths2 = widths;
-    }
+
     for (let i = 0; i < resp.data.fields.length; i++) {
       let field = resp.data.fields[i];
       //@ts-ignore
-
-      if (widths2[field.field]) {
-        //@ts-ignore
-        field.width = widths2[field.field];
-        //@ts-ignore
-      }
+      field.flex = 1;
       //@ts-ignore
       field.renderHeader = (e) => {
         let def = e.colDef;
@@ -245,14 +220,6 @@ function SqlTableView(props: {
   useEffect(() => {
     setLastLoadTime(new Date());
   }, [resp]);
-
-  const onColumnResize = useMemo(() => {
-    return (e) => {
-      if (saveWidth) {
-        saveWidth(e.colDef.field, e.width);
-      }
-    };
-  }, []);
 
   const paginationModel = useMemo(() => {
     return { page, pageSize };
@@ -406,7 +373,6 @@ function SqlTableView(props: {
           {visiable && (
             <DataGrid
               style={dataGridStyle}
-              onColumnResize={onColumnResize}
               rowHeight={datagridRowHeight}
               columnHeaderHeight={datagridHeaderHeight}
               getRowId={getRowId}

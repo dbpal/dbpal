@@ -14,7 +14,7 @@ function QueryResp(props: { data: types.MuiDataGridData }) {
     }
   });
   data.fields.forEach((e) => {
-    // @ts-ignore
+    //@ts-ignore
     e.renderHeader = (e) => {
       let def = e.colDef;
       return (
@@ -23,17 +23,19 @@ function QueryResp(props: { data: types.MuiDataGridData }) {
         </Tooltip>
       );
     };
-    // @ts-ignore
+    //@ts-ignore
     e.flex = 1;
   });
   return (
-    <DataGrid
-      rowHeight={datagridRowHeight}
-      columnHeaderHeight={datagridHeaderHeight}
-      columns={data.fields}
-      rows={data.data}
-      filterMode="client" // 使用客户端过滤
-    ></DataGrid>
+    <div style={{ display: 'grid' }}>
+      <DataGrid
+        rowHeight={datagridRowHeight}
+        columnHeaderHeight={datagridHeaderHeight}
+        columns={data.fields}
+        rows={data.data}
+        filterMode="client" // 使用客户端过滤
+      ></DataGrid>
+    </div>
   );
 }
 
@@ -85,7 +87,6 @@ function MultiQueryResp(props: { data: any[] }) {
   let idPrefix = generateRandomString(10);
   return (
     <div>
-      <h1 style={{ backgroundColor: 'blue' }}>1234</h1>
       <div>
         <Tabs value={value} onChange={handleChange} aria-label="query results.">
           {data.map((_, index) => (

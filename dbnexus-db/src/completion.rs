@@ -16,7 +16,7 @@ use crate::sqlparser_completion::CompletionStament;
 pub trait AutoCompletionTrait {
     async fn auto_completion(
         &self,
-        uuid: uuid::Uuid,
+        query_id: uuid::Uuid,
         sql: &str,
         line: u32,
         col: u32,
@@ -72,16 +72,21 @@ pub fn in_pos(
 
 #[async_trait::async_trait]
 pub trait LexerCompletionTrait {
+    type Dialect: sqlparser::dialect::Dialect + Sync + Send + 'static;
     const KEY_WORDS: &'static [&'static str];
-
     const TYPES: &'static [&'static str];
     const TEXTS: &'static [&'static str] = &[];
-
-    type Dialect: sqlparser::dialect::Dialect + Sync + Send + 'static;
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         vec![]
     }
+
+    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>>;
+
+    // table use very often.
+    // if there is some error
+    // we still completion on table.
+    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>>;
 
     async fn do_auto_completion(
         &self, sql: &str, dialect: &Self::Dialect, pos: sqlparser::tokenizer::Location,
@@ -89,7 +94,7 @@ pub trait LexerCompletionTrait {
         let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
             .tokenize_with_location()
             .unwrap_or(vec![]);
-        let all_item = self.all_completion_items().await;
+        let all_item = self.all_completion_items().await?;
         for t in tokens.iter() {
             let pattern = t.token.to_string();
             match t.token {
@@ -105,11 +110,10 @@ pub trait LexerCompletionTrait {
                 return anyhow::Ok(match_pattern_and_sort(all_item, pattern.as_str()));
             }
         }
-
         return anyhow::Ok(all_item);
     }
 
-    async fn all_completion_items(&self) -> Vec<CompletionItem> {
+    async fn all_completion_items(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();
         ret.extend(
             Self::KEY_WORDS
@@ -143,12 +147,23 @@ pub trait LexerCompletionTrait {
                 .collect::<Vec<_>>(),
         );
         ret.extend(self.extra_completion_item().await.into_iter());
-        ret
+        ret.extend(
+            self.list_table_or_view()
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
+                }),
+        );
+        ret.extend(self.list_function().await?.into_iter());
+
+        anyhow::Ok(ret)
     }
 
-    fn monaco_editor_keyword_regexp(&self) -> String {
+    fn monaco_editor_keyword_regexp() -> String {
         let combined: Vec<&'static str> = [Self::KEY_WORDS, Self::TYPES, Self::TEXTS].concat();
-
         let s = monaco_editor_keyword_regexp(&combined[..]);
         return s;
     }

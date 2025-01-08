@@ -24,6 +24,22 @@ impl crate::completion::LexerCompletionTrait for SqliteDB {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         AstCompletionHelper::sqlite_pragma(self)
     }
+
+    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
+        let mut ret: Vec<_> = SchemaTrait::list_table(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())?;
+        ret.extend(
+            SchemaTrait::list_view(self)
+                .await
+                .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())?
+                .into_iter(),
+        );
+        anyhow::Ok(ret)
+    }
+    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        AstCompletionHelper::list_function(self, None, None, true).await
+    }
 }
 
 #[async_trait::async_trait]

@@ -23,7 +23,7 @@ impl TypeDef for CompletionItem {
                         docs: None,
                         name: TypeString {
                             docs: None,
-                            value: "name",
+                            value: "item",
                         },
                         optional: false,
                         r#type: TypeExpr::Name(TypeName::ident(Ident("string"))),

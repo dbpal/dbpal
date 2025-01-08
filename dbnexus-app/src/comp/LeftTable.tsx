@@ -756,22 +756,6 @@ function TableMenu(props: {
                   values,
                 });
               }}
-              saveWidth={async (name, width) => {
-                let old = await (await appStore()).get<object>(widthKey);
-                if (!old) {
-                  old = {};
-                }
-                old[name] = width;
-                await (await appStore()).set(widthKey, old);
-              }}
-              loadWidths={async () => {
-                return (await appStore()).get<{}>(widthKey).then((x) => {
-                  if (!x) {
-                    x = {};
-                  }
-                  return x;
-                });
-              }}
             ></SqlTableView>
           );
           break;

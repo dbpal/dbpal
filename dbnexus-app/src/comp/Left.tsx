@@ -37,6 +37,9 @@ import {
   MenuCreateSchema,
   CreateSchema,
   dropSchema,
+  TabsSetContext,
+  initMonacoLanague,
+  makeQueryConnInfo,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -52,6 +55,10 @@ import { ViewKind, ViewsTree } from './LeftView';
 import { ProceduresTree } from './LeftProcedure';
 import { UdfsTree } from './LeftUdf';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import { debug } from './debug';
+import { TabContent } from './Tabs';
+import { generateRandomString } from './helper';
+import { SqlQuery } from './SqlQuery';
 function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
@@ -110,7 +117,7 @@ function Left() {
 
 function OneConfig(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-  const [opened, setOpened] = useState(false);
+  const [opened, setOpened] = useState(false || debug);
   const makeTree = () => {
     switch (config.conn_type) {
       case 'postgres':
@@ -194,8 +201,10 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
                 }}
                 uuid={uuid}
                 reloadSchemas={reloadSchemas}
+                kind={kind}
               ></SchemaMenu>
             ),
+
             style: calMenuStyle(e, 70),
           });
         }}
@@ -243,6 +252,7 @@ function DatabaseMenu(props: {
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showCreateSchema, setShowCreateSchema] = useState(false);
+  const { setSelectIndex, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>
       <MenuList>
@@ -262,7 +272,13 @@ function DatabaseMenu(props: {
         {opened && (
           <MenuNewQuery
             handle={() => {
-              alert('new query');
+              openNewQuery(
+                setSelectIndex,
+                setTabs,
+                uuid,
+                kind,
+                showNotification
+              );
             }}
           ></MenuNewQuery>
         )}
@@ -333,9 +349,12 @@ function CatalogMenu(props: {
   handleOpend;
   opened;
   handleCloseConn;
+  kind: DataSourceKind;
 }) {
-  const { uuid, reload, handleOpend, opened, handleCloseConn } = props;
+  const { uuid, reload, handleOpend, opened, handleCloseConn, kind } = props;
   const [showCreateDB, setShowCreateDB] = useState(false);
+  // const { showNotification } = useContext(NotificationContext);
+  // const { setSelectIndex, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>
       <MenuList>
@@ -351,13 +370,19 @@ function CatalogMenu(props: {
           ></MenuCreateDatabase>
         )}
 
-        {opened && (
+        {/* {opened && (
           <MenuNewQuery
             handle={() => {
-              alert('new query');
+              openNewQuery(
+                setSelectIndex,
+                setTabs,
+                uuid,
+                kind,
+                showNotification
+              );
             }}
           ></MenuNewQuery>
-        )}
+        )} */}
 
         {opened && <MenuRefresh reload={reload}></MenuRefresh>}
         {opened && <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>}
@@ -394,17 +419,91 @@ function CatalogMenu(props: {
   );
 }
 
+async function openNewQuery(
+  setSelectIndex,
+  setTabs,
+  uuid: string,
+  kind: DataSourceKind,
+  showNotification
+) {
+  initMonacoLanague(uuid, kind);
+  let queryId;
+  try {
+    queryId = await invoke('query_sql_open_connection', { name: uuid });
+    console.log('open connection:', queryId);
+  } catch (e) {
+    showNotification('error', 'open connection failed', e);
+    return;
+  }
+  let id = uuid + '-query-' + generateRandomString();
+  let content;
+  let connInfo = await makeQueryConnInfo(uuid);
+
+  switch (kind) {
+    case DataSourceKind.MsSql:
+    case DataSourceKind.Sqlite:
+    case DataSourceKind.Mysql:
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.Postgres:
+      content = (
+        <SqlQuery
+          queryOP={async (sql) => {
+            let x = await invoke<any[]>('query_sql', {
+              name: uuid,
+              queryId,
+              sql,
+            });
+            return x;
+          }}
+          loadQueryLog={async () => {
+            return await invoke('query_logs', { name: uuid, queryId });
+          }}
+          destroy={() => {
+            invoke('query_sql_close_connection', { name: uuid, queryId }).then(
+              () => {
+                console.log('destroy connection of:', queryId);
+              }
+            );
+          }}
+          language={uuid}
+          reconnect={() => {
+            return invoke('query_sql_re_connection', { name: uuid, queryId });
+          }}
+          connectInfo={connInfo}
+        ></SqlQuery>
+      );
+      break;
+    default:
+      throw 'impl this';
+  }
+
+  setTabs((e: TabContent[]) => {
+    setSelectIndex(e.length);
+    return [...e, new TabContent(id, 'query', content)];
+  });
+}
 function SchemaMenu(props: {
   schema?: string;
   uuid;
   handleOpend;
   opened;
   handleCloseConn;
+  kind: DataSourceKind;
+
   reloadSchemas?;
 }) {
-  const { schema, uuid, handleOpend, opened, handleCloseConn, reloadSchemas } =
-    props;
+  const {
+    schema,
+    uuid,
+    handleOpend,
+    opened,
+    handleCloseConn,
+    reloadSchemas,
+    kind,
+  } = props;
   const { showNotification } = useContext(NotificationContext);
+
+  const { setSelectIndex, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>
       <MenuList>
@@ -415,7 +514,13 @@ function SchemaMenu(props: {
         {opened && (
           <MenuNewQuery
             handle={() => {
-              alert('new query');
+              openNewQuery(
+                setSelectIndex,
+                setTabs,
+                uuid,
+                kind,
+                showNotification
+              );
             }}
           ></MenuNewQuery>
         )}
@@ -462,7 +567,7 @@ function CatalogTree(_props: {}) {
   const { showNotification } = useContext(NotificationContext);
   const [databases, setDatabases] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-
+  const { kind } = useContext(ConnTypeContext);
   const handleReload = () => {
     setLoading(true);
     invoke<string[]>('list_database', { name })
@@ -504,6 +609,7 @@ function CatalogTree(_props: {}) {
                   setOpened(false);
                   setDatabases([]);
                 }}
+                kind={kind}
               ></CatalogMenu>
             ),
             style: calMenuStyle(e, 70),

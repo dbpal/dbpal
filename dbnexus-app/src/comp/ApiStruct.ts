@@ -193,7 +193,7 @@ export namespace types {
         "metas": (types.MetaValue)[];
     };
     export type CompletionItem = {
-        "name": string;
+        "item": string;
         "kind": CompletionKind;
         "desc": (string | null);
     };

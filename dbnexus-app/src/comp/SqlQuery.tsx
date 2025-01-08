@@ -7,6 +7,7 @@ import {
   Button,
   CircularProgress,
   IconButton,
+  Paper,
   Stack,
   Tooltip,
 } from '@mui/material';
@@ -14,20 +15,31 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
-import { useContext, useEffect, useState } from 'react';
+import { ReactNode, useContext, useEffect, useState } from 'react';
 import { editor, Position } from 'monaco-editor';
 import { EditorBar, progressBarSize, SettingsContext } from './Common.tsx';
 import { NotificationContext } from './Notification.tsx';
 import types from './ApiStruct.ts';
 import { QueryLog } from './QueryLog.tsx';
-
+import RefreshIcon from '@mui/icons-material/Refresh';
 function SqlQuery(props: {
   language: string;
   queryOP: (text: string) => Promise<any[]>;
   loadQueryLog: () => Promise<types.QueryLogEvent[]>;
   handelTextAndPositionChange?: (text: string, pos: Position) => void;
+  destroy?: () => void;
+  reconnect?: () => Promise<void>;
+  connectInfo?: ReactNode;
 }) {
-  let { language, queryOP, loadQueryLog, handelTextAndPositionChange } = props;
+  let {
+    language,
+    queryOP,
+    loadQueryLog,
+    handelTextAndPositionChange,
+    destroy,
+    reconnect,
+    connectInfo,
+  } = props;
 
   const [resp, setResp] = useState([]);
   const [text, setText] = useState('');
@@ -62,6 +74,8 @@ function SqlQuery(props: {
     });
     if (theme == 'dark') {
       monaco.editor.setTheme('vs-dark');
+    } else {
+      monaco.editor.setTheme('light');
     }
   };
 
@@ -79,7 +93,19 @@ function SqlQuery(props: {
       handleLoadQueryLog();
     }
   }, [showQueryLog]);
+  const handleReconnect = () => {
+    if (!reconnect) {
+      return;
+    }
+    reconnect()
+      .then(() => {
+        showNotification('success', 'Reconnect OK');
+      })
 
+      .catch((e) => {
+        showNotification('error', 'Reconnect Failure', e);
+      });
+  };
   const handleQuery = (text: string) => {
     if (!text.trim()) {
       showNotification('error', `can't execute empty statement.`);
@@ -101,25 +127,32 @@ function SqlQuery(props: {
       });
   };
 
+  useEffect(() => {
+    console.log('mount.......');
+    return () => {
+      console.log('unmount.......');
+      destroy && destroy();
+    };
+  }, []);
   return (
     //@ts-ignore
     <SplitPane
-      split='horizontal'
+      split="horizontal"
       defaultSize={500}
       minSize={50}
-      style={{ overflow: 'auto' }}
+      style={{ position: 'relative' }}
     >
       <div
         style={{
-          position: 'relative',
-          width: '100%',
           display: 'flex',
           flexDirection: 'column',
+
+          width: '100%',
         }}
       >
         {/* // here is query log use positive to locate. */}
         {showQueryLog && (
-          <div
+          <Paper
             style={{
               position: 'absolute',
               opacity: 1,
@@ -131,34 +164,49 @@ function SqlQuery(props: {
             }}
           >
             <QueryLog language={language} logs={queryLogs}></QueryLog>
-          </div>
+          </Paper>
         )}
-        <Stack direction='row' spacing={1} style={{ paddingLeft: '40px' }}>
+        {connectInfo}
+        <Stack direction="row" spacing={1} style={{ paddingLeft: '40px' }}>
           {loading && <CircularProgress size={progressBarSize} />}
-          <Tooltip title='execute'>
+          <Tooltip title="execute">
             <IconButton
               disabled={loading}
               onClick={() => {
                 handleQuery(text);
               }}
-              color='primary'
-              aria-label='execute'
+              color="primary"
+              aria-label="execute"
             >
               <PlayArrowIcon />
             </IconButton>
           </Tooltip>
-          <Tooltip title='execute selected'>
+          <Tooltip title="execute selected">
             <IconButton
               disabled={loading}
               onClick={() => {
                 handleQuery(selectText);
               }}
-              color='primary'
-              aria-label='execute'
+              color="primary"
+              aria-label="execute"
             >
               <PlayCircleIcon />
             </IconButton>
           </Tooltip>
+
+          <Tooltip title="reconnect">
+            <IconButton
+              disabled={loading}
+              onClick={() => {
+                handleReconnect();
+              }}
+              color="primary"
+              aria-label="execute"
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+
           <Button
             onClick={() => {
               setShowQueryLog((prev) => !prev);
@@ -173,16 +221,20 @@ function SqlQuery(props: {
             flexGrow: 1,
             flexShrink: 1,
             minHeight: 0,
-            height: '200px',
+            height: '400px',
+            width: '99%',
           }}
         >
           <Editor
             language={language}
             onMount={handleEditorDidMount}
-            value=''
+            value=""
           ></Editor>
         </div>
-        <EditorBar style={{ paddingBottom: '10px' }} pos={pos}></EditorBar>
+        <EditorBar
+          style={{ paddingBottom: '10px', flexGrow: 0, flexShrink: 0 }}
+          pos={pos}
+        ></EditorBar>
       </div>
 
       <div>

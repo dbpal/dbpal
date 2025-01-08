@@ -63,7 +63,7 @@ pub fn enable_test_log() {
 /// like select a lot of data from database.
 pub struct MemoryLimit;
 
-#[allow(dead_code)]
+#[allow(unused)]
 impl MemoryLimit {
     pub fn instance() -> &'static AtomicUsize {
         // default to 200M

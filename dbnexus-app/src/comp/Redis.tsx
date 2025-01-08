@@ -531,7 +531,7 @@ function RedisEditHexOrText(props: {
   // The callback facilitates updates to the source data.
   const handleSetValue = React.useCallback(
     (offset, value) => {
-      // @ts-ignore
+      //@ts-ignore
       newValue[offset] = value;
       setNonce((v) => v + 1);
       handleValue(arrayToHex(newValue as Uint8Array));
