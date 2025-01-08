@@ -951,7 +951,6 @@ pub enum ExportKind {
         pretty: bool,
     },
     JsonLine,
-
     Sql {
         include_table_schema: bool,
     },

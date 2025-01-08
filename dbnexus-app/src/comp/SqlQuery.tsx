@@ -123,16 +123,24 @@ function SqlQuery(props: {
       showNotification('error', `can't execute empty statement.`);
       return;
     }
-    if (await isDangerSql(text)) {
-      const confirm = await secondConfirm({
-        confirmText: 'execute',
-        title: 'This is a dangerous sql',
-        content: `Are u sure going to execute ${text}`,
-      });
-      if (!confirm) {
-        return;
+    try {
+      if (await isDangerSql(text)) {
+        const confirm = await secondConfirm({
+          confirmText: 'execute',
+          title: 'This is a dangerous sql',
+          content: `Are u sure going to execute '${text}'`,
+        });
+        if (!confirm) {
+          return;
+        }
       }
+    } catch (e) {
+      console.log(
+        'isDangerSql has error ,maybe not a valid sql,should be fine to continue',
+        e
+      );
     }
+
     let now = new Date();
     setLoading(true);
     queryOP(text)
@@ -190,7 +198,7 @@ function SqlQuery(props: {
               top: 0,
               display: showQueryLog ? 'block' : 'none',
               zIndex: 13,
-              width: 700,
+              width: '65%',
             }}
           >
             <QueryLog language={language} logs={queryLogs}></QueryLog>
@@ -239,7 +247,7 @@ function SqlQuery(props: {
               color="primary"
               aria-label="execute"
             >
-              <RefreshIcon color={showSuggestReconn ? 'error' : 'success'} />
+              <RefreshIcon color={showSuggestReconn ? 'error' : 'inherit'} />
             </IconButton>
           </Tooltip>
 

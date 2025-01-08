@@ -540,6 +540,22 @@ pub async fn show_view_coumns(
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
+
+#[tauri::command]
+pub async fn export_query_result_to_file(
+    name: String, sql: String, kind: ExportKind, file: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let sql = sql.as_str();
+    app.get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?
+        .export_query_result_to_file(sql, kind, &file)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+    Ok(())
+}
 #[tauri::command]
 pub async fn is_dangerous_sql(
     name: String, sql: String, app: tauri::State<'_, App>,
