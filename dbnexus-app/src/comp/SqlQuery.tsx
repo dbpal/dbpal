@@ -17,7 +17,12 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import { ReactNode, useContext, useEffect, useState } from 'react';
 import { editor, Position } from 'monaco-editor';
-import { EditorBar, progressBarSize, SettingsContext } from './Common.tsx';
+import {
+  EditorBar,
+  msgTimeout,
+  progressBarSize,
+  SettingsContext,
+} from './Common.tsx';
 import { NotificationContext } from './Notification.tsx';
 import types from './ApiStruct.ts';
 import { QueryLog } from './QueryLog.tsx';
@@ -49,6 +54,9 @@ function SqlQuery(props: {
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [queryLogs, setQueryLogs] = useState([]);
+  const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
+    null
+  );
   const { theme } = useContext(SettingsContext);
   const handleEditorDidMount = (
     editor: editor.IStandaloneCodeEditor,
@@ -111,6 +119,7 @@ function SqlQuery(props: {
       showNotification('error', `can't execute empty statement.`);
       return;
     }
+    let now = new Date();
     setLoading(true);
     queryOP(text)
       .then((resp) => {
@@ -118,6 +127,14 @@ function SqlQuery(props: {
         setLoading(false);
         if (showQueryLog) {
           handleLoadQueryLog();
+        }
+        //@ts-ignore
+        let queryTime = new Date() - now;
+        if (queryTime > 5_000) {
+          setShowSuggestReconn(queryTime as number);
+          setTimeout(() => {
+            setShowSuggestReconn(null);
+          }, msgTimeout);
         }
       })
       .catch((e) => {
@@ -146,7 +163,6 @@ function SqlQuery(props: {
         style={{
           display: 'flex',
           flexDirection: 'column',
-
           width: '100%',
         }}
       >
@@ -194,7 +210,13 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="reconnect">
+          <Tooltip
+            title={
+              showSuggestReconn
+                ? `query used ${showSuggestReconn}ms,try reconnect?`
+                : 'reconnect'
+            }
+          >
             <IconButton
               disabled={loading}
               onClick={() => {
@@ -203,7 +225,7 @@ function SqlQuery(props: {
               color="primary"
               aria-label="execute"
             >
-              <RefreshIcon />
+              <RefreshIcon color={showSuggestReconn ? 'error' : 'success'} />
             </IconButton>
           </Tooltip>
 
