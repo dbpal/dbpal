@@ -469,6 +469,9 @@ async function openNewQuery(
           reconnect={() => {
             return invoke('query_sql_re_connection', { name: uuid, queryId });
           }}
+          isDangerSql={async (sql) => {
+            return await invoke('is_dangerous_sql', { name: uuid, sql });
+          }}
           connectInfo={connInfo}
         ></SqlQuery>
       );

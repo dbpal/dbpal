@@ -540,7 +540,27 @@ pub async fn show_view_coumns(
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
+#[tauri::command]
+pub async fn is_dangerous_sql(
+    name: String, sql: String, app: tauri::State<'_, App>,
+) -> Result<bool, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let sql = sql.as_str();
+    let db = app
+        .get_opened(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
 
+    let result = match db {
+        Open::DataBase(x) => x.is_dangerous_sql(sql),
+        Open::Schema(x) => x.is_dangerous_sql(sql),
+        Open::Catalog(x) => x.is_dangerous_sql(sql),
+    }
+    .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+    Ok(result)
+}
 #[tauri::command]
 pub async fn query_sql(
     name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,

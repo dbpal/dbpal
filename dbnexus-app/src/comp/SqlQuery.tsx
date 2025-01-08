@@ -27,6 +27,7 @@ import { NotificationContext } from './Notification.tsx';
 import types from './ApiStruct.ts';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import { secondConfirm } from './Confirm.tsx';
 function SqlQuery(props: {
   language: string;
   queryOP: (text: string) => Promise<any[]>;
@@ -35,6 +36,7 @@ function SqlQuery(props: {
   destroy?: () => void;
   reconnect?: () => Promise<void>;
   connectInfo?: ReactNode;
+  isDangerSql: (sql: string) => Promise<boolean>;
 }) {
   let {
     language,
@@ -44,6 +46,7 @@ function SqlQuery(props: {
     destroy,
     reconnect,
     connectInfo,
+    isDangerSql,
   } = props;
 
   const [resp, setResp] = useState([]);
@@ -114,10 +117,21 @@ function SqlQuery(props: {
         showNotification('error', 'Reconnect Failure', e);
       });
   };
-  const handleQuery = (text: string) => {
+
+  const handleQuery = async (text: string) => {
     if (!text.trim()) {
       showNotification('error', `can't execute empty statement.`);
       return;
+    }
+    if (await isDangerSql(text)) {
+      const confirm = await secondConfirm({
+        confirmText: 'execute',
+        title: 'This is a dangerous sql',
+        content: `Are u sure going to execute ${text}`,
+      });
+      if (!confirm) {
+        return;
+      }
     }
     let now = new Date();
     setLoading(true);
