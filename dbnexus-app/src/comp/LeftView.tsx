@@ -9,8 +9,6 @@ import {
   calMenuStyle,
   tabsHasId,
   TabsSetContext,
-  appStore,
-  AppStoreKey,
   modalStyle,
 } from './Common';
 import { NotificationContext } from './Notification';
@@ -293,14 +291,6 @@ function ViewMenu(props: {
       setSelectIndex(index);
     } else {
       let list: ReactNode = null;
-      let widthKey =
-        AppStoreKey.ConnectionConfig +
-        '-' +
-        uuid +
-        '-' +
-        view +
-        '-' +
-        '-widths';
 
       switch (kind) {
         case DataSourceKind.MariaDB:
@@ -401,6 +391,7 @@ function ViewMenu(props: {
               handleClose={() => {
                 setShowExport(false);
               }}
+              kind={kind}
               support_kind={['csv', 'json', 'jsonline']}
             ></ExportTableOrView>
           </Box>

@@ -5,7 +5,7 @@ import { NotificationContext } from './Notification';
 
 import { Position, languages } from 'monaco-editor';
 
-import { initLanguageXXX, RedisQuery } from './RedisQuery.tsx';
+import { RedisQuery } from './RedisQuery.tsx';
 import { testMultiQueryResp, testQueryLogs } from './exampleTest.ts';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 

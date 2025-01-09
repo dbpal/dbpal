@@ -859,32 +859,27 @@ function RedisSetTable(props: {
           )}
         </Stack>
       )}
-
-      <Modal
-        open={showAdd}
-        onClose={() => {
-          setShowAdd(false);
-        }}
-        aria-labelledby="modify set"
-      >
-        <Box sx={modalStyle} width="800px">
-          <RedisAddSet
-            addOP={async (value) => {
-              try {
-                await addOP(value);
-              } catch (e) {
-                throw e;
-              }
-              handleReload(false);
-            }}
-          ></RedisAddSet>
-        </Box>
-      </Modal>
-
-      {resp && (
-        <Typography variant="h3">
-          Result {resp.data.data.length} of {resp.total}
-        </Typography>
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={() => {
+            setShowAdd(false);
+          }}
+          aria-labelledby="modify set"
+        >
+          <Box sx={modalStyle} width="800px">
+            <RedisAddSet
+              addOP={async (value) => {
+                try {
+                  await addOP(value);
+                } catch (e) {
+                  throw e;
+                }
+                handleReload(false);
+              }}
+            ></RedisAddSet>
+          </Box>
+        </Modal>
       )}
     </Stack>
   );
@@ -921,6 +916,7 @@ function RedisListTable(props: {
         });
         resp.data.fields[1]['sortable'] = false;
         resp.data.fields[1]['flex'] = 1;
+        resp.data.fields[0]['flex'] = 1;
         resp.data.fields[1]['renderCell'] = (p) => {
           return redisRenderCell(p.row.value);
         };
@@ -1065,7 +1061,6 @@ function RedisListTable(props: {
           </Stack>
 
           {/* actual data grid */}
-
           <div style={{ display: 'grid' }}>
             <DataGrid
               rowHeight={datagridRowHeight}
@@ -1074,18 +1069,18 @@ function RedisListTable(props: {
               disableMultipleRowSelection
               disableColumnFilter
               rows={resp.data.data}
-              editMode="row"
+              columns={resp.data.fields}
               paginationModel={paginationModel}
               onRowDoubleClick={onRowDoubleClick}
-              columns={resp.data.fields}
               onRowSelectionModelChange={onRowSelectionModelChange}
-              autoPageSize={false}
               pageSizeOptions={pageSizeOptions}
               onPaginationModelChange={onPaginationModelChange}
               sortingMode="server"
+              paginationMode="client"
               onSortModelChange={onSortModelChange}
             ></DataGrid>
           </div>
+
           {selectRow && (
             <Modal
               open={!!selectRow}
@@ -1119,38 +1114,35 @@ function RedisListTable(props: {
       )}
 
       {/* // add modal */}
-      <Modal
-        open={showAdd}
-        onClose={() => {
-          setShowAdd(false);
-        }}
-        aria-labelledby="modify list"
-      >
-        <Box sx={modalStyle} width="800px">
-          <RedisListAdd
-            lpushOP={async (value) => {
-              try {
-                await lpushOP(value);
-              } catch (e) {
-                throw e;
-              }
-              handleReload(false);
-            }}
-            rpushOP={async (value) => {
-              try {
-                await rpushOP(value);
-              } catch (e) {
-                throw e;
-              }
-              handleReload(false);
-            }}
-          ></RedisListAdd>
-        </Box>
-      </Modal>
-      {resp && (
-        <Typography variant="h3">
-          Result {resp.data.data.length} of {resp.total}
-        </Typography>
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={() => {
+            setShowAdd(false);
+          }}
+          aria-labelledby="modify list"
+        >
+          <Box sx={modalStyle} width="800px">
+            <RedisListAdd
+              lpushOP={async (value) => {
+                try {
+                  await lpushOP(value);
+                } catch (e) {
+                  throw e;
+                }
+                handleReload(false);
+              }}
+              rpushOP={async (value) => {
+                try {
+                  await rpushOP(value);
+                } catch (e) {
+                  throw e;
+                }
+                handleReload(false);
+              }}
+            ></RedisListAdd>
+          </Box>
+        </Modal>
       )}
     </Stack>
   );
@@ -1383,34 +1375,30 @@ function RedisZsetTable(props: {
       )}
 
       {/* // add modal */}
-      <Modal
-        open={showAdd}
-        onClose={() => {
-          setShowAdd(false);
-        }}
-        aria-labelledby="modify zset"
-      >
-        <Box sx={modalStyle} width="800px">
-          <RedisAddZset
-            addOP={async (key, value) => {
-              try {
-                await addOP(key, value);
-              } catch (e) {
-                throw e;
-              }
-              handleReload(false);
-            }}
-            handleClose={() => {
-              setShowAdd(false);
-            }}
-          ></RedisAddZset>
-        </Box>
-      </Modal>
-
-      {resp && (
-        <Typography variant="h3">
-          Result {resp.data.data.length} of {resp.total}
-        </Typography>
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={() => {
+            setShowAdd(false);
+          }}
+          aria-labelledby="modify zset"
+        >
+          <Box sx={modalStyle} width="800px">
+            <RedisAddZset
+              addOP={async (key, value) => {
+                try {
+                  await addOP(key, value);
+                } catch (e) {
+                  throw e;
+                }
+                handleReload(false);
+              }}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+            ></RedisAddZset>
+          </Box>
+        </Modal>
       )}
     </Stack>
   );
@@ -1598,30 +1586,27 @@ function RedisHashTable(props: {
         </Stack>
       )}
 
-      <Modal
-        open={showAdd}
-        onClose={() => {
-          setShowAdd(false);
-        }}
-        aria-labelledby="modify hash"
-      >
-        <Box sx={modalStyle} width="800px">
-          <RedisAddHash
-            addOP={async (key, value) => {
-              try {
-                await addOP(key, value);
-              } catch (e) {
-                throw e;
-              }
-              handleReload(false);
-            }}
-          ></RedisAddHash>
-        </Box>
-      </Modal>
-      {resp && (
-        <Typography variant="h3">
-          Result {resp.data.data.length} of {resp.total}
-        </Typography>
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={() => {
+            setShowAdd(false);
+          }}
+          aria-labelledby="modify hash"
+        >
+          <Box sx={modalStyle} width="800px">
+            <RedisAddHash
+              addOP={async (key, value) => {
+                try {
+                  await addOP(key, value);
+                } catch (e) {
+                  throw e;
+                }
+                handleReload(false);
+              }}
+            ></RedisAddHash>
+          </Box>
+        </Modal>
       )}
     </Stack>
   );
