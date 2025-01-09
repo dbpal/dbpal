@@ -33,7 +33,11 @@ import {
 import { types } from './ApiStruct.ts';
 
 import { NotificationContext } from './Notification';
-import { DataGrid, GridRowSelectionModel } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  GridRowSelectionModel,
+  GridSortModel,
+} from '@mui/x-data-grid';
 import HexEditor from 'react-hex-editor';
 import oneDarkPro from 'react-hex-editor/themes/oneDarkPro';
 import AddIcon from '@mui/icons-material/Add';
@@ -895,6 +899,8 @@ function RedisListTable(props: {
 }) {
   const { reloadOP, modifyOP, lpushOP, delOP, rpushOP } = props;
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
+  const [resp2, setResp2] = useState<types.MuiDataTableListResp | null>(null);
+
   const [selectRow, setSelectRow] = useState<any>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [selectionModel, setSelectionModel] = useState('');
@@ -918,10 +924,8 @@ function RedisListTable(props: {
         resp.data.fields[1]['renderCell'] = (p) => {
           return redisRenderCell(p.row.value);
         };
-        resp.data.fields[0]['sortComparator'] = function (x, y) {
-          return parseInt(x) < parseInt(y);
-        };
         setResp(resp);
+        setResp2(resp);
         if (showReloadOK) {
           reloadOK(showNotification);
         }
@@ -977,6 +981,31 @@ function RedisListTable(props: {
   const paginationModel = useMemo(() => {
     return { page, pageSize };
   }, [page, pageSize]);
+  const onSortModelChange = useMemo(() => {
+    return (c: GridSortModel) => {
+      if (c.length == 0) {
+        setResp(resp2);
+        return;
+      }
+      let s = c[0];
+      if (!s.sort) {
+        setResp(resp2);
+        return;
+      }
+      if (s.sort == 'asc') {
+        setResp(resp2);
+        return;
+      }
+      setResp({
+        sql: resp2.sql,
+        total: resp2.total,
+        data: {
+          fields: resp2.data.fields,
+          data: resp2.data.data.slice().reverse(),
+        },
+      } as types.MuiDataTableListResp);
+    };
+  }, [resp2]);
 
   return (
     <Stack spacing={1}>
@@ -1053,6 +1082,8 @@ function RedisListTable(props: {
               autoPageSize={false}
               pageSizeOptions={pageSizeOptions}
               onPaginationModelChange={onPaginationModelChange}
+              sortingMode="server"
+              onSortModelChange={onSortModelChange}
             ></DataGrid>
           </div>
           {selectRow && (
@@ -1170,9 +1201,10 @@ function RedisZsetTable(props: {
         resp.data.fields[0]['renderCell'] = (p) => {
           return redisRenderCell(p.row.key);
         };
-        resp.data.fields[1]['sortComparator'] = function (x, y) {
-          return parseFloat(x) > parseFloat(y);
-        };
+        resp.data.data.forEach((e) => {
+          //@ts-ignore rewrite to float value
+          e.score = parseFloat(e['score']);
+        });
         setResp(resp);
         if (showOK) {
           reloadOK(showNotification);
