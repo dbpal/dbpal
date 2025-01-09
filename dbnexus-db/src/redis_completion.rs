@@ -1,23 +1,18 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::{Arc, OnceLock},
-    task::Poll,
-};
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::{Arc, OnceLock};
+use std::task::Poll;
 
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
+use redis::AsyncCommands;
 use sqlparser::tokenizer::Token;
 use tokio::sync::Mutex;
 
-use crate::{
-    completion::{
-        AutoCompletionTrait, CompletionItem, CompletionKind, in_pos, match_pattern_and_sort,
-    },
-    redis::{RedisDB, RedisType},
+use crate::completion::{
+    AutoCompletionTrait, CompletionItem, CompletionKind, in_pos, match_pattern_and_sort,
 };
-
-use redis::AsyncCommands;
+use crate::redis::{RedisDB, RedisType};
 impl RedisDB {
     async fn completion_keys(
         &self, pattern: &str, kind: Option<RedisType>,
@@ -50,10 +45,12 @@ impl RedisDB {
         let keys: Vec<String> = conn.hkeys(key).await?;
         anyhow::Ok(
             keys.into_iter()
-                .map(|x| CompletionItem {
-                    kind: CompletionKind::Column,
-                    item: x.into(),
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        kind: CompletionKind::Column,
+                        item: x.into(),
+                        desc: None,
+                    }
                 })
                 .collect(),
         )
@@ -70,6 +67,7 @@ impl RedisDB {
         struct Dummy {}
         impl Future for Dummy {
             type Output = anyhow::Result<Vec<CompletionItem>>;
+
             fn poll(self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
                 Poll::Ready(anyhow::Ok(vec![]))
             }
@@ -313,7 +311,7 @@ impl RedisDB {
                 vec![
                     async move {
                         anyhow::Ok(vec![
-                            //集群创建和配置
+                            // 集群创建和配置
                             CompletionItem {
                                 item: "CREATE".into(),
                                 kind: CompletionKind::Text,
@@ -453,10 +451,12 @@ impl RedisDB {
                 }
             }
 
-            "DEL" => patterns
-                .iter()
-                .map(|x| async move { self.completion_keys(&x, None).await }.boxed())
-                .collect(),
+            "DEL" => {
+                patterns
+                    .iter()
+                    .map(|x| async move { self.completion_keys(&x, None).await }.boxed())
+                    .collect()
+            }
             "DUMP" => {
                 let key = patterns.get(0);
                 match key {
@@ -514,22 +514,27 @@ impl RedisDB {
                     vec![]
                 }
             }
-            "HDEL" | "HEXISTS" | "HGET" => patterns
-                .iter()
-                .enumerate()
-                .map(|(index, p)| match index {
-                    0 => {
-                        // suggest hash key
-                        async move { self.completion_keys(p, Some(RedisType::Hash)).await }.boxed()
-                    }
-                    1 => {
-                        let key = &patterns[0];
-                        // hash key store in pattern[0]
-                        async move { self.completion_hash_keys(key.as_str()).await }.boxed()
-                    }
-                    _ => dummy.clone(),
-                })
-                .collect(),
+            "HDEL" | "HEXISTS" | "HGET" => {
+                patterns
+                    .iter()
+                    .enumerate()
+                    .map(|(index, p)| {
+                        match index {
+                            0 => {
+                                // suggest hash key
+                                async move { self.completion_keys(p, Some(RedisType::Hash)).await }
+                                    .boxed()
+                            }
+                            1 => {
+                                let key = &patterns[0];
+                                // hash key store in pattern[0]
+                                async move { self.completion_hash_keys(key.as_str()).await }.boxed()
+                            }
+                            _ => dummy.clone(),
+                        }
+                    })
+                    .collect()
+            }
             "HGETALL" => {
                 if patterns.len() > 0 {
                     vec![
@@ -547,20 +552,22 @@ impl RedisDB {
                 patterns
                     .iter()
                     .enumerate()
-                    .map(|(index, p)| match index {
-                        0 => {
-                            async move { self.completion_keys(p, Some(RedisType::Hash)).await }
-                                .boxed()
+                    .map(|(index, p)| {
+                        match index {
+                            0 => {
+                                async move { self.completion_keys(p, Some(RedisType::Hash)).await }
+                                    .boxed()
 
-                            // suggest hash key
-                        }
-                        1 => {
-                            let key = &patterns[0];
+                                // suggest hash key
+                            }
+                            1 => {
+                                let key = &patterns[0];
 
-                            // hash key store in pattern[0]
-                            async move { self.completion_hash_keys(key.as_str()).await }.boxed()
+                                // hash key store in pattern[0]
+                                async move { self.completion_hash_keys(key.as_str()).await }.boxed()
+                            }
+                            _ => dummy.clone(),
                         }
-                        _ => dummy.clone(),
                     })
                     .collect()
             }
@@ -586,25 +593,27 @@ impl RedisDB {
                     .iter()
                     .enumerate()
                     .zip(hash_keys.into_iter())
-                    .map(|((index, p), hash_keys)| match index {
-                        0 => {
-                            async move { self.completion_keys(&p, Some(RedisType::Hash)).await }
-                                .boxed()
-                            // suggest hash key
-                        }
-                        _ => {
-                            // hash key store in pattern[0]
-                            async move {
-                                let mut hash_keys = hash_keys.lock().await;
-                                if hash_keys.is_none() {
-                                    *hash_keys =
-                                        Some(self.completion_hash_keys(&patterns[0]).await?);
-                                }
-
-                                anyhow::Ok(hash_keys.clone().unwrap_or(vec![]))
-                                    as anyhow::Result<Vec<CompletionItem>>
+                    .map(|((index, p), hash_keys)| {
+                        match index {
+                            0 => {
+                                async move { self.completion_keys(&p, Some(RedisType::Hash)).await }
+                                    .boxed()
+                                // suggest hash key
                             }
-                            .boxed()
+                            _ => {
+                                // hash key store in pattern[0]
+                                async move {
+                                    let mut hash_keys = hash_keys.lock().await;
+                                    if hash_keys.is_none() {
+                                        *hash_keys =
+                                            Some(self.completion_hash_keys(&patterns[0]).await?);
+                                    }
+
+                                    anyhow::Ok(hash_keys.clone().unwrap_or(vec![]))
+                                        as anyhow::Result<Vec<CompletionItem>>
+                                }
+                                .boxed()
+                            }
                         }
                     })
                     .collect()
@@ -803,16 +812,18 @@ impl RedisDB {
                 ret
             }
 
-            "MGET" => patterns
-                .iter()
-                .map(|p| {
-                    async move {
-                        self.completion_keys(p.as_str(), Some(RedisType::String))
-                            .await
-                    }
-                    .boxed()
-                })
-                .collect(),
+            "MGET" => {
+                patterns
+                    .iter()
+                    .map(|p| {
+                        async move {
+                            self.completion_keys(p.as_str(), Some(RedisType::String))
+                                .await
+                        }
+                        .boxed()
+                    })
+                    .collect()
+            }
             "MOVE" => {
                 let mut ret = Vec::new();
                 if patterns.len() > 0 {
@@ -837,7 +848,7 @@ impl RedisDB {
                     .collect()
             }
             "MSETNX" => {
-                //但它的特点是在所有指定的键都不存在的情况下，才会执行设置操作。
+                // 但它的特点是在所有指定的键都不存在的情况下，才会执行设置操作。
                 // 所以不需要提醒数据库的key
                 vec![]
             }
@@ -901,10 +912,12 @@ impl RedisDB {
                 }
                 ret
             }
-            "PFMERGE" => patterns
-                .iter()
-                .map(|p| async move { self.completion_keys(&p, None).await }.boxed())
-                .collect(),
+            "PFMERGE" => {
+                patterns
+                    .iter()
+                    .map(|p| async move { self.completion_keys(&p, None).await }.boxed())
+                    .collect()
+            }
             "PING" => {
                 //
                 vec![]
@@ -1112,18 +1125,22 @@ impl RedisDB {
 
                 ret
             }
-            "SDIFF" => patterns
-                .iter()
-                .map(|p| {
-                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
-                })
-                .collect(),
-            "SDIFFSTORE" => patterns
-                .iter()
-                .map(|p| {
-                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
-                })
-                .collect(),
+            "SDIFF" => {
+                patterns
+                    .iter()
+                    .map(|p| {
+                        async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                    })
+                    .collect()
+            }
+            "SDIFFSTORE" => {
+                patterns
+                    .iter()
+                    .map(|p| {
+                        async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                    })
+                    .collect()
+            }
 
             "SETBIT" | "SETEX" => {
                 let mut ret = Vec::with_capacity(1);
@@ -1155,18 +1172,22 @@ impl RedisDB {
                 }
                 ret
             }
-            "SINTER" => patterns
-                .iter()
-                .map(|p| {
-                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
-                })
-                .collect(),
-            "SINTERSTORE" => patterns
-                .iter()
-                .map(|p| {
-                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
-                })
-                .collect(),
+            "SINTER" => {
+                patterns
+                    .iter()
+                    .map(|p| {
+                        async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                    })
+                    .collect()
+            }
+            "SINTERSTORE" => {
+                patterns
+                    .iter()
+                    .map(|p| {
+                        async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                    })
+                    .collect()
+            }
             "SISMEMBER" => {
                 let mut ret = Vec::with_capacity(1);
                 if patterns.len() > 0 {
@@ -1304,22 +1325,28 @@ impl RedisDB {
                 }
                 ret
             }
-            "SUNION" => patterns
-                .iter()
-                .map(|p| {
-                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
-                })
-                .collect(),
-            "SUNIONSTORE" => patterns
-                .iter()
-                .map(|p| {
-                    async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
-                })
-                .collect(),
-            "TOUCH" => patterns
-                .iter()
-                .map(|p| async move { self.completion_keys(&p, None).await }.boxed())
-                .collect(),
+            "SUNION" => {
+                patterns
+                    .iter()
+                    .map(|p| {
+                        async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                    })
+                    .collect()
+            }
+            "SUNIONSTORE" => {
+                patterns
+                    .iter()
+                    .map(|p| {
+                        async move { self.completion_keys(&p, Some(RedisType::Set)).await }.boxed()
+                    })
+                    .collect()
+            }
+            "TOUCH" => {
+                patterns
+                    .iter()
+                    .map(|p| async move { self.completion_keys(&p, None).await }.boxed())
+                    .collect()
+            }
             "TTL" | "TYPE" => {
                 let mut ret = Vec::with_capacity(1);
                 if patterns.len() > 0 {
@@ -1327,10 +1354,12 @@ impl RedisDB {
                 }
                 ret
             }
-            "UNLINK" => patterns
-                .iter()
-                .map(|p| async move { self.completion_keys(&p, None).await }.boxed())
-                .collect(),
+            "UNLINK" => {
+                patterns
+                    .iter()
+                    .map(|p| async move { self.completion_keys(&p, None).await }.boxed())
+                    .collect()
+            }
 
             "ZADD" | "ZCARD" | "ZCOUNT" | "ZINCRBY" => {
                 let mut ret = Vec::with_capacity(1);
@@ -1395,66 +1424,93 @@ impl AutoCompletionTrait for RedisDB {
     async fn auto_completion(
         &self, _uuid: uuid::Uuid, sql: &str, line: u32, col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let tokens =
-            sqlparser::tokenizer::Tokenizer::new(&RedisDialet {}, sql).tokenize_with_location()?;
-        if tokens.len() == 0 {
-            anyhow::bail!("a empty line");
-        }
-        let tokens = tokens
-            .into_iter()
-            .filter(|x| match &x.token {
-                Token::Whitespace(_) => false,
-                _ => true,
-            })
-            .collect::<Vec<_>>();
-        if tokens.len() == 0 {
-            anyhow::bail!("no tokens");
-        }
-        let pos = sqlparser::tokenizer::Location {
-            line: line as u64,
-            column: col as u64,
-        };
-        let command = match &tokens[0].token {
-            Token::Word(word) => {
-                if in_pos(pos, tokens[0].span.start, word.value.len() as u64) {
-                    // we are auto completion on command.
-                    let x = match_pattern_and_sort(
-                        static_redis_command_completion_items(),
-                        &word.value,
-                    );
-                    return anyhow::Ok(x);
-                }
-                word.value.clone()
+        for (index, sql) in sql.lines().enumerate() {
+            if sql.trim().is_empty() {
+                continue;
             }
-            _ => {
-                anyhow::bail!("first token must be a command")
-            }
-        };
+            let line_token = index + 1;
+            let mut tokens = sqlparser::tokenizer::Tokenizer::new(&RedisDialet {}, sql)
+                .tokenize_with_location()?;
 
-        let patterns: Vec<String> = tokens.iter().skip(1).map(|x| x.to_string()).collect();
-        for (token, f) in tokens
-            .iter()
-            .skip(
-                1, // skip command
-            )
-            .zip(
-                self.make_auto_completion_fn_by_command(&command, &patterns)?
-                    .into_iter(),
-            )
-        {
-            match &token.token {
-                Token::Word(word) => {
-                    if in_pos(pos, token.span.start, word.value.len() as u64) {
-                        let item = f.await;
-                        return item.map(|item| match_pattern_and_sort(item, &word.value));
+            // correct the line
+            tokens.iter_mut().for_each(|x| {
+                x.span.start.line = line_token as u64;
+                x.span.end.line = line_token as u64;
+            });
+
+            if tokens.len() == 0 {
+                continue;
+            }
+
+            let tokens = tokens
+                .into_iter()
+                .filter(|x| {
+                    match &x.token {
+                        Token::Whitespace(_) => false,
+                        _ => true,
                     }
+                })
+                .collect::<Vec<_>>();
+            if tokens.len() == 0 {
+                continue;
+            }
+            let pos = sqlparser::tokenizer::Location {
+                line: line as u64,
+                column: col as u64,
+            };
+            let command = match &tokens[0].token {
+                Token::Word(word) => {
+                    if in_pos(pos, tokens[0].span.start, word.value.len() as u64) {
+                        // we are auto completion on command.
+                        let x = match_pattern_and_sort(
+                            static_redis_command_completion_items(),
+                            &word.value,
+                        );
+                        return anyhow::Ok(x);
+                    }
+                    word.value.clone()
                 }
                 _ => {
                     continue;
                 }
+            };
+            let patterns: Vec<String> = tokens.iter().skip(1).map(|x| x.to_string()).collect();
+            for (token, f) in tokens
+                .iter()
+                .skip(
+                    1, // skip command
+                )
+                .zip(
+                    self.make_auto_completion_fn_by_command(&command, &patterns)?
+                        .into_iter(),
+                )
+            {
+                match &token.token {
+                    Token::Word(word) => {
+                        if in_pos(pos, token.span.start, word.value.len() as u64) {
+                            let item = f.await;
+                            return item.map(|item| match_pattern_and_sort(item, &word.value));
+                        }
+                    }
+                    _ => {
+                        continue;
+                    }
+                }
             }
         }
-        anyhow::Ok(vec![])
+        // lexer command
+        let ret = REDIS_COMMANDS
+            .iter()
+            .map(|x| {
+                CompletionItem {
+                    item: (*x).into(),
+                    kind: CompletionKind::Command,
+                    desc: None,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        anyhow::Ok(ret)
     }
 }
 
@@ -1462,7 +1518,8 @@ impl AutoCompletionTrait for RedisDB {
 pub struct RedisDialet {}
 
 impl sqlparser::dialect::Dialect for RedisDialet {
-    /// Determine if a character is a valid start character for an unquoted identifier
+    /// Determine if a character is a valid start character for an unquoted
+    /// identifier
     fn is_identifier_start(&self, ch: char) -> bool {
         ch.is_alphabetic()
             || ch == ':'
@@ -1485,10 +1542,12 @@ fn static_redis_command_completion_items() -> Vec<CompletionItem> {
         .get_or_init(|| {
             REDIS_COMMANDS
                 .iter()
-                .map(|x| CompletionItem {
-                    item: (*x).into(),
-                    kind: CompletionKind::Command,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: (*x).into(),
+                        kind: CompletionKind::Command,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>()
         })
@@ -1656,7 +1715,8 @@ pub const REDIS_COMMANDS: &'static [&'static str] = &[
 
 #[cfg(test)]
 mod tests {
-    use crate::{db::monaco_editor_keyword_regexp, redis_completion::REDIS_COMMANDS};
+    use crate::db::monaco_editor_keyword_regexp;
+    use crate::redis_completion::REDIS_COMMANDS;
 
     #[test]
     fn print_monaco_highligth_reg() {

@@ -1540,6 +1540,7 @@ function ReisTables(prpos: { schema?: string }) {
           <Box sx={modalStyle} width="800px">
             <TextField
               value={filter}
+              fullWidth
               label="filer"
               helperText="can be *key or key* etc..."
               onChange={(e) => {

@@ -155,7 +155,7 @@ function ProcedureMenu(props: {
                     arg,
                   });
                 }}
-                language="xxx"
+                language={uuid}
               ></DefAndMetasView>
             )
           ),

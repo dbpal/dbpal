@@ -102,19 +102,21 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             anyhow::Ok(Open::Schema(db))
         }
         DBConnectionConfig::Mysql { conn, name: _ }
-        | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
-            Some(_) => {
-                let db: Arc<dyn SchemaTrait> =
-                    Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+        | DBConnectionConfig::MariaDB { conn, name: _ } => {
+            match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
 
-                anyhow::Ok(Open::Schema(db))
+                    anyhow::Ok(Open::Schema(db))
+                }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+                    anyhow::Ok(Open::DataBase(db))
+                }
             }
-            None => {
-                let db: Arc<dyn DBTrait> =
-                    Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
-                anyhow::Ok(Open::DataBase(db))
-            }
-        },
+        }
         DBConnectionConfig::Postgres { conn, name: _ } => {
             let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
             if conn.db.is_none() {
@@ -152,19 +154,22 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 
             anyhow::Ok(db)
         }
-        DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
-            Some(_) => {
-                let db: Arc<dyn SchemaTrait> =
-                    Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
+        DBConnectionConfig::Oracle { conn, name: _ } => {
+            match conn.schema.as_ref() {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
 
-                anyhow::Ok(Open::Schema(db))
-            }
-            None => {
-                let db: Arc<dyn DBTrait> = Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
+                    anyhow::Ok(Open::Schema(db))
+                }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
 
-                anyhow::Ok(Open::DataBase(db))
+                    anyhow::Ok(Open::DataBase(db))
+                }
             }
-        },
+        }
     }
 }
 
@@ -213,6 +218,7 @@ type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 impl App {
     pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
         static mut XXX: Option<GetConfigFN> = None;
+        #[allow(static_mut_refs)] // this var will init once by main
         &mut XXX
     }
 
