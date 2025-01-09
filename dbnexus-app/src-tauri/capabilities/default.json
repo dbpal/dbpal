@@ -1,9 +1,7 @@
 {
   "identifier": "main-capability",
   "description": "Capability for the main window",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "core:path:default",
     "core:event:default",
@@ -15,6 +13,11 @@
     "core:window:allow-set-title",
     "dialog:default",
     "shell:default",
-    "store:default"
+    "store:default",
+    "http:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://redis.io" }]
+    }
   ]
 }

@@ -11,8 +11,6 @@ import {
   TabsSetContext,
   ConnTypeContext,
   progressBarSize,
-  AppStoreKey,
-  appStore,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -54,6 +52,13 @@ import { TriggersTree } from './LeftTriggers';
 import { ExportTableOrView } from './Export';
 import AddIcon from '@mui/icons-material/Add';
 import { LeftIndexes } from './LeftTableIndexes';
+import {
+  RedisHashTable,
+  RedisListTable,
+  RedisSetTable,
+  RedisStringTable,
+  RedisZsetTable,
+} from './Redis';
 
 function TablesTree() {
   const { uuid } = useContext(UuidContext);
@@ -666,13 +671,287 @@ function DropTable(props: {
   );
 }
 
+async function makeViewJsx(
+  uuid,
+  table: string,
+  kind: DataSourceKind,
+  redisTableType: RedisTableType,
+  showNotification
+) {
+  let tableList: ReactNode = null;
+  switch (kind) {
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.Mysql:
+    case DataSourceKind.MsSql:
+    case DataSourceKind.Sqlite:
+    case DataSourceKind.Postgres:
+      tableList = (
+        <SqlTableView
+          reloadOP={async (
+            where: string,
+            orderBy: string,
+            page: number,
+            pageSize: number
+          ) => {
+            let where_null = where ? where : null;
+            let orderBy_null = orderBy ? orderBy : null;
+            return await invoke<types.MuiDataTableListResp>('show_table', {
+              name: uuid,
+              tableName: table,
+              whereStr: where_null,
+              orderBy: orderBy_null,
+              page,
+              pageSize,
+            });
+          }}
+          updateOP={async (wheres, values) => {
+            return await invoke<types.SqlExecuteRet>('update', {
+              name: uuid,
+              tableName: table,
+              values,
+              wheres,
+            });
+          }}
+          deleteOP={async (wheres) => {
+            return await invoke<types.SqlExecuteRet>('delete', {
+              name: uuid,
+              tableName: table,
+              wheres,
+            });
+          }}
+          addOP={async (values) => {
+            return await invoke<types.SqlExecuteRet>('insert', {
+              name: uuid,
+              tableName: table,
+              values,
+            });
+          }}
+        ></SqlTableView>
+      );
+      break;
+    case DataSourceKind.Redis:
+      switch (redisTableType) {
+        case RedisTableType.String:
+          tableList = (
+            <RedisStringTable
+              modifyOP={async (value) => {
+                return await invoke('redis_string_set', {
+                  name: uuid,
+                  key: table,
+                  value,
+                });
+              }}
+              content={await (async () => {
+                try {
+                  let x = await invoke<types.MuiDataTableListResp>(
+                    'show_table',
+                    {
+                      name: uuid,
+                      tableName: table,
+                      whereStr: null,
+                      orderBy: null,
+                      page: 0,
+                      pageSize: 0,
+                    }
+                  );
+                  return x.data.data[0]['value'];
+                } catch (e) {
+                  showNotification(
+                    'success',
+                    'load redis string table failed',
+                    e
+                  );
+                }
+              })()}
+            ></RedisStringTable>
+          );
+          break;
+        case RedisTableType.List:
+          tableList = (
+            <RedisListTable
+              reloadOP={async () => {
+                return await invoke('show_table', {
+                  name: uuid,
+                  tableName: table,
+                  page: 0,
+                  pageSize: 0,
+                  whereStr: null,
+                  orderBy: null,
+                });
+              }}
+              modifyOP={async (index, value) => {
+                return await invoke('redis_list_set', {
+                  name: uuid,
+                  key: table,
+                  value,
+                  index,
+                });
+              }}
+              lpushOP={async (value) => {
+                return await invoke('redis_list_lpush', {
+                  name: uuid,
+                  key: table,
+                  value,
+                });
+              }}
+              rpushOP={async (value) => {
+                return await invoke('redis_list_rpush', {
+                  name: uuid,
+                  key: table,
+                  value,
+                });
+              }}
+              delOP={async (count, value) => {
+                return await invoke('redis_list_remove', {
+                  name: uuid,
+                  key: table,
+                  value,
+                  count,
+                });
+              }}
+            ></RedisListTable>
+          );
+          break;
+
+        case RedisTableType.Set:
+          tableList = (
+            <RedisSetTable
+              reloadOP={async (keyMatch) => {
+                return await invoke('show_table', {
+                  name: uuid,
+                  tableName: table,
+                  page: 0,
+                  pageSize: 0,
+                  whereStr: keyMatch ? keyMatch : null,
+                  orderBy: null,
+                });
+              }}
+              modifyOP={async (old, newx) => {
+                return await invoke('redis_set_replace', {
+                  name: uuid,
+                  key: table,
+                  old,
+                  new: newx,
+                });
+              }}
+              addOP={async (member) => {
+                return await invoke('redis_set_add', {
+                  name: uuid,
+                  key: table,
+                  member,
+                });
+              }}
+              delOP={async (member) => {
+                return await invoke('redis_set_del', {
+                  name: uuid,
+                  key: table,
+                  member,
+                });
+              }}
+            ></RedisSetTable>
+          );
+          break;
+        case RedisTableType.Zset:
+          tableList = (
+            <RedisZsetTable
+              reloadOP={async (keyMatch, min, max) => {
+                return await invoke('redis_zset_show_table', {
+                  name: uuid,
+                  key: table,
+                  min: typeof min == 'number' ? min : null,
+                  max: typeof max == 'number' ? max : null,
+                  whereStr: keyMatch ? keyMatch : null,
+                });
+              }}
+              modifyOP={async (
+                oldMember: string,
+                newKey: string,
+                newValue: number
+              ) => {
+                return await invoke('redis_zset_replace', {
+                  name: uuid,
+                  key: table,
+                  oldMember: oldMember,
+                  newMember: newKey,
+                  newValue,
+                });
+              }}
+              delOP={async (member) => {
+                return await invoke('redis_zset_del', {
+                  name: uuid,
+                  key: table,
+                  member,
+                });
+              }}
+              addOP={async (member, value) => {
+                return await invoke('redis_zset_add', {
+                  name: uuid,
+                  key: table,
+                  member,
+                  value,
+                });
+              }}
+            ></RedisZsetTable>
+          );
+          break;
+        case RedisTableType.Hash:
+          tableList = (
+            <RedisHashTable
+              reloadOP={async (keyMatch) => {
+                return await invoke('show_table', {
+                  name: uuid,
+                  tableName: table,
+                  page: 0,
+                  pageSize: 0,
+                  whereStr: keyMatch ? keyMatch : null,
+                  orderBy: null,
+                });
+              }}
+              addOP={async (member, value) => {
+                return await invoke('redis_hash_add', {
+                  name: uuid,
+                  key: table,
+                  member,
+                  value,
+                });
+              }}
+              delOP={async (member) => {
+                return await invoke('redis_hash_del', {
+                  name: uuid,
+                  key: table,
+                  member,
+                });
+              }}
+              modifyOP={async (oldMember, newMember, newValue) => {
+                return await invoke('redis_hash_replace', {
+                  name: uuid,
+                  key: table,
+                  oldMember,
+                  newMember,
+                  newValue,
+                });
+              }}
+            ></RedisHashTable>
+          );
+          break;
+      }
+
+      break;
+    case DataSourceKind.Mongo:
+      throw 'impl this';
+  }
+
+  return tableList;
+}
+
 function TableMenu(props: {
   table: string;
   uuid: string;
   reload;
   kind: DataSourceKind;
+  redisTableType?: RedisTableType;
 }) {
-  let { table, uuid, reload, kind } = props;
+  let { table, uuid, reload, kind, redisTableType } = props;
 
   const [showDup, setshowDup] = useState(false);
   const [showRename, setShowRename] = useState(false);
@@ -700,75 +979,33 @@ function TableMenu(props: {
       });
   };
 
-  const handleViewData = () => {
+  const handleViewData = async () => {
     const id = uuid + '-table-' + table;
     let index = tabsHasId(tabs, id);
-    let widthKey =
-      AppStoreKey.ConnectionConfig + '-' + uuid + '-' + table + '-' + '-widths';
     if (typeof index == 'number') {
       setSelectIndex(index);
     } else {
-      let tableList: ReactNode = null;
-      switch (kind) {
-        case DataSourceKind.MariaDB:
-        case DataSourceKind.Mysql:
-        case DataSourceKind.MsSql:
-        case DataSourceKind.Sqlite:
-        case DataSourceKind.Postgres:
-          tableList = (
-            <SqlTableView
-              reloadOP={async (
-                where: string,
-                orderBy: string,
-                page: number,
-                pageSize: number
-              ) => {
-                let where_null = where ? where : null;
-                let orderBy_null = orderBy ? orderBy : null;
-                return await invoke<types.MuiDataTableListResp>('show_table', {
-                  name: uuid,
-                  tableName: table,
-                  whereStr: where_null,
-                  orderBy: orderBy_null,
-                  page,
-                  pageSize,
-                });
-              }}
-              updateOP={async (wheres, values) => {
-                return await invoke<types.SqlExecuteRet>('update', {
-                  name: uuid,
-                  tableName: table,
-                  values,
-                  wheres,
-                });
-              }}
-              deleteOP={async (wheres) => {
-                return await invoke<types.SqlExecuteRet>('delete', {
-                  name: uuid,
-                  tableName: table,
-                  wheres,
-                });
-              }}
-              addOP={async (values) => {
-                return await invoke<types.SqlExecuteRet>('insert', {
-                  name: uuid,
-                  tableName: table,
-                  values,
-                });
-              }}
-            ></SqlTableView>
-          );
-          break;
-        case DataSourceKind.Redis:
-          throw 'impl this';
-        case DataSourceKind.Mongo:
-          throw 'impl this';
-      }
+      let tableList: ReactNode = await makeViewJsx(
+        uuid,
+        table,
+        kind,
+        redisTableType,
+        showNotification
+      );
 
       setTabs((e) => {
         setSelectIndex(tabs.length);
         return [...e, new TabContent(id, table, tableList)];
       });
+    }
+  };
+
+  const getExportKind = () => {
+    switch (kind) {
+      case DataSourceKind.Redis:
+        return ['csv', 'sql', 'json', 'jsonline'];
+      default:
+        return ['csv', 'sql', 'json', 'jsonline'];
     }
   };
 
@@ -821,17 +1058,6 @@ function TableMenu(props: {
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {
-            setShowDrop(true);
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon color="error"></DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText>drop</ListItemText>
-        </MenuItem>
-        <MenuItem
-          sx={{ color: 'error.main' }}
-          onClick={() => {
             handleTruncateTable();
           }}
         >
@@ -839,6 +1065,17 @@ function TableMenu(props: {
             <PlaylistRemoveIcon color="error"></PlaylistRemoveIcon>
           </ListItemIcon>
           <ListItemText> truncate </ListItemText>
+        </MenuItem>
+        <MenuItem
+          sx={{ color: 'error.main' }}
+          onClick={() => {
+            setShowDrop(true);
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon color="error"></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText>drop</ListItemText>
         </MenuItem>
       </MenuList>
       {showDup && (
@@ -896,7 +1133,8 @@ function TableMenu(props: {
               handleClose={() => {
                 setShowExport(false);
               }}
-              support_kind={['csv', 'sql', 'json', 'jsonline']}
+              support_kind={getExportKind()}
+              kind={kind}
             ></ExportTableOrView>
           </Box>
         </Modal>
@@ -1115,4 +1353,212 @@ function RenameTable(props: {
   );
 }
 
-export { TablesTree };
+function ReisTables(prpos: { schema?: string }) {
+  const { schema } = prpos;
+
+  const { kind } = useContext(ConnTypeContext);
+  const { uuid } = useContext(UuidContext);
+  const getPrefix = () => {
+    return uuid + schema + '-table-';
+  };
+  const [filter, setFilter] = useState('');
+  const [tables, setTables] = useState<types.RedisListTable>();
+  const [loading, setLoading] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  const handleReload = () => {
+    setLoading(true);
+    invoke<types.RedisListTable>('redis_list_table', {
+      name: uuid,
+      filter: filter ? filter : null,
+    })
+      .then((e) => {
+        setTables(e);
+        setLoading(false);
+      })
+      .catch((e) => {
+        showNotification('error', 'list redis table failed', e);
+        setLoading(false);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+  useEffect(() => {
+    handleReload();
+  }, [filter]);
+
+  const [showEditFilter, setShowEditFilter] = useState(false);
+  let filterTreeID = getPrefix() + '-filter-';
+
+  let stringTableTreePrefix = getPrefix() + '-table-string-';
+  let listTableTreePrefix = getPrefix() + '-table-list-';
+  let setTableTreePrefix = getPrefix() + '-table-set-';
+  let zsetTableTreePrefix = getPrefix() + '-table-sset-';
+  let hashTableTreePrefix = getPrefix() + '-table-hash-';
+
+  const makeOneKind = (
+    idPrefix: string,
+    tables: string[],
+
+    typ: RedisTableType
+  ) => {
+    let name;
+    switch (typ) {
+      case RedisTableType.String:
+        name = 'string';
+        break;
+      case RedisTableType.List:
+        name = 'list';
+        break;
+      case RedisTableType.Set:
+        name = 'set';
+        break;
+      case RedisTableType.Zset:
+        name = 'zset';
+        break;
+      case RedisTableType.Hash:
+        name = 'hash';
+        break;
+    }
+    return (
+      <TreeItem
+        itemId={idPrefix}
+        label=<Stack>
+          <span> {name} </span>
+        </Stack>
+      >
+        {tables.map((table) => (
+          <TreeItem
+            key={table}
+            itemId={idPrefix + table}
+            label=<Stack
+              direction="row"
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <TableMenu
+                      kind={kind}
+                      reload={handleReload}
+                      table={table}
+                      uuid={uuid}
+                      redisTableType={typ}
+                    />
+                  ),
+                  style: calMenuStyle(e, 200),
+                });
+              }}
+            >
+              <span> {table} </span>
+            </Stack>
+          ></TreeItem>
+        ))}
+      </TreeItem>
+    );
+  };
+
+  let { setUpMenu } = useContext(MenuContext);
+  return (
+    <TreeItem
+      itemId={getPrefix()}
+      label=<Stack
+        spacing={1}
+        direction="row"
+        onContextMenu={(e) => {
+          setUpMenu({
+            content: (
+              <Paper>
+                <MenuList>
+                  <MenuRefresh reload={handleReload}></MenuRefresh>
+                </MenuList>
+              </Paper>
+            ),
+            style: calMenuStyle(e, 70),
+          });
+        }}
+      >
+        <TableViewIcon> </TableViewIcon>
+        <span>tables</span>
+        {loading && (
+          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
+        )}
+      </Stack>
+    >
+      <TreeItem
+        itemId={filterTreeID}
+        label=<Stack
+          direction="row"
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
+            setShowEditFilter(true);
+          }}
+        >
+          filter: <em> {filter} </em>
+        </Stack>
+      ></TreeItem>
+      {tables &&
+        makeOneKind(
+          stringTableTreePrefix,
+          tables.string_tables,
+          RedisTableType.String
+        )}
+      {tables &&
+        makeOneKind(
+          listTableTreePrefix,
+          tables.list_tables,
+
+          RedisTableType.List
+        )}
+      {tables &&
+        makeOneKind(
+          setTableTreePrefix,
+          tables.set_tables,
+
+          RedisTableType.Set
+        )}
+      {tables &&
+        makeOneKind(
+          zsetTableTreePrefix,
+          tables.zset_tables,
+
+          RedisTableType.Zset
+        )}
+      {tables &&
+        makeOneKind(
+          hashTableTreePrefix,
+          tables.hash_tables,
+
+          RedisTableType.Hash
+        )}
+      {showEditFilter && (
+        <Modal
+          open={showEditFilter}
+          onClose={() => {
+            setShowEditFilter(false);
+          }}
+          aria-labelledby="add column"
+        >
+          <Box sx={modalStyle} width="800px">
+            <TextField
+              value={filter}
+              label="filer"
+              helperText="can be *key or key* etc..."
+              onChange={(e) => {
+                setFilter(e.target.value);
+              }}
+            ></TextField>
+          </Box>
+        </Modal>
+      )}
+    </TreeItem>
+  );
+}
+
+enum RedisTableType {
+  String,
+  List,
+  Set,
+  Zset,
+  Hash,
+}
+
+export { TablesTree, ReisTables };

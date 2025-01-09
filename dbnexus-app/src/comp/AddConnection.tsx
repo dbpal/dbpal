@@ -162,6 +162,7 @@ function Database(props: {
       <Stack direction="row" style={{ flexWrap: 'wrap' }}>
         {candidates.map((e) => (
           <Button
+            key={e}
             onClick={() => {
               setDatabase(e);
             }}
@@ -193,6 +194,7 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
       <Stack direction="row" style={{ flexWrap: 'wrap' }}>
         {candidates.map((e) => (
           <Button
+            key={e}
             onClick={() => {
               setSchema(e);
             }}

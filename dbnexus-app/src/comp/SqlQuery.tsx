@@ -34,7 +34,7 @@ function SqlQuery(props: {
   loadQueryLog: () => Promise<types.QueryLogEvent[]>;
   handelTextAndPositionChange?: (text: string, pos: Position) => void;
   destroy?: () => void;
-  reconnect?: () => Promise<void>;
+  reconnect: () => Promise<void>;
   connectInfo?: ReactNode;
   isDangerSql: (sql: string) => Promise<boolean>;
 }) {
@@ -104,8 +104,13 @@ function SqlQuery(props: {
       handleLoadQueryLog();
     }
   }, [showQueryLog]);
-  const handleReconnect = () => {
-    if (!reconnect) {
+  const handleReconnect = async () => {
+    const confirm = await secondConfirm({
+      title: 're connection',
+      content: 'Maybe unsaved data will lost.',
+      confirmText: 'connect',
+    });
+    if (!confirm) {
       return;
     }
     reconnect()

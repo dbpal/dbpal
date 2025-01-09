@@ -1386,7 +1386,7 @@ mod tests {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
         let now = std::time::Instant::now();
-        let x = db
+        let _x = db
             .query_sql(query_id, "SELECT * from has_data_0")
             .await
             .unwrap();

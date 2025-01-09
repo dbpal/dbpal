@@ -50,7 +50,7 @@ import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 
-import { TablesTree } from './LeftTable';
+import { ReisTables, TablesTree } from './LeftTable';
 import { ViewKind, ViewsTree } from './LeftView';
 import { ProceduresTree } from './LeftProcedure';
 import { UdfsTree } from './LeftUdf';
@@ -59,6 +59,7 @@ import { debug } from './debug';
 import { TabContent } from './Tabs';
 import { generateRandomString } from './helper';
 import { SqlQuery } from './SqlQuery';
+import { RedisQuery } from './RedisQuery';
 function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
@@ -162,13 +163,13 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
 }
 
 function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
+  const { kind } = useContext(ConnTypeContext);
   const { uuid } = useContext(UuidContext);
   const { schema, reloadSchemas } = prpos;
   const getPrefix = () => {
     return uuid + schema;
   };
   const { opened, setOpened } = useContext(OpenedContext);
-  const { kind } = useContext(ConnTypeContext);
   let support_procedure =
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.Mysql ||
@@ -179,6 +180,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.MsSql;
+
   let { setUpMenu } = useContext(MenuContext);
 
   return (
@@ -215,16 +217,25 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         {!schema && opened && <ConnStatus uuid={uuid}></ConnStatus>}
       </Stack>
     >
-      {opened && (
-        <>
-          <TablesTree></TablesTree>
-          <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
-          {kind == DataSourceKind.Postgres && (
-            <ViewsTree viewkind={ViewKind.PostGresMaterrialized}></ViewsTree>
-          )}
-          {support_procedure && <ProceduresTree></ProceduresTree>}
-          {support_udf && <UdfsTree></UdfsTree>}
-        </>
+      {opened &&
+        (kind == DataSourceKind.Sqlite ||
+          kind == DataSourceKind.Mysql ||
+          kind == DataSourceKind.MariaDB ||
+          kind == DataSourceKind.MsSql ||
+          kind == DataSourceKind.Postgres) && (
+          <>
+            <TablesTree></TablesTree>
+            <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
+            {kind == DataSourceKind.Postgres && (
+              <ViewsTree viewkind={ViewKind.PostGresMaterrialized}></ViewsTree>
+            )}
+            {support_procedure && <ProceduresTree></ProceduresTree>}
+            {support_udf && <UdfsTree></UdfsTree>}
+          </>
+        )}
+
+      {opened && kind == DataSourceKind.Redis && (
+        <ReisTables schema={schema}></ReisTables>
       )}
     </TreeItem>
   );
@@ -239,6 +250,7 @@ function DatabaseMenu(props: {
   handleCloseConn;
   reloadDatabase;
   kind: DataSourceKind;
+  schemas: string[];
 }) {
   const {
     database,
@@ -249,6 +261,7 @@ function DatabaseMenu(props: {
     handleCloseConn,
     reloadDatabase,
     kind,
+    schemas,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showCreateSchema, setShowCreateSchema] = useState(false);
@@ -298,7 +311,7 @@ function DatabaseMenu(props: {
             onClick={() => {
               // we are in database context uuid contains the databse name
               // we need remove that
-              let index = uuid.indexOf(':');
+              let index = uuid.indexOf('/');
               dropDatabase({
                 uuid: uuid.substring(0, index),
                 database,
@@ -335,6 +348,7 @@ function DatabaseMenu(props: {
                 setShowCreateSchema(false);
               }}
               kind={kind}
+              schemas={schemas}
             ></CreateSchema>
           </Box>
         </Modal>
@@ -351,7 +365,9 @@ function CatalogMenu(props: {
   handleCloseConn;
   kind: DataSourceKind;
 }) {
+  //@ts-ignore
   const { uuid, reload, handleOpend, opened, handleCloseConn, kind } = props;
+
   const [showCreateDB, setShowCreateDB] = useState(false);
   // const { showNotification } = useContext(NotificationContext);
   // const { setSelectIndex, setTabs } = useContext(TabsSetContext);
@@ -476,13 +492,46 @@ async function openNewQuery(
         ></SqlQuery>
       );
       break;
+    case DataSourceKind.Redis:
+      content = (
+        <RedisQuery
+          queryOP={async (sql) => {
+            let x = await invoke<any[]>('query_sql', {
+              name: uuid,
+              queryId,
+              sql,
+            });
+            return x;
+          }}
+          loadQueryLog={async () => {
+            return await invoke('query_logs', { name: uuid, queryId });
+          }}
+          destroy={() => {
+            invoke('query_sql_close_connection', { name: uuid, queryId }).then(
+              () => {
+                console.log('destroy connection of:', queryId);
+              }
+            );
+          }}
+          language={uuid}
+          reconnect={() => {
+            return invoke('query_sql_re_connection', { name: uuid, queryId });
+          }}
+          isDangerSql={async (sql) => {
+            return await invoke('is_dangerous_sql', { name: uuid, sql });
+          }}
+          connectInfo={connInfo}
+        ></RedisQuery>
+      );
+
+      break;
     default:
       throw 'impl this';
   }
 
   setTabs((e: TabContent[]) => {
     setSelectIndex(e.length);
-    return [...e, new TabContent(id, 'query', content)];
+    return [...e, new TabContent(id, `q@${uuid}`, content)];
   });
 }
 function SchemaMenu(props: {
@@ -542,7 +591,7 @@ function SchemaMenu(props: {
             onClick={() => {
               // we are in database context uuid contains the databse name
               // we need remove that
-              let index = uuid.indexOf(':');
+              let index = uuid.indexOf('/');
               dropSchema({
                 uuid: uuid.substring(0, index),
                 schema,
@@ -627,7 +676,7 @@ function CatalogTree(_props: {}) {
     >
       {databases.map((e) => {
         return (
-          <UuidContext.Provider key={e} value={{ uuid: name + ':' + e }}>
+          <UuidContext.Provider key={e} value={{ uuid: name + '/' + e }}>
             <DatabaseTree
               key={e}
               database={e}
@@ -695,6 +744,7 @@ function DatabaseTree(props: {
                 reload={handleReload}
                 reloadDatabase={reloadDatabase}
                 kind={kind}
+                schemas={schemas}
               ></DatabaseMenu>
             ),
             style: calMenuStyle(e, 70),
@@ -711,7 +761,7 @@ function DatabaseTree(props: {
     >
       {schemas.map((e) => {
         return (
-          <UuidContext.Provider key={e} value={{ uuid: name + ':' + e }}>
+          <UuidContext.Provider key={e} value={{ uuid: name + '/' + e }}>
             <SchemaTree
               key={e}
               schema={e}

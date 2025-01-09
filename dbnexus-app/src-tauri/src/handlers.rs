@@ -16,6 +16,12 @@ use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
+#[tauri::command]
+pub async fn page_init_callback(app: tauri::State<'_, App>) -> Result<(), ()> {
+    log::info!("page init call clear all open connection.");
+    *app.opens.lock().await = Default::default();
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn drop_database(
@@ -31,7 +37,7 @@ pub async fn drop_database(
 
     // first close connections because we want delete it
 
-    app.close_conn_has_prefix(&format!("{}:{}", name, database))
+    app.close_conn_has_prefix(&format!("{}/{}", name, database))
         .await;
 
     match x {
@@ -62,7 +68,7 @@ pub async fn drop_schema(
     random_error()?;
     // first close connections because we want delete it
 
-    app.close_conn_has_prefix(&format!("{}:{}", name, schema))
+    app.close_conn_has_prefix(&format!("{}/{}", name, schema))
         .await;
     let x = app
         .get_opened(name.as_str())
@@ -104,7 +110,7 @@ pub async fn create_database(
                 .await
                 .map_err(|x| AnyhowErrorFrontend::from(x))?;
 
-            let db_name = format!("{}:{}", name, database);
+            let db_name = format!("{}/{}", name, database);
 
             let db = x
                 .open_db(&database)
@@ -150,7 +156,7 @@ pub async fn create_schema(
             app.opens
                 .lock()
                 .await
-                .insert(format!("{}:{}", name, schema), db.into());
+                .insert(format!("{}/{}", name, schema), db.into());
 
             Ok(())
         }
@@ -195,23 +201,36 @@ pub async fn list_table(
 
 #[tauri::command]
 pub async fn redis_list_table(
-    name: String, app: tauri::State<'_, App>,
+    name: String, filter: Option<String>, app: tauri::State<'_, App>,
 ) -> Result<RedisListTable, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.redis_list_table(&name)
+    app.redis_list_table(&name, filter.as_ref().map(|x| x.as_str()))
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
-
 #[tauri::command]
-pub async fn redis_match_keys(
-    name: String, pattern: String, app: tauri::State<'_, App>,
-) -> Result<Vec<String>, AnyhowErrorFrontend> {
+pub async fn redis_zset_show_table(
+    name: String, key: String, min: Option<f64>, max: Option<f64>, where_str: Option<&str>,
+    app: tauri::State<'_, App>,
+) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let keys = app.redis_match_keys(&name, &pattern).await?;
-    Ok(keys)
+    let schema = app
+        .get_schema(&name)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+    let r = match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(r) => r,
+        None => return Err(AnyhowErrorFrontend::from(format!("'{}' not redis", name))),
+    };
+    let x = r
+        .zset_show_table(&key, where_str, min, max)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+    Ok(MuiDataTableListResp::from(x))
 }
 
 #[tauri::command]
@@ -1272,7 +1291,6 @@ pub async fn redis_set_del(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());

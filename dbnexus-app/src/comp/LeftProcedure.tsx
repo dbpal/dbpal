@@ -15,6 +15,7 @@ import {
   ConnTypeContext,
   DataSourceKind,
   extraParametersFromMetaValues,
+  initMonacoLanague,
   MenuContext,
   MenuRefresh,
   tabsHasId,
@@ -132,6 +133,7 @@ function ProcedureMenu(props: {
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
+    initMonacoLanague(uuid, kind);
     const id = uuid + '-' + '-procedure-' + procedure;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {

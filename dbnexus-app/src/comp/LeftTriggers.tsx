@@ -7,6 +7,8 @@ import {
   tabsHasId,
   TabsSetContext,
   UuidContext,
+  initMonacoLanague,
+  ConnTypeContext,
 } from './Common';
 import { NotificationContext } from './Notification';
 import types from './ApiStruct';
@@ -58,7 +60,7 @@ function TriggersTree(props: { table: string }) {
       itemId={idPrefix}
       label=<Stack
         spacing={1}
-        direction='row'
+        direction="row"
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -83,7 +85,7 @@ function TriggersTree(props: { table: string }) {
           key={trigger.name}
           itemId={idPrefix + '-' + trigger.name}
           label=<Stack
-            direction='row'
+            direction="row"
             spacing={1}
             onContextMenu={(event) => {
               setUpMenu({
@@ -117,7 +119,7 @@ function TriggerMenu(props: {
   const { table, uuid, reload, trigger } = props;
   const [detail, setDetail] = useState<types.TriggerDetail>(null);
   let callPara = { name: uuid, tableName: table, trigger };
-
+  const { kind } = useContext(ConnTypeContext);
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop trigger '${trigger}'`,
@@ -167,6 +169,7 @@ function TriggerMenu(props: {
   const { setSelectIndex, setTabs, tabs } = useContext(TabsSetContext);
 
   const handleOpenDetails = () => {
+    initMonacoLanague(uuid, kind);
     const id = uuid + '-table-' + table + '-trigger-' + trigger;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
@@ -188,7 +191,7 @@ function TriggerMenu(props: {
                     trigger,
                   });
                 }}
-                language='xxx'
+                language="xxx"
               ></TriggerDetail>
             )
           ),
@@ -243,8 +246,8 @@ function TriggerMenu(props: {
             handleDrop();
           }}
         >
-          <ListItemIcon color='error'>
-            <DeleteForeverIcon color='error'></DeleteForeverIcon>
+          <ListItemIcon color="error">
+            <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop</ListItemText>
         </MenuItem>

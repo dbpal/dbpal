@@ -61,6 +61,7 @@ import {
   mssqlKeywords,
   mysqlKeywords,
   postgresKeywords,
+  redisKeywords,
   sqliteKeywords,
 } from './keywords';
 
@@ -403,15 +404,25 @@ function CreateDatabase({ uuid, handleClose }) {
   );
 }
 
-function CreateSchema(props: { uuid; handleClose; kind: DataSourceKind }) {
+function CreateSchema(props: {
+  uuid;
+  handleClose;
+  kind: DataSourceKind;
+  schemas: string[];
+}) {
   //@ts-ignore
-  const { uuid, handleClose, kind } = props;
-
+  const { uuid, handleClose, kind, schemas } = props;
+  const schemaSet = new Set(schemas);
   const { showNotification } = useContext(NotificationContext);
   const [schema, setSchema] = useState('');
 
   const handleCreate = () => {
     if (!schema) {
+      showNotification('error', 'Schema is empty');
+      return;
+    }
+    if (schemaSet.has(schema)) {
+      showNotification('error', `'${schema}' already exists.`);
       return;
     }
     invoke('create_schema', { name: uuid, schema })
@@ -423,6 +434,51 @@ function CreateSchema(props: { uuid; handleClose; kind: DataSourceKind }) {
         showNotification('error', 'Create Failure', e);
       });
   };
+
+  if (kind == DataSourceKind.Redis) {
+    // redis have special create
+    const range = [];
+    for (let i = 0; i < 16; i++) {
+      range.push('db' + i);
+    }
+
+    return (
+      <Stack>
+        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+          {range
+            .filter((e) => !schemaSet.has(e))
+            .map((e) => (
+              <Button
+                key={e}
+                onClick={() => {
+                  setSchema(e);
+                }}
+              >
+                {e}
+              </Button>
+            ))}
+        </Stack>
+        <Stack>
+          <TextField
+            value={schema}
+            onChange={(e) => {
+              setSchema(e.target.value);
+            }}
+            label="name"
+          ></TextField>
+        </Stack>
+        <Stack direction="row">
+          <Button
+            onClick={() => {
+              handleCreate();
+            }}
+          >
+            create
+          </Button>
+        </Stack>
+      </Stack>
+    );
+  }
 
   return (
     <Stack>
@@ -794,6 +850,8 @@ function calMenuStyle(e, eheigth: number): CSSProperties {
   const { height, width } = getViewportSize();
   ret.top = 'auto';
   ret.bottom = 'auto';
+  ret.left = 'auto';
+  ret.right = 'auto';
   const menuWidth = 150;
   if (width - x > menuWidth) {
     // this is click have a lot of space on the right
@@ -1010,6 +1068,9 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
     case DataSourceKind.MsSql:
       initLanguageXXX(uuid, mssqlKeywords, auto_completion);
       break;
+    case DataSourceKind.Redis:
+      initLanguageXXX(uuid, redisKeywords, auto_completion);
+      break;
     default:
       throw `impl this ${kind}`;
   }
@@ -1017,8 +1078,8 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
 }
 
 function extractConfigNameFromUuid(uuid: string): string {
-  if (uuid.includes(':')) {
-    return uuid.substring(0, uuid.indexOf(':'));
+  if (uuid.includes('/')) {
+    return uuid.substring(0, uuid.indexOf('/'));
   } else {
     return uuid;
   }
@@ -1042,7 +1103,7 @@ async function makeQueryConnInfo(uuid: string) {
           <span>
             {config.username}@{config.host}:{config.port}/
           </span>
-          <span>{uuid.replaceAll(':', '/')}</span>
+          <span>{uuid} </span>
         </>
       );
       break;
@@ -1051,6 +1112,17 @@ async function makeQueryConnInfo(uuid: string) {
         <>
           <strong>sqlite</strong>
           <span> {config.path}</span>
+        </>
+      );
+      break;
+    case 'redis':
+      content = (
+        <>
+          <strong>{config.conn_type}</strong>
+          <span>
+            {config.username} {config.username && '@'}
+            {config.host}:{config.port}/{uuid}
+          </span>
         </>
       );
       break;

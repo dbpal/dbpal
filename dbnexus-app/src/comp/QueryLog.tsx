@@ -25,7 +25,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
       flex: 1,
       renderCell: (p) => {
         let t = p.row.time;
-        return new Date(t).toLocaleString();
+        return new Date(t * 1000).toLocaleString();
       },
       filterable: false,
     },

@@ -14,14 +14,14 @@ use handlers::{
     list_table, list_trigger, list_udf, list_view, modify_table_column, mongo_delete,
     mongo_get_one_document, mongo_insert, mongo_show_collection_docs,
     mongo_show_collection_table_list, mongo_update, open_conn, oracle_query_autocommit,
-    oracle_query_commit, oracle_query_rollback, oracle_query_set_autocommit, query_logs, query_sql,
-    query_sql_close_connection, query_sql_open_connection, query_sql_re_connection, redis_hash_add,
-    redis_hash_del, redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush,
-    redis_list_set, redis_list_table, redis_match_keys, redis_set_add, redis_set_del,
-    redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del, redis_zset_replace,
-    rename_index, rename_table, server_metas, show_columns, show_indexes, show_procedure,
-    show_table, show_trigger, show_udf, show_view, show_view_coumns, test_connection,
-    truncate_table, update,
+    oracle_query_commit, oracle_query_rollback, oracle_query_set_autocommit, page_init_callback,
+    query_logs, query_sql, query_sql_close_connection, query_sql_open_connection,
+    query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
+    redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_set_add,
+    redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
+    redis_zset_replace, redis_zset_show_table, rename_index, rename_table, server_metas,
+    show_columns, show_indexes, show_procedure, show_table, show_trigger, show_udf, show_view,
+    show_view_coumns, test_connection, truncate_table, update,
 };
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -39,6 +39,7 @@ async fn main() {
     let app = App::new();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -48,11 +49,9 @@ async fn main() {
             {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
-                window.close_devtools();
+                // window.close_devtools();
             }
-            Ok(())
-        })
-        .setup(|app| {
+
             let store = app.store("store.json").unwrap();
             *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
                 let configs = store.get("connection_config");
@@ -107,9 +106,16 @@ async fn main() {
                     #[cfg(any(target_os = "macos"))]
                     &PredefinedMenuItem::fullscreen(handle, None)?,
                 ])?,
-                &Submenu::with_items(handle, "about", true, &[&PredefinedMenuItem::about(
-                    handle, None, None,
-                )?])?,
+                &Submenu::with_items(handle, "about", true, &[
+                    &MenuItem::with_id(
+                        handle,
+                        "open_dev_tools",
+                        "open dev tools",
+                        true,
+                        None as Option<&'static str>,
+                    )?,
+                    &PredefinedMenuItem::about(handle, None, None)?,
+                ])?,
             ])
         })
         .on_menu_event(|handle, event| {
@@ -119,6 +125,11 @@ async fn main() {
             }
             if event.id.0 == "show_settings" {
                 handle.emit("show_settings", "").unwrap();
+            }
+            if event.id.0 == "open_dev_tools" {
+                let window = handle.get_webview_window("main").unwrap();
+                window.open_devtools();
+                window.close_devtools();
             }
         })
         .plugin(tauri_plugin_dialog::init())
@@ -162,7 +173,6 @@ async fn main() {
             mongo_update,
             mongo_show_collection_docs,
             mongo_show_collection_table_list,
-            redis_match_keys,
             redis_hash_add,
             redis_hash_del,
             redis_hash_replace,
@@ -205,7 +215,9 @@ async fn main() {
             auto_completion,
             query_logs,
             is_dangerous_sql,
-            export_query_result_to_file
+            export_query_result_to_file,
+            redis_zset_show_table,
+            page_init_callback
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
