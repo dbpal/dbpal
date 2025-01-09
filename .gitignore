@@ -3,7 +3,8 @@ logs
 *.log
 
 
- 
+dbnexus-app/pnpm-lock.yaml
+dbnexus-app/src/comp/Test.jsx
 dbnexus-app/src/comp/Test.jsx
 dbnexus-app/test.html
 dbnexus-app/vite.config.ts.timestamp-1730288962608-e9468f2a3b396.mjs
