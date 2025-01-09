@@ -107,6 +107,7 @@ function RedisQuery(props: {
   };
 
   return (
+    //@ts-ignore
     <SplitPane
       split="vertical"
       minSize={50}
