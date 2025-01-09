@@ -14,6 +14,7 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
+use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDbConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, Field, FormatSql,
@@ -27,7 +28,6 @@ use crate::helper::{
 };
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
-use crate::{MemoryLimit, TEST_HOST};
 
 #[derive(Clone)]
 pub struct MsSqlServer {
@@ -1407,7 +1407,6 @@ impl MsSqlServer {
             let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
             sender.send(";\n".into()).await?;
-
             for index in ss.indexes.into_iter() {
                 sender.send(Cow::Owned(index)).await?;
                 sender.send(";\n".into()).await?;
@@ -1649,8 +1648,6 @@ impl QuerySql for MsSqlServer {
         let mut meta_prev = None;
         let mut rows = Vec::new();
         while let Some(item) = stream.next().await {
-            MemoryLimit::exceed_error()?;
-
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
@@ -1658,6 +1655,7 @@ impl QuerySql for MsSqlServer {
                     continue;
                 }
             };
+
             match item {
                 tiberius::QueryItem::Row(row) => rows.push(row),
                 tiberius::QueryItem::Metadata(meta) => {
@@ -1674,16 +1672,15 @@ impl QuerySql for MsSqlServer {
                     meta_prev = Some(meta);
                 }
             }
-            // last one
-            if meta_prev.is_some() {
-                let table_list = make_table_list_from_meta_and_row(
-                    meta_prev.as_ref().unwrap(),
-                    &rows,
-                    rows.len(),
-                    "",
-                )?;
-                ret.push(Ok(table_list.to_query_resp()));
-            }
+        }
+        if meta_prev.is_some() {
+            let table_list = make_table_list_from_meta_and_row(
+                meta_prev.as_ref().unwrap(),
+                &rows,
+                rows.len(),
+                "",
+            )?;
+            ret.push(Ok(table_list.to_query_resp()));
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
@@ -2157,7 +2154,21 @@ mod tests {
             db.open_schema(&dbname).await.unwrap();
         }
     }
+    #[tokio::test]
+    async fn test_select_xxx() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
 
+        let x = db
+            .query_sql(query_id, "SELECT  COUNT(*) from test_type1 ")
+            .await
+            .unwrap();
+
+        for x in x.iter() {
+            println!("query resp:{:?}", x);
+        }
+    }
     #[tokio::test]
     async fn test_view() {
         let _guard = test_lock().lock().await;

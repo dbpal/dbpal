@@ -11,7 +11,7 @@ import {
 import { useContext, useState } from 'react';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
-import { progressBarSize } from './Common';
+import { DataSourceKind, progressBarSize } from './Common';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { save } from '@tauri-apps/plugin-dialog';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
@@ -20,10 +20,11 @@ function ExportView(props: {
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
   support_kind: string[];
   handleClose;
+  supportCsvHeader: boolean;
 }) {
-  const { exportOP, handleClose, support_kind } = props;
+  const { exportOP, handleClose, support_kind, supportCsvHeader } = props;
   const [kind, setKind] = useState('csv');
-  const [includeHeader, setIncludeHeader] = useState(false);
+  const [includeCsvHeader, setIncluCsvdeHeader] = useState(false);
   const [delimiter, setDelimiter] = useState(',');
   const [pretty, setPretty] = useState(true);
   const [includeTableSchema, setIncludeTableScheam] = useState(false);
@@ -37,7 +38,11 @@ function ExportView(props: {
           showNotification('error', 'delimiter expect one character');
           return;
         }
-        return { export_kind: 'csv', include_header: includeHeader, delimiter };
+        return {
+          export_kind: 'csv',
+          include_header: includeCsvHeader,
+          delimiter,
+        };
       case 'sql':
         return { export_kind: 'sql', include_table_schema: includeTableSchema };
       case 'json':
@@ -69,7 +74,7 @@ function ExportView(props: {
   return (
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
-      <Stack direction='row' spacing={1}>
+      <Stack direction="row" spacing={1}>
         {support_kind.map((e) => (
           <Button
             disabled={kind == e}
@@ -77,7 +82,7 @@ function ExportView(props: {
               setKind(e);
             }}
             key={e}
-            variant='contained'
+            variant="contained"
           >
             {e}
           </Button>
@@ -85,27 +90,29 @@ function ExportView(props: {
       </Stack>
       {kind == 'csv' && (
         <Stack spacing={1}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={includeHeader}
-                onChange={(e) => {
-                  setIncludeHeader(e.target.checked);
-                }}
-                name='myCheckbox'
-                color='primary'
-              />
-            }
-            label='Include Header'
-          />
-          <Stack direction='row'>
+          {supportCsvHeader && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={includeCsvHeader}
+                  onChange={(e) => {
+                    setIncluCsvdeHeader(e.target.checked);
+                  }}
+                  name="myCheckbox"
+                  color="primary"
+                />
+              }
+              label="Include Header"
+            />
+          )}
+          <Stack direction="row">
             <TextField
               value={delimiter}
               onChange={(e) => {
                 setDelimiter(e.target.value);
               }}
-              size='small'
-              label='delimiter'
+              size="small"
+              label="delimiter"
               error={delimiter.length > 1}
             ></TextField>
           </Stack>
@@ -120,11 +127,11 @@ function ExportView(props: {
                 onChange={(e) => {
                   setIncludeTableScheam(e.target.checked);
                 }}
-                name='myCheckbox'
-                color='primary'
+                name="myCheckbox"
+                color="primary"
               />
             }
-            label='Include Table Schema(if applicable)'
+            label="Include Table Schema(if applicable)"
           />
         </Stack>
       )}
@@ -137,18 +144,18 @@ function ExportView(props: {
                 onChange={(e) => {
                   setPretty(e.target.checked);
                 }}
-                name='pretty'
-                color='primary'
+                name="pretty"
+                color="primary"
               />
             }
-            label='pretty'
+            label="pretty"
           />
         </Stack>
       )}
       {/* json line have no setttings */}
 
       {kind == 'jsonline' && <></>}
-      <Stack direction='row' sx={{ alignItems: 'flex-end' }}>
+      <Stack direction="row" sx={{ alignItems: 'flex-end' }}>
         <Button
           onClick={async () => {
             let file = await save({ title: 'save file' });
@@ -167,7 +174,7 @@ function ExportView(props: {
             handleExport();
           }}
         >
-          <Tooltip title='export'>
+          <Tooltip title="export">
             <ArrowCircleDownIcon> </ArrowCircleDownIcon>
           </Tooltip>
         </Button>
@@ -181,8 +188,9 @@ function ExportTableOrView(props: {
   uuid: string;
   name: string;
   support_kind: string[];
+  kind: DataSourceKind;
 }) {
-  let { handleClose, uuid, name, support_kind } = props;
+  let { handleClose, uuid, name, support_kind, kind } = props;
 
   return (
     <ExportView
@@ -196,6 +204,13 @@ function ExportTableOrView(props: {
         });
       }}
       support_kind={support_kind}
+      supportCsvHeader={
+        kind == DataSourceKind.Sqlite ||
+        kind == DataSourceKind.Postgres ||
+        kind == DataSourceKind.Mysql ||
+        kind == DataSourceKind.MariaDB ||
+        kind == DataSourceKind.MsSql
+      }
     ></ExportView>
   );
 }

@@ -351,4 +351,10 @@ mod tests {
     fn test_escape_csv() {
         assert_eq!(escape_csv("\" aaaa,", ','), "\"\\\" aaaa,\"");
     }
+
+    #[test]
+    fn test_current_timestamp() {
+        let x = current_timestamp();
+        println!("{}", x);
+    }
 }

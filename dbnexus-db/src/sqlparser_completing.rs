@@ -92,7 +92,6 @@ impl CompletionStament {
                 // not support rigth now.
             }
             ShowCreateObject::Function => self.c_on_function(&name).await,
-
             ShowCreateObject::Procedure => self.c_on_procedure(&name).await,
             ShowCreateObject::Table => self.c_on_table(&name).await,
             ShowCreateObject::Trigger => self.c_on_trigger(&name).await,
@@ -1594,8 +1593,22 @@ impl CompletionStament {
             })
             .ok()
             .unwrap_or_default();
-
+        tables.extend(
+            self.helper
+                .list_view(db, schema)
+                .await
+                .map_err(|e| {
+                    log::error!("list view failed,err:{:?}", e);
+                    self.set_has_err();
+                })
+                .ok()
+                .unwrap_or_default(),
+        );
         tables.extend(self.scopes.tables().into_iter());
+        // here maybe we are suggrest database all schemas.
+        tables.extend(self.helper.list_database().await.unwrap_or_default());
+        tables.extend(self.helper.list_schema(None).await.unwrap_or_default());
+
         let tables = tables
             .into_iter()
             .map(|x| CompletionItem {

@@ -52,7 +52,7 @@ root.render(
       <hr></hr> */}
 
       {/* <RedisListTable
-        // @ts-ignore
+        //@ts-ignore
         reloadOP={async (page, pageSize, asc) => {
           console.log('request data:', page, pageSize, asc);
           try {

@@ -14,7 +14,13 @@ import {
   Typography,
 } from '@mui/material';
 
-import { languages, Position as EditorPositon, editor } from 'monaco-editor';
+import {
+  languages,
+  Position as EditorPositon,
+  editor,
+  Position,
+  CancellationToken,
+} from 'monaco-editor';
 import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
@@ -26,7 +32,7 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { Editor, OnMount } from '@monaco-editor/react';
+import { Editor, loader, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { invoke } from '@tauri-apps/api/core';
@@ -51,12 +57,21 @@ const modalStyle: SxProps = {
 };
 import { BsDatabaseAdd } from 'react-icons/bs';
 import { load } from '@tauri-apps/plugin-store';
+import {
+  mssqlKeywords,
+  mysqlKeywords,
+  postgresKeywords,
+  redisKeywords,
+  sqliteKeywords,
+} from './keywords';
 
 const appStore = async () => {
   return await load('store.json');
 };
 
-const getNamedConfig = async (name: string) => {
+const getNamedConfig = async (
+  name: string
+): Promise<types.DBConnectionConfig> => {
   let x = await (
     await appStore()
   ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
@@ -110,7 +125,7 @@ function SelectPageSize({
     <Box width={width}>
       <FormControl
         fullWidth
-        // @ts-ignore
+        //@ts-ignore
         variant={variant}
         size="small"
       >
@@ -224,14 +239,46 @@ function backendCompletionItemToEditor(
         return languages.CompletionItemKind.Text;
       case 'Type':
         return languages.CompletionItemKind.Class;
+      case 'Index':
+        return languages.CompletionItemKind.Reference;
+      case 'Sequence':
+        return languages.CompletionItemKind.Reference;
+      case 'Stage':
+        return languages.CompletionItemKind.Reference;
+      case 'Trigger':
+        return languages.CompletionItemKind.Function;
+      case 'Event':
+        return languages.CompletionItemKind.Event;
+      case 'Procedure':
+        return languages.CompletionItemKind.Function;
+      case 'Extension':
+        return languages.CompletionItemKind.Module;
+      case 'User':
+        return languages.CompletionItemKind.User;
+      case 'Role':
+        return languages.CompletionItemKind.User;
+      case 'Constraint':
+        return languages.CompletionItemKind.Operator;
+      case 'Partition':
+        return languages.CompletionItemKind.Constant;
+      case 'PrepareStatement':
+        return languages.CompletionItemKind.Function;
+      case 'Pragma':
+        return languages.CompletionItemKind.Keyword;
+      case 'Policy':
+        return languages.CompletionItemKind.Keyword;
+      case 'Variable':
+        return languages.CompletionItemKind.Variable;
+      case 'Rule':
+        return languages.CompletionItemKind.Operator;
     }
   }
   return {
     suggestions: xs.map((e): languages.CompletionItem => {
       return {
-        label: e.name,
+        label: e.item,
         kind: getKind(e.kind),
-        insertText: e.name,
+        insertText: e.item,
         range: undefined,
       };
     }),
@@ -357,15 +404,25 @@ function CreateDatabase({ uuid, handleClose }) {
   );
 }
 
-function CreateSchema(props: { uuid; handleClose; kind: DataSourceKind }) {
+function CreateSchema(props: {
+  uuid;
+  handleClose;
+  kind: DataSourceKind;
+  schemas: string[];
+}) {
   //@ts-ignore
-  const { uuid, handleClose, kind } = props;
-
+  const { uuid, handleClose, kind, schemas } = props;
+  const schemaSet = new Set(schemas);
   const { showNotification } = useContext(NotificationContext);
   const [schema, setSchema] = useState('');
 
   const handleCreate = () => {
     if (!schema) {
+      showNotification('error', 'Schema is empty');
+      return;
+    }
+    if (schemaSet.has(schema)) {
+      showNotification('error', `'${schema}' already exists.`);
       return;
     }
     invoke('create_schema', { name: uuid, schema })
@@ -377,6 +434,51 @@ function CreateSchema(props: { uuid; handleClose; kind: DataSourceKind }) {
         showNotification('error', 'Create Failure', e);
       });
   };
+
+  if (kind == DataSourceKind.Redis) {
+    // redis have special create
+    const range = [];
+    for (let i = 0; i < 16; i++) {
+      range.push('db' + i);
+    }
+
+    return (
+      <Stack>
+        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+          {range
+            .filter((e) => !schemaSet.has(e))
+            .map((e) => (
+              <Button
+                key={e}
+                onClick={() => {
+                  setSchema(e);
+                }}
+              >
+                {e}
+              </Button>
+            ))}
+        </Stack>
+        <Stack>
+          <TextField
+            value={schema}
+            onChange={(e) => {
+              setSchema(e.target.value);
+            }}
+            label="name"
+          ></TextField>
+        </Stack>
+        <Stack direction="row">
+          <Button
+            onClick={() => {
+              handleCreate();
+            }}
+          >
+            create
+          </Button>
+        </Stack>
+      </Stack>
+    );
+  }
 
   return (
     <Stack>
@@ -480,7 +582,7 @@ function SimpleResizeEditor(props: {
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
   }
-
+  const { theme } = useContext(SettingsContext);
   return (
     <div
       style={{
@@ -506,6 +608,7 @@ function SimpleResizeEditor(props: {
           onMount={onMount}
           language={language}
           value={value}
+          theme={theme == 'dark' ? 'vs-dark' : 'light'}
         ></Editor>
       </div>
     </div>
@@ -747,6 +850,8 @@ function calMenuStyle(e, eheigth: number): CSSProperties {
   const { height, width } = getViewportSize();
   ret.top = 'auto';
   ret.bottom = 'auto';
+  ret.left = 'auto';
+  ret.right = 'auto';
   const menuWidth = 150;
   if (width - x > menuWidth) {
     // this is click have a lot of space on the right
@@ -856,7 +961,7 @@ function ConnInfo(props: { uuid }) {
           break;
         case 'sqlite':
           configMetas = [
-            { name: 'host', value: config.path } as types.MetaValue,
+            { name: 'path', value: config.path } as types.MetaValue,
           ];
           break;
       }
@@ -887,8 +992,148 @@ function ConnInfo(props: { uuid }) {
 function reloadOK(showNotification) {
   showNotification('success', 'Reload OK');
 }
-
+const registeredLanguage = new Set<string>();
 const VisiableContext = createContext(true);
+
+function initLanguageXXX(
+  language: string,
+  keyword,
+  autoCompletion: (
+    text: string,
+    pos: Position
+  ) => Promise<languages.CompletionList>
+) {
+  loader.init().then((monaco) => {
+    monaco.languages.register({ id: language });
+    monaco.languages.setMonarchTokensProvider(language, {
+      ignoreCase: true,
+      tokenizer: {
+        root: [[keyword, 'keyword']],
+      },
+    });
+
+    monaco.languages.registerCompletionItemProvider(language, {
+      provideCompletionItems: (
+        model: editor.ITextModel,
+        position: Position,
+        _context: any,
+        _token: CancellationToken
+      ) => {
+        let text = model.getValue();
+        return autoCompletion(text, position);
+      },
+    });
+  });
+}
+
+// uuid as language identifier.
+function initMonacoLanague(uuid: string, kind: DataSourceKind) {
+  if (registeredLanguage.has(uuid)) {
+    return;
+  }
+  const auto_completion = async (
+    sql: string,
+    pos: Position
+  ): Promise<languages.CompletionList> => {
+    try {
+      let completionItem = await invoke<types.CompletionItem[]>(
+        'auto_completion',
+        {
+          name: uuid,
+          sql,
+          line: pos.lineNumber,
+          col: pos.column,
+        }
+      );
+
+      let suggestions = backendCompletionItemToEditor(completionItem);
+      return suggestions;
+    } catch (e) {
+      console.log('completion server error:', e);
+      throw e;
+    }
+  };
+
+  switch (kind) {
+    case DataSourceKind.Mysql:
+    case DataSourceKind.MariaDB:
+      initLanguageXXX(uuid, mysqlKeywords, auto_completion);
+      break;
+    case DataSourceKind.Sqlite:
+      initLanguageXXX(uuid, sqliteKeywords, auto_completion);
+      break;
+    case DataSourceKind.Postgres:
+      initLanguageXXX(uuid, postgresKeywords, auto_completion);
+      break;
+    case DataSourceKind.MsSql:
+      initLanguageXXX(uuid, mssqlKeywords, auto_completion);
+      break;
+    case DataSourceKind.Redis:
+      initLanguageXXX(uuid, redisKeywords, auto_completion);
+      break;
+    default:
+      throw `impl this ${kind}`;
+  }
+  registeredLanguage.add(uuid);
+}
+
+function extractConfigNameFromUuid(uuid: string): string {
+  if (uuid.includes('/')) {
+    return uuid.substring(0, uuid.indexOf('/'));
+  } else {
+    return uuid;
+  }
+}
+
+async function makeQueryConnInfo(uuid: string) {
+  const name = extractConfigNameFromUuid(uuid);
+  const config = await getNamedConfig(name);
+  if (!config) {
+    return;
+  }
+  let content;
+  switch (config.conn_type) {
+    case 'mysql':
+    case 'mariadb':
+    case 'postgres':
+    case 'sqlserver':
+      content = (
+        <>
+          <strong>{config.conn_type}</strong>
+          <span>
+            {config.username}@{config.host}:{config.port}/
+          </span>
+          <span>{uuid} </span>
+        </>
+      );
+      break;
+    case 'sqlite':
+      content = (
+        <>
+          <strong>sqlite</strong>
+          <span> {config.path}</span>
+        </>
+      );
+      break;
+    case 'redis':
+      content = (
+        <>
+          <strong>{config.conn_type}</strong>
+          <span>
+            {config.username} {config.username && '@'}
+            {config.host}:{config.port}/{uuid}
+          </span>
+        </>
+      );
+      break;
+  }
+  return (
+    <Stack direction="row" spacing={1}>
+      {content}
+    </Stack>
+  );
+}
+
 export {
   modalStyle,
   SelectPageSize,
@@ -944,6 +1189,9 @@ export {
   dropSchema,
   MenuCreateSchema,
   reloadOK,
+  registeredLanguage,
+  initMonacoLanague,
+  makeQueryConnInfo,
 };
 
 export type { DefAndMetas };

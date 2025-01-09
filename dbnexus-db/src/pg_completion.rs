@@ -16,6 +16,18 @@ impl LexerCompletionTrait for PostGresDB {
 
     const KEY_WORDS: &'static [&'static str] = PG_KEYWORDS;
     const TYPES: &'static [&'static str] = TYPES;
+    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
+        let mut ret = AstCompletionHelper::list_table(self, None, None).await?;
+        ret.extend(
+            AstCompletionHelper::list_view(self, None, None)
+                .await?
+                .into_iter(),
+        );
+        anyhow::Ok(ret)
+    }
+    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        AstCompletionHelper::list_function(self, None, None, true).await
+    }
 }
 
 impl PostGresDB {
@@ -71,18 +83,14 @@ impl AstCompletionHelper for PostGresDB {
     async fn list_table(
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        let mut sql = r#"select table_name FROM information_schema.tables"#.to_string();
-        let mut has_db = false;
+        let mut sql =
+            r#"select table_name FROM information_schema.tables  WHERE table_type = 'BASE TABLE' "#
+                .to_string();
         if let Some(db) = self.db_merge_config(db) {
-            sql.push_str(format!(" WHERE table_catalog = '{}'", db).as_str());
-            has_db = true;
+            sql.push_str(format!(" AND table_catalog = '{}'", db).as_str());
         }
         if let Some(schema) = self.schema_merge_config(schema) {
-            if has_db {
-                sql.push_str(format!(" AND table_schema = '{}'", schema).as_str());
-            } else {
-                sql.push_str(format!(" WHERE table_schema = '{}'", schema).as_str());
-            }
+            sql.push_str(format!(" AND table_schema = '{}'", schema).as_str());
         }
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;

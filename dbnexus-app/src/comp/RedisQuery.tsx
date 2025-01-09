@@ -1,48 +1,31 @@
 import { useState, useRef, useEffect } from 'react';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
-import { Position, editor, languages } from 'monaco-editor';
-import { CancellationToken } from 'monaco-editor';
+import { Position } from 'monaco-editor';
+
 import types from './ApiStruct';
-import { redisKeywords } from './keywords.ts';
+
 import { SqlQuery } from './SqlQuery.tsx';
-import { loader } from '@monaco-editor/react';
-
-function initRedisLanguage(
-  autoCompletion: (
-    text: string,
-    pos: Position
-  ) => Promise<languages.CompletionList>
-) {
-  loader.init().then((monaco) => {
-    monaco.languages.register({ id: 'redis' });
-    monaco.languages.setMonarchTokensProvider('monaco', {
-      ignoreCase: true,
-      tokenizer: {
-        root: [[redisKeywords, 'keyword']],
-      },
-    });
-
-    monaco.languages.registerCompletionItemProvider('redis', {
-      provideCompletionItems: (
-        model: editor.ITextModel,
-        position: Position,
-        _context: any,
-        _token: CancellationToken
-      ) => {
-        let text = model.getValue();
-        return autoCompletion(text, position);
-      },
-    });
-  });
-}
-
+import { fetch } from '@tauri-apps/plugin-http';
 function RedisQuery(props: {
   queryOP: (code: string) => Promise<any[]>;
-  validURL: (string) => Promise<boolean>;
+
   loadQueryLog: () => Promise<types.QueryLogEvent[]>;
+  reconnect;
+  connectInfo;
+  isDangerSql;
+  destroy;
+  language;
 }) {
-  const { queryOP, validURL, loadQueryLog } = props;
+  const {
+    queryOP,
+    loadQueryLog,
+    language,
+    reconnect,
+    connectInfo,
+    isDangerSql,
+    destroy,
+  } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -74,7 +57,10 @@ function RedisQuery(props: {
       enableIframe();
     }
   }, [isDragging]);
-
+  const validURL = async (url) => {
+    let x = await fetch(url);
+    return x.ok;
+  };
   const tryUpdateCommand = (text: string, pos: Position) => {
     const linesArray = text.split('\n');
     const line = pos.lineNumber - 1;
@@ -111,7 +97,7 @@ function RedisQuery(props: {
     <SplitPane
       split="vertical"
       minSize={50}
-      defaultSize={1000}
+      defaultSize={800}
       step={5}
       onDragStarted={() => {
         setIsDragging(true);
@@ -132,9 +118,13 @@ function RedisQuery(props: {
           }
           tryUpdateCommand(text, pos);
         }}
-        language="redis"
+        language={language}
         queryOP={queryOP}
         loadQueryLog={loadQueryLog}
+        reconnect={reconnect}
+        connectInfo={connectInfo}
+        isDangerSql={isDangerSql}
+        destroy={destroy}
       ></SqlQuery>
 
       <div
@@ -163,4 +153,4 @@ function RedisQuery(props: {
   );
 }
 
-export { RedisQuery, initRedisLanguage };
+export { RedisQuery };

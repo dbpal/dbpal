@@ -18,6 +18,23 @@ impl LexerCompletionTrait for MsSqlServer {
 
     const KEY_WORDS: &'static [&'static str] = KEYWORDS;
     const TYPES: &'static [&'static str] = TYPES;
+
+    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
+        // TODO select maybe allow empty database and schema
+        let mut ret = AstCompletionHelper::list_table(self, None, None)
+            .await
+            .unwrap_or_default();
+        ret.extend(
+            AstCompletionHelper::list_view(self, None, None)
+                .await
+                .unwrap_or_default()
+                .into_iter(),
+        );
+        anyhow::Ok(ret)
+    }
+    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        AstCompletionHelper::list_function(self, None, None, true).await
+    }
 }
 
 impl MsSqlServer {

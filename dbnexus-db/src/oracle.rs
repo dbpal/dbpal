@@ -12,7 +12,6 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::MemoryLimit;
 use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionTrait};
 use crate::datasource_config::OracleDbConfig;
 use crate::db::{
@@ -189,13 +188,11 @@ impl QuerySql for OracleDB {
         let mut ret = Vec::new();
 
         for seq in ss.iter() {
-            MemoryLimit::exceed_error()?;
             log::trace!("oracle query sql:{}", seq);
             match seq.kind {
                 SqlKind::Query => {
                     match block_in_place(|| conn.query(&seq.sql, &[])) {
                         Ok(rows) => {
-                            MemoryLimit::exceed_error()?;
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows, false)?;
                             let data = encode_rows(rows, false)?;
@@ -1748,6 +1745,12 @@ impl LexerCompletionTrait for OracleDB {
 
     const KEY_WORDS: &'static [&'static str] = ORACLE_KEY_WORDS;
     const TYPES: &'static [&'static str] = ORACLE_TYPES;
+    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
+        unimplemented!()
+    }
+    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        unimplemented!()
+    }
 }
 
 const ORACLE_TYPES: &'static [&'static str] = &[

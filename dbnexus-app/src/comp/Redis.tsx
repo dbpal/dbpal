@@ -33,12 +33,7 @@ import {
 import { types } from './ApiStruct.ts';
 
 import { NotificationContext } from './Notification';
-import {
-  DataGrid,
-  GridPaginationModel,
-  GridRowSelectionModel,
-  GridSortModel,
-} from '@mui/x-data-grid';
+import { DataGrid, GridRowSelectionModel } from '@mui/x-data-grid';
 import HexEditor from 'react-hex-editor';
 import oneDarkPro from 'react-hex-editor/themes/oneDarkPro';
 import AddIcon from '@mui/icons-material/Add';
@@ -60,9 +55,8 @@ enum RedisEditMode {
 function RedisListAdd(props: {
   lpushOP: (value: string) => Promise<void>;
   rpushOP: (value: string) => Promise<void>;
-  handleClose: () => void;
 }) {
-  const { lpushOP, rpushOP, handleClose } = props;
+  const { lpushOP, rpushOP } = props;
   const [loading, setLoading] = useState(false);
 
   const [lOrR, setLOrR] = useState('lpush');
@@ -75,7 +69,7 @@ function RedisListAdd(props: {
     (lOrR == 'lpush' ? lpushOP : rpushOP)(key)
       .then(() => {
         setLoading(false);
-        showNotification('success', 'Push OK', '');
+        showNotification('success', 'Push OK');
       })
       .catch((e) => {
         setLoading(false);
@@ -106,22 +100,12 @@ function RedisListAdd(props: {
       <RedisEditHexOrText handleValue={(e) => setKey(e)}></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button color="primary" variant="contained" onClick={handleAdd}>
           PUSH
         </Button>
       </Stack>
     </Stack>
   );
-
-  return <></>;
 }
 
 function RedisStringTable(props: {
@@ -148,7 +132,7 @@ function RedisStringTable(props: {
   return (
     <Stack spacing={1}>
       <RedisEditHexOrText
-        oldValue={content}
+        oldValue={newContent}
         handleValue={(e) => {
           setNewConent(e);
         }}
@@ -173,11 +157,8 @@ function RedisStringTable(props: {
   );
 }
 
-function RedisAddSet(props: {
-  addOP: (key: string) => Promise<void>;
-  handleClose: () => void;
-}) {
-  var { addOP, handleClose } = props;
+function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
+  var { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [key, setKey] = useState('');
   const { showNotification } = useContext(NotificationContext);
@@ -204,14 +185,6 @@ function RedisAddSet(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button color="primary" variant="contained" onClick={handleAdd}>
           Add
         </Button>
@@ -223,9 +196,8 @@ function RedisAddSet(props: {
 
 function RedisAddHash(props: {
   addOP: (key: string, value: string) => Promise<void>;
-  handleClose: () => void;
 }) {
-  var { addOP, handleClose } = props;
+  var { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [value, setValue] = useState('');
   const [key, setKey] = useState('');
@@ -264,14 +236,6 @@ function RedisAddHash(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button color="primary" variant="contained" onClick={handleAdd}>
           Add
         </Button>
@@ -280,10 +244,10 @@ function RedisAddHash(props: {
   );
 }
 function RedisAddZset(props: {
-  addOP: (key: string, value: string) => Promise<void>;
+  addOP: (key: string, value: number) => Promise<void>;
   handleClose: () => void;
 }) {
-  var { addOP, handleClose } = props;
+  var { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [score, setScore] = useState('');
   const [key, setKey] = useState('');
@@ -294,8 +258,7 @@ function RedisAddZset(props: {
   const handleAdd = () => {
     // reset some state
     setLoading(true);
-
-    addOP(key, score)
+    addOP(key, parseFloat(score))
       .then(() => {
         setLoading(false);
         showNotification('success', 'Add OK');
@@ -327,14 +290,6 @@ function RedisAddZset(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button color="primary" variant="contained" onClick={handleAdd}>
           Add
         </Button>
@@ -347,7 +302,7 @@ function RedisEditHash(props: {
   modifyOP: (req: RedisZsetHashModifyReq) => Promise<void>;
   oldKey: string;
   oldValue: string;
-  handleClose: () => void;
+  handleClose;
 }) {
   const { oldKey, oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
@@ -362,6 +317,7 @@ function RedisEditHash(props: {
       .then(() => {
         showNotification('success', 'Modify OK');
         setLoading(false);
+        handleClose();
       })
       .catch((e) => {
         showNotification('success', 'Modify failure', e);
@@ -388,14 +344,6 @@ function RedisEditHash(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button color="primary" variant="contained" onClick={handleModify}>
           Modify
         </Button>
@@ -405,7 +353,7 @@ function RedisEditHash(props: {
 }
 
 function RedisEditZset(props: {
-  modifyOP: (req: RedisZsetHashModifyReq) => Promise<void>;
+  modifyOP: (oldkey: string, newkey: string, value: number) => Promise<void>;
   oldKey: string;
   oldValue: string;
   handleClose: () => void;
@@ -425,10 +373,11 @@ function RedisEditZset(props: {
     // reset some state
     setLoading(true);
 
-    modifyOP(new RedisZsetHashModifyReq(oldKey, newKey, newValue))
+    modifyOP(oldKey, newKey, parseInt(newValue))
       .then(() => {
         setLoading(false);
         showNotification('success', 'Modify OK');
+        handleClose();
       })
       .catch((e) => {
         setLoading(false);
@@ -461,14 +410,6 @@ function RedisEditZset(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button color="primary" variant="contained" onClick={handleModify}>
           Modify
         </Button>
@@ -531,7 +472,7 @@ function RedisEditHexOrText(props: {
   // The callback facilitates updates to the source data.
   const handleSetValue = React.useCallback(
     (offset, value) => {
-      // @ts-ignore
+      //@ts-ignore
       newValue[offset] = value;
       setNonce((v) => v + 1);
       handleValue(arrayToHex(newValue as Uint8Array));
@@ -652,6 +593,7 @@ function RedisEditList(props: {
         setLoading(false);
         setNewValue('');
         showNotification('success', 'Modify OK', '');
+        handleClose();
       })
       .catch((e) => {
         setLoading(false);
@@ -669,14 +611,6 @@ function RedisEditList(props: {
         }}
       ></RedisEditHexOrText>
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button
           color="primary"
           variant="contained"
@@ -708,6 +642,7 @@ function RedisEditSet(props: {
         setLoading(false);
         setNewValue('');
         showNotification('success', 'Modify OK');
+        handleClose();
       })
       .catch((e) => {
         setLoading(false);
@@ -725,14 +660,6 @@ function RedisEditSet(props: {
         }}
       ></RedisEditHexOrText>
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button
           color="primary"
           variant="contained"
@@ -765,10 +692,10 @@ function RedisSetTable(props: {
   const [keyMatch, setKeyMatch] = useState('');
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [selectRow, setSelectRow] = useState({});
+  const [selectRow, setSelectRow] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [selectionModel, setSelectionModel] = useState([]);
-  const handleReload = () => {
+  const handleReload = (showOK) => {
     reloadOP(keyMatch)
       .then((resp) => {
         resp.data.data.forEach((e) => {
@@ -779,7 +706,9 @@ function RedisSetTable(props: {
           return redisRenderCell(p.row.value);
         };
         setResp(resp);
-        reloadOK(showNotification);
+        if (showOK) {
+          reloadOK(showNotification);
+        }
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
@@ -797,7 +726,7 @@ function RedisSetTable(props: {
   };
 
   useEffect(() => {
-    handleReload();
+    handleReload(false);
   }, []);
 
   const handleDel = async () => {
@@ -811,7 +740,7 @@ function RedisSetTable(props: {
         showNotification('error', 'delete failure', e);
       }
     }
-    handleReload();
+    handleReload(false);
   };
   const onRowDoubleClick = useMemo(() => {
     return (e) => {
@@ -838,7 +767,9 @@ function RedisSetTable(props: {
         <Button
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
-          onClick={handleReload} // 点击事件处理
+          onClick={() => {
+            handleReload(true);
+          }} // 点击事件处理
         >
           Reload
         </Button>
@@ -877,17 +808,19 @@ function RedisSetTable(props: {
           </Stack>
 
           {/* actual data grid */}
-          <DataGrid
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
-            rows={resp.data.data}
-            checkboxSelection
-            editMode="row"
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.data.fields}
-            disableColumnFilter
-            onRowSelectionModelChange={onRowSelectionModelChange}
-          ></DataGrid>
+          <div style={{ display: 'grid' }}>
+            <DataGrid
+              rowHeight={datagridRowHeight}
+              columnHeaderHeight={datagridHeaderHeight}
+              rows={resp.data.data}
+              checkboxSelection
+              editMode="row"
+              onRowDoubleClick={onRowDoubleClick}
+              columns={resp.data.fields}
+              disableColumnFilter
+              onRowSelectionModelChange={onRowSelectionModelChange}
+            ></DataGrid>
+          </div>
 
           {selectRow && (
             <Modal
@@ -907,6 +840,7 @@ function RedisSetTable(props: {
                     }
                     //@ts-ignore
                     selectRow.value = newValue;
+                    handleReload(false);
                   }}
                   //@ts-ignore
                   key={selectRow.id}
@@ -925,7 +859,7 @@ function RedisSetTable(props: {
       <Modal
         open={showAdd}
         onClose={() => {
-          setSelectRow(null);
+          setShowAdd(false);
         }}
         aria-labelledby="modify set"
       >
@@ -937,10 +871,7 @@ function RedisSetTable(props: {
               } catch (e) {
                 throw e;
               }
-              handleReload();
-            }}
-            handleClose={() => {
-              setShowAdd(false);
+              handleReload(false);
             }}
           ></RedisAddSet>
         </Box>
@@ -956,11 +887,7 @@ function RedisSetTable(props: {
 }
 
 function RedisListTable(props: {
-  reloadOP: (
-    page: number,
-    pageSize: number,
-    asc: boolean
-  ) => Promise<types.MuiDataTableListResp>;
+  reloadOP: () => Promise<types.MuiDataTableListResp>;
   modifyOP: (index: number, newValue: string) => Promise<void>;
   lpushOP: (value: string) => Promise<void>;
   rpushOP: (value: string) => Promise<void>;
@@ -968,29 +895,20 @@ function RedisListTable(props: {
 }) {
   const { reloadOP, modifyOP, lpushOP, delOP, rpushOP } = props;
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
-  const [selectRow, setSelectRow] = useState<any>({});
+  const [selectRow, setSelectRow] = useState<any>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [selectionModel, setSelectionModel] = useState('');
-  const [sortModel, setSortModel] = useState<GridSortModel>([]);
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(
-    useContext(SettingsContext).pageSize
-  );
+
   const { showNotification } = useContext(NotificationContext);
   const [deleteCount, setDeleteCunnt] = useState<string | number>(0);
   const [deleteCountErr, setDeleteCountErr] = useState(false);
-  const getSortOrder = () => {
-    if (sortModel.length == 0) {
-      return true;
-    }
-    if (sortModel[0].sort == 'desc') {
-      return false;
-    }
-    return true;
-  };
+  const [pageSize, setPageSize] = useState(
+    useContext(SettingsContext).pageSize
+  );
+  const [page, setPage] = useState(0);
 
-  const handleReload = () => {
-    reloadOP(page + 1, pageSize, getSortOrder())
+  const handleReload = (showReloadOK: boolean) => {
+    reloadOP()
       .then((resp) => {
         resp.data.data.forEach((e) => {
           e.id = uuidv4();
@@ -1000,13 +918,22 @@ function RedisListTable(props: {
         resp.data.fields[1]['renderCell'] = (p) => {
           return redisRenderCell(p.row.value);
         };
+        resp.data.fields[0]['sortComparator'] = function (x, y) {
+          return parseInt(x) < parseInt(y);
+        };
         setResp(resp);
-        reloadOK(showNotification);
+        if (showReloadOK) {
+          reloadOK(showNotification);
+        }
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
       });
   };
+
+  useEffect(() => {
+    handleReload(true);
+  }, []);
 
   const getIDIndex = (id: string): number => {
     let ret;
@@ -1017,10 +944,6 @@ function RedisListTable(props: {
     });
     return ret;
   };
-
-  useEffect(() => {
-    handleReload();
-  }, [page, pageSize, sortModel]);
 
   const handleDel = async () => {
     let value = resp.data.data[getIDIndex(selectionModel)]['value'];
@@ -1033,7 +956,7 @@ function RedisListTable(props: {
     } catch (e) {
       showNotification('error', 'Delete failure', e);
     }
-    handleReload();
+    handleReload(false);
   };
   const onRowDoubleClick = useMemo(() => {
     return (e) => {
@@ -1045,30 +968,25 @@ function RedisListTable(props: {
       setSelectionModel(rows.length > 0 ? (rows[0] as string) : '');
     };
   }, []);
-  const onSortModelChange = useMemo(() => {
-    return (e: GridSortModel) => {
-      setSortModel(e);
+  const onPaginationModelChange = useMemo(() => {
+    return (x) => {
+      setPage(x.page);
+      setPageSize(x.pageSize);
     };
-  }, []);
-  const paginationMeta = useMemo(() => {
-    return { hasNextPage: true };
   }, []);
   const paginationModel = useMemo(() => {
-    return { page: page, pageSize: pageSize };
+    return { page, pageSize };
   }, [page, pageSize]);
-  const onPaginationModelChange = useMemo(() => {
-    return (model: GridPaginationModel) => {
-      setPage(model.page);
-      setPageSize(model.pageSize);
-    };
-  }, []);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
         <Button
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
-          onClick={handleReload} // 点击事件处理
+          onClick={() => {
+            handleReload(true);
+          }} // 点击事件处理
         >
           Reload
         </Button>
@@ -1118,28 +1036,25 @@ function RedisListTable(props: {
           </Stack>
 
           {/* actual data grid */}
-          <DataGrid
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
-            rows={resp.data.data}
-            checkboxSelection
-            editMode="row"
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.data.fields}
-            disableColumnFilter
-            disableMultipleRowSelection
-            onRowSelectionModelChange={onRowSelectionModelChange}
-            sortModel={sortModel}
-            onSortModelChange={onSortModelChange}
-            autoPageSize={false}
-            pageSizeOptions={pageSizeOptions}
-            paginationMeta={paginationMeta}
-            paginationMode="server"
-            paginationModel={paginationModel}
-            rowCount={resp.total}
-            onPaginationModelChange={onPaginationModelChange}
-            sortingMode="server"
-          ></DataGrid>
+
+          <div style={{ display: 'grid' }}>
+            <DataGrid
+              rowHeight={datagridRowHeight}
+              columnHeaderHeight={datagridHeaderHeight}
+              checkboxSelection
+              disableMultipleRowSelection
+              disableColumnFilter
+              rows={resp.data.data}
+              editMode="row"
+              paginationModel={paginationModel}
+              onRowDoubleClick={onRowDoubleClick}
+              columns={resp.data.fields}
+              onRowSelectionModelChange={onRowSelectionModelChange}
+              autoPageSize={false}
+              pageSizeOptions={pageSizeOptions}
+              onPaginationModelChange={onPaginationModelChange}
+            ></DataGrid>
+          </div>
           {selectRow && (
             <Modal
               open={!!selectRow}
@@ -1156,11 +1071,12 @@ function RedisListTable(props: {
                     } catch (e) {
                       throw e;
                     }
+                    handleReload(false);
                     selectRow.value = newValue;
                   }}
                   key={selectRow.id}
                   oldValue={selectRow.value}
-                  index={selectRow.seq}
+                  index={parseInt(selectRow.seq)}
                   handleClose={() => {
                     setSelectRow(null);
                   }}
@@ -1175,7 +1091,7 @@ function RedisListTable(props: {
       <Modal
         open={showAdd}
         onClose={() => {
-          setSelectRow(null);
+          setShowAdd(false);
         }}
         aria-labelledby="modify list"
       >
@@ -1187,7 +1103,7 @@ function RedisListTable(props: {
               } catch (e) {
                 throw e;
               }
-              handleReload();
+              handleReload(false);
             }}
             rpushOP={async (value) => {
               try {
@@ -1195,10 +1111,7 @@ function RedisListTable(props: {
               } catch (e) {
                 throw e;
               }
-              handleReload();
-            }}
-            handleClose={() => {
-              setShowAdd(false);
+              handleReload(false);
             }}
           ></RedisListAdd>
         </Box>
@@ -1219,8 +1132,12 @@ function RedisZsetTable(props: {
     max: number | null
   ) => Promise<types.MuiDataTableListResp>;
 
-  modifyOP: (oldkey: string, newKey: string, newValue: string) => Promise<void>;
-  addOP: (key: string, value: string) => Promise<void>;
+  modifyOP: (
+    oldMember: string,
+    newKey: string,
+    newValue: number
+  ) => Promise<void>;
+  addOP: (key: string, value: number) => Promise<void>;
   delOP: (key: string) => Promise<void>;
 }) {
   const { reloadOP, modifyOP, addOP, delOP } = props;
@@ -1236,7 +1153,7 @@ function RedisZsetTable(props: {
   const [selectionModel, setSelectionModel] = useState([]);
 
   const { showNotification } = useContext(NotificationContext);
-  const handleReload = () => {
+  const handleReload = (showOK: boolean) => {
     if (minErr || maxErr) {
       return;
     }
@@ -1253,8 +1170,13 @@ function RedisZsetTable(props: {
         resp.data.fields[0]['renderCell'] = (p) => {
           return redisRenderCell(p.row.key);
         };
+        resp.data.fields[1]['sortComparator'] = function (x, y) {
+          return parseFloat(x) > parseFloat(y);
+        };
         setResp(resp);
-        reloadOK(showNotification);
+        if (showOK) {
+          reloadOK(showNotification);
+        }
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
@@ -1262,7 +1184,7 @@ function RedisZsetTable(props: {
   };
 
   useEffect(() => {
-    handleReload();
+    handleReload(false);
   }, []);
   const getIDIndex = (id: string): number => {
     let ret;
@@ -1285,7 +1207,7 @@ function RedisZsetTable(props: {
         showNotification('error', 'delete failure', e);
       }
     }
-    handleReload();
+    handleReload(false);
   };
   const onRowDoubleClick = useMemo(() => {
     return (e) => {
@@ -1316,7 +1238,11 @@ function RedisZsetTable(props: {
           error={minErr}
           helperText="put a valid float64"
           onChange={(event) => {
-            setMinErr(isNaN(parseFloat(event.target.value)));
+            if (event.target.value) {
+              setMinErr(isNaN(parseFloat(event.target.value)));
+            } else {
+              setMinErr(false);
+            }
             setMin(event.target.value);
           }}
           size="small"
@@ -1329,12 +1255,22 @@ function RedisZsetTable(props: {
           error={maxErr}
           helperText="put a valid float64"
           onChange={(event) => {
-            setMaxErr(isNaN(parseFloat(event.target.value)));
+            if (event.target.value) {
+              setMaxErr(isNaN(parseFloat(event.target.value)));
+            } else {
+              setMaxErr(false);
+            }
             setMax(event.target.value);
           }}
           size="small"
         />
-        <Button variant="contained" color="primary" onClick={handleReload}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            handleReload(true);
+          }}
+        >
           Reload
         </Button>
       </Stack>
@@ -1393,14 +1329,13 @@ function RedisZsetTable(props: {
             >
               <Box sx={modalStyle} width="800px">
                 <RedisEditZset
-                  modifyOP={async (req) => {
+                  modifyOP={async (oldKey, newKey, value) => {
                     try {
-                      await modifyOP(req.oldKey, req.newKey, req.value);
+                      await modifyOP(oldKey, newKey, value);
                     } catch (e) {
                       throw e;
                     }
-                    selectRow.key = req.newKey;
-                    selectRow.score = req.value;
+                    handleReload(false);
                   }}
                   key={selectRow}
                   oldValue={selectRow.score}
@@ -1419,7 +1354,7 @@ function RedisZsetTable(props: {
       <Modal
         open={showAdd}
         onClose={() => {
-          setSelectRow(null);
+          setShowAdd(false);
         }}
         aria-labelledby="modify zset"
       >
@@ -1431,7 +1366,7 @@ function RedisZsetTable(props: {
               } catch (e) {
                 throw e;
               }
-              handleReload();
+              handleReload(false);
             }}
             handleClose={() => {
               setShowAdd(false);
@@ -1451,7 +1386,11 @@ function RedisZsetTable(props: {
 
 function RedisHashTable(props: {
   reloadOP: (keyMatch: string) => Promise<types.MuiDataTableListResp>;
-  modifyOP: (oldkey: string, newKey: string, newValue: string) => Promise<void>;
+  modifyOP: (
+    oldMember: string,
+    newMember: string,
+    newValue: string
+  ) => Promise<void>;
   addOP: (key: string, value: string) => Promise<void>;
   delOP: (key: string) => Promise<void>;
 }) {
@@ -1459,10 +1398,10 @@ function RedisHashTable(props: {
   const [keyMatch, setKeyMatch] = useState('');
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [selectRow, setSelctRow] = useState<any>({});
+  const [selectRow, setSelectRow] = useState<any>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [selectionModel, setSelectionModel] = useState([]);
-  const handleReload = () => {
+  const handleReload = (showOK) => {
     reloadOP(keyMatch)
       .then((resp) => {
         resp.data.data.forEach((e) => {
@@ -1477,7 +1416,9 @@ function RedisHashTable(props: {
           return redisRenderCell(p.row.value);
         };
         setResp(resp);
-        reloadOK(showNotification);
+        if (showOK) {
+          reloadOK(showNotification);
+        }
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
@@ -1485,7 +1426,7 @@ function RedisHashTable(props: {
   };
 
   useEffect(() => {
-    handleReload();
+    handleReload(false);
   }, []);
 
   const getIDIndex = (id: string): number => {
@@ -1510,11 +1451,11 @@ function RedisHashTable(props: {
         showNotification('error', 'delete failure', e);
       }
     }
-    handleReload();
+    handleReload(false);
   };
   const onRowDoubleClick = useMemo(() => {
     return (e) => {
-      setSelctRow(e.row);
+      setSelectRow(e.row);
     };
   }, []);
   const onRowSelectionModelChange = useMemo(() => {
@@ -1537,7 +1478,9 @@ function RedisHashTable(props: {
         <Button
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
-          onClick={handleReload} // 点击事件处理
+          onClick={() => {
+            handleReload(true);
+          }} // 点击事件处理
         >
           Reload
         </Button>
@@ -1576,22 +1519,25 @@ function RedisHashTable(props: {
           </Stack>
 
           {/* actual data grid */}
-          <DataGrid
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
-            rows={resp.data.data}
-            checkboxSelection
-            editMode="row"
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.data.fields}
-            disableColumnFilter
-            onRowSelectionModelChange={onRowSelectionModelChange}
-          ></DataGrid>
+          <div style={{ display: 'grid' }}>
+            <DataGrid
+              rowHeight={datagridRowHeight}
+              columnHeaderHeight={datagridHeaderHeight}
+              rows={resp.data.data}
+              checkboxSelection
+              editMode="row"
+              onRowDoubleClick={onRowDoubleClick}
+              columns={resp.data.fields}
+              disableColumnFilter
+              onRowSelectionModelChange={onRowSelectionModelChange}
+            ></DataGrid>
+          </div>
+
           {selectRow && (
             <Modal
               open={!!selectRow}
               onClose={() => {
-                setSelctRow(null);
+                setSelectRow(null);
               }}
               aria-labelledby="modify hash"
             >
@@ -1605,13 +1551,14 @@ function RedisHashTable(props: {
                     }
                     selectRow.key = req.newKey;
                     selectRow.value = req.value;
+                    handleReload(false);
+                  }}
+                  handleClose={() => {
+                    setSelectRow(null);
                   }}
                   key={selectRow.id}
                   oldValue={selectRow.value}
                   oldKey={selectRow.key}
-                  handleClose={() => {
-                    setSelctRow(null);
-                  }}
                 ></RedisEditHash>
               </Box>
             </Modal>
@@ -1622,7 +1569,7 @@ function RedisHashTable(props: {
       <Modal
         open={showAdd}
         onClose={() => {
-          setSelctRow(null);
+          setShowAdd(false);
         }}
         aria-labelledby="modify hash"
       >
@@ -1634,10 +1581,7 @@ function RedisHashTable(props: {
               } catch (e) {
                 throw e;
               }
-              handleReload();
-            }}
-            handleClose={() => {
-              setShowAdd(false);
+              handleReload(false);
             }}
           ></RedisAddHash>
         </Box>
@@ -1654,9 +1598,8 @@ function RedisHashTable(props: {
 function RedisModifyKeyName(props: {
   name: string;
   modifyOP: (oldName: string, newName: string) => Promise<void>;
-  handleClose: () => void;
 }) {
-  let { name, modifyOP, handleClose } = props;
+  let { name, modifyOP } = props;
   const [newName, setNewName] = useState(name);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
@@ -1689,14 +1632,6 @@ function RedisModifyKeyName(props: {
         label="name"
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
         <Button
           disabled={name == newName}
           color="primary"

@@ -20,6 +20,27 @@ impl LexerCompletionTrait for MysqlDB {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         self.build_fn_completion_items().await.unwrap_or(vec![])
     }
+    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
+        // when suggest on table or view using lexer I don't know the table schema
+        // we just select all from the database
+
+        let sql = r#"
+        
+        SELECT table_name 
+        FROM information_schema.tables  ORDER BY  table_name;
+        "#;
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        AstCompletionHelper::list_function(self, None, None, true).await
+    }
 }
 
 impl MysqlDB {
@@ -136,23 +157,28 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_function(
         &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = self.schema_merge_config(schema);
         let mut conn = self.get_conn().await?;
-        let mut ret = crate::mysql::FunctionOrProcedure::query_list(
-            crate::mysql::FunctionOrProcedure::Function,
-            conn.deref_mut(),
-            schema,
-        )
-        .await
-        .map(|x| {
-            x.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                })
-                .collect::<Vec<_>>()
-        })?;
+        let mut ret = if let Some(schema) = schema {
+            crate::mysql::FunctionOrProcedure::query_list(
+                crate::mysql::FunctionOrProcedure::Function,
+                conn.deref_mut(),
+                schema,
+            )
+            .await
+            .map(|x| {
+                x.into_iter()
+                    .map(|x| CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Function,
+                        desc: None,
+                    })
+                    .collect::<Vec<_>>()
+            })?
+        } else {
+            Default::default()
+        };
+
         if include_build_in {
             ret.extend(mysql_build_in().into_iter());
         }

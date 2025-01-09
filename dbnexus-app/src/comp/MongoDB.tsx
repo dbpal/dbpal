@@ -258,7 +258,7 @@ function MongoBsonEditor(props: {
         <Stack direction="row" alignContent="flex-start" spacing={1}>
           {buttons.map((button) => {
             return (
-              // @ts-ignore
+              //@ts-ignore
               <Button
                 key={button.buttonConent}
                 variant={button.variant}

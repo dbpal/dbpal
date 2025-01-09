@@ -146,8 +146,8 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
             let redis = crate::redis::RedisDB::new(conn.clone()).await?;
 
             let db = match &conn.db {
-                Some(_) => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
-                None => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
+                Some(_) => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
+                None => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
             };
 
             anyhow::Ok(db)
@@ -225,7 +225,7 @@ impl App {
                     self.opens
                         .lock()
                         .await
-                        .insert(format!("{}:{}", name, database), dbtrait.clone().into());
+                        .insert(format!("{}/{}", name, database), dbtrait.clone().into());
 
                     let schemas = dbtrait.list_schema().await?;
                     for schema in schemas.iter() {
@@ -233,7 +233,7 @@ impl App {
                         self.opens
                             .lock()
                             .await
-                            .insert(format!("{}:{}:{}", name, database, schema), s.into());
+                            .insert(format!("{}/{}/{}", name, database, schema), s.into());
                     }
                 }
             }
@@ -244,7 +244,7 @@ impl App {
                     self.opens
                         .lock()
                         .await
-                        .insert(format!("{}:{}", name, database), s.into());
+                        .insert(format!("{}/{}", name, database), s.into());
                 }
             }
             Open::Schema(_) => {}
@@ -402,18 +402,12 @@ impl App {
         anyhow::Ok(x)
     }
 
-    pub async fn redis_list_table(&self, name: &str) -> anyhow::Result<RedisListTable> {
+    pub async fn redis_list_table(
+        &self, name: &str, filter: Option<&str>,
+    ) -> anyhow::Result<RedisListTable> {
         let db = self.get_schema(name).await?;
         match db.as_any().downcast_ref::<RedisDB>() {
-            Some(x) => x.redis_list_table().await,
-            None => anyhow::bail!(format!("'{}' not a redis", name)),
-        }
-    }
-
-    pub async fn redis_match_keys(&self, name: &str, pattern: &str) -> anyhow::Result<Vec<String>> {
-        let db = self.get_schema(name).await?;
-        match db.as_any().downcast_ref::<RedisDB>() {
-            Some(x) => x.redis_match_keys(pattern).await,
+            Some(x) => x.redis_list_table(filter).await,
             None => anyhow::bail!(format!("'{}' not a redis", name)),
         }
     }

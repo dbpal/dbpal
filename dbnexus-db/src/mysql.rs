@@ -12,7 +12,6 @@ use sqlx::pool::PoolConnection;
 use sqlx::{Column, Executor, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
-use crate::MemoryLimit;
 use crate::datasource_config::MysqlDbConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
@@ -1409,7 +1408,6 @@ impl QuerySql for MysqlDB {
         let mut rows = Vec::new();
 
         while let Some(item) = stream.next().await {
-            MemoryLimit::exceed_error()?;
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {

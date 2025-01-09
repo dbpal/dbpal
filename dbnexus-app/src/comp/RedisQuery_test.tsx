@@ -5,7 +5,7 @@ import { NotificationContext } from './Notification';
 
 import { Position, languages } from 'monaco-editor';
 
-import { initRedisLanguage, RedisQuery } from './RedisQuery.tsx';
+import { initLanguageXXX, RedisQuery } from './RedisQuery.tsx';
 import { testMultiQueryResp, testQueryLogs } from './exampleTest.ts';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
@@ -31,7 +31,7 @@ async function testAutoCompletion(
   };
 }
 
-initRedisLanguage(testAutoCompletion);
+initLanguageXXX(testAutoCompletion);
 
 root.render(
   <NotificationContext.Provider

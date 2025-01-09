@@ -26,7 +26,7 @@ root.render(
   >
     <React.StrictMode>
       <SqlQuery
-        language='sql'
+        language="sql"
         queryOP={async (_text) => {
           return testMultiQueryResp(3);
         }}

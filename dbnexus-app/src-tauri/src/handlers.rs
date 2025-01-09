@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, open};
+use dbnexus_db::completion::CompletionItem;
 use dbnexus_db::db::{
     ColumnType, ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, ProcedureDetail,
     QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
@@ -13,7 +14,14 @@ use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
+use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
+#[tauri::command]
+pub async fn page_init_callback(app: tauri::State<'_, App>) -> Result<(), ()> {
+    log::info!("page init call clear all open connection.");
+    *app.opens.lock().await = Default::default();
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn drop_database(
@@ -29,7 +37,7 @@ pub async fn drop_database(
 
     // first close connections because we want delete it
 
-    app.close_conn_has_prefix(&format!("{}:{}", name, database))
+    app.close_conn_has_prefix(&format!("{}/{}", name, database))
         .await;
 
     match x {
@@ -60,7 +68,7 @@ pub async fn drop_schema(
     random_error()?;
     // first close connections because we want delete it
 
-    app.close_conn_has_prefix(&format!("{}:{}", name, schema))
+    app.close_conn_has_prefix(&format!("{}/{}", name, schema))
         .await;
     let x = app
         .get_opened(name.as_str())
@@ -102,7 +110,7 @@ pub async fn create_database(
                 .await
                 .map_err(|x| AnyhowErrorFrontend::from(x))?;
 
-            let db_name = format!("{}:{}", name, database);
+            let db_name = format!("{}/{}", name, database);
 
             let db = x
                 .open_db(&database)
@@ -148,7 +156,7 @@ pub async fn create_schema(
             app.opens
                 .lock()
                 .await
-                .insert(format!("{}:{}", name, schema), db.into());
+                .insert(format!("{}/{}", name, schema), db.into());
 
             Ok(())
         }
@@ -193,23 +201,36 @@ pub async fn list_table(
 
 #[tauri::command]
 pub async fn redis_list_table(
-    name: String, app: tauri::State<'_, App>,
+    name: String, filter: Option<String>, app: tauri::State<'_, App>,
 ) -> Result<RedisListTable, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.redis_list_table(&name)
+    app.redis_list_table(&name, filter.as_ref().map(|x| x.as_str()))
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
-
 #[tauri::command]
-pub async fn redis_match_keys(
-    name: String, pattern: String, app: tauri::State<'_, App>,
-) -> Result<Vec<String>, AnyhowErrorFrontend> {
+pub async fn redis_zset_show_table(
+    name: String, key: String, min: Option<f64>, max: Option<f64>, where_str: Option<&str>,
+    app: tauri::State<'_, App>,
+) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let keys = app.redis_match_keys(&name, &pattern).await?;
-    Ok(keys)
+    let schema = app
+        .get_schema(&name)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+    let r = match schema.as_any().downcast_ref::<RedisDB>() {
+        Some(r) => r,
+        None => return Err(AnyhowErrorFrontend::from(format!("'{}' not redis", name))),
+    };
+    let x = r
+        .zset_show_table(&key, where_str, min, max)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+    Ok(MuiDataTableListResp::from(x))
 }
 
 #[tauri::command]
@@ -540,6 +561,42 @@ pub async fn show_view_coumns(
 }
 
 #[tauri::command]
+pub async fn export_query_result_to_file(
+    name: String, sql: String, kind: ExportKind, file: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let sql = sql.as_str();
+    app.get_schema(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?
+        .export_query_result_to_file(sql, kind, &file)
+        .await
+        .map_err(|x| AnyhowErrorFrontend::from(x))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn is_dangerous_sql(
+    name: String, sql: String, app: tauri::State<'_, App>,
+) -> Result<bool, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let sql = sql.as_str();
+    let db = app
+        .get_opened(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+
+    let result = match db {
+        Open::DataBase(x) => x.is_dangerous_sql(sql),
+        Open::Schema(x) => x.is_dangerous_sql(sql),
+        Open::Catalog(x) => x.is_dangerous_sql(sql),
+    }
+    .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+    Ok(result)
+}
+#[tauri::command]
 pub async fn query_sql(
     name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Result<MuiDataGridData, String>>, AnyhowErrorFrontend> {
@@ -569,6 +626,26 @@ pub async fn query_sql(
             .collect::<Vec<_>>()
     })
 }
+
+#[tauri::command]
+pub async fn query_logs(
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+) -> Result<Vec<QueryLogEvent>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .open(name.as_str())
+        .await
+        .map_err(AnyhowErrorFrontend::from)?;
+
+    match db {
+        Open::DataBase(x) => x.get_query_log(query_id).await,
+        Open::Schema(x) => x.get_query_log(query_id).await,
+        Open::Catalog(x) => x.get_query_log(query_id).await,
+    }
+    .map_err(|x| AnyhowErrorFrontend::from(x))
+}
+
 #[tauri::command]
 pub async fn query_sql_open_connection(
     name: String, app: tauri::State<'_, App>,
@@ -583,6 +660,7 @@ pub async fn query_sql_open_connection(
     };
     result.map_err(AnyhowErrorFrontend::from)
 }
+
 #[tauri::command]
 pub async fn query_sql_re_connection(
     name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
@@ -597,6 +675,7 @@ pub async fn query_sql_re_connection(
     };
     result.map_err(|e| AnyhowErrorFrontend::from(e))
 }
+
 #[tauri::command]
 pub async fn query_sql_close_connection(
     name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
@@ -752,7 +831,37 @@ pub async fn list_schema(
     }
     .map_err(AnyhowErrorFrontend::from)
 }
-
+#[tauri::command]
+pub async fn auto_completion(
+    name: String, sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
+) -> Result<
+    Vec<CompletionItem>, // milliseconds
+    AnyhowErrorFrontend,
+> {
+    random_sleep().await;
+    random_error()?;
+    // TODO front is very hard to pass this parameter to the server
+    // because of manoca language is global registerd.
+    let query_id = uuid::Uuid::new_v4();
+    let use_lexer = true;
+    let db = app.get_opened(name.as_str()).await?;
+    let ret = match db {
+        Open::Catalog(x) => {
+            x.auto_completion(query_id, &sql, line, col, use_lexer)
+                .await
+        }
+        Open::DataBase(x) => {
+            x.auto_completion(query_id, &sql, line, col, use_lexer)
+                .await
+        }
+        Open::Schema(x) => {
+            x.auto_completion(query_id, &sql, line, col, use_lexer)
+                .await
+        }
+    }
+    .map_err(|x| AnyhowErrorFrontend::from(x))?;
+    Ok(ret)
+}
 #[tauri::command]
 pub async fn oracle_query_set_autocommit(
     name: String, id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,
@@ -1182,7 +1291,6 @@ pub async fn redis_set_del(
                 .await
                 .map_err(AnyhowErrorFrontend::from)?;
         }
-
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
     return Ok(());

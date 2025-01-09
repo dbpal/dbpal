@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+
 use std::collections::{HashMap, HashSet};
 use std::str::{FromStr, from_utf8};
 use std::sync::Arc;
@@ -47,6 +48,46 @@ impl RedisDB {
             query_connections: Default::default(),
             created_database: Default::default(),
         })
+    }
+}
+
+impl RedisDB {
+    pub async fn zset_show_table(
+        &self, key: &str, where_str: Option<&str>, min: Option<f64>, max: Option<f64>,
+    ) -> anyhow::Result<TableListResp> {
+        let mut conn = self.get_conn().await?;
+
+        let total: usize = conn.zcard(key).await?;
+        let mut ret: AsyncIter<(Vec<u8>, f64)> =
+            conn.zscan_match(key, where_str.unwrap_or("*")).await?;
+        let mut key_values = Vec::new();
+
+        while let Some(value) = ret.next().await {
+            // try match
+            if let Some(min) = min {
+                if value.1 < min {
+                    continue;
+                }
+            }
+            if let Some(max) = max {
+                if value.1 > max {
+                    continue;
+                }
+            }
+            key_values.push(value);
+        }
+        anyhow::Ok(TableListResp::new(
+            vec![
+                Field::from_name_type("key", "string"),
+                Field::from_name_type("score", "f64"),
+            ],
+            total,
+            key_values
+                .into_iter()
+                .map(|(k, v)| vec![Some(hex::encode(k.as_slice())), Some(v.to_string())])
+                .collect(),
+            None,
+        ))
     }
 }
 
@@ -113,8 +154,8 @@ impl RedisDB {
         &self, key: &str, old_member: &[u8], new_member: &[u8],
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let _: () = conn.sadd(key, new_member).await?;
         let _: () = conn.srem(key, old_member).await?;
+        let _: () = conn.sadd(key, new_member).await?;
         anyhow::Ok(())
     }
 
@@ -134,8 +175,8 @@ impl RedisDB {
         &self, key: &str, old_member: &[u8], new_member: &[u8], new_value: &[u8],
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let _: () = conn.hset(key, new_member, new_value).await?;
         let _: () = conn.hdel(key, old_member).await?;
+        let _: () = conn.hset(key, new_member, new_value).await?;
         anyhow::Ok(())
     }
 
@@ -155,8 +196,9 @@ impl RedisDB {
         &self, key: &str, old_member: &[u8], new_member: &[u8], new_value: f64,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let _: () = conn.zadd(key, new_member, new_value).await?;
         let _: () = conn.zrem(key, old_member).await?;
+        let _: () = conn.zadd(key, new_member, new_value).await?;
+
         anyhow::Ok(())
     }
 
@@ -176,13 +218,6 @@ impl RedisDB {
         let mut conn = self.get_conn().await?;
         let _: () = conn.set(key, value).await?;
         anyhow::Result::Ok(())
-    }
-}
-impl RedisDB {
-    /// used for frond end to query keys match in pattern
-    pub async fn redis_match_keys(&self, pattern: &str) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
-        anyhow::Ok(conn.keys(pattern).await?)
     }
 }
 
@@ -218,41 +253,7 @@ fn split_info_colon(info: &str) -> anyhow::Result<(String, String)> {
         None => anyhow::bail!("info should contains ':'"),
     }
 }
-impl RedisDB {
-    pub async fn redis_list_show_table(
-        &self, key: &str, page: isize, page_size: isize, asc: bool,
-    ) -> anyhow::Result<TableListResp> {
-        let mut conn = self.get_conn().await?;
-        let total: isize = conn.llen(key).await?;
-        let start = (page - 1) * page_size;
-        let end = start + page_size;
-        let start_pos = if asc {
-            start
-        } else {
-            if total >= end { total - end } else { 1 }
-        };
-        let end_pos = if asc { end } else { total - start };
-        let ret: Vec<Vec<u8>> = conn.lrange(key, start_pos, end_pos).await?;
 
-        anyhow::Ok(TableListResp::new(
-            vec![
-                Field::from_name_type("seq", "int"),
-                Field::from_name_type("value", "string"),
-            ],
-            total as usize,
-            ret.into_iter()
-                .zip(start_pos..end_pos)
-                .map(|(x, index)| {
-                    vec![
-                        Some((index + 1).to_string()),
-                        Some(hex::encode(x.as_slice())),
-                    ]
-                })
-                .collect::<Vec<_>>(),
-            format!("LRANGE {} {} {}  ", key, start, start + page_size),
-        ))
-    }
-}
 // export impl
 impl RedisDB {
     async fn export_table_as_csv(
@@ -831,7 +832,22 @@ impl SchemaTrait for RedisDB {
             }
 
             RedisType::List => {
-                anyhow::bail!("use redis_list_show_table instead of this.")
+                let r: Vec<Vec<u8>> = conn.lrange(key, 0, -1).await?;
+
+                anyhow::Ok(TableListResp::new(
+                    vec![
+                        Field::from_name_type("seq", "int"),
+                        Field::from_name_type("value", "string"),
+                    ],
+                    r.len(),
+                    r.into_iter()
+                        .enumerate()
+                        .map(|(seq, r)| {
+                            vec![Some(seq.to_string()), Some(hex::encode(r.as_slice()))]
+                        })
+                        .collect(),
+                    None,
+                ))
             }
 
             RedisType::Set => {
@@ -888,38 +904,7 @@ impl SchemaTrait for RedisDB {
             }
 
             RedisType::Zset => {
-                let total: usize = conn.zcard(key).await?;
-                let mut ret: AsyncIter<Vec<u8>> =
-                    conn.zscan_match(key, where_str.unwrap_or("*")).await?;
-                let mut index = 0;
-                let mut key_values = Vec::new();
-                let mut value_values = Vec::new();
-                while let Some(value) = ret.next().await {
-                    if index % 2 == 0 {
-                        key_values.push(value.clone());
-                    } else {
-                        value_values.push(value.clone());
-                    }
-                    index += 1;
-                }
-                anyhow::Ok(TableListResp::new(
-                    vec![
-                        Field::from_name_type("key", "string"),
-                        Field::from_name_type("value", "string"),
-                    ],
-                    total,
-                    key_values
-                        .into_iter()
-                        .zip(value_values.into_iter())
-                        .map(|(k, v)| {
-                            vec![
-                                Some(hex::encode(k.as_slice())),
-                                Some(hex::encode(v.as_slice())),
-                            ]
-                        })
-                        .collect(),
-                    format!("ZSCAN {} 0 {}", key, where_str.unwrap_or("*")),
-                ))
+                anyhow::bail!("use redis show table zset implementation");
             }
         }
     }
@@ -941,8 +926,31 @@ impl SchemaTrait for RedisDB {
         anyhow::bail!("call query sql instread")
     }
 
-    async fn truncate_table(&self, _table_name: &str) -> anyhow::Result<()> {
-        anyhow::bail!("call query sql instread")
+    async fn truncate_table(&self, key: &str) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let typ = Self::get_key_type(&mut conn, key).await?;
+        match typ {
+            RedisType::String => {
+                let _: () = conn.set(key, "").await?;
+            }
+            RedisType::List => {
+                let _: () = conn.ltrim(key, 1, 0).await?;
+            }
+            RedisType::Set => {
+                let members: Vec<Vec<u8>> = conn.smembers(key).await?;
+                let _: () = conn.srem(key, &members).await?;
+            }
+            RedisType::Hash => {
+                let members: Vec<(Vec<u8>, Vec<u8>)> = conn.hgetall(key).await?;
+                let keys = members.iter().map(|(key, _)| key).collect::<Vec<_>>();
+                let _: () = conn.hdel(key, &keys).await?;
+            }
+            RedisType::Zset => {
+                let keys: Vec<Vec<u8>> = conn.zrange(key, 0, -1).await?;
+                let _: () = conn.zrem(key, &keys).await?;
+            }
+        }
+        anyhow::Ok(())
     }
 
     async fn delete(
@@ -961,9 +969,9 @@ impl SchemaTrait for RedisDB {
 }
 
 impl RedisDB {
-    pub async fn redis_list_table(&self) -> anyhow::Result<RedisListTable> {
+    pub async fn redis_list_table(&self, filter: Option<&str>) -> anyhow::Result<RedisListTable> {
         let mut conn = self.get_conn().await?;
-        let tables: Vec<String> = conn.keys("*").await?;
+        let tables: Vec<String> = conn.keys(filter.unwrap_or("*")).await?;
         let mut ret = RedisListTable::default();
 
         for table in tables.into_iter() {
@@ -1041,17 +1049,15 @@ impl DBTrait for RedisDB {
         config.db = Some(name.to_owned());
         let db = Self::new(config).await?;
         db.drop_all_keys().await?;
+        self.created_database.remove(&name.to_owned());
         anyhow::Ok(())
     }
 }
 
 impl RedisDB {
     async fn drop_all_keys(&self) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
-        let keys: Vec<String> = conn.keys("*").await?;
-        for key in keys.iter() {
-            let _: () = conn.del(key).await?;
-        }
+        let mut conn = self.get_client().await?;
+        redis::cmd("flushdb").exec(&mut conn)?;
         anyhow::Ok(())
     }
 }
@@ -1426,7 +1432,7 @@ mod tests {
     use super::{RedisDB, extract_db_from_info_key_space, split_info_colon};
     use crate::completion::completion_test::test_file_auto_completion;
     use crate::datasource_config::RedisDbConfig;
-    use crate::db::{DBTrait, ExportKind, ServerMetas};
+    use crate::db::{DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas};
     use crate::{TEST_HOST, enable_test_log};
 
     async fn make_test_object() -> RedisDB {
@@ -1451,22 +1457,6 @@ mod tests {
         while let Some(val) = x.next().await {
             println!("{:?}", val);
         }
-    }
-    #[tokio::test]
-    async fn test_redis_list_show_table() {
-        let db = make_test_object().await;
-        let ret = db
-            .redis_list_show_table("list_value", 1, 10, true)
-            .await
-            .unwrap();
-
-        println!("{:?}", ret);
-        let ret = db
-            .redis_list_show_table("list_value", 1, 10, false)
-            .await
-            .unwrap();
-
-        println!("{:?}", ret);
     }
 
     #[test]
@@ -1525,7 +1515,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         enable_test_log();
         let db = make_test_object().await;
         tokio::time::sleep(Duration::from_secs(2)).await;
-        let redis_tables = db.redis_list_table().await.unwrap();
+        let redis_tables = db.redis_list_table(None).await.unwrap();
         println!("redis tables:{:?}", redis_tables);
     }
 
@@ -1591,10 +1581,27 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         //     println!("{}", i);
         // }
         let now = std::time::Instant::now();
-        let x = db.redis_list_table().await.unwrap();
+        let x = db.redis_list_table(None).await.unwrap();
         println!("used{:?} key_len:{}", now.elapsed(), x.string_tables.len());
     }
-
+    #[tokio::test]
+    async fn test_large_key() {
+        {
+            // large list
+            let db = make_test_object().await;
+            let key_name = "large_list";
+            let _ = db.drop_table(key_name, false).await;
+            let query_id = db.open_connection().await.unwrap();
+            for i in 0..1550 {
+                db.query_sql(
+                    query_id,
+                    format!(r#"RPUSH {} data{}"#, key_name, i).as_str(),
+                )
+                .await
+                .unwrap();
+            }
+        }
+    }
     #[tokio::test]
     async fn test_hash_key() {
         let db = make_test_object().await;
@@ -1899,11 +1906,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             ("loading".to_string(), "0".to_string())
         );
     }
-    #[tokio::test]
-    async fn test_redis_match_keys() {
-        let db = make_test_object().await;
-        db.redis_match_keys("*").await.unwrap();
-    }
+
     #[tokio::test]
     async fn test_string_key() {
         let db = make_test_object().await;
