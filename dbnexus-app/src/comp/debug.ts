@@ -1,3 +1,3 @@
 // generate by rust don't edit
-const debug = true;
+const debug = false;
 export { debug }

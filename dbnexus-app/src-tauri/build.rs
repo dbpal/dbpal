@@ -1,10 +1,13 @@
-use std::{io::Write, path::Path};
+use std::io::Write;
+use std::path::Path;
 
 fn main() {
     tauri_build::build();
-    write_ts_debug_var();
+
+    // write_ts_debug_var();
 }
 
+#[allow(unused)]
 fn write_ts_debug_var() {
     #[allow(unused)]
     let debug = false;

@@ -3,8 +3,12 @@ import { Alert, Tab, Tabs, Tooltip } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import { generateRandomString } from './helper.ts';
 import { DataGrid } from '@mui/x-data-grid';
-import React from 'react';
-import { datagridHeaderHeight, datagridRowHeight } from './Common.tsx';
+import React, { useContext } from 'react';
+import {
+  datagridHeaderHeight,
+  datagridRowHeight,
+  VisiableContext,
+} from './Common.tsx';
 
 function QueryResp(props: { data: types.MuiDataGridData }) {
   let { data } = props;
@@ -26,16 +30,19 @@ function QueryResp(props: { data: types.MuiDataGridData }) {
     //@ts-ignore
     e.flex = 1;
   });
+  const vis = useContext(VisiableContext);
   return (
-    <div style={{ display: 'grid' }}>
-      <DataGrid
-        rowHeight={datagridRowHeight}
-        columnHeaderHeight={datagridHeaderHeight}
-        columns={data.fields}
-        rows={data.data}
-        filterMode="client" // 使用客户端过滤
-      ></DataGrid>
-    </div>
+    vis && (
+      <div style={{ display: 'grid' }}>
+        <DataGrid
+          rowHeight={datagridRowHeight}
+          columnHeaderHeight={datagridHeaderHeight}
+          columns={data.fields}
+          rows={data.data}
+          filterMode="client" // 使用客户端过滤
+        ></DataGrid>
+      </div>
+    )
   );
 }
 

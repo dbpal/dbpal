@@ -8,7 +8,7 @@ use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::PgRow;
-use sqlx::{Column, PgConnection, Postgres, Row};
+use sqlx::{Column, Executor, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
 use crate::datasource_config::PGDbConfig;
@@ -18,7 +18,6 @@ use crate::db::{
     ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
     TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
-
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
@@ -79,6 +78,7 @@ impl DBTrait for PostGresDB {
         x.query_connection = Default::default();
         Ok(Arc::new(x))
     }
+
     async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!("CREATE SCHEMA {name};");
         let mut conn = self.get_conn().await?;
@@ -625,9 +625,11 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<UdfDetail> {
         let arg = match &arg {
-            Some(x) => match x {
-                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
-            },
+            Some(x) => {
+                match x {
+                    UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+                }
+            }
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
 
@@ -660,13 +662,15 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => match x {
-                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
-                #[allow(unreachable_patterns)]
-                _ => {
-                    anyhow::bail!("must be a postgres parameter")
+            Some(x) => {
+                match x {
+                    UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+                    #[allow(unreachable_patterns)]
+                    _ => {
+                        anyhow::bail!("must be a postgres parameter")
+                    }
                 }
-            },
+            }
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 
@@ -1450,7 +1454,18 @@ impl QuerySql for PostGresDB {
                 }
             }
         }
+        drop(stream);
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
+        if ret.len() == 0 {
+            use sqlx::Statement;
+            let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+            let field = s
+                .columns()
+                .iter()
+                .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+                .collect::<Vec<_>>();
+            ret = vec![Ok(QueryResp::new(field, vec![]))];
+        }
         anyhow::Ok(ret)
     }
 }
@@ -1530,6 +1545,7 @@ impl CatalogTrait for PostGresDB {
         let x = Self::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
+
     async fn create_database(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!("CREATE DATABASE {name}");
         let mut conn = self.get_conn().await?;
@@ -1605,15 +1621,14 @@ pub(crate) async fn make_test_object() -> PostGresDB {
 }
 #[cfg(test)]
 mod tests {
-    use super::make_test_object;
+    use std::collections::HashMap;
 
+    use super::make_test_object;
     use crate::db::{
         CatalogTrait, CheckConn, ExportKind, QueryResp, QuerySql, SchemaTrait, ServerMetas,
         UdfOrPrecedureExtraParameter,
     };
-
     use crate::enable_test_log;
-    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_procedure() {

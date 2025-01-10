@@ -50,7 +50,7 @@ import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 
-import { ReisTables, TablesTree } from './LeftTable';
+import { RedisTables, TablesTree } from './LeftTable';
 import { ViewKind, ViewsTree } from './LeftView';
 import { ProceduresTree } from './LeftProcedure';
 import { UdfsTree } from './LeftUdf';
@@ -235,7 +235,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         )}
 
       {opened && kind == DataSourceKind.Redis && (
-        <ReisTables schema={schema}></ReisTables>
+        <RedisTables schema={schema}></RedisTables>
       )}
     </TreeItem>
   );
@@ -536,7 +536,7 @@ async function openNewQuery(
 }
 function SchemaMenu(props: {
   schema?: string;
-  uuid;
+  uuid: string;
   handleOpend;
   opened;
   handleCloseConn;
@@ -591,7 +591,7 @@ function SchemaMenu(props: {
             onClick={() => {
               // we are in database context uuid contains the databse name
               // we need remove that
-              let index = uuid.indexOf('/');
+              let index = uuid.lastIndexOf('/');
               dropSchema({
                 uuid: uuid.substring(0, index),
                 schema,

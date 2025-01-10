@@ -59,7 +59,7 @@ function LeftIndexes(props: { table: string }) {
     <TreeItem
       itemId={idPrefix}
       label=<Stack
-        direction='row'
+        direction="row"
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -83,7 +83,7 @@ function LeftIndexes(props: { table: string }) {
             itemId={idPrefix + '-index-' + index.name}
             key={index.name}
             label=<Stack
-              direction='row'
+              direction="row"
               onContextMenu={(e) => {
                 setUpMenu({
                   content: (
@@ -158,7 +158,7 @@ function IndexMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color='error'></DeleteForeverIcon>
+            <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>drop</ListItemText>
         </MenuItem>
@@ -170,9 +170,9 @@ function IndexMenu(props: {
           onClose={() => {
             setShowRename(false);
           }}
-          aria-labelledby='rename'
+          aria-labelledby="rename"
         >
-          <Box sx={modalStyle} width='800px'>
+          <Box sx={modalStyle} width="800px">
             <RenameIndex
               uuid={uuid}
               table={table}
@@ -228,14 +228,20 @@ function RenameIndex(props: {
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
       <TextField
-        label='new name'
+        label="new name"
         value={newName}
         onChange={(e) => {
           setNewname(e.target.value);
         }}
+        size="small"
       ></TextField>
-      <Stack direction='row' spacing={1}>
-        <Button color='primary' variant='contained' onClick={handleRename}>
+      <Stack direction="row" spacing={1}>
+        <Button
+          size="small"
+          color="primary"
+          variant="contained"
+          onClick={handleRename}
+        >
           Rename
         </Button>
       </Stack>

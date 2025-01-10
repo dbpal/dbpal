@@ -3,12 +3,13 @@ import { types } from './ApiStruct.ts';
 import { DataGrid, GridPaginationModel } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
-import { useMemo, useState } from 'react';
+import { useCallback, useContext, useMemo, useState } from 'react';
 import {
   datagridHeaderHeight,
   datagridRowHeight,
   modalStyle,
   SimpleResizeEditor,
+  VisiableContext,
 } from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
@@ -54,35 +55,34 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPagesize] = useState(10);
-  const onRowDoubleClick = useMemo(() => {
-    return (e) => {
-      setSelectSql(e.row.sql);
-    };
+  const onRowDoubleClick = useCallback((e) => {
+    setSelectSql(e.row.sql);
   }, []);
-
   const paginationModel = useMemo(() => {
     return { page: page, pageSize: pageSize };
   }, [page, pageSize]);
-  const onPaginationModelChange = useMemo(() => {
-    return (e: GridPaginationModel) => {
-      setPage(e.page);
-      setPagesize(e.pageSize);
-    };
+  const onPaginationModelChange = useCallback((e: GridPaginationModel) => {
+    setPage(e.page);
+    setPagesize(e.pageSize);
   }, []);
-
+  let vis = useContext(VisiableContext);
   return (
     <Stack>
-      <DataGrid
-        onRowDoubleClick={onRowDoubleClick}
-        columns={columns}
-        rows={logs}
-        rowHeight={datagridRowHeight}
-        columnHeaderHeight={datagridHeaderHeight}
-        pageSizeOptions={[10, 15]}
-        paginationModel={paginationModel}
-        onPaginationModelChange={onPaginationModelChange}
-        initialState={initialState}
-      ></DataGrid>
+      {vis && (
+        <div style={{ display: 'grid' }}>
+          <DataGrid
+            onRowDoubleClick={onRowDoubleClick}
+            columns={columns}
+            rows={logs}
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
+            pageSizeOptions={[10, 15]}
+            paginationModel={paginationModel}
+            onPaginationModelChange={onPaginationModelChange}
+            initialState={initialState}
+          ></DataGrid>
+        </div>
+      )}
 
       {selectSql && (
         <Modal

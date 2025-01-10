@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -118,10 +117,12 @@ pub trait LexerCompletionTrait {
         ret.extend(
             Self::KEY_WORDS
                 .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: Cow::Borrowed(*x),
+                        kind: CompletionKind::KeyWord,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
@@ -129,34 +130,35 @@ pub trait LexerCompletionTrait {
         ret.extend(
             Self::TYPES
                 .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::Type,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: Cow::Borrowed(*x),
+                        kind: CompletionKind::Type,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(
             Self::TEXTS
                 .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::Text,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: Cow::Borrowed(*x),
+                        kind: CompletionKind::Text,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(self.extra_completion_item().await.into_iter());
-        ret.extend(
-            self.list_table_or_view()
-                .await?
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Table,
-                    desc: None,
-                }),
-        );
+        ret.extend(self.list_table_or_view().await?.into_iter().map(|x| {
+            CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Table,
+                desc: None,
+            }
+        }));
         ret.extend(self.list_function().await?.into_iter());
 
         anyhow::Ok(ret)
@@ -219,11 +221,9 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName {
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
 
-    /*
-    postgres use `show all`
-    mysql use `show variables`
-    to query all variables
-     */
+    // postgres use `show all`
+    // mysql use `show variables`
+    // to query all variables
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
@@ -281,7 +281,20 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
     let statements = tokio::task::block_in_place(|| -> anyhow::Result<Vec<Statement>> {
         let parser = sqlparser::parser::Parser::new(&dialet);
         let mut parser = parser.try_with_sql(sql)?;
-        let statements: Vec<Statement> = parser.parse_statements()?;
+        let mut statements = Vec::new();
+        while parser.peek_token().token != Token::EOF {
+            while parser.peek_token().token == Token::SemiColon {
+                parser.next_token();
+            }
+            match parser.parse_statement() {
+                Ok(s) => {
+                    statements.push(s);
+                }
+                Err(err) => {
+                    log::error!("parse sql error:{}", err);
+                }
+            }
+        }
         anyhow::Ok(statements)
     })?;
 
@@ -317,9 +330,8 @@ pub(crate) mod completion_test {
 
     #[test]
     fn test_test_completion_items_contains() {
-        use crate::completion::CompletionKind;
-
         use super::CompletionItem;
+        use crate::completion::CompletionKind;
 
         test_completion_items_contains(
             &[CompletionItem {

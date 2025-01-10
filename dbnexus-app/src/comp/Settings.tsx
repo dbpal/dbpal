@@ -57,7 +57,7 @@ function ModifySettings() {
 
   const headerSize = '200px';
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
         <Typography width={headerSize}> page size: </Typography>
         <SelectPageSize
@@ -88,6 +88,7 @@ function ModifySettings() {
       <Divider></Divider>
       <Stack direction="row">
         <Button
+          size="small"
           variant="contained"
           onClick={() => {
             handleSave();

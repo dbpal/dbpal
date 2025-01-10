@@ -1,4 +1,11 @@
-import { CSSProperties, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  CSSProperties,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import types from './ApiStruct';
 import {
@@ -126,7 +133,7 @@ function SqlTableView(props: {
     }
   };
 
-  const handleReload = async () => {
+  const handleReload = async (showOK: boolean) => {
     setLoading(true);
     try {
       let resp = await reloadOP(
@@ -138,7 +145,9 @@ function SqlTableView(props: {
       setLoading(false);
       await handleResp(resp);
       setResp(resp);
-      reloadOK(showNotification);
+      if (showOK) {
+        reloadOK(showNotification);
+      }
     } catch (e) {
       setLoading(false);
       showNotification('error', 'query data failed', e);
@@ -146,8 +155,8 @@ function SqlTableView(props: {
     }
   };
 
-  const handleProcessRowUpdate = useMemo(() => {
-    return async (newRow: Map<string, string>, oldRow: Map<string, string>) => {
+  const handleProcessRowUpdate = useCallback(
+    async (newRow: Map<string, string>, oldRow: Map<string, string>) => {
       if (!updateOP) {
         return newRow;
       }
@@ -180,8 +189,9 @@ function SqlTableView(props: {
         throw e;
       }
       return newRow;
-    };
-  }, [resp]);
+    },
+    [resp]
+  );
 
   const handleDetele = async () => {
     if (!(await confrimAboutPrimary(notWarnPri, resp))) {
@@ -210,11 +220,11 @@ function SqlTableView(props: {
         showNotification('error', 'delete failed', e);
       }
     }
-    handleReload();
+    handleReload(false);
   };
 
   useEffect(() => {
-    handleReload();
+    handleReload(false);
   }, [page, pageSize, triggerReload]);
   useEffect(() => {}, [orderBy]);
   useEffect(() => {
@@ -224,41 +234,33 @@ function SqlTableView(props: {
   const paginationModel = useMemo(() => {
     return { page, pageSize };
   }, [page, pageSize]);
-  const onPaginationModelChange = useMemo(() => {
-    return (e) => {
-      setPage(e.page);
-      setPageSize(e.pageSize);
-    };
+  const onPaginationModelChange = useCallback((e) => {
+    setPage(e.page);
+    setPageSize(e.pageSize);
   }, []);
 
-  const onRowSelectionModelChange = useMemo(() => {
-    return (e) => {
-      setSelectIDs(e);
-    };
+  const onRowSelectionModelChange = useCallback((e) => {
+    setSelectIDs(e);
   }, []);
 
-  const onSortModelChange = useMemo(() => {
-    return (sorts) => {
-      if (sorts.length == 0) {
-        setOrderBy('');
-        setTriggerReload((e) => !e);
-        return;
-      }
-      let sort = sorts[0];
-      if (!sort.sort) {
-        setOrderBy('');
-        setTriggerReload((e) => !e);
-        return;
-      }
-      setOrderBy(`${sort.field} ${sort.sort}`);
+  const onSortModelChange = useCallback((sorts) => {
+    if (sorts.length == 0) {
+      setOrderBy('');
       setTriggerReload((e) => !e);
-    };
+      return;
+    }
+    let sort = sorts[0];
+    if (!sort.sort) {
+      setOrderBy('');
+      setTriggerReload((e) => !e);
+      return;
+    }
+    setOrderBy(`${sort.field} ${sort.sort}`);
+    setTriggerReload((e) => !e);
   }, []);
 
-  const onProcessRowUpdateError = useMemo(() => {
-    return (e) => {
-      showNotification('error', 'update failed', e);
-    };
+  const onProcessRowUpdateError = useCallback((e) => {
+    showNotification('error', 'update failed', e);
   }, []);
   const dataGridStyle = useMemo(() => {
     return {
@@ -267,16 +269,13 @@ function SqlTableView(props: {
   }, []);
 
   return (
-    <Stack spacing={1} style={{ display: 'grid', gridTemplateColumns: '1fr' }}>
+    <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
           fullWidth
           label="where"
           variant="outlined"
           value={where}
-          onBlur={() => {
-            setTriggerReload((e) => !e);
-          }}
           onChange={(event) => {
             setWhere(event.target.value);
           }}
@@ -290,19 +289,16 @@ function SqlTableView(props: {
           onChange={(event) => {
             setOrderBy(event.target.value);
           }}
-          onBlur={() => {
-            setTriggerReload((e) => !e);
-          }}
           size="small"
         />
 
         <Button
+          size="small"
           variant="contained"
           color="primary"
           onClick={() => {
-            handleReload();
+            handleReload(true);
           }}
-          size="small"
         >
           Reload
         </Button>
@@ -318,24 +314,24 @@ function SqlTableView(props: {
             <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
               {deleteOP && (
                 <Button
+                  size="small"
                   variant="contained"
                   disabled={selectIDs.length == 0}
                   onClick={() => {
                     handleDetele();
                   }}
-                  size="small"
                 >
                   <DeleteForeverIcon color="error"></DeleteForeverIcon>
                 </Button>
               )}
               {addOP && (
                 <Button
+                  size="small"
                   color="primary"
                   variant="contained"
                   onClick={() => {
                     setShowAdd(true);
                   }}
-                  size="small"
                 >
                   <AddIcon></AddIcon>
                 </Button>
@@ -361,7 +357,7 @@ function SqlTableView(props: {
                       } catch (e) {
                         throw e;
                       }
-                      handleReload();
+                      handleReload(false);
                     }}
                     fields={resp.data.fields}
                   ></SqlTableViewAdd>
@@ -371,28 +367,30 @@ function SqlTableView(props: {
           </Stack>
 
           {visiable && (
-            <DataGrid
-              style={dataGridStyle}
-              rowHeight={datagridRowHeight}
-              columnHeaderHeight={datagridHeaderHeight}
-              getRowId={getRowId}
-              paginationModel={paginationModel}
-              pageSizeOptions={pageSizeOptions}
-              paginationMode="server"
-              onPaginationModelChange={onPaginationModelChange}
-              checkboxSelection
-              onRowSelectionModelChange={onRowSelectionModelChange}
-              rowCount={resp.total}
-              sortingMode="server"
-              onSortModelChange={onSortModelChange}
-              columns={resp.data.fields}
-              rows={resp.data.data}
-              // when user enter order by then update
-              // sortModel={sortModel}
-              //@ts-ignore
-              processRowUpdate={handleProcessRowUpdate}
-              onProcessRowUpdateError={onProcessRowUpdateError}
-            ></DataGrid>
+            <div style={{ display: 'grid' }}>
+              <DataGrid
+                style={dataGridStyle}
+                rowHeight={datagridRowHeight}
+                columnHeaderHeight={datagridHeaderHeight}
+                getRowId={getRowId}
+                paginationModel={paginationModel}
+                pageSizeOptions={pageSizeOptions}
+                paginationMode="server"
+                onPaginationModelChange={onPaginationModelChange}
+                checkboxSelection
+                onRowSelectionModelChange={onRowSelectionModelChange}
+                rowCount={resp.total}
+                sortingMode="server"
+                onSortModelChange={onSortModelChange}
+                columns={resp.data.fields}
+                rows={resp.data.data}
+                // when user enter order by then update
+                // sortModel={sortModel}
+                //@ts-ignore
+                processRowUpdate={handleProcessRowUpdate}
+                onProcessRowUpdateError={onProcessRowUpdateError}
+              ></DataGrid>
+            </div>
           )}
         </>
       )}
@@ -458,11 +456,12 @@ function SqlTableViewAdd(props: {
               newArgs[f.field] = v;
               setArgs(newArgs);
             }}
+            size="small"
           ></TextField>
         );
       })}
       <Stack direction="row" spacing={1}>
-        <Button variant="contained" onClick={handleAdd}>
+        <Button size="small" variant="contained" onClick={handleAdd}>
           Add
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}

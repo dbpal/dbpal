@@ -77,6 +77,7 @@ function ExportView(props: {
       <Stack direction="row" spacing={1}>
         {support_kind.map((e) => (
           <Button
+            size="small"
             disabled={kind == e}
             onClick={() => {
               setKind(e);
@@ -157,6 +158,7 @@ function ExportView(props: {
       {kind == 'jsonline' && <></>}
       <Stack direction="row" sx={{ alignItems: 'flex-end' }}>
         <Button
+          size="small"
           onClick={async () => {
             let file = await save({ title: 'save file' });
             setFile(file);
@@ -169,6 +171,7 @@ function ExportView(props: {
       <Divider></Divider>
       <Stack>
         <Button
+          size="small"
           disabled={!file}
           onClick={async () => {
             handleExport();

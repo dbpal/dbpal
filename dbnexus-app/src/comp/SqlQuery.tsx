@@ -21,6 +21,7 @@ import {
   EditorBar,
   msgTimeout,
   progressBarSize,
+  reloadOK,
   SettingsContext,
 } from './Common.tsx';
 import { NotificationContext } from './Notification.tsx';
@@ -163,6 +164,10 @@ function SqlQuery(props: {
             setShowSuggestReconn(null);
           }, msgTimeout);
         }
+        if (showQueryLog) {
+          handleLoadQueryLog();
+        }
+        reloadOK(showNotification);
       })
       .catch((e) => {
         setLoading(false);
@@ -257,6 +262,7 @@ function SqlQuery(props: {
           </Tooltip>
 
           <Button
+            size="small"
             onClick={() => {
               setShowQueryLog((prev) => !prev);
             }}

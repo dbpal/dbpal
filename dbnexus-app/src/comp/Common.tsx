@@ -115,7 +115,7 @@ function MetaValuesView(props: { values: types.MetaValue[]; flex?: number }) {
   );
 }
 function SelectPageSize({
-  width = '130px',
+  width = '200px',
   variant = 'outlined',
   tital = 'select page size',
   pageSize,
@@ -124,9 +124,9 @@ function SelectPageSize({
   return (
     <Box width={width}>
       <FormControl
-        fullWidth
         //@ts-ignore
         variant={variant}
+        fullWidth
         size="small"
       >
         <InputLabel id="simple-select-label">{tital}</InputLabel>
@@ -228,11 +228,11 @@ function backendCompletionItemToEditor(
       case 'Function':
         return languages.CompletionItemKind.Function;
       case 'Database':
-        return languages.CompletionItemKind.Folder;
+        return languages.CompletionItemKind.Module;
       case 'Schema':
         return languages.CompletionItemKind.Folder;
       case 'Table':
-        return languages.CompletionItemKind.Module;
+        return languages.CompletionItemKind.File;
       case 'Column':
         return languages.CompletionItemKind.Field;
       case 'Text':
@@ -387,6 +387,7 @@ function CreateDatabase({ uuid, handleClose }) {
           onChange={(e) => {
             setDatabase(e.target.value);
           }}
+          size="small"
           error={database == ''}
           label="dadtabase name"
         ></TextField>
@@ -396,6 +397,7 @@ function CreateDatabase({ uuid, handleClose }) {
           onClick={() => {
             handleCreate();
           }}
+          size="small"
         >
           create
         </Button>
@@ -449,6 +451,7 @@ function CreateSchema(props: {
             .filter((e) => !schemaSet.has(e))
             .map((e) => (
               <Button
+                size="small"
                 key={e}
                 onClick={() => {
                   setSchema(e);
@@ -465,10 +468,12 @@ function CreateSchema(props: {
               setSchema(e.target.value);
             }}
             label="name"
+            size="small"
           ></TextField>
         </Stack>
         <Stack direction="row">
           <Button
+            size="small"
             onClick={() => {
               handleCreate();
             }}
@@ -489,10 +494,12 @@ function CreateSchema(props: {
             setSchema(e.target.value);
           }}
           label="name"
+          size="small"
         ></TextField>
       </Stack>
       <Stack direction="row">
         <Button
+          size="small"
           onClick={() => {
             handleCreate();
           }}
@@ -979,7 +986,12 @@ function ConnInfo(props: { uuid }) {
   return (
     <Stack spacing={1}>
       <Stack direction="row">
-        <Button variant="contained" color="primary" onClick={handleInfo}>
+        <Button
+          variant="contained"
+          size="small"
+          color="primary"
+          onClick={handleInfo}
+        >
           reload
         </Button>
       </Stack>
@@ -1103,7 +1115,6 @@ async function makeQueryConnInfo(uuid: string) {
           <span>
             {config.username}@{config.host}:{config.port}/
           </span>
-          <span>{uuid} </span>
         </>
       );
       break;
@@ -1121,7 +1132,7 @@ async function makeQueryConnInfo(uuid: string) {
           <strong>{config.conn_type}</strong>
           <span>
             {config.username} {config.username && '@'}
-            {config.host}:{config.port}/{uuid}
+            {config.host}:{config.port}
           </span>
         </>
       );

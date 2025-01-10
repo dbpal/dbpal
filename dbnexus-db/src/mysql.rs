@@ -9,6 +9,7 @@ use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::PoolConnection;
+use sqlx::types::BigDecimal;
 use sqlx::{Column, Executor, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
@@ -626,6 +627,7 @@ impl SchemaTrait for MysqlDB {
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
+
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
@@ -1023,6 +1025,8 @@ impl SchemaTrait for MysqlDB {
             _ if ty.starts_with("VARCHAR") || ty.starts_with("CHAR") || ty.starts_with("TEXT") => {
                 single_quote_str
             }
+            "DECIMAL" => default_str,
+            _ if ty.starts_with("DECIMAL") => default_str,
             "VARBINARY" | "BINARY" | "BLOB" => default_str,
             "TIMESTAMP" => single_quote_str,
             "DATETIME" => single_quote_str,
@@ -1111,12 +1115,14 @@ impl SchemaTrait for MysqlDB {
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
                 Ok(x) => x,
-                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
-                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
-                    Err(_err) => {
-                        anyhow::bail!("can get column as string or vec<u8>")
+                Err(_) => {
+                    match r.try_get::<'_, Vec<u8>, _>(0) {
+                        Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                        Err(_err) => {
+                            anyhow::bail!("can get column as string or vec<u8>")
+                        }
                     }
-                },
+                }
             };
             let ty: String = r.try_get(1)?;
             let null: String = r.try_get(2)?;
@@ -1269,6 +1275,10 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
                     let value: Option<chrono::NaiveTime> = r.try_get(c)?;
                     value.map(|x| x.to_string())
                 }
+                "DECIMAL" => {
+                    let value: Option<BigDecimal> = r.try_get(c)?;
+                    value.map(|x| x.to_string())
+                }
 
                 _ => anyhow::bail!(format!("type '{ty}' not supported")),
             };
@@ -1348,12 +1358,14 @@ impl DBTrait for MysqlDB {
         let x = Self::new(config).await?;
         Ok(Arc::new(x))
     }
+
     async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!("CREATE DATABASE {name}");
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
+
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!("DROP DATABASE {name}");
         let mut conn = self.get_conn().await?;
@@ -1432,6 +1444,17 @@ impl QuerySql for MysqlDB {
                     rows.push(row);
                 }
             }
+        }
+        drop(stream);
+        if ret.len() == 0 {
+            use sqlx::Statement;
+            let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+            let field = s
+                .columns()
+                .iter()
+                .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+                .collect::<Vec<_>>();
+            ret = vec![Ok(QueryResp::new(field, vec![]))];
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)

@@ -11,7 +11,7 @@ use sqlparser::ast::{ColumnOption, Expr, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::sqlite::SqliteRow;
-use sqlx::{Column, Row, SqliteConnection, TypeInfo};
+use sqlx::{Column, Executor, Row, SqliteConnection, TypeInfo};
 
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, FormatSql,
@@ -1105,15 +1105,21 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1173,7 +1179,20 @@ impl QuerySql for SqliteDB {
                 }
             }
         }
+        drop(stream);
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
+
+        if ret.len() == 0 {
+            use sqlx::Statement;
+            let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+            let field = s
+                .columns()
+                .iter()
+                .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+                .collect::<Vec<_>>();
+            ret = vec![Ok(QueryResp::new(field, vec![]))];
+        }
+
         anyhow::Ok(ret)
     }
 

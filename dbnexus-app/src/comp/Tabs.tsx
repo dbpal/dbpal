@@ -102,6 +102,7 @@ function TabsWithContent(props: {
       {tabs.length > 0 && (
         <Stack>
           <Button
+            size="small"
             style={{ padding: 2 }}
             onClick={() => {
               setShow((e) => !e);
@@ -125,6 +126,7 @@ function TabsWithContent(props: {
           {tabs.map((tab, index) => {
             return (
               <Button
+                size="small"
                 key={tab.id}
                 sx={{ textTransform: 'none' }}
                 onContextMenu={(e) => {
@@ -153,13 +155,15 @@ function TabsWithContent(props: {
           })}
         </Stack>
       )}
-      {tabs.map((tab, index) => (
-        <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
-          <div style={{ width: '100%' }} hidden={selectIndex !== index}>
-            {tab.content}
-          </div>
-        </VisiableContext.Provider>
-      ))}
+      <div>
+        {tabs.map((tab, index) => (
+          <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
+            <div style={{ width: '100%' }} hidden={selectIndex !== index}>
+              {tab.content}
+            </div>
+          </VisiableContext.Provider>
+        ))}
+      </div>
     </Stack>
   );
 }

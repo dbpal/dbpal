@@ -40,6 +40,7 @@ import {
   editorInitHeight,
   progressBarSize,
   SettingsContext,
+  VisiableContext,
 } from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
@@ -260,6 +261,7 @@ function MongoBsonEditor(props: {
             return (
               //@ts-ignore
               <Button
+                size="small"
                 key={button.buttonConent}
                 variant={button.variant}
                 color={button.color}
@@ -452,6 +454,7 @@ function MongoTableListToolBar(props: {
         )}
 
         <Button
+          size="small"
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
           onClick={doReload} // 点击事件处理
@@ -589,7 +592,7 @@ function MongoTable(props: {
   useEffect(() => {
     handleReload();
   }, [page, pageSize, viewModel]);
-
+  const vis = useContext(VisiableContext);
   return (
     <Stack spacing={1}>
       <MongoTableListToolBar
@@ -615,6 +618,7 @@ function MongoTable(props: {
         <Stack spacing={1}>
           <Stack direction="row">
             <Button
+              size="small"
               variant="contained"
               color="error"
               disabled={selectIDs.length == 0}
@@ -625,49 +629,53 @@ function MongoTable(props: {
               <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
           </Stack>
-          <DataGrid
-            getRowId={(e) => {
-              return e._id; // in this case object been convert to hexstring
-            }}
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
-            checkboxSelection
-            rowCount={resp.total}
-            columns={resp.data.fields}
-            rows={resp.data.data}
-            pageSizeOptions={pageSizeOptions}
-            disableColumnFilter
-            paginationMode="server"
-            paginationMeta={{ hasNextPage: true }}
-            paginationModel={{ page: page, pageSize: pageSize }}
-            onPaginationModelChange={(m) => {
-              setPage(m.page);
-              setPageSize(m.pageSize);
-            }}
-            onRowDoubleClick={(e) => {
-              handleLoadOne(e.id as string).then((doc) => {
-                setSelectModifyDoc(doc);
-              });
-            }}
-            sortingMode="server"
-            onSortModelChange={(e) => {
-              if (e.length == 0) {
-                setOrderby({});
-                return;
-              }
-              let s = e[0];
-              if (!s.sort) {
-                setOrderby({});
-                return;
-              }
-              let order = {};
-              order[s.field] = s.sort == 'asc' ? 1 : -1;
-              setOrderby(order);
-            }}
-            onRowSelectionModelChange={(e) => {
-              setSelectIDs(e as string[]);
-            }}
-          ></DataGrid>
+          {vis && (
+            <div>
+              <DataGrid
+                getRowId={(e) => {
+                  return e._id; // in this case object been convert to hexstring
+                }}
+                rowHeight={datagridRowHeight}
+                columnHeaderHeight={datagridHeaderHeight}
+                checkboxSelection
+                rowCount={resp.total}
+                columns={resp.data.fields}
+                rows={resp.data.data}
+                pageSizeOptions={pageSizeOptions}
+                disableColumnFilter
+                paginationMode="server"
+                paginationMeta={{ hasNextPage: true }}
+                paginationModel={{ page: page, pageSize: pageSize }}
+                onPaginationModelChange={(m) => {
+                  setPage(m.page);
+                  setPageSize(m.pageSize);
+                }}
+                onRowDoubleClick={(e) => {
+                  handleLoadOne(e.id as string).then((doc) => {
+                    setSelectModifyDoc(doc);
+                  });
+                }}
+                sortingMode="server"
+                onSortModelChange={(e) => {
+                  if (e.length == 0) {
+                    setOrderby({});
+                    return;
+                  }
+                  let s = e[0];
+                  if (!s.sort) {
+                    setOrderby({});
+                    return;
+                  }
+                  let order = {};
+                  order[s.field] = s.sort == 'asc' ? 1 : -1;
+                  setOrderby(order);
+                }}
+                onRowSelectionModelChange={(e) => {
+                  setSelectIDs(e as string[]);
+                }}
+              ></DataGrid>
+            </div>
+          )}
         </Stack>
       )}
       {selectModifyDoc && (

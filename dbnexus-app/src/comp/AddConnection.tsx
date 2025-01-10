@@ -75,6 +75,7 @@ function Sqlite(props: { path; setPath }) {
             setPath(e);
           });
         }}
+        size="small"
       >
         <AttachFileIcon></AttachFileIcon>
       </Button>
@@ -163,6 +164,7 @@ function Database(props: {
         {candidates.map((e) => (
           <Button
             key={e}
+            size="small"
             onClick={() => {
               setDatabase(e);
             }}
@@ -194,6 +196,7 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
       <Stack direction="row" style={{ flexWrap: 'wrap' }}>
         {candidates.map((e) => (
           <Button
+            size="small"
             key={e}
             onClick={() => {
               setSchema(e);
@@ -608,6 +611,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
       )}
       <Stack direction="row">
         <Button
+          size="small"
           variant="outlined"
           sx={{ mr: 1 }}
           onClick={handleTestConnection}

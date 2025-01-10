@@ -1,4 +1,10 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   Button,
   Stack,
@@ -28,6 +34,7 @@ import {
   progressBarSize,
   SettingsContext,
   reloadOK,
+  VisiableContext,
 } from './Common.tsx';
 
 import { types } from './ApiStruct.ts';
@@ -35,6 +42,7 @@ import { types } from './ApiStruct.ts';
 import { NotificationContext } from './Notification';
 import {
   DataGrid,
+  GridPaginationModel,
   GridRowSelectionModel,
   GridSortModel,
 } from '@mui/x-data-grid';
@@ -104,7 +112,12 @@ function RedisListAdd(props: {
       <RedisEditHexOrText handleValue={(e) => setKey(e)}></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleAdd}>
+        <Button
+          size="small"
+          color="primary"
+          variant="contained"
+          onClick={handleAdd}
+        >
           PUSH
         </Button>
       </Stack>
@@ -147,6 +160,7 @@ function RedisStringTable(props: {
 
       <Stack width="100px" direction="row" spacing={1}>
         <Button
+          size="small"
           color="primary"
           variant="contained"
           onClick={() => {
@@ -189,7 +203,12 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleAdd}>
+        <Button
+          size="small"
+          color="primary"
+          variant="contained"
+          onClick={handleAdd}
+        >
           Add
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
@@ -240,7 +259,12 @@ function RedisAddHash(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleAdd}>
+        <Button
+          size="small"
+          color="primary"
+          variant="contained"
+          onClick={handleAdd}
+        >
           Add
         </Button>
       </Stack>
@@ -285,6 +309,7 @@ function RedisAddZset(props: {
           setScore(event.target.value);
           setScoreErr(isNaN(parseFloat(event.target.value)));
         }}
+        size="small"
       ></TextField>
 
       <RedisEditHexOrText
@@ -294,7 +319,12 @@ function RedisAddZset(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleAdd}>
+        <Button
+          size="small"
+          color="primary"
+          variant="contained"
+          onClick={handleAdd}
+        >
           Add
         </Button>
       </Stack>
@@ -348,7 +378,12 @@ function RedisEditHash(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleModify}>
+        <Button
+          size="small"
+          color="primary"
+          variant="contained"
+          onClick={handleModify}
+        >
           Modify
         </Button>
       </Stack>
@@ -405,6 +440,7 @@ function RedisEditZset(props: {
             setNewValueErr(false);
           }
         }}
+        size="small"
       ></TextField>
       <RedisEditHexOrText
         oldValue={oldKey}
@@ -414,7 +450,12 @@ function RedisEditZset(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleModify}>
+        <Button
+          size="small"
+          color="primary"
+          variant="contained"
+          onClick={handleModify}
+        >
           Modify
         </Button>
       </Stack>
@@ -537,6 +578,7 @@ function RedisEditHexOrText(props: {
             setNewValue(event.target.value);
             handleValue(stringToHex(event.target.value));
           }}
+          size="small"
         ></TextField>
       )}
 
@@ -566,6 +608,7 @@ function RedisEditHexOrText(props: {
 
             <Button
               color="primary"
+              size="small"
               variant="contained"
               onClick={handleAddLength}
             >
@@ -616,6 +659,7 @@ function RedisEditList(props: {
       ></RedisEditHexOrText>
       <Stack direction="row" spacing={1}>
         <Button
+          size="small"
           color="primary"
           variant="contained"
           disabled={newValue == ''}
@@ -665,6 +709,7 @@ function RedisEditSet(props: {
       ></RedisEditHexOrText>
       <Stack direction="row" spacing={1}>
         <Button
+          size="small"
           color="primary"
           variant="contained"
           disabled={newValue == ''}
@@ -746,16 +791,16 @@ function RedisSetTable(props: {
     }
     handleReload(false);
   };
-  const onRowDoubleClick = useMemo(() => {
-    return (e) => {
-      setSelectRow(e.row);
-    };
+  const onRowDoubleClick = useCallback((e) => {
+    setSelectRow(e.row);
   }, []);
-  const onRowSelectionModelChange = useMemo(() => {
-    return (rows: GridRowSelectionModel) => {
+  const onRowSelectionModelChange = useCallback(
+    (rows: GridRowSelectionModel) => {
       setSelectionModel(rows as string[]);
-    };
-  }, []);
+    },
+    []
+  );
+  const vis = useContext(VisiableContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -769,6 +814,7 @@ function RedisSetTable(props: {
           size="small"
         />
         <Button
+          size="small"
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
           onClick={() => {
@@ -783,6 +829,7 @@ function RedisSetTable(props: {
         <Stack spacing={1}>
           <Stack direction="row" spacing={1}>
             <Button
+              size="small"
               variant="contained"
               color="error"
               disabled={selectionModel.length == 0}
@@ -801,6 +848,7 @@ function RedisSetTable(props: {
               <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
             <Button
+              size="small"
               variant="contained"
               color="primary"
               onClick={() => {
@@ -812,19 +860,21 @@ function RedisSetTable(props: {
           </Stack>
 
           {/* actual data grid */}
-          <div style={{ display: 'grid' }}>
-            <DataGrid
-              rowHeight={datagridRowHeight}
-              columnHeaderHeight={datagridHeaderHeight}
-              rows={resp.data.data}
-              checkboxSelection
-              editMode="row"
-              onRowDoubleClick={onRowDoubleClick}
-              columns={resp.data.fields}
-              disableColumnFilter
-              onRowSelectionModelChange={onRowSelectionModelChange}
-            ></DataGrid>
-          </div>
+          {vis && (
+            <div style={{ display: 'grid' }}>
+              <DataGrid
+                rowHeight={datagridRowHeight}
+                columnHeaderHeight={datagridHeaderHeight}
+                rows={resp.data.data}
+                checkboxSelection
+                editMode="row"
+                onRowDoubleClick={onRowDoubleClick}
+                columns={resp.data.fields}
+                disableColumnFilter
+                onRowSelectionModelChange={onRowSelectionModelChange}
+              ></DataGrid>
+            </div>
+          )}
 
           {selectRow && (
             <Modal
@@ -958,27 +1008,24 @@ function RedisListTable(props: {
     }
     handleReload(false);
   };
-  const onRowDoubleClick = useMemo(() => {
-    return (e) => {
-      setSelectRow(e.row);
-    };
+  const onRowDoubleClick = useCallback((e) => {
+    setSelectRow(e.row);
   }, []);
-  const onRowSelectionModelChange = useMemo(() => {
-    return (rows: GridRowSelectionModel) => {
+  const onRowSelectionModelChange = useCallback(
+    (rows: GridRowSelectionModel) => {
       setSelectionModel(rows.length > 0 ? (rows[0] as string) : '');
-    };
-  }, []);
-  const onPaginationModelChange = useMemo(() => {
-    return (x) => {
-      setPage(x.page);
-      setPageSize(x.pageSize);
-    };
+    },
+    []
+  );
+  const onPaginationModelChange = useCallback((x: GridPaginationModel) => {
+    setPage(x.page);
+    setPageSize(x.pageSize);
   }, []);
   const paginationModel = useMemo(() => {
     return { page, pageSize };
   }, [page, pageSize]);
-  const onSortModelChange = useMemo(() => {
-    return (c: GridSortModel) => {
+  const onSortModelChange = useCallback(
+    (c: GridSortModel) => {
       if (c.length == 0) {
         setResp(resp2);
         return;
@@ -1000,13 +1047,15 @@ function RedisListTable(props: {
           data: resp2.data.data.slice().reverse(),
         },
       } as types.MuiDataTableListResp);
-    };
-  }, [resp2]);
-
+    },
+    [resp2]
+  );
+  const vis = useContext(VisiableContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
         <Button
+          size="small"
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
           onClick={() => {
@@ -1032,6 +1081,7 @@ function RedisListTable(props: {
               inputProps={{ type: 'number' }}
             />
             <Button
+              size="small"
               variant="contained"
               color="error"
               disabled={selectionModel === '' || deleteCountErr}
@@ -1050,6 +1100,7 @@ function RedisListTable(props: {
               <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
             <Button
+              size="small"
               variant="contained"
               color="primary"
               onClick={() => {
@@ -1061,25 +1112,27 @@ function RedisListTable(props: {
           </Stack>
 
           {/* actual data grid */}
-          <div style={{ display: 'grid' }}>
-            <DataGrid
-              rowHeight={datagridRowHeight}
-              columnHeaderHeight={datagridHeaderHeight}
-              checkboxSelection
-              disableMultipleRowSelection
-              disableColumnFilter
-              rows={resp.data.data}
-              columns={resp.data.fields}
-              paginationModel={paginationModel}
-              onRowDoubleClick={onRowDoubleClick}
-              onRowSelectionModelChange={onRowSelectionModelChange}
-              pageSizeOptions={pageSizeOptions}
-              onPaginationModelChange={onPaginationModelChange}
-              sortingMode="server"
-              paginationMode="client"
-              onSortModelChange={onSortModelChange}
-            ></DataGrid>
-          </div>
+          {vis && (
+            <div style={{ display: 'grid' }}>
+              <DataGrid
+                rowHeight={datagridRowHeight}
+                columnHeaderHeight={datagridHeaderHeight}
+                checkboxSelection
+                disableMultipleRowSelection
+                disableColumnFilter
+                rows={resp.data.data}
+                columns={resp.data.fields}
+                paginationModel={paginationModel}
+                onRowDoubleClick={onRowDoubleClick}
+                onRowSelectionModelChange={onRowSelectionModelChange}
+                pageSizeOptions={pageSizeOptions}
+                onPaginationModelChange={onPaginationModelChange}
+                sortingMode="server"
+                paginationMode="client"
+                onSortModelChange={onSortModelChange}
+              ></DataGrid>
+            </div>
+          )}
 
           {selectRow && (
             <Modal
@@ -1233,16 +1286,16 @@ function RedisZsetTable(props: {
     }
     handleReload(false);
   };
-  const onRowDoubleClick = useMemo(() => {
-    return (e) => {
-      setSelectRow(e.row);
-    };
+  const onRowDoubleClick = useCallback((e) => {
+    setSelectRow(e.row);
   }, []);
-  const onRowSelectionModelChange = useMemo(() => {
-    return (rows: GridRowSelectionModel) => {
+  const onRowSelectionModelChange = useCallback(
+    (rows: GridRowSelectionModel) => {
       setSelectionModel(rows as string[]);
-    };
-  }, []);
+    },
+    []
+  );
+  const vis = useContext(VisiableContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -1289,6 +1342,7 @@ function RedisZsetTable(props: {
           size="small"
         />
         <Button
+          size="small"
           variant="contained"
           color="primary"
           onClick={() => {
@@ -1303,6 +1357,7 @@ function RedisZsetTable(props: {
         <Stack spacing={1}>
           <Stack direction="row" spacing={1}>
             <Button
+              size="small"
               variant="contained"
               color="error"
               disabled={selectionModel.length == 0}
@@ -1321,6 +1376,7 @@ function RedisZsetTable(props: {
               <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
             <Button
+              size="small"
               variant="contained"
               color="primary"
               onClick={() => {
@@ -1332,17 +1388,22 @@ function RedisZsetTable(props: {
           </Stack>
 
           {/* actual data grid */}
-          <DataGrid
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
-            rows={resp.data.data}
-            checkboxSelection
-            editMode="row"
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.data.fields}
-            disableColumnFilter
-            onRowSelectionModelChange={onRowSelectionModelChange}
-          ></DataGrid>
+          {vis && (
+            <div style={{ display: 'grid' }}>
+              <DataGrid
+                rowHeight={datagridRowHeight}
+                columnHeaderHeight={datagridHeaderHeight}
+                rows={resp.data.data}
+                checkboxSelection
+                editMode="row"
+                onRowDoubleClick={onRowDoubleClick}
+                columns={resp.data.fields}
+                disableColumnFilter
+                onRowSelectionModelChange={onRowSelectionModelChange}
+              ></DataGrid>
+            </div>
+          )}
+
           {selectRow && (
             <Modal
               open={!!selectRow}
@@ -1473,16 +1534,16 @@ function RedisHashTable(props: {
     }
     handleReload(false);
   };
-  const onRowDoubleClick = useMemo(() => {
-    return (e) => {
-      setSelectRow(e.row);
-    };
+  const onRowDoubleClick = useCallback((e) => {
+    setSelectRow(e.row);
   }, []);
-  const onRowSelectionModelChange = useMemo(() => {
-    return (rows: GridRowSelectionModel) => {
+  const onRowSelectionModelChange = useCallback(
+    (rows: GridRowSelectionModel) => {
       setSelectionModel(rows as string[]);
-    };
-  }, []);
+    },
+    []
+  );
+  const vis = useContext(VisiableContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -1496,6 +1557,7 @@ function RedisHashTable(props: {
           size="small"
         />
         <Button
+          size="small"
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
           onClick={() => {
@@ -1510,6 +1572,7 @@ function RedisHashTable(props: {
         <Stack spacing={1}>
           <Stack direction="row" spacing={1}>
             <Button
+              size="small"
               variant="contained"
               color="error"
               disabled={selectionModel.length == 0}
@@ -1528,6 +1591,7 @@ function RedisHashTable(props: {
               <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </Button>
             <Button
+              size="small"
               variant="contained"
               color="primary"
               onClick={() => {
@@ -1539,19 +1603,21 @@ function RedisHashTable(props: {
           </Stack>
 
           {/* actual data grid */}
-          <div style={{ display: 'grid' }}>
-            <DataGrid
-              rowHeight={datagridRowHeight}
-              columnHeaderHeight={datagridHeaderHeight}
-              rows={resp.data.data}
-              checkboxSelection
-              editMode="row"
-              onRowDoubleClick={onRowDoubleClick}
-              columns={resp.data.fields}
-              disableColumnFilter
-              onRowSelectionModelChange={onRowSelectionModelChange}
-            ></DataGrid>
-          </div>
+          {vis && (
+            <div style={{ display: 'grid' }}>
+              <DataGrid
+                rowHeight={datagridRowHeight}
+                columnHeaderHeight={datagridHeaderHeight}
+                rows={resp.data.data}
+                checkboxSelection
+                editMode="row"
+                onRowDoubleClick={onRowDoubleClick}
+                columns={resp.data.fields}
+                disableColumnFilter
+                onRowSelectionModelChange={onRowSelectionModelChange}
+              ></DataGrid>
+            </div>
+          )}
 
           {selectRow && (
             <Modal
@@ -1647,9 +1713,11 @@ function RedisModifyKeyName(props: {
           setNewName(e.target.value);
         }}
         label="name"
+        size="small"
       ></TextField>
       <Stack direction="row" spacing={1}>
         <Button
+          size="small"
           disabled={name == newName}
           color="primary"
           variant="contained"

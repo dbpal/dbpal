@@ -24,7 +24,8 @@ import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
 import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import CloseIcon from '@mui/icons-material/Close';
-
+import { FaListOl } from 'react-icons/fa';
+import TextFieldsIcon from '@mui/icons-material/TextFields';
 import {
   Box,
   Button,
@@ -188,13 +189,14 @@ function TableTypesButton(props: { handleChange; uuid }) {
   };
   return (
     <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
-      <Button onClick={toggleShow}>
+      <Button size="small" onClick={toggleShow}>
         {show && <CloseIcon></CloseIcon>} all types
       </Button>
       {show &&
         types.map((t) => (
           <Button
             key={t}
+            size="small"
             style={{ padding: '3px' }}
             onClick={() => {
               handleChange(t);
@@ -266,6 +268,7 @@ function ModifyTableColumn(props: {
         onChange={(e) => {
           setNewName(e.target.value);
         }}
+        size="small"
         required
         error={!newName}
       ></TextField>
@@ -300,6 +303,7 @@ function ModifyTableColumn(props: {
               onChange={(e) => {
                 setNewTyp(e.target.value);
               }}
+              size="small"
             ></TextField>
             <ColumnNullness
               nullness={nullness}
@@ -309,7 +313,12 @@ function ModifyTableColumn(props: {
         </Stack>
       )}
       <Stack direction="row" spacing={1}>
-        <Button color="error" variant="contained" onClick={handleModify}>
+        <Button
+          size="small"
+          color="error"
+          variant="contained"
+          onClick={handleModify}
+        >
           Modify
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -435,6 +444,7 @@ function TableAddColumn(props: {
           setName(e.target.value);
         }}
         label="column name"
+        size="small"
       ></TextField>
       <TableTypesButton
         uuid={uuid}
@@ -448,6 +458,7 @@ function TableAddColumn(props: {
           value={typ}
           onChange={(e) => setTyp(e.target.value)}
           label="type"
+          size="small"
         ></TextField>
         <ColumnNullness
           nullness={nullness}
@@ -478,11 +489,17 @@ function TableAddColumn(props: {
           value={defaultValue}
           onChange={(e) => setDefaultValue(e.target.value)}
           label="default value"
+          size="small"
         ></TextField>
       </Stack>
       <Divider></Divider>
       <Stack direction="row">
-        <Button variant="contained" color="primary" onClick={handleAdd}>
+        <Button
+          size="small"
+          variant="contained"
+          color="primary"
+          onClick={handleAdd}
+        >
           add
         </Button>
       </Stack>
@@ -656,13 +673,19 @@ function DropTable(props: {
       <Stack direction="row" spacing={1}>
         <Button
           variant="outlined"
+          size="small"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button color="error" variant="contained" onClick={handleDrop}>
+        <Button
+          size="small"
+          color="error"
+          variant="contained"
+          onClick={handleDrop}
+        >
           Drop
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -1286,9 +1309,11 @@ function DupTable(props: {
         onChange={(e) => {
           setName(e.target.value);
         }}
+        size="small"
       ></TextField>
       <Stack direction="row" spacing={1}>
         <Button
+          size="small"
           variant="outlined"
           onClick={() => {
             handleClose();
@@ -1296,7 +1321,12 @@ function DupTable(props: {
         >
           Cancel
         </Button>
-        <Button color="primary" variant="contained" onClick={handleRename}>
+        <Button
+          size="small"
+          color="primary"
+          variant="contained"
+          onClick={handleRename}
+        >
           Duplicate
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -1342,9 +1372,15 @@ function RenameTable(props: {
         onChange={(e) => {
           setNewName(e.target.value);
         }}
+        size="small"
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleRename}>
+        <Button
+          size="small"
+          color="primary"
+          variant="contained"
+          onClick={handleRename}
+        >
           Rename
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -1353,7 +1389,7 @@ function RenameTable(props: {
   );
 }
 
-function ReisTables(prpos: { schema?: string }) {
+function RedisTables(prpos: { schema?: string }) {
   const { schema } = prpos;
 
   const { kind } = useContext(ConnTypeContext);
@@ -1403,15 +1439,21 @@ function ReisTables(prpos: { schema?: string }) {
     typ: RedisTableType
   ) => {
     let name;
+    //@ts-ignore
+    let icon;
+
     switch (typ) {
       case RedisTableType.String:
         name = 'string';
+        icon = <TextFieldsIcon></TextFieldsIcon>;
         break;
       case RedisTableType.List:
         name = 'list';
+        icon = <FaListOl></FaListOl>;
         break;
       case RedisTableType.Set:
         name = 'set';
+        icon = <span>{'{...}'}</span>;
         break;
       case RedisTableType.Zset:
         name = 'zset';
@@ -1423,8 +1465,13 @@ function ReisTables(prpos: { schema?: string }) {
     return (
       <TreeItem
         itemId={idPrefix}
-        label=<Stack>
-          <span> {name} </span>
+        label=<Stack
+          spacing={1}
+          direction="row"
+          sx={{ alignItems: 'flex-end' }}
+        >
+          {/* <span>{icon} </span> */}
+          <span>{name}</span>
         </Stack>
       >
         {tables.map((table) => (
@@ -1505,28 +1552,20 @@ function ReisTables(prpos: { schema?: string }) {
         makeOneKind(
           listTableTreePrefix,
           tables.list_tables,
-
           RedisTableType.List
         )}
       {tables &&
-        makeOneKind(
-          setTableTreePrefix,
-          tables.set_tables,
-
-          RedisTableType.Set
-        )}
+        makeOneKind(setTableTreePrefix, tables.set_tables, RedisTableType.Set)}
       {tables &&
         makeOneKind(
           zsetTableTreePrefix,
           tables.zset_tables,
-
           RedisTableType.Zset
         )}
       {tables &&
         makeOneKind(
           hashTableTreePrefix,
           tables.hash_tables,
-
           RedisTableType.Hash
         )}
       {showEditFilter && (
@@ -1546,6 +1585,7 @@ function ReisTables(prpos: { schema?: string }) {
               onChange={(e) => {
                 setFilter(e.target.value);
               }}
+              size="small"
             ></TextField>
           </Box>
         </Modal>
@@ -1562,4 +1602,4 @@ enum RedisTableType {
   Hash,
 }
 
-export { TablesTree, ReisTables };
+export { TablesTree, RedisTables };

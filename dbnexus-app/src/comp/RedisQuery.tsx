@@ -137,7 +137,7 @@ function RedisQuery(props: {
           ref={iframeRef} // 绑定 iframe 引用
           src={getURL(command)}
           style={{
-            width: '100%',
+            width: '98%',
             height: '100%',
             border: 'none', // 去掉边框
             position: 'absolute',
