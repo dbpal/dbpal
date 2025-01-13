@@ -170,11 +170,11 @@ export namespace types {
         "hash_tables": (string)[];
         "zset_tables": (string)[];
     };
-    export type TriggerTiming = ("Before" | "After" | 
-    /**
-     * sql server have this timing but I am not quit understand.
-     */
-"InsteadOf");
+    export type TriggerTiming = ("Before" | "After" |
+        /**
+         * sql server have this timing but I am not quit understand.
+         */
+        "InsteadOf");
     export type TriggerEvent = ("Insert" | "Update" | "Delete");
     export type TriggerEnable = (({
         "kind": "postgres";
@@ -235,5 +235,13 @@ export namespace types {
         "time": types.U64;
         "sql": string;
         "success": boolean;
+    };
+    export type U32 = number;
+    export type SemanticToken = {
+        "line": types.U32;
+        "col": types.U32;
+        "length": types.U32;
+        "token_type": types.U32;
+        "token_modifiers": (types.U32 | null);
     };
 }

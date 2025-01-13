@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -11,8 +12,34 @@ use typescript_type_def::TypeDef;
 use crate::db::{BackendName, monaco_editor_keyword_regexp, not_support_features};
 use crate::sqlparser_completion::CompletionStament;
 
+#[derive(Debug, Clone, Copy, enum_iterator::Sequence)]
+pub enum TokenModifier {
+    Declaration,
+}
+
+impl Into<u32> for TokenModifier {
+    fn into(self) -> u32 {
+        self as u32
+    }
+}
+
+impl TokenModifier {
+    #[allow(dead_code)] // actual used in test.
+    fn to_static_str(self) -> &'static str {
+        match self {
+            Self::Declaration => "declaration",
+        }
+    }
+}
+
+impl std::fmt::Display for TokenModifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_static_str())
+    }
+}
+
 #[async_trait::async_trait]
-pub trait AutoCompletionTrait {
+pub trait LanguageServer {
     async fn auto_completion(
         &self,
         query_id: uuid::Uuid,
@@ -23,6 +50,47 @@ pub trait AutoCompletionTrait {
         // right now this parameter only use in test.
         use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
+    async fn senmatic_tokens(&self, _sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
+        anyhow::Ok(vec![SemanticToken::new(
+            1 as u32, 1 as u32, 10 as u32, 0 as u32, None,
+        )])
+    }
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, typescript_type_def::TypeDef, PartialOrd,
+)]
+pub struct SemanticToken {
+    pub line: u32, // 1 based
+    pub col: u32,  // 1 based
+    length: u32,
+    token_type: u32,
+    token_modifiers: Option<u32>,
+}
+
+impl SemanticToken {
+    pub(crate) fn new(
+        line: u32, col: u32, length: u32, token_type: u32, token_modifiers: impl Into<Option<u32>>,
+    ) -> Self {
+        Self {
+            line,
+            col,
+            length,
+            token_type,
+            token_modifiers: token_modifiers.into(),
+        }
+    }
+}
+
+impl Ord for SemanticToken {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let o = self.line.cmp(&other.line);
+        if o == Ordering::Equal {
+            self.col.cmp(&other.col)
+        } else {
+            return o;
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -32,7 +100,7 @@ pub struct CompletionItem {
     pub desc: Option<Cow<'static, str>>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef, enum_iterator::Sequence)]
 pub enum CompletionKind {
     // commnad right now use by redis
     Command,
@@ -61,6 +129,24 @@ pub enum CompletionKind {
     Policy,
     Variable,
     Rule,
+    Parameter,
+    Cursor,
+    // a identifer some lexer produce this resule.
+    // used in case we can't parse AST.
+    Identifer,
+    Literal,
+}
+
+impl Into<u32> for CompletionKind {
+    fn into(self) -> u32 {
+        self as u32
+    }
+}
+impl std::fmt::Display for CompletionKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let x = format!("{:?}", self).to_lowercase();
+        write!(f, "{}", x)
+    }
 }
 
 pub fn in_pos(
@@ -78,6 +164,15 @@ pub trait LexerCompletionTrait {
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         vec![]
+    }
+
+    fn consider_keywords() -> HashSet<String> {
+        Self::KEY_WORDS
+            .iter()
+            .chain(Self::TYPES.iter())
+            .chain(Self::TEXTS.iter())
+            .map(|x| x.to_uppercase())
+            .collect()
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>>;
@@ -117,12 +212,10 @@ pub trait LexerCompletionTrait {
         ret.extend(
             Self::KEY_WORDS
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: Cow::Borrowed(*x),
-                        kind: CompletionKind::KeyWord,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: Cow::Borrowed(*x),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -130,35 +223,34 @@ pub trait LexerCompletionTrait {
         ret.extend(
             Self::TYPES
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: Cow::Borrowed(*x),
-                        kind: CompletionKind::Type,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: Cow::Borrowed(*x),
+                    kind: CompletionKind::Type,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(
             Self::TEXTS
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: Cow::Borrowed(*x),
-                        kind: CompletionKind::Text,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: Cow::Borrowed(*x),
+                    kind: CompletionKind::Text,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(self.extra_completion_item().await.into_iter());
-        ret.extend(self.list_table_or_view().await?.into_iter().map(|x| {
-            CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Table,
-                desc: None,
-            }
-        }));
+        ret.extend(
+            self.list_table_or_view()
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
+                }),
+        );
         ret.extend(self.list_function().await?.into_iter());
 
         anyhow::Ok(ret)
@@ -291,7 +383,10 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
                     statements.push(s);
                 }
                 Err(err) => {
+                    // here is very fine.no need to break
                     log::error!("parse sql error:{}", err);
+                    // we better skip to next to avoid infinit loop
+                    parser.next_token();
                 }
             }
         }
@@ -313,7 +408,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
 #[cfg(test)]
 pub(crate) mod completion_test {
 
-    use super::{AutoCompletionTrait, CompletionItem};
+    use super::{CompletionItem, LanguageServer};
 
     /// test if completion items contains a centains string
     /// use in test to see if completion is ok.
@@ -376,8 +471,8 @@ pub(crate) mod completion_test {
             })
             .collect()
     }
-
     #[test]
+
     fn test_parse_auto_completion_test_file() {
         let x = parse_auto_completion_test_file(
             r#"append str
@@ -408,7 +503,7 @@ select xxxx
     }
 
     pub(crate) async fn test_file_auto_completion(
-        content: &str, db: &dyn AutoCompletionTrait, id: uuid::Uuid, use_lexer: bool,
+        content: &str, db: &dyn LanguageServer, id: uuid::Uuid, use_lexer: bool,
     ) {
         let items = parse_auto_completion_test_file(&content);
         for item in items.iter() {

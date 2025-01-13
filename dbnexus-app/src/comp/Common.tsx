@@ -32,7 +32,7 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { Editor, loader, OnMount } from '@monaco-editor/react';
+import { Editor, loader, Monaco, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { invoke } from '@tauri-apps/api/core';
@@ -44,6 +44,66 @@ import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
+
+import { SemanticTokensBuilder } from 'vscode-languageserver';
+
+/*
+pub enum CompletionKind {
+    Command,          // #FF9800
+    KeyWord,         // #3F51B5
+    Function,        // #2196F3
+    Database,        // #4CAF50
+    Schema,          // #FFC107
+    Table,           // #FF5722
+    View,            // #009688
+    Column,          // #9C27B0
+    Text,            // #000000
+    Type,            // #8BC34A
+    Index,           // #795548
+    Sequence,        // #607D8B
+    Stage,           // #FFEB3B
+    Trigger,         // #E91E63
+    Event,           // #F44336
+    Procedure,       // #3F51B5
+    Extension,       // #FF9800
+    User,            // #9E9E9E
+    Role,            // #FF5722
+    Constraint,      // #8BC34A
+    Partition,       // #CDDC39
+    PrepareStatement, // #FFC107
+    Pragma,          // #FF9800
+    Policy,          // #4CAF50
+    Variable,        // #2196F3
+    Rule,            // #FF4081
+    Parameter,       // #FFEB3B
+    Cursor,          // #9E9E9E
+    Identifer,       // #607D8B
+    Literal,         // #E91E63
+}
+*/
+const getTokenStyleMetadata = (_type, _modifiers) => {
+  // switch (_type) {
+  //   case 'command':
+  //     return { foreground: 1 };
+  //   case 'keyword':
+  //     return { foreground: 2 };
+  //   case 'function':
+  //     return { foreground: 3 };
+  //   case 'identifer':
+  //     return { foreground: 4 };
+  //   case 'literal':
+  //     return { foreground: 5 };
+  //   case 'table':
+  //     return { foreground: 6 };
+  //   case 'column':
+  //     return { foreground: 7 };
+
+  //   default:
+  //     throw `impl color:${_type}`;
+  // }
+  return {};
+};
+
 const modalStyle: SxProps = {
   position: 'absolute',
   top: '50%',
@@ -64,6 +124,7 @@ import {
   redisKeywords,
   sqliteKeywords,
 } from './keywords';
+import { tokenModifiers, tokenTypes } from './legend';
 
 const appStore = async () => {
   return await load('store.json');
@@ -589,6 +650,20 @@ function SimpleResizeEditor(props: {
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
   }
+  const handleDidMount = (
+    editor: editor.IStandaloneCodeEditor,
+    monaco: Monaco
+  ) => {
+    //@ts-ignore
+    const ts = editor._themeService;
+    const t = ts._theme;
+    t.getTokenStyleMetadata = getTokenStyleMetadata;
+
+    if (onMount) {
+      onMount(editor, monaco);
+    }
+  };
+
   const { theme } = useContext(SettingsContext);
   return (
     <div
@@ -611,11 +686,14 @@ function SimpleResizeEditor(props: {
         }}
       >
         <Editor
-          options={options}
-          onMount={onMount}
+          onMount={handleDidMount}
           language={language}
           value={value}
           theme={theme == 'dark' ? 'vs-dark' : 'light'}
+          options={{
+            // semanticHighlighting: true, // Enable semantic highlighting
+            'semanticHighlighting.enabled': true, // Alternative way to enable it
+          }}
         ></Editor>
       </div>
     </div>
@@ -1010,10 +1088,12 @@ const VisiableContext = createContext(true);
 function initLanguageXXX(
   language: string,
   keyword,
+
   autoCompletion: (
     text: string,
     pos: Position
-  ) => Promise<languages.CompletionList>
+  ) => Promise<languages.CompletionList>,
+  getDocSemanticTokens: (text: string) => Promise<languages.SemanticTokens>
 ) {
   loader.init().then((monaco) => {
     monaco.languages.register({ id: language });
@@ -1021,6 +1101,9 @@ function initLanguageXXX(
       ignoreCase: true,
       tokenizer: {
         root: [[keyword, 'keyword']],
+      },
+      getTokenStyle: () => {
+        return getTokenStyle();
       },
     });
 
@@ -1035,6 +1118,24 @@ function initLanguageXXX(
         return autoCompletion(text, position);
       },
     });
+
+    monaco.languages.registerDocumentSemanticTokensProvider(language, {
+      getLegend: () => {
+        return {
+          tokenTypes: tokenTypes,
+          tokenModifiers: tokenModifiers,
+        };
+      },
+      provideDocumentSemanticTokens: async (model, _lastResultId) => {
+        let x = await getDocSemanticTokens(model.getValue());
+        return x;
+      },
+      releaseDocumentSemanticTokens: function (
+        _resultId: string | undefined
+      ): void {
+        // we backend no need to release the resource.
+      },
+    });
   });
 }
 
@@ -1043,7 +1144,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
   if (registeredLanguage.has(uuid)) {
     return;
   }
-  const auto_completion = async (
+  const autoCompletion = async (
     sql: string,
     pos: Position
   ): Promise<languages.CompletionList> => {
@@ -1057,7 +1158,6 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           col: pos.column,
         }
       );
-
       let suggestions = backendCompletionItemToEditor(completionItem);
       return suggestions;
     } catch (e) {
@@ -1066,22 +1166,77 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
     }
   };
 
+  const getDocSemanticTokens = async (
+    sql: string
+  ): Promise<languages.SemanticTokens> => {
+    try {
+      let tokens = await invoke<types.SemanticToken[]>('semantic_tokens', {
+        name: uuid,
+        sql,
+      });
+      const tokensBuilder = new SemanticTokensBuilder();
+      tokens.forEach((e) => {
+        tokensBuilder.push(
+          e.line - 1, // somehow this is zero-based
+          e.col - 1, // somehow this is zero-based
+          e.length,
+          e.token_type,
+          e.token_modifiers
+        );
+      });
+      return tokensBuilder.build();
+    } catch (e) {
+      console.log('semantic token server error:', e);
+      throw e;
+    }
+  };
+
   switch (kind) {
     case DataSourceKind.Mysql:
     case DataSourceKind.MariaDB:
-      initLanguageXXX(uuid, mysqlKeywords, auto_completion);
+      initLanguageXXX(
+        uuid,
+        mysqlKeywords,
+
+        autoCompletion,
+        getDocSemanticTokens
+      );
       break;
     case DataSourceKind.Sqlite:
-      initLanguageXXX(uuid, sqliteKeywords, auto_completion);
+      initLanguageXXX(
+        uuid,
+        sqliteKeywords,
+
+        autoCompletion,
+        getDocSemanticTokens
+      );
       break;
     case DataSourceKind.Postgres:
-      initLanguageXXX(uuid, postgresKeywords, auto_completion);
+      initLanguageXXX(
+        uuid,
+        postgresKeywords,
+
+        autoCompletion,
+        getDocSemanticTokens
+      );
       break;
     case DataSourceKind.MsSql:
-      initLanguageXXX(uuid, mssqlKeywords, auto_completion);
+      initLanguageXXX(
+        uuid,
+        mssqlKeywords,
+
+        autoCompletion,
+        getDocSemanticTokens
+      );
       break;
     case DataSourceKind.Redis:
-      initLanguageXXX(uuid, redisKeywords, auto_completion);
+      initLanguageXXX(
+        uuid,
+        redisKeywords,
+
+        autoCompletion,
+        getDocSemanticTokens
+      );
       break;
     default:
       throw `impl this ${kind}`;
@@ -1203,6 +1358,7 @@ export {
   registeredLanguage,
   initMonacoLanague,
   makeQueryConnInfo,
+  getTokenStyleMetadata,
 };
 
 export type { DefAndMetas };

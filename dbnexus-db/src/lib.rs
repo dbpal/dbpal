@@ -24,6 +24,7 @@ pub mod pg_format;
 pub mod query_log;
 pub mod redis;
 pub mod redis_completion;
+pub mod semantic_token;
 pub mod sqlite;
 pub mod sqlite_completion;
 pub mod sqlparser_completing;

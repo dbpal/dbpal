@@ -16,6 +16,7 @@ import {
   ConnTypeContext,
   DataSourceKind,
   extraParametersFromMetaValues,
+  initMonacoLanague,
   MenuContext,
   MenuRefresh,
   tabsHasId,
@@ -132,6 +133,7 @@ function UdfMenu(props: {
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
+    initMonacoLanague(uuid, kind);
     const id = uuid + '-' + '-udf-' + udf;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {

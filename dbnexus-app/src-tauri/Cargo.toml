@@ -11,6 +11,7 @@ default-run = "dbnexus-app"
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+
 [dependencies]
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-shell = "2"
@@ -37,7 +38,7 @@ tauri-plugin-fs = "2.2.0"
 humantime = "*"
 tauri-plugin-store = "2"
 tauri-plugin-http = "2"
-
+enum-iterator = "*"
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]

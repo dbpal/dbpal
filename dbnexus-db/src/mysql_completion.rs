@@ -1,9 +1,9 @@
-use std::{borrow::Cow, ops::DerefMut, sync::Arc};
+use std::{borrow::Cow, collections::HashSet, ops::DerefMut, sync::Arc};
 
 use crate::{
     completion::{
-        AstCompletionHelper, AutoCompletionTrait, CompletionItem, CompletionKind,
-        LexerCompletionTrait, try_completion_on_syntax,
+        AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
+        SemanticToken, try_completion_on_syntax,
     },
     db::{BackendName, DBTrait, not_support_features},
     mysql::MysqlDB,
@@ -38,6 +38,7 @@ impl LexerCompletionTrait for MysqlDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
@@ -67,7 +68,7 @@ impl MysqlDB {
 }
 
 #[async_trait::async_trait]
-impl AutoCompletionTrait for MysqlDB {
+impl LanguageServer for MysqlDB {
     async fn auto_completion(
         &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -100,6 +101,15 @@ impl AutoCompletionTrait for MysqlDB {
             },
         )
         .await;
+    }
+
+    async fn senmatic_tokens(&self, sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
+        let keyword: HashSet<String> = <MysqlDB as LexerCompletionTrait>::consider_keywords();
+        return crate::semantic_token::samatic_token_base_on_sqlparser(
+            &sqlparser::dialect::MySqlDialect {},
+            sql,
+            &keyword,
+        );
     }
 }
 

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use dbnexus_app_lib::handlers::{MuiDataGridData, MuiDataTableListResp};
 use dbnexus_db::app::{self};
-use dbnexus_db::completion::{CompletionItem, CompletionKind};
+use dbnexus_db::completion::{CompletionItem, CompletionKind, SemanticToken};
 use dbnexus_db::datasource_config::{
     MongoConfig, MysqlDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
 };
@@ -50,6 +50,7 @@ fn main() {
             &MuiDataTableListResp::INFO,
             &MuiDataGridData::INFO,
             &QueryLogEvent::INFO,
+            &SemanticToken::INFO,
         ];
 
         let mut buf = Vec::new();

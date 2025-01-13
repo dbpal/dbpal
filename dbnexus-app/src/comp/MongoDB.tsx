@@ -41,6 +41,7 @@ import {
   progressBarSize,
   SettingsContext,
   VisiableContext,
+  getTokenStyleMetadata,
 } from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
@@ -208,6 +209,11 @@ function MongoBsonEditor(props: {
   const [docHasChange, setDocHasChange] = useState(false);
   const { theme } = useContext(SettingsContext);
   const handleEditorDidMount = (ce: editor.IStandaloneCodeEditor, monaco) => {
+    //@ts-ignore
+    const ts = editor._themeService;
+    const t = ts._theme;
+    t.getTokenStyleMetadata = getTokenStyleMetadata;
+
     ce.onDidChangeModelContent((_event) => {
       let text = ce.getValue();
       try {

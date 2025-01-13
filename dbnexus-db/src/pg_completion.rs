@@ -4,7 +4,7 @@ use std::sync::Arc;
 use sqlx::Row;
 
 use crate::completion::{
-    AstCompletionHelper, AutoCompletionTrait, CompletionItem, CompletionKind, LexerCompletionTrait,
+    AstCompletionHelper, LanguageServer, CompletionItem, CompletionKind, LexerCompletionTrait,
     try_completion_on_syntax,
 };
 use crate::db::CatalogTrait;
@@ -486,7 +486,7 @@ impl AstCompletionHelper for PostGresDB {
 }
 
 #[async_trait::async_trait]
-impl AutoCompletionTrait for PostGresDB {
+impl LanguageServer for PostGresDB {
     async fn auto_completion(
         &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

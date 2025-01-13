@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open, open};
-use dbnexus_db::completion::CompletionItem;
+use dbnexus_db::completion::{CompletionItem, SemanticToken};
 use dbnexus_db::db::{
     ColumnType, ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, ProcedureDetail,
     QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
@@ -862,6 +862,28 @@ pub async fn auto_completion(
     .map_err(|x| AnyhowErrorFrontend::from(x))?;
     Ok(ret)
 }
+
+#[tauri::command]
+pub async fn semantic_tokens(
+    name: String, sql: String, app: tauri::State<'_, App>,
+) -> Result<
+    Vec<SemanticToken>, // milliseconds
+    AnyhowErrorFrontend,
+> {
+    random_sleep().await;
+    random_error()?;
+
+    let db = app.get_opened(name.as_str()).await?;
+    let ret = match db {
+        Open::Catalog(x) => x.senmatic_tokens(&sql).await,
+        Open::DataBase(x) => x.senmatic_tokens(&sql).await,
+        Open::Schema(x) => x.senmatic_tokens(&sql).await,
+    }
+    .map_err(|x| AnyhowErrorFrontend::from(x))?;
+
+    Ok(ret)
+}
+
 #[tauri::command]
 pub async fn oracle_query_set_autocommit(
     name: String, id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,

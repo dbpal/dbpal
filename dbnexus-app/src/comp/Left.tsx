@@ -53,7 +53,7 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { RedisTables, TablesTree } from './LeftTable';
 import { ViewKind, ViewsTree } from './LeftView';
 import { ProceduresTree } from './LeftProcedure';
-import { UdfsTree } from './LeftUdf';
+import { UdfsTree } from './LeftUdf.tsx';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { debug } from './debug';
 import { TabContent } from './Tabs';

@@ -12,7 +12,7 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::completion::{AutoCompletionTrait, CompletionItem, LexerCompletionTrait};
+use crate::completion::{LanguageServer, CompletionItem, LexerCompletionTrait};
 use crate::datasource_config::OracleDbConfig;
 use crate::db::{
     BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
@@ -1147,7 +1147,7 @@ impl BackendName for OracleDB {
     }
 }
 #[async_trait::async_trait]
-impl AutoCompletionTrait for OracleDB {
+impl LanguageServer for OracleDB {
     async fn auto_completion(
         &self, _uuid: uuid::Uuid, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

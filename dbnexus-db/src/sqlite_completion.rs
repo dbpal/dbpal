@@ -2,8 +2,8 @@ use std::{borrow::Cow, ops::DerefMut, sync::Arc};
 
 use crate::{
     completion::{
-        AstCompletionHelper, AutoCompletionTrait, CompletionItem, CompletionKind,
-        LexerCompletionTrait, try_completion_on_syntax,
+        AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
+        SemanticToken, try_completion_on_syntax,
     },
     db::SchemaTrait,
     sqlite::SqliteDB,
@@ -43,7 +43,7 @@ impl crate::completion::LexerCompletionTrait for SqliteDB {
 }
 
 #[async_trait::async_trait]
-impl AutoCompletionTrait for SqliteDB {
+impl LanguageServer for SqliteDB {
     async fn auto_completion(
         &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -78,6 +78,14 @@ impl AutoCompletionTrait for SqliteDB {
             },
         )
         .await;
+    }
+
+    async fn senmatic_tokens(&self, sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
+        return crate::semantic_token::samatic_token_base_on_sqlparser(
+            &sqlparser::dialect::SQLiteDialect {},
+            sql,
+            unimplemented!(),
+        );
     }
 }
 

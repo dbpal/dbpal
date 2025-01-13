@@ -19,6 +19,7 @@ import { ReactNode, useContext, useEffect, useState } from 'react';
 import { editor, Position } from 'monaco-editor';
 import {
   EditorBar,
+  getTokenStyleMetadata,
   msgTimeout,
   progressBarSize,
   reloadOK,
@@ -29,6 +30,7 @@ import types from './ApiStruct.ts';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { secondConfirm } from './Confirm.tsx';
+
 function SqlQuery(props: {
   language: string;
   queryOP: (text: string) => Promise<any[]>;
@@ -66,6 +68,16 @@ function SqlQuery(props: {
     editor: editor.IStandaloneCodeEditor,
     monaco
   ) => {
+    if (theme == 'dark') {
+      monaco.editor.setTheme('vs-dark');
+    } else {
+      monaco.editor.setTheme('light');
+    }
+    //@ts-ignore
+    const ts = editor._themeService;
+    const t = ts._theme;
+    t.getTokenStyleMetadata = getTokenStyleMetadata;
+
     editor.onDidChangeModelContent((_event) => {
       let text = editor.getValue();
       setText(text);
@@ -84,11 +96,6 @@ function SqlQuery(props: {
       const selection = editor.getSelection();
       setSelectText(editor.getModel().getValueInRange(selection));
     });
-    if (theme == 'dark') {
-      monaco.editor.setTheme('vs-dark');
-    } else {
-      monaco.editor.setTheme('light');
-    }
   };
 
   const handleLoadQueryLog = () => {
@@ -284,6 +291,10 @@ function SqlQuery(props: {
             language={language}
             onMount={handleEditorDidMount}
             value=""
+            options={{
+              // semanticHighlighting: true, // Enable semantic highlighting
+              'semanticHighlighting.enabled': true, // Alternative way to enable it
+            }}
           ></Editor>
         </div>
         <EditorBar

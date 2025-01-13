@@ -10,7 +10,7 @@ use sqlparser::tokenizer::Token;
 use tokio::sync::Mutex;
 
 use crate::completion::{
-    AutoCompletionTrait, CompletionItem, CompletionKind, in_pos, match_pattern_and_sort,
+    LanguageServer, CompletionItem, CompletionKind, in_pos, match_pattern_and_sort,
 };
 use crate::redis::{RedisDB, RedisType};
 impl RedisDB {
@@ -1420,7 +1420,7 @@ impl RedisDB {
 }
 
 #[async_trait::async_trait]
-impl AutoCompletionTrait for RedisDB {
+impl LanguageServer for RedisDB {
     async fn auto_completion(
         &self, _uuid: uuid::Uuid, sql: &str, line: u32, col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

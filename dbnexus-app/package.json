@@ -24,6 +24,7 @@
     "@tauri-apps/plugin-http": "~2",
     "@tauri-apps/plugin-shell": "^2.2.0",
     "@tauri-apps/plugin-store": "~2",
+    "@types/vscode": "^1.96.0",
     "bson": "^6.10.1",
     "esprima": "^4.0.1",
     "monaco-editor": "^0.52.2",
@@ -35,17 +36,18 @@
     "react-split-pane": "0.1.92",
     "resizable-panes-react": "^6.0.26",
     "styled-components": "^6.1.13",
-    "uuid": "^11.0.3"
+    "uuid": "^11.0.3",
+    "vscode-languageserver": "^9.0.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",
+    "@types/node": "^22.10.5",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "internal-ip": "^7.0.0",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
-    "vite-plugin-top-level-await": "^1.4.4",
-    "@types/node": "^22.10.5"
+    "vite-plugin-top-level-await": "^1.4.4"
   }
 }

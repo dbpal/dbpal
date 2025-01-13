@@ -10,7 +10,7 @@ use serde::Serializer;
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
 
-use crate::completion::AutoCompletionTrait;
+use crate::completion::LanguageServer;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLog, QueryLogEvent};
 
@@ -302,7 +302,7 @@ impl UdfDetail {
 
 #[async_trait::async_trait]
 pub trait CatalogTrait:
-    Send + Sync + 'static + QuerySql + FormatSql + CheckConn + AutoCompletionTrait + Debug + ServerMetas
+    Send + Sync + 'static + QuerySql + FormatSql + CheckConn + LanguageServer + Debug + ServerMetas
 {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
@@ -438,7 +438,7 @@ pub trait DBTrait:
 }
 
 #[async_trait::async_trait]
-pub trait QuerySql: BackendName + Send + Sync + 'static + AutoCompletionTrait {
+pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
     async fn query_sql(
         &self, query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;

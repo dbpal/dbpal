@@ -10,7 +10,7 @@ use mongodb::bson::{Document, doc};
 use mongodb::options::ServerAddress;
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 
-use crate::completion::{AutoCompletionTrait, CompletionItem};
+use crate::completion::{LanguageServer, CompletionItem};
 use crate::datasource_config::MongoConfig;
 use crate::db::{
     BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
@@ -67,7 +67,7 @@ impl BackendName for Mongo {
     }
 }
 #[async_trait::async_trait]
-impl AutoCompletionTrait for Mongo {
+impl LanguageServer for Mongo {
     async fn auto_completion(
         &self, _uuid: uuid::Uuid, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
