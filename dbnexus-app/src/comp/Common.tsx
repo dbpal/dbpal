@@ -127,17 +127,17 @@ function SelectPageSize({
         //@ts-ignore
         variant={variant}
         fullWidth
-        size="small"
+        size='small'
       >
-        <InputLabel id="simple-select-label">{tital}</InputLabel>
+        <InputLabel id='simple-select-label'>{tital}</InputLabel>
         <Select
-          labelId="simple-select-label"
-          id="simple-select"
+          labelId='simple-select-label'
+          id='simple-select'
           value={pageSize}
           onChange={(e) => {
             handleChange(e.target.value);
           }}
-          label="select page size"
+          label='select page size'
         >
           {pageSizeOptions.map((e) => (
             <MenuItem key={e} value={e}>
@@ -314,9 +314,9 @@ function EditorBar(props: {
 }) {
   let { left, pos, style } = props;
   return (
-    <Stack justifyContent="space-between" direction="row" style={style}>
+    <Stack justifyContent='space-between' direction='row' style={style}>
       <div style={{ width: '40%' }}> {left}</div>
-      <Stack width="40%" direction="row" spacing={1}>
+      <Stack width='40%' direction='row' spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Column {pos ? pos.column : ''}</span>
       </Stack>
@@ -387,17 +387,17 @@ function CreateDatabase({ uuid, handleClose }) {
           onChange={(e) => {
             setDatabase(e.target.value);
           }}
-          size="small"
+          size='small'
           error={database == ''}
-          label="dadtabase name"
+          label='dadtabase name'
         ></TextField>
       </Stack>
-      <Stack direction="row">
+      <Stack direction='row'>
         <Button
           onClick={() => {
             handleCreate();
           }}
-          size="small"
+          size='small'
         >
           create
         </Button>
@@ -446,12 +446,12 @@ function CreateSchema(props: {
 
     return (
       <Stack>
-        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+        <Stack direction='row' style={{ flexWrap: 'wrap' }}>
           {range
             .filter((e) => !schemaSet.has(e))
             .map((e) => (
               <Button
-                size="small"
+                size='small'
                 key={e}
                 onClick={() => {
                   setSchema(e);
@@ -467,13 +467,13 @@ function CreateSchema(props: {
             onChange={(e) => {
               setSchema(e.target.value);
             }}
-            label="name"
-            size="small"
+            label='name'
+            size='small'
           ></TextField>
         </Stack>
-        <Stack direction="row">
+        <Stack direction='row'>
           <Button
-            size="small"
+            size='small'
             onClick={() => {
               handleCreate();
             }}
@@ -493,13 +493,13 @@ function CreateSchema(props: {
           onChange={(e) => {
             setSchema(e.target.value);
           }}
-          label="name"
-          size="small"
+          label='name'
+          size='small'
         ></TextField>
       </Stack>
-      <Stack direction="row">
+      <Stack direction='row'>
         <Button
-          size="small"
+          size='small'
           onClick={() => {
             handleCreate();
           }}
@@ -925,12 +925,12 @@ function ConnStatus({ uuid }) {
   return (
     (status || err) &&
     (status ? (
-      <Tooltip title="ping time">
-        <Typography color="green"> {status} </Typography>
+      <Tooltip title='ping time'>
+        <Typography color='green'> {status} </Typography>
       </Tooltip>
     ) : (
       <Tooltip title={err}>
-        <Typography color="error"> err </Typography>
+        <Typography color='error'> err </Typography>
       </Tooltip>
     ))
   );
@@ -985,11 +985,11 @@ function ConnInfo(props: { uuid }) {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row">
+      <Stack direction='row'>
         <Button
-          variant="contained"
-          size="small"
-          color="primary"
+          variant='contained'
+          size='small'
+          color='primary'
           onClick={handleInfo}
         >
           reload
@@ -1139,7 +1139,7 @@ async function makeQueryConnInfo(uuid: string) {
       break;
   }
   return (
-    <Stack direction="row" spacing={1}>
+    <Stack direction='row' spacing={1}>
       {content}
     </Stack>
   );
