@@ -14,18 +14,13 @@ use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Executor, Row, SqliteConnection, TypeInfo};
 
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, FormatSql,
-    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, Index,
+    IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
-impl FormatSql for SqliteDB {
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
-    }
-}
 
 fn type_support_compare(_typ: &str) -> bool {
     true
@@ -79,7 +74,6 @@ impl SqliteDB {
             let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
             sender.send("\n".into()).await?;
-
             for index in ss.indexes.into_iter() {
                 sender.send(Cow::Owned(index)).await?;
                 sender.send("\n".into()).await?;
@@ -114,9 +108,7 @@ impl SqliteDB {
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-
         let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
-
         while let Some(row) = stream.next().await {
             let row = row?;
             let value = encode_row_as_json(&row)?;
@@ -127,7 +119,6 @@ impl SqliteDB {
 
             sender.send("\n".into()).await?;
         }
-
         anyhow::Ok(())
     }
 
@@ -219,7 +210,7 @@ impl SqliteDB {
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
             .await
     }
@@ -361,7 +352,6 @@ impl CheckConn for SqliteDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         self.list_table().await?;
-
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -417,8 +407,12 @@ impl BackendName for SqliteDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
+    fn quote_style(&self) -> &'static str {
+        "\""
+    }
+
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP INDEX {index};");
+        let sql = format!(r#"DROP INDEX "{index}";"#);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -428,7 +422,7 @@ impl SchemaTrait for SqliteDB {
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
-            "ALTER TABLE {table} ADD COLUMN {name} {} {} {}",
+            r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
             if let Some(nullness) = col.nullness.as_ref() {
                 nullness.as_str()
@@ -455,7 +449,7 @@ impl SchemaTrait for SqliteDB {
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         use sqlx::{Executor, Statement};
         let mut conn = self.get_conn().await?;
-        let sql = format!("select * from {view_name} limit 1");
+        let sql = format!(r#"select * from "{view_name}" limit 1"#);
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
         let ret = s
             .columns()
@@ -490,7 +484,7 @@ impl SchemaTrait for SqliteDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
+        let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
 
@@ -499,7 +493,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let sql = format!("ALTER TABLE {old} RENAME TO {new}");
+        let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
@@ -512,7 +506,6 @@ impl SchemaTrait for SqliteDB {
             WHERE type = 'trigger' AND tbl_name = '{table_name}';
         "#
         );
-
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -522,7 +515,6 @@ impl SchemaTrait for SqliteDB {
             let name: String = r.get(0);
             ret.push(name);
         }
-
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
@@ -534,13 +526,11 @@ impl SchemaTrait for SqliteDB {
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-         DROP TRIGGER {name}
+         DROP TRIGGER "{name}"
         "#
         );
         let mut conn = self.get_conn().await?;
-
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
-
         anyhow::Ok(())
     }
 
@@ -617,7 +607,7 @@ impl SchemaTrait for SqliteDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
 
-        let s = format!("DROP VIEW {view_name}");
+        let s = format!(r#"DROP VIEW "{view_name}""#);
         let mut conn = self.get_conn().await?;
         sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -626,7 +616,7 @@ impl SchemaTrait for SqliteDB {
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
         let s = format!(
-            "DROP TABLE {table} {}",
+            r#"DROP TABLE "{table}" {}"#,
             if cascade { " CASCADE " } else { "" }
         );
         let mut conn = self.get_conn().await?;
@@ -660,7 +650,7 @@ impl SchemaTrait for SqliteDB {
         self.can_write()?;
         let s = format!(
             r#"
-            DELETE FROM {table_name};
+            DELETE FROM "{table_name}";
             DELETE FROM sqlite_sequence WHERE name = '{table_name}';
         "#
         );
@@ -754,7 +744,7 @@ impl SchemaTrait for SqliteDB {
         let increment_key = self.query_auto_increment_key(table_name).await?;
         let increment_key = increment_key.as_ref().map(|x| x.as_str());
 
-        let s = format!("pragma table_info({table_name})");
+        let s = format!(r#"pragma table_info("{table_name}")"#);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -1077,7 +1067,7 @@ impl SqliteDB {
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!("SELECT count(1) from {name} ");
+        let mut s = format!(r#"SELECT count(1) from "{name}" "#);
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
@@ -1105,21 +1095,15 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1375,7 +1359,7 @@ fn gen_show_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("SELECT * FROM {table_name}");
+    let mut sql = format!(r#"SELECT * FROM "{table_name}""#);
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {where_str} ").as_str());
     }

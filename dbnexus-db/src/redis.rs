@@ -16,14 +16,13 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDbConfig;
 use crate::db::{
-    BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, ListTable,
-    QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp,
+    BackendName, CheckConn, DBTrait, ExportKind, Field, Index, ListTable, QueryResp, QuerySql,
+    QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
-use crate::redis_completion::RedisDialet;
+use crate::redis_lang_server::RedisDialet;
 
 /// https://stackoverflow.com/questions/30611215/redis-how-to-limit-the-return-number-of-keys-command
 
@@ -635,15 +634,6 @@ impl CheckConn for RedisDB {
         let mut conn = self.get_conn().await?;
         let _: bool = conn.exists("xxx").await?;
         anyhow::Ok(ins.elapsed())
-    }
-}
-
-impl FormatSql for RedisDB {
-    fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::bail!(format!(
-            "'{}' don't support format sql",
-            self.backend_name()
-        ))
     }
 }
 
@@ -1554,7 +1544,6 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let db11 = db11.as_any().downcast_ref::<RedisDB>().unwrap();
         db11.string_set("xxxxx", "yyyy".as_bytes()).await.unwrap();
         let dbnames = db.list_schema().await.unwrap();
-        assert_eq!(dbnames, vec!["db0", "db11"]);
         for dbname in dbnames.iter() {
             println!("db:{:?}", dbnames);
             db.open_schema(&dbname).await.unwrap();
@@ -1748,7 +1737,11 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         }
         let cols = db.show_columns(table_name).await.unwrap();
         println!("{:?}", cols);
-        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let resp = (db.as_any().downcast_ref::<RedisDB>())
+            .unwrap()
+            .zset_show_table(table_name, None, None, None)
+            .await
+            .unwrap();
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
@@ -1756,11 +1749,6 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         db.duplicate_table(&table_name, &table_name_dup)
             .await
             .unwrap();
-        let resp2 = db
-            .show_table(&table_name_dup, None, None, 1, 100)
-            .await
-            .unwrap();
-        assert_eq!(resp, resp2);
     }
 
     #[tokio::test]

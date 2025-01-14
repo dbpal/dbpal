@@ -3,9 +3,10 @@ use std::{borrow::Cow, ops::DerefMut, sync::Arc};
 use crate::{
     completion::{
         AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-        SemanticToken, try_completion_on_syntax,
+        try_completion_on_syntax,
     },
-    db::SchemaTrait,
+    db::{FormatSqlOpts, SchemaTrait},
+    helper::sqlformat_format_sql,
     sqlite::SqliteDB,
 };
 
@@ -80,12 +81,8 @@ impl LanguageServer for SqliteDB {
         .await;
     }
 
-    async fn senmatic_tokens(&self, sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
-        return crate::semantic_token::samatic_token_base_on_sqlparser(
-            &sqlparser::dialect::SQLiteDialect {},
-            sql,
-            unimplemented!(),
-        );
+    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
+        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
     }
 }
 

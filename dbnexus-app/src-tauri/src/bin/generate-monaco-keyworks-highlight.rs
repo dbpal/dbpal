@@ -1,6 +1,6 @@
 use dbnexus_db::{
     completion::LexerCompletionTrait, db::monaco_editor_keyword_regexp, mssql::MsSqlServer,
-    mysql::MysqlDB, pg::PostGresDB, redis_completion::REDIS_COMMANDS, sqlite::SqliteDB,
+    mysql::MysqlDB, pg::PostGresDB, redis_lang_server::REDIS_COMMANDS, sqlite::SqliteDB,
 };
 use std::{env, io::Write, path::Path};
 

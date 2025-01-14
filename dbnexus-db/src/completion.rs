@@ -9,7 +9,7 @@ use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
-use crate::db::{BackendName, monaco_editor_keyword_regexp, not_support_features};
+use crate::db::{BackendName, FormatSqlOpts, monaco_editor_keyword_regexp, not_support_features};
 use crate::sqlparser_completion::CompletionStament;
 
 #[derive(Debug, Clone, Copy, enum_iterator::Sequence)]
@@ -39,7 +39,7 @@ impl std::fmt::Display for TokenModifier {
 }
 
 #[async_trait::async_trait]
-pub trait LanguageServer {
+pub trait LanguageServer: BackendName {
     async fn auto_completion(
         &self,
         query_id: uuid::Uuid,
@@ -51,9 +51,11 @@ pub trait LanguageServer {
         use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn senmatic_tokens(&self, _sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
-        anyhow::Ok(vec![SemanticToken::new(
-            1 as u32, 1 as u32, 10 as u32, 0 as u32, None,
-        )])
+        // not used but still can be used in the future
+        anyhow::Ok(vec![])
+    }
+    fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
+        not_support_features(self.backend_name())
     }
 }
 
@@ -68,6 +70,7 @@ pub struct SemanticToken {
     token_modifiers: Option<u32>,
 }
 
+#[allow(unused)]
 impl SemanticToken {
     pub(crate) fn new(
         line: u32, col: u32, length: u32, token_type: u32, token_modifiers: impl Into<Option<u32>>,
@@ -129,12 +132,6 @@ pub enum CompletionKind {
     Policy,
     Variable,
     Rule,
-    Parameter,
-    Cursor,
-    // a identifer some lexer produce this resule.
-    // used in case we can't parse AST.
-    Identifer,
-    Literal,
 }
 
 impl Into<u32> for CompletionKind {

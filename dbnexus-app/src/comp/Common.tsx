@@ -45,8 +45,6 @@ import LinkOffIcon from '@mui/icons-material/LinkOff';
 import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
 
-import { SemanticTokensBuilder } from 'vscode-languageserver';
-
 /*
 pub enum CompletionKind {
     Command,          // #FF9800
@@ -124,7 +122,6 @@ import {
   redisKeywords,
   sqliteKeywords,
 } from './keywords';
-import { tokenModifiers, tokenTypes } from './legend';
 
 const appStore = async () => {
   return await load('store.json');
@@ -188,17 +185,17 @@ function SelectPageSize({
         //@ts-ignore
         variant={variant}
         fullWidth
-        size='small'
+        size="small"
       >
-        <InputLabel id='simple-select-label'>{tital}</InputLabel>
+        <InputLabel id="simple-select-label">{tital}</InputLabel>
         <Select
-          labelId='simple-select-label'
-          id='simple-select'
+          labelId="simple-select-label"
+          id="simple-select"
           value={pageSize}
           onChange={(e) => {
             handleChange(e.target.value);
           }}
-          label='select page size'
+          label="select page size"
         >
           {pageSizeOptions.map((e) => (
             <MenuItem key={e} value={e}>
@@ -375,9 +372,9 @@ function EditorBar(props: {
 }) {
   let { left, pos, style } = props;
   return (
-    <Stack justifyContent='space-between' direction='row' style={style}>
+    <Stack justifyContent="space-between" direction="row" style={style}>
       <div style={{ width: '40%' }}> {left}</div>
-      <Stack width='40%' direction='row' spacing={1}>
+      <Stack width="40%" direction="row" spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Column {pos ? pos.column : ''}</span>
       </Stack>
@@ -448,17 +445,17 @@ function CreateDatabase({ uuid, handleClose }) {
           onChange={(e) => {
             setDatabase(e.target.value);
           }}
-          size='small'
+          size="small"
           error={database == ''}
-          label='dadtabase name'
+          label="dadtabase name"
         ></TextField>
       </Stack>
-      <Stack direction='row'>
+      <Stack direction="row">
         <Button
           onClick={() => {
             handleCreate();
           }}
-          size='small'
+          size="small"
         >
           create
         </Button>
@@ -507,12 +504,12 @@ function CreateSchema(props: {
 
     return (
       <Stack>
-        <Stack direction='row' style={{ flexWrap: 'wrap' }}>
+        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
           {range
             .filter((e) => !schemaSet.has(e))
             .map((e) => (
               <Button
-                size='small'
+                size="small"
                 key={e}
                 onClick={() => {
                   setSchema(e);
@@ -528,13 +525,13 @@ function CreateSchema(props: {
             onChange={(e) => {
               setSchema(e.target.value);
             }}
-            label='name'
-            size='small'
+            label="name"
+            size="small"
           ></TextField>
         </Stack>
-        <Stack direction='row'>
+        <Stack direction="row">
           <Button
-            size='small'
+            size="small"
             onClick={() => {
               handleCreate();
             }}
@@ -554,13 +551,13 @@ function CreateSchema(props: {
           onChange={(e) => {
             setSchema(e.target.value);
           }}
-          label='name'
-          size='small'
+          label="name"
+          size="small"
         ></TextField>
       </Stack>
-      <Stack direction='row'>
+      <Stack direction="row">
         <Button
-          size='small'
+          size="small"
           onClick={() => {
             handleCreate();
           }}
@@ -690,10 +687,7 @@ function SimpleResizeEditor(props: {
           language={language}
           value={value}
           theme={theme == 'dark' ? 'vs-dark' : 'light'}
-          options={{
-            // semanticHighlighting: true, // Enable semantic highlighting
-            'semanticHighlighting.enabled': true, // Alternative way to enable it
-          }}
+          options={options}
         ></Editor>
       </div>
     </div>
@@ -1003,12 +997,12 @@ function ConnStatus({ uuid }) {
   return (
     (status || err) &&
     (status ? (
-      <Tooltip title='ping time'>
-        <Typography color='green'> {status} </Typography>
+      <Tooltip title="ping time">
+        <Typography color="green"> {status} </Typography>
       </Tooltip>
     ) : (
       <Tooltip title={err}>
-        <Typography color='error'> err </Typography>
+        <Typography color="error"> err </Typography>
       </Tooltip>
     ))
   );
@@ -1063,11 +1057,11 @@ function ConnInfo(props: { uuid }) {
 
   return (
     <Stack spacing={1}>
-      <Stack direction='row'>
+      <Stack direction="row">
         <Button
-          variant='contained'
-          size='small'
-          color='primary'
+          variant="contained"
+          size="small"
+          color="primary"
           onClick={handleInfo}
         >
           reload
@@ -1084,60 +1078,6 @@ function reloadOK(showNotification) {
 }
 const registeredLanguage = new Set<string>();
 const VisiableContext = createContext(true);
-
-function initLanguageXXX(
-  language: string,
-  keyword,
-
-  autoCompletion: (
-    text: string,
-    pos: Position
-  ) => Promise<languages.CompletionList>,
-  getDocSemanticTokens: (text: string) => Promise<languages.SemanticTokens>
-) {
-  loader.init().then((monaco) => {
-    monaco.languages.register({ id: language });
-    monaco.languages.setMonarchTokensProvider(language, {
-      ignoreCase: true,
-      tokenizer: {
-        root: [[keyword, 'keyword']],
-      },
-      getTokenStyle: () => {
-        return getTokenStyle();
-      },
-    });
-
-    monaco.languages.registerCompletionItemProvider(language, {
-      provideCompletionItems: (
-        model: editor.ITextModel,
-        position: Position,
-        _context: any,
-        _token: CancellationToken
-      ) => {
-        let text = model.getValue();
-        return autoCompletion(text, position);
-      },
-    });
-
-    monaco.languages.registerDocumentSemanticTokensProvider(language, {
-      getLegend: () => {
-        return {
-          tokenTypes: tokenTypes,
-          tokenModifiers: tokenModifiers,
-        };
-      },
-      provideDocumentSemanticTokens: async (model, _lastResultId) => {
-        let x = await getDocSemanticTokens(model.getValue());
-        return x;
-      },
-      releaseDocumentSemanticTokens: function (
-        _resultId: string | undefined
-      ): void {
-        // we backend no need to release the resource.
-      },
-    });
-  });
-}
 
 // uuid as language identifier.
 function initMonacoLanague(uuid: string, kind: DataSourceKind) {
@@ -1166,76 +1106,117 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
     }
   };
 
-  const getDocSemanticTokens = async (
-    sql: string
-  ): Promise<languages.SemanticTokens> => {
-    try {
-      let tokens = await invoke<types.SemanticToken[]>('semantic_tokens', {
-        name: uuid,
-        sql,
+  function initLanguageXXX(
+    language: string,
+    Ilanguage: languages.IMonarchLanguage,
+    autoCompletion: (
+      text: string,
+      pos: Position
+    ) => Promise<languages.CompletionList>
+  ) {
+    loader.init().then((monaco) => {
+      monaco.languages.register({ id: language });
+      monaco.languages.setMonarchTokensProvider(language, Ilanguage);
+
+      monaco.languages.registerCompletionItemProvider(language, {
+        provideCompletionItems: (
+          model: editor.ITextModel,
+          position: Position,
+          _context: any,
+          _token: CancellationToken
+        ) => {
+          let text = model.getValue();
+          return autoCompletion(text, position);
+        },
       });
-      const tokensBuilder = new SemanticTokensBuilder();
-      tokens.forEach((e) => {
-        tokensBuilder.push(
-          e.line - 1, // somehow this is zero-based
-          e.col - 1, // somehow this is zero-based
-          e.length,
-          e.token_type,
-          e.token_modifiers
-        );
-      });
-      return tokensBuilder.build();
-    } catch (e) {
-      console.log('semantic token server error:', e);
-      throw e;
-    }
-  };
+    });
+  }
 
   switch (kind) {
     case DataSourceKind.Mysql:
     case DataSourceKind.MariaDB:
       initLanguageXXX(
         uuid,
-        mysqlKeywords,
-
-        autoCompletion,
-        getDocSemanticTokens
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [mysqlKeywords, 'keyword'],
+              [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
+              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+              [/\'(?:\\.|[^\\\'])*\'/, 'string'],
+              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+            ],
+          },
+          brackets: [
+            { open: '(', close: ')', token: 'delimiter.parenthesis' },
+            { open: '[', close: ']', token: 'delimiter.square' },
+          ],
+        } as languages.IMonarchLanguage,
+        autoCompletion
       );
       break;
     case DataSourceKind.Sqlite:
       initLanguageXXX(
         uuid,
-        sqliteKeywords,
-
-        autoCompletion,
-        getDocSemanticTokens
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [sqliteKeywords, 'keyword'],
+              [/[_a-z][_a-z0-9]*/i, 'identifier'],
+              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+              [/\'(?:\\.|[^\\\'])*\'/, 'string'],
+              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+            ],
+          },
+        } as languages.IMonarchLanguage,
+        autoCompletion
       );
       break;
     case DataSourceKind.Postgres:
       initLanguageXXX(
         uuid,
-        postgresKeywords,
-
-        autoCompletion,
-        getDocSemanticTokens
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [postgresKeywords, 'keyword'],
+              [/[_a-z][_a-z0-9]*/i, 'identifier'],
+              [/\"(?:\\.|[^\"\"])*\"/, 'string'],
+              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
+            ],
+          },
+        } as languages.IMonarchLanguage,
+        autoCompletion
       );
       break;
     case DataSourceKind.MsSql:
       initLanguageXXX(
         uuid,
-        mssqlKeywords,
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [mssqlKeywords, 'keyword'],
+              [/[_a-z][_a-z0-9]*/i, 'identifier'],
+              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
+              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+            ],
+          },
+        } as languages.IMonarchLanguage,
 
-        autoCompletion,
-        getDocSemanticTokens
+        autoCompletion
       );
       break;
     case DataSourceKind.Redis:
       initLanguageXXX(
         uuid,
-        redisKeywords,
-
-        autoCompletion,
-        getDocSemanticTokens
+        {
+          ignoreCase: true,
+          tokenizer: { root: [[redisKeywords, 'keyword']] },
+        } as languages.IMonarchLanguage,
+        autoCompletion
       );
       break;
     default:
@@ -1294,7 +1275,7 @@ async function makeQueryConnInfo(uuid: string) {
       break;
   }
   return (
-    <Stack direction='row' spacing={1}>
+    <Stack direction="row" spacing={1}>
       {content}
     </Stack>
   );

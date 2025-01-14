@@ -15,12 +15,12 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::MysqlDbConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
-    FormatSql, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index,
+    IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfDetail, UdfOrPrecedureExtraParameter,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser, sqlformat_format_sql};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 
@@ -50,17 +50,11 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
     ret
 }
 
-impl FormatSql for MysqlDB {
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
-    }
-}
-
 fn gen_select_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("SELECT * FROM {table_name}");
+    let mut sql = format!(r#"SELECT * FROM `{table_name}`"#);
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
@@ -232,7 +226,7 @@ impl MysqlDB {
         }
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_columns(self, table_name).await?;
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(r#"SELECT * from `{}`"#, table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -259,9 +253,7 @@ impl MysqlDB {
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-
         let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
-
         while let Some(row) = stream.next().await {
             let row = row?;
             let value = encode_row_as_json(&row)?;
@@ -278,7 +270,7 @@ impl MysqlDB {
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!("SELECT * from `{}`", table_name);
         self.export_query_result_as_json_line(sql.as_str(), sender)
             .await
     }
@@ -320,7 +312,7 @@ impl MysqlDB {
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!("SELECT * from `{}`", table_name);
         self.export_query_result_as_json(sql.as_str(), pretty, sender)
             .await
     }
@@ -364,7 +356,7 @@ impl MysqlDB {
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!("SELECT * from `{}`", table_name);
         self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
             .await
     }
@@ -621,8 +613,12 @@ impl std::fmt::Debug for MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    fn quote_style(&self) -> &'static str {
+        "`"
+    }
+
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
-        let sql = format!("ALTER TABLE {table_name} DROP INDEX {index};");
+        let sql = format!(r#"ALTER TABLE `{table_name}` DROP INDEX `{index}`;"#);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -632,7 +628,7 @@ impl SchemaTrait for MysqlDB {
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
         let mut sql = format!(
-            "ALTER TABLE {table} ADD COLUMN {name} {} {} {}",
+            "ALTER TABLE `{table}` ADD COLUMN `{name}` {} {} {}",
             col.typ,
             if let Some(nullness) = col.nullness.as_ref() {
                 nullness.as_str()
@@ -660,7 +656,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::mysql_completion::TYPES)
+        anyhow::Ok(crate::mysql_lang_server::TYPES)
     }
 
     async fn modify_table_column(
@@ -670,8 +666,8 @@ impl SchemaTrait for MysqlDB {
         if old_name != new_name {
             let sql = format!(
                 r#"
-            ALTER TABLE {table}
-                RENAME COLUMN {old_name} TO {new_name};
+            ALTER TABLE `{table}`
+                RENAME COLUMN `{old_name}` TO `{new_name}`;
             "#
             );
             sqlx::query(&sql).execute(conn.deref_mut()).await?;
@@ -679,8 +675,8 @@ impl SchemaTrait for MysqlDB {
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
                 r#"
-            ALTER TABLE {table}
-                MODIFY COLUMN {new_name} {} {};
+            ALTER TABLE `{table}`
+                MODIFY COLUMN `{new_name}` {} {};
             "#,
                 &typ.typ,
                 if let Some(null) = typ.nullness.as_ref() {
@@ -697,7 +693,7 @@ impl SchemaTrait for MysqlDB {
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-            ALTER TABLE {table} DROP COLUMN {col};
+            ALTER TABLE `{table}` DROP COLUMN `{col}`;
         "#
         );
         let mut conn = self.get_conn().await?;
@@ -708,7 +704,7 @@ impl SchemaTrait for MysqlDB {
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         use sqlx::Statement;
         let mut conn = self.get_conn().await?;
-        let sql = format!("select * from {view_name} limit 1");
+        let sql = format!("select * from `{view_name}` limit 1");
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
         let ret = s
             .columns()
@@ -741,7 +737,7 @@ impl SchemaTrait for MysqlDB {
     async fn drop_procedure(
         &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let sql = format!("DROP PROCEDURE {name}");
+        let sql = format!("DROP PROCEDURE `{name}`");
         let mut conn = self.get_conn().await?;
         conn.execute(sqlx::raw_sql(&sql)).await?;
         anyhow::Ok(())
@@ -761,7 +757,7 @@ impl SchemaTrait for MysqlDB {
     async fn drop_udf(
         &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let sql = format!("DROP FUNCTION {name}");
+        let sql = format!("DROP FUNCTION `{name}`");
         let mut conn = self.get_conn().await?;
         conn.execute(sqlx::raw_sql(&sql)).await?;
         anyhow::Ok(())
@@ -801,14 +797,14 @@ impl SchemaTrait for MysqlDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
+        let sql = format!("CREATE TABLE `{dup}` AS SELECT * FROM {table}");
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let sql = format!("RENAME TABLE {old} TO {new}");
+        let sql = format!("RENAME TABLE `{old}` TO `{new}`");
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -825,7 +821,7 @@ impl SchemaTrait for MysqlDB {
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-        DROP TRIGGER {name}
+        DROP TRIGGER `{name}`
         "#
         );
         let mut conn = self.get_conn().await?;
@@ -887,7 +883,7 @@ impl SchemaTrait for MysqlDB {
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(format!("SHOW CREATE TABLE {table_name};").as_str())
+        let row = sqlx::query(format!("SHOW CREATE TABLE `{table_name}`;").as_str())
             .fetch_one(conn.deref_mut())
             .await?;
 
@@ -902,7 +898,7 @@ impl SchemaTrait for MysqlDB {
 
     async fn create_view_sql(&self, view_name: &str) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(format!("SHOW CREATE VIEW {view_name};").as_str())
+        let row = sqlx::query(format!("SHOW CREATE VIEW `{view_name}`;").as_str())
             .fetch_one(conn.deref_mut())
             .await?;
 
@@ -944,7 +940,7 @@ impl SchemaTrait for MysqlDB {
         self.can_write()?;
 
         let mut conn = self.get_conn().await?;
-        let sql = format!("DROP VIEW {view_name}");
+        let sql = format!("DROP VIEW `{view_name}`");
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
@@ -953,7 +949,7 @@ impl SchemaTrait for MysqlDB {
         self.can_write()?;
         let mut conn = self.get_conn().await?;
         let sql = format!(
-            "DROP TABLE {table} {}",
+            "DROP TABLE `{table}` {}",
             if cascade { " CASCADE " } else { "" }
         );
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -990,7 +986,7 @@ impl SchemaTrait for MysqlDB {
         self.can_write()?;
         let s = format!(
             r#"
-            TRUNCATE TABLE {table_name};
+            TRUNCATE TABLE `{table_name}`;
         "#
         );
         let mut conn = self.get_conn().await?;
@@ -1108,21 +1104,19 @@ impl SchemaTrait for MysqlDB {
         // | password | varchar(100) | NO   |     | NULL              |                             |
         // +----------+--------------+------+-----+-------------------+-----------------------------+
 
-        let s = format!("describe {}", table_name);
+        let s = format!("describe `{}`", table_name);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
                 Ok(x) => x,
-                Err(_) => {
-                    match r.try_get::<'_, Vec<u8>, _>(0) {
-                        Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
-                        Err(_err) => {
-                            anyhow::bail!("can get column as string or vec<u8>")
-                        }
+                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
+                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                    Err(_err) => {
+                        anyhow::bail!("can get column as string or vec<u8>")
                     }
-                }
+                },
             };
             let ty: String = r.try_get(1)?;
             let null: String = r.try_get(2)?;
@@ -1160,7 +1154,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let sql = format!("SHOW INDEX FROM {table_name}");
+        let sql = format!("SHOW INDEX FROM `{table_name}`");
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut map: HashMap<String, Index> = HashMap::new();
@@ -1314,7 +1308,7 @@ impl MysqlDB {
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!("SELECT count(1) FROM {name} ");
+        let mut s = format!("SELECT count(1) FROM `{name}` ");
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
@@ -1627,23 +1621,25 @@ pub(crate) mod test_fns {
         let mut _conn = db.get_conn().await.unwrap();
         let db_trait = &db as &dyn SchemaTrait;
 
-        let _ = db_trait.drop_table("test_create_trigger", false).await;
-        let _ = db_trait
-            .drop_table("test_create_trigger_update", false)
-            .await;
-        let _ = db_trait
-            .drop_trigger("test_create_trigger", "after_insert_test_create_trigger")
-            .await;
-        let _ = db_trait
-            .drop_trigger("test_create_trigger", "after_insert_test_create_trigger2")
-            .await;
+        {
+            // clean up
+            let _ = db_trait.drop_table("test_create_trigger", false).await;
+            let _ = db_trait
+                .drop_table("test_create_trigger_update", false)
+                .await;
+            let _ = db_trait
+                .drop_trigger("test_create_trigger", "after_insert_test_create_trigger")
+                .await;
+            let _ = db_trait
+                .drop_trigger("test_create_trigger", "after_insert_test_create_trigger2")
+                .await;
+        }
 
         let query_id = db_trait.open_connection().await.unwrap();
         db_trait
             .query_sql(
                 query_id,
-                r#"
-            CREATE TABLE test_create_trigger (
+                r#"CREATE TABLE test_create_trigger (
                 id INT AUTO_INCREMENT, -- 自动递增的ID
                 data VARCHAR(255) NOT NULL, -- 存储数据的字段，最大长度255字符，不允许为空
                 PRIMARY KEY (id) -- 设置id为表的主键

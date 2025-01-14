@@ -1,11 +1,12 @@
-use std::{borrow::Cow, collections::HashSet, ops::DerefMut, sync::Arc};
+use std::{borrow::Cow, ops::DerefMut, sync::Arc};
 
 use crate::{
     completion::{
         AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-        SemanticToken, try_completion_on_syntax,
+        try_completion_on_syntax,
     },
-    db::{BackendName, DBTrait, not_support_features},
+    db::{BackendName, DBTrait, FormatSqlOpts, not_support_features},
+    helper::sqlformat_format_sql,
     mysql::MysqlDB,
 };
 use sqlx::Row;
@@ -103,13 +104,8 @@ impl LanguageServer for MysqlDB {
         .await;
     }
 
-    async fn senmatic_tokens(&self, sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
-        let keyword: HashSet<String> = <MysqlDB as LexerCompletionTrait>::consider_keywords();
-        return crate::semantic_token::samatic_token_base_on_sqlparser(
-            &sqlparser::dialect::MySqlDialect {},
-            sql,
-            &keyword,
-        );
+    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
+        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
     }
 }
 

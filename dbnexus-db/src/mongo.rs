@@ -10,12 +10,12 @@ use mongodb::bson::{Document, doc};
 use mongodb::options::ServerAddress;
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 
-use crate::completion::{LanguageServer, CompletionItem};
+use crate::completion::{CompletionItem, LanguageServer};
 use crate::datasource_config::MongoConfig;
 use crate::db::{
-    BackendName, CheckConn, DBTrait, ExportKind, Field, FormatSql, FormatSqlOpts, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp, not_support_features,
+    BackendName, CheckConn, DBTrait, ExportKind, Field, Index, IndexKind, ListTable,
+    NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
+    not_support_features,
 };
 use crate::meta_value::MetaValue;
 
@@ -217,15 +217,6 @@ impl CheckConn for Mongo {
         let conn = self.get_conn().await?;
         let _ = conn.list_database_names().await?;
         anyhow::Ok(ins.elapsed())
-    }
-}
-
-impl FormatSql for Mongo {
-    fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::bail!(format!(
-            "'{}' don't support format sql",
-            self.backend_name()
-        ))
     }
 }
 

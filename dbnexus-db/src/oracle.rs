@@ -12,24 +12,19 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::completion::{LanguageServer, CompletionItem, LexerCompletionTrait};
+use crate::completion::{CompletionItem, LanguageServer, LexerCompletionTrait};
 use crate::datasource_config::OracleDbConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field, FormatSql,
-    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp, not_support_features,
+    BackendName, CheckConn, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+    SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::helper::{
-    SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql,
+    SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
 };
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 
-impl FormatSql for OracleDB {
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
-    }
-}
 #[derive(Clone)]
 pub struct OracleDB {
     pool: Pool,

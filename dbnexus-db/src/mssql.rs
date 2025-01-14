@@ -17,15 +17,12 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDbConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, Field, FormatSql,
-    FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
-    format_data_time_fix_offset, not_support_features,
+    BackendName, CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, Field, Index, IndexKind,
+    ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfDetail, UdfOrPrecedureExtraParameter, format_data_time_fix_offset, not_support_features,
 };
-use crate::helper::{
-    SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq, sqlformat_format_sql,
-};
+use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 
@@ -42,11 +39,7 @@ impl std::fmt::Debug for MsSqlServer {
         write!(f, "mssql on:{:?}", self.config)
     }
 }
-impl FormatSql for MsSqlServer {
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
-    }
-}
+
 impl MsSqlServer {
     pub const ONLY_SCHEMA: &str = "dbo";
 }
@@ -290,7 +283,7 @@ fn gen_select_sql(
     schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("SELECT * FROM {schema}.{table_name}");
+    let mut sql = format!(r#"SELECT * FROM "{schema}"."{table_name}""#);
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
@@ -444,26 +437,26 @@ fn type_support_compare(_tpe: &str) -> bool {
 
 #[async_trait::async_trait]
 impl SchemaTrait for MsSqlServer {
+    fn quote_style(&self) -> &'static str {
+        "\""
+    }
+
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP INDEX {index} ON {table_name};");
-        let mut conn = self.get_conn().await?;
-        conn.deref_mut().execute(&sql, &[]).await?;
-        anyhow::Ok(())
+        let sql = format!(r#"DROP INDEX "{index}" ON "{table_name}";"#);
+        self.execute_simple_execute(&sql).await
     }
 
     async fn rename_index(
         &self, table: &str, old_name: &str, new_name: &str,
     ) -> anyhow::Result<()> {
         let sql = format!("EXEC sp_rename '{table}.{old_name}', '{new_name}', 'INDEX';");
-        let mut conn = self.get_conn().await?;
-        conn.deref_mut().execute(&sql, &[]).await?;
-        anyhow::Ok(())
+        self.execute_simple_execute(&sql).await
     }
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
-            "ALTER TABLE {table} ADD COLUMN {name} {} {} {}",
+            r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
             if let Some(nullness) = col.nullness.as_ref() {
                 nullness.as_str()
@@ -488,7 +481,7 @@ impl SchemaTrait for MsSqlServer {
     }
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::mysql_completion::TYPES)
+        anyhow::Ok(crate::mysql_lang_server::TYPES)
     }
 
     async fn modify_table_column(
@@ -523,7 +516,7 @@ impl SchemaTrait for MsSqlServer {
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-            ALTER TABLE {table} DROP COLUMN {col};
+            ALTER TABLE "{table}" DROP COLUMN "{col}";
         "#
         );
         let mut conn = self.get_conn().await?;
@@ -560,7 +553,7 @@ impl SchemaTrait for MsSqlServer {
         let schema = self.config.must_schema().as_str();
         let sql = format!(
             r#"
-            SELECT * INTO {schema}.{dup} FROM {schema}.{table} 
+            SELECT * INTO "{schema}"."{dup}" FROM "{schema}"."{table}" 
         "#
         );
         self.execute_simple_execute(sql.as_str()).await
@@ -658,7 +651,7 @@ impl SchemaTrait for MsSqlServer {
     async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-         DROP TRIGGER {}.{name} ON {table};
+         DROP TRIGGER "{}"."{name}" ON "{table}";
         "#,
             Self::ONLY_SCHEMA
         );
@@ -746,7 +739,7 @@ impl SchemaTrait for MsSqlServer {
         self.can_write()?;
         let schema = self.config.must_schema().as_str();
 
-        let s = format!("DROP VIEW {schema}.{view_name}");
+        let s = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
 
@@ -756,7 +749,7 @@ impl SchemaTrait for MsSqlServer {
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("DROP TABLE {table}");
+        let sql = format!(r#"DROP TABLE "{table}""#);
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         conn.execute(sql.as_str(), &[]).await?;
@@ -1015,7 +1008,7 @@ impl SchemaTrait for MsSqlServer {
         self.can_write()?;
         let s = format!(
             r#"
-            TRUNCATE TABLE {table_name};
+            TRUNCATE TABLE "{table_name}";
         "#
         );
         let mut conn = self.get_conn().await?;
@@ -1166,7 +1159,7 @@ impl SchemaTrait for MsSqlServer {
     async fn drop_udf(
         &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let sql = format!("DROP FUNCTION {}.{name}", Self::ONLY_SCHEMA);
+        let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::ONLY_SCHEMA);
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         conn.execute(sql.as_str(), &[]).await?;
@@ -1228,7 +1221,7 @@ impl SchemaTrait for MsSqlServer {
     async fn drop_procedure(
         &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let sql = format!(" DROP PROCEDURE dbo.{name}");
+        let sql = format!(r#"DROP PROCEDURE dbo."{name}""#);
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         conn.execute(&sql, &[]).await?;
@@ -1240,7 +1233,7 @@ impl MsSqlServer {
     async fn query_count(
         conn: &mut Connection, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<i32> {
-        let sql = format!("SELECT count(*) from {name} {}", match where_str {
+        let sql = format!(r#"SELECT count(*) from "{name}" {}"#, match where_str {
             Some(x) => format!("  where {} ", x),
             None => "".to_string(),
         });

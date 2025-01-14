@@ -6,10 +6,11 @@ use futures_util::StreamExt;
 use tiberius::QueryItem;
 
 use crate::completion::{
-    AstCompletionHelper, LanguageServer, CompletionItem, CompletionKind, LexerCompletionTrait,
+    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
     try_completion_on_syntax,
 };
-use crate::db::{CatalogTrait, SchemaTrait};
+use crate::db::{CatalogTrait, FormatSqlOpts, SchemaTrait};
+use crate::helper::sqlformat_format_sql;
 use crate::mssql::MsSqlServer;
 
 #[async_trait::async_trait]
@@ -89,6 +90,10 @@ impl LanguageServer for MsSqlServer {
             },
         )
         .await;
+    }
+
+    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
+        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
     }
 }
 

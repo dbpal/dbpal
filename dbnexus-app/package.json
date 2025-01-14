@@ -36,8 +36,7 @@
     "react-split-pane": "0.1.92",
     "resizable-panes-react": "^6.0.26",
     "styled-components": "^6.1.13",
-    "uuid": "^11.0.3",
-    "vscode-languageserver": "^9.0.1"
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",

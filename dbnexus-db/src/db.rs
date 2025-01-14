@@ -21,9 +21,13 @@ pub trait BackendName {
 /// A db representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait:
-    Sync + Send + QuerySql + CheckConn + FormatSql + std::fmt::Debug + ServerMetas + 'static
+    Sync + Send + QuerySql + CheckConn + std::fmt::Debug + ServerMetas + 'static
 {
     fn as_any(&self) -> &dyn std::any::Any;
+
+    fn quote_style(&self) -> &'static str {
+        ""
+    }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
@@ -302,7 +306,7 @@ impl UdfDetail {
 
 #[async_trait::async_trait]
 pub trait CatalogTrait:
-    Send + Sync + 'static + QuerySql + FormatSql + CheckConn + LanguageServer + Debug + ServerMetas
+    Send + Sync + 'static + QuerySql + CheckConn + LanguageServer + Debug + ServerMetas
 {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
@@ -354,10 +358,6 @@ impl Into<sqlformat::FormatOptions<'static>> for FormatSqlOpts {
             ignore_case_convert: None,
         }
     }
-}
-
-pub trait FormatSql {
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String>;
 }
 
 #[async_trait::async_trait]
@@ -428,9 +428,7 @@ impl dyn SchemaTrait {
 }
 
 #[async_trait::async_trait]
-pub trait DBTrait:
-    Sync + Send + QuerySql + 'static + CheckConn + FormatSql + Debug + ServerMetas
-{
+pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + Debug + ServerMetas {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
     async fn create_schema(&self, name: &str) -> anyhow::Result<()>;
@@ -574,9 +572,11 @@ impl dyn SchemaTrait {
             }
             sql.push_str(
                 format!(
-                    "{} {} = {}",
+                    "{} {}{}{} = {}",
                     if !first { " AND " } else { "" },
+                    self.quote_style(),
                     k,
+                    self.quote_style(),
                     self.put_value_in_sql(f, v.as_ref().map(|x| x.as_str()))?
                 )
                 .as_str(),
@@ -598,7 +598,7 @@ impl dyn SchemaTrait {
         let mut sql = format!(
             "DELETE FROM {}{table_name} WHERE ",
             if let Some(schema) = schema {
-                format!("{}.", schema)
+                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
             } else {
                 "".to_string()
             }
@@ -627,7 +627,7 @@ impl dyn SchemaTrait {
         let mut sql = format!(
             "UPDATE {}{table_name} SET ",
             if let Some(schema) = schema {
-                format!("{}.", schema)
+                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
             } else {
                 "".to_string()
             }
@@ -642,8 +642,10 @@ impl dyn SchemaTrait {
 
                 sql.push_str(
                     format!(
-                        "{} = {}",
+                        "{}{}{} = {}",
+                        self.quote_style(),
                         k,
+                        self.quote_style(),
                         self.put_value_in_sql(*f.unwrap(), v.as_ref().map(|x| x.as_str()))?
                     )
                     .as_str(),
@@ -679,7 +681,7 @@ impl dyn SchemaTrait {
         let mut sql = format!(
             "INSERT INTO {}{table_name}(",
             if let Some(schema) = schema {
-                format!("{}.", schema)
+                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
             } else {
                 "".to_string()
             }
@@ -691,7 +693,15 @@ impl dyn SchemaTrait {
                 if field_by_name.get(f.0).map(|x| x.is_auto_increment).unwrap() {
                     continue;
                 }
-                sql.push_str(f.0.as_str());
+                sql.push_str(
+                    format!(
+                        "{}{}{}",
+                        self.quote_style(),
+                        f.0.as_str(),
+                        self.quote_style()
+                    )
+                    .as_str(),
+                );
                 if index != last {
                     sql.push_str(",");
                 }
