@@ -1209,7 +1209,7 @@ impl QuerySql for SqliteDB {
 #[cfg(test)]
 #[tokio::test]
 async fn test_auto_completion() {
-    use crate::completion::LexerCompletionTrait;
+    use crate::language_server::LexerCompletionTrait;
     let s = SqliteDB::new(":memory:".to_string(), false).await.unwrap();
 
     let mut conn = s.get_conn().await.unwrap();

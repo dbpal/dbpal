@@ -45,63 +45,6 @@ import LinkOffIcon from '@mui/icons-material/LinkOff';
 import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
 
-/*
-pub enum CompletionKind {
-    Command,          // #FF9800
-    KeyWord,         // #3F51B5
-    Function,        // #2196F3
-    Database,        // #4CAF50
-    Schema,          // #FFC107
-    Table,           // #FF5722
-    View,            // #009688
-    Column,          // #9C27B0
-    Text,            // #000000
-    Type,            // #8BC34A
-    Index,           // #795548
-    Sequence,        // #607D8B
-    Stage,           // #FFEB3B
-    Trigger,         // #E91E63
-    Event,           // #F44336
-    Procedure,       // #3F51B5
-    Extension,       // #FF9800
-    User,            // #9E9E9E
-    Role,            // #FF5722
-    Constraint,      // #8BC34A
-    Partition,       // #CDDC39
-    PrepareStatement, // #FFC107
-    Pragma,          // #FF9800
-    Policy,          // #4CAF50
-    Variable,        // #2196F3
-    Rule,            // #FF4081
-    Parameter,       // #FFEB3B
-    Cursor,          // #9E9E9E
-    Identifer,       // #607D8B
-    Literal,         // #E91E63
-}
-*/
-const getTokenStyleMetadata = (_type, _modifiers) => {
-  // switch (_type) {
-  //   case 'command':
-  //     return { foreground: 1 };
-  //   case 'keyword':
-  //     return { foreground: 2 };
-  //   case 'function':
-  //     return { foreground: 3 };
-  //   case 'identifer':
-  //     return { foreground: 4 };
-  //   case 'literal':
-  //     return { foreground: 5 };
-  //   case 'table':
-  //     return { foreground: 6 };
-  //   case 'column':
-  //     return { foreground: 7 };
-
-  //   default:
-  //     throw `impl color:${_type}`;
-  // }
-  return {};
-};
-
 const modalStyle: SxProps = {
   position: 'absolute',
   top: '50%',
@@ -368,7 +311,7 @@ function isTypeLargeText(s: string): boolean {
 function EditorBar(props: {
   left?: any;
   pos: EditorPositon;
-  style: CSSProperties | undefined;
+  style?: CSSProperties | undefined;
 }) {
   let { left, pos, style } = props;
   return (
@@ -642,7 +585,7 @@ function SimpleResizeEditor(props: {
   minHeigth?: number;
 }) {
   let { language, value, onMount, options, style, minHeigth } = props;
-
+  const [pos, setPos] = useState<Position>(null);
   let height = editorInitHeight(value);
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
@@ -651,11 +594,9 @@ function SimpleResizeEditor(props: {
     editor: editor.IStandaloneCodeEditor,
     monaco: Monaco
   ) => {
-    //@ts-ignore
-    const ts = editor._themeService;
-    const t = ts._theme;
-    t.getTokenStyleMetadata = getTokenStyleMetadata;
-
+    editor.onDidChangeCursorPosition(() => {
+      setPos(editor.getPosition());
+    });
     if (onMount) {
       onMount(editor, monaco);
     }
@@ -687,9 +628,14 @@ function SimpleResizeEditor(props: {
           language={language}
           value={value}
           theme={theme == 'dark' ? 'vs-dark' : 'light'}
-          options={options}
+          options={{
+            fontSize: useContext(SettingsContext).editorFontSize,
+            wordWrap: 'on',
+            ...options,
+          }}
         ></Editor>
       </div>
+      <EditorBar pos={pos}></EditorBar>
     </div>
   );
 }
@@ -808,7 +754,11 @@ function MenuConnectionInfo({ uuid }) {
         setSelectIndex(tabs.length);
         return [
           ...e,
-          new TabContent(id, uuid, <ConnInfo uuid={uuid}></ConnInfo>),
+          new TabContent(
+            id,
+            uuid,
+            <ConnConfigInfo uuid={uuid}></ConnConfigInfo>
+          ),
         ];
       });
     }
@@ -1008,14 +958,18 @@ function ConnStatus({ uuid }) {
   );
 }
 class UserSettings {
-  constructor(public theme: string = 'light', public pageSize: number = 100) {}
+  constructor(
+    public theme: string = 'light',
+    public pageSize: number = 100,
+    public editorFontSize: number = 18
+  ) {}
 }
 
 const SettingsContext = createContext<UserSettings>(new UserSettings());
 
 const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
 
-function ConnInfo(props: { uuid }) {
+function ConnConfigInfo(props: { uuid }) {
   let { uuid } = props;
   const { showNotification } = useContext(NotificationContext);
   const [metas, setMetas] = useState<types.MetaValue[]>([]);
@@ -1105,18 +1059,42 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       throw e;
     }
   };
-
+  const format = async (sql: string, opts: languages.FormattingOptions) => {
+    try {
+      let text = await invoke<string>('format_sql', {
+        name: uuid,
+        sql,
+      });
+      return text;
+    } catch (e) {
+      console.log('completion server error:', e);
+      throw e;
+    }
+  };
   function initLanguageXXX(
     language: string,
     Ilanguage: languages.IMonarchLanguage,
     autoCompletion: (
       text: string,
       pos: Position
-    ) => Promise<languages.CompletionList>
+    ) => Promise<languages.CompletionList>,
+    format?: (
+      text: string,
+      options: languages.FormattingOptions
+    ) => Promise<string>
   ) {
     loader.init().then((monaco) => {
       monaco.languages.register({ id: language });
       monaco.languages.setMonarchTokensProvider(language, Ilanguage);
+      if (format) {
+        monaco.languages.registerDocumentFormattingEditProvider(language, {
+          provideDocumentFormattingEdits(model, options, _token) {
+            return format(model.getValue(), options).then((text) => [
+              { range: model.getFullModelRange(), text },
+            ]);
+          },
+        });
+      }
 
       monaco.languages.registerCompletionItemProvider(language, {
         provideCompletionItems: (
@@ -1146,6 +1124,8 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
               [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
           },
           brackets: [
@@ -1153,7 +1133,8 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             { open: '[', close: ']', token: 'delimiter.square' },
           ],
         } as languages.IMonarchLanguage,
-        autoCompletion
+        autoCompletion,
+        format
       );
       break;
     case DataSourceKind.Sqlite:
@@ -1168,10 +1149,13 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
               [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion
+        autoCompletion,
+        format
       );
       break;
     case DataSourceKind.Postgres:
@@ -1185,10 +1169,13 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\"(?:\\.|[^\"\"])*\"/, 'string'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion
+        autoCompletion,
+        format
       );
       break;
     case DataSourceKind.MsSql:
@@ -1202,11 +1189,13 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
-
-        autoCompletion
+        autoCompletion,
+        format
       );
       break;
     case DataSourceKind.Redis:
@@ -1281,6 +1270,55 @@ async function makeQueryConnInfo(uuid: string) {
   );
 }
 
+interface IQueryConn {
+  queryOP: (text: string) => Promise<any[]>;
+  loadQueryLog: () => Promise<types.QueryLogEvent[]>;
+  reconnect: () => Promise<void>;
+  isDangerSql: (sql: string) => Promise<boolean>;
+  destroy: () => void;
+}
+
+class QueryConn implements IQueryConn {
+  queryId: string;
+  uuid: string;
+  constructor(uuid, queryId: string) {
+    this.queryId = queryId;
+    this.uuid = uuid;
+  }
+  queryOP(sql: string): Promise<any[]> {
+    let x = invoke<any[]>('query_sql', {
+      name: this.uuid,
+      queryId: this.queryId,
+      sql,
+    });
+    return x;
+  }
+  loadQueryLog(): Promise<types.QueryLogEvent[]> {
+    return invoke('query_logs', { name: this.uuid, queryId: this.queryId });
+  }
+  reconnect(): Promise<void> {
+    return invoke('query_sql_re_connection', {
+      name: this.uuid,
+      queryId: this.queryId,
+    });
+  }
+  isDangerSql(sql: string): Promise<boolean> {
+    return invoke('is_dangerous_sql', { name: this.uuid, sql });
+  }
+  destroy() {
+    console.log('destroy connection of:', this.queryId);
+    invoke('query_sql_close_connection', {
+      name: this.uuid,
+      queryId: this.queryId,
+    })
+      .then(() => {})
+      .catch((e) => {
+        console.log('close connection failed,err', e);
+      });
+  }
+}
+type MakeIQueryConn = () => Promise<IQueryConn>;
+
 export {
   modalStyle,
   SelectPageSize,
@@ -1320,7 +1358,6 @@ export {
   MenuNewQuery,
   ConnStatus,
   SettingsContext,
-  AppStoreKey,
   appStore,
   UserSettings,
   VisiableContext,
@@ -1339,7 +1376,8 @@ export {
   registeredLanguage,
   initMonacoLanague,
   makeQueryConnInfo,
-  getTokenStyleMetadata,
+  QueryConn,
+  AppStoreKey,
 };
 
-export type { DefAndMetas };
+export type { DefAndMetas, IQueryConn, MakeIQueryConn };

@@ -5,12 +5,12 @@ use std::sync::Arc;
 use futures_util::StreamExt;
 use tiberius::QueryItem;
 
-use crate::completion::{
+use crate::db::{CatalogTrait, FormatSqlOpts, SchemaTrait};
+use crate::helper::sqlformat_format_sql;
+use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
     try_completion_on_syntax,
 };
-use crate::db::{CatalogTrait, FormatSqlOpts, SchemaTrait};
-use crate::helper::sqlformat_format_sql;
 use crate::mssql::MsSqlServer;
 
 #[async_trait::async_trait]
@@ -243,9 +243,9 @@ impl AstCompletionHelper for MsSqlServer {
 mod tests {
     use std::path::Path;
 
-    use crate::completion::completion_test::test_file_auto_completion;
     use crate::db::QuerySql;
     use crate::enable_test_log;
+    use crate::language_server::completion_test::test_file_auto_completion;
     use crate::mssql::make_test_object;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

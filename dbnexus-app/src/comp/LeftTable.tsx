@@ -11,6 +11,7 @@ import {
   TabsSetContext,
   ConnTypeContext,
   progressBarSize,
+  DocsAndCount,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -60,6 +61,8 @@ import {
   RedisStringTable,
   RedisZsetTable,
 } from './Redis';
+import { MongoTable } from './MongoDB';
+import { BSON } from 'bson';
 
 function TablesTree() {
   const { uuid } = useContext(UuidContext);
@@ -694,7 +697,7 @@ function DropTable(props: {
   );
 }
 
-async function makeViewJsx(
+async function makeViewTable(
   uuid,
   table: string,
   kind: DataSourceKind,
@@ -961,7 +964,53 @@ async function makeViewJsx(
 
       break;
     case DataSourceKind.Mongo:
-      throw 'impl this';
+      tableList = (
+        <MongoTable
+          reloadOPTableList={async (filter, sort, page, pageSize) => {
+            return await invoke('mongo_show_collection_table_list', {
+              name: uuid,
+              tableName: table,
+              filter: BSON.serialize(filter),
+              sort: BSON.serialize(sort),
+              page,
+              pageSize,
+            });
+          }}
+          realodOPDocs={async (filter, sort, page, pageSize) => {
+            try {
+              let x = await invoke('mongo_show_collection_docs', {
+                name: uuid,
+                tableName: table,
+                filter: BSON.serialize(filter),
+                sort: BSON.serialize(sort),
+                page,
+                pageSize,
+              });
+              //@ts-ignore
+              let docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
+              //@ts-ignore
+              let count = x.count;
+              return new DocsAndCount(docs, count);
+            } catch (e) {
+              throw e;
+            }
+          }}
+          loadOne={async (id) => {
+            try {
+              let x = await invoke('mongo_get_one_document', {
+                name: uuid,
+                tableName: table,
+                id: id.toHexString(),
+              });
+
+              return BSON.deserialize(new Uint8Array(x));
+            } catch (e) {
+              throw e;
+            }
+          }}
+        ></MongoTable>
+      );
+      break;
   }
 
   return tableList;
@@ -1008,7 +1057,7 @@ function TableMenu(props: {
     if (typeof index == 'number') {
       setSelectIndex(index);
     } else {
-      let tableList: ReactNode = await makeViewJsx(
+      let tableList: ReactNode = await makeViewTable(
         uuid,
         table,
         kind,

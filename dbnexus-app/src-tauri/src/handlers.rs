@@ -3,13 +3,13 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use bson::{Document, doc};
-use dbnexus_db::app::{self, App, DBConnectionConfig, Open, open};
-use dbnexus_db::completion::{CompletionItem, SemanticToken};
+use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::db::{
     ColumnType, ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, ProcedureDetail,
     QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
     UdfOrPrecedureExtraParameter,
 };
+use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
@@ -767,7 +767,7 @@ pub async fn test_connection(
 
     let t = 5;
     tokio::time::timeout(Duration::from_secs(5), async {
-        let db = app::open(&config).await.map_err(|e| e.to_string())?;
+        let db = config.open().await.map_err(|e| e.to_string())?;
         match db {
             app::Open::DataBase(x) => x.check_conn().await,
             app::Open::Schema(x) => x.check_conn().await,
@@ -784,7 +784,7 @@ pub async fn test_connection(
 pub async fn config_list_database_or_schema(
     conn: DBConnectionConfig,
 ) -> Result<Vec<String>, AnyhowErrorFrontend> {
-    let x = open(&conn).await?;
+    let x = conn.open().await?;
     match x {
         Open::Catalog(catalog_trait) => catalog_trait
             .list_database()
@@ -1133,18 +1133,19 @@ pub async fn mongo_delete(
 
 #[tauri::command]
 pub async fn mongo_show_collection_table_list(
-    name: String, table_name: String, filter: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table_name: String, filter: Vec<u8>, sort: Vec<u8>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let filter = parse_bson_doc(filter.as_slice())?;
+    let sort = parse_bson_doc(sort.as_slice())?;
     let db = app
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => {
-            x.show_collection_table_list(table_name.as_str(), filter)
+            x.show_collection_table_list(table_name.as_str(), filter, sort, 1, 100)
                 .await
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
@@ -1155,17 +1156,22 @@ pub async fn mongo_show_collection_table_list(
 
 #[tauri::command]
 pub async fn mongo_show_collection_docs(
-    name: String, table_name: String, filter: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table_name: String, filter: Vec<u8>, sort: Vec<u8>, app: tauri::State<'_, App>,
+    page: u64, page_size: u64,
 ) -> Result<DocsAndCount, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let filter = parse_bson_doc(filter.as_slice())?;
+    let sort = parse_bson_doc(sort.as_slice())?;
     let db = app
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => x.show_collection_docs(table_name.as_str(), filter).await,
+        Some(x) => {
+            x.show_collection_docs(table_name.as_str(), filter, sort, page, page_size)
+                .await
+        }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| AnyhowErrorFrontend::from(e))?;

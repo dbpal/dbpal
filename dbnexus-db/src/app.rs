@@ -12,6 +12,7 @@ use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
     TableListResp,
 };
+use crate::mongo::Mongo;
 use crate::redis::{RedisDB, RedisListTable};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
@@ -91,19 +92,18 @@ pub enum DBConnectionConfig {
         name: String,
     },
 }
+impl DBConnectionConfig {
+    pub async fn open(&self) -> anyhow::Result<Open> {
+        match self {
+            DBConnectionConfig::Sqlite { conn, name: _ } => {
+                let db: Arc<dyn SchemaTrait> = Arc::new(
+                    crate::sqlite::SqliteDB::new(conn.path.clone(), conn.read_only).await?,
+                );
 
-/// open a
-pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
-    match config {
-        DBConnectionConfig::Sqlite { conn, name: _ } => {
-            let db: Arc<dyn SchemaTrait> =
-                Arc::new(crate::sqlite::SqliteDB::new(conn.path.clone(), conn.read_only).await?);
-
-            anyhow::Ok(Open::Schema(db))
-        }
-        DBConnectionConfig::Mysql { conn, name: _ }
-        | DBConnectionConfig::MariaDB { conn, name: _ } => {
-            match &conn.db {
+                anyhow::Ok(Open::Schema(db))
+            }
+            DBConnectionConfig::Mysql { conn, name: _ }
+            | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
@@ -115,47 +115,47 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
                         Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
                     anyhow::Ok(Open::DataBase(db))
                 }
+            },
+            DBConnectionConfig::Postgres { conn, name: _ } => {
+                let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
+                if conn.db.is_none() {
+                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                }
+
+                match &conn.schema {
+                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                }
             }
-        }
-        DBConnectionConfig::Postgres { conn, name: _ } => {
-            let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
-            if conn.db.is_none() {
-                return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+            DBConnectionConfig::SqlServer { conn, name: _ } => {
+                let o = Arc::new(crate::mssql::MsSqlServer::new(conn.clone()).await?);
+                if conn.db.is_none() {
+                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                }
+                match &conn.schema {
+                    Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                    None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                }
             }
 
-            match &conn.schema {
-                None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+            DBConnectionConfig::Mongo { conn, name: _ } => {
+                let db: Arc<Mongo> = Arc::new(crate::mongo::Mongo::new(conn.clone())?);
+                match conn.db {
+                    Some(_) => anyhow::Ok(Open::Schema(db)),
+                    None => anyhow::Ok(Open::DataBase(db)),
+                }
             }
-        }
-        DBConnectionConfig::SqlServer { conn, name: _ } => {
-            let o = Arc::new(crate::mssql::MsSqlServer::new(conn.clone()).await?);
-            if conn.db.is_none() {
-                return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+            DBConnectionConfig::Redis { conn, .. } => {
+                let redis = crate::redis::RedisDB::new(conn.clone()).await?;
+
+                let db = match &conn.db {
+                    Some(_) => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
+                    None => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
+                };
+
+                anyhow::Ok(db)
             }
-            match &conn.schema {
-                Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
-            }
-        }
-
-        DBConnectionConfig::Mongo { conn, name: _ } => {
-            let db: Arc<dyn SchemaTrait> = Arc::new(crate::mongo::Mongo::new(conn.clone())?);
-
-            anyhow::Ok(Open::Schema(db))
-        }
-        DBConnectionConfig::Redis { conn, .. } => {
-            let redis = crate::redis::RedisDB::new(conn.clone()).await?;
-
-            let db = match &conn.db {
-                Some(_) => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
-                None => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
-            };
-
-            anyhow::Ok(db)
-        }
-        DBConnectionConfig::Oracle { conn, name: _ } => {
-            match conn.schema.as_ref() {
+            DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
@@ -168,7 +168,7 @@ pub async fn open(config: &DBConnectionConfig) -> anyhow::Result<Open> {
 
                     anyhow::Ok(Open::DataBase(db))
                 }
-            }
+            },
         }
     }
 }
@@ -264,7 +264,7 @@ impl App {
         }
         let config = unsafe { (Self::get_config_ref().as_ref().map(|x| x(name))).unwrap()? };
 
-        let db = open(&config).await?;
+        let db = config.open().await?;
         match &db {
             Open::DataBase(x) => {
                 x.check_conn().await?;

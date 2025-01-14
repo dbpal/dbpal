@@ -423,7 +423,7 @@ pub(crate) mod completion_test {
     #[test]
     fn test_test_completion_items_contains() {
         use super::CompletionItem;
-        use crate::completion::CompletionKind;
+        use crate::language_server::CompletionKind;
 
         test_completion_items_contains(
             &[CompletionItem {

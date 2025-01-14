@@ -1,12 +1,12 @@
 use std::{borrow::Cow, ops::DerefMut, sync::Arc};
 
 use crate::{
-    completion::{
+    db::{FormatSqlOpts, SchemaTrait},
+    helper::sqlformat_format_sql,
+    language_server::{
         AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
         try_completion_on_syntax,
     },
-    db::{FormatSqlOpts, SchemaTrait},
-    helper::sqlformat_format_sql,
     sqlite::SqliteDB,
 };
 
@@ -14,7 +14,7 @@ use sqlx::Row;
 
 #[async_trait::async_trait]
 
-impl crate::completion::LexerCompletionTrait for SqliteDB {
+impl crate::language_server::LexerCompletionTrait for SqliteDB {
     type Dialect = sqlparser::dialect::SQLiteDialect;
 
     // https://sqlite.org/lang_keywords.html
@@ -1050,7 +1050,7 @@ When this pragma is on, and the SQLITE_DBCONFIG_DEFENSIVE flag is off, then the 
 #[cfg(test)]
 mod tests {
     use crate::{
-        completion::completion_test::test_file_auto_completion, db::QuerySql, enable_test_log,
+        db::QuerySql, enable_test_log, language_server::completion_test::test_file_auto_completion,
         sqlite::SqliteDB,
     };
 

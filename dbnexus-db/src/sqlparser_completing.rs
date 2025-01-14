@@ -4,7 +4,7 @@ use sqlparser::ast::*;
 
 use crate::sqlparser_completion::{FromTableOrTemp, NearNestTableNamed, ThisTableEnum};
 use crate::{
-    completion::{CompletionItem, CompletionKind},
+    language_server::{CompletionItem, CompletionKind},
     sqlparser_completion::{CompletionStament, Scope, ScopesGuard, TempTable, TempTableColumn},
 };
 use std::collections::HashMap;

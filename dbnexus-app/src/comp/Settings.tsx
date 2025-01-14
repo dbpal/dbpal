@@ -10,6 +10,7 @@ import {
   MenuItem,
   Select,
   Stack,
+  TextField,
   ThemeProvider,
   Typography,
 } from '@mui/material';
@@ -27,13 +28,14 @@ function ModifySettings() {
 
   const [pageSize, setPageSize] = useState(0);
   const [theme, setTheme] = useState('');
-
+  const [editorFontSize, setEditorFontSize] = useState('18');
   const reload = async () => {
     (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((settings) => {
         setPageSize(settings.pageSize);
         setTheme(settings.theme);
+        setEditorFontSize(settings.editorFontSize + '');
       })
       .catch((e) => {
         showNotification('error', 'port is not a number', e);
@@ -45,8 +47,10 @@ function ModifySettings() {
 
   const handleSave = async () => {
     (await appStore())
-
-      .set(AppStoreKey.UserSetttings, new UserSettings(theme, pageSize))
+      .set(
+        AppStoreKey.UserSetttings,
+        new UserSettings(theme, pageSize, parseInt(editorFontSize))
+      )
       .then(() => {
         showNotification('success', 'Save Setting OK');
       })
@@ -83,6 +87,17 @@ function ModifySettings() {
             <MenuItem value="light">light</MenuItem>
           </Select>
         </FormControl>
+      </Stack>
+      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
+        <Typography width={headerSize}> code editor font size: </Typography>
+        <TextField
+          value={editorFontSize}
+          onChange={(e) => {
+            setEditorFontSize(e.target.value);
+          }}
+          error={isNaN(parseInt(editorFontSize))}
+          helperText="please input a int"
+        ></TextField>
       </Stack>
 
       <Divider></Divider>

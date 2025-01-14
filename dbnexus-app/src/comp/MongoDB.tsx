@@ -41,7 +41,6 @@ import {
   progressBarSize,
   SettingsContext,
   VisiableContext,
-  getTokenStyleMetadata,
 } from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
@@ -209,11 +208,6 @@ function MongoBsonEditor(props: {
   const [docHasChange, setDocHasChange] = useState(false);
   const { theme } = useContext(SettingsContext);
   const handleEditorDidMount = (ce: editor.IStandaloneCodeEditor, monaco) => {
-    //@ts-ignore
-    const ts = editor._themeService;
-    const t = ts._theme;
-    t.getTokenStyleMetadata = getTokenStyleMetadata;
-
     ce.onDidChangeModelContent((_event) => {
       let text = ce.getValue();
       try {
@@ -258,6 +252,10 @@ function MongoBsonEditor(props: {
           language="mongoBson"
           value={content}
           height="100%"
+          options={{
+            fontSize: useContext(SettingsContext).editorFontSize,
+            wordWrap: 'on',
+          }}
         ></Editor>
       </div>
 
@@ -528,7 +526,7 @@ function MongoTable(props: {
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const [filter, setFilter] = useState<BSON.Document>({});
   const [orderBy, setOrderby] = useState<BSON.Document>({});
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(
     useContext(SettingsContext).pageSize
   );
@@ -542,7 +540,7 @@ function MongoTable(props: {
 
   const handleReload = () => {
     const handleReloadTableList = async () => {
-      reloadOPTableList(filter, orderBy, page, pageSize)
+      reloadOPTableList(filter, orderBy, page + 1, pageSize)
         .then((resp) => {
           setResp(resp);
         })
@@ -551,7 +549,7 @@ function MongoTable(props: {
         });
     };
     const handleReloadDocs = async () => {
-      realodOPDocs(filter, orderBy, page, pageSize)
+      realodOPDocs(filter, orderBy, page + 1, pageSize)
         .then((resp) => {
           setDocs(resp);
         })
@@ -636,7 +634,7 @@ function MongoTable(props: {
             </Button>
           </Stack>
           {vis && (
-            <div>
+            <div style={{ display: 'grid' }}>
               <DataGrid
                 getRowId={(e) => {
                   return e._id; // in this case object been convert to hexstring

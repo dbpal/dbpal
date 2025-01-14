@@ -10,13 +10,13 @@ use mongodb::bson::{Document, doc};
 use mongodb::options::ServerAddress;
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 
-use crate::completion::{CompletionItem, LanguageServer};
 use crate::datasource_config::MongoConfig;
 use crate::db::{
-    BackendName, CheckConn, DBTrait, ExportKind, Field, Index, IndexKind, ListTable,
-    NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
+    BackendName, CheckConn, DBTrait, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
     not_support_features,
 };
+use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
@@ -103,6 +103,7 @@ impl DBTrait for Mongo {
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         conn.database(name).drop().await?;
+        self.created_databases.remove(&name.to_owned());
         anyhow::Ok(())
     }
 }
@@ -163,7 +164,6 @@ fn collect_table_resp(
                 .map(|b| bson_value_to_string(b).ok())
                 .flatten()
                 .flatten();
-
             values.push(value);
         }
         ret.push(values);
@@ -271,7 +271,7 @@ impl Mongo {
     }
 
     pub async fn show_collection_table_list(
-        &self, collection_name: &str, filter: Document,
+        &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
     ) -> anyhow::Result<TableListResp> {
         let db = self.get_db().await?;
         let count = db
@@ -281,6 +281,9 @@ impl Mongo {
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
+            .skip((page - 1) * page_size)
+            .limit(page_size as i64)
+            .sort(sort)
             .await?;
 
         let mut docs = Vec::new();
@@ -296,7 +299,7 @@ impl Mongo {
     }
 
     pub async fn show_collection_docs(
-        &self, collection_name: &str, filter: Document,
+        &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
     ) -> anyhow::Result<DocsAndCount> {
         let db = self.get_db().await?;
         let count = db
@@ -306,6 +309,9 @@ impl Mongo {
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
+            .skip((page - 1) * page_size)
+            .limit(page_size as i64)
+            .sort(sort)
             .await?;
         let mut docs = Vec::new();
         while let Some(item) = stream.next().await {
@@ -360,10 +366,6 @@ impl ServerMetas for Mongo {
         // write_bson_s_json_to_file(&server_status, "./test.json");
         let mut ret = Vec::new();
 
-        {
-            let host = server_status.get_str("host")?.to_string();
-            ret.push(MetaValue::new("host", host));
-        }
         {
             let version = server_status.get_str("version")?.to_string();
             ret.push(MetaValue::new("version", version));
@@ -834,7 +836,7 @@ mod tests {
             .unwrap();
 
         let docs = db
-            .show_collection_docs(table_name2, bson::doc! {})
+            .show_collection_docs(table_name2, bson::doc! {}, bson::doc! {}, 1, 100)
             .await
             .unwrap();
         println!("{:?}", docs);
@@ -894,11 +896,17 @@ mod tests {
                 .deleted_count,
             0
         );
-        let resp = db.show_collection_table_list(table, doc! {}).await.unwrap();
+        let resp = db
+            .show_collection_table_list(table, doc! {}, doc! {}, 1, 100)
+            .await
+            .unwrap();
         println!("########################");
         println!("resp:{:?}", resp);
 
-        let resp = db.show_collection_docs(table, doc! {}).await.unwrap();
+        let resp = db
+            .show_collection_docs(table, doc! {}, doc! {}, 1, 100)
+            .await
+            .unwrap();
         for d in resp.docs {
             println!("{:?}", d);
             let json_str = serde_json::to_string_pretty(&d).unwrap();

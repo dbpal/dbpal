@@ -1420,9 +1420,9 @@ mod tests {
     use redis::AsyncCommands;
 
     use super::{RedisDB, extract_db_from_info_key_space, split_info_colon};
-    use crate::completion::completion_test::test_file_auto_completion;
     use crate::datasource_config::RedisDbConfig;
     use crate::db::{DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas};
+    use crate::language_server::completion_test::test_file_auto_completion;
     use crate::{TEST_HOST, enable_test_log};
 
     async fn make_test_object() -> RedisDB {

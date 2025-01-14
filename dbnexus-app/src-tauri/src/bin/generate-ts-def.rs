@@ -3,7 +3,6 @@ use std::path::Path;
 
 use dbnexus_app_lib::handlers::{MuiDataGridData, MuiDataTableListResp};
 use dbnexus_db::app::{self};
-use dbnexus_db::completion::{CompletionItem, CompletionKind, SemanticToken};
 use dbnexus_db::datasource_config::{
     MongoConfig, MysqlDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
 };
@@ -12,6 +11,7 @@ use dbnexus_db::db::{
     ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
     UdfDetail,
 };
+use dbnexus_db::language_server::{CompletionItem, CompletionKind, SemanticToken};
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::RedisListTable;
 use typescript_type_def::{DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos};

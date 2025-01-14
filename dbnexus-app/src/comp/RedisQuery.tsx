@@ -3,29 +3,15 @@ import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
 import { Position } from 'monaco-editor';
 
-import types from './ApiStruct';
-
 import { SqlQuery } from './SqlQuery.tsx';
 import { fetch } from '@tauri-apps/plugin-http';
+import { MakeIQueryConn } from './Common.tsx';
 function RedisQuery(props: {
-  queryOP: (code: string) => Promise<any[]>;
-
-  loadQueryLog: () => Promise<types.QueryLogEvent[]>;
-  reconnect;
+  makeConn: MakeIQueryConn;
   connectInfo;
-  isDangerSql;
-  destroy;
   language;
 }) {
-  const {
-    queryOP,
-    loadQueryLog,
-    language,
-    reconnect,
-    connectInfo,
-    isDangerSql,
-    destroy,
-  } = props;
+  const { language, makeConn, connectInfo } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -119,12 +105,8 @@ function RedisQuery(props: {
           tryUpdateCommand(text, pos);
         }}
         language={language}
-        queryOP={queryOP}
-        loadQueryLog={loadQueryLog}
-        reconnect={reconnect}
         connectInfo={connectInfo}
-        isDangerSql={isDangerSql}
-        destroy={destroy}
+        makeConn={makeConn}
       ></SqlQuery>
 
       <div

@@ -9,7 +9,7 @@ use redis::AsyncCommands;
 use sqlparser::tokenizer::Token;
 use tokio::sync::Mutex;
 
-use crate::completion::{
+use crate::language_server::{
     CompletionItem, CompletionKind, LanguageServer, in_pos, match_pattern_and_sort,
 };
 use crate::redis::{RedisDB, RedisType};

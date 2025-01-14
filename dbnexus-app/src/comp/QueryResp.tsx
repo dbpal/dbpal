@@ -92,6 +92,7 @@ function MultiQueryResp(props: { data: any[] }) {
     setValue(newValue);
   };
   let idPrefix = generateRandomString(10);
+  const vis = useContext(VisiableContext);
   return (
     <div>
       <div>
@@ -108,18 +109,20 @@ function MultiQueryResp(props: { data: any[] }) {
 
       {data.map((e, index) => {
         return (
-          <CustomTabPanel
-            idPrefix={idPrefix}
-            key={`panel${index}`}
-            value={value}
-            index={index}
-          >
-            {e.Err ? (
-              <Alert severity="error">{e.Err}</Alert>
-            ) : (
-              <QueryResp data={e.Ok}></QueryResp>
-            )}
-          </CustomTabPanel>
+          <VisiableContext.Provider value={vis && index == value}>
+            <CustomTabPanel
+              idPrefix={idPrefix}
+              key={`panel${index}`}
+              value={value}
+              index={index}
+            >
+              {e.Err ? (
+                <Alert severity="error">{e.Err}</Alert>
+              ) : (
+                <QueryResp data={e.Ok}></QueryResp>
+              )}
+            </CustomTabPanel>
+          </VisiableContext.Provider>
         );
       })}
     </div>

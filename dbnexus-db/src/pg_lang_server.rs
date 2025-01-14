@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use sqlx::Row;
 
-use crate::completion::{
+use crate::db::{CatalogTrait, FormatSqlOpts};
+use crate::helper::sqlformat_format_sql;
+use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
     try_completion_on_syntax,
 };
-use crate::db::{CatalogTrait, FormatSqlOpts};
-use crate::helper::sqlformat_format_sql;
 use crate::pg::PostGresDB;
 
 #[async_trait::async_trait]
@@ -531,7 +531,7 @@ impl LanguageServer for PostGresDB {
 mod tests {
     use std::path::Path;
 
-    use crate::completion::completion_test::test_file_auto_completion;
+    use crate::language_server::completion_test::test_file_auto_completion;
 
     use crate::db::QuerySql;
     use crate::enable_test_log;

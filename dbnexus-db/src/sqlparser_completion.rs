@@ -14,7 +14,7 @@ use sqlparser::{
     tokenizer::{Location, Span},
 };
 
-use crate::completion::{AstCompletionHelper, CompletionItem, CompletionKind};
+use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
 
 pub struct CompletionStament {
     pub(crate) loc: Location,

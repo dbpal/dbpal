@@ -40,6 +40,7 @@ import {
   TabsSetContext,
   initMonacoLanague,
   makeQueryConnInfo,
+  QueryConn,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -222,7 +223,8 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           kind == DataSourceKind.Mysql ||
           kind == DataSourceKind.MariaDB ||
           kind == DataSourceKind.MsSql ||
-          kind == DataSourceKind.Postgres) && (
+          kind == DataSourceKind.Postgres ||
+          kind == DataSourceKind.Mongo) && (
           <>
             <TablesTree></TablesTree>
             <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
@@ -285,13 +287,7 @@ function DatabaseMenu(props: {
         {opened && (
           <MenuNewQuery
             handle={() => {
-              openNewQuery(
-                setSelectIndex,
-                setTabs,
-                uuid,
-                kind,
-                showNotification
-              );
+              openNewQuery(setSelectIndex, setTabs, uuid, kind);
             }}
           ></MenuNewQuery>
         )}
@@ -439,22 +435,20 @@ async function openNewQuery(
   setSelectIndex,
   setTabs,
   uuid: string,
-  kind: DataSourceKind,
-  showNotification
+  kind: DataSourceKind
 ) {
   initMonacoLanague(uuid, kind);
-  let queryId;
-  try {
-    queryId = await invoke('query_sql_open_connection', { name: uuid });
-    console.log('open connection:', queryId);
-  } catch (e) {
-    showNotification('error', 'open connection failed', e);
-    return;
-  }
+
   let id = uuid + '-query-' + generateRandomString();
   let content;
   let connInfo = await makeQueryConnInfo(uuid);
-
+  const makeConn = async () => {
+    const queryId = await invoke<string>('query_sql_open_connection', {
+      name: uuid,
+    });
+    console.log('open connection:', queryId);
+    return new QueryConn(uuid, queryId);
+  };
   switch (kind) {
     case DataSourceKind.MsSql:
     case DataSourceKind.Sqlite:
@@ -463,31 +457,8 @@ async function openNewQuery(
     case DataSourceKind.Postgres:
       content = (
         <SqlQuery
-          queryOP={async (sql) => {
-            let x = await invoke<any[]>('query_sql', {
-              name: uuid,
-              queryId,
-              sql,
-            });
-            return x;
-          }}
-          loadQueryLog={async () => {
-            return await invoke('query_logs', { name: uuid, queryId });
-          }}
-          destroy={() => {
-            invoke('query_sql_close_connection', { name: uuid, queryId }).then(
-              () => {
-                console.log('destroy connection of:', queryId);
-              }
-            );
-          }}
           language={uuid}
-          reconnect={() => {
-            return invoke('query_sql_re_connection', { name: uuid, queryId });
-          }}
-          isDangerSql={async (sql) => {
-            return await invoke('is_dangerous_sql', { name: uuid, sql });
-          }}
+          makeConn={makeConn}
           connectInfo={connInfo}
         ></SqlQuery>
       );
@@ -495,31 +466,8 @@ async function openNewQuery(
     case DataSourceKind.Redis:
       content = (
         <RedisQuery
-          queryOP={async (sql) => {
-            let x = await invoke<any[]>('query_sql', {
-              name: uuid,
-              queryId,
-              sql,
-            });
-            return x;
-          }}
-          loadQueryLog={async () => {
-            return await invoke('query_logs', { name: uuid, queryId });
-          }}
-          destroy={() => {
-            invoke('query_sql_close_connection', { name: uuid, queryId }).then(
-              () => {
-                console.log('destroy connection of:', queryId);
-              }
-            );
-          }}
           language={uuid}
-          reconnect={() => {
-            return invoke('query_sql_re_connection', { name: uuid, queryId });
-          }}
-          isDangerSql={async (sql) => {
-            return await invoke('is_dangerous_sql', { name: uuid, sql });
-          }}
+          makeConn={makeConn}
           connectInfo={connInfo}
         ></RedisQuery>
       );
@@ -541,7 +489,6 @@ function SchemaMenu(props: {
   opened;
   handleCloseConn;
   kind: DataSourceKind;
-
   reloadSchemas?;
 }) {
   const {
@@ -566,13 +513,7 @@ function SchemaMenu(props: {
         {opened && (
           <MenuNewQuery
             handle={() => {
-              openNewQuery(
-                setSelectIndex,
-                setTabs,
-                uuid,
-                kind,
-                showNotification
-              );
+              openNewQuery(setSelectIndex, setTabs, uuid, kind);
             }}
           ></MenuNewQuery>
         )}

@@ -4,9 +4,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use lazy_static::lazy_static;
 use log::{Level, LevelFilter, Metadata, Record};
 
-pub mod completion;
 pub mod datasource_config;
 pub mod db;
+pub mod language_server;
 pub mod meta_value;
 
 pub mod app;

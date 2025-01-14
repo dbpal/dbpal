@@ -58,7 +58,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
   // 定义动画效果
   const transition = (props: any) => {
-    return <Slide {...props} direction='left' />;
+    return <Slide {...props} direction="left" />;
   };
 
   return (

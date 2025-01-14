@@ -19,39 +19,24 @@ import { ReactNode, useContext, useEffect, useState } from 'react';
 import { editor, Position } from 'monaco-editor';
 import {
   EditorBar,
-  getTokenStyleMetadata,
+  IQueryConn,
+  MakeIQueryConn,
   msgTimeout,
   progressBarSize,
-  reloadOK,
   SettingsContext,
 } from './Common.tsx';
 import { NotificationContext } from './Notification.tsx';
-import types from './ApiStruct.ts';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { secondConfirm } from './Confirm.tsx';
 
 function SqlQuery(props: {
   language: string;
-  queryOP: (text: string) => Promise<any[]>;
-  loadQueryLog: () => Promise<types.QueryLogEvent[]>;
   handelTextAndPositionChange?: (text: string, pos: Position) => void;
-  destroy?: () => void;
-  reconnect: () => Promise<void>;
   connectInfo?: ReactNode;
-  isDangerSql: (sql: string) => Promise<boolean>;
+  makeConn: MakeIQueryConn;
 }) {
-  let {
-    language,
-    queryOP,
-    loadQueryLog,
-    handelTextAndPositionChange,
-    destroy,
-    reconnect,
-    connectInfo,
-    isDangerSql,
-  } = props;
-
+  let { handelTextAndPositionChange, language, connectInfo, makeConn } = props;
   const [resp, setResp] = useState([]);
   const [text, setText] = useState('');
   const [selectText, setSelectText] = useState('');
@@ -63,6 +48,7 @@ function SqlQuery(props: {
   const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
     null
   );
+  const [conn, setConn] = useState<IQueryConn | null>(null);
   const { theme } = useContext(SettingsContext);
   const handleEditorDidMount = (
     editor: editor.IStandaloneCodeEditor,
@@ -73,10 +59,6 @@ function SqlQuery(props: {
     } else {
       monaco.editor.setTheme('light');
     }
-    //@ts-ignore
-    const ts = editor._themeService;
-    const t = ts._theme;
-    t.getTokenStyleMetadata = getTokenStyleMetadata;
 
     editor.onDidChangeModelContent((_event) => {
       let text = editor.getValue();
@@ -99,7 +81,8 @@ function SqlQuery(props: {
   };
 
   const handleLoadQueryLog = () => {
-    loadQueryLog()
+    conn
+      .loadQueryLog()
       .then((logs) => {
         setQueryLogs(logs);
       })
@@ -113,22 +96,37 @@ function SqlQuery(props: {
     }
   }, [showQueryLog]);
   const handleReconnect = async () => {
-    const confirm = await secondConfirm({
-      title: 're connection',
-      content: 'Maybe unsaved data will lost.',
-      confirmText: 'connect',
-    });
-    if (!confirm) {
-      return;
-    }
-    reconnect()
-      .then(() => {
-        showNotification('success', 'Reconnect OK');
-      })
-
-      .catch((e) => {
-        showNotification('error', 'Reconnect Failure', e);
+    if (conn) {
+      const confirm = await secondConfirm({
+        title: 're connection',
+        content: 'Maybe unsaved data will lost.',
+        confirmText: 'connect',
       });
+      if (!confirm) {
+        return;
+      }
+    }
+    if (conn) {
+      conn
+        .reconnect()
+        .then(() => {
+          showNotification('success', 'Reconnect OK');
+        })
+
+        .catch((e) => {
+          showNotification('error', 'Reconnect Failure', e);
+        });
+    } else {
+      makeConn()
+        .then((conn) => {
+          setConn(conn);
+          showNotification('success', 'Reconnect OK');
+        })
+
+        .catch((e) => {
+          showNotification('error', 'Reconnect Failure', e);
+        });
+    }
   };
 
   const handleQuery = async (text: string) => {
@@ -137,7 +135,7 @@ function SqlQuery(props: {
       return;
     }
     try {
-      if (await isDangerSql(text)) {
+      if (await conn.isDangerSql(text)) {
         const confirm = await secondConfirm({
           confirmText: 'execute',
           title: 'This is a dangerous sql',
@@ -156,7 +154,8 @@ function SqlQuery(props: {
 
     let now = new Date();
     setLoading(true);
-    queryOP(text)
+    conn
+      .queryOP(text)
       .then((resp) => {
         setResp(resp);
         setLoading(false);
@@ -174,7 +173,7 @@ function SqlQuery(props: {
         if (showQueryLog) {
           handleLoadQueryLog();
         }
-        reloadOK(showNotification);
+        showNotification('success', 'Execute OK');
       })
       .catch((e) => {
         setLoading(false);
@@ -184,12 +183,27 @@ function SqlQuery(props: {
   };
 
   useEffect(() => {
-    console.log('mount.......');
-    return () => {
-      console.log('unmount.......');
-      destroy && destroy();
-    };
+    makeConn()
+      .then((conn) => {
+        setConn((prev) => {
+          if (prev) {
+            prev.destroy();
+          }
+          return conn;
+        });
+      })
+      .catch((e) => {
+        showNotification('error', 'make connection failed', e);
+      });
   }, []);
+  useEffect(() => {
+    return () => {
+      if (conn) {
+        conn.destroy();
+      }
+    };
+  }, [conn]);
+
   return (
     //@ts-ignore
     <SplitPane
@@ -218,6 +232,15 @@ function SqlQuery(props: {
               width: '65%',
             }}
           >
+            <Stack direction="row" sx={{ justifyContent: 'flex-start' }}>
+              <Button
+                onClick={() => {
+                  setShowQueryLog(false);
+                }}
+              >
+                <CloseIcon></CloseIcon>
+              </Button>
+            </Stack>
             <QueryLog language={language} logs={queryLogs}></QueryLog>
           </Paper>
         )}
@@ -226,7 +249,7 @@ function SqlQuery(props: {
           {loading && <CircularProgress size={progressBarSize} />}
           <Tooltip title="execute">
             <IconButton
-              disabled={loading}
+              disabled={loading || conn == null}
               onClick={() => {
                 handleQuery(text);
               }}
@@ -238,7 +261,7 @@ function SqlQuery(props: {
           </Tooltip>
           <Tooltip title="execute selected">
             <IconButton
-              disabled={loading}
+              disabled={loading || conn == null}
               onClick={() => {
                 handleQuery(selectText);
               }}
@@ -274,6 +297,7 @@ function SqlQuery(props: {
               setShowQueryLog((prev) => !prev);
             }}
             color={showQueryLog ? 'error' : 'info'}
+            disabled={conn == null}
           >
             {showQueryLog ? <CloseIcon></CloseIcon> : ''} query log
           </Button>
@@ -292,8 +316,8 @@ function SqlQuery(props: {
             onMount={handleEditorDidMount}
             value=""
             options={{
-              // semanticHighlighting: true, // Enable semantic highlighting
-              'semanticHighlighting.enabled': true, // Alternative way to enable it
+              fontSize: useContext(SettingsContext).editorFontSize,
+              wordWrap: 'on',
             }}
           ></Editor>
         </div>
@@ -302,7 +326,6 @@ function SqlQuery(props: {
           pos={pos}
         ></EditorBar>
       </div>
-
       <div>
         <MultiQueryResp data={resp}></MultiQueryResp>
       </div>

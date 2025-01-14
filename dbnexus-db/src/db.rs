@@ -10,7 +10,7 @@ use serde::Serializer;
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
 
-use crate::completion::LanguageServer;
+use crate::language_server::LanguageServer;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLog, QueryLogEvent};
 

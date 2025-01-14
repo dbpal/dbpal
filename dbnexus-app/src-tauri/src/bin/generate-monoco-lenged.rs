@@ -1,6 +1,6 @@
 use std::{env, io::Write, path::Path};
 
-use dbnexus_db::completion::{CompletionKind, TokenModifier};
+use dbnexus_db::language_server::{CompletionKind, TokenModifier};
 
 fn main() {
     let exe = env::current_exe().unwrap();

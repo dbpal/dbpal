@@ -1,12 +1,12 @@
 use std::{borrow::Cow, ops::DerefMut, sync::Arc};
 
 use crate::{
-    completion::{
+    db::{BackendName, DBTrait, FormatSqlOpts, not_support_features},
+    helper::sqlformat_format_sql,
+    language_server::{
         AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
         try_completion_on_syntax,
     },
-    db::{BackendName, DBTrait, FormatSqlOpts, not_support_features},
-    helper::sqlformat_format_sql,
     mysql::MysqlDB,
 };
 use sqlx::Row;
@@ -60,7 +60,7 @@ impl MysqlDB {
             let name: String = r.get(1);
             ret.push(CompletionItem {
                 item: Cow::Owned(name),
-                kind: crate::completion::CompletionKind::Function,
+                kind: crate::language_server::CompletionKind::Function,
                 desc: None,
             });
         }
@@ -311,8 +311,8 @@ mod tests {
     use std::path::Path;
 
     use crate::{
-        TEST_HOST, completion::completion_test::test_file_auto_completion,
-        datasource_config::MysqlDbConfig, db::QuerySql, enable_test_log, mysql::MysqlDB,
+        TEST_HOST, datasource_config::MysqlDbConfig, db::QuerySql, enable_test_log,
+        language_server::completion_test::test_file_auto_completion, mysql::MysqlDB,
     };
 
     async fn make_test_object(config: MysqlDbConfig) -> MysqlDB {

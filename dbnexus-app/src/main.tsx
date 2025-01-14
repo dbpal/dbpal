@@ -4,6 +4,7 @@ import './comp/MainPage';
 import MainPage from './comp/MainPage';
 import { debug } from './comp/debug';
 import { invoke } from '@tauri-apps/api/core';
+import React from 'react';
 
 if (!debug) {
   document.addEventListener('contextmenu', function (event) {
@@ -27,5 +28,7 @@ window.addEventListener('load', (_event) => {
 });
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <MainPage></MainPage>
+  <React.StrictMode>
+    <MainPage></MainPage>
+  </React.StrictMode>
 );
