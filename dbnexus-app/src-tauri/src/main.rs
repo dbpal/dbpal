@@ -12,26 +12,32 @@ use handlers::{
     export_query_result_to_file, export_table_or_view, format_sql, insert, is_dangerous_sql,
     list_data_types, list_database, list_materialized_view, list_procedure, list_schema,
     list_table, list_trigger, list_udf, list_view, modify_table_column, mongo_delete,
-    mongo_get_one_document, mongo_insert, mongo_show_collection_docs,
-    mongo_show_collection_table_list, mongo_update, open_conn, oracle_query_autocommit,
-    oracle_query_commit, oracle_query_rollback, oracle_query_set_autocommit, page_init_callback,
-    query_logs, query_sql, query_sql_close_connection, query_sql_open_connection,
-    query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
-    redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_set_add,
-    redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
-    redis_zset_replace, redis_zset_show_table, rename_index, rename_table, semantic_tokens,
-    server_metas, show_columns, show_indexes, show_procedure, show_table, show_trigger, show_udf,
-    show_view, show_view_coumns, test_connection, truncate_table, update,
+    mongo_get_one_document, mongo_insert, mongo_query_collection_count_docs,
+    mongo_query_collection_create_index, mongo_query_collection_create_search_index,
+    mongo_query_collection_delete_many, mongo_query_collection_delete_one,
+    mongo_query_collection_distinct, mongo_query_collection_drop,
+    mongo_query_collection_drop_index, mongo_query_collection_drop_indexes,
+    mongo_query_collection_drop_search_index, mongo_query_collection_find,
+    mongo_query_collection_find_one, mongo_query_collection_find_one_and_delete,
+    mongo_query_collection_find_one_and_replace, mongo_query_collection_insert_many,
+    mongo_query_collection_insert_one, mongo_query_collection_list_index_names,
+    mongo_query_collection_list_indexes, mongo_query_collection_list_search_indexes,
+    mongo_query_collection_replace_one, mongo_query_collection_update_many,
+    mongo_query_collection_update_one, mongo_query_db_drop, mongo_query_db_list_collection_names,
+    mongo_query_db_run_command, mongo_show_collection_docs, mongo_show_collection_table_list,
+    mongo_update, open_conn, oracle_query_autocommit, oracle_query_commit, oracle_query_rollback,
+    oracle_query_set_autocommit, page_init_callback, query_logs, query_sql,
+    query_sql_close_connection, query_sql_open_connection, query_sql_re_connection, redis_hash_add,
+    redis_hash_del, redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush,
+    redis_list_set, redis_list_table, redis_set_add, redis_set_del, redis_set_replace,
+    redis_string_set, redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table,
+    rename_index, rename_table, semantic_tokens, server_metas, show_columns, show_indexes,
+    show_procedure, show_table, show_trigger, show_udf, show_view, show_view_coumns,
+    test_connection, truncate_table, update,
 };
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_store::StoreExt;
-
-// Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-#[tauri::command]
-async fn greet(name: String) -> Result<String, String> {
-    Ok(format!("Hello, {}! You've been greeted from Rust!", name))
-}
 
 #[tokio::main]
 async fn main() {
@@ -138,7 +144,6 @@ async fn main() {
             drop_database,
             drop_schema,
             list_database,
-            greet,
             list_table,
             rename_index,
             show_columns,
@@ -218,6 +223,31 @@ async fn main() {
             redis_zset_show_table,
             page_init_callback,
             semantic_tokens,
+            mongo_query_collection_count_docs,
+            mongo_query_collection_create_index,
+            mongo_query_collection_create_search_index,
+            mongo_query_collection_delete_many,
+            mongo_query_collection_delete_one,
+            mongo_query_collection_distinct,
+            mongo_query_collection_drop,
+            mongo_query_collection_drop_index,
+            mongo_query_collection_drop_indexes,
+            mongo_query_collection_drop_search_index,
+            mongo_query_db_drop,
+            mongo_query_db_list_collection_names,
+            mongo_query_db_run_command,
+            mongo_query_collection_find,
+            mongo_query_collection_find_one,
+            mongo_query_collection_find_one_and_delete,
+            mongo_query_collection_find_one_and_replace,
+            mongo_query_collection_insert_many,
+            mongo_query_collection_insert_one,
+            mongo_query_collection_list_index_names,
+            mongo_query_collection_list_indexes,
+            mongo_query_collection_list_search_indexes,
+            mongo_query_collection_replace_one,
+            mongo_query_collection_update_many,
+            mongo_query_collection_update_one,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

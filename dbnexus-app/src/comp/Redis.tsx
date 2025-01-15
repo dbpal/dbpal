@@ -154,7 +154,6 @@ function RedisStringTable(props: {
           setNewConent(e);
         }}
         textRows={10}
-        hexColumns={0x16}
         hexRows={0x10}
       ></RedisEditHexOrText>
 
@@ -493,11 +492,10 @@ function RedisEditModeSelect(props: {
 function RedisEditHexOrText(props: {
   oldValue?: string;
   handleValue: (a: string) => void;
-  hexColumns?: number;
   hexRows?: number;
   textRows?: number;
 }) {
-  let { oldValue, handleValue, hexColumns, hexRows, textRows } = props;
+  let { oldValue, handleValue, hexRows, textRows } = props;
   const [newValue, setNewValue] = useState<String | Uint8Array>('');
   const [editModel, setEditModel] = useState<RedisEditMode>(RedisEditMode.Text);
   useEffect(() => {
@@ -551,9 +549,6 @@ function RedisEditHexOrText(props: {
     }
   }, [editModel]);
 
-  if (!hexColumns) {
-    hexColumns = 0x11;
-  }
   if (!hexRows) {
     hexRows = 0x5;
   }
@@ -585,7 +580,6 @@ function RedisEditHexOrText(props: {
       {editModel == RedisEditMode.Hex && (
         <Stack spacing={1}>
           <HexEditor
-            columns={hexColumns}
             rows={hexRows}
             data={newValue}
             nonce={nonce}
@@ -594,7 +588,9 @@ function RedisEditHexOrText(props: {
             showAscii={true}
             showRowLabels={true}
             showColumnLabels={true}
+            style={{ width: '100%', height: '100%' }}
           ></HexEditor>
+
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <TextField
               error={addLengthErr}

@@ -27,6 +27,7 @@
     "@types/vscode": "^1.96.0",
     "bson": "^6.10.1",
     "esprima": "^4.0.1",
+    "loglevel": "^1.9.2",
     "monaco-editor": "^0.52.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

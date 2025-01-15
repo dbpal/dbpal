@@ -475,8 +475,8 @@ impl Mongo {
 }
 
 impl Mongo {
-    async fn list_collection_name_by_type(
-        &self, ty: CollectionType,
+    pub(crate) async fn list_collection_name_by_type(
+        &self, ty: Option<CollectionType>,
     ) -> anyhow::Result<Vec<String>> {
         let conn = self.get_db().await?;
         let mut cols = conn.list_collections().await?;
@@ -484,7 +484,11 @@ impl Mongo {
 
         while let Some(col) = cols.next().await {
             let col = col?;
-            if col.collection_type == ty {
+            if ty
+                .as_ref()
+                .map(|x| x == &col.collection_type)
+                .unwrap_or(true)
+            {
                 ret.push(col.name);
             }
         }
@@ -495,7 +499,7 @@ impl Mongo {
 impl Mongo {
     pub async fn show_mongo_time_serial_collection(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let ts = self
-            .list_collection_name_by_type(CollectionType::Timeseries)
+            .list_collection_name_by_type(Some(CollectionType::Timeseries))
             .await?;
 
         anyhow::Ok(ts.into_iter().map(NamedStaff::from).collect())
@@ -577,7 +581,7 @@ impl SchemaTrait for Mongo {
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let views = self
-            .list_collection_name_by_type(CollectionType::View)
+            .list_collection_name_by_type(Some(CollectionType::View))
             .await?;
 
         anyhow::Ok(views.into_iter().map(NamedStaff::from).collect())
@@ -585,7 +589,7 @@ impl SchemaTrait for Mongo {
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let tables = self
-            .list_collection_name_by_type(CollectionType::Collection)
+            .list_collection_name_by_type(Some(CollectionType::Collection))
             .await?;
         anyhow::Ok(tables.into_iter().map(ListTable::from).collect())
     }
@@ -670,29 +674,29 @@ impl QuerySql for Mongo {
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        anyhow::bail!("mongodb query sql is not supported right now.")
+        not_support_features(self.backend_name())
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        anyhow::bail!("mongodb doesn't support query sql")
+        not_support_features(self.backend_name())
     }
 
     async fn re_connect(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
-        anyhow::bail!("mongodb doesn't support query sql")
+        not_support_features(self.backend_name())
     }
 
     async fn close_connection(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
-        anyhow::bail!("mongodb doesn't support query sql")
+        not_support_features(self.backend_name())
     }
 }
 
 impl Mongo {
-    async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
+    pub(crate) async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
         let client = self.get_conn().await?;
         Ok(client.database(self.dbname.as_ref().unwrap()))
     }
 
-    async fn get_conn(&self) -> anyhow::Result<mongodb::Client> {
+    pub(crate) async fn get_conn(&self) -> anyhow::Result<mongodb::Client> {
         anyhow::Ok(self.client.clone())
     }
 }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
-use bson::{Document, doc};
+use bson::Document;
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::db::{
     ColumnType, ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, ProcedureDetail,
@@ -16,6 +16,7 @@ use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
+
 #[tauri::command]
 pub async fn page_init_callback(app: tauri::State<'_, App>) -> Result<(), ()> {
     log::info!("page init call clear all open connection.");
@@ -1198,6 +1199,577 @@ pub async fn mongo_get_one_document(
 }
 
 #[tauri::command]
+pub async fn mongo_query_db_drop(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_db_drop().await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn mongo_query_db_list_collection_names(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<String>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_db_list_collection_names().await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(ret)
+}
+#[tauri::command]
+pub async fn mongo_query_db_run_command(
+    name: String, command: Vec<u8>, app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let command = parse_bson_doc(&command)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_db_run_command(command).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(encode_bson_doc(&ret)?)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_count_docs(
+    name: String, col: String, app: tauri::State<'_, App>,
+) -> Result<u64, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_count_docs(&col).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_create_index(
+    name: String, col: String, index: Vec<u8>, app: tauri::State<'_, App>,
+) -> Result<String, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let index = parse_bson_doc(&index)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_create_index(&col, index).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(ret.index_name)
+}
+#[tauri::command]
+pub async fn mongo_query_collection_create_search_index(
+    name: String, col: String, index: Vec<u8>, index_name: Option<String>,
+    app: tauri::State<'_, App>,
+) -> Result<String, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let index = parse_bson_doc(&index)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.query_collection_create_search_index(&col, index, index_name)
+                .await
+        }
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(ret)
+}
+#[tauri::command]
+pub async fn mongo_query_collection_delete_many(
+    name: String, col: String, query: Vec<u8>, app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let query = parse_bson_doc(&query)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_delete_many(&col, query).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(encode_bson_doc(&ret)?)
+}
+#[tauri::command]
+pub async fn mongo_query_collection_delete_one(
+    name: String, col: String, query: Vec<u8>, app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let query = parse_bson_doc(&query)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_delete_one(&col, query).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(encode_bson_doc(&ret)?)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_distinct(
+    name: String, col: String, query: Vec<u8>, field: String, app: tauri::State<'_, App>,
+) -> Result<String, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let query = parse_bson_doc(&query)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let values = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_distinct(&col, query, &field).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(serde_json::to_string(&values).map_err(|x| AnyhowErrorFrontend::from(x))?)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_drop(
+    name: String, col: String, app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_drop(&col).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(encode_bson_doc(&ret)?)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_drop_index(
+    name: String, col: String, index: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_drop_index(&col, &index).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_drop_indexes(
+    name: String, col: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_drop_indexes(&col).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn mongo_query_collection_drop_search_index(
+    name: String, col: String, index: String, app: tauri::State<'_, App>,
+) -> Result<(), AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_drop_search_index(&col, &index).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_find(
+    name: String, col: String, query: Vec<u8>, projection: Option<Vec<u8>>, sort: Option<Vec<u8>>,
+    min: Option<Vec<u8>>, max: Option<Vec<u8>>, limit: Option<i64>, skip: Option<u64>,
+    app: tauri::State<'_, App>,
+) -> Result<Vec<Vec<u8>>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+
+    let max = if let Some(max) = max.as_ref() {
+        Some(parse_bson_doc(&max)?)
+    } else {
+        None
+    };
+    let min = if let Some(min) = min.as_ref() {
+        Some(parse_bson_doc(&min)?)
+    } else {
+        None
+    };
+
+    let sort = if let Some(sort) = sort.as_ref() {
+        Some(parse_bson_doc(&sort)?)
+    } else {
+        None
+    };
+    let projection = if let Some(projection) = projection.as_ref() {
+        Some(parse_bson_doc(&projection)?)
+    } else {
+        None
+    };
+    let filter = parse_bson_doc(&query)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let docs = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.query_collection_find(&col, projection, filter, sort, max, min, limit, skip)
+                .await
+        }
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    let mut ret = Vec::with_capacity(docs.len());
+    for d in docs.iter() {
+        ret.push(encode_bson_doc(d)?);
+    }
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_find_one(
+    name: String, col: String, query: Vec<u8>, projection: Option<Vec<u8>>, sort: Option<Vec<u8>>,
+    min: Option<Vec<u8>>, max: Option<Vec<u8>>, skip: Option<u64>, app: tauri::State<'_, App>,
+) -> Result<Option<Vec<u8>>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+
+    let max = if let Some(max) = max.as_ref() {
+        Some(parse_bson_doc(&max)?)
+    } else {
+        None
+    };
+    let min = if let Some(min) = min.as_ref() {
+        Some(parse_bson_doc(&min)?)
+    } else {
+        None
+    };
+
+    let sort = if let Some(sort) = sort.as_ref() {
+        Some(parse_bson_doc(&sort)?)
+    } else {
+        None
+    };
+    let projection = if let Some(projection) = projection.as_ref() {
+        Some(parse_bson_doc(&projection)?)
+    } else {
+        None
+    };
+    let filter = parse_bson_doc(&query)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.query_collection_find_one(&col, projection, filter, sort, max, min, skip)
+                .await
+        }
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+
+    Ok(match ret {
+        Some(x) => Some(encode_bson_doc(&x)?),
+        None => None,
+    })
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_find_one_and_delete(
+    name: String, col: String, query: Vec<u8>, app: tauri::State<'_, App>,
+) -> Result<Option<Vec<u8>>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let query = parse_bson_doc(&query)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_find_one_and_delete(&col, query).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+
+    Ok(match ret {
+        Some(x) => Some(encode_bson_doc(&x)?),
+        None => None,
+    })
+}
+#[tauri::command]
+pub async fn mongo_query_collection_find_one_and_replace(
+    name: String, col: String, query: Vec<u8>, replacement: Vec<u8>, app: tauri::State<'_, App>,
+) -> Result<Option<Vec<u8>>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let query = parse_bson_doc(&query)?;
+    let rep = parse_bson_doc(&replacement)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.query_collection_find_one_and_replace(&col, query, rep)
+                .await
+        }
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+
+    Ok(match ret {
+        Some(x) => Some(encode_bson_doc(&x)?),
+        None => None,
+    })
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_insert_many(
+    name: String, col: String, data: Vec<Vec<u8>>, app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let mut docs = Vec::with_capacity(data.len());
+    for d in data.iter() {
+        let d = parse_bson_doc(&d)?;
+        docs.push(d);
+    }
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_insert_many(&col, docs).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(encode_bson_doc(&ret)?)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_insert_one(
+    name: String, col: String, doc: Vec<u8>, app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let doc = parse_bson_doc(&doc)?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_insert_one(&col, doc).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(encode_bson_doc(&ret)?)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_list_index_names(
+    name: String, col: String, app: tauri::State<'_, App>,
+) -> Result<Vec<String>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_list_index_names(&col).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    Ok(ret)
+}
+#[tauri::command]
+pub async fn mongo_query_collection_list_indexes(
+    name: String, col: String, app: tauri::State<'_, App>,
+) -> Result<Vec<Vec<u8>>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let indexes = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_list_indexes(&col).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    let mut ret = Vec::with_capacity(indexes.len());
+    for i in indexes.iter() {
+        ret.push(encode_bson_doc(i)?);
+    }
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_list_search_indexes(
+    name: String, col: String, app: tauri::State<'_, App>,
+) -> Result<Vec<Vec<u8>>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let indexes = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => x.query_collection_list_search_indexes(&col).await,
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+    let mut ret = Vec::with_capacity(indexes.len());
+    for i in indexes.iter() {
+        ret.push(encode_bson_doc(i)?);
+    }
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_replace_one(
+    name: String, col: String, query: Vec<u8>, replacement: Vec<u8>, app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let query = parse_bson_doc(&query)?;
+    let replacement = parse_bson_doc(&replacement)?;
+
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.query_collection_replace_one(&col, query, replacement)
+                .await
+        }
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+
+    Ok(encode_bson_doc(&ret)?)
+}
+#[tauri::command]
+pub async fn mongo_query_collection_update_many(
+    name: String, col: String, query: Vec<u8>, replacement: Vec<Vec<u8>>,
+    app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let query = parse_bson_doc(&query)?;
+    let mut replacement_docs = Vec::with_capacity(replacement.len());
+    for r in replacement.iter() {
+        replacement_docs.push(parse_bson_doc(&r)?);
+    }
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.query_collection_update_many(&col, query, replacement_docs)
+                .await
+        }
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+
+    Ok(encode_bson_doc(&ret)?)
+}
+
+#[tauri::command]
+pub async fn mongo_query_collection_update_one(
+    name: String, col: String, query: Vec<u8>, replacement: Vec<Vec<u8>>,
+    app: tauri::State<'_, App>,
+) -> Result<Vec<u8>, AnyhowErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let query = parse_bson_doc(&query)?;
+    let mut replacement_docs = Vec::with_capacity(replacement.len());
+    for r in replacement.iter() {
+        replacement_docs.push(parse_bson_doc(&r)?);
+    }
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.query_collection_update_one(&col, query, replacement_docs)
+                .await
+        }
+        None => return Err(format!("db '{}' not mongo", name).into()),
+    }
+    .map_err(|e| AnyhowErrorFrontend::from(e))?;
+
+    Ok(encode_bson_doc(&ret)?)
+}
+
+#[tauri::command]
 pub async fn redis_list_lpush(
     name: String, key: String, value: String, app: tauri::State<'_, App>,
 ) -> Result<(), AnyhowErrorFrontend> {
@@ -1610,7 +2182,7 @@ impl TryFrom<dbnexus_db::mongo::DocsAndCount> for DocsAndCount {
         })
     }
 }
-fn encode_bson_doc(doc: &bson::Document) -> Result<Vec<u8>, String> {
+fn encode_bson_doc<T: serde::Serialize>(doc: &T) -> Result<Vec<u8>, String> {
     let bs = bson::to_vec(&doc).map_err(|e| e.to_string())?;
     Ok(bs)
 }
@@ -1678,6 +2250,14 @@ impl From<&str> for AnyhowErrorFrontend {
 
 impl From<bson::oid::Error> for AnyhowErrorFrontend {
     fn from(value: bson::oid::Error) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+        }
+    }
+}
+impl From<serde_json::Error> for AnyhowErrorFrontend {
+    fn from(value: serde_json::Error) -> Self {
         Self {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
@@ -1817,5 +2397,23 @@ mod tests {
         let x = MuiDataGridData::from((field, data));
         let str = serde_json::to_string_pretty(&x).unwrap();
         println!("{}", str);
+    }
+
+    #[test]
+    fn test_bson_array() {
+        let x = vec![
+            bson::Bson::Int64(1),
+            bson::Bson::Int64(10),
+            bson::Bson::Int64(100),
+            bson::Bson::JavaScriptCode(
+                r#"
+                function(){}
+            "#
+                .to_owned(),
+            ),
+        ];
+
+        let x = serde_json::to_string_pretty(&x).unwrap();
+        println!("{}", x)
     }
 }
