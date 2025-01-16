@@ -235,7 +235,8 @@ function MongoBsonEditor(props: {
   };
   const initHeigth = editorInitHeight(
     content,
-    useContext(SettingsContext).editorFontSize * 1.2
+    useContext(SettingsContext).editorFontSize * 1.2,
+    150
   );
 
   return (
@@ -250,10 +251,9 @@ function MongoBsonEditor(props: {
     >
       <div
         style={{
-          height: '20px',
+          height: '100px',
           flexGrow: 1,
           flexShrink: 1,
-          border: '1px gray black',
         }}
       >
         <Editor
@@ -565,6 +565,11 @@ function MongoTable(props: {
     const handleReloadDocs = async () => {
       realodOPDocs(filter, orderBy, page + 1, pageSize)
         .then((resp) => {
+          // wired Some _id is a string
+          if (resp.docs.find((e) => !(e['_id'] instanceof BSON.ObjectId))) {
+            showNotification('error', 'found doc _id not a ObjectId');
+            return;
+          }
           setDocs(resp);
           if (showOK) {
             reloadOK(showNotification);

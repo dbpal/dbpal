@@ -785,7 +785,7 @@ impl SchemaTrait for RedisDB {
         anyhow::bail!("use redis list table")
     }
 
-    async fn show_columns(&self, key: &str) -> anyhow::Result<Vec<Field>> {
+    async fn show_table_columns(&self, key: &str) -> anyhow::Result<Vec<Field>> {
         let mut conn = self.get_conn().await?;
         let typ = Self::get_key_type(&mut conn, key).await?;
 
@@ -1642,7 +1642,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("sql:{}", s);
         }
-        let cols = db.show_columns(table_name).await.unwrap();
+        let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("resp:{:?}", resp);
@@ -1735,7 +1735,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("sql:{}", s);
         }
-        let cols = db.show_columns(table_name).await.unwrap();
+        let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = (db.as_any().downcast_ref::<RedisDB>())
             .unwrap()
@@ -1802,7 +1802,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("sql:{}", s);
         }
-        let cols = db.show_columns(table_name).await.unwrap();
+        let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("resp:{:?}", resp);
@@ -1870,7 +1870,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("sql:{}", s);
         }
-        let cols = db.show_columns(table_name).await.unwrap();
+        let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("resp:{:?}", resp);
@@ -1941,7 +1941,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("sql:{}", s);
         }
-        let cols = db.show_columns(table_name).await.unwrap();
+        let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
         println!("resp:{:?}", resp);

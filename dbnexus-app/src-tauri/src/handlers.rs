@@ -54,10 +54,12 @@ pub async fn drop_database(
             Ok(())
         }
 
-        _ => Err(AnyhowErrorFrontend::from(format!(
-            "'{}' is not a db catalog",
-            name
-        ))),
+        _ => {
+            Err(AnyhowErrorFrontend::from(format!(
+                "'{}' is not a db catalog",
+                name
+            )))
+        }
     }
 }
 
@@ -87,10 +89,12 @@ pub async fn drop_schema(
 
             Ok(())
         }
-        _ => Err(AnyhowErrorFrontend::from(format!(
-            "'{}' is not a db database",
-            name
-        ))),
+        _ => {
+            Err(AnyhowErrorFrontend::from(format!(
+                "'{}' is not a db database",
+                name
+            )))
+        }
     }
 }
 
@@ -127,10 +131,12 @@ pub async fn create_database(
             Ok(())
         }
 
-        _ => Err(AnyhowErrorFrontend::from(format!(
-            "'{}' is not a db catalog",
-            name
-        ))),
+        _ => {
+            Err(AnyhowErrorFrontend::from(format!(
+                "'{}' is not a db catalog",
+                name
+            )))
+        }
     }
 }
 
@@ -161,10 +167,12 @@ pub async fn create_schema(
 
             Ok(())
         }
-        _ => Err(AnyhowErrorFrontend::from(format!(
-            "'{}' is not a db database",
-            name
-        ))),
+        _ => {
+            Err(AnyhowErrorFrontend::from(format!(
+                "'{}' is not a db database",
+                name
+            )))
+        }
     }
 }
 
@@ -235,12 +243,12 @@ pub async fn redis_zset_show_table(
 }
 
 #[tauri::command]
-pub async fn show_columns(
+pub async fn show_table_columns(
     name: String, table_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Field>, AnyhowErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.show_columns(name.as_str(), &table_name)
+    app.show_table_columns(name.as_str(), &table_name)
         .await
         .map_err(AnyhowErrorFrontend::from)
 }
@@ -466,10 +474,11 @@ pub async fn list_materialized_view(
         .await
         .map_err(AnyhowErrorFrontend::from)?;
     match s.as_any().downcast_ref::<PostGresDB>() {
-        Some(x) => x
-            .list_materialized_view()
-            .await
-            .map_err(|e| AnyhowErrorFrontend::from(e)),
+        Some(x) => {
+            x.list_materialized_view()
+                .await
+                .map_err(|e| AnyhowErrorFrontend::from(e))
+        }
         None => {
             return Err(AnyhowErrorFrontend::from(format!(
                 "open named '{}' is not postgres",
@@ -508,10 +517,12 @@ pub async fn drop_materialized_view(
             Ok(())
         }
 
-        None => Err(AnyhowErrorFrontend::from(format!(
-            "'{}' is not a postgres",
-            name
-        ))),
+        None => {
+            Err(AnyhowErrorFrontend::from(format!(
+                "'{}' is not a postgres",
+                name
+            )))
+        }
     }
 }
 
@@ -617,11 +628,13 @@ pub async fn query_sql(
 
     result.map_err(AnyhowErrorFrontend::from).map(|x| {
         x.into_iter()
-            .map(|x| match x {
-                Err(e) => Err(e),
-                Ok(x) => {
-                    let QueryResp { fields, data } = x;
-                    Ok(MuiDataGridData::from((fields, data)))
+            .map(|x| {
+                match x {
+                    Err(e) => Err(e),
+                    Ok(x) => {
+                        let QueryResp { fields, data } = x;
+                        Ok(MuiDataGridData::from((fields, data)))
+                    }
                 }
             })
             .collect::<Vec<_>>()
@@ -746,7 +759,7 @@ pub async fn check_conn(
         .map(|d| {
             //
             humantime::format_duration(Duration::from_millis(
-                d.as_millis() as u64, //最小单位毫秒
+                d.as_millis() as u64, // 最小单位毫秒
             ))
             .to_string()
         })
@@ -787,14 +800,18 @@ pub async fn config_list_database_or_schema(
 ) -> Result<Vec<String>, AnyhowErrorFrontend> {
     let x = conn.open().await?;
     match x {
-        Open::Catalog(catalog_trait) => catalog_trait
-            .list_database()
-            .await
-            .map_err(AnyhowErrorFrontend::from),
-        Open::DataBase(dbtrait) => dbtrait
-            .list_schema()
-            .await
-            .map_err(AnyhowErrorFrontend::from),
+        Open::Catalog(catalog_trait) => {
+            catalog_trait
+                .list_database()
+                .await
+                .map_err(AnyhowErrorFrontend::from)
+        }
+        Open::DataBase(dbtrait) => {
+            dbtrait
+                .list_schema()
+                .await
+                .map_err(AnyhowErrorFrontend::from)
+        }
         Open::Schema(_) => Ok(vec![]),
     }
 }
@@ -896,14 +913,17 @@ pub async fn oracle_query_set_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_set_autocommit(id, commit)
-            .await
-            .map_err(AnyhowErrorFrontend::from),
-        None => Err(AnyhowErrorFrontend::from(format!(
-            "db '{}' is not oracle",
-            name
-        ))),
+        Some(x) => {
+            x.query_set_autocommit(id, commit)
+                .await
+                .map_err(AnyhowErrorFrontend::from)
+        }
+        None => {
+            Err(AnyhowErrorFrontend::from(format!(
+                "db '{}' is not oracle",
+                name
+            )))
+        }
     }
 }
 #[tauri::command]
@@ -917,14 +937,17 @@ pub async fn oracle_query_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_autocommit(id)
-            .await
-            .map_err(AnyhowErrorFrontend::from),
-        None => Err(AnyhowErrorFrontend::from(format!(
-            "db '{}' is not oracle",
-            name
-        ))),
+        Some(x) => {
+            x.query_autocommit(id)
+                .await
+                .map_err(AnyhowErrorFrontend::from)
+        }
+        None => {
+            Err(AnyhowErrorFrontend::from(format!(
+                "db '{}' is not oracle",
+                name
+            )))
+        }
     }
 }
 #[tauri::command]
@@ -938,10 +961,11 @@ pub async fn oracle_query_commit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_commit(id)
-            .await
-            .map_err(|e| AnyhowErrorFrontend::from(e)),
+        Some(x) => {
+            x.query_commit(id)
+                .await
+                .map_err(|e| AnyhowErrorFrontend::from(e))
+        }
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -956,10 +980,11 @@ pub async fn oracle_query_rollback(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_rollback(id)
-            .await
-            .map_err(|e| AnyhowErrorFrontend::from(e)),
+        Some(x) => {
+            x.query_rollback(id)
+                .await
+                .map_err(|e| AnyhowErrorFrontend::from(e))
+        }
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -2324,16 +2349,15 @@ impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
             .into_iter()
             .map(|x| {
                 let mut m = HashMap::new();
-                fields
-                    .iter()
-                    .zip(x.into_iter())
-                    .for_each(|(f, value)| match value {
+                fields.iter().zip(x.into_iter()).for_each(|(f, value)| {
+                    match value {
                         Some(value) => {
                             m.insert(f.field.clone(), value);
                         }
 
                         None => {}
-                    });
+                    }
+                });
 
                 m
             })

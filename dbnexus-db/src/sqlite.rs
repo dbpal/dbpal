@@ -81,7 +81,7 @@ impl SqliteDB {
             }
         }
         let mut conn = self.get_conn().await?;
-        let cols = SchemaTrait::show_columns(self, table_name).await?;
+        let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
@@ -629,7 +629,7 @@ impl SchemaTrait for SqliteDB {
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-        let fields = self.show_columns(table_name).await?;
+        let fields = self.show_table_columns(table_name).await?;
         let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
             None,
             table_name,
@@ -688,7 +688,7 @@ impl SchemaTrait for SqliteDB {
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-        let fields = self.show_columns(table_name).await?;
+        let fields = self.show_table_columns(table_name).await?;
 
         let mut conn = self.get_conn().await?;
         let s = (self as &dyn crate::db::SchemaTrait).update_sql(
@@ -713,7 +713,7 @@ impl SchemaTrait for SqliteDB {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-        let fields = self.show_columns(table_name).await?;
+        let fields = self.show_table_columns(table_name).await?;
         let sql =
             (self as &dyn crate::db::SchemaTrait).insert_sql(None, table_name, &fields, &values)?;
         log::trace!("insert sql:{}", sql);
@@ -741,7 +741,7 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 
-    async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let increment_key = self.query_auto_increment_key(table_name).await?;
         let increment_key = increment_key.as_ref().map(|x| x.as_str());
 
@@ -786,7 +786,7 @@ impl SchemaTrait for SqliteDB {
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
 
         let data = encode_rows(&row)?;
-        let fields = self.show_columns(table_name).await?;
+        let fields = self.show_table_columns(table_name).await?;
         anyhow::Ok(TableListResp::new(fields, total, data, sql))
     }
 
@@ -1096,15 +1096,21 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }

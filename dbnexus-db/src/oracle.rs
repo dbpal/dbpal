@@ -636,7 +636,7 @@ impl OracleDB {
             }
         }
         let conn = self.get_conn().await?;
-        let cols = SchemaTrait::show_columns(self, table_name).await?;
+        let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
@@ -742,7 +742,7 @@ impl OracleDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_header {
-            let fs = self.show_columns(table_name).await?;
+            let fs = self.show_table_columns(table_name).await?;
             let fs = fs.iter().map(|x| Some(x.field.clone())).collect::<Vec<_>>();
             sender
                 .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
@@ -864,7 +864,7 @@ impl SchemaTrait for OracleDB {
         }
     }
 
-    async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let sql = format!(
             "SELECT COLUMN_NAME, DATA_TYPE , NULLABLE ,DATA_DEFAULT FROM DBA_TAB_COLUMNS WHERE OWNER = '{}' AND TABLE_NAME = '{table_name}'",
             self.schema_str(),
@@ -952,7 +952,7 @@ impl SchemaTrait for OracleDB {
         log::info!("query sql:{}", sql);
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let data = encode_rows(rows.into_iter().collect::<Vec<_>>(), true)?;
-        let cols = self.show_columns(table_name).await?;
+        let cols = self.show_table_columns(table_name).await?;
         anyhow::Ok(TableListResp::new(cols, total as usize, data, sql))
     }
 
@@ -1007,7 +1007,7 @@ impl SchemaTrait for OracleDB {
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(true);
 
-        let fs = self.show_columns(&table_name).await?;
+        let fs = self.show_table_columns(&table_name).await?;
         let sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &fs, &values)?;
         log::info!("insert sql:{}", sql);
 
@@ -1028,7 +1028,7 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
 
-        let fs = self.show_columns(table_name).await?;
+        let fs = self.show_table_columns(table_name).await?;
         let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
             None,
             table_name,
@@ -1067,7 +1067,7 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
 
-        let fields = self.show_columns(table_name).await?;
+        let fields = self.show_table_columns(table_name).await?;
         let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
             None,
             table_name,
@@ -1379,7 +1379,7 @@ impl OracleDB {
 //         let tables = db.list_table().await.unwrap();
 //         println!("tables : {:?}", tables);
 //         for t in tables.iter() {
-//             let cols = db.show_columns(&t.name).await.unwrap();
+//             let cols = db.show_table_columns(&t.name).await.unwrap();
 //             println!("table:{} ,cols:{:?}", t.name, cols);
 //         }
 //     }

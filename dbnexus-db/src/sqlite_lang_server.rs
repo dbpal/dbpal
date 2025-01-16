@@ -1,16 +1,16 @@
-use std::{borrow::Cow, ops::DerefMut, sync::Arc};
-
-use crate::{
-    db::{FormatSqlOpts, SchemaTrait},
-    helper::sqlformat_format_sql,
-    language_server::{
-        AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-        try_completion_on_syntax,
-    },
-    sqlite::SqliteDB,
-};
+use std::borrow::Cow;
+use std::ops::DerefMut;
+use std::sync::Arc;
 
 use sqlx::Row;
+
+use crate::db::{FormatSqlOpts, SchemaTrait};
+use crate::helper::sqlformat_format_sql;
+use crate::language_server::{
+    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
+    try_completion_on_syntax,
+};
+use crate::sqlite::SqliteDB;
 
 #[async_trait::async_trait]
 
@@ -38,6 +38,7 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
         );
         anyhow::Ok(ret)
     }
+
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
@@ -112,6 +113,7 @@ impl AstCompletionHelper for SqliteDB {
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
+
     async fn list_table(
         &self, _db: Option<&str>, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
@@ -119,10 +121,11 @@ impl AstCompletionHelper for SqliteDB {
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
+
     async fn list_column(
         &self, _db: Option<&str>, _schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        SchemaTrait::show_columns(self, &table)
+        SchemaTrait::show_table_columns(self, &table)
             .await
             .map(|x| x.into_iter().map(|x| x.field).collect())
     }
@@ -132,10 +135,12 @@ impl AstCompletionHelper for SqliteDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let vec = SQLITE_FN_AND_DESC
             .iter()
-            .map(|x| CompletionItem {
-                item: x[0].into(),
-                kind: CompletionKind::Function,
-                desc: Some(x[1].into()),
+            .map(|x| {
+                CompletionItem {
+                    item: x[0].into(),
+                    kind: CompletionKind::Function,
+                    desc: Some(x[1].into()),
+                }
             })
             .collect::<Vec<_>>();
         anyhow::Ok(vec)
@@ -1049,12 +1054,12 @@ When this pragma is on, and the SQLITE_DBCONFIG_DEFENSIVE flag is off, then the 
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        db::QuerySql, enable_test_log, language_server::completion_test::test_file_auto_completion,
-        sqlite::SqliteDB,
-    };
-
     use std::path::Path;
+
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::sqlite::SqliteDB;
     fn test_db() -> String {
         std::env::var("NEXUS_TEST_SQLITE").unwrap().to_string()
     }

@@ -92,15 +92,18 @@ impl DBTrait for Mongo {
         names.sort();
         anyhow::Ok(names)
     }
+
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.dbname = Some(name.to_string());
         return anyhow::Ok(Arc::new(x));
     }
+
     async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
         self.created_databases.insert(name.to_owned());
         anyhow::Ok(())
     }
+
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         conn.database(name).drop().await?;
@@ -611,7 +614,7 @@ impl SchemaTrait for Mongo {
         anyhow::Ok(tables.into_iter().map(ListTable::from).collect())
     }
 
-    async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         self.show_columns_impl(&table_name).await
     }
 

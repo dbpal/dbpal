@@ -546,7 +546,10 @@ function TableColumnsTree(props: { table: string }) {
 
   const reload = () => {
     setLoading(true);
-    invoke<types.Field[]>('show_columns', { name: uuid, tableName: table })
+    invoke<types.Field[]>('show_table_columns', {
+      name: uuid,
+      tableName: table,
+    })
       .then((fs) => {
         setLoading(false);
         setFields(fs);

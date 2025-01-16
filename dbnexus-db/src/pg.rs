@@ -107,7 +107,7 @@ impl PostGresDB {
         }
 
         let mut conn = self.get_conn().await?;
-        let cols = SchemaTrait::show_columns(self, table_name).await?;
+        let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
@@ -978,7 +978,7 @@ impl SchemaTrait for PostGresDB {
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-        let fields = self.show_columns(table_name).await?;
+        let fields = self.show_table_columns(table_name).await?;
         let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
             self.config.schema.as_ref().map(|x: &String| x.as_str()),
             table_name,
@@ -1017,7 +1017,7 @@ impl SchemaTrait for PostGresDB {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        let fs = self.show_columns(table_name).await?;
+        let fs = self.show_table_columns(table_name).await?;
         let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
@@ -1042,7 +1042,7 @@ impl SchemaTrait for PostGresDB {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-        let fs = self.show_columns(table_name).await?;
+        let fs = self.show_table_columns(table_name).await?;
         let s = (self as &dyn crate::db::SchemaTrait).insert_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
@@ -1092,7 +1092,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let s = format!(
             r#"
 
@@ -1186,7 +1186,7 @@ impl SchemaTrait for PostGresDB {
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let data = encode_rows(&row)?;
-        let fields = self.show_columns(table_name).await?;
+        let fields = self.show_table_columns(table_name).await?;
         anyhow::Ok(TableListResp::new(fields, total, data, sql))
     }
 

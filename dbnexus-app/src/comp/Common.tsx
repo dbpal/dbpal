@@ -79,6 +79,7 @@ import {
   extractConfigNameFromUuid,
   getViewportSize,
 } from './helper';
+import { copyFileSync } from 'fs';
 
 const appStore = async () => {
   return await load('store.json');
@@ -429,20 +430,26 @@ function countLines(str) {
   return str.split('\n').length; // 按换行符分割并计算长度
 }
 
-function editorInitHeight(str, lineHeigth, maxPrecent = 0.5): number {
+function editorInitHeight(
+  str,
+  lineHeigth,
+  minHeight = 200,
+  maxPrecent = 0.5
+): number {
   let lines = countLines(str);
   if (!lines) {
     lines = 10;
   } else {
     lines += 2;
   }
+  console.log('!!!!!!!!!!!!!!!!!!!!', str, lines);
+
   let height = lines * lineHeigth;
   let viewHeigth = getViewportSize().height;
   let maxHeigth = viewHeigth * maxPrecent;
   if (height > maxHeigth) {
     height = maxHeigth;
   }
-  let minHeight = 200;
   if (height < minHeight) {
     height = minHeight;
   }

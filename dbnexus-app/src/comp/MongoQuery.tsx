@@ -12,6 +12,7 @@ import { EditorBar, LoadStoreQuery, SettingsContext } from './Common';
 import { NotificationContext } from './Notification';
 
 import { LogLevelSel } from './CommonComp';
+
 initMongoQueryGlobals();
 
 function makeLog(level, ...msg: any[]): string {
@@ -39,19 +40,20 @@ const fileFilter = { filters: [{ name: 'js', extensions: ['js'] }] };
 
 function MongoQuery(props: { uuid: string }) {
   const { uuid } = props;
-  const [loggerName, _setLogger] = useState(generateRandomString(10));
 
   const [err, setErr] = useState(null);
   const [loggerEditor, setLoggerEditor] = useState(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [loggerPos, setLoggerPos] = useState<Position>(null);
+
+  const [logger, _setLogger] = useState(
+    loglevel.getLogger(generateRandomString(10))
+  );
   const [loggerlevel, setLoggerlevel] = useState('trace');
-
-  let logger = loglevel.getLogger(loggerName);
-
   //@ts-ignore db is use in `user query`
   const db = new MongoDBQuery(uuid);
+
   useEffect(() => {
     logger.setLevel(loggerlevel as loglevel.LogLevelDesc);
   }, [loggerlevel]);
@@ -67,6 +69,10 @@ function MongoQuery(props: { uuid: string }) {
         modifyEditorContent(editor, l);
       };
     };
+    // we need set up level when `methodFactory` is changed
+    // otherwise logger will not working why
+    logger.setLevel('trace');
+
     editor.onDidChangeCursorPosition(() => {
       setLoggerPos(editor.getPosition());
     });

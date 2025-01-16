@@ -316,9 +316,9 @@ impl App {
         db.list_table().await
     }
 
-    pub async fn show_columns(&self, name: &str, table_name: &str) -> anyhow::Result<Vec<Field>> {
+    pub async fn show_table_columns(&self, name: &str, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let db = self.get_schema(name).await?;
-        db.show_columns(table_name).await
+        db.show_table_columns(table_name).await
     }
 
     pub async fn show_table(

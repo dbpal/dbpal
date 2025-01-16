@@ -794,7 +794,7 @@ impl SchemaTrait for MsSqlServer {
         .await
     }
 
-    async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let mut conn = self.get_conn().await?;
         let mut conn = conn.deref_mut();
         let mut stream = conn
@@ -878,12 +878,12 @@ impl SchemaTrait for MsSqlServer {
                 tiberius::QueryItem::Metadata(m) => meta = Some(m),
             }
         }
-        let cols = self.show_columns(table_name).await?;
+        let cols = self.show_table_columns(table_name).await?;
         let mut ret = match meta {
             Some(x) => make_table_list_from_meta_and_row(&x, &rows, total as usize, sql)?,
             None => anyhow::bail!("SELECT should yield at lease one meta"),
         };
-        // infered schema is accurate as show_columns
+        // infered schema is accurate as show_table_columns
         ret.fields = cols;
         anyhow::Ok(ret)
     }
@@ -940,7 +940,7 @@ impl SchemaTrait for MsSqlServer {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
 
-        let fs = self.show_columns(table_name).await?;
+        let fs = self.show_table_columns(table_name).await?;
         let s = (self as &dyn crate::db::SchemaTrait).insert_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
@@ -967,7 +967,7 @@ impl SchemaTrait for MsSqlServer {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
 
-        let fs = self.show_columns(table_name).await?;
+        let fs = self.show_table_columns(table_name).await?;
         let s = (self as &dyn crate::db::SchemaTrait).update_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
@@ -1022,7 +1022,7 @@ impl SchemaTrait for MsSqlServer {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
 
-        let fields = self.show_columns(table_name).await?;
+        let fields = self.show_table_columns(table_name).await?;
         let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
@@ -1407,7 +1407,7 @@ impl MsSqlServer {
         }
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let cols = SchemaTrait::show_columns(self, table_name).await?;
+        let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
 
         let mut stream = conn.query(sql.as_str(), &[]).await?.try_chunks(100);

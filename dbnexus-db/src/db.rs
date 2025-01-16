@@ -30,7 +30,7 @@ pub trait SchemaTrait:
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
-    async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
+    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize,
