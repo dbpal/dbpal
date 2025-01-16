@@ -92,7 +92,7 @@ function RedisQuery(props: {
       onDragFinished={(_: number): void => {
         setIsDragging(false);
       }} // 拖动结束
-      style={{ position: 'relative' }}
+      style={{ position: 'relative', width: '99%' }}
     >
       <SqlQuery
         handelTextAndPositionChange={(text, pos) => {
@@ -119,7 +119,7 @@ function RedisQuery(props: {
           ref={iframeRef} // 绑定 iframe 引用
           src={getURL(command)}
           style={{
-            width: '98%',
+            width: '100%',
             height: '100%',
             border: 'none', // 去掉边框
             position: 'absolute',
