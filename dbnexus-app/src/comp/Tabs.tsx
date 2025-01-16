@@ -3,7 +3,8 @@ import { Stack, Button, Paper, MenuItem, MenuList } from '@mui/material';
 
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
-import { calMenuStyle, MenuContext, VisiableContext } from './Common';
+import { MenuContext, VisiableContext } from './Common';
+import { calMenuStyle } from './helper';
 class TabContent {
   constructor(
     public id: string,

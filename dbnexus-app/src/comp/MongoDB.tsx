@@ -23,11 +23,15 @@ import {
   parseMongoBson,
 } from './MongoBsonCompiler';
 
-import { useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { BSON, ObjectId } from 'bson';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
-import { DataGrid } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  GridPaginationModel,
+  GridRowSelectionModel,
+} from '@mui/x-data-grid';
 
 import {
   DocsAndCount,
@@ -41,6 +45,7 @@ import {
   progressBarSize,
   SettingsContext,
   VisiableContext,
+  reloadOK,
 } from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
@@ -228,7 +233,11 @@ function MongoBsonEditor(props: {
       monaco.editor.setTheme('vs-dark');
     }
   };
-  const initHeigth = editorInitHeight(content);
+  const initHeigth = editorInitHeight(
+    content,
+    useContext(SettingsContext).editorFontSize * 1.2
+  );
+
   return (
     <div
       style={{
@@ -253,6 +262,7 @@ function MongoBsonEditor(props: {
           value={content}
           height="100%"
           options={{
+            fontFamily: "'Courier New', 'Arial', 'Monaco', monospace",
             fontSize: useContext(SettingsContext).editorFontSize,
             wordWrap: 'on',
           }}
@@ -303,8 +313,9 @@ function MongoDBModify(props: {
   verify: (doc: BSON.Document) => boolean;
   setOP: (doc: BSON.Document) => Promise<void>;
   buttonName: string;
+  handleClose?;
 }) {
-  let { doc, setOP, verify, buttonName } = props;
+  let { doc, setOP, verify, buttonName, handleClose } = props;
   const [loading, setLoading] = useState(false);
   const [newDoc, setNewDoc] = useState(doc);
   const { showNotification } = useContext(NotificationContext);
@@ -318,6 +329,9 @@ function MongoDBModify(props: {
       .then(() => {
         showNotification('success', 'Modify OK');
         setLoading(false);
+        if (handleClose) {
+          handleClose();
+        }
       })
       .catch((e) => {
         setLoading(false);
@@ -389,7 +403,6 @@ function MongoTableListToolBar(props: {
   return (
     <Stack direction="row" justifyContent="space-between">
       <Stack direction="row" spacing={1} alignContent="flex-end">
-        <span>filter:</span>
         <Typography
           onClick={() => {
             setShowModifyFilter(true);
@@ -397,7 +410,7 @@ function MongoTableListToolBar(props: {
           style={{ cursor: 'pointer' }}
           variant="subtitle1"
         >
-          {bsonValue2MongoBson(filter).format()}
+          filter: {bsonValue2MongoBson(filter).format()}
         </Typography>
 
         {showModifyFilter && (
@@ -417,13 +430,15 @@ function MongoTableListToolBar(props: {
                 setOP={async (doc) => {
                   handleFilter(doc);
                 }}
+                handleClose={() => {
+                  setShowModifyFilter(false);
+                }}
                 doc={filter}
               ></MongoDBModify>
             </Box>
           </Modal>
         )}
 
-        <span>order by:</span>
         <Typography
           onClick={() => {
             setShowModifyOrderBy(true);
@@ -431,7 +446,7 @@ function MongoTableListToolBar(props: {
           style={{ cursor: 'pointer' }}
           variant="subtitle1"
         >
-          {bsonValue2MongoBson(orderBy).format()}
+          order by: {bsonValue2MongoBson(orderBy).format()}
         </Typography>
 
         {showModifyOrderBy && (
@@ -450,6 +465,9 @@ function MongoTableListToolBar(props: {
                 }}
                 setOP={async (doc) => {
                   handleOrderBy(doc);
+                }}
+                handleClose={() => {
+                  setShowModifyOrderBy(false);
                 }}
                 doc={orderBy}
               ></MongoDBModify>
@@ -470,17 +488,6 @@ function MongoTableListToolBar(props: {
       <Stack direction="row" style={{ padding: '5px' }}>
         <ButtonGroup variant="contained" aria-label="Basic button group">
           <IconButton
-            onClick={() => {
-              handleViewModel(MongoDataViewModel.List);
-            }}
-            disabled={viewModel == MongoDataViewModel.List}
-            edge="start"
-            color="inherit"
-            aria-label="list"
-          >
-            <ListIcon />
-          </IconButton>
-          <IconButton
             disabled={viewModel == MongoDataViewModel.Object}
             onClick={() => {
               handleViewModel(MongoDataViewModel.Object);
@@ -490,6 +497,17 @@ function MongoTableListToolBar(props: {
             aria-label="object"
           >
             <DataObjectIcon />
+          </IconButton>
+          <IconButton
+            onClick={() => {
+              handleViewModel(MongoDataViewModel.List);
+            }}
+            disabled={viewModel == MongoDataViewModel.List}
+            edge="start"
+            color="inherit"
+            aria-label="list"
+          >
+            <ListIcon />
           </IconButton>
         </ButtonGroup>
       </Stack>
@@ -513,16 +531,9 @@ function MongoTable(props: {
   loadOne: (id: BSON.ObjectId) => Promise<BSON.Document>;
   modifyOP: (doc: BSON.Document) => Promise<void>;
   deleteOP: (ids: string[]) => Promise<void>;
-  viewModel: MongoDataViewModel;
 }) {
-  const {
-    reloadOPTableList,
-    loadOne,
-    modifyOP,
-    realodOPDocs,
-    deleteOP,
-    viewModel: viewModelPrev,
-  } = props;
+  const { reloadOPTableList, loadOne, modifyOP, realodOPDocs, deleteOP } =
+    props;
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const [filter, setFilter] = useState<BSON.Document>({});
   const [orderBy, setOrderby] = useState<BSON.Document>({});
@@ -535,14 +546,17 @@ function MongoTable(props: {
   );
   const [docs, setDocs] = useState<DocsAndCount | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [viewModel, setViewModel] = useState(viewModelPrev);
+  const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
   const [selectIDs, setSelectIDs] = useState([]);
 
-  const handleReload = () => {
+  const handleReload = (showOK: boolean) => {
     const handleReloadTableList = async () => {
       reloadOPTableList(filter, orderBy, page + 1, pageSize)
         .then((resp) => {
           setResp(resp);
+          if (showOK) {
+            reloadOK(showNotification);
+          }
         })
         .catch((e) => {
           showNotification('error', 'fetch data failed', e);
@@ -552,6 +566,9 @@ function MongoTable(props: {
       realodOPDocs(filter, orderBy, page + 1, pageSize)
         .then((resp) => {
           setDocs(resp);
+          if (showOK) {
+            reloadOK(showNotification);
+          }
         })
         .catch((e) => {
           showNotification('error', 'fetch data failed', e);
@@ -574,7 +591,7 @@ function MongoTable(props: {
         deleteOP(ids)
           .then(() => {
             showNotification('success', 'Delete OK');
-            handleReload();
+            handleReload(false);
           })
           .catch((e) => {
             showNotification('error', 'Delete failure', e);
@@ -592,13 +609,46 @@ function MongoTable(props: {
       throw e;
     }
   };
-
   useEffect(() => {
-    handleReload();
-  }, [page, pageSize, viewModel]);
+    handleReload(true);
+  }, [page, pageSize, viewModel, filter, orderBy]);
+
+  const getRowId = useCallback((e) => {
+    return e._id; // in this case object been convert to hexstring
+  }, []);
+  const onPaginationModelChange = useCallback((m: GridPaginationModel) => {
+    setPage(m.page);
+    setPageSize(m.pageSize);
+  }, []);
+  const onRowDoubleClick = useCallback((e) => {
+    handleLoadOne(e.id as string).then((doc) => {
+      setSelectModifyDoc(doc);
+    });
+  }, []);
+  const paginationModel = useMemo(() => {
+    return { page: page, pageSize: pageSize };
+  }, [page, pageSize]);
+  const onSortModelChange = useCallback((e) => {
+    if (e.length == 0) {
+      setOrderby({});
+      return;
+    }
+    let s = e[0];
+    if (!s.sort) {
+      setOrderby({});
+      return;
+    }
+    let order = {};
+    order[s.field] = s.sort == 'asc' ? 1 : -1;
+    setOrderby(order);
+  }, []);
+
+  const onRowSelectionModelChange = useCallback((e: GridRowSelectionModel) => {
+    setSelectIDs(e as string[]);
+  }, []);
   const vis = useContext(VisiableContext);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ width: '99%' }}>
       <MongoTableListToolBar
         orderBy={orderBy}
         filter={filter}
@@ -609,7 +659,7 @@ function MongoTable(props: {
           setOrderby(e);
         }}
         handleReload={async () => {
-          handleReload();
+          handleReload(true);
         }}
         handleViewModel={(e) => {
           setViewModel(e);
@@ -636,9 +686,7 @@ function MongoTable(props: {
           {vis && (
             <div style={{ display: 'grid' }}>
               <DataGrid
-                getRowId={(e) => {
-                  return e._id; // in this case object been convert to hexstring
-                }}
+                getRowId={getRowId}
                 rowHeight={datagridRowHeight}
                 columnHeaderHeight={datagridHeaderHeight}
                 checkboxSelection
@@ -648,35 +696,12 @@ function MongoTable(props: {
                 pageSizeOptions={pageSizeOptions}
                 disableColumnFilter
                 paginationMode="server"
-                paginationMeta={{ hasNextPage: true }}
-                paginationModel={{ page: page, pageSize: pageSize }}
-                onPaginationModelChange={(m) => {
-                  setPage(m.page);
-                  setPageSize(m.pageSize);
-                }}
-                onRowDoubleClick={(e) => {
-                  handleLoadOne(e.id as string).then((doc) => {
-                    setSelectModifyDoc(doc);
-                  });
-                }}
+                paginationModel={paginationModel}
+                onPaginationModelChange={onPaginationModelChange}
+                onRowDoubleClick={onRowDoubleClick}
                 sortingMode="server"
-                onSortModelChange={(e) => {
-                  if (e.length == 0) {
-                    setOrderby({});
-                    return;
-                  }
-                  let s = e[0];
-                  if (!s.sort) {
-                    setOrderby({});
-                    return;
-                  }
-                  let order = {};
-                  order[s.field] = s.sort == 'asc' ? 1 : -1;
-                  setOrderby(order);
-                }}
-                onRowSelectionModelChange={(e) => {
-                  setSelectIDs(e as string[]);
-                }}
+                onSortModelChange={onSortModelChange}
+                onRowSelectionModelChange={onRowSelectionModelChange}
               ></DataGrid>
             </div>
           )}
@@ -701,7 +726,7 @@ function MongoTable(props: {
                 } catch (e) {
                   throw e;
                 }
-                handleReload();
+                handleReload(false);
               }}
               doc={selectModifyDoc}
               buttonName="Modify"
@@ -711,7 +736,7 @@ function MongoTable(props: {
       )}
       {/* // docs modal  */}
       {docs && viewModel == MongoDataViewModel.Object && (
-        <Stack spacing={1} style={{ paddingRight: '40px' }}>
+        <Stack spacing={1}>
           {docs.docs.map((doc) => {
             return (
               <MongoBsonEditor
@@ -723,7 +748,6 @@ function MongoTable(props: {
                 buttons={[
                   {
                     buttonConent: 'set',
-                    variant: 'contained',
                     callBack: (doc) => {
                       modifyOP(doc)
                         .then(() => {
@@ -737,7 +761,7 @@ function MongoTable(props: {
                   {
                     buttonConent: 'delte',
                     color: 'error',
-                    variant: 'outlined',
+
                     callBack: (_) => {
                       handleDetele([(doc._id as ObjectId).toHexString()]);
                     },
@@ -761,7 +785,7 @@ function MongoTable(props: {
             <SelectPageSize
               pageSize={pageSize}
               handleChange={(size) => {
-                setPage(size);
+                setPageSize(size);
               }}
             ></SelectPageSize>
           </Stack>

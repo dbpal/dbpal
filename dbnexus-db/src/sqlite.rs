@@ -13,6 +13,7 @@ use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Column, Executor, Row, SqliteConnection, TypeInfo};
 
+use crate::MemoryLimit;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, Index,
     IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
@@ -1134,8 +1135,9 @@ impl QuerySql for SqliteDB {
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
         let mut rows = Vec::new();
+        let mut ml = MemoryLimit::new();
         while let Some(item) = stream.next().await {
-            // MemoryLimit::exceed_error()?;
+            ml.exceed_error()?;
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {

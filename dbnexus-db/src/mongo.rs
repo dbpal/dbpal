@@ -10,6 +10,7 @@ use mongodb::bson::{Document, doc};
 use mongodb::options::ServerAddress;
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 
+use crate::TEST_HOST;
 use crate::datasource_config::MongoConfig;
 use crate::db::{
     BackendName, CheckConn, DBTrait, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
@@ -484,6 +485,9 @@ impl Mongo {
 
         while let Some(col) = cols.next().await {
             let col = col?;
+            if col.name.starts_with("system.") {
+                continue;
+            }
             if ty
                 .as_ref()
                 .map(|x| x == &col.collection_type)
@@ -492,6 +496,7 @@ impl Mongo {
                 ret.push(col.name);
             }
         }
+        ret.sort();
         anyhow::Ok(ret)
     }
 }
@@ -501,12 +506,24 @@ impl Mongo {
         let ts = self
             .list_collection_name_by_type(Some(CollectionType::Timeseries))
             .await?;
-
         anyhow::Ok(ts.into_iter().map(NamedStaff::from).collect())
     }
 
     pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<()> {
         self.drop_table(name, false).await
+    }
+}
+
+impl Mongo {
+    pub async fn show_columns_impl(&self, name: &str) -> anyhow::Result<Vec<Field>> {
+        let db = self.get_db().await?;
+        let value: Option<Document> = db.collection(name).find_one(doc! {}).await?;
+        if value.is_none() {
+            return anyhow::Ok(vec![]);
+        }
+        let value = value.unwrap();
+        let cols = infer_multi_value_column_names(&vec![value][..])?;
+        anyhow::Ok(cols)
     }
 }
 
@@ -595,15 +612,7 @@ impl SchemaTrait for Mongo {
     }
 
     async fn show_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let db = self.get_db().await?;
-        let value: Option<Document> = db.collection(table_name).find_one(doc! {}).await?;
-        if value.is_none() {
-            return anyhow::Ok(vec![]);
-        }
-        let value = value.unwrap();
-        let cols = infer_multi_value_column_names(&vec![value][..])?;
-
-        anyhow::Ok(cols)
+        self.show_columns_impl(&table_name).await
     }
 
     async fn show_table(
@@ -667,6 +676,10 @@ impl SchemaTrait for Mongo {
     ) -> anyhow::Result<SqlExecuteRet> {
         anyhow::bail!("use mongo delete")
     }
+
+    async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
+        self.show_columns_impl(&view_name).await
+    }
 }
 
 #[async_trait::async_trait]
@@ -701,8 +714,23 @@ impl Mongo {
     }
 }
 
-#[cfg(test)]
+// this used in test
+#[allow(unused)]
+pub(crate) fn make_test_object() -> Mongo {
+    let x = Mongo::new(MongoConfig {
+        host: TEST_HOST.to_string(),
+        port: 27017,
+        username: None,
+        password: None,
+        connect_timeout: None,
+        db: Some("test".to_string()),
+        read_only: false,
+    });
 
+    x.unwrap()
+}
+
+#[cfg(test)]
 mod tests {
 
     use std::str::FromStr;
@@ -711,24 +739,9 @@ mod tests {
     use bson::oid::ObjectId;
     use bson::{Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
 
-    use super::Mongo;
-    use crate::TEST_HOST;
-    use crate::datasource_config::MongoConfig;
+    use super::make_test_object;
     use crate::db::{DBTrait, SchemaTrait, ServerMetas};
 
-    fn make_test_object() -> Mongo {
-        let x = Mongo::new(MongoConfig {
-            host: TEST_HOST.to_string(),
-            port: 27017,
-            username: None,
-            password: None,
-            connect_timeout: None,
-            db: Some("test".to_string()),
-            read_only: false,
-        });
-
-        x.unwrap()
-    }
     #[tokio::test]
     async fn test_multi_db() {
         let multi = make_test_object();
@@ -850,6 +863,34 @@ mod tests {
     async fn test_check_conn() {
         let db = make_test_object();
         crate::db::CheckConn::check_conn(&db).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_view() {
+        let db = make_test_object();
+
+        let view_name = "test_view";
+        let _ = db.drop_view(view_name).await;
+
+        let collection_name = "test_mongo";
+        // 定义聚合管道
+        let pipeline = vec![
+            doc! { "$match": { "field": "value" } },
+            doc! { "$group": { "_id": "$field", "count": { "$sum": 1 } } },
+        ];
+        let _ = db
+            .get_db()
+            .await
+            .unwrap()
+            .run_command(doc! {
+                "create": view_name,
+                "viewOn": collection_name,
+                "pipeline": pipeline,
+            })
+            .await
+            .unwrap();
+        let view_names = db.list_view().await.unwrap();
+        println!("view names:{:?}", view_names)
     }
 
     #[tokio::test]

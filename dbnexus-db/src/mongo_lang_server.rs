@@ -258,7 +258,7 @@ impl Mongo {
     }
 
     pub async fn query_collection_update_many(
-        &self, col: &str, query: Document, replacement: Vec<Document>,
+        &self, col: &str, query: Document, replacement: Document,
     ) -> anyhow::Result<UpdateResult> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -268,12 +268,30 @@ impl Mongo {
     }
 
     pub async fn query_collection_update_one(
-        &self, col: &str, query: Document, replacement: Vec<Document>,
+        &self, col: &str, query: Document, replacement: Document,
     ) -> anyhow::Result<UpdateResult> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let f = col.update_one(query, replacement);
         let ret = f.await?;
         anyhow::Ok(ret)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::mongo::make_test_object;
+
+    #[tokio::test]
+    async fn test_xxx() {
+        let x = make_test_object();
+        let names = x.query_db_list_collection_names().await.unwrap();
+        println!("{:?}", names);
+    }
+    #[tokio::test]
+    async fn test_list_index_names() {
+        let x = make_test_object();
+        let names = x.query_collection_list_index_names("xxx").await.unwrap();
+        println!("{:?}", names);
     }
 }

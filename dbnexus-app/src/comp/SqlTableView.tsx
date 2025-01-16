@@ -24,7 +24,6 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   datagridHeaderHeight,
   datagridRowHeight,
-  isTypeLargeText,
   modalStyle,
   pageSizeOptions,
   progressBarSize,
@@ -35,6 +34,7 @@ import {
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
 import { secondConfirm } from './Confirm';
+import { isTypeLargeText } from './helper';
 
 const confrimAboutPrimary = async (
   notWarnPri,

@@ -63,7 +63,16 @@ pub fn enable_test_log() {
 
 /// limit memory when doing some operation
 /// like select a lot of data from database.
-pub struct MemoryLimit;
+pub struct MemoryLimit {
+    count: usize,
+    m: usize,
+}
+
+impl MemoryLimit {
+    pub fn new() -> Self {
+        Self { count: 0, m: 10000 }
+    }
+}
 
 #[allow(unused)]
 impl MemoryLimit {
@@ -87,8 +96,10 @@ impl MemoryLimit {
             .unwrap_or(false)
     }
 
-    pub fn exceed_error() -> anyhow::Result<()> {
-        if Self::exceed() {
+    #[inline]
+    pub fn exceed_error(&mut self) -> anyhow::Result<()> {
+        self.count += 1;
+        if (self.count % self.m) == 0 && Self::exceed() {
             Err(anyhow::Error::msg(format!(
                 "exceed max memory of {}m",
                 Self::get_limit() >> 20

@@ -20,15 +20,10 @@ import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 
 import { invoke } from '@tauri-apps/api/core';
-import {
-  appStore,
-  AppStoreKey,
-  DataSourceKind,
-  msgTimeout,
-  progressBarSize,
-} from './Common';
+import { appStore, AppStoreKey, msgTimeout, progressBarSize } from './Common';
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import { DataSourceKind } from './helper';
 
 async function selectOneFile() {
   const selected = await open({

@@ -1,12 +1,17 @@
 import { Editor, Monaco } from '@monaco-editor/react';
-import { IconButton, Stack, Tooltip } from '@mui/material';
+import { Alert, Divider, IconButton, Stack, Tooltip } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import { editor, Range } from 'monaco-editor';
+import { editor, Position, Range } from 'monaco-editor';
 
 import * as loglevel from 'loglevel';
-import { useState } from 'react';
-import { initMongoQueryGlobals } from './MongoQueryBackend';
+import { useContext, useEffect, useState } from 'react';
+import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
+import { generateRandomString } from './helper';
+import { EditorBar, LoadStoreQuery, SettingsContext } from './Common';
 
+import { NotificationContext } from './Notification';
+
+import { LogLevelSel } from './CommonComp';
 initMongoQueryGlobals();
 
 function makeLog(level, ...msg: any[]): string {
@@ -22,51 +27,82 @@ function makeLog(level, ...msg: any[]): string {
       case 'string':
         return e;
       default:
-        JSON.stringify(e);
+        return JSON.stringify(e);
     }
   };
-
   let msg2 = msg.flat();
   let str = msg2.map((e) => encode(e)).join(' ');
-  return `${new Date().toLocaleString()}-${level}-${str}\n`;
+  return `${new Date().toLocaleString()}-${level} ${str}\n`;
 }
 
-function MongoQuery(props: {}) {
-  let logger = loglevel.getLogger('1111111111111');
+const fileFilter = { filters: [{ name: 'js', extensions: ['js'] }] };
 
-  logger.setLevel('trace');
-  const [text, setText] = useState('');
+function MongoQuery(props: { uuid: string }) {
+  const { uuid } = props;
+  const [loggerName, _setLogger] = useState(generateRandomString(10));
+
+  const [err, setErr] = useState(null);
+  const [loggerEditor, setLoggerEditor] = useState(null);
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+  const [pos, setPos] = useState<Position>(null);
+  const [loggerPos, setLoggerPos] = useState<Position>(null);
+  const [loggerlevel, setLoggerlevel] = useState('trace');
+
+  let logger = loglevel.getLogger(loggerName);
+
+  //@ts-ignore db is use in `user query`
+  const db = new MongoDBQuery(uuid);
+  useEffect(() => {
+    logger.setLevel(loggerlevel as loglevel.LogLevelDesc);
+  }, [loggerlevel]);
+
   const logEditorOnmount = (
     editor: editor.IStandaloneCodeEditor,
-    monaco: Monaco
+    _monaco: Monaco
   ) => {
+    setLoggerEditor(editor);
     logger.methodFactory = (level) => {
       return (...args) => {
         let l = makeLog(level, args);
-        console.log(l);
-        // append to the editor.
-        appendEditorContent(editor, l);
+        modifyEditorContent(editor, l);
       };
     };
+    editor.onDidChangeCursorPosition(() => {
+      setLoggerPos(editor.getPosition());
+    });
   };
+  const [file, setFile] = useState('');
+
+  const { showNotification } = useContext(NotificationContext);
   const jsCodeMount = (
     editor: editor.IStandaloneCodeEditor,
-    monaco: Monaco
+    _monaco: Monaco
   ) => {
-    editor.onDidChangeModelContent((e) => {
-      let text = editor.getValue();
-      setText(text);
+    editor.onDidChangeCursorPosition(() => {
+      setPos(editor.getPosition());
     });
+    setEditor(editor);
   };
 
   const handleExecute = () => {
-    console.log('execute query:', text);
-    eval(text);
+    let text = editor.getValue();
+    if (!text.trim()) {
+      showNotification('error', "can't execute empty statement");
+      return;
+    }
+    modifyEditorContent(loggerEditor);
+    setErr(null);
+    try {
+      eval(text);
+    } catch (e) {
+      setErr(e);
+    }
   };
+  let theme = useContext(SettingsContext).theme == 'dark' ? 'vs-dark' : 'light';
 
   return (
-    <Stack>
-      <Stack direction="row">
+    <Stack style={{ width: '99%' }} spacing={1}>
+      <Stack direction="row" style={{ alignContent: 'flex-end' }} spacing={1}>
         <Tooltip title="execute">
           <IconButton
             onClick={() => {
@@ -78,51 +114,116 @@ function MongoQuery(props: {}) {
             <PlayArrowIcon />
           </IconButton>
         </Tooltip>
+        <LogLevelSel
+          handleChange={(e) => {
+            setLoggerlevel(e);
+          }}
+          level={loggerlevel}
+        ></LogLevelSel>
+        <LoadStoreQuery
+          openOpt={{ ...fileFilter }}
+          saveOpt={{ canCreateDirectories: true, ...fileFilter }}
+          getQuery={() => {
+            return editor.getValue();
+          }}
+          file={file}
+          handleChange={(f, text) => {
+            setFile(f);
+            editor.setValue(text);
+          }}
+        ></LoadStoreQuery>
       </Stack>
-      <div style={{ minHeight: '300px', height: '500px' }}>
-        <Editor
-          value={text}
-          onMount={jsCodeMount}
-          language="javascript"
-          theme={'vs-dark'}
-        ></Editor>
+      <div
+        style={{
+          minHeight: '200px',
+          height: '500px',
+          resize: 'vertical',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'auto',
+        }}
+      >
+        <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
+          <Editor
+            onMount={jsCodeMount}
+            language="javascript"
+            options={{
+              fontFamily: 'Fira Code',
+              fontSize: useContext(SettingsContext).editorFontSize,
+            }}
+            theme={theme}
+          ></Editor>
+        </div>
+
+        <EditorBar
+          left={
+            err && (
+              <Alert color="error" severity="error">
+                {err.toString()}
+              </Alert>
+            )
+          }
+          pos={pos}
+        ></EditorBar>
       </div>
-      <div style={{ minHeight: '400px', height: '500px' }}>
-        <Editor
-          language="log"
-          theme={'vs-dark'}
-          onMount={logEditorOnmount}
-        ></Editor>
+
+      <Divider></Divider>
+      <div
+        style={{
+          minHeight: '200px',
+          height: '500px',
+          resize: 'vertical',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'auto',
+        }}
+      >
+        <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
+          <Editor
+            options={{
+              fontSize: useContext(SettingsContext).editorFontSize,
+              wordWrap: 'on',
+            }}
+            language="log"
+            theme={theme}
+            onMount={logEditorOnmount}
+          ></Editor>
+        </div>
+        <EditorBar pos={loggerPos}></EditorBar>
       </div>
+      <div style={{ minHeight: '400px' }}></div>
     </Stack>
   );
 }
-
-function appendEditorContent(editor: editor.IStandaloneCodeEditor, text) {
-  // 获取当前编辑器的模型
+/*
+  
+*/
+function modifyEditorContent(
+  editor: editor.IStandaloneCodeEditor,
+  text = undefined
+) {
+  if (!text) {
+    // means clean text
+    editor.setValue('');
+  }
   const model = editor.getModel();
   if (model) {
-    // 获取当前模型的最后一行和最后一列
     const lastLine = model.getLineCount();
     const lastColumn = model.getLineLength(lastLine) + 1;
 
-    // 创建一个 Range 对象，表示要插入的位置
     const range = new Range(lastLine, lastColumn, lastLine, lastColumn);
 
-    // 创建一个编辑操作
     const editOperation = {
       identifier: { major: 1, minor: 1 },
       range: range,
       text: text,
       forceMoveMarkers: true,
-    };
-    // 执行编辑操作
+    } as editor.IIdentifiedSingleEditOperation;
 
     editor.executeEdits('appendContent', [editOperation]);
-    // TODO show last line
-    editor.setPosition({ lineNumber: lastLine, column: 1 });
     // 滚动到最后一行
-    editor.revealLine(lastLine);
+    editor.setPosition({ lineNumber: lastLine + 1, column: 1 });
+    editor.revealLine(lastLine + 1);
   } else {
     editor.setValue(text);
   }

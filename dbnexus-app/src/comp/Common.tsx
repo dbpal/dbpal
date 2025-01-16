@@ -44,7 +44,7 @@ import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
-
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 const modalStyle: SxProps = {
   position: 'absolute',
   top: '50%',
@@ -65,6 +65,20 @@ import {
   redisKeywords,
   sqliteKeywords,
 } from './keywords';
+import {
+  open,
+  OpenDialogOptions,
+  save,
+  SaveDialogOptions,
+} from '@tauri-apps/plugin-dialog';
+import { readFile, writeFile } from '@tauri-apps/plugin-fs';
+import {
+  backendCompletionItemToEditor,
+  DataSourceKind,
+  errToString,
+  extractConfigNameFromUuid,
+  getViewportSize,
+} from './helper';
 
 const appStore = async () => {
   return await load('store.json');
@@ -151,141 +165,6 @@ function SelectPageSize({
   );
 }
 
-// redis的数据存储的时候都是二进制 有时候包含的是有效的
-// utf8字符前台的处理的最好当成utf8来处理
-// 不然当成二进制数据来处理呢
-// 后台放回数据的时候都是 hex string模式
-
-function hexTryToUtf8(hex): string | Uint8Array {
-  if (!hex) {
-    return '';
-  }
-  // 将十六进制字符串转换为字节数组
-  const bytes = [];
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes.push(parseInt(hex.substr(i, 2), 16));
-  }
-  // 将字节数组转换为 UTF-8 字符串
-  let utf8String: string;
-
-  try {
-    utf8String = new TextDecoder('utf-8', { fatal: true }).decode(
-      new Uint8Array(bytes)
-    );
-  } catch {
-    return new Uint8Array(bytes);
-  }
-  return utf8String;
-}
-
-function hexToUint8Array(hex) {
-  if (!hex) {
-    return new Uint8Array([]);
-  }
-  const bytes = [];
-
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes.push(parseInt(hex.substr(i, 2), 16));
-  }
-  return new Uint8Array(bytes);
-}
-function hexToUtf8(hex: string): string {
-  if (!hex) {
-    return '';
-  }
-  // 将十六进制字符串转换为字节数组
-  const bytes = [];
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes.push(parseInt(hex.substr(i, 2), 16));
-  }
-  return new TextDecoder('utf-8').decode(new Uint8Array(bytes));
-}
-
-function stringToHexArray(str: string): Uint8Array {
-  // 创建一个 Uint8Array 来存储字节
-  const bytes = new TextEncoder().encode(str);
-  return bytes;
-}
-
-function arrayToHex(uint8Array: Uint8Array | number[]) {
-  return Array.from(uint8Array) // 将 Uint8Array 转换为普通数组
-    .map((byte) => byte.toString(16).padStart(2, '0')) // 转换每个字节为十六进制并补齐
-    .join(''); // 连接为一个字符串
-}
-
-function stringToHex(str): string {
-  return arrayToHex(stringToHexArray(str));
-}
-
-function backendCompletionItemToEditor(
-  xs: types.CompletionItem[]
-): languages.CompletionList {
-  function getKind(kind: types.CompletionKind): languages.CompletionItemKind {
-    switch (kind) {
-      case 'Command':
-        return languages.CompletionItemKind.Keyword;
-      case 'KeyWord':
-        return languages.CompletionItemKind.Keyword;
-      case 'Function':
-        return languages.CompletionItemKind.Function;
-      case 'Database':
-        return languages.CompletionItemKind.Module;
-      case 'Schema':
-        return languages.CompletionItemKind.Folder;
-      case 'Table':
-        return languages.CompletionItemKind.File;
-      case 'Column':
-        return languages.CompletionItemKind.Field;
-      case 'Text':
-        return languages.CompletionItemKind.Text;
-      case 'Type':
-        return languages.CompletionItemKind.Class;
-      case 'Index':
-        return languages.CompletionItemKind.Reference;
-      case 'Sequence':
-        return languages.CompletionItemKind.Reference;
-      case 'Stage':
-        return languages.CompletionItemKind.Reference;
-      case 'Trigger':
-        return languages.CompletionItemKind.Function;
-      case 'Event':
-        return languages.CompletionItemKind.Event;
-      case 'Procedure':
-        return languages.CompletionItemKind.Function;
-      case 'Extension':
-        return languages.CompletionItemKind.Module;
-      case 'User':
-        return languages.CompletionItemKind.User;
-      case 'Role':
-        return languages.CompletionItemKind.User;
-      case 'Constraint':
-        return languages.CompletionItemKind.Operator;
-      case 'Partition':
-        return languages.CompletionItemKind.Constant;
-      case 'PrepareStatement':
-        return languages.CompletionItemKind.Function;
-      case 'Pragma':
-        return languages.CompletionItemKind.Keyword;
-      case 'Policy':
-        return languages.CompletionItemKind.Keyword;
-      case 'Variable':
-        return languages.CompletionItemKind.Variable;
-      case 'Rule':
-        return languages.CompletionItemKind.Operator;
-    }
-  }
-  return {
-    suggestions: xs.map((e): languages.CompletionItem => {
-      return {
-        label: e.item,
-        kind: getKind(e.kind),
-        insertText: e.item,
-        range: undefined,
-      };
-    }),
-  };
-}
-
 class DocsAndCount {
   constructor(public docs: BSON.Document[], public total: number) {}
 }
@@ -295,18 +174,6 @@ enum MongoDataViewModel {
 }
 
 const pageSizeOptions = [10, 20, 50, 100];
-
-// TODO Add more
-// if type large text should use multiline
-// textfield
-
-function isTypeLargeText(s: string): boolean {
-  const toUpper = s.toUpperCase();
-  if (toUpper.includes('TEXT')) {
-    return true;
-  }
-  return false;
-}
 
 function EditorBar(props: {
   left?: any;
@@ -562,16 +429,22 @@ function countLines(str) {
   return str.split('\n').length; // 按换行符分割并计算长度
 }
 
-function editorInitHeight(str, maxPrecent = 0.5): number {
+function editorInitHeight(str, lineHeigth, maxPrecent = 0.5): number {
   let lines = countLines(str);
   if (!lines) {
     lines = 10;
+  } else {
+    lines += 2;
   }
-  let height = lines * 22;
+  let height = lines * lineHeigth;
   let viewHeigth = getViewportSize().height;
   let maxHeigth = viewHeigth * maxPrecent;
   if (height > maxHeigth) {
     height = maxHeigth;
+  }
+  let minHeight = 200;
+  if (height < minHeight) {
+    height = minHeight;
   }
   return height;
 }
@@ -586,7 +459,10 @@ function SimpleResizeEditor(props: {
 }) {
   let { language, value, onMount, options, style, minHeigth } = props;
   const [pos, setPos] = useState<Position>(null);
-  let height = editorInitHeight(value);
+  let height = editorInitHeight(
+    value,
+    useContext(SettingsContext).editorFontSize * 1.2
+  );
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
   }
@@ -610,7 +486,6 @@ function SimpleResizeEditor(props: {
         flexDirection: 'column',
         resize: 'vertical',
         overflow: 'auto',
-        marginRight: '20px',
         ...style,
       }}
     >
@@ -649,34 +524,6 @@ const TabsSetContext = createContext<{
   setSelectIndex;
 }>(null);
 
-enum DataSourceKind {
-  Mysql,
-  MariaDB,
-  Sqlite,
-  Postgres,
-  MsSql,
-  Redis,
-  Mongo,
-}
-
-function connTypeToDataSourceKind(name: string): DataSourceKind {
-  switch (name) {
-    case 'mysql':
-      return DataSourceKind.Mysql;
-    case 'mariadb':
-      return DataSourceKind.MariaDB;
-    case 'redis':
-      return DataSourceKind.Redis;
-    case 'mongo':
-      return DataSourceKind.Mongo;
-    case 'sqlserver':
-      return DataSourceKind.MsSql;
-    case 'sqlite':
-      return DataSourceKind.Sqlite;
-    case 'postgres':
-      return DataSourceKind.Postgres;
-  }
-}
 const ConnTypeContext = createContext<{
   kind: DataSourceKind;
 }>(null);
@@ -719,12 +566,6 @@ interface DefAndMetas {
 }
 const progressBarSize = '30px';
 const progressBarSizeSmall = '20px';
-
-function getViewportSize() {
-  const width = window.innerWidth; // 获取视口的宽度
-  const height = window.innerHeight; // 获取视口的高度
-  return { width, height }; // 返回一个对象，包含宽度和高度
-}
 
 function MenuRefresh({ reload }) {
   return (
@@ -867,58 +708,6 @@ function MenuCloseConn({ handleClose, name }) {
       <ListItemText> close connection </ListItemText>
     </MenuItem>
   );
-}
-
-function calMenuStyle(e, eheigth: number): CSSProperties {
-  e.preventDefault();
-  const x = e.clientX;
-  const y = e.clientY;
-  let ret: CSSProperties = {};
-  const leftSizeMenuDom = document.getElementById('menu-div');
-  leftSizeMenuDom.style.display = 'block';
-  const { height, width } = getViewportSize();
-  ret.top = 'auto';
-  ret.bottom = 'auto';
-  ret.left = 'auto';
-  ret.right = 'auto';
-  const menuWidth = 150;
-  if (width - x > menuWidth) {
-    // this is click have a lot of space on the right
-    ret.left =
-      x -
-      10 + // 稍微靠左一点
-      'px';
-  } else {
-    ret.right = width - x - 10 + 'px';
-  }
-
-  if (height - y > eheigth) {
-    // 这个是点击的位置下面有很大的空间
-    ret.top = y - 10 + 'px';
-  } else {
-    ret.bottom = height - y - 10 + 'px';
-  }
-  return ret;
-}
-
-function chunkArray(array: any[], chunkSize: number): any[][] {
-  const result = [];
-  for (let i = 0; i < array.length; i += chunkSize) {
-    result.push(array.slice(i, i + chunkSize));
-  }
-  return result;
-}
-
-function errToString(message) {
-  if (typeof message == 'object' && 'reason' in message) {
-    // TODO show message
-    message = message['reason'];
-  }
-  if (typeof message == 'object' && message instanceof Error) {
-    // TODO show message
-    message = message.toString();
-  }
-  return message;
 }
 
 function ConnStatus({ uuid }) {
@@ -1208,18 +997,14 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
         autoCompletion
       );
       break;
+    case DataSourceKind.Mongo:
+      // here is no-op mongo use frontend to execute query
+      break;
+
     default:
       throw `impl this ${kind}`;
   }
   registeredLanguage.add(uuid);
-}
-
-function extractConfigNameFromUuid(uuid: string): string {
-  if (uuid.includes('/')) {
-    return uuid.substring(0, uuid.indexOf('/'));
-  } else {
-    return uuid;
-  }
 }
 
 async function makeQueryConnInfo(uuid: string) {
@@ -1317,23 +1102,94 @@ class QueryConn implements IQueryConn {
       });
   }
 }
+
+function extractBaseName(file) {
+  const fileName = file.match(/[^\\/]+$/)[0];
+  return fileName;
+}
+
+function LoadStoreQuery(props: {
+  file;
+  getQuery: () => string;
+  handleChange: (file, content) => void;
+  openOpt?: OpenDialogOptions;
+  saveOpt?: SaveDialogOptions;
+}) {
+  const { file, getQuery, handleChange, openOpt, saveOpt } = props;
+  const { showNotification } = useContext(NotificationContext);
+  const loadFile = async () => {
+    // ok to load
+    try {
+      let file = await open(openOpt);
+      if (file) {
+        const c = new TextDecoder().decode(await readFile(file));
+        handleChange(file, c);
+      }
+    } catch (e) {
+      showNotification('error', 'error to open file', e);
+    }
+  };
+  const handleSave = async () => {
+    try {
+      let ofile = file ? file : await save({ ...saveOpt });
+      if (ofile) {
+        await writeFile(ofile, new TextEncoder().encode(getQuery()), {
+          create: true,
+        });
+        handleChange(ofile, getQuery());
+        showNotification('success', 'save file OK');
+      }
+    } catch (e) {
+      showNotification('error', 'save file failed', e);
+    }
+  };
+
+  const handleClose = async () => {
+    try {
+      let fileContent = new TextDecoder().decode(await readFile(file));
+      if (fileContent != getQuery()) {
+        const confirm = await secondConfirm({
+          title: 'file not saved',
+          content: 'are u sure to discard the content',
+        });
+        if (!confirm) {
+          return;
+        }
+      }
+      handleChange(null, '');
+    } catch (e) {
+      showNotification('error', 'close file failed', e);
+    }
+  };
+
+  return (
+    <>
+      {file && (
+        <>
+          <Button onClick={handleClose}> close </Button>
+          <Tooltip title={file}>
+            <Typography> {extractBaseName(file)}</Typography>
+          </Tooltip>
+        </>
+      )}
+      <Button onClick={loadFile}>
+        <AttachFileIcon></AttachFileIcon>
+      </Button>
+
+      <Button onClick={handleSave}>save</Button>
+    </>
+  );
+}
+
 type MakeIQueryConn = () => Promise<IQueryConn>;
 
 export {
   modalStyle,
   SelectPageSize,
-  hexTryToUtf8,
-  stringToHexArray,
-  arrayToHex,
-  hexToUtf8,
-  hexToUint8Array,
-  stringToHex,
   MetaValuesView,
-  backendCompletionItemToEditor,
   DocsAndCount,
   MongoDataViewModel,
   pageSizeOptions,
-  isTypeLargeText,
   EditorBar,
   datagridRowHeight,
   datagridHeaderHeight,
@@ -1344,14 +1200,10 @@ export {
   tabsHasId,
   msgTimeout,
   UuidContext,
-  DataSourceKind,
-  connTypeToDataSourceKind,
   progressBarSize,
   MenuContext,
-  calMenuStyle,
   MenuRefresh,
   ConnTypeContext,
-  chunkArray,
   progressBarSizeSmall,
   extraParametersFromMetaValues,
   MenuDeleteConfig,
@@ -1378,6 +1230,7 @@ export {
   makeQueryConnInfo,
   QueryConn,
   AppStoreKey,
+  LoadStoreQuery,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn };

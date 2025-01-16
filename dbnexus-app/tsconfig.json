@@ -25,7 +25,9 @@
     "src/comp/SqlQuery_test.tsx",
     "src/comp/SqlTableView_test.tsx",
     "src/comp/QueryResp_test.tsx",
-    "src/comp/RedisQuery_test.tsx"
+    "src/comp/RedisQuery_test.tsx",
+    "src/comp/exampleTest.tsx",
+    "src/comp/MongoQuery_test.tsx"
   ],
 
   "references": [

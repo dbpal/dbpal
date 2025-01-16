@@ -1,12 +1,10 @@
 import { ReactNode, useContext, useEffect, useState } from 'react';
 import {
-  DataSourceKind,
   MenuContext,
   MenuRefresh,
   modalStyle,
   UuidContext,
   progressBarSizeSmall,
-  calMenuStyle,
   tabsHasId,
   TabsSetContext,
   ConnTypeContext,
@@ -63,6 +61,7 @@ import {
 } from './Redis';
 import { MongoTable } from './MongoDB';
 import { BSON } from 'bson';
+import { calMenuStyle, DataSourceKind } from './helper';
 
 function TablesTree() {
   const { uuid } = useContext(UuidContext);
@@ -135,8 +134,15 @@ function TableTree(props: {
 }) {
   let { table, reloadTables, size } = props;
   const { uuid } = useContext(UuidContext);
-  const { kind: conn_type } = useContext(ConnTypeContext);
+  const { kind } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(MenuContext);
+  let support_trigger =
+    kind == DataSourceKind.MariaDB ||
+    kind == DataSourceKind.MsSql ||
+    kind == DataSourceKind.Mysql ||
+    kind == DataSourceKind.Sqlite ||
+    kind == DataSourceKind.Postgres;
+
   return (
     <TreeItem
       itemId={uuid + '-table-' + table}
@@ -150,7 +156,7 @@ function TableTree(props: {
             setUpMenu({
               content: (
                 <TableMenu
-                  kind={conn_type}
+                  kind={kind}
                   reload={reloadTables}
                   table={table}
                   uuid={uuid}
@@ -168,7 +174,7 @@ function TableTree(props: {
       }
     >
       <TableColumnsTree table={table}></TableColumnsTree>
-      <TriggersTree table={table}></TriggersTree>
+      {support_trigger && <TriggersTree table={table}></TriggersTree>}
       <LeftIndexes table={table}></LeftIndexes>
     </TreeItem>
   );
@@ -997,7 +1003,7 @@ async function makeViewTable(
           }}
           loadOne={async (id) => {
             try {
-              let x = await invoke('mongo_get_one_document', {
+              let x = await invoke<number[]>('mongo_get_one_document', {
                 name: uuid,
                 tableName: table,
                 id: id.toHexString(),

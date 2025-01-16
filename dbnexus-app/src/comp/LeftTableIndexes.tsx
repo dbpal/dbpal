@@ -1,6 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
 import {
-  calMenuStyle,
   MenuContext,
   MenuRefresh,
   modalStyle,
@@ -28,6 +27,7 @@ import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { secondConfirm } from './Confirm';
+import { calMenuStyle } from './helper';
 
 function LeftIndexes(props: { table: string }) {
   const { table } = props;

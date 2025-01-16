@@ -12,9 +12,7 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
 
 import {
-  calMenuStyle,
   ConnTypeContext,
-  DataSourceKind,
   extraParametersFromMetaValues,
   initMonacoLanague,
   MenuContext,
@@ -30,6 +28,7 @@ import { TabContent } from './Tabs';
 import { DefAndMetasView } from './UdfAndMetaView';
 import { secondConfirm } from './Confirm';
 import { TbMathFunction } from 'react-icons/tb';
+import { calMenuStyle, DataSourceKind } from './helper';
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);

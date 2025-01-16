@@ -11,11 +11,12 @@ import {
 import { useContext, useState } from 'react';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
-import { DataSourceKind, progressBarSize } from './Common';
+import { progressBarSize } from './Common';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { save } from '@tauri-apps/plugin-dialog';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';
+import { DataSourceKind } from './helper';
 function ExportView(props: {
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
   support_kind: string[];

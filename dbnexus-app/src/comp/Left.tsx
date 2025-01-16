@@ -13,16 +13,13 @@ import {
 import { useContext, useEffect, useState } from 'react';
 
 import {
-  connTypeToDataSourceKind,
   UuidContext,
   ConnTypeContext,
   MenuNewQuery,
   MenuDeleteConfig,
   MenuContext,
-  calMenuStyle,
   ConnStatus,
   progressBarSizeSmall,
-  DataSourceKind,
   appStore,
   AppStoreKey,
   MenuOpenConn,
@@ -58,9 +55,15 @@ import { UdfsTree } from './LeftUdf.tsx';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { debug } from './debug';
 import { TabContent } from './Tabs';
-import { generateRandomString } from './helper';
+import {
+  calMenuStyle,
+  connTypeToDataSourceKind,
+  DataSourceKind,
+  generateRandomString,
+} from './helper';
 import { SqlQuery } from './SqlQuery';
 import { RedisQuery } from './RedisQuery';
+import { MongoQuery } from './MongoQuery.tsx';
 function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
@@ -284,7 +287,7 @@ function DatabaseMenu(props: {
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
         )}
 
-        {opened && (
+        {opened && kind != DataSourceKind.Mongo && (
           <MenuNewQuery
             handle={() => {
               openNewQuery(setSelectIndex, setTabs, uuid, kind);
@@ -474,7 +477,8 @@ async function openNewQuery(
 
       break;
     default:
-      throw 'impl this';
+      content = <MongoQuery uuid={uuid}></MongoQuery>;
+      break;
   }
 
   setTabs((e: TabContent[]) => {

@@ -3,7 +3,6 @@ import {
   MenuContext,
   MenuRefresh,
   progressBarSizeSmall,
-  calMenuStyle,
   tabsHasId,
   TabsSetContext,
   UuidContext,
@@ -30,6 +29,7 @@ import { TriggerDetail } from './TriggerDetail';
 import InfoIcon from '@mui/icons-material/Info';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
+import { calMenuStyle } from './helper';
 function TriggersTree(props: { table: string }) {
   const { uuid } = useContext(UuidContext);
   let { table } = props;
@@ -46,7 +46,7 @@ function TriggersTree(props: { table: string }) {
       })
       .catch((e) => {
         setLoading(false);
-        showNotification('error', 'list view failed', e);
+        showNotification('error', 'list trigger failed', e);
       });
   };
   useEffect(() => {

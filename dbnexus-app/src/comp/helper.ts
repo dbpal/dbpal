@@ -1,6 +1,11 @@
 /// random throw of something
 /// used in test
 
+
+import { languages } from "monaco-editor";
+import types from "./ApiStruct";
+import { CSSProperties } from "react";
+
 async function randomTestThrowFunction() {
   await delayedReturn(undefined, Math.random() * 900);
   const v = Math.random();
@@ -44,10 +49,261 @@ function delayedReturn(value: any, delay: number) {
   });
 }
 
+// redis的数据存储的时候都是二进制 有时候包含的是有效的
+// utf8字符前台的处理的最好当成utf8来处理
+// 不然当成二进制数据来处理呢
+// 后台放回数据的时候都是 hex string模式
+
+function hexTryToUtf8(hex): string | Uint8Array {
+  if (!hex) {
+    return '';
+  }
+  // 将十六进制字符串转换为字节数组
+  const bytes = [];
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.substr(i, 2), 16));
+  }
+  // 将字节数组转换为 UTF-8 字符串
+  let utf8String: string;
+
+  try {
+    utf8String = new TextDecoder('utf-8', { fatal: true }).decode(
+      new Uint8Array(bytes)
+    );
+  } catch {
+    return new Uint8Array(bytes);
+  }
+  return utf8String;
+}
+
+function hexToUint8Array(hex) {
+  if (!hex) {
+    return new Uint8Array([]);
+  }
+  const bytes = [];
+
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.substr(i, 2), 16));
+  }
+  return new Uint8Array(bytes);
+}
+function hexToUtf8(hex: string): string {
+  if (!hex) {
+    return '';
+  }
+  // 将十六进制字符串转换为字节数组
+  const bytes = [];
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.substr(i, 2), 16));
+  }
+  return new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+}
+
+
+function stringToHexArray(str: string): Uint8Array {
+  // 创建一个 Uint8Array 来存储字节
+  const bytes = new TextEncoder().encode(str);
+  return bytes;
+}
+
+function arrayToHex(uint8Array: Uint8Array | number[]) {
+  return Array.from(uint8Array) // 将 Uint8Array 转换为普通数组
+    .map((byte) => byte.toString(16).padStart(2, '0')) // 转换每个字节为十六进制并补齐
+    .join(''); // 连接为一个字符串
+}
+
+function stringToHex(str): string {
+  return arrayToHex(stringToHexArray(str));
+}
+
+
+function backendCompletionItemToEditor(
+  xs: types.CompletionItem[]
+): languages.CompletionList {
+  function getKind(kind: types.CompletionKind): languages.CompletionItemKind {
+    switch (kind) {
+      case 'Command':
+        return languages.CompletionItemKind.Keyword;
+      case 'KeyWord':
+        return languages.CompletionItemKind.Keyword;
+      case 'Function':
+        return languages.CompletionItemKind.Function;
+      case 'Database':
+        return languages.CompletionItemKind.Module;
+      case 'Schema':
+        return languages.CompletionItemKind.Folder;
+      case 'Table':
+        return languages.CompletionItemKind.File;
+      case 'Column':
+        return languages.CompletionItemKind.Field;
+      case 'Text':
+        return languages.CompletionItemKind.Text;
+      case 'Type':
+        return languages.CompletionItemKind.Class;
+      case 'Index':
+        return languages.CompletionItemKind.Reference;
+      case 'Sequence':
+        return languages.CompletionItemKind.Reference;
+      case 'Stage':
+        return languages.CompletionItemKind.Reference;
+      case 'Trigger':
+        return languages.CompletionItemKind.Function;
+      case 'Event':
+        return languages.CompletionItemKind.Event;
+      case 'Procedure':
+        return languages.CompletionItemKind.Function;
+      case 'Extension':
+        return languages.CompletionItemKind.Module;
+      case 'User':
+        return languages.CompletionItemKind.User;
+      case 'Role':
+        return languages.CompletionItemKind.User;
+      case 'Constraint':
+        return languages.CompletionItemKind.Operator;
+      case 'Partition':
+        return languages.CompletionItemKind.Constant;
+      case 'PrepareStatement':
+        return languages.CompletionItemKind.Function;
+      case 'Pragma':
+        return languages.CompletionItemKind.Keyword;
+      case 'Policy':
+        return languages.CompletionItemKind.Keyword;
+      case 'Variable':
+        return languages.CompletionItemKind.Variable;
+      case 'Rule':
+        return languages.CompletionItemKind.Operator;
+    }
+  }
+  return {
+    suggestions: xs.map((e): languages.CompletionItem => {
+      return {
+        label: e.item,
+        kind: getKind(e.kind),
+        insertText: e.item,
+        range: undefined,
+      };
+    }),
+  };
+}
+
+function extractConfigNameFromUuid(uuid: string): string {
+  if (uuid.includes('/')) {
+    return uuid.substring(0, uuid.indexOf('/'));
+  } else {
+    return uuid;
+  }
+}
+function getViewportSize() {
+  const width = window.innerWidth; // 获取视口的宽度
+  const height = window.innerHeight; // 获取视口的高度
+  return { width, height }; // 返回一个对象，包含宽度和高度
+}
+
+function calMenuStyle(e, eheigth: number): CSSProperties {
+  e.preventDefault();
+  const x = e.clientX;
+  const y = e.clientY;
+  let ret: CSSProperties = {};
+  const leftSizeMenuDom = document.getElementById('menu-div');
+  leftSizeMenuDom.style.display = 'block';
+  const { height, width } = getViewportSize();
+  ret.top = 'auto';
+  ret.bottom = 'auto';
+  ret.left = 'auto';
+  ret.right = 'auto';
+  const menuWidth = 150;
+  if (width - x > menuWidth) {
+    // this is click have a lot of space on the right
+    ret.left =
+      x -
+      10 + // 稍微靠左一点
+      'px';
+  } else {
+    ret.right = width - x - 10 + 'px';
+  }
+
+  if (height - y > eheigth) {
+    // 这个是点击的位置下面有很大的空间
+    ret.top = y - 10 + 'px';
+  } else {
+    ret.bottom = height - y - 10 + 'px';
+  }
+  return ret;
+}
+
+function chunkArray(array: any[], chunkSize: number): any[][] {
+  const result = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    result.push(array.slice(i, i + chunkSize));
+  }
+  return result;
+}
+
+function errToString(message) {
+  if (typeof message == 'object' && 'reason' in message) {
+    // TODO show message
+    message = message['reason'];
+  }
+  if (typeof message == 'object' && message instanceof Error) {
+    // TODO show message
+    message = message.toString();
+  }
+  return message;
+}
+
+enum DataSourceKind {
+  Mysql,
+  MariaDB,
+  Sqlite,
+  Postgres,
+  MsSql,
+  Redis,
+  Mongo,
+}
+
+function connTypeToDataSourceKind(name: string): DataSourceKind {
+  switch (name) {
+    case 'mysql':
+      return DataSourceKind.Mysql;
+    case 'mariadb':
+      return DataSourceKind.MariaDB;
+    case 'redis':
+      return DataSourceKind.Redis;
+    case 'mongo':
+      return DataSourceKind.Mongo;
+    case 'sqlserver':
+      return DataSourceKind.MsSql;
+    case 'sqlite':
+      return DataSourceKind.Sqlite;
+    case 'postgres':
+      return DataSourceKind.Postgres;
+  }
+}
+function isTypeLargeText(s: string): boolean {
+  const toUpper = s.toUpperCase();
+  if (toUpper.includes('TEXT')) {
+    return true;
+  }
+  return false;
+}
 export {
   randomTestThrowFunction,
   generateRandomString,
   delayedReturn,
   voidTestFunction,
   generateRandomUint8Array,
+  hexTryToUtf8,
+  hexToUtf8,
+  hexToUint8Array,
+  stringToHexArray,
+  arrayToHex,
+  stringToHex,
+  backendCompletionItemToEditor,
+  extractConfigNameFromUuid,
+  calMenuStyle, chunkArray,
+  errToString,
+  getViewportSize,
+  isTypeLargeText,
+  DataSourceKind,
+  connTypeToDataSourceKind,
 };

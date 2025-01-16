@@ -1,12 +1,10 @@
 import { ReactNode, useContext, useEffect, useState } from 'react';
 import {
   ConnTypeContext,
-  DataSourceKind,
   MenuContext,
   MenuRefresh,
   UuidContext,
   progressBarSizeSmall,
-  calMenuStyle,
   tabsHasId,
   TabsSetContext,
   modalStyle,
@@ -36,6 +34,7 @@ import ListIcon from '@mui/icons-material/List';
 import { SqlTableView } from './SqlTableView';
 import { TabContent } from './Tabs';
 import { ExportTableOrView } from './Export';
+import { calMenuStyle, DataSourceKind } from './helper';
 
 enum ViewKind {
   Normal,

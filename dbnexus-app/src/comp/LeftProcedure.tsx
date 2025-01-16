@@ -11,9 +11,7 @@ import { useContext, useEffect, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
 import {
-  calMenuStyle,
   ConnTypeContext,
-  DataSourceKind,
   extraParametersFromMetaValues,
   initMonacoLanague,
   MenuContext,
@@ -29,6 +27,7 @@ import { TabContent } from './Tabs';
 import { DefAndMetasView } from './UdfAndMetaView';
 import { secondConfirm } from './Confirm';
 import { SiProcessingfoundation } from 'react-icons/si';
+import { calMenuStyle, DataSourceKind } from './helper';
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);

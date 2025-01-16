@@ -1,6 +1,6 @@
 import { types } from './ApiStruct.ts';
-import { stringToHexArray, arrayToHex, DocsAndCount } from './Common.tsx';
-import { generateRandomString, generateRandomUint8Array } from './helper.ts';
+import { DocsAndCount } from './Common.tsx';
+import { arrayToHex, generateRandomString, generateRandomUint8Array, stringToHexArray } from './helper.ts';
 import { BSON } from 'bson';
 
 function testRedisZset(
