@@ -14,7 +14,7 @@ import {
 import ListIcon from '@mui/icons-material/List';
 import { loader } from '@monaco-editor/react';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import AddIcon from '@mui/icons-material/Add';
 import {
   bsonValue2MongoBson,
   formatMongoBsonStr,
@@ -24,14 +24,10 @@ import {
 } from './MongoBsonCompiler';
 
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { BSON, ObjectId } from 'bson';
+import { BSON } from 'bson';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
-import {
-  DataGrid,
-  GridPaginationModel,
-  GridRowSelectionModel,
-} from '@mui/x-data-grid';
+import { DataGrid, GridPaginationModel } from '@mui/x-data-grid';
 
 import {
   DocsAndCount,
@@ -49,7 +45,6 @@ import {
 } from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
-import { secondConfirm } from './Confirm';
 
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code|float32|int8)\b/;
@@ -154,7 +149,12 @@ function initMongoBsonLanguage() {
     monaco.languages.setMonarchTokensProvider('mongoBson', {
       ignoreCase: true,
       tokenizer: {
-        root: [[mongoBsonKeywords, 'keyword']],
+        root: [
+          [mongoBsonKeywords, 'keyword'],
+          [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+          [/\'(?:\\.|[^\\\'])*\'/, 'string'],
+          [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+        ],
       },
     });
 
@@ -374,6 +374,7 @@ function MongoTableListToolBar(props: {
   filter: BSON.Document;
   viewModel: MongoDataViewModel;
   handleViewModel: (doc: MongoDataViewModel) => void;
+  addOP: (doc: BSON.Document) => Promise<void>;
 }) {
   const {
     handleReload,
@@ -395,7 +396,7 @@ function MongoTableListToolBar(props: {
       setLoading(false);
     });
   };
-
+  const doAdd = () => {};
   useEffect(() => {
     handleViewModel(viewModel);
   }, [viewModel]);
@@ -477,11 +478,19 @@ function MongoTableListToolBar(props: {
 
         <Button
           size="small"
-          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
-          color="primary" // 主题颜色
-          onClick={doReload} // 点击事件处理
+          variant="contained"
+          color="primary"
+          onClick={doReload}
         >
           Reload
+        </Button>
+        <Button
+          size="small"
+          variant="contained"
+          color="primary"
+          onClick={doReload}
+        >
+          <AddIcon></AddIcon>
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
@@ -528,9 +537,9 @@ function MongoTable(props: {
     page: number,
     pageSize: number
   ) => Promise<DocsAndCount>;
-  loadOne: (id: BSON.ObjectId) => Promise<BSON.Document>;
+  loadOne: (id: any) => Promise<BSON.Document>;
   modifyOP: (doc: BSON.Document) => Promise<void>;
-  deleteOP: (ids: string[]) => Promise<void>;
+  deleteOP: (ids: any[]) => Promise<void>;
 }) {
   const { reloadOPTableList, loadOne, modifyOP, realodOPDocs, deleteOP } =
     props;
@@ -547,7 +556,6 @@ function MongoTable(props: {
   const [docs, setDocs] = useState<DocsAndCount | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
-  const [selectIDs, setSelectIDs] = useState([]);
 
   const handleReload = (showOK: boolean) => {
     const handleReloadTableList = async () => {
@@ -565,11 +573,6 @@ function MongoTable(props: {
     const handleReloadDocs = async () => {
       realodOPDocs(filter, orderBy, page + 1, pageSize)
         .then((resp) => {
-          // wired Some _id is a string
-          if (resp.docs.find((e) => !(e['_id'] instanceof BSON.ObjectId))) {
-            showNotification('error', 'found doc _id not a ObjectId');
-            return;
-          }
           setDocs(resp);
           if (showOK) {
             reloadOK(showNotification);
@@ -586,28 +589,20 @@ function MongoTable(props: {
     }
   };
 
-  const handleDetele = (ids: string[]) => {
-    secondConfirm({
-      title: 'Delete data',
-      content: `are u sure delte those ${ids.join(',')} data`,
-      confirmText: 'Delete',
-    }).then((confirm) => {
-      if (confirm) {
-        deleteOP(ids)
-          .then(() => {
-            showNotification('success', 'Delete OK');
-            handleReload(false);
-          })
-          .catch((e) => {
-            showNotification('error', 'Delete failure', e);
-          });
-      }
-    });
+  const handleDetele = async (ids: any[]) => {
+    deleteOP(ids)
+      .then(() => {
+        showNotification('success', 'Delete OK');
+        handleReload(false);
+      })
+      .catch((e) => {
+        showNotification('error', 'Delete failure', e);
+      });
   };
 
-  const handleLoadOne = async (id: string) => {
+  const handleLoadOne = async (id: any) => {
     try {
-      let x = await loadOne(new BSON.ObjectId(id));
+      let x = await loadOne(id);
       return x;
     } catch (e) {
       showNotification('error', 'fetch data failed', e);
@@ -619,14 +614,14 @@ function MongoTable(props: {
   }, [page, pageSize, viewModel, filter, orderBy]);
 
   const getRowId = useCallback((e) => {
-    return e._id; // in this case object been convert to hexstring
+    return e._id;
   }, []);
   const onPaginationModelChange = useCallback((m: GridPaginationModel) => {
     setPage(m.page);
     setPageSize(m.pageSize);
   }, []);
   const onRowDoubleClick = useCallback((e) => {
-    handleLoadOne(e.id as string).then((doc) => {
+    handleLoadOne(e.id).then((doc) => {
       setSelectModifyDoc(doc);
     });
   }, []);
@@ -648,9 +643,6 @@ function MongoTable(props: {
     setOrderby(order);
   }, []);
 
-  const onRowSelectionModelChange = useCallback((e: GridRowSelectionModel) => {
-    setSelectIDs(e as string[]);
-  }, []);
   const vis = useContext(VisiableContext);
   return (
     <Stack spacing={1} style={{ width: '99%' }}>
@@ -675,19 +667,6 @@ function MongoTable(props: {
       {/* // datagrid modeal */}
       {resp && viewModel == MongoDataViewModel.List && (
         <Stack spacing={1}>
-          <Stack direction="row">
-            <Button
-              size="small"
-              variant="contained"
-              color="error"
-              disabled={selectIDs.length == 0}
-              onClick={() => {
-                handleDetele(selectIDs);
-              }}
-            >
-              <DeleteForeverIcon color="error"></DeleteForeverIcon>
-            </Button>
-          </Stack>
           {vis && (
             <div style={{ display: 'grid' }}>
               <DataGrid
@@ -706,7 +685,6 @@ function MongoTable(props: {
                 onRowDoubleClick={onRowDoubleClick}
                 sortingMode="server"
                 onSortModelChange={onSortModelChange}
-                onRowSelectionModelChange={onRowSelectionModelChange}
               ></DataGrid>
             </div>
           )}
@@ -745,7 +723,7 @@ function MongoTable(props: {
           {docs.docs.map((doc) => {
             return (
               <MongoBsonEditor
-                key={(doc._id as BSON.ObjectId).toHexString()}
+                key={doc._id}
                 doc={doc}
                 handleChange={() => {
                   // here need do nothing
@@ -764,11 +742,10 @@ function MongoTable(props: {
                     },
                   },
                   {
-                    buttonConent: 'delte',
+                    buttonConent: 'delete',
                     color: 'error',
-
                     callBack: (_) => {
-                      handleDetele([(doc._id as ObjectId).toHexString()]);
+                      handleDetele([doc._id]);
                     },
                   },
                 ]}
@@ -804,7 +781,6 @@ function MongoTableAdd(props: {
   addOP: (doc: BSON.Document) => Promise<void>;
 }) {
   let { addOP } = props;
-
   const { showNotification } = useContext(NotificationContext);
   const [doc, setDoc] = useState({});
   const handleAdd = () => {

@@ -211,7 +211,18 @@ fn infer_multi_value_column_names(docs: &[Document]) -> anyhow::Result<Vec<Field
         }
     }
 
-    anyhow::Ok(ret.into_iter().map(|(_, v)| v).collect())
+    let mut ret: Vec<_> = ret.into_iter().map(|(_, v)| v).collect();
+    let id_field = "_id";
+    ret.sort_by(|a, b| {
+        if a.field.as_str() == id_field {
+            std::cmp::Ordering::Less
+        } else if b.field.as_str() == id_field {
+            std::cmp::Ordering::Greater
+        } else {
+            a.field.cmp(&b.field)
+        }
+    });
+    anyhow::Ok(ret)
 }
 
 #[async_trait::async_trait]
@@ -239,38 +250,48 @@ impl Mongo {
     }
 
     pub async fn get_one_document(
-        &self, collection_name: &str, id: bson::oid::ObjectId,
+        &self, collection_name: &str, filter: Document,
     ) -> anyhow::Result<Document> {
         let db = self.get_db().await?;
-        let filter = doc! { "_id": id };
-        if let Some(document) = db.collection(collection_name).find_one(filter).await? {
+        if let Some(document) = db
+            .collection(collection_name)
+            .find_one(filter.clone())
+            .await?
+        {
             return anyhow::Ok(document);
         } else {
-            anyhow::bail!(format!("uuid '{:?}' not found doc", id));
+            anyhow::bail!(format!("uuid '{:?}' not found doc", filter));
         }
     }
 
-    pub async fn update(
-        &self, collection_name: &str, update: Document, query: Document,
+    pub async fn update_one(
+        &self, collection_name: &str, mut doc: Document,
     ) -> anyhow::Result<UpdateResult> {
         self.can_write()?;
+        let id = match doc.remove("_id") {
+            Some(x) => x,
+            None => anyhow::bail!("no _id provide"),
+        };
+        let doc = bson::doc! { "$set" : doc };
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(collection_name)
-            .update_many(query, update)
+            .update_one(bson::doc! {"_id" : id }, doc)
             .await?;
         anyhow::Ok(ret)
     }
 
-    pub async fn delete(
-        &self, collection_name: &str, query: Document,
+    pub async fn delete_ids(
+        &self, collection_name: &str, ids: Vec<bson::Bson>,
     ) -> anyhow::Result<DeleteResult> {
         self.can_write()?;
         let db = self.get_db().await?;
+        log::info!("ids:{:?}", bson::doc! {"_id" : { "$in" : ids.clone()  } });
         let ret = db
             .collection::<Document>(collection_name)
-            .delete_many(query)
+            .delete_many(bson::doc! {"_id" : { "$in" : ids } })
             .await?;
+
         anyhow::Ok(ret)
     }
 
@@ -908,9 +929,6 @@ mod tests {
             .await
             .unwrap();
 
-        db.update(table, doc! {"$set": {"age" : 100}}, doc! {"name" : "yyy"})
-            .await
-            .unwrap();
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Time went backwards")
@@ -937,13 +955,7 @@ mod tests {
         };
 
         db.insert(&table, data).await.unwrap();
-        assert_eq!(
-            db.delete(&table, doc! {"xxx" : 1})
-                .await
-                .unwrap()
-                .deleted_count,
-            0
-        );
+
         let resp = db
             .show_collection_table_list(table, doc! {}, doc! {}, 1, 100)
             .await

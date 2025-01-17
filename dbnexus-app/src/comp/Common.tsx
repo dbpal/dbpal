@@ -442,7 +442,6 @@ function editorInitHeight(
   } else {
     lines += 2;
   }
-  console.log('!!!!!!!!!!!!!!!!!!!!', str, lines);
 
   let height = lines * lineHeigth;
   let viewHeigth = getViewportSize().height;

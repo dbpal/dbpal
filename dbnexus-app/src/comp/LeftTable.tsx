@@ -60,7 +60,7 @@ import {
   RedisZsetTable,
 } from './Redis';
 import { MongoTable } from './MongoDB';
-import { BSON } from 'bson';
+import { BSON, EJSON } from 'bson';
 import { calMenuStyle, DataSourceKind } from './helper';
 
 function TablesTree() {
@@ -1004,18 +1004,31 @@ async function makeViewTable(
               throw e;
             }
           }}
+          modifyOP={async (doc) => {
+            return invoke('mongo_update_one', {
+              name: uuid,
+              tableName: table,
+              doc: BSON.serialize(doc),
+            });
+          }}
           loadOne={async (id) => {
             try {
               let x = await invoke<number[]>('mongo_get_one_document', {
                 name: uuid,
                 tableName: table,
-                id: id.toHexString(),
+                id: JSON.stringify(id),
               });
-
               return BSON.deserialize(new Uint8Array(x));
             } catch (e) {
               throw e;
             }
+          }}
+          deleteOP={async (ids) => {
+            return invoke('mongo_delete_ids', {
+              name: uuid,
+              tableName: table,
+              ids: JSON.stringify(EJSON.serialize(ids)),
+            });
           }}
         ></MongoTable>
       );
