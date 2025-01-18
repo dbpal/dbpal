@@ -17,7 +17,7 @@ dbnexus-db = { path = "dbnexus-db" }
 # crates.io dependencies
 serde_json = "1.0"
 async-trait = "0.1"
-sqlx = { git = "https://github.com/launchbadge/sqlx", rev = "028084bce3a741e995c3e6c559c6dbb27a62534d", features = [
+sqlx = { version = "0.8.3", features = [
     "runtime-tokio",
     "postgres",
     "sqlite",
@@ -44,13 +44,11 @@ anyhow = "1.0"
 serde = "1.0"
 hex = "0.4.3"
 mac_address = "1.1.5"
-ipnetwork = "0.20.0"
+ipnetwork = "0.20"
 chrono = "0.4.34"
 bit-vec = "0.6.3"
 
-sqlparser = { git = "https://github.com/apache/datafusion-sqlparser-rs", rev = "5a510ac4d9715528ad5c518bf1ce0719cc813b8c", features = [
-    "serde",
-] }
+sqlparser = { version = "0.53.0", features = ["serde"] }
 lazy_static = "1.5.0"
 line-index = "0.1.1"
 log = "0.4.22"
@@ -67,13 +65,13 @@ tiberius = { version = "0.12.3", default-features = false, features = [
 ] }
 tokio-util = "*"
 rust_decimal = "*"
-bb8-tiberius = "*"
-bb8 = "0.8.6"
+bb8-tiberius = "0.16"
+bb8 = "0.9"
 fuzzy-matcher = "*"
 pg_interval = "*"
 uuid = { version = "*", features = ["v4"] }
 typescript-type-def = "0.5.11"
-sqlformat = "0.3.0"
+sqlformat = "0.3.5"
 bson = { version = "*" }
 
-env_logger = "0.11.5"
+env_logger = "0.11.6"

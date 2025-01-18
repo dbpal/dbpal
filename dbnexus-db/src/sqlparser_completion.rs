@@ -1091,18 +1091,13 @@ impl CompletionStament {
                     return;
                 }
             }
-            Statement::CreateFunction {
-                name,
-                args,
-                function_body,
-                ..
-            } => {
-                if self.in_pos(&name.span()) {
+            Statement::CreateFunction(create_f) => {
+                if self.in_pos(&create_f.name.span()) {
                     self.set_on_def();
                     return;
                 }
                 let mut vars = HashMap::new();
-                if let Some(args) = args {
+                if let Some(args) = &create_f.args {
                     for a in args.iter() {
                         if let Some(name) = &a.name {
                             if self.in_pos(&name.span) {
@@ -1125,7 +1120,7 @@ impl CompletionStament {
                 let _gurad = self.scopes.push(Scope::from_vars(vars));
                 // TODO why just a expr.
                 // due to this https://github.com/apache/datafusion-sqlparser-rs/issues/1356
-                if let Some(x) = function_body {
+                if let Some(x) = &create_f.function_body {
                     match x {
                         CreateFunctionBody::AsBeforeOptions(expr) => {
                             self.c_on_expr(expr).await;

@@ -740,6 +740,12 @@ impl CompletionStament {
                 AlterTableOperation::OwnerTo { .. } => {
                     // no need
                 }
+                AlterTableOperation::ClusterBy { exprs: _ } => {
+                    //  Snowflake
+                }
+                AlterTableOperation::DropClusteringKey => {}
+                AlterTableOperation::SuspendRecluster => {}
+                AlterTableOperation::ResumeRecluster => {}
             }
         }
     }
@@ -2070,10 +2076,13 @@ impl CompletionStament {
                 }
                 s.from_tables.push(FromTableOrTemp::from(name.clone()));
                 if let Some(alias) = alias {
-                    if self.in_pos(&alias.name.span) {
-                        self.set_on_def();
-                        return;
-                    }
+                    // this is a alias but we often end in situation like this
+                    // `select * from test ...`
+                    // here we need completion on where order etc lexer elements
+                    // if self.in_pos(&alias.name.span) {
+                    //     self.set_on_def();
+                    //     return;
+                    // }
                     //TODO alias have column definition.
                     s.enter_table(alias.name.clone(), name.clone());
                 } else {

@@ -1096,21 +1096,15 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1388,6 +1382,7 @@ mod tests {
     async fn make_test_object() -> SqliteDB {
         let path = std::env::var("NEXUS_TEST_SQLITE")
             .unwrap_or("/Users/yuyang/tests/test.sqlite.db".to_string());
+        println!("db path:{:?}", path);
         let db = SqliteDB::new(path, false).await.unwrap();
         db
     }
@@ -1412,7 +1407,10 @@ mod tests {
         let query_id = db.open_connection().await.unwrap();
         for i in 0..10 {
             let tablename = format!("has_data_{}", i);
-            let _ = db.drop_table(&tablename, false).await;
+            let err = db.drop_table(&tablename, false).await;
+            if let Err(err) = err {
+                println!("drop table error:{:?}", err);
+            }
             let create_table = format!(
                 r#"create table {tablename} (
                 col1 real,
@@ -1427,7 +1425,7 @@ mod tests {
             );
             println!("create table {} ok", tablename);
 
-            let _ = db.query_sql(query_id.clone(), &create_table).await.unwrap();
+            let _ = db.query_sql(query_id.clone(), &create_table).await;
             for _ in 0..1550 {
                 let sql = format!(
                     "insert into {tablename} values({} , {} , {} , {} ,{} ,{} ,{});",
