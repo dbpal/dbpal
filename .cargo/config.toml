@@ -1,3 +1,10 @@
+
+
+# This line needs to come before anything else in Cargo.toml
+cargo-features = ["codegen-backend"]
+
+[profile.dev]
+codegen-backend = "cranelift"
 [target.x86_64-pc-windows-msvc]
 rustflags = [
 	"-C", "link-arg=/STACK:8000000"
@@ -8,3 +15,5 @@ rustflags = [
 rustflags = [
     "-C", "link-arg=-Wl,--stack,8000000"
 ]
+
+
