@@ -4,13 +4,13 @@ import { NotificationContext } from './Notification';
 import { Button, CircularProgress, Stack, Typography } from '@mui/material';
 import {
   DefAndMetas,
-  MetaValuesView,
   progressBarSize,
   SettingsContext,
   SimpleResizeEditor,
 } from './Common';
 
 import { Variant } from '@mui/material/styles/createTypography';
+import { MetaValuesView } from './CommonComp';
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;

@@ -22,9 +22,28 @@ import {
   MongoBsonError,
   parseMongoBson,
 } from './MongoBsonCompiler';
-
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { BSON } from 'bson';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  CSSProperties,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  Binary,
+  BSON,
+  BSONRegExp,
+  Code,
+  Decimal128,
+  Double,
+  EJSON,
+  Int32,
+  Long,
+  ObjectId,
+  Timestamp,
+} from 'bson';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
 import { DataGrid, GridPaginationModel } from '@mui/x-data-grid';
@@ -35,16 +54,16 @@ import {
   MongoDataViewModel,
   pageSizeOptions,
   SelectPageSize,
-  datagridRowHeight,
-  datagridHeaderHeight,
   editorInitHeight,
   progressBarSize,
   SettingsContext,
   VisiableContext,
   reloadOK,
+  keyNotInTable,
 } from './Common';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
+import { datagridHeaderHeight, datagridRowHeight } from './CommonComp';
 
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code|float32|int8)\b/;
@@ -200,43 +219,44 @@ interface MongoBsonEditorCallback {
 
 function MongoBsonEditor(props: {
   doc: BSON.Document;
-  handleChange: (doc: BSON.Document) => void;
   buttons: MongoBsonEditorCallback[];
 }) {
-  let { doc, handleChange, buttons } = props;
-  //@ts-ignore
-  let [content, setContent] = useState(bsonValue2MongoBson(doc).format());
-
-  const [cursorLine, setCursorLine] = useState(1);
-  const [cursorColumn, setCursorColumn] = useState(1);
-  const [err, setErr] = useState<MongoBsonError | null>(null);
+  let { doc, buttons } = props;
+  let [editor, setEditor] = useState<editor.IStandaloneCodeEditor>();
+  const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
+  const [err, setErr] = useState<MongoBsonError>(null);
   const { theme } = useContext(SettingsContext);
-  const handleEditorDidMount = (ce: editor.IStandaloneCodeEditor, monaco) => {
-    ce.onDidChangeModelContent((_event) => {
-      let text = ce.getValue();
-      try {
-        let d = parseMongoBson(text).compile();
-        setErr(null);
-        handleChange(d);
+
+  const handleEditorDidMount = useCallback(
+    (ce: editor.IStandaloneCodeEditor, monaco) => {
+      setEditor(ce);
+      ce.onDidChangeModelContent((_event) => {
+        let text = ce.getValue();
         setDocHasChange(true);
-      } catch (e) {
-        setErr(e);
-        return;
+        try {
+          parseMongoBson(text);
+        } catch (e) {
+          setErr(e);
+        }
+      });
+      ce.onDidChangeCursorPosition((event) => {
+        setPos(event.position);
+      });
+      if (theme == 'dark') {
+        monaco.editor.setTheme('vs-dark');
       }
-    });
-    ce.onDidChangeCursorPosition((event) => {
-      setCursorLine(event.position.lineNumber);
-      setCursorColumn(event.position.column);
-    });
-    if (theme == 'dark') {
-      monaco.editor.setTheme('vs-dark');
-    }
-  };
-  const initHeigth = editorInitHeight(
-    content,
-    useContext(SettingsContext).editorFontSize * 1.2,
-    150
+    },
+    []
+  );
+  const [content, _setcontent] = useState(bsonValue2MongoBson(doc).format());
+  const { showNotification } = useContext(NotificationContext);
+  const [initHeigth, _] = useState(
+    editorInitHeight(
+      content,
+      useContext(SettingsContext).editorFontSize * 1.2,
+      150
+    )
   );
 
   return (
@@ -260,12 +280,6 @@ function MongoBsonEditor(props: {
           onMount={handleEditorDidMount}
           language="mongoBson"
           value={content}
-          height="100%"
-          options={{
-            fontFamily: "'Courier New', 'Arial', 'Monaco', monospace",
-            fontSize: useContext(SettingsContext).editorFontSize,
-            wordWrap: 'on',
-          }}
         ></Editor>
       </div>
 
@@ -280,7 +294,13 @@ function MongoBsonEditor(props: {
                 variant={button.variant}
                 color={button.color}
                 onClick={() => {
-                  button.callBack(doc);
+                  try {
+                    let doc = parseMongoBson(editor.getValue()).compile();
+                    button.callBack(doc);
+                  } catch (e) {
+                    showNotification('error', 'mongo bson compile failed', e);
+                    return;
+                  }
                 }}
                 disabled={
                   button.disabled ? button.disabled(docHasChange) : false
@@ -300,8 +320,12 @@ function MongoBsonEditor(props: {
           direction="row"
           alignContent="flex-start"
         >
-          <span> Ln {cursorLine} </span>
-          <span> Col {cursorColumn} </span>
+          {pos && (
+            <>
+              <span> Ln {pos.lineNumber} </span>
+              <span> Col {pos.column} </span>
+            </>
+          )}
         </Stack>
       </Stack>
     </div>
@@ -310,22 +334,17 @@ function MongoBsonEditor(props: {
 
 function MongoDBModify(props: {
   doc: BSON.Document;
-  verify: (doc: BSON.Document) => boolean;
   setOP: (doc: BSON.Document) => Promise<void>;
   buttonName: string;
   handleClose?;
 }) {
-  let { doc, setOP, verify, buttonName, handleClose } = props;
+  let { doc, setOP, buttonName, handleClose } = props;
   const [loading, setLoading] = useState(false);
-  const [newDoc, setNewDoc] = useState(doc);
   const { showNotification } = useContext(NotificationContext);
 
-  const handleModify = () => {
-    if (!verify(newDoc)) {
-      return;
-    }
+  const handleModify = (doc) => {
     setLoading(true);
-    setOP(newDoc)
+    setOP(doc)
       .then(() => {
         showNotification('success', 'Modify OK');
         setLoading(false);
@@ -344,15 +363,11 @@ function MongoDBModify(props: {
       {loading && <CircularProgress size={progressBarSize} />}
       <MongoBsonEditor
         doc={doc}
-        handleChange={(e) => {
-          setNewDoc(e);
-        }}
         buttons={[
           {
             color: 'primary',
             callBack: (doc) => {
-              setNewDoc(doc);
-              handleModify();
+              handleModify(doc);
             },
             variant: 'contained',
             buttonConent: buttonName,
@@ -375,6 +390,7 @@ function MongoTableListToolBar(props: {
   viewModel: MongoDataViewModel;
   handleViewModel: (doc: MongoDataViewModel) => void;
   addOP: (doc: BSON.Document) => Promise<void>;
+  style?: CSSProperties;
 }) {
   const {
     handleReload,
@@ -384,11 +400,11 @@ function MongoTableListToolBar(props: {
     filter,
     viewModel,
     handleViewModel,
+    style,
   } = props;
 
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifyOrderBy, setShowModifyOrderBy] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const doReload = () => {
     setLoading(true);
@@ -396,13 +412,12 @@ function MongoTableListToolBar(props: {
       setLoading(false);
     });
   };
-  const doAdd = () => {};
   useEffect(() => {
     handleViewModel(viewModel);
   }, [viewModel]);
 
   return (
-    <Stack direction="row" justifyContent="space-between">
+    <Stack direction="row" justifyContent="space-between" style={{ ...style }}>
       <Stack direction="row" spacing={1} alignContent="flex-end">
         <Typography
           onClick={() => {
@@ -425,9 +440,6 @@ function MongoTableListToolBar(props: {
             <Box sx={modalStyle} width="800px">
               <MongoDBModify
                 buttonName="Set"
-                verify={() => {
-                  return true;
-                }}
                 setOP={async (doc) => {
                   handleFilter(doc);
                 }}
@@ -461,9 +473,6 @@ function MongoTableListToolBar(props: {
             <Box sx={modalStyle} width="800px">
               <MongoDBModify
                 buttonName="Set"
-                verify={() => {
-                  return true;
-                }}
                 setOP={async (doc) => {
                   handleOrderBy(doc);
                 }}
@@ -524,6 +533,72 @@ function MongoTableListToolBar(props: {
   );
 }
 
+function renderId(_id): any {
+  if (_id instanceof Int32) {
+    return _id.toString();
+  }
+  // Timestamp 必须在Long前面 可能timestamp继承到Long
+  if (_id instanceof Timestamp) {
+    return _id.toString();
+  }
+  if (_id instanceof Long) {
+    return _id.toString();
+  }
+
+  if (_id instanceof Float32Array) {
+    return _id.toString();
+  }
+  if (_id instanceof Int8Array) {
+    return _id.toString();
+  }
+
+  if (_id instanceof Code) {
+    return _id.code;
+  }
+  if (_id instanceof Date) {
+    return _id.toLocaleString();
+  }
+  if (_id instanceof BSONRegExp) {
+    return _id.pattern + _id.options;
+  }
+  if (_id instanceof RegExp) {
+    return _id.toString();
+  }
+  if (_id instanceof ObjectId) {
+    return _id.toHexString();
+  }
+  if (_id instanceof Double) {
+    return _id.value;
+  }
+  if (_id instanceof Decimal128) {
+    return _id.toString();
+  }
+  if (_id instanceof Binary) {
+    return _id.toString('hex');
+  }
+  if (_id instanceof Array) {
+    return `[${_id.map((e) => renderId(e)).join(',')}]`;
+  }
+  if (_id instanceof Object) {
+    let ret = '{';
+    let first = true;
+    for (const key in _id) {
+      if (!first) {
+        ret += ',';
+      }
+      ret += `${key}:${renderId(_id[key])}`;
+      first = false;
+    }
+    ret += '}';
+    return ret;
+  }
+  if (['boolean', 'number', 'string'].includes(typeof _id)) {
+    return _id.toString();
+  }
+  console.log('_id type not handled', _id);
+  return _id.toString();
+}
+
 function MongoTable(props: {
   reloadOPTableList: (
     filter: BSON.Document,
@@ -546,22 +621,52 @@ function MongoTable(props: {
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const [filter, setFilter] = useState<BSON.Document>({});
   const [orderBy, setOrderby] = useState<BSON.Document>({});
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(
-    useContext(SettingsContext).pageSize
-  );
+  // we have two page becuase one start from `0` and one from `1`
+  const [pageTableList, setPageTableList] = useState(0);
+  const [pageObject, setPageObject] = useState(1);
+
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
   const [docs, setDocs] = useState<DocsAndCount | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
+  const [pageSize, setPageSize] = useState(0);
+
+  useEffect(() => {
+    setPageSize(
+      viewModel == MongoDataViewModel.Object
+        ? 10
+        : useContext(SettingsContext).pageSize
+    );
+  }, []);
 
   const handleReload = (showOK: boolean) => {
     const handleReloadTableList = async () => {
-      reloadOPTableList(filter, orderBy, page + 1, pageSize)
-        .then((resp) => {
-          setResp(resp);
+      reloadOPTableList(filter, orderBy, pageTableList + 1, pageSize)
+        .then((r) => {
+          let has_null = false;
+          r.data.data.forEach((e) => {
+            e['_id'] = EJSON.parse(e['_id']);
+            e[keyNotInTable] = uuidv4();
+            if (!e['_id']) {
+              showNotification(
+                'error',
+                'use null as _id which is not support right now'
+              );
+              has_null = true;
+            }
+          });
+
+          if (has_null) {
+            return;
+          }
+
+          r.data.fields[0]['renderCell'] = function (value) {
+            let _id = value.row._id;
+            return renderId(_id);
+          };
+          setResp(r);
           if (showOK) {
             reloadOK(showNotification);
           }
@@ -570,8 +675,9 @@ function MongoTable(props: {
           showNotification('error', 'fetch data failed', e);
         });
     };
+
     const handleReloadDocs = async () => {
-      realodOPDocs(filter, orderBy, page + 1, pageSize)
+      realodOPDocs(filter, orderBy, pageObject, pageSize)
         .then((resp) => {
           setDocs(resp);
           if (showOK) {
@@ -611,23 +717,23 @@ function MongoTable(props: {
   };
   useEffect(() => {
     handleReload(true);
-  }, [page, pageSize, viewModel, filter, orderBy]);
+  }, [pageTableList, pageObject, pageSize, viewModel, filter, orderBy]);
 
   const getRowId = useCallback((e) => {
-    return e._id;
+    return renderId(e[keyNotInTable]);
   }, []);
   const onPaginationModelChange = useCallback((m: GridPaginationModel) => {
-    setPage(m.page);
+    setPageTableList(m.page);
     setPageSize(m.pageSize);
   }, []);
   const onRowDoubleClick = useCallback((e) => {
-    handleLoadOne(e.id).then((doc) => {
+    handleLoadOne(e.row._id).then((doc) => {
       setSelectModifyDoc(doc);
     });
   }, []);
   const paginationModel = useMemo(() => {
-    return { page: page, pageSize: pageSize };
-  }, [page, pageSize]);
+    return { page: pageTableList, pageSize: pageSize };
+  }, [pageTableList, pageSize]);
   const onSortModelChange = useCallback((e) => {
     if (e.length == 0) {
       setOrderby({});
@@ -645,8 +751,14 @@ function MongoTable(props: {
 
   const vis = useContext(VisiableContext);
   return (
-    <Stack spacing={1} style={{ width: '99%' }}>
+    <Stack
+      spacing={1}
+      style={{
+        width: '99%',
+      }}
+    >
       <MongoTableListToolBar
+        style={{ position: 'sticky', top: 0 }}
         orderBy={orderBy}
         filter={filter}
         handleFilter={(e) => {
@@ -700,11 +812,9 @@ function MongoTable(props: {
         >
           <Box sx={modalStyle} width="800px">
             <MongoDBModify
-              verify={() => {
-                return true;
-              }}
               setOP={async (doc) => {
                 try {
+                  alert(1);
                   await modifyOP(doc);
                 } catch (e) {
                   throw e;
@@ -725,9 +835,6 @@ function MongoTable(props: {
               <MongoBsonEditor
                 key={doc._id}
                 doc={doc}
-                handleChange={() => {
-                  // here need do nothing
-                }}
                 buttons={[
                   {
                     buttonConent: 'set',
@@ -755,17 +862,21 @@ function MongoTable(props: {
           {/* // here is pagination */}
           <Stack direction="row" spacing={1} alignItems="flex-end">
             <Pagination
-              page={page}
+              page={pageObject}
               defaultPage={1}
               count={Math.ceil(docs.total / pageSize)}
               showFirstButton
               showLastButton
               onChange={(_e, page) => {
-                setPage(page);
+                setPageObject(page);
               }}
             />
+            <Typography>
+              result {docs.docs.length} of {docs.total}
+            </Typography>
             <SelectPageSize
-              pageSize={pageSize}
+              options={[10, 20]}
+              pageSize={10}
               handleChange={(size) => {
                 setPageSize(size);
               }}
@@ -782,8 +893,7 @@ function MongoTableAdd(props: {
 }) {
   let { addOP } = props;
   const { showNotification } = useContext(NotificationContext);
-  const [doc, setDoc] = useState({});
-  const handleAdd = () => {
+  const handleAdd = (doc) => {
     addOP(doc)
       .then(() => {
         showNotification('success', 'Add OK');
@@ -796,10 +906,7 @@ function MongoTableAdd(props: {
   return (
     <Stack>
       <MongoBsonEditor
-        doc={doc}
-        handleChange={(doc) => {
-          setDoc(doc);
-        }}
+        doc={{}}
         buttons={[
           {
             buttonConent: 'Add',
@@ -807,8 +914,8 @@ function MongoTableAdd(props: {
             disabled: (changed) => {
               return !changed;
             },
-            callBack: () => {
-              handleAdd();
+            callBack: (doc) => {
+              handleAdd(doc);
             },
           },
         ]}

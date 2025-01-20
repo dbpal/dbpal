@@ -156,6 +156,7 @@ fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
     };
     anyhow::Ok(value)
 }
+
 fn collect_table_resp(
     fs: &Vec<Field>, docs: &[Document],
 ) -> anyhow::Result<Vec<Vec<Option<String>>>> {
@@ -163,6 +164,15 @@ fn collect_table_resp(
     for doc in docs.iter() {
         let mut values = vec![];
         for f in fs.iter() {
+            if f.field == "_id" {
+                let value = doc.get(&f.field).map(|x| serde_json::to_string(x));
+                let value = match value {
+                    Some(x) => Some(x?),
+                    None => None,
+                };
+                values.push(value);
+                continue;
+            }
             let value = doc
                 .get(&f.field)
                 .map(|b| bson_value_to_string(b).ok())
@@ -249,18 +259,18 @@ impl Mongo {
         anyhow::Ok(ret)
     }
 
-    pub async fn get_one_document(
-        &self, collection_name: &str, filter: Document,
+    pub async fn get_one_document_by_id(
+        &self, collection_name: &str, id: bson::Bson,
     ) -> anyhow::Result<Document> {
         let db = self.get_db().await?;
         if let Some(document) = db
             .collection(collection_name)
-            .find_one(filter.clone())
+            .find_one(bson::doc! { "_id" :  id.clone() })
             .await?
         {
             return anyhow::Ok(document);
         } else {
-            anyhow::bail!(format!("uuid '{:?}' not found doc", filter));
+            anyhow::bail!(format!("uuid '{:?}' not found doc", id));
         }
     }
 
@@ -779,6 +789,130 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_mongo_id_types() {
+        let db = make_test_object();
+        let col = "test_id_types";
+        let _ = db.drop_table(&col, false).await;
+
+        {
+            let mut d = bson::Document::new();
+            d.insert("_id", Bson::Double(rand::random::<f64>()));
+            d.insert("value", Bson::Int32(1));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            d.insert("_id", Bson::String("aaaaaaaaaaa".to_string()));
+            d.insert("value", Bson::Int32(2));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+
+        {
+            let mut d = bson::Document::new();
+            d.insert(
+                "_id",
+                Bson::Document(bson::doc! { "value" :  Bson::Int32(3)}),
+            );
+            d.insert("value", Bson::Int32(3));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            d.insert("_id", Bson::Boolean(true));
+            d.insert("value", Bson::Int32(5));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            d.insert("_id", Bson::JavaScriptCode("xxx".to_string()));
+            d.insert("value", Bson::Int32(6));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            let _id = Bson::JavaScriptCodeWithScope(bson::JavaScriptCodeWithScope {
+                code: "xxx".to_string(),
+                scope: bson::doc! {"yyy" : Bson::Int32(7) },
+            });
+            d.insert("_id", _id);
+
+            d.insert("value", Bson::Int32(8));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            let _id = Bson::Int32(9);
+            d.insert("_id", _id);
+
+            d.insert("value", Bson::Int32(10));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            let _id = Bson::Int64(100);
+            d.insert("_id", _id);
+
+            d.insert("value", Bson::Int32(11));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+
+        {
+            let mut d = bson::Document::new();
+            let _id = Bson::Timestamp(bson::Timestamp {
+                time: 1,
+                increment: 1,
+            });
+            d.insert("_id", _id);
+
+            d.insert("value", Bson::Int32(12));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            let _id = Bson::Binary(bson::Binary {
+                subtype: bson::spec::BinarySubtype::Generic,
+                bytes: vec![1, 2, 3],
+            });
+            d.insert("_id", _id);
+            d.insert("value", Bson::Int32(13));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            let _id = Bson::ObjectId(bson::oid::ObjectId::new());
+            d.insert("_id", _id);
+
+            d.insert("value", Bson::Int32(14));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+
+        {
+            let mut d = bson::Document::new();
+            let _id = Bson::DateTime(bson::DateTime::now());
+            d.insert("_id", _id);
+
+            d.insert("value", Bson::Int32(15));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            let _id = Bson::Symbol("sssssss".to_owned());
+            d.insert("_id", _id);
+
+            d.insert("value", Bson::Int32(16));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+        {
+            let mut d = bson::Document::new();
+            let _id = Bson::Decimal128(bson::Decimal128::from("1234".parse().unwrap()));
+            d.insert("_id", _id);
+
+            d.insert("value", Bson::Int32(17));
+            db.query_collection_insert_one(&col, d).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
     async fn test_server_metas() {
         let db = make_test_object();
         let metas = ServerMetas::show_metas(&db).await.unwrap();
@@ -890,6 +1024,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_large_table() {
+        let db = make_test_object();
+        let col = "test_large_table";
+        let _ = db.drop_table(&col, false).await;
+
+        for _ in 0..1590 {
+            db.query_collection_insert_one(&col, doc! {
+                "a" : rand::random::<i32 >(),
+                "b" : rand::random::<i32 >(),
+                "c" : rand::random::<i32 >(),
+            })
+            .await
+            .unwrap();
+        }
+    }
+
+    #[tokio::test]
     async fn test_view() {
         let db = make_test_object();
 
@@ -960,7 +1111,7 @@ mod tests {
             .show_collection_table_list(table, doc! {}, doc! {}, 1, 100)
             .await
             .unwrap();
-        println!("########################");
+
         println!("resp:{:?}", resp);
 
         let resp = db
@@ -972,7 +1123,6 @@ mod tests {
             let json_str = serde_json::to_string_pretty(&d).unwrap();
             println!("json_str:{}", json_str);
         }
-
         let table_list = db.list_table().await.unwrap();
         println!("{:?}", table_list);
     }

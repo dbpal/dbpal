@@ -4,16 +4,11 @@ import { DataGrid, GridPaginationModel } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
 import { useCallback, useContext, useMemo, useState } from 'react';
-import {
-  datagridHeaderHeight,
-  datagridRowHeight,
-  modalStyle,
-  SimpleResizeEditor,
-  VisiableContext,
-} from './Common.tsx';
+import { modalStyle, SimpleResizeEditor, VisiableContext } from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import { GridInitialStateCommunity } from '@mui/x-data-grid/models/gridStateCommunity';
+import { datagridHeaderHeight, datagridRowHeight } from './CommonComp.tsx';
 
 const initialState: GridInitialStateCommunity = {
   sorting: { sortModel: [{ field: 'time', sort: 'desc' }] },

@@ -1013,10 +1013,10 @@ async function makeViewTable(
           }}
           loadOne={async (id) => {
             try {
-              let x = await invoke<number[]>('mongo_get_one_document', {
+              let x = await invoke<number[]>('mongo_get_one_document_by_id', {
                 name: uuid,
                 tableName: table,
-                id: JSON.stringify(id),
+                id: JSON.stringify(EJSON.serialize(id)),
               });
               return BSON.deserialize(new Uint8Array(x));
             } catch (e) {

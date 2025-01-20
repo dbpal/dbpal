@@ -22,8 +22,7 @@ import {
   CancellationToken,
 } from 'monaco-editor';
 import { types } from './ApiStruct';
-import { DataGrid } from '@mui/x-data-grid';
-import { v4 as uuidv4 } from 'uuid';
+
 import { BSON } from 'bson';
 import {
   createContext,
@@ -79,7 +78,7 @@ import {
   extractConfigNameFromUuid,
   getViewportSize,
 } from './helper';
-import { copyFileSync } from 'fs';
+import { MetaValuesView } from './CommonComp';
 
 const appStore = async () => {
   return await load('store.json');
@@ -102,40 +101,13 @@ enum AppStoreKey {
   ConnectionConfig = 'connection_config',
 }
 
-function MetaValuesView(props: { values: types.MetaValue[]; flex?: number }) {
-  let { values, flex } = props;
-  if (flex == undefined) {
-    flex = 1;
-  }
-
-  let columns = [
-    { field: 'name', flex },
-    { field: 'value', flex },
-    { field: 'desc', flex },
-  ];
-
-  values.forEach((e) => {
-    if (!('id' in e)) {
-      //@ts-ignore
-      e.id = uuidv4();
-    }
-  });
-
-  return (
-    <DataGrid
-      rowHeight={datagridRowHeight}
-      columnHeaderHeight={datagridHeaderHeight}
-      columns={columns}
-      rows={values}
-    ></DataGrid>
-  );
-}
 function SelectPageSize({
   width = '200px',
   variant = 'outlined',
   tital = 'select page size',
   pageSize,
   handleChange,
+  options = pageSizeOptions,
 }) {
   return (
     <Box width={width}>
@@ -155,7 +127,7 @@ function SelectPageSize({
           }}
           label="select page size"
         >
-          {pageSizeOptions.map((e) => (
+          {options.map((e) => (
             <MenuItem key={e} value={e}>
               {e}
             </MenuItem>
@@ -521,9 +493,6 @@ function SimpleResizeEditor(props: {
   );
 }
 
-const datagridRowHeight = 25;
-const datagridHeaderHeight = 36;
-
 const TabsSetContext = createContext<{
   tabs: TabContent[];
   setTabs;
@@ -854,7 +823,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       throw e;
     }
   };
-  const format = async (sql: string, opts: languages.FormattingOptions) => {
+  const format = async (sql: string, _opts: languages.FormattingOptions) => {
     try {
       let text = await invoke<string>('format_sql', {
         name: uuid,
@@ -1188,17 +1157,14 @@ function LoadStoreQuery(props: {
 }
 
 type MakeIQueryConn = () => Promise<IQueryConn>;
-
+const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
 export {
   modalStyle,
   SelectPageSize,
-  MetaValuesView,
   DocsAndCount,
   MongoDataViewModel,
   pageSizeOptions,
   EditorBar,
-  datagridRowHeight,
-  datagridHeaderHeight,
   countLines,
   SimpleResizeEditor,
   editorInitHeight,
@@ -1237,6 +1203,7 @@ export {
   QueryConn,
   AppStoreKey,
   LoadStoreQuery,
+  keyNotInTable,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn };

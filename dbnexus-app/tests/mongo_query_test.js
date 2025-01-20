@@ -58,9 +58,9 @@ async function testCol() {
     } catch (e) {
         console.log("@@@@@@@@@@@@@@@@@@@", e);
     }
-    let findManyResult = await collection.find({}).limit(100);
+    let findManyResult = await collection.find({}).limit(100).find();
     logger.info("find many result:", findManyResult);
-    let findOneResult = await collection.findOne({}).max({});
+    let findOneResult = await collection.findOne({}).max({}).find();
     logger.info("find one result:", findOneResult);
     const dropResult = await collection.drop();
     logger.info('drop result:', dropResult);

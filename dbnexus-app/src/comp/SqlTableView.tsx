@@ -22,8 +22,7 @@ import { NotificationContext } from './Notification';
 import { DataGrid, GridRowSelectionModel } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  datagridHeaderHeight,
-  datagridRowHeight,
+  keyNotInTable,
   modalStyle,
   pageSizeOptions,
   progressBarSize,
@@ -35,6 +34,7 @@ import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
 import { secondConfirm } from './Confirm';
 import { isTypeLargeText } from './helper';
+import { datagridHeaderHeight, datagridRowHeight } from './CommonComp';
 
 const confrimAboutPrimary = async (
   notWarnPri,
@@ -52,7 +52,7 @@ const confrimAboutPrimary = async (
     content: 'No Primary key found,maybe multi row affected.',
   });
 };
-const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
+
 const getRowId = (e) => e[keyNotInTable];
 
 function SqlTableView(props: {

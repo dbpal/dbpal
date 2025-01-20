@@ -16,16 +16,6 @@ import { NotificationContext } from './Notification.tsx';
 import { AlertColor, Button, IconButton } from '@mui/material';
 import { MongoDataViewModel } from './Common.tsx';
 
-let x = parseMongoBson(`
-{
-  string: -1,
-  b : 3
-}
-
-  `);
-
-let doc = testBsonDoc();
-
 root.render(
   <NotificationContext.Provider
     value={{
@@ -41,14 +31,9 @@ root.render(
   >
     <React.StrictMode>
       {/* <MongoTableAdd addOP={voidTestFunction}></MongoTableAdd> */}
-      <MongoBsonEditor
-        doc={doc}
-        handleChange={() => {}}
-        buttons={[]}
-      ></MongoBsonEditor>
+      <MongoBsonEditor doc={{}} buttons={[]}></MongoBsonEditor>
 
       {/* <MongoTable
-        viewModel={MongoDataViewModel.Object}
         reloadOPTableList={async (...args) => {
           try {
             voidTestFunction();

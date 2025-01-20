@@ -1074,10 +1074,11 @@ pub async fn mongo_insert(
     }
     .map_err(|e| ErrorFrontend::from(e))
 }
+
 #[tauri::command]
 pub async fn mongo_update_one(
     name: String, table_name: String, doc: Vec<u8>, app: tauri::State<'_, App>,
-) -> Result<mongodb::results::UpdateResult, ErrorFrontend> {
+) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let doc = parse_bson_doc(doc.as_slice())?;
@@ -1085,11 +1086,15 @@ pub async fn mongo_update_one(
         .get_schema(name.as_str())
         .await
         .map_err(|e| ErrorFrontend::from(e))?;
-    match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => x.update_one(table_name.as_str(), doc).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))
+    .map_err(|e| ErrorFrontend::from(e))?;
+    if ret.modified_count != 1 {
+        return Err(ErrorFrontend::from("modified count is not 1"));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1157,7 +1162,7 @@ pub async fn mongo_show_collection_docs(
     DocsAndCount::try_from(docs).map_err(|e| e.into())
 }
 #[tauri::command]
-pub async fn mongo_get_one_document(
+pub async fn mongo_get_one_document_by_id(
     name: String, table_name: String, id: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<u8>, ErrorFrontend> {
     random_sleep().await;
@@ -1168,10 +1173,7 @@ pub async fn mongo_get_one_document(
         .await
         .map_err(|e| e.to_string())?;
     let doc = match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => {
-            x.get_one_document(table_name.as_str(), bson::doc! { "_id" : id  })
-                .await
-        }
+        Some(x) => x.get_one_document_by_id(table_name.as_str(), id).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| ErrorFrontend::from(e))?;

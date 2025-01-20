@@ -24,8 +24,6 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   modalStyle,
   pageSizeOptions,
-  datagridRowHeight,
-  datagridHeaderHeight,
   progressBarSize,
   SettingsContext,
   reloadOK,
@@ -52,6 +50,7 @@ import {
   hexTryToUtf8,
   stringToHex,
 } from './helper.ts';
+import { datagridHeaderHeight, datagridRowHeight } from './CommonComp.tsx';
 
 class RedisZsetHashModifyReq {
   constructor(

@@ -4,11 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { generateRandomString } from './helper.ts';
 import { DataGrid } from '@mui/x-data-grid';
 import React, { useContext } from 'react';
-import {
-  datagridHeaderHeight,
-  datagridRowHeight,
-  VisiableContext,
-} from './Common.tsx';
+import { VisiableContext } from './Common.tsx';
+import { datagridHeaderHeight, datagridRowHeight } from './CommonComp.tsx';
 
 function QueryResp(props: { data: types.MuiDataGridData }) {
   let { data } = props;
