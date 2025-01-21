@@ -26,6 +26,7 @@ pub mod redis;
 pub mod redis_lang_server;
 // pub mod semantic_token;
 pub mod mongo_lang_server;
+pub mod oracle_lang_server;
 pub mod sqlite;
 pub mod sqlite_lang_server;
 pub mod sqlparser_completing;

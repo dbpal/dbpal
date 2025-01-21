@@ -3,7 +3,13 @@ import { NotificationProvider } from './Notification';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
 import { Box, Modal } from '@mui/material';
-import { CSSProperties, ReactNode, useEffect, useState } from 'react';
+import {
+  CSSProperties,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 
 import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
@@ -71,6 +77,21 @@ export default function MainPage() {
       customMenu.style.display = 'none';
     });
   });
+
+  const closeTab = useCallback(
+    (index: number) => {
+      let id = tabs[index].id;
+      setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
+      if (selectIndex >= index && selectIndex > 0) {
+        setSelectIndex(selectIndex - 1);
+      }
+    },
+    [tabs]
+  );
+  const changeTab = useCallback((index) => {
+    setSelectIndex(index as number);
+  }, []);
+
   let mainContent = (
     //@ts-ignore
     <SplitPane
@@ -85,18 +106,10 @@ export default function MainPage() {
     >
       <Left></Left>
       <TabsWithContent
-        handleClose={(index: number) => {
-          let id = tabs[index].id;
-          setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
-          if (selectIndex >= index && selectIndex > 0) {
-            setSelectIndex(selectIndex - 1);
-          }
-        }}
+        handleClose={closeTab}
         tabs={tabs}
         selectIndex={selectIndex}
-        changeTab={(index) => {
-          setSelectIndex(index as number);
-        }}
+        changeTab={changeTab}
         setTabs={setTabs}
       ></TabsWithContent>
     </SplitPane>
@@ -108,7 +121,6 @@ export default function MainPage() {
         <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
           <NotificationProvider>
             <div> {mainContent} </div>
-
             <div id="menu-div" style={menu && menu.style}>
               {menu && menu.content}
             </div>

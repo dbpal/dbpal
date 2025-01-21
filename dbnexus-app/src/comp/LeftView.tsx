@@ -10,7 +10,7 @@ import {
   modalStyle,
 } from './Common';
 import { NotificationContext } from './Notification';
-import { secondConfirm } from './Confirm';
+
 import { invoke } from '@tauri-apps/api/core';
 import {
   Box,
@@ -34,7 +34,7 @@ import ListIcon from '@mui/icons-material/List';
 import { SqlTableView } from './SqlTableView';
 import { TabContent } from './Tabs';
 import { ExportTableOrView } from './Export';
-import { calMenuStyle, DataSourceKind } from './helper';
+import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
 
 enum ViewKind {
   Normal,

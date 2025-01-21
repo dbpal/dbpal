@@ -5,6 +5,30 @@
 import { languages } from "monaco-editor";
 import types from "./ApiStruct";
 import { CSSProperties } from "react";
+import { ask } from '@tauri-apps/plugin-dialog';
+
+interface ConfirmOptions {
+  title: string;
+  content?: string;
+  confirmText?: string;
+  cancelText?: string;
+}
+
+async function secondConfirm({
+  title,
+  content,
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+}: ConfirmOptions): Promise<boolean> {
+  return ask(title, {
+    title: content,
+    kind: 'error',
+    okLabel: confirmText,
+    cancelLabel: cancelText,
+  });
+}
+
+
 
 async function randomTestThrowFunction() {
   await delayedReturn(undefined, Math.random() * 900);
@@ -306,4 +330,6 @@ export {
   isTypeLargeText,
   DataSourceKind,
   connTypeToDataSourceKind,
+  secondConfirm,
+
 };

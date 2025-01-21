@@ -42,12 +42,13 @@ import {
 import HexEditor from 'react-hex-editor';
 import oneDarkPro from 'react-hex-editor/themes/oneDarkPro';
 import AddIcon from '@mui/icons-material/Add';
-import { secondConfirm } from './Confirm.tsx';
+
 import {
   arrayToHex,
   hexToUint8Array,
   hexToUtf8,
   hexTryToUtf8,
+  secondConfirm,
   stringToHex,
 } from './helper.ts';
 import { datagridHeaderHeight, datagridRowHeight } from './CommonComp.tsx';
@@ -176,7 +177,7 @@ function RedisStringTable(props: {
 }
 
 function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
-  var { addOP } = props;
+  let { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [key, setKey] = useState('');
   const { showNotification } = useContext(NotificationContext);
@@ -220,7 +221,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
 function RedisAddHash(props: {
   addOP: (key: string, value: string) => Promise<void>;
 }) {
-  var { addOP } = props;
+  let { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [value, setValue] = useState('');
   const [key, setKey] = useState('');
@@ -275,7 +276,7 @@ function RedisAddZset(props: {
   addOP: (key: string, value: number) => Promise<void>;
   handleClose: () => void;
 }) {
-  var { addOP } = props;
+  let { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [score, setScore] = useState('');
   const [key, setKey] = useState('');

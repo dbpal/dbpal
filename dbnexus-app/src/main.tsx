@@ -22,6 +22,7 @@ if (!debug) {
     }
   });
 }
+
 // call every time maybe use refresh this app some what.
 window.addEventListener('load', (_event) => {
   invoke('page_init_callback');

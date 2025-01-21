@@ -4,6 +4,7 @@ import { loader } from '@monaco-editor/react';
 import { invoke } from '@tauri-apps/api/core';
 import { BSON } from 'bson';
 
+//@ts-ignore
 interface ILogger {
   trace: (...msg: any[]) => void;
   debug: (...msg: any[]) => void;

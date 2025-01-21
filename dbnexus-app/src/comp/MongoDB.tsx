@@ -29,6 +29,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -222,7 +223,7 @@ function MongoBsonEditor(props: {
   buttons: MongoBsonEditorCallback[];
 }) {
   let { doc, buttons } = props;
-  let [editor, setEditor] = useState<editor.IStandaloneCodeEditor>();
+  let editor = useRef<editor.IStandaloneCodeEditor>();
   const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
   const [err, setErr] = useState<MongoBsonError>(null);
@@ -230,7 +231,7 @@ function MongoBsonEditor(props: {
 
   const handleEditorDidMount = useCallback(
     (ce: editor.IStandaloneCodeEditor, monaco) => {
-      setEditor(ce);
+      editor.current = ce;
       ce.onDidChangeModelContent((_event) => {
         let text = ce.getValue();
         setDocHasChange(true);
@@ -249,11 +250,11 @@ function MongoBsonEditor(props: {
     },
     []
   );
-  const [content, _setcontent] = useState(bsonValue2MongoBson(doc).format());
+  const content = useRef(bsonValue2MongoBson(doc).format());
   const { showNotification } = useContext(NotificationContext);
   const [initHeigth, _] = useState(
     editorInitHeight(
-      content,
+      content.current,
       useContext(SettingsContext).editorFontSize * 1.2,
       150
     )
@@ -279,7 +280,7 @@ function MongoBsonEditor(props: {
         <Editor
           onMount={handleEditorDidMount}
           language="mongoBson"
-          value={content}
+          value={content.current}
         ></Editor>
       </div>
 
@@ -295,7 +296,9 @@ function MongoBsonEditor(props: {
                 color={button.color}
                 onClick={() => {
                   try {
-                    let doc = parseMongoBson(editor.getValue()).compile();
+                    let doc = parseMongoBson(
+                      editor.current.getValue()
+                    ).compile();
                     button.callBack(doc);
                   } catch (e) {
                     showNotification('error', 'mongo bson compile failed', e);
@@ -631,15 +634,17 @@ function MongoTable(props: {
   const [docs, setDocs] = useState<DocsAndCount | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
-  const [pageSize, setPageSize] = useState(0);
-
+  const [pageSize, setPageSize] = useState(10);
   useEffect(() => {
-    setPageSize(
-      viewModel == MongoDataViewModel.Object
-        ? 10
-        : useContext(SettingsContext).pageSize
-    );
-  }, []);
+    switch (viewModel) {
+      case MongoDataViewModel.Object:
+        setPageSize(10);
+        break;
+      case MongoDataViewModel.List:
+        setPageObject(useContext(SettingsContext).pageSize);
+        break;
+    }
+  }, [viewModel]);
 
   const handleReload = (showOK: boolean) => {
     const handleReloadTableList = async () => {

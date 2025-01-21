@@ -27,6 +27,7 @@ import { BSON } from 'bson';
 import {
   createContext,
   CSSProperties,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -36,8 +37,7 @@ import { TabContent } from './Tabs';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
-import AddIcon from '@mui/icons-material/Add';
-import { secondConfirm } from './Confirm';
+
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
@@ -77,6 +77,7 @@ import {
   errToString,
   extractConfigNameFromUuid,
   getViewportSize,
+  secondConfirm,
 } from './helper';
 import { MetaValuesView } from './CommonComp';
 
@@ -444,17 +445,17 @@ function SimpleResizeEditor(props: {
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
   }
-  const handleDidMount = (
-    editor: editor.IStandaloneCodeEditor,
-    monaco: Monaco
-  ) => {
-    editor.onDidChangeCursorPosition(() => {
-      setPos(editor.getPosition());
-    });
-    if (onMount) {
-      onMount(editor, monaco);
-    }
-  };
+  const handleDidMount = useCallback(
+    (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+      editor.onDidChangeCursorPosition(() => {
+        setPos(editor.getPosition());
+      });
+      if (onMount) {
+        onMount(editor, monaco);
+      }
+    },
+    []
+  );
 
   const { theme } = useContext(SettingsContext);
   return (
@@ -622,21 +623,6 @@ function MenuDeleteConfig({ name }) {
         <CloseIcon></CloseIcon>
       </ListItemIcon>
       <ListItemText> drop connection </ListItemText>
-    </MenuItem>
-  );
-}
-
-function MenuNewQuery({ handle }) {
-  return (
-    <MenuItem
-      onClick={() => {
-        handle();
-      }}
-    >
-      <ListItemIcon>
-        <AddIcon></AddIcon>
-      </ListItemIcon>
-      <ListItemText> New Query </ListItemText>
     </MenuItem>
   );
 }
@@ -1179,7 +1165,6 @@ export {
   progressBarSizeSmall,
   extraParametersFromMetaValues,
   MenuDeleteConfig,
-  MenuNewQuery,
   ConnStatus,
   SettingsContext,
   appStore,

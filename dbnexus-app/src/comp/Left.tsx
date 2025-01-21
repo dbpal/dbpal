@@ -15,7 +15,6 @@ import { useContext, useEffect, useState } from 'react';
 import {
   UuidContext,
   ConnTypeContext,
-  MenuNewQuery,
   MenuDeleteConfig,
   MenuContext,
   ConnStatus,
@@ -64,7 +63,10 @@ import {
 import { SqlQuery } from './SqlQuery';
 import { RedisQuery } from './RedisQuery';
 import { MongoQuery } from './MongoQuery.tsx';
-function Left() {
+import React from 'react';
+import { MenuNewQuery } from './CommonComp.tsx';
+
+function Left_() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
 
@@ -718,5 +720,6 @@ function DatabaseTree(props: {
     </TreeItem>
   );
 }
+const Left = React.memo(Left_);
 
 export { Left };

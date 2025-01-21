@@ -22,14 +22,14 @@ import {
   Stack,
 } from '@mui/material';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { secondConfirm } from './Confirm';
+
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { TabContent } from './Tabs';
 import { TriggerDetail } from './TriggerDetail';
 import InfoIcon from '@mui/icons-material/Info';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
-import { calMenuStyle } from './helper';
+import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
 function TriggersTree(props: { table: string }) {
   const { uuid } = useContext(UuidContext);
   let { table } = props;
@@ -53,7 +53,7 @@ function TriggersTree(props: { table: string }) {
     handleReload();
   }, []);
   let idPrefix = uuid + '-tables-' + table + '-triggers-';
-
+  const { kind } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(MenuContext);
   return (
     <TreeItem
@@ -95,6 +95,7 @@ function TriggersTree(props: { table: string }) {
                     uuid={uuid}
                     reload={handleReload}
                     trigger={trigger.name}
+                    kind={kind}
                   ></TriggerMenu>
                 ),
                 style: calMenuStyle(event, 70),
@@ -114,12 +115,13 @@ function TriggerMenu(props: {
   uuid: string;
   reload;
   trigger: string;
+  kind: DataSourceKind;
 }) {
   const { showNotification } = useContext(NotificationContext);
-  const { table, uuid, reload, trigger } = props;
+  const { table, uuid, reload, trigger, kind } = props;
   const [detail, setDetail] = useState<types.TriggerDetail>(null);
   let callPara = { name: uuid, tableName: table, trigger };
-  const { kind } = useContext(ConnTypeContext);
+
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop trigger '${trigger}'`,
@@ -191,7 +193,7 @@ function TriggerMenu(props: {
                     trigger,
                   });
                 }}
-                language="xxx"
+                language={uuid}
               ></TriggerDetail>
             )
           ),

@@ -15,7 +15,14 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
-import { ReactNode, useContext, useEffect, useState } from 'react';
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { editor, Position } from 'monaco-editor';
 import {
   EditorBar,
@@ -28,7 +35,7 @@ import {
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { secondConfirm } from './Confirm.tsx';
+import { secondConfirm } from './helper.ts';
 
 function SqlQuery(props: {
   language: string;
@@ -38,8 +45,7 @@ function SqlQuery(props: {
 }) {
   let { handelTextAndPositionChange, language, connectInfo, makeConn } = props;
   const [resp, setResp] = useState([]);
-  const [text, setText] = useState('');
-  const [selectText, setSelectText] = useState('');
+  let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
@@ -50,35 +56,30 @@ function SqlQuery(props: {
   );
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const { theme } = useContext(SettingsContext);
-  const handleEditorDidMount = (
-    editor: editor.IStandaloneCodeEditor,
-    monaco
-  ) => {
-    if (theme == 'dark') {
-      monaco.editor.setTheme('vs-dark');
-    } else {
-      monaco.editor.setTheme('light');
-    }
-
-    editor.onDidChangeModelContent((_event) => {
-      let text = editor.getValue();
-      setText(text);
-      if (handelTextAndPositionChange) {
-        handelTextAndPositionChange(text, editor.getPosition());
+  const handleEditorDidMount = useCallback(
+    (ed: editor.IStandaloneCodeEditor, monaco) => {
+      editor.current = ed;
+      if (theme == 'dark') {
+        monaco.editor.setTheme('vs-dark');
+      } else {
+        monaco.editor.setTheme('light');
       }
-    });
-    editor.onDidChangeCursorPosition((_event) => {
-      let p = editor.getPosition();
-      setPos(p);
       if (handelTextAndPositionChange) {
-        handelTextAndPositionChange(editor.getValue(), p);
+        ed.onDidChangeModelContent((_event) => {
+          let text = ed.getValue();
+          handelTextAndPositionChange(text, ed.getPosition());
+        });
       }
-    });
-    editor.onDidChangeCursorSelection((_event) => {
-      const selection = editor.getSelection();
-      setSelectText(editor.getModel().getValueInRange(selection));
-    });
-  };
+      if (handelTextAndPositionChange) {
+        ed.onDidChangeCursorPosition((_event) => {
+          let p = ed.getPosition();
+          setPos(p);
+          handelTextAndPositionChange(ed.getValue(), p);
+        });
+      }
+    },
+    []
+  );
 
   const handleLoadQueryLog = () => {
     conn
@@ -251,7 +252,7 @@ function SqlQuery(props: {
             <IconButton
               disabled={loading || conn == null}
               onClick={() => {
-                handleQuery(text);
+                handleQuery(editor.current.getValue());
               }}
               color="primary"
               aria-label="execute"
@@ -263,7 +264,11 @@ function SqlQuery(props: {
             <IconButton
               disabled={loading || conn == null}
               onClick={() => {
-                handleQuery(selectText);
+                handleQuery(
+                  editor.current
+                    .getModel()
+                    .getValueInRange(editor.current.getSelection())
+                );
               }}
               color="primary"
               aria-label="execute"

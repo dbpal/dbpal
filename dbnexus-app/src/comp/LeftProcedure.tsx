@@ -25,19 +25,19 @@ import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import { TabContent } from './Tabs';
 import { DefAndMetasView } from './UdfAndMetaView';
-import { secondConfirm } from './Confirm';
+
 import { SiProcessingfoundation } from 'react-icons/si';
-import { calMenuStyle, DataSourceKind } from './helper';
+import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const idPrefix = uuid + '-procudures-';
-  const [ps, setPs] = useState<types.NamedStaff[]>([]);
+  const [ps, setPos] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const reload = () => {
     invoke<types.NamedStaff[]>('list_procedure', { name: uuid })
       .then((ts) => {
-        setPs(ts);
+        setPos(ts);
       })
       .catch((e) => {
         showNotification('error', 'list procedure failed', e);

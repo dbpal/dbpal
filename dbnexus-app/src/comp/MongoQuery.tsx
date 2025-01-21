@@ -4,7 +4,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position, Range } from 'monaco-editor';
 
 import * as loglevel from 'loglevel';
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
 import { generateRandomString } from './helper';
 import { EditorBar, LoadStoreQuery, SettingsContext } from './Common';
@@ -43,7 +43,7 @@ function MongoQuery(props: { uuid: string }) {
 
   const [err, setErr] = useState(null);
   const [loggerEditor, setLoggerEditor] = useState(null);
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+  const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [loggerPos, setLoggerPos] = useState<Position>(null);
 
@@ -80,18 +80,15 @@ function MongoQuery(props: { uuid: string }) {
   const [file, setFile] = useState('');
 
   const { showNotification } = useContext(NotificationContext);
-  const jsCodeMount = (
-    editor: editor.IStandaloneCodeEditor,
-    _monaco: Monaco
-  ) => {
-    editor.onDidChangeCursorPosition(() => {
-      setPos(editor.getPosition());
+  const jsCodeMount = (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
+    editor.current = ed;
+    ed.onDidChangeCursorPosition(() => {
+      setPos(ed.getPosition());
     });
-    setEditor(editor);
   };
 
   const handleExecute = () => {
-    let text = editor.getValue();
+    let text = editor.current.getValue();
     if (!text.trim()) {
       showNotification('error', "can't execute empty statement");
       return;
@@ -99,9 +96,18 @@ function MongoQuery(props: { uuid: string }) {
     modifyEditorContent(loggerEditor);
     setErr(null);
     try {
-      eval(text);
+      let e = eval(text);
+      console.log('!!!!!!!!!!!!!!!!!!!', e);
     } catch (e) {
+      if (e instanceof SyntaxError) {
+        console.log('!!!!!!!!!!!!!!!', e.cause, e.message, e.name, e.stack);
+      }
+      if (e instanceof ReferenceError) {
+        console.log('!!!!!!!!!!!!!!!', e.cause, e.message, e.name, e.stack);
+      }
+
       setErr(e);
+      console.log('eeeeeeeeeeeeeeee', e);
     }
   };
   let theme = useContext(SettingsContext).theme == 'dark' ? 'vs-dark' : 'light';
@@ -130,12 +136,12 @@ function MongoQuery(props: { uuid: string }) {
           openOpt={{ ...fileFilter }}
           saveOpt={{ canCreateDirectories: true, ...fileFilter }}
           getQuery={() => {
-            return editor.getValue();
+            return editor.current.getValue();
           }}
           file={file}
           handleChange={(f, text) => {
             setFile(f);
-            editor.setValue(text);
+            editor.current.setValue(text);
           }}
         ></LoadStoreQuery>
       </Stack>

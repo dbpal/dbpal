@@ -45,7 +45,7 @@ import {
   Switch,
   TextField,
 } from '@mui/material';
-import { secondConfirm } from './Confirm';
+
 import { TabContent } from './Tabs';
 import { SqlTableView } from './SqlTableView';
 import { TriggersTree } from './LeftTriggers';
@@ -61,7 +61,7 @@ import {
 } from './Redis';
 import { MongoTable } from './MongoDB';
 import { BSON, EJSON } from 'bson';
-import { calMenuStyle, DataSourceKind } from './helper';
+import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
 
 function TablesTree() {
   const { uuid } = useContext(UuidContext);
@@ -1595,7 +1595,7 @@ function RedisTables(prpos: { schema?: string }) {
         }}
       >
         <TableViewIcon> </TableViewIcon>
-        <span>tables</span>
+        <span>keys</span>
         {loading && (
           <CircularProgress size={progressBarSizeSmall}></CircularProgress>
         )}

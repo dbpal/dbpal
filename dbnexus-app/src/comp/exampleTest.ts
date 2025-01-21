@@ -7,8 +7,8 @@ function testRedisZset(
   length: number = 10,
   range: number = 100
 ): types.MuiDataTableListResp {
-  var data = [];
-  for (var i = 0; i < length; i++) {
+  let data = [];
+  for (let i = 0; i < length; i++) {
     data.push({
       key: testRedisKeyOrValue(),
       score: (Math.random() * range).toString(),
@@ -39,8 +39,8 @@ function testRedisKeyOrValue(): string {
 }
 
 function testRedisHash(length: number = 10): types.MuiDataTableListResp {
-  var data = [];
-  for (var i = 0; i < length; i++) {
+  let data = [];
+  for (let i = 0; i < length; i++) {
     data.push({
       key: testRedisKeyOrValue(),
       value: testRedisKeyOrValue(),
@@ -63,8 +63,8 @@ function testRedisHash(length: number = 10): types.MuiDataTableListResp {
 }
 
 function testRedisList(length: number = 10): types.MuiDataTableListResp {
-  var data = [];
-  for (var i = 0; i < length; i++) {
+  let data = [];
+  for (let i = 0; i < length; i++) {
     data.push({ value: testRedisKeyOrValue(), seq: i.toString() });
   }
   return {
@@ -81,8 +81,8 @@ function testRedisList(length: number = 10): types.MuiDataTableListResp {
 }
 
 function testRedisSet(length: number = 10): types.MuiDataTableListResp {
-  var data = [];
-  for (var i = 0; i < length; i++) {
+  let data = [];
+  for (let i = 0; i < length; i++) {
     data.push({ value: testRedisKeyOrValue() });
   }
   return {
@@ -189,7 +189,7 @@ function testQueryResp(
   fieldLength = 5,
   length: number = 10
 ): types.MuiDataGridData {
-  var fields = [];
+  let fields = [];
   for (let i = 0; i < fieldLength; i++) {
     fields.push(testExampleField());
   }

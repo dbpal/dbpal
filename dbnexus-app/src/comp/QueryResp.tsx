@@ -24,8 +24,6 @@ function QueryResp(props: { data: types.MuiDataGridData }) {
         </Tooltip>
       );
     };
-    //@ts-ignore
-    e.flex = 1;
   });
   const vis = useContext(VisiableContext);
   return (

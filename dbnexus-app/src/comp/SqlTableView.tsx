@@ -32,8 +32,8 @@ import {
 } from './Common';
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
-import { secondConfirm } from './Confirm';
-import { isTypeLargeText } from './helper';
+
+import { isTypeLargeText, secondConfirm } from './helper';
 import { datagridHeaderHeight, datagridRowHeight } from './CommonComp';
 
 const confrimAboutPrimary = async (
@@ -96,8 +96,6 @@ function SqlTableView(props: {
 
     for (let i = 0; i < resp.data.fields.length; i++) {
       let field = resp.data.fields[i];
-      //@ts-ignore
-      field.flex = 1;
       //@ts-ignore
       field.renderHeader = (e) => {
         let def = e.colDef;
@@ -415,7 +413,6 @@ function SqlTableViewAdd(props: {
       if (f.is_auto_increment) {
         continue;
       }
-
       if (!args[f.field] && !f.nullable) {
         showNotification('error', `filed '${f.field}' need be filled`);
         return;

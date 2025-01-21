@@ -26,8 +26,8 @@ import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import { secondConfirm } from './Confirm';
-import { calMenuStyle } from './helper';
+
+import { calMenuStyle, secondConfirm } from './helper';
 
 function LeftIndexes(props: { table: string }) {
   const { table } = props;

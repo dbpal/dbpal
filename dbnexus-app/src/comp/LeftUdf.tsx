@@ -26,9 +26,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import { TabContent } from './Tabs';
 import { DefAndMetasView } from './UdfAndMetaView';
-import { secondConfirm } from './Confirm';
+
 import { TbMathFunction } from 'react-icons/tb';
-import { calMenuStyle, DataSourceKind } from './helper';
+import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);

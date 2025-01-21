@@ -1,7 +1,18 @@
-import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import {
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+} from '@mui/material';
 import { ReactNode } from 'react';
 import { types } from './ApiStruct';
 import { DataGrid } from '@mui/x-data-grid';
+import { v4 as uuidv4 } from 'uuid';
+
+import AddIcon from '@mui/icons-material/Add';
+
 const LogLevelSel = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
 
@@ -69,10 +80,26 @@ function StickyNav(props: { children: ReactNode[] | ReactNode }) {
   );
 }
 
+function MenuNewQuery({ handle }) {
+  return (
+    <MenuItem
+      onClick={() => {
+        handle();
+      }}
+    >
+      <ListItemIcon>
+        <AddIcon></AddIcon>
+      </ListItemIcon>
+      <ListItemText> New Query </ListItemText>
+    </MenuItem>
+  );
+}
+
 export {
   LogLevelSel,
   StickyNav,
   MetaValuesView,
   datagridRowHeight,
   datagridHeaderHeight,
+  MenuNewQuery,
 };

@@ -1,4 +1,4 @@
-import { ReactNode, useContext, useState } from 'react';
+import React, { ReactNode, useContext, useState } from 'react';
 import { Stack, Button, Paper, MenuItem, MenuList } from '@mui/material';
 
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -88,7 +88,7 @@ function TabsMenu(props: {
   );
 }
 
-function TabsWithContent(props: {
+function TabsWithContent_(props: {
   tabs: TabContent[];
   handleClose: (index: number) => void;
   changeTab: (index: Number) => void;
@@ -168,5 +168,5 @@ function TabsWithContent(props: {
     </Stack>
   );
 }
-
+const TabsWithContent = React.memo(TabsWithContent_);
 export { TabsWithContent, TabContent };
