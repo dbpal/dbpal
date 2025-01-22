@@ -180,8 +180,10 @@ impl SqlServerDbConfig {
 pub struct OracleDbConfig {
     pub username: String,
     pub password: String,
-    pub connect_str: String,
+    pub host: String,
+    pub port: u16,
     pub schema: Option<String>,
     pub call_timeout: Option<u64>,
     pub read_only: bool,
+    pub db: String,
 }

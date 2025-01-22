@@ -10,7 +10,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { useContext, useEffect, useState } from 'react';
+import { lazy, Suspense, useContext, useEffect, useRef, useState } from 'react';
 
 import {
   UuidContext,
@@ -47,10 +47,32 @@ import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 
-import { RedisTables, TablesTree } from './LeftTable';
-import { ViewKind, ViewsTree } from './LeftView';
-import { ProceduresTree } from './LeftProcedure';
-import { UdfsTree } from './LeftUdf.tsx';
+const TablesTree = lazy(() =>
+  import('./LeftTable').then((module) => ({ default: module.TablesTree }))
+);
+
+const RedisTables = lazy(() =>
+  import('./LeftTable').then((module) => ({ default: module.RedisTables }))
+);
+
+import { ViewKind } from './LeftView';
+
+const ViewsTree = lazy(() =>
+  import('./LeftView').then((module) => ({ default: module.ViewsTree }))
+);
+
+const ProceduresTree = lazy(() =>
+  import('./LeftProcedure').then((module) => ({
+    default: module.ProceduresTree,
+  }))
+);
+
+const UdfsTree = lazy(() =>
+  import('./LeftUdf').then((module) => ({
+    default: module.UdfsTree,
+  }))
+);
+
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { debug } from './debug';
 import { TabContent } from './Tabs';
@@ -158,12 +180,20 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
           return <CatalogTree />;
         }
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
+      case 'oracle':
+        return config.schema ? <SchemaTree /> : <DatabaseTree />;
+
+      default:
+        throw `impl this kind`;
+        console.log('impl database kind:', config);
     }
   };
 
   return (
     <OpenedContext.Provider value={{ opened, setOpened }}>
-      <SimpleTreeView disableSelection>{makeTree()}</SimpleTreeView>
+      <SimpleTreeView disableSelection style={{ fontSize: '12px' }}>
+        {makeTree()}
+      </SimpleTreeView>
     </OpenedContext.Provider>
   );
 }
@@ -180,12 +210,14 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
-    kind == DataSourceKind.MsSql;
+    kind == DataSourceKind.MsSql ||
+    kind == DataSourceKind.Oracle;
   let support_udf =
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
-    kind == DataSourceKind.MsSql;
+    kind == DataSourceKind.MsSql ||
+    kind == DataSourceKind.Oracle;
 
   let { setUpMenu } = useContext(MenuContext);
 
@@ -229,23 +261,48 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           kind == DataSourceKind.MariaDB ||
           kind == DataSourceKind.MsSql ||
           kind == DataSourceKind.Postgres ||
-          kind == DataSourceKind.Mongo) && (
+          kind == DataSourceKind.Mongo ||
+          kind == DataSourceKind.Oracle) && (
           <>
-            <TablesTree></TablesTree>
-            <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
+            <Suspense fallback=<LoadingFallback />>
+              <TablesTree></TablesTree>
+            </Suspense>
+            <Suspense fallback=<LoadingFallback />>
+              <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
+            </Suspense>
             {kind == DataSourceKind.Postgres && (
-              <ViewsTree viewkind={ViewKind.PostGresMaterrialized}></ViewsTree>
+              <Suspense fallback=<LoadingFallback />>
+                <ViewsTree
+                  viewkind={ViewKind.PostGresMaterrialized}
+                ></ViewsTree>
+              </Suspense>
             )}
-            {support_procedure && <ProceduresTree></ProceduresTree>}
-            {support_udf && <UdfsTree></UdfsTree>}
+
+            {support_procedure && (
+              <Suspense fallback=<LoadingFallback />>
+                <ProceduresTree></ProceduresTree>
+              </Suspense>
+            )}
+            {support_udf && (
+              <Suspense fallback=<LoadingFallback />>
+                <UdfsTree></UdfsTree>
+              </Suspense>
+            )}
           </>
         )}
 
       {opened && kind == DataSourceKind.Redis && (
-        <RedisTables schema={schema}></RedisTables>
+        <Suspense fallback=<LoadingFallback />>
+          <RedisTables schema={schema}></RedisTables>
+        </Suspense>
       )}
     </TreeItem>
   );
+}
+
+function LoadingFallback() {
+  const id = useRef(generateRandomString(20));
+  return <TreeItem itemId={id.current}> loading </TreeItem>;
 }
 
 function DatabaseMenu(props: {
@@ -276,7 +333,7 @@ function DatabaseMenu(props: {
   return (
     <Paper>
       <MenuList>
-        {opened && (
+        {opened && kind != DataSourceKind.Oracle && (
           <MenuCreateSchema
             handleCreate={() => {
               setShowCreateSchema(true);
@@ -460,6 +517,7 @@ async function openNewQuery(
     case DataSourceKind.Mysql:
     case DataSourceKind.MariaDB:
     case DataSourceKind.Postgres:
+    case DataSourceKind.Oracle:
       content = (
         <SqlQuery
           language={uuid}
@@ -478,9 +536,12 @@ async function openNewQuery(
       );
 
       break;
-    default:
+
+    case DataSourceKind.Mongo:
       content = <MongoQuery uuid={uuid}></MongoQuery>;
       break;
+    default:
+      throw `impl this ${kind}`;
   }
 
   setTabs((e: TabContent[]) => {
@@ -533,7 +594,7 @@ function SchemaMenu(props: {
             handleClose={handleCloseConn}
           ></MenuCloseConn>
         )}
-        {schema && (
+        {schema && kind != DataSourceKind.Oracle && (
           <MenuItem
             onClick={() => {
               // we are in database context uuid contains the databse name

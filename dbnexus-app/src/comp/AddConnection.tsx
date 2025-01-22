@@ -330,6 +330,19 @@ export default function AddConfig(props: { handleClose: () => void }) {
           trust_cert: trustCert,
           schema: null,
         };
+      case DataSourceKind.Oracle:
+        return {
+          name: connectionName,
+          conn_type: 'oracle',
+          host: host,
+          port: portInt,
+          username: user,
+          password: password,
+          db: database,
+          read_only: readOnly,
+          schema: schema ? schema : null,
+          call_timeout: null,
+        };
     }
   };
   const handleTestConnection = () => {
@@ -374,6 +387,9 @@ export default function AddConfig(props: { handleClose: () => void }) {
         break;
       case DataSourceKind.Mongo:
         setPort('27017');
+        break;
+      case DataSourceKind.Oracle:
+        setPort('1521');
         break;
     }
     setUser('');
@@ -467,6 +483,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           <MenuItem value={DataSourceKind.Sqlite}>SQLite</MenuItem>
           <MenuItem value={DataSourceKind.Redis}>Redis</MenuItem>
           <MenuItem value={DataSourceKind.Mongo}>Mongo</MenuItem>
+          <MenuItem value={DataSourceKind.Oracle}>Oracel</MenuItem>
           <MenuItem value={DataSourceKind.MsSql}>
             Sql server(microsoft)
           </MenuItem>
@@ -599,6 +616,37 @@ export default function AddConfig(props: { handleClose: () => void }) {
             trustCert={trustCert}
             setTrustCert={setTrustCert}
           ></TrustCert>
+        </>
+      )}
+
+      {connectionType == DataSourceKind.Oracle && (
+        <>
+          <HostAndPort
+            onBlur={toggleTriggerReload}
+            host={host}
+            port={port}
+            setHost={setHost}
+            setPort={setPort}
+          ></HostAndPort>
+          <UserAndPassword
+            onBlur={toggleTriggerReload}
+            user={user}
+            password={password}
+            setUser={setUser}
+            setPassword={setPassword}
+          ></UserAndPassword>
+          <Database
+            database={database}
+            setDatabase={setDatabase}
+            candidates={databaseCandidates}
+          ></Database>
+          {database && (
+            <Schema
+              schema={schema}
+              setSchema={setSchema}
+              candidates={schemaCandidates}
+            ></Schema>
+          )}
         </>
       )}
       {connectionType == DataSourceKind.Sqlite && (

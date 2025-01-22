@@ -59,10 +59,12 @@ export namespace types {
     export type OracleDbConfig = {
         "username": string;
         "password": string;
-        "connect_str": string;
+        "host": string;
+        "port": types.U16;
         "schema": (string | null);
         "call_timeout": (types.U64 | null);
         "read_only": boolean;
+        "db": string;
     };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
@@ -170,12 +172,10 @@ export namespace types {
         "hash_tables": (string)[];
         "zset_tables": (string)[];
     };
-    export type TriggerTiming = ("Before" | "After" |
-        /**
-         * sql server have this timing but I am not quit understand.
-         */
-        "InsteadOf");
-    export type TriggerEvent = ("Insert" | "Update" | "Delete");
+    export type TriggerTiming = ("Before" | "After" | "InsteadOf" | {
+        "String": string;
+    });
+    export type TriggerEvent = ("Insert" | "Update" | "Delete" | "InsteadOf");
     export type TriggerEnable = (({
         "kind": "postgres";
     } & {

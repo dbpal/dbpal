@@ -392,6 +392,7 @@ impl SchemaTrait for PostGresDB {
     fn quote_style(&self) -> &'static str {
         "\""
     }
+
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!("DROP INDEX \"{index}\";");
         let mut conn = self.get_conn().await?;
@@ -630,9 +631,11 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<UdfDetail> {
         let arg = match &arg {
-            Some(x) => match x {
-                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
-            },
+            Some(x) => {
+                match x {
+                    UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+                }
+            }
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
 
@@ -665,13 +668,15 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => match x {
-                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
-                #[allow(unreachable_patterns)]
-                _ => {
-                    anyhow::bail!("must be a postgres parameter")
+            Some(x) => {
+                match x {
+                    UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+                    #[allow(unreachable_patterns)]
+                    _ => {
+                        anyhow::bail!("must be a postgres parameter")
+                    }
                 }
-            },
+            }
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 

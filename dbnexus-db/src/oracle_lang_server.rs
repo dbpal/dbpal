@@ -17,7 +17,7 @@ impl LexerCompletionTrait for OracleDB {
     }
 }
 
-const ORACLE_TYPES: &'static [&'static str] = &[
+pub(crate) const ORACLE_TYPES: &'static [&'static str] = &[
     "NUMBER",
     "BINARY_FLOAT",
     "BINARY_DOUBLE",

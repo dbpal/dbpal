@@ -141,7 +141,8 @@ function TableTree(props: {
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Sqlite ||
-    kind == DataSourceKind.Postgres;
+    kind == DataSourceKind.Postgres ||
+    kind == DataSourceKind.Oracle;
 
   return (
     <TreeItem
@@ -720,6 +721,7 @@ async function makeViewTable(
     case DataSourceKind.MsSql:
     case DataSourceKind.Sqlite:
     case DataSourceKind.Postgres:
+    case DataSourceKind.Oracle:
       tableList = (
         <SqlTableView
           reloadOP={async (

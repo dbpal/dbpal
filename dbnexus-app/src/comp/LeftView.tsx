@@ -296,6 +296,7 @@ function ViewMenu(props: {
         case DataSourceKind.MsSql:
         case DataSourceKind.Sqlite:
         case DataSourceKind.Postgres:
+        case DataSourceKind.Oracle:
           list = (
             <SqlTableView
               notWarnPri={true}

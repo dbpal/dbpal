@@ -182,7 +182,8 @@ pub trait SchemaTrait:
     }
 
     async fn create_view_sql(&self, _view_name: &str) -> anyhow::Result<String> {
-        anyhow::bail!(format!("sql server don't support create_view_sql"))
+        // anyhow::bail!(format!("sql server don't support create_view_sql"))
+        not_support_features(self.backend_name())
     }
     /// if this connection is read only
     fn read_only(&self) -> bool;
@@ -1027,6 +1028,7 @@ pub enum TriggerEvent {
     Insert,
     Update,
     Delete,
+    InsteadOf,
 }
 
 impl TryFrom<&str> for TriggerEvent {
@@ -1037,17 +1039,18 @@ impl TryFrom<&str> for TriggerEvent {
             "INSERT" => Ok(Self::Insert),
             "UPDATE" => Ok(Self::Update),
             "DELETE" => Ok(Self::Delete),
+            "INSTEAD OF" => Ok(Self::InsteadOf),
             _ => anyhow::bail!(format!("'{}' not a valid event", value)),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, TypeDef, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub enum TriggerTiming {
     Before,
     After,
-    /// sql server have this timing but I am not quit understand.
     InsteadOf,
+    String(String),
 }
 
 pub fn monaco_editor_keyword_regexp(keywords: &[&str]) -> String {

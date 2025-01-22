@@ -283,6 +283,7 @@ enum DataSourceKind {
   MsSql,
   Redis,
   Mongo,
+  Oracle
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
@@ -301,6 +302,9 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
       return DataSourceKind.Sqlite;
     case 'postgres':
       return DataSourceKind.Postgres;
+    case 'oracle':
+      return DataSourceKind.Oracle;
+
   }
 }
 function isTypeLargeText(s: string): boolean {

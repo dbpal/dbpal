@@ -763,6 +763,7 @@ function MongoTable(props: {
       }}
     >
       <MongoTableListToolBar
+        addOP={async () => {}}
         style={{ position: 'sticky', top: 0 }}
         orderBy={orderBy}
         filter={filter}

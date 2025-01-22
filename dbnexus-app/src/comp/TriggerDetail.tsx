@@ -15,7 +15,8 @@ function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
     return '';
   };
   const ret: types.MetaValue[] = [
-    { name: 'timming', value: x.timing, desc: '' },
+    // todo timing can be object
+    { name: 'timming', value: x.timing as string, desc: '' },
     { name: 'event', value: x.event, desc: '' },
   ];
   if (x.enable) {

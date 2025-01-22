@@ -527,8 +527,7 @@ function tabsHasId(tabs: TabContent[], id: string): number | null {
 function extraParametersFromMetaValues(
   values: types.MetaValue[]
 ): string | null {
-  for (let i = 0; i < values.length; i++) {
-    let v = values[i];
+  for (const v of values) {
     if (v.name == 'parameters') {
       return v.value;
     }
@@ -960,6 +959,26 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.Mongo:
       // here is no-op mongo use frontend to execute query
+      break;
+    case DataSourceKind.Oracle:
+      initLanguageXXX(
+        uuid,
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [mssqlKeywords, 'keyword'],
+              [/[_a-z][_a-z0-9]*/i, 'identifier'],
+              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
+              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+            ],
+          },
+        } as languages.IMonarchLanguage,
+        autoCompletion,
+        format
+      );
       break;
 
     default:
