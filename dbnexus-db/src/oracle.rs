@@ -20,7 +20,6 @@ use crate::db::{
     TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter, not_support_features,
 };
 use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
-use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
 use crate::query_log::QueryLog;
@@ -28,10 +27,8 @@ use crate::query_log::QueryLog;
 #[derive(Clone)]
 pub struct OracleDB {
     pool: Pool,
-    read_only: bool,
-    schema_name: Option<String>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
-    call_timeout: Option<Duration>,
+    pub(crate) config: OracleDbConfig,
 }
 
 #[async_trait::async_trait]
@@ -58,7 +55,7 @@ impl ServerMetas for OracleDB {
 }
 impl std::fmt::Debug for OracleDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "oracle@{:?}", self.schema_name)
+        write!(f, "oracle@{:?}", self.config)
     }
 }
 
@@ -74,10 +71,8 @@ impl OracleDB {
         .build()?;
         anyhow::Ok(Self {
             pool,
-            read_only: config.read_only,
-            schema_name: config.schema.clone(),
             query_connections: Default::default(),
-            call_timeout: config.call_timeout.clone().map(Duration::from_millis),
+            config,
         })
     }
 }
@@ -422,12 +417,6 @@ fn encode_rows(
     }
 
     anyhow::Ok(data)
-}
-
-impl OracleDB {
-    fn db_name_unchecked(&self) -> &String {
-        self.schema_name.as_ref().unwrap()
-    }
 }
 
 fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
@@ -828,7 +817,7 @@ impl OracleDB {
 
 impl OracleDB {
     fn schema_str(&self) -> &str {
-        self.schema_name.as_ref().expect("must be some").as_str()
+        self.config.schema.as_ref().expect("must be some").as_str()
     }
 }
 
@@ -844,6 +833,41 @@ impl CheckConn for OracleDB {
 
 fn type_support_compare(_typ: &str) -> bool {
     true
+}
+impl OracleDB {
+    pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+        let sql = format!(
+            r#"SELECT TABLE_NAME FROM DBA_TABLES WHERE OWNER = '{}'  ORDER BY TABLE_NAME "#,
+            schema
+        );
+        let conn = self.get_conn()?;
+        let result = block_in_place(|| conn.query(&sql, &[]))?;
+        let mut ret = Vec::new();
+        for r in result {
+            let r = r?;
+            let name: String = r.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+    }
+
+    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        let conn = self.get_conn()?;
+        let sql = format!(
+            r#"
+        SELECT VIEW_NAME   FROM all_views WHERE OWNER  = '{}'
+            "#,
+            schema
+        );
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
+        let mut ret = Vec::new();
+        for r in rows {
+            let r = r?;
+            let name: String = r.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+    }
 }
 
 #[async_trait::async_trait]
@@ -986,7 +1010,7 @@ impl SchemaTrait for OracleDB {
         let names = {
             let sql = format!(
                 "SELECT COLUMN_NAME FROM user_cons_columns where  OWNER='{}' and TABLE_NAME='{}' and CONSTRAINT_NAME='{}_PK'",
-                self.db_name_unchecked(),
+                self.schema_str(),
                 table_name,
                 table_name
             );
@@ -1008,7 +1032,7 @@ impl SchemaTrait for OracleDB {
     }
 
     fn read_only(&self) -> bool {
-        self.read_only
+        self.config.read_only
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -1020,20 +1044,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let sql = format!(
-            r#"SELECT TABLE_NAME FROM DBA_TABLES WHERE OWNER = '{}'"#,
-            self.schema_str()
-        );
-        let conn = self.get_conn()?;
-        let result = block_in_place(|| conn.query(&sql, &[]))?;
-        let mut ret = Vec::new();
-        for r in result {
-            let r = r?;
-            let name: String = r.get(0)?;
-            ret.push(name);
-        }
-
-        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+        self.list_table_impl(self.schema_str()).await
     }
 
     async fn rename_index(
@@ -1253,21 +1264,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let conn = self.get_conn()?;
-        let sql = format!(
-            r#"
-        SELECT VIEW_NAME   FROM all_views WHERE OWNER  = '{}'
-            "#,
-            self.schema_str()
-        );
-        let rows = block_in_place(|| conn.query(&sql, &[]))?;
-        let mut ret = Vec::new();
-        for r in rows {
-            let r = r?;
-            let name: String = r.get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        self.list_view_impl(self.schema_str()).await
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
@@ -1418,6 +1415,31 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        self.list_procedure_impl().await
+    }
+
+    async fn show_procedure(
+        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<ProcedureDetail> {
+        let sql = self.get_user_source(name)?;
+        anyhow::Ok(ProcedureDetail {
+            def: sql,
+            metas: vec![],
+        })
+    }
+
+    async fn drop_procedure(
+        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("DROP PROCEDURE {}", name);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, &[]))?;
+        anyhow::Ok(())
+    }
+}
+
+impl OracleDB {
+    pub(crate) async fn list_procedure_impl(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
             SELECT object_name, status
@@ -1438,25 +1460,6 @@ impl SchemaTrait for OracleDB {
             });
         }
         anyhow::Ok(ret)
-    }
-
-    async fn show_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<ProcedureDetail> {
-        let sql = self.get_user_source(name)?;
-        anyhow::Ok(ProcedureDetail {
-            def: sql,
-            metas: vec![],
-        })
-    }
-
-    async fn drop_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("DROP PROCEDURE {}", name);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, &[]))?;
-        anyhow::Ok(())
     }
 }
 
@@ -1489,14 +1492,7 @@ impl BackendName for OracleDB {
         "oracle"
     }
 }
-#[async_trait::async_trait]
-impl LanguageServer for OracleDB {
-    async fn auto_completion(
-        &self, _uuid: uuid::Uuid, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        not_support_features(self.backend_name())
-    }
-}
+
 #[async_trait::async_trait]
 impl DBTrait for OracleDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
@@ -1514,7 +1510,7 @@ impl DBTrait for OracleDB {
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
-        x.schema_name = Some(name.to_string());
+        x.config.schema = Some(name.to_string());
         x.query_connections = Default::default();
         anyhow::Ok(Arc::new(x))
     }
@@ -1529,11 +1525,9 @@ impl DBTrait for OracleDB {
 }
 
 impl OracleDB {
-    fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
-        log::info!("acquire pool connection.");
-
+    pub(crate) fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
         let mut conn: oracle::Connection = block_in_place(|| self.pool.get())?;
-        match &self.schema_name {
+        match &self.config.schema {
             Some(db_name) => {
                 let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
                 block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1543,8 +1537,8 @@ impl OracleDB {
         block_in_place(|| {
             conn.set_autocommit(true);
         });
-        if self.call_timeout.is_some() {
-            conn.set_call_timeout(self.call_timeout.clone())?;
+        if let Some(timeout) = self.config.call_timeout {
+            conn.set_call_timeout(Some(Duration::from_millis(timeout)))?;
         }
 
         return anyhow::Ok(conn);
@@ -1811,10 +1805,6 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         println!("show view:{:?}", resp);
         let sql = db.create_view_sql("PRODUCT_VIEW").await.unwrap();
         println!("create view sql:{}", sql);
-
-        db.drop_view("PRODUCT_VIEW").await.unwrap();
-
-        db.drop_table("TEST_VIEW_TABLE", false).await.unwrap();
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_indexes() {

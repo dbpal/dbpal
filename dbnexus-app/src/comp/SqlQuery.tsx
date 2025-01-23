@@ -37,6 +37,62 @@ import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { secondConfirm } from './helper.ts';
 
+function OracleCommit(props: { conn: IQueryConn }) {
+  const { conn } = props;
+  const [commit, setCommit] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  const handleQueryCommit = async () => {
+    try {
+      setCommit(await conn.oracleQueryAutocommit());
+    } catch (e) {
+      showNotification('error', 'query oracle commit failed', e);
+    }
+  };
+  useEffect(() => {
+    handleQueryCommit();
+  }, []);
+  const handleCommit = async () => {
+    try {
+      await conn.oracleQueryCommit();
+      showNotification('success', 'commit ok');
+    } catch (e) {
+      showNotification('error', 'oracle commit failed', e);
+    }
+  };
+  const handleRollback = async () => {
+    try {
+      await conn.oracleQueryCommit();
+      showNotification('success', 'rollback ok');
+    } catch (e) {
+      showNotification('error', 'oracle commit failed', e);
+    }
+  };
+  const handleReverse = async () => {
+    try {
+      await conn.oracleQuerySetAutocommit(!commit);
+      setCommit((e) => !e);
+      showNotification('success', 'set auto commit ok');
+    } catch (e) {
+      showNotification('error', 'oracle set commit failed', e);
+    }
+  };
+  return (
+    <>
+      <Tooltip title="reverse commit mode">
+        <Button onClick={handleReverse}>
+          {commit ? 'auto' : 'Manual'}-commit
+        </Button>
+      </Tooltip>
+      {!commit && (
+        <>
+          <Button onClick={handleCommit}>commit </Button>
+          <Button onClick={handleRollback}>rollback </Button>
+        </>
+      )}
+    </>
+  );
+}
+
 function SqlQuery(props: {
   language: string;
   handelTextAndPositionChange?: (text: string, pos: Position) => void;
@@ -295,7 +351,7 @@ function SqlQuery(props: {
               <RefreshIcon color={showSuggestReconn ? 'error' : 'inherit'} />
             </IconButton>
           </Tooltip>
-
+          {conn && conn.isOracle && <OracleCommit conn={conn} />}
           <Button
             size="small"
             onClick={() => {

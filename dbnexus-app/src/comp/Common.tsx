@@ -60,6 +60,7 @@ import { load } from '@tauri-apps/plugin-store';
 import {
   mssqlKeywords,
   mysqlKeywords,
+  oracleKeywords,
   postgresKeywords,
   redisKeywords,
   sqliteKeywords,
@@ -967,7 +968,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [mssqlKeywords, 'keyword'],
+              [oracleKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
@@ -1041,15 +1042,50 @@ interface IQueryConn {
   reconnect: () => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
   destroy: () => void;
+  oracleQuerySetAutocommit: (boolean) => Promise<void>;
+  oracleQueryAutocommit: () => Promise<boolean>;
+  oracleQueryCommit: () => Promise<void>;
+  oracleQueryRollback: () => Promise<void>;
+  isOracle: boolean;
 }
 
 class QueryConn implements IQueryConn {
   queryId: string;
   uuid: string;
-  constructor(uuid, queryId: string) {
+  isOracle: boolean;
+
+  constructor(uuid, queryId: string, isOracle = false) {
     this.queryId = queryId;
     this.uuid = uuid;
+    this.isOracle = isOracle;
   }
+
+  oracleQuerySetAutocommit(commit: boolean): Promise<void> {
+    return invoke<void>('oracle_query_set_autocommit', {
+      name: this.uuid,
+      queryId: this.queryId,
+      commit,
+    });
+  }
+  oracleQueryAutocommit(): Promise<boolean> {
+    return invoke<boolean>('oracle_query_autocommit', {
+      name: this.uuid,
+      queryId: this.queryId,
+    });
+  }
+  oracleQueryCommit(): Promise<void> {
+    return invoke<void>('oracle_query_commit', {
+      name: this.uuid,
+      queryId: this.queryId,
+    });
+  }
+  oracleQueryRollback(): Promise<void> {
+    return invoke<void>('oracle_query_rollback', {
+      name: this.uuid,
+      queryId: this.queryId,
+    });
+  }
+
   queryOP(sql: string): Promise<any[]> {
     let x = invoke<any[]>('query_sql', {
       name: this.uuid,

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-
 use std::collections::{HashMap, HashSet};
 use std::str::{FromStr, from_utf8};
 use std::sync::Arc;
@@ -117,11 +116,12 @@ impl std::fmt::Debug for RedisDB {
 
 #[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]
 pub struct RedisListTable {
-    pub string_tables: Vec<String>,
-    pub list_tables: Vec<String>,
-    pub set_tables: Vec<String>,
-    pub hash_tables: Vec<String>,
-    pub zset_tables: Vec<String>,
+    string_tables: Vec<String>,
+    list_tables: Vec<String>,
+    set_tables: Vec<String>,
+    hash_tables: Vec<String>,
+    zset_tables: Vec<String>,
+    has_more: bool,
 }
 
 impl RedisDB {
@@ -793,14 +793,18 @@ impl SchemaTrait for RedisDB {
             RedisType::String => anyhow::Ok(vec![Field::from_name_type("value", "string")]),
             RedisType::List => anyhow::Ok(vec![Field::from_name_type("list element", "string")]),
             RedisType::Set => anyhow::Ok(vec![Field::from_name_type("set element", "string")]),
-            RedisType::Hash => anyhow::Ok(vec![
-                Field::from_name_type("key", "string"),
-                Field::from_name_type("value", "string"),
-            ]),
-            RedisType::Zset => anyhow::Ok(vec![
-                Field::from_name_type("value", "string"),
-                Field::from_name_type("score", "float64"),
-            ]),
+            RedisType::Hash => {
+                anyhow::Ok(vec![
+                    Field::from_name_type("key", "string"),
+                    Field::from_name_type("value", "string"),
+                ])
+            }
+            RedisType::Zset => {
+                anyhow::Ok(vec![
+                    Field::from_name_type("value", "string"),
+                    Field::from_name_type("score", "float64"),
+                ])
+            }
         }
     }
 
@@ -959,12 +963,19 @@ impl SchemaTrait for RedisDB {
 }
 
 impl RedisDB {
-    pub async fn redis_list_table(&self, filter: Option<&str>) -> anyhow::Result<RedisListTable> {
+    pub async fn redis_list_table(
+        &self, filter: Option<&str>, max: usize,
+    ) -> anyhow::Result<RedisListTable> {
         let mut conn = self.get_conn().await?;
         let tables: Vec<String> = conn.keys(filter.unwrap_or("*")).await?;
         let mut ret = RedisListTable::default();
-
+        let mut count: usize = 1;
+        let mut has_more = false;
         for table in tables.into_iter() {
+            if count > max {
+                has_more = true;
+                break;
+            }
             let typ = Self::get_key_type(&mut conn, table.as_str()).await?;
             match typ {
                 RedisType::String => ret.string_tables.push(table),
@@ -973,7 +984,9 @@ impl RedisDB {
                 RedisType::Hash => ret.hash_tables.push(table),
                 RedisType::Zset => ret.zset_tables.push(table),
             }
+            count += 1;
         }
+        ret.has_more = has_more;
         anyhow::Ok(ret)
     }
 }
@@ -1022,11 +1035,16 @@ impl DBTrait for RedisDB {
         let db = Self::new(config).await?;
         anyhow::Ok(Arc::new(db))
     }
-    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
-        // In Redis, the concept of a "database" is somewhat different from traditional relational databases. Redis uses a single instance with multiple logical databases, each identified by an index number (default is 0-15 for most installations). To switch between these databases, you typically use the SELECT command.
 
-        // so we don't create database send a request to redis server we just save it memory.
-        // but there is a problem if user don't create any data
+    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
+        // In Redis, the concept of a "database" is somewhat different from traditional
+        // relational databases. Redis uses a single instance with multiple logical
+        // databases, each identified by an index number (default is 0-15 for most
+        // installations). To switch between these databases, you typically use the
+        // SELECT command.
+
+        // so we don't create database send a request to redis server we just save it
+        // memory. but there is a problem if user don't create any data
         // when restart we will not have the create database
         // I think this is rare.
 
@@ -1196,9 +1214,11 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialet, line).tokenize()?;
         let c = tokens
             .iter()
-            .filter(|x| match x {
-                Token::Whitespace(_) => false,
-                _ => true,
+            .filter(|x| {
+                match x {
+                    Token::Whitespace(_) => false,
+                    _ => true,
+                }
             })
             .map(|x| x.to_string())
             .collect();
@@ -1238,10 +1258,12 @@ async fn query_sql(
 fn encode_response_value_to_string(v: &Value) -> String {
     match v {
         Value::Int(v) => v.to_string(),
-        Value::BulkString(x) => match from_utf8(x.as_slice()) {
-            Ok(x) => x.to_owned(),
-            Err(_) => format!("0x{}", hex::encode(x.as_slice())),
-        },
+        Value::BulkString(x) => {
+            match from_utf8(x.as_slice()) {
+                Ok(x) => x.to_owned(),
+                Err(_) => format!("0x{}", hex::encode(x.as_slice())),
+            }
+        }
         Value::SimpleString(x) => x.to_owned(),
         Value::Double(d) => d.to_string(),
         Value::Boolean(x) => x.to_string(),
@@ -1505,7 +1527,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         enable_test_log();
         let db = make_test_object().await;
         tokio::time::sleep(Duration::from_secs(2)).await;
-        let redis_tables = db.redis_list_table(None).await.unwrap();
+        let redis_tables = db.redis_list_table(None, 100).await.unwrap();
         println!("redis tables:{:?}", redis_tables);
     }
 
@@ -1570,7 +1592,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         //     println!("{}", i);
         // }
         let now = std::time::Instant::now();
-        let x = db.redis_list_table(None).await.unwrap();
+        let x = db.redis_list_table(None, 100).await.unwrap();
         println!("used{:?} key_len:{}", now.elapsed(), x.string_tables.len());
     }
     #[tokio::test]

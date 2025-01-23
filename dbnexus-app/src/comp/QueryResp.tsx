@@ -104,13 +104,11 @@ function MultiQueryResp(props: { data: any[] }) {
 
       {data.map((e, index) => {
         return (
-          <VisiableContext.Provider value={vis && index == value}>
-            <CustomTabPanel
-              idPrefix={idPrefix}
-              key={`panel${index}`}
-              value={value}
-              index={index}
-            >
+          <VisiableContext.Provider
+            value={vis && index == value}
+            key={`panel${index}`}
+          >
+            <CustomTabPanel idPrefix={idPrefix} value={value} index={index}>
               {e.Err ? (
                 <Alert severity="error">{e.Err}</Alert>
               ) : (

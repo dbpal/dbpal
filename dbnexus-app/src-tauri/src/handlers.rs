@@ -207,11 +207,11 @@ pub async fn list_table(
 
 #[tauri::command]
 pub async fn redis_list_table(
-    name: String, filter: Option<String>, app: tauri::State<'_, App>,
+    name: String, filter: Option<String>, max: usize, app: tauri::State<'_, App>,
 ) -> Result<RedisListTable, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.redis_list_table(&name, filter.as_ref().map(|x| x.as_str()))
+    app.redis_list_table(&name, filter.as_ref().map(|x| x.as_str()), max)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -878,7 +878,7 @@ pub async fn semantic_tokens(
 
 #[tauri::command]
 pub async fn oracle_query_set_autocommit(
-    name: String, id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,
+    name: String, query_id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -888,7 +888,7 @@ pub async fn oracle_query_set_autocommit(
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
         Some(x) => {
-            x.query_set_autocommit(id, commit)
+            x.query_set_autocommit(query_id, commit)
                 .await
                 .map_err(ErrorFrontend::from)
         }
@@ -897,7 +897,7 @@ pub async fn oracle_query_set_autocommit(
 }
 #[tauri::command]
 pub async fn oracle_query_autocommit(
-    name: String, id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -906,28 +906,17 @@ pub async fn oracle_query_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x.query_autocommit(id).await.map_err(ErrorFrontend::from),
+        Some(x) => {
+            x.query_autocommit(query_id)
+                .await
+                .map_err(ErrorFrontend::from)
+        }
         None => Err(ErrorFrontend::from(format!("db '{}' is not oracle", name))),
     }
 }
 #[tauri::command]
 pub async fn oracle_query_commit(
-    name: String, id: uuid::Uuid, app: tauri::State<'_, App>,
-) -> Result<(), ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app
-        .get_schema(name.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x.query_commit(id).await.map_err(|e| ErrorFrontend::from(e)),
-        None => Err(format!("db '{}' is not oracle", name).into()),
-    }
-}
-#[tauri::command]
-pub async fn oracle_query_rollback(
-    name: String, id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -937,7 +926,26 @@ pub async fn oracle_query_rollback(
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
         Some(x) => {
-            x.query_rollback(id)
+            x.query_commit(query_id)
+                .await
+                .map_err(|e| ErrorFrontend::from(e))
+        }
+        None => Err(format!("db '{}' is not oracle", name).into()),
+    }
+}
+#[tauri::command]
+pub async fn oracle_query_rollback(
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match db.as_any().downcast_ref::<OracleDB>() {
+        Some(x) => {
+            x.query_rollback(query_id)
                 .await
                 .map_err(|e| ErrorFrontend::from(e))
         }

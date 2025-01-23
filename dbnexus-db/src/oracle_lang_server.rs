@@ -1,4 +1,12 @@
-use crate::language_server::{CompletionItem, LexerCompletionTrait};
+use std::sync::Arc;
+
+use tokio::task::block_in_place;
+
+use crate::db::DBTrait;
+use crate::language_server::{
+    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
+    try_completion_on_syntax,
+};
 use crate::oracle::OracleDB;
 
 #[async_trait::async_trait]
@@ -9,14 +17,222 @@ impl LexerCompletionTrait for OracleDB {
     const TYPES: &'static [&'static str] = ORACLE_TYPES;
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        unimplemented!()
+        let sql = format!(r#"SELECT TABLE_NAME FROM DBA_TABLES"#);
+        let conn = self.get_conn()?;
+        let result = block_in_place(|| conn.query(&sql, &[]))?;
+        let mut ret = Vec::new();
+        for r in result {
+            let r = r?;
+            let name: String = r.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        unimplemented!()
+        AstCompletionHelper::list_function(self, None, None, true).await
     }
 }
 
+impl OracleDB {
+    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
+    where
+        'b: 'a,
+    {
+        if schema.is_some() {
+            return schema;
+        }
+        return self.config.schema.as_deref();
+    }
+
+    fn not_allow_empty_schema<'a>(schema: Option<&'a str>) -> anyhow::Result<&'a str> {
+        match schema {
+            Some(x) => return anyhow::Ok(x),
+            None => anyhow::bail!("empty schema"),
+        }
+    }
+}
+
+impl OracleDB {
+    fn extact_names(&self, sql: &str) -> anyhow::Result<Vec<String>> {
+        let conn = self.get_conn()?;
+        let rows = conn.query(sql, &[])?;
+        let mut ret = Vec::new();
+        for row in rows {
+            let row = row?;
+
+            let name = row.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl AstCompletionHelper for OracleDB {
+    async fn list_table(
+        &self, _db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+
+        self.list_table_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_view(
+        &self, _db: Option<&str>, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+
+        self.list_view_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_column(
+        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let schmea = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let sql = format!(
+            "SELECT  COLUMN_NAME FROM ALL_TAB_COLUMNs WHERE TABLE_NAME = '{table}' AND OWNER ='{}'",
+            schmea
+        );
+        let conn = self.get_conn()?;
+        let rows = conn.query(&sql, &[])?;
+        let mut ret = Vec::new();
+
+        for row in rows {
+            let row = row?;
+            let name: String = row.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
+    }
+
+    async fn list_function(
+        &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let ret = self.extact_names(
+            r#"
+            SELECT
+                object_name
+            FROM
+                user_objects
+            WHERE
+                object_type = 'FUNCTION'
+        "#,
+        )?;
+
+        if let Some(schema) = self.schema_merge_config(schema) {
+            self.extact_names(
+                format!(
+                    r#"
+                    SELECT
+                        object_name
+                    FROM
+                        dba_objects
+                    WHERE
+                        object_type = 'FUNCTION'
+                        AND OWNER IN ('{}') 
+                "#,
+                    schema
+                )
+                .as_str(),
+            )?;
+        }
+        let mut ret: Vec<_> = ret
+            .into_iter()
+            .map(|x| {
+                CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
+                }
+            })
+            .collect();
+
+        if include_build_in {
+            ret.extend(ORACLE_BUILD_IN_FUNCTIONS.iter().map(|x| {
+                CompletionItem {
+                    item: (*x).into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
+                }
+            }));
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_procedure(
+        &self, _db: Option<&str>, _schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        self.list_procedure_impl()
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let sql = format!(
+            "SELECT INDEX_NAME FROM ALL_INDEXES WHERE OWNER='{}'",
+            schema
+        );
+
+        let conn = self.get_conn()?;
+        let rows = conn.query(&sql, &[])?;
+        let mut ret = Vec::new();
+        for row in rows {
+            let row = row?;
+
+            let name: String = row.get(0)?;
+
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl LanguageServer for OracleDB {
+    async fn auto_completion(
+        &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let r = try_completion_on_syntax(
+            &sql,
+            query_id,
+            line,
+            col,
+            sqlparser::dialect::MySqlDialect {},
+            Arc::new(Clone::clone(self)),
+        )
+        .await;
+        match r {
+            Ok(xs) => return Ok(xs),
+            Err(err) => {
+                log::error!("completion on ast failed,err:{:?}", err);
+            }
+        };
+        if !use_lexer {
+            log::warn!("disabled use lexer , we will return empty data.");
+            return anyhow::Ok(vec![]);
+        }
+        return LexerCompletionTrait::do_auto_completion(
+            self,
+            sql,
+            &sqlparser::dialect::GenericDialect {},
+            sqlparser::tokenizer::Location {
+                line: line as u64,
+                column: col as u64,
+            },
+        )
+        .await;
+    }
+}
 pub(crate) const ORACLE_TYPES: &'static [&'static str] = &[
     "NUMBER",
     "BINARY_FLOAT",
@@ -505,4 +721,367 @@ const ORACLE_KEY_WORDS: &'static [&'static str] = &[
     "NATURAL",
     "RECORD",
     "SUBTYPE",
+];
+
+/// https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Single-Row-Functions.html#GUID-B93F789D-B486-49FF-B0CD-0C6181C5D85C
+///  all function collect from.
+const ORACLE_BUILD_IN_FUNCTIONS: &'static [&'static str] = &[
+    // Numeric Functions
+    "ABS",
+    "ACOS",
+    "ASIN",
+    "ATAN",
+    "ATAN2",
+    "BITAND",
+    "CEIL",
+    "COS",
+    "COSH",
+    "EXP",
+    "FLOOR",
+    "LN",
+    "LOG",
+    "MOD",
+    "NANVL",
+    "POWER",
+    "REMAINDER",
+    "ROUND (number)",
+    "SIGN",
+    "SIN",
+    "SINH",
+    "SQRT",
+    "TAN",
+    "TANH",
+    "TRUNC",
+    "WIDTH_BUCKET",
+    //  Character Functions Returning Character Values
+    "CHR",
+    "CONCAT",
+    "INITCAP",
+    "LOWER",
+    "LPAD",
+    "LTRIM",
+    "NCHR",
+    "NLS_INITCAP",
+    "NLS_LOWER",
+    "NLS_UPPER",
+    "NLSSORT",
+    "REGEXP_REPLACE",
+    "REGEXP_SUBSTR",
+    "REPLACE",
+    "RPAD",
+    "RTRIM",
+    "SOUNDEX",
+    "SUBSTR",
+    "TRANSLATE",
+    "TRANSLATE ... USING",
+    "TRIM",
+    "UPPER",
+    // Character Functions Returning Number Values
+    "ASCII",
+    "INSTR",
+    "LENGTH",
+    "REGEXP_COUNT",
+    "REGEXP_INSTR",
+    // Character Set Functions
+    "NLS_CHARSET_DECL_LEN",
+    "NLS_CHARSET_ID",
+    "NLS_CHARSET_NAME",
+    // Collation Functions
+    "COLLATION",
+    "NLS_COLLATION_ID",
+    "NLS_COLLATION_NAME",
+    // Datetime Functions
+    "ADD_MONTHS",
+    "CURRENT_DATE",
+    "CURRENT_TIMESTAMP",
+    "DBTIMEZONE",
+    "EXTRACT",
+    "FROM_TZ",
+    "LAST_DAY",
+    "LOCALTIMESTAMP",
+    "MONTHS_BETWEEN",
+    "NEW_TIME",
+    "NEXT_DAY",
+    "NUMTODSINTERVAL",
+    "NUMTOYMINTERVAL",
+    "ORA_DST_AFFECTED",
+    "ORA_DST_CONVERT",
+    "ORA_DST_ERROR",
+    "ROUND",
+    "SESSIONTIMEZONE",
+    "SYS_EXTRACT_UTC",
+    "SYSDATE",
+    "SYSTIMESTAMP",
+    "TO_CHAR",
+    "TO_DSINTERVAL",
+    "TO_TIMESTAMP",
+    "TO_TIMESTAMP_TZ",
+    "TO_YMINTERVAL",
+    "TRUNC",
+    "TZ_OFFSET",
+    // General Comparison Functions
+    "GREATEST",
+    "LEAST",
+    // Conversion Functions
+    "ASCIISTR",
+    "BIN_TO_NUM",
+    "CAST",
+    "CHARTOROWID",
+    "COMPOSE",
+    "CONVERT",
+    "DECOMPOSE",
+    "HEXTORAW",
+    "NUMTODSINTERVAL",
+    "NUMTOYMINTERVAL",
+    "RAWTOHEX",
+    "RAWTONHEX",
+    "ROWIDTOCHAR",
+    "ROWIDTONCHAR",
+    "SCN_TO_TIMESTAMP",
+    "TIMESTAMP_TO_SCN",
+    "TO_BINARY_DOUBLE",
+    "TO_BINARY_FLOAT",
+    "TO_BLOB",
+    "TO_CHAR",
+    "TO_CLOB",
+    "TO_DATE",
+    "TO_DSINTERVAL",
+    "TO_LOB",
+    "TO_MULTI_BYTE",
+    "TO_NCHAR",
+    "TO_NCLOB",
+    "TO_NUMBER",
+    "TO_SINGLE_BYTE",
+    "TO_TIMESTAMP",
+    "TO_TIMESTAMP_TZ",
+    "TO_YMINTERVAL",
+    "TREAT",
+    "UNISTR",
+    "VALIDATE_CONVERSION",
+    // Large Object Functions
+    "BFILENAME",
+    "EMPTY_BLOB",
+    "EMPTY_CLOB",
+    // Collection Functions
+    "CARDINALITY",
+    "COLLECT",
+    "POWERMULTISET",
+    "POWERMULTISET_BY_CARDINALITY",
+    "SET",
+    // Hierarchical Functions
+    "SYS_CONNECT_BY_PATH",
+    // Data Mining Functions
+    "CLUSTER_DETAILS",
+    "CLUSTER_DISTANCE",
+    "CLUSTER_ID",
+    "CLUSTER_PROBABILITY",
+    "CLUSTER_SET",
+    "FEATURE_COMPARE",
+    "FEATURE_DETAILS",
+    "FEATURE_ID",
+    "FEATURE_SET",
+    "FEATURE_VALUE",
+    "ORA_DM_PARTITION_NAME",
+    "PREDICTION",
+    "PREDICTION_BOUNDS",
+    "PREDICTION_COST",
+    "PREDICTION_DETAILS",
+    "PREDICTION_PROBABILITY",
+    "PREDICTION_SET",
+    // The SQL XML functions are:
+    "DEPTH",
+    "EXISTSNODE",
+    "EXTRACT (XML)",
+    "EXTRACTVALUE",
+    "PATH",
+    "SYS_DBURIGEN",
+    "SYS_XMLAGG",
+    "SYS_XMLGEN",
+    "XMLAGG",
+    "XMLCAST",
+    "XMLCDATA",
+    "XMLCOLATTVAL",
+    "XMLCOMMENT",
+    "XMLCONCAT",
+    "XMLDIFF",
+    "XMLELEMENT",
+    "XMLEXISTS",
+    "XMLFOREST",
+    "XMLISVALID",
+    "XMLPARSE",
+    "XMLPATCH",
+    "XMLPI",
+    "XMLQUERY",
+    "XMLROOT",
+    "XMLSEQUENCE",
+    "XMLSERIALIZE",
+    "XMLTABLE",
+    "XMLTRANSFORM",
+    // JSON Functions
+    "JSON_QUERY",
+    "JSON_TABLE",
+    "JSON_VALUE",
+    // The following SQL/JSON functions allow you to generate JSON data:
+    "JSON_ARRAY",
+    "JSON_ARRAYAGG",
+    "JSON_OBJECT",
+    "JSON_OBJECTAGG",
+    // The following Oracle SQL function creates a JSON data guide:
+    "JSON_DATAGUIDE",
+    // Encoding and Decoding Functions
+    "DECODE",
+    "DUMP",
+    "ORA_HASH",
+    "STANDARD_HASH",
+    "VSIZE",
+    // NULL-Related Functions
+    "COALESCE",
+    "LNNVL",
+    "NANVL",
+    "NULLIF",
+    "NVL",
+    "NVL2",
+    // Environment and Identifier Functions
+    "CON_DBID_TO_ID",
+    "CON_GUID_TO_ID",
+    "CON_NAME_TO_ID",
+    "CON_UID_TO_ID",
+    "ORA_INVOKING_USER",
+    "ORA_INVOKING_USERID",
+    "SYS_CONTEXT",
+    "SYS_GUID",
+    "SYS_TYPEID",
+    "UID",
+    "USER",
+    "USERENV",
+    //
+    "APPROX_COUNT",
+    "APPROX_COUNT_DISTINCT",
+    "APPROX_COUNT_DISTINCT_AGG",
+    "APPROX_COUNT_DISTINCT_DETAIL",
+    "APPROX_MEDIAN",
+    "APPROX_PERCENTILE",
+    "APPROX_PERCENTILE_AGG",
+    "APPROX_PERCENTILE_DETAIL",
+    "APPROX_RANK",
+    "APPROX_SUM",
+    "AVG",
+    "COLLECT",
+    "CORR",
+    "CORR_S",
+    "CORR_K",
+    "COUNT",
+    "COVAR_POP",
+    "COVAR_SAMP",
+    "CUME_DIST",
+    "DENSE_RANK",
+    "FIRST",
+    "GROUP_ID",
+    "GROUPING",
+    "GROUPING_ID",
+    "JSON_ARRAYAGG",
+    "JSON_OBJECTAGG",
+    "LAST",
+    "LISTAGG",
+    "MAX",
+    "MEDIAN",
+    "MIN",
+    "PERCENT_RANK",
+    "PERCENTILE_CONT",
+    "PERCENTILE_DISC",
+    "RANK",
+    "REGR_ (Linear Regression) Functions",
+    "STATS_BINOMIAL_TEST",
+    "STATS_CROSSTAB",
+    "STATS_F_TEST",
+    "STATS_KS_TEST",
+    "STATS_MODE",
+    "STATS_MW_TEST",
+    "STATS_ONE_WAY_ANOVA",
+    "STATS_T_TEST_*",
+    "STATS_WSR_TEST",
+    "STDDEV",
+    "STDDEV_POP",
+    "STDDEV_SAMP",
+    "SUM",
+    "SYS_OP_ZONE_ID",
+    "SYS_XMLAGG",
+    "TO_APPROX_COUNT_DISTINCT",
+    "TO_APPROX_PERCENTILE",
+    "VAR_POP",
+    "VAR_SAMP",
+    "VARIANCE",
+    "XMLAGG",
+    //  Analytic Functions
+    "AVG",
+    "CLUSTER_DETAILS",
+    "CLUSTER_DISTANCE",
+    "CLUSTER_ID",
+    "CLUSTER_PROBABILITY",
+    "CLUSTER_SET",
+    "CORR",
+    "COUNT",
+    "COVAR_POP",
+    "COVAR_SAMP",
+    "CUME_DIST",
+    "DENSE_RANK",
+    "FEATURE_DETAILS",
+    "FEATURE_ID",
+    "FEATURE_SET",
+    "FEATURE_VALUE",
+    "FIRST",
+    "FIRST_VALUE",
+    "LAG",
+    "LAST",
+    "LAST_VALUE",
+    "LEAD",
+    "LISTAGG",
+    "MAX",
+    "MIN",
+    "NTH_VALUE",
+    "NTILE",
+    "PERCENT_RANK",
+    "PERCENTILE_CONT",
+    "PERCENTILE_DISC",
+    "PREDICTION",
+    "PREDICTION_COST",
+    "PREDICTION_DETAILS",
+    "PREDICTION_PROBABILITY",
+    "PREDICTION_SET",
+    "RANK",
+    "RATIO_TO_REPORT",
+    "ROW_NUMBER",
+    "STDDEV",
+    "STDDEV_POP",
+    "STDDEV_SAMP",
+    "SUM",
+    "VAR_POP",
+    "VAR_SAMP",
+    "VARIANCE",
+    "REGR_SLOPE",
+    "REGR_INTERCEPT",
+    "REGR_COUNT",
+    "REGR_R2",
+    "REGR_AVGX",
+    "REGR_AVGY",
+    "REGR_SXX",
+    "REGR_SYY",
+    "REGR_SXY",
+    // Object Reference Functions
+    "DEREF",
+    "MAKE_REF",
+    "REF",
+    "REFTOHEX",
+    "VALUE",
+    // Model Functions
+    "CV",
+    "ITERATION_NUMBER",
+    "PRESENTNNV",
+    "PRESENTV",
+    "PREVIOUS",
+    // OLAP Functions
+    "CUBE_TABLE",
+    // Data Cartridge Functions
+    "DATAOBJ_TO_MAT_PARTITION",
+    "DATAOBJ_TO_PARTITION",
 ];

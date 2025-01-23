@@ -1,8 +1,15 @@
-use dbnexus_db::{
-    db::monaco_editor_keyword_regexp, language_server::LexerCompletionTrait, mssql::MsSqlServer,
-    mysql::MysqlDB, pg::PostGresDB, redis_lang_server::REDIS_COMMANDS, sqlite::SqliteDB,
-};
-use std::{env, io::Write, path::Path};
+use std::env;
+use std::io::Write;
+use std::path::Path;
+
+use dbnexus_db::db::monaco_editor_keyword_regexp;
+use dbnexus_db::language_server::LexerCompletionTrait;
+use dbnexus_db::mssql::MsSqlServer;
+use dbnexus_db::mysql::MysqlDB;
+use dbnexus_db::oracle::OracleDB;
+use dbnexus_db::pg::PostGresDB;
+use dbnexus_db::redis_lang_server::REDIS_COMMANDS;
+use dbnexus_db::sqlite::SqliteDB;
 
 fn compose(name: &str, content: &str) -> String {
     return format!("const {} = {};", name, content);
@@ -62,10 +69,18 @@ fn main() {
             .unwrap();
         file.write("\n".as_bytes()).unwrap();
     }
+    // oracle
+
+    {
+        let content = OracleDB::monaco_editor_keyword_regexp();
+        file.write(compose("oracleKeywords", &content).as_bytes())
+            .unwrap();
+        file.write("\n".as_bytes()).unwrap();
+    }
 
     // TODO add more
     file.write(
-        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords }"#.as_bytes(),
+        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords }"#.as_bytes(),
     )
     .unwrap();
 }

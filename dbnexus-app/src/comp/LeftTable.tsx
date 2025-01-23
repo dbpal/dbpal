@@ -44,6 +44,8 @@ import {
   Stack,
   Switch,
   TextField,
+  Tooltip,
+  Typography,
 } from '@mui/material';
 
 import { TabContent } from './Tabs';
@@ -1474,11 +1476,14 @@ function RedisTables(prpos: { schema?: string }) {
   const [tables, setTables] = useState<types.RedisListTable>();
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+  const max = 50;
+
   const handleReload = () => {
     setLoading(true);
     invoke<types.RedisListTable>('redis_list_table', {
       name: uuid,
       filter: filter ? filter : null,
+      max,
     })
       .then((e) => {
         setTables(e);
@@ -1597,7 +1602,15 @@ function RedisTables(prpos: { schema?: string }) {
         }}
       >
         <TableViewIcon> </TableViewIcon>
-        <span>keys</span>
+
+        {tables && tables.has_more ? (
+          <Tooltip title={`result exceed ${max},some result are omited`}>
+            <Typography color="error">keys</Typography>
+          </Tooltip>
+        ) : (
+          <Typography>keys</Typography>
+        )}
+
         {loading && (
           <CircularProgress size={progressBarSizeSmall}></CircularProgress>
         )}
@@ -1612,7 +1625,8 @@ function RedisTables(prpos: { schema?: string }) {
             setShowEditFilter(true);
           }}
         >
-          filter: <em> {filter} </em>
+          filter:
+          <em> {filter} </em>
         </Stack>
       ></TreeItem>
       {tables &&

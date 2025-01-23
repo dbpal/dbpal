@@ -171,6 +171,7 @@ export namespace types {
         "set_tables": (string)[];
         "hash_tables": (string)[];
         "zset_tables": (string)[];
+        "has_more": boolean;
     };
     export type TriggerTiming = ("Before" | "After" | "InsteadOf" | {
         "String": string;

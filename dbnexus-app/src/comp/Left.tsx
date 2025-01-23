@@ -10,7 +10,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { lazy, Suspense, useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 
 import {
   UuidContext,
@@ -47,32 +47,6 @@ import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 
-const TablesTree = lazy(() =>
-  import('./LeftTable').then((module) => ({ default: module.TablesTree }))
-);
-
-const RedisTables = lazy(() =>
-  import('./LeftTable').then((module) => ({ default: module.RedisTables }))
-);
-
-import { ViewKind } from './LeftView';
-
-const ViewsTree = lazy(() =>
-  import('./LeftView').then((module) => ({ default: module.ViewsTree }))
-);
-
-const ProceduresTree = lazy(() =>
-  import('./LeftProcedure').then((module) => ({
-    default: module.ProceduresTree,
-  }))
-);
-
-const UdfsTree = lazy(() =>
-  import('./LeftUdf').then((module) => ({
-    default: module.UdfsTree,
-  }))
-);
-
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { debug } from './debug';
 import { TabContent } from './Tabs';
@@ -87,6 +61,10 @@ import { RedisQuery } from './RedisQuery';
 import { MongoQuery } from './MongoQuery.tsx';
 import React from 'react';
 import { MenuNewQuery } from './CommonComp.tsx';
+import { RedisTables, TablesTree } from './LeftTable.tsx';
+import { ViewKind, ViewsTree } from './LeftView.tsx';
+import { UdfsTree } from './LeftUdf.tsx';
+import { ProceduresTree } from './LeftProcedure.tsx';
 
 function Left_() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
@@ -264,45 +242,24 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           kind == DataSourceKind.Mongo ||
           kind == DataSourceKind.Oracle) && (
           <>
-            <Suspense fallback=<LoadingFallback />>
-              <TablesTree></TablesTree>
-            </Suspense>
-            <Suspense fallback=<LoadingFallback />>
-              <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
-            </Suspense>
+            <TablesTree></TablesTree>
+
+            <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
+
             {kind == DataSourceKind.Postgres && (
-              <Suspense fallback=<LoadingFallback />>
-                <ViewsTree
-                  viewkind={ViewKind.PostGresMaterrialized}
-                ></ViewsTree>
-              </Suspense>
+              <ViewsTree viewkind={ViewKind.PostGresMaterrialized}></ViewsTree>
             )}
 
-            {support_procedure && (
-              <Suspense fallback=<LoadingFallback />>
-                <ProceduresTree></ProceduresTree>
-              </Suspense>
-            )}
-            {support_udf && (
-              <Suspense fallback=<LoadingFallback />>
-                <UdfsTree></UdfsTree>
-              </Suspense>
-            )}
+            {support_procedure && <ProceduresTree></ProceduresTree>}
+            {support_udf && <UdfsTree></UdfsTree>}
           </>
         )}
 
       {opened && kind == DataSourceKind.Redis && (
-        <Suspense fallback=<LoadingFallback />>
-          <RedisTables schema={schema}></RedisTables>
-        </Suspense>
+        <RedisTables schema={schema}></RedisTables>
       )}
     </TreeItem>
   );
-}
-
-function LoadingFallback() {
-  const id = useRef(generateRandomString(20));
-  return <TreeItem itemId={id.current}> loading </TreeItem>;
 }
 
 function DatabaseMenu(props: {
@@ -509,7 +466,7 @@ async function openNewQuery(
       name: uuid,
     });
     console.log('open connection:', queryId);
-    return new QueryConn(uuid, queryId);
+    return new QueryConn(uuid, queryId, kind == DataSourceKind.Oracle);
   };
   switch (kind) {
     case DataSourceKind.MsSql:

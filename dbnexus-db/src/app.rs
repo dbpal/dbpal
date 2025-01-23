@@ -103,19 +103,21 @@ impl DBConnectionConfig {
                 anyhow::Ok(Open::Schema(db))
             }
             DBConnectionConfig::Mysql { conn, name: _ }
-            | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
-                Some(_) => {
-                    let db: Arc<dyn SchemaTrait> =
-                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+            | DBConnectionConfig::MariaDB { conn, name: _ } => {
+                match &conn.db {
+                    Some(_) => {
+                        let db: Arc<dyn SchemaTrait> =
+                            Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
 
-                    anyhow::Ok(Open::Schema(db))
+                        anyhow::Ok(Open::Schema(db))
+                    }
+                    None => {
+                        let db: Arc<dyn DBTrait> =
+                            Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+                        anyhow::Ok(Open::DataBase(db))
+                    }
                 }
-                None => {
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
-                    anyhow::Ok(Open::DataBase(db))
-                }
-            },
+            }
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
@@ -155,20 +157,22 @@ impl DBConnectionConfig {
 
                 anyhow::Ok(db)
             }
-            DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
-                Some(_) => {
-                    let db: Arc<dyn SchemaTrait> =
-                        Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
+            DBConnectionConfig::Oracle { conn, name: _ } => {
+                match conn.schema.as_ref() {
+                    Some(_) => {
+                        let db: Arc<dyn SchemaTrait> =
+                            Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
 
-                    anyhow::Ok(Open::Schema(db))
-                }
-                None => {
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
+                        anyhow::Ok(Open::Schema(db))
+                    }
+                    None => {
+                        let db: Arc<dyn DBTrait> =
+                            Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
 
-                    anyhow::Ok(Open::DataBase(db))
+                        anyhow::Ok(Open::DataBase(db))
+                    }
                 }
-            },
+            }
         }
     }
 }
@@ -316,7 +320,9 @@ impl App {
         db.list_table().await
     }
 
-    pub async fn show_table_columns(&self, name: &str, table_name: &str) -> anyhow::Result<Vec<Field>> {
+    pub async fn show_table_columns(
+        &self, name: &str, table_name: &str,
+    ) -> anyhow::Result<Vec<Field>> {
         let db = self.get_schema(name).await?;
         db.show_table_columns(table_name).await
     }
@@ -409,11 +415,11 @@ impl App {
     }
 
     pub async fn redis_list_table(
-        &self, name: &str, filter: Option<&str>,
+        &self, name: &str, filter: Option<&str>, max: usize,
     ) -> anyhow::Result<RedisListTable> {
         let db = self.get_schema(name).await?;
         match db.as_any().downcast_ref::<RedisDB>() {
-            Some(x) => x.redis_list_table(filter).await,
+            Some(x) => x.redis_list_table(filter, max).await,
             None => anyhow::bail!(format!("'{}' not a redis", name)),
         }
     }

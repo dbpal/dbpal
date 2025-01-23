@@ -183,6 +183,7 @@ pub struct OracleDbConfig {
     pub host: String,
     pub port: u16,
     pub schema: Option<String>,
+    // millisecond.
     pub call_timeout: Option<u64>,
     pub read_only: bool,
     pub db: String,
