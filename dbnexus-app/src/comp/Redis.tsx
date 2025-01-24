@@ -17,17 +17,21 @@ import {
   Select,
   Typography,
   Modal,
+  Paper,
+  MenuList,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
-
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   modalStyle,
-  pageSizeOptions,
   progressBarSize,
   SettingsContext,
   reloadOK,
   VisiableContext,
+  ContextMenuContext,
 } from './Common.tsx';
 
 import { types } from './ApiStruct.ts';
@@ -36,7 +40,7 @@ import { NotificationContext } from './Notification';
 import {
   DataGrid,
   GridPaginationModel,
-  GridRowSelectionModel,
+  GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
 import HexEditor from 'react-hex-editor';
@@ -45,13 +49,18 @@ import AddIcon from '@mui/icons-material/Add';
 
 import {
   arrayToHex,
+  calMenuStyle,
+  handleCopyToClipboard,
   hexToUint8Array,
   hexToUtf8,
   hexTryToUtf8,
-  secondConfirm,
   stringToHex,
 } from './helper.ts';
-import { datagridHeaderHeight, datagridRowHeight } from './CommonComp.tsx';
+import {
+  datagridHeaderHeight,
+  datagridRowHeight,
+  pageSizeOptions,
+} from './CommonComp.tsx';
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -155,8 +164,8 @@ function RedisStringTable(props: {
         handleValue={(e) => {
           setNewConent(e);
         }}
-        textRows={10}
-        hexRows={0x10}
+        textRows={22}
+        hexRows={0x17}
       ></RedisEditHexOrText>
 
       <Stack width="100px" direction="row" spacing={1}>
@@ -729,6 +738,38 @@ function redisRenderCell(p: any) {
   }
 }
 
+function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
+  const { delOP, content } = props;
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            delOP();
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText> delete </ListItemText>
+        </MenuItem>
+      </MenuList>
+    </Paper>
+  );
+}
+
 function RedisSetTable(props: {
   reloadOP: (keyMatch: string) => Promise<types.MuiDataTableListResp>;
   modifyOP: (oldvalue: string, newValue: string) => Promise<void>;
@@ -741,7 +782,7 @@ function RedisSetTable(props: {
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [selectionModel, setSelectionModel] = useState([]);
+
   const handleReload = (showOK) => {
     reloadOP(keyMatch)
       .then((resp) => {
@@ -762,49 +803,57 @@ function RedisSetTable(props: {
       });
   };
 
-  const getIDIndex = (id: string): number => {
-    let ret;
-    resp.data.data.forEach((e, index) => {
-      if (e.id === id) {
-        ret = index;
-      }
-    });
-    return ret;
-  };
-
   useEffect(() => {
     handleReload(false);
   }, []);
 
-  const handleDel = async () => {
-    for (let i = 0; i < selectionModel.length; i++) {
-      let index = getIDIndex(selectionModel[i]);
-      let value = resp.data.data[index]['value'];
-      try {
-        await delOP(value);
-        showNotification('success', 'Delete OK');
-      } catch (e) {
-        showNotification('error', 'delete failure', e);
-      }
+  const handleDel = async (id: string) => {
+    let del = resp.data.data.find((e) => e['id'] == id);
+    try {
+      await delOP(del.value);
+      showNotification('success', 'Delete OK');
+    } catch (e) {
+      showNotification('error', 'delete failure', e);
     }
+
     handleReload(false);
   };
   const onRowDoubleClick = useCallback((e) => {
     setSelectRow(e.row);
   }, []);
-  const onRowSelectionModelChange = useCallback(
-    (rows: GridRowSelectionModel) => {
-      setSelectionModel(rows as string[]);
-    },
-    []
-  );
+
   const vis = useContext(VisiableContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { currentTarget, target } = e;
+          let content = (target as HTMLDivElement).innerHTML;
+          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          setUpMenu({
+            content: (
+              <RedisSetTableContextMenu
+                content={content}
+                delOP={() => {
+                  handleDel(id);
+                }}
+              ></RedisSetTableContextMenu>
+            ),
+            style: calMenuStyle(e, 200),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, [resp]);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
           label="key match could be *key,key*,*key*"
-          variant="outlined" // 可以是 'outlined', 'filled', or 'standard'
+          variant="outlined"
           value={keyMatch}
           onChange={(event) => {
             setKeyMatch(event.target.value);
@@ -813,11 +862,11 @@ function RedisSetTable(props: {
         />
         <Button
           size="small"
-          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
-          color="primary" // 主题颜色
+          variant="contained"
+          color="primary"
           onClick={() => {
             handleReload(true);
-          }} // 点击事件处理
+          }}
         >
           Reload
         </Button>
@@ -826,25 +875,6 @@ function RedisSetTable(props: {
       {resp && (
         <Stack spacing={1}>
           <Stack direction="row" spacing={1}>
-            <Button
-              size="small"
-              variant="contained"
-              color="error"
-              disabled={selectionModel.length == 0}
-              onClick={() => {
-                secondConfirm({
-                  title: 'Are u sure',
-                  content: 'Are you sure to delete those data',
-                  confirmText: 'Delete',
-                }).then((confirm) => {
-                  if (confirm) {
-                    handleDel();
-                  }
-                });
-              }}
-            >
-              <DeleteForeverIcon color="error"></DeleteForeverIcon>
-            </Button>
             <Button
               size="small"
               variant="contained"
@@ -861,15 +891,15 @@ function RedisSetTable(props: {
           {vis && (
             <div style={{ display: 'grid' }}>
               <DataGrid
+                slotProps={slotProps}
                 rowHeight={datagridRowHeight}
                 columnHeaderHeight={datagridHeaderHeight}
                 rows={resp.data.data}
-                checkboxSelection
                 editMode="row"
+                checkboxSelection={false}
                 onRowDoubleClick={onRowDoubleClick}
                 columns={resp.data.fields}
                 disableColumnFilter
-                onRowSelectionModelChange={onRowSelectionModelChange}
               ></DataGrid>
             </div>
           )}
@@ -933,6 +963,76 @@ function RedisSetTable(props: {
   );
 }
 
+function RedisListTableContextMenu(props: {
+  delOP: (count: number) => void;
+  content;
+}) {
+  const { delOP, content } = props;
+
+  const [count, setCount] = useState('0');
+  const [showDel, setShowDel] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            setShowDel(true);
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText> delete </ListItemText>
+        </MenuItem>
+      </MenuList>
+
+      {showDel && (
+        <Modal
+          open={!!showDel}
+          onClose={() => {
+            setShowDel(null);
+          }}
+          aria-labelledby="modify list"
+        >
+          <Box sx={modalStyle} width="800px">
+            <Stack spacing={1}>
+              <TextField
+                value={count}
+                label="delete count"
+                onChange={(e) => {
+                  setCount(e.target.value);
+                }}
+                type="number"
+              ></TextField>
+              <Stack direction="row">
+                <Button
+                  onClick={() => {
+                    delOP(parseInt(count));
+                  }}
+                >
+                  delete
+                </Button>
+              </Stack>
+            </Stack>
+          </Box>
+        </Modal>
+      )}
+    </Paper>
+  );
+}
+
 function RedisListTable(props: {
   reloadOP: () => Promise<types.MuiDataTableListResp>;
   modifyOP: (index: number, newValue: string) => Promise<void>;
@@ -946,11 +1046,7 @@ function RedisListTable(props: {
 
   const [selectRow, setSelectRow] = useState<any>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [selectionModel, setSelectionModel] = useState('');
-
   const { showNotification } = useContext(NotificationContext);
-  const [deleteCount, setDeleteCunnt] = useState<string | number>(0);
-  const [deleteCountErr, setDeleteCountErr] = useState(false);
   const [pageSize, setPageSize] = useState(
     useContext(SettingsContext).pageSize
   );
@@ -983,38 +1079,21 @@ function RedisListTable(props: {
     handleReload(true);
   }, []);
 
-  const getIDIndex = (id: string): number => {
-    let ret;
-    resp.data.data.forEach((e, index) => {
-      if (e.id === id) {
-        ret = index;
-      }
-    });
-    return ret;
-  };
-
-  const handleDel = async () => {
-    let value = resp.data.data[getIDIndex(selectionModel)]['value'];
+  const handleDel = async (id, deleteCount: number) => {
+    let del = resp.data.data.find((e) => e.id == id);
     try {
-      await delOP(
-        typeof deleteCount === 'string' ? parseInt(deleteCount) : deleteCount,
-        value
-      );
+      await delOP(deleteCount, del.value);
       showNotification('success', 'Delete OK');
     } catch (e) {
       showNotification('error', 'Delete failure', e);
     }
     handleReload(false);
   };
+
   const onRowDoubleClick = useCallback((e) => {
     setSelectRow(e.row);
   }, []);
-  const onRowSelectionModelChange = useCallback(
-    (rows: GridRowSelectionModel) => {
-      setSelectionModel(rows.length > 0 ? (rows[0] as string) : '');
-    },
-    []
-  );
+
   const onPaginationModelChange = useCallback((x: GridPaginationModel) => {
     setPage(x.page);
     setPageSize(x.pageSize);
@@ -1049,9 +1128,44 @@ function RedisListTable(props: {
     [resp2]
   );
   const vis = useContext(VisiableContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { currentTarget, target } = e;
+          let content = (target as HTMLDivElement).innerHTML;
+          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          setUpMenu({
+            content: (
+              <RedisListTableContextMenu
+                delOP={(count) => {
+                  handleDel(id, count);
+                }}
+                content={content}
+              ></RedisListTableContextMenu>
+            ),
+            style: calMenuStyle(e, 200),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, [resp]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
+        <Button
+          size="small"
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            setShowAdd(true);
+          }}
+        >
+          <AddIcon></AddIcon>
+        </Button>
+
         <Button
           size="small"
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
@@ -1065,64 +1179,19 @@ function RedisListTable(props: {
       </Stack>
       {resp && (
         <Stack spacing={1}>
-          {/* delete Button  */}
-          <Stack direction="row" spacing={1} alignItems="flex-start">
-            <TextField
-              size="small"
-              value={deleteCount}
-              error={deleteCountErr}
-              helperText="put a valid integer"
-              onChange={(e) => {
-                setDeleteCountErr(isNaN(parseInt(e.target.value)));
-                setDeleteCunnt(e.target.value);
-              }}
-              inputProps={{ type: 'number' }}
-            />
-            <Button
-              size="small"
-              variant="contained"
-              color="error"
-              disabled={selectionModel === '' || deleteCountErr}
-              onClick={() => {
-                secondConfirm({
-                  title: 'Delete',
-                  content: 'Are u sure to Delete',
-                  confirmText: 'Delete',
-                }).then((confirm) => {
-                  if (confirm) {
-                    handleDel();
-                  }
-                });
-              }}
-            >
-              <DeleteForeverIcon color="error"></DeleteForeverIcon>
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              color="primary"
-              onClick={() => {
-                setShowAdd(true);
-              }}
-            >
-              <AddIcon></AddIcon>
-            </Button>
-          </Stack>
-
-          {/* actual data grid */}
           {vis && (
             <div style={{ display: 'grid' }}>
               <DataGrid
+                slotProps={slotProps}
                 rowHeight={datagridRowHeight}
                 columnHeaderHeight={datagridHeaderHeight}
-                checkboxSelection
+                checkboxSelection={false}
                 disableMultipleRowSelection
                 disableColumnFilter
                 rows={resp.data.data}
                 columns={resp.data.fields}
                 paginationModel={paginationModel}
                 onRowDoubleClick={onRowDoubleClick}
-                onRowSelectionModelChange={onRowSelectionModelChange}
                 pageSizeOptions={pageSizeOptions}
                 onPaginationModelChange={onPaginationModelChange}
                 sortingMode="server"
@@ -1199,6 +1268,38 @@ function RedisListTable(props: {
   );
 }
 
+function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
+  const { delOP, content } = props;
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            delOP();
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText> delete </ListItemText>
+        </MenuItem>
+      </MenuList>
+    </Paper>
+  );
+}
+
 function RedisZsetTable(props: {
   reloadOP: (
     keyMatch: string,
@@ -1223,8 +1324,6 @@ function RedisZsetTable(props: {
   const [max, setMax] = useState('');
   const [minErr, setMinErr] = useState(false);
   const [maxErr, setMaxErr] = useState(false);
-
-  const [selectionModel, setSelectionModel] = useState([]);
 
   const { showNotification } = useContext(NotificationContext);
   const handleReload = (showOK: boolean) => {
@@ -1261,39 +1360,48 @@ function RedisZsetTable(props: {
   useEffect(() => {
     handleReload(false);
   }, []);
-  const getIDIndex = (id: string): number => {
-    let ret;
-    resp.data.data.forEach((e, index) => {
-      if (e.id === id) {
-        ret = index;
-      }
-    });
-    return ret;
-  };
 
-  const handleDel = async () => {
-    for (let i = 0; i < selectionModel.length; i++) {
-      let index = getIDIndex(selectionModel[i]);
-      let value = resp.data.data[index]['key'];
-      try {
-        await delOP(value);
-        showNotification('success', 'Delete OK');
-      } catch (e) {
-        showNotification('error', 'delete failure', e);
-      }
+  const handleDel = async (id: string) => {
+    let del = resp.data.data.find((e) => e['id'] == id);
+    try {
+      await delOP(del.key);
+      showNotification('success', 'Delete OK');
+    } catch (e) {
+      showNotification('error', 'delete failure', e);
     }
+
     handleReload(false);
   };
   const onRowDoubleClick = useCallback((e) => {
     setSelectRow(e.row);
   }, []);
-  const onRowSelectionModelChange = useCallback(
-    (rows: GridRowSelectionModel) => {
-      setSelectionModel(rows as string[]);
-    },
-    []
-  );
+
   const vis = useContext(VisiableContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { currentTarget, target } = e;
+          let content = (target as HTMLDivElement).innerHTML;
+          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          setUpMenu({
+            content: (
+              <RedisZSetTableContextMenu
+                content={content}
+                delOP={() => {
+                  handleDel(id);
+                }}
+              ></RedisZSetTableContextMenu>
+            ),
+            style: calMenuStyle(e, 200),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, [resp]);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -1357,25 +1465,6 @@ function RedisZsetTable(props: {
             <Button
               size="small"
               variant="contained"
-              color="error"
-              disabled={selectionModel.length == 0}
-              onClick={() => {
-                secondConfirm({
-                  title: 'Are u sure',
-                  content: 'Are you sure to delete those data',
-                  confirmText: 'Delete',
-                }).then((confirm) => {
-                  if (confirm) {
-                    handleDel();
-                  }
-                });
-              }}
-            >
-              <DeleteForeverIcon color="error"></DeleteForeverIcon>
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
               color="primary"
               onClick={() => {
                 setShowAdd(true);
@@ -1389,15 +1478,15 @@ function RedisZsetTable(props: {
           {vis && (
             <div style={{ display: 'grid' }}>
               <DataGrid
+                slotProps={slotProps}
                 rowHeight={datagridRowHeight}
                 columnHeaderHeight={datagridHeaderHeight}
                 rows={resp.data.data}
-                checkboxSelection
+                checkboxSelection={false}
                 editMode="row"
                 onRowDoubleClick={onRowDoubleClick}
                 columns={resp.data.fields}
                 disableColumnFilter
-                onRowSelectionModelChange={onRowSelectionModelChange}
               ></DataGrid>
             </div>
           )}
@@ -1463,6 +1552,39 @@ function RedisZsetTable(props: {
   );
 }
 
+function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
+  const { delOP, content } = props;
+
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            delOP();
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText> delete </ListItemText>
+        </MenuItem>
+      </MenuList>
+    </Paper>
+  );
+}
+
 function RedisHashTable(props: {
   reloadOP: (keyMatch: string) => Promise<types.MuiDataTableListResp>;
   modifyOP: (
@@ -1479,7 +1601,7 @@ function RedisHashTable(props: {
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<any>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [selectionModel, setSelectionModel] = useState([]);
+
   const handleReload = (showOK) => {
     reloadOP(keyMatch)
       .then((resp) => {
@@ -1508,40 +1630,47 @@ function RedisHashTable(props: {
     handleReload(false);
   }, []);
 
-  const getIDIndex = (id: string): number => {
-    let ret;
-    resp.data.data.forEach((e, index) => {
-      if (e.id === id) {
-        ret = index;
-      }
-    });
-    return ret;
-  };
-
-  const handleDel = async () => {
-    for (let i = 0; i < selectionModel.length; i++) {
-      let id = selectionModel[i];
-      let index = getIDIndex(id);
-      let value = resp.data.data[index]['key'];
-      try {
-        await delOP(value);
-        showNotification('success', 'Delete OK');
-      } catch (e) {
-        showNotification('error', 'delete failure', e);
-      }
+  const handleDel = async (id: string) => {
+    let del = resp.data.data.find((e) => e['id'] == id);
+    try {
+      await delOP(del.key);
+      showNotification('success', 'Delete OK');
+    } catch (e) {
+      showNotification('error', 'delete failure', e);
     }
+
     handleReload(false);
   };
   const onRowDoubleClick = useCallback((e) => {
     setSelectRow(e.row);
   }, []);
-  const onRowSelectionModelChange = useCallback(
-    (rows: GridRowSelectionModel) => {
-      setSelectionModel(rows as string[]);
-    },
-    []
-  );
+
   const vis = useContext(VisiableContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { currentTarget, target } = e;
+          let content = (target as HTMLDivElement).innerHTML;
+          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          setUpMenu({
+            content: (
+              <RedisHashTableContextMenu
+                content={content}
+                delOP={() => {
+                  handleDel(id);
+                }}
+              ></RedisHashTableContextMenu>
+            ),
+            style: calMenuStyle(e, 200),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, [resp]);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -1572,25 +1701,6 @@ function RedisHashTable(props: {
             <Button
               size="small"
               variant="contained"
-              color="error"
-              disabled={selectionModel.length == 0}
-              onClick={() => {
-                secondConfirm({
-                  title: 'Are u sure',
-                  content: 'Are you sure to delete those data',
-                  confirmText: 'Delete',
-                }).then((confirm) => {
-                  if (confirm) {
-                    handleDel();
-                  }
-                });
-              }}
-            >
-              <DeleteForeverIcon color="error"></DeleteForeverIcon>
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
               color="primary"
               onClick={() => {
                 setShowAdd(true);
@@ -1604,15 +1714,15 @@ function RedisHashTable(props: {
           {vis && (
             <div style={{ display: 'grid' }}>
               <DataGrid
+                slotProps={slotProps}
                 rowHeight={datagridRowHeight}
                 columnHeaderHeight={datagridHeaderHeight}
                 rows={resp.data.data}
-                checkboxSelection
+                checkboxSelection={false}
                 editMode="row"
                 onRowDoubleClick={onRowDoubleClick}
                 columns={resp.data.fields}
                 disableColumnFilter
-                onRowSelectionModelChange={onRowSelectionModelChange}
               ></DataGrid>
             </div>
           )}

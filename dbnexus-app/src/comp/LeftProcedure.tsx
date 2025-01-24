@@ -14,8 +14,7 @@ import {
   ConnTypeContext,
   extraParametersFromMetaValues,
   initMonacoLanague,
-  MenuContext,
-  MenuRefresh,
+  ContextMenuContext,
   tabsHasId,
   TabsSetContext,
   UuidContext,
@@ -28,6 +27,7 @@ import { DefAndMetasView } from './UdfAndMetaView';
 
 import { SiProcessingfoundation } from 'react-icons/si';
 import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import { MenuRefresh } from './CommonComp';
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -53,7 +53,7 @@ function ProceduresTree() {
         return idPrefix + '-' + x.name;
     }
   };
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
   }, []);

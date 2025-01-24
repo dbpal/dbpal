@@ -1,7 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 import {
-  MenuContext,
-  MenuRefresh,
+  ContextMenuContext,
   progressBarSizeSmall,
   tabsHasId,
   TabsSetContext,
@@ -30,6 +29,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import { MenuRefresh } from './CommonComp';
 function TriggersTree(props: { table: string }) {
   const { uuid } = useContext(UuidContext);
   let { table } = props;
@@ -54,7 +54,7 @@ function TriggersTree(props: { table: string }) {
   }, []);
   let idPrefix = uuid + '-tables-' + table + '-triggers-';
   const { kind } = useContext(ConnTypeContext);
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   return (
     <TreeItem
       itemId={idPrefix}

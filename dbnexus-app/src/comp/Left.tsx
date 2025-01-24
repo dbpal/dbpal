@@ -15,22 +15,15 @@ import { useContext, useEffect, useState } from 'react';
 import {
   UuidContext,
   ConnTypeContext,
-  MenuDeleteConfig,
-  MenuContext,
-  ConnStatus,
+  ContextMenuContext,
   progressBarSizeSmall,
   appStore,
   AppStoreKey,
-  MenuOpenConn,
   OpenedContext,
-  MenuCloseConn,
-  MenuRefresh,
   MenuConnectionInfo,
-  MenuCreateDatabase,
   CreateDatabase,
   modalStyle,
   dropDatabase,
-  MenuCreateSchema,
   CreateSchema,
   dropSchema,
   TabsSetContext,
@@ -60,7 +53,16 @@ import { SqlQuery } from './SqlQuery';
 import { RedisQuery } from './RedisQuery';
 import { MongoQuery } from './MongoQuery.tsx';
 import React from 'react';
-import { MenuNewQuery } from './CommonComp.tsx';
+import {
+  ConnStatus,
+  MenuCloseConn,
+  MenuCreateDatabase,
+  MenuCreateSchema,
+  MenuDeleteConfig,
+  MenuNewQuery,
+  MenuOpenConn,
+  MenuRefresh,
+} from './CommonComp.tsx';
 import { RedisTables, TablesTree } from './LeftTable.tsx';
 import { ViewKind, ViewsTree } from './LeftView.tsx';
 import { UdfsTree } from './LeftUdf.tsx';
@@ -197,7 +199,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Oracle;
 
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
 
   return (
     <TreeItem
@@ -604,7 +606,7 @@ function CatalogTree(_props: {}) {
     }
   }, [opened]);
 
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
 
   return (
     <TreeItem
@@ -683,7 +685,7 @@ function DatabaseTree(props: {
       handleReload();
     }
   }, [opened]);
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
 
   return (
     <TreeItem

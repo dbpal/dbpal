@@ -60,6 +60,7 @@ fn main_() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(app)
         .setup(|app| {
             #[cfg(debug_assertions)] // only include this code on debug builds

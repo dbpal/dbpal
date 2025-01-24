@@ -15,8 +15,7 @@ import {
   ConnTypeContext,
   extraParametersFromMetaValues,
   initMonacoLanague,
-  MenuContext,
-  MenuRefresh,
+  ContextMenuContext,
   tabsHasId,
   TabsSetContext,
   UuidContext,
@@ -29,6 +28,7 @@ import { DefAndMetasView } from './UdfAndMetaView';
 
 import { TbMathFunction } from 'react-icons/tb';
 import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import { MenuRefresh } from './CommonComp';
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -54,7 +54,7 @@ function UdfsTree() {
     }
   };
 
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
   }, []);

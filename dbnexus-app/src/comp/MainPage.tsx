@@ -14,7 +14,7 @@ import {
 import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
 import {
-  MenuContext,
+  ContextMenuContext,
   modalStyle,
   tabsHasId,
   TabsSetContext,
@@ -117,7 +117,7 @@ export default function MainPage() {
 
   return (
     <SettingComp>
-      <MenuContext.Provider value={{ setUpMenu }}>
+      <ContextMenuContext.Provider value={{ setUpMenu }}>
         <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
           <NotificationProvider>
             <div> {mainContent} </div>
@@ -143,7 +143,7 @@ export default function MainPage() {
             )}
           </NotificationProvider>
         </TabsSetContext.Provider>
-      </MenuContext.Provider>
+      </ContextMenuContext.Provider>
     </SettingComp>
   );
 }

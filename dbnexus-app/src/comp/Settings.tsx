@@ -15,13 +15,8 @@ import {
   Typography,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
-import {
-  appStore,
-  AppStoreKey,
-  SelectPageSize,
-  SettingsContext,
-  UserSettings,
-} from './Common';
+import { appStore, AppStoreKey, SettingsContext, UserSettings } from './Common';
+import { SelectPageSize } from './CommonComp';
 
 function ModifySettings() {
   const { showNotification } = useContext(NotificationContext);

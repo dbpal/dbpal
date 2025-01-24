@@ -23,6 +23,8 @@
         }
       ]
     },
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
     "fs:default",
     "fs:read-all",
     "fs:write-all",

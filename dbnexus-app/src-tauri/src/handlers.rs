@@ -1125,7 +1125,8 @@ pub async fn mongo_delete_ids(
 
 #[tauri::command]
 pub async fn mongo_show_collection_table_list(
-    name: String, table_name: String, filter: Vec<u8>, sort: Vec<u8>, app: tauri::State<'_, App>,
+    name: String, table_name: String, filter: Vec<u8>, page: u64, page_size: u64, sort: Vec<u8>,
+    app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1137,7 +1138,7 @@ pub async fn mongo_show_collection_table_list(
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
         Some(x) => {
-            x.show_collection_table_list(table_name.as_str(), filter, sort, 1, 100)
+            x.show_collection_table_list(table_name.as_str(), filter, sort, page, page_size)
                 .await
         }
         None => return Err(format!("db '{}' not mongo", name).into()),

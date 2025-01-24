@@ -1,13 +1,52 @@
 import { types } from './ApiStruct.ts';
-import { Alert, Tab, Tabs, Tooltip } from '@mui/material';
+import {
+  Alert,
+  ListItemIcon,
+  ListItemText,
+  MenuItem,
+  MenuList,
+  Paper,
+  Tab,
+  Tabs,
+  Tooltip,
+} from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
-import { generateRandomString } from './helper.ts';
-import { DataGrid } from '@mui/x-data-grid';
-import React, { useContext } from 'react';
-import { VisiableContext } from './Common.tsx';
+import {
+  calMenuStyle,
+  cloumnWidths,
+  generateRandomString,
+  handleCopyToClipboard,
+  saveColumnWidths,
+} from './helper.ts';
+import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
+import React, { memo, useCallback, useContext, useMemo } from 'react';
+import { ContextMenuContext, VisiableContext } from './Common.tsx';
 import { datagridHeaderHeight, datagridRowHeight } from './CommonComp.tsx';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import { NotificationContext } from './Notification.tsx';
 
-function QueryResp(props: { data: types.MuiDataGridData }) {
+function RespContextMenu(props: { content }) {
+  const { content } = props;
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy </ListItemText>
+        </MenuItem>
+      </MenuList>
+    </Paper>
+  );
+}
+
+function QueryResp_(props: { data: types.MuiDataGridData }) {
   let { data } = props;
   data.data.forEach((e) => {
     if (!('id' in e)) {
@@ -15,6 +54,10 @@ function QueryResp(props: { data: types.MuiDataGridData }) {
     }
   });
   data.fields.forEach((e) => {
+    const width = cloumnWidths[e.field];
+    if (width) {
+      e['width'] = width;
+    }
     //@ts-ignore
     e.renderHeader = (e) => {
       let def = e.colDef;
@@ -25,16 +68,40 @@ function QueryResp(props: { data: types.MuiDataGridData }) {
       );
     };
   });
+
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    saveColumnWidths(colDef.field, width);
+  }, []);
   const vis = useContext(VisiableContext);
+
+  const { setUpMenu } = useContext(ContextMenuContext);
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { target } = e;
+          let content = (target as HTMLDivElement).innerHTML;
+          setUpMenu({
+            content: <RespContextMenu content={content}></RespContextMenu>,
+            style: calMenuStyle(e, 200),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, []);
+
   return (
     vis && (
       <div style={{ display: 'grid' }}>
         <DataGrid
+          slotProps={slotProps}
           rowHeight={datagridRowHeight}
           columnHeaderHeight={datagridHeaderHeight}
           columns={data.fields}
           rows={data.data}
           filterMode="client" // 使用客户端过滤
+          onColumnResize={onColumnResize}
         ></DataGrid>
       </div>
     )
@@ -70,7 +137,7 @@ function a11yProps(idPrefix: string, index: number) {
   };
 }
 
-function MultiQueryResp(props: { data: any[] }) {
+function MultiQueryResp_(props: { data: any[] }) {
   let { data } = props;
   if (data.length == 0) {
     return <></>;
@@ -121,5 +188,7 @@ function MultiQueryResp(props: { data: any[] }) {
     </div>
   );
 }
+const MultiQueryResp = memo(MultiQueryResp_);
+const QueryResp = memo(QueryResp_);
 
 export { MultiQueryResp, QueryResp };

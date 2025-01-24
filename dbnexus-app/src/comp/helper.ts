@@ -6,6 +6,8 @@ import { languages } from "monaco-editor";
 import types from "./ApiStruct";
 import { CSSProperties } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
+import { load } from "@tauri-apps/plugin-store";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 interface ConfirmOptions {
   title: string;
@@ -314,6 +316,52 @@ function isTypeLargeText(s: string): boolean {
   }
   return false;
 }
+
+const appStore = async () => {
+  return await load('store.json');
+};
+
+enum AppStoreKey {
+  UserSetttings = 'user_settings',
+  ConnectionConfig = 'connection_config',
+  ColumnWithd = 'column_widths'
+}
+
+
+var cloumnWidths = {};
+
+appStore().then(e => {
+  e.get(AppStoreKey.ColumnWithd).then(e => {
+    if (e) {
+      cloumnWidths = e;
+    }
+  }).catch(e => {
+    console.log('get app store failed', e);
+  })
+}).catch(e => {
+  console.log('get app store failed', e);
+})
+
+async function saveColumnWidths(name: string, width: number) {
+  cloumnWidths[name] = width;
+
+  try {
+    await (await appStore()).set(AppStoreKey.ColumnWithd, cloumnWidths);
+  } catch (e) {
+    console.log('save column widths failed', e);
+  }
+}
+const handleCopyToClipboard = (text, showNotification) => {
+  writeText(text)
+    .then(() => {
+      showNotification('success', 'success copy to clipboard.');
+    })
+    .catch((e) => {
+      showNotification('error', 'copy to clipboard failed', e);
+    });
+};
+
+
 export {
   randomTestThrowFunction,
   generateRandomString,
@@ -335,5 +383,9 @@ export {
   DataSourceKind,
   connTypeToDataSourceKind,
   secondConfirm,
-
+  appStore,
+  AppStoreKey,
+  saveColumnWidths,
+  cloumnWidths,
+  handleCopyToClipboard
 };

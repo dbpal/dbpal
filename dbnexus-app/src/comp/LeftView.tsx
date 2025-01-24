@@ -1,8 +1,7 @@
 import { ReactNode, useContext, useEffect, useState } from 'react';
 import {
   ConnTypeContext,
-  MenuContext,
-  MenuRefresh,
+  ContextMenuContext,
   UuidContext,
   progressBarSizeSmall,
   tabsHasId,
@@ -35,6 +34,7 @@ import { SqlTableView } from './SqlTableView';
 import { TabContent } from './Tabs';
 import { ExportTableOrView } from './Export';
 import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import { MenuRefresh } from './CommonComp';
 
 enum ViewKind {
   Normal,
@@ -76,7 +76,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
     handleReload();
   }, []);
 
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   let itemId;
   switch (viewkind) {
     case ViewKind.Normal:
@@ -146,7 +146,7 @@ function ViewTree(props: {
 
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   return (
     <TreeItem
       itemId={uuid + '-view-' + view}
@@ -200,7 +200,7 @@ function ViewColumnsTree(props: { view: string }) {
         showNotification('error', 'list column failed', e);
       });
   };
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
   }, []);

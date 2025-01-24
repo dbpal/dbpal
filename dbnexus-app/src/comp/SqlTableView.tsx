@@ -6,35 +6,53 @@ import {
   useMemo,
   useState,
 } from 'react';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+
 import types from './ApiStruct';
 import {
   Box,
   Button,
   CircularProgress,
+  ListItemIcon,
+  ListItemText,
+  MenuItem,
+  MenuList,
   Modal,
+  Paper,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
-import { DataGrid, GridRowSelectionModel } from '@mui/x-data-grid';
+import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  ContextMenuContext,
   keyNotInTable,
   modalStyle,
-  pageSizeOptions,
   progressBarSize,
   reloadOK,
   SettingsContext,
   VisiableContext,
 } from './Common';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import KeyIcon from '@mui/icons-material/Key';
 import AddIcon from '@mui/icons-material/Add';
 
-import { isTypeLargeText, secondConfirm } from './helper';
-import { datagridHeaderHeight, datagridRowHeight } from './CommonComp';
+import {
+  calMenuStyle,
+  cloumnWidths,
+  handleCopyToClipboard,
+  isTypeLargeText,
+  saveColumnWidths,
+  secondConfirm,
+} from './helper';
+import {
+  datagridHeaderHeight,
+  datagridRowHeight,
+  pageSizeOptions,
+} from './CommonComp';
 
 const confrimAboutPrimary = async (
   notWarnPri,
@@ -83,7 +101,6 @@ function SqlTableView(props: {
 
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [selectIDs, setSelectIDs] = useState<GridRowSelectionModel>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
 
@@ -142,6 +159,13 @@ function SqlTableView(props: {
       );
       setLoading(false);
       await handleResp(resp);
+
+      resp.data.fields.forEach((e) => {
+        const width = cloumnWidths[e.field];
+        if (width) {
+          e['width'] = width;
+        }
+      });
       setResp(resp);
       if (showOK) {
         reloadOK(showNotification);
@@ -191,32 +215,34 @@ function SqlTableView(props: {
     [resp]
   );
 
-  const handleDetele = async () => {
+  const handleDetele = async (id) => {
     if (!(await confrimAboutPrimary(notWarnPri, resp))) {
       return;
     }
-    let selectSet = new Set();
-    selectIDs.forEach((e) => {
-      selectSet.add(e);
-    });
-
-    for (let i = 0; i < resp.data.data.length; i++) {
-      let e = resp.data.data[i];
-      if (!selectSet.has(e[keyNotInTable])) {
-        continue;
+    let old;
+    for (const e of resp.data.data) {
+      if (e[keyNotInTable] == id) {
+        old = new Map(Object.entries(e));
+        break;
       }
-      try {
-        const old = new Map(Object.entries(e));
-        old.delete(keyNotInTable);
-        const ret = await deleteOP(old);
-        showNotification(
-          'success',
-          'delete OK',
-          `sql:${ret.sql} row affected:${ret.changes}`
-        );
-      } catch (e) {
-        showNotification('error', 'delete failed', e);
-      }
+    }
+    if (!old) {
+      showNotification(
+        'error',
+        'not found the record to delete this is a internal bug'
+      );
+      return;
+    }
+    try {
+      old.delete(keyNotInTable);
+      const ret = await deleteOP(old);
+      showNotification(
+        'success',
+        'delete OK',
+        `sql:${ret.sql} row affected:${ret.changes}`
+      );
+    } catch (e) {
+      showNotification('error', 'delete failed', e);
     }
     handleReload(false);
   };
@@ -224,6 +250,7 @@ function SqlTableView(props: {
   useEffect(() => {
     handleReload(false);
   }, [page, pageSize, triggerReload]);
+
   useEffect(() => {}, [orderBy]);
   useEffect(() => {
     setLastLoadTime(new Date());
@@ -237,9 +264,7 @@ function SqlTableView(props: {
     setPageSize(e.pageSize);
   }, []);
 
-  const onRowSelectionModelChange = useCallback((e) => {
-    setSelectIDs(e);
-  }, []);
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   const onSortModelChange = useCallback((sorts) => {
     if (sorts.length == 0) {
@@ -265,6 +290,39 @@ function SqlTableView(props: {
       overflow: 'auto',
     } as CSSProperties;
   }, []);
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    saveColumnWidths(colDef.field, width);
+  }, []);
+
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { currentTarget, target } = e;
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          let content = (target as HTMLDivElement).innerHTML;
+          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          setUpMenu({
+            content: (
+              <Menu
+                field={field}
+                content={content}
+                handleDelete={() => {
+                  handleDetele(id);
+                }}
+                setOrderBy={(o) => {
+                  setOrderBy(o);
+                  handleReload(true);
+                }}
+              ></Menu>
+            ),
+            style: calMenuStyle(e, 200),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, [resp]);
 
   return (
     <Stack spacing={1}>
@@ -310,18 +368,6 @@ function SqlTableView(props: {
             sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
           >
             <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
-              {deleteOP && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  disabled={selectIDs.length == 0}
-                  onClick={() => {
-                    handleDetele();
-                  }}
-                >
-                  <DeleteForeverIcon color="error"></DeleteForeverIcon>
-                </Button>
-              )}
               {addOP && (
                 <Button
                   size="small"
@@ -367,6 +413,7 @@ function SqlTableView(props: {
           {visiable && (
             <div style={{ display: 'grid' }}>
               <DataGrid
+                slotProps={slotProps}
                 style={dataGridStyle}
                 rowHeight={datagridRowHeight}
                 columnHeaderHeight={datagridHeaderHeight}
@@ -375,16 +422,13 @@ function SqlTableView(props: {
                 pageSizeOptions={pageSizeOptions}
                 paginationMode="server"
                 onPaginationModelChange={onPaginationModelChange}
-                checkboxSelection
-                onRowSelectionModelChange={onRowSelectionModelChange}
+                checkboxSelection={false}
                 rowCount={resp.total}
                 sortingMode="server"
                 onSortModelChange={onSortModelChange}
                 columns={resp.data.fields}
                 rows={resp.data.data}
-                // when user enter order by then update
-                // sortModel={sortModel}
-                //@ts-ignore
+                onColumnResize={onColumnResize}
                 processRowUpdate={handleProcessRowUpdate}
                 onProcessRowUpdateError={onProcessRowUpdateError}
               ></DataGrid>
@@ -464,6 +508,64 @@ function SqlTableViewAdd(props: {
         {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
     </Stack>
+  );
+}
+
+function Menu(props: {
+  field: string;
+  content: string;
+  handleDelete;
+  setOrderBy;
+}) {
+  const { field, content, handleDelete, setOrderBy } = props;
+  const { showNotification } = useContext(NotificationContext);
+
+  return (
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy </ListItemText>
+        </MenuItem>
+      </MenuList>
+      <MenuItem
+        onClick={() => {
+          handleCopyToClipboard(field, showNotification);
+        }}
+      >
+        <ListItemIcon>
+          <ContentCopyIcon></ContentCopyIcon>
+        </ListItemIcon>
+        <ListItemText> copy field </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setOrderBy(`${field} ASC`);
+        }}
+      >
+        <ListItemText> order by {field} "ASC" </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setOrderBy(`${field} DESC`);
+        }}
+      >
+        <ListItemText> order by {field} "DESC" </ListItemText>
+      </MenuItem>
+
+      <MenuItem onClick={handleDelete}>
+        <ListItemIcon>
+          <DeleteForeverIcon></DeleteForeverIcon>
+        </ListItemIcon>
+        <ListItemText> delete </ListItemText>
+      </MenuItem>
+    </Paper>
   );
 }
 

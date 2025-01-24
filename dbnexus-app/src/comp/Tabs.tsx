@@ -3,7 +3,7 @@ import { Stack, Button, Paper, MenuItem, MenuList } from '@mui/material';
 
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
-import { MenuContext, VisiableContext } from './Common';
+import { ContextMenuContext, VisiableContext } from './Common';
 import { calMenuStyle } from './helper';
 class TabContent {
   constructor(
@@ -97,7 +97,7 @@ function TabsWithContent_(props: {
 }) {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const [show, setShow] = useState(true);
-  const { setUpMenu } = useContext(MenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
   return (
     <Stack spacing={1}>
       {tabs.length > 0 && (

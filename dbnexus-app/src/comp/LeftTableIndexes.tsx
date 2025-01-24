@@ -1,7 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 import {
-  MenuContext,
-  MenuRefresh,
+  ContextMenuContext,
   modalStyle,
   progressBarSize,
   progressBarSizeSmall,
@@ -28,6 +27,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 
 import { calMenuStyle, secondConfirm } from './helper';
+import { MenuRefresh } from './CommonComp';
 
 function LeftIndexes(props: { table: string }) {
   const { table } = props;
@@ -37,7 +37,7 @@ function LeftIndexes(props: { table: string }) {
   const idPrefix = uuid + '-table-' + table + '-indexes-';
   const [indexes, setIndexes] = useState<types.Index[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
 
   const reload = () => {
     setLoading(true);

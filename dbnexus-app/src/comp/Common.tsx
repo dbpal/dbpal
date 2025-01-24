@@ -1,12 +1,8 @@
 import {
-  Box,
   Button,
-  FormControl,
-  InputLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
-  Select,
   Stack,
   SxProps,
   TextField,
@@ -34,15 +30,12 @@ import {
 } from 'react';
 import { Editor, loader, Monaco, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
-import RefreshIcon from '@mui/icons-material/Refresh';
+
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 
-import { TbDatabasePlus } from 'react-icons/tb';
-import LinkIcon from '@mui/icons-material/Link';
-import LinkOffIcon from '@mui/icons-material/LinkOff';
 import InfoIcon from '@mui/icons-material/Info';
-import CloseIcon from '@mui/icons-material/Close';
+
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 const modalStyle: SxProps = {
   position: 'absolute',
@@ -55,8 +48,7 @@ const modalStyle: SxProps = {
   margin: 0,
   p: 4,
 };
-import { BsDatabaseAdd } from 'react-icons/bs';
-import { load } from '@tauri-apps/plugin-store';
+
 import {
   mssqlKeywords,
   mysqlKeywords,
@@ -73,18 +65,15 @@ import {
 } from '@tauri-apps/plugin-dialog';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import {
+  appStore,
+  AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
-  errToString,
   extractConfigNameFromUuid,
   getViewportSize,
   secondConfirm,
 } from './helper';
 import { MetaValuesView } from './CommonComp';
-
-const appStore = async () => {
-  return await load('store.json');
-};
 
 const getNamedConfig = async (
   name: string
@@ -98,48 +87,6 @@ const getNamedConfig = async (
   return x.find((x) => x.name == name);
 };
 
-enum AppStoreKey {
-  UserSetttings = 'user_settings',
-  ConnectionConfig = 'connection_config',
-}
-
-function SelectPageSize({
-  width = '200px',
-  variant = 'outlined',
-  tital = 'select page size',
-  pageSize,
-  handleChange,
-  options = pageSizeOptions,
-}) {
-  return (
-    <Box width={width}>
-      <FormControl
-        //@ts-ignore
-        variant={variant}
-        fullWidth
-        size="small"
-      >
-        <InputLabel id="simple-select-label">{tital}</InputLabel>
-        <Select
-          labelId="simple-select-label"
-          id="simple-select"
-          value={pageSize}
-          onChange={(e) => {
-            handleChange(e.target.value);
-          }}
-          label="select page size"
-        >
-          {options.map((e) => (
-            <MenuItem key={e} value={e}>
-              {e}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    </Box>
-  );
-}
-
 class DocsAndCount {
   constructor(public docs: BSON.Document[], public total: number) {}
 }
@@ -147,8 +94,6 @@ enum MongoDataViewModel {
   List,
   Object,
 }
-
-const pageSizeOptions = [10, 20, 50, 100];
 
 function EditorBar(props: {
   left?: any;
@@ -164,42 +109,6 @@ function EditorBar(props: {
         <span>Column {pos ? pos.column : ''}</span>
       </Stack>
     </Stack>
-  );
-}
-
-function MenuCreateDatabase({ handleCreate }) {
-  return (
-    <MenuItem
-      onClick={() => {
-        handleCreate();
-      }}
-    >
-      <ListItemIcon>
-        <BsDatabaseAdd></BsDatabaseAdd>
-      </ListItemIcon>
-      <ListItemText> create database </ListItemText>
-    </MenuItem>
-  );
-}
-
-function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
-  const { handleCreate, kind } = props;
-  return (
-    <MenuItem
-      onClick={() => {
-        handleCreate();
-      }}
-    >
-      <ListItemIcon>
-        <TbDatabasePlus></TbDatabasePlus>
-      </ListItemIcon>
-      <ListItemText>
-        create
-        {kind == DataSourceKind.MsSql || kind == DataSourceKind.Postgres
-          ? ' schema'
-          : ' database'}
-      </ListItemText>
-    </MenuItem>
   );
 }
 
@@ -509,7 +418,7 @@ const UuidContext = createContext<{
   uuid: string;
 }>(null);
 
-const MenuContext = createContext<{
+const ContextMenuContext = createContext<{
   setUpMenu: ({ content, style }) => void;
 }>(null);
 
@@ -543,21 +452,6 @@ interface DefAndMetas {
 const progressBarSize = '30px';
 const progressBarSizeSmall = '20px';
 
-function MenuRefresh({ reload }) {
-  return (
-    <MenuItem
-      onClick={() => {
-        reload();
-      }}
-    >
-      <ListItemIcon>
-        <RefreshIcon></RefreshIcon>
-      </ListItemIcon>
-      <ListItemText> refresh </ListItemText>
-    </MenuItem>
-  );
-}
-
 function MenuConnectionInfo({ uuid }) {
   const { tabs, setSelectIndex, setTabs } = useContext(TabsSetContext);
 
@@ -590,123 +484,6 @@ function MenuConnectionInfo({ uuid }) {
   );
 }
 
-function MenuDeleteConfig({ name }) {
-  const { showNotification } = useContext(NotificationContext);
-  const handleDelete = async () => {
-    const confirm = await secondConfirm({
-      title: `drop connection '${name}'`,
-      confirmText: 'drop',
-    });
-    if (!confirm) {
-      return;
-    }
-
-    try {
-      let old = await (
-        await appStore()
-      ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
-      let newdata = old.filter((e) => e.name != name);
-      await (await appStore()).set(AppStoreKey.ConnectionConfig, newdata);
-      await invoke('close_conn', { name });
-    } catch (e) {
-      showNotification('error', 'drop connection failed', e);
-    }
-  };
-
-  return (
-    <MenuItem
-      onClick={() => {
-        handleDelete();
-      }}
-    >
-      <ListItemIcon>
-        <CloseIcon></CloseIcon>
-      </ListItemIcon>
-      <ListItemText> drop connection </ListItemText>
-    </MenuItem>
-  );
-}
-
-function MenuOpenConn({ handleOpend, name }) {
-  const { showNotification } = useContext(NotificationContext);
-  return (
-    <MenuItem
-      onClick={() => {
-        invoke('open_conn', { name })
-          .then(() => {
-            handleOpend();
-          })
-          .catch((e) => {
-            showNotification('error', 'open connection failed', e);
-          });
-      }}
-    >
-      <ListItemIcon>
-        <LinkIcon></LinkIcon>
-      </ListItemIcon>
-      <ListItemText> open connection </ListItemText>
-    </MenuItem>
-  );
-}
-
-function MenuCloseConn({ handleClose, name }) {
-  const { showNotification } = useContext(NotificationContext);
-  return (
-    <MenuItem
-      onClick={() => {
-        invoke('close_conn', { name })
-          .then(() => {
-            handleClose();
-          })
-          .catch((e) => {
-            showNotification('error', 'open connection failed', e);
-          });
-      }}
-    >
-      <ListItemIcon>
-        <LinkOffIcon></LinkOffIcon>
-      </ListItemIcon>
-      <ListItemText> close connection </ListItemText>
-    </MenuItem>
-  );
-}
-
-function ConnStatus({ uuid }) {
-  const [status, setStatus] = useState('');
-  const [err, setErr] = useState('');
-  const reloadStatus = () => {
-    invoke<string>('check_conn', { name: uuid })
-      .then((ping) => {
-        setStatus(ping);
-      })
-      .catch((e) => {
-        setErr(errToString(e));
-      });
-  };
-
-  useEffect(() => {
-    reloadStatus();
-    let r = setInterval(() => {
-      reloadStatus();
-    }, 5000);
-    return () => {
-      clearInterval(r);
-    };
-  }, []);
-
-  return (
-    (status || err) &&
-    (status ? (
-      <Tooltip title="ping time">
-        <Typography color="green"> {status} </Typography>
-      </Tooltip>
-    ) : (
-      <Tooltip title={err}>
-        <Typography color="error"> err </Typography>
-      </Tooltip>
-    ))
-  );
-}
 class UserSettings {
   constructor(
     public theme: string = 'light',
@@ -1201,12 +978,9 @@ type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
 export {
   modalStyle,
-  SelectPageSize,
   DocsAndCount,
   MongoDataViewModel,
-  pageSizeOptions,
   EditorBar,
-  countLines,
   SimpleResizeEditor,
   editorInitHeight,
   TabsSetContext,
@@ -1214,28 +988,21 @@ export {
   msgTimeout,
   UuidContext,
   progressBarSize,
-  MenuContext,
-  MenuRefresh,
+  ContextMenuContext,
   ConnTypeContext,
   progressBarSizeSmall,
   extraParametersFromMetaValues,
-  MenuDeleteConfig,
-  ConnStatus,
   SettingsContext,
   appStore,
   UserSettings,
   VisiableContext,
-  MenuOpenConn,
   OpenedContext,
-  MenuCloseConn,
   MenuConnectionInfo,
   getNamedConfig,
-  MenuCreateDatabase,
   CreateDatabase,
   CreateSchema,
   dropDatabase,
   dropSchema,
-  MenuCreateSchema,
   reloadOK,
   registeredLanguage,
   initMonacoLanague,

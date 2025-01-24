@@ -1,7 +1,6 @@
 import { ReactNode, useContext, useEffect, useState } from 'react';
 import {
-  MenuContext,
-  MenuRefresh,
+  ContextMenuContext,
   modalStyle,
   UuidContext,
   progressBarSizeSmall,
@@ -64,6 +63,7 @@ import {
 import { MongoTable } from './MongoDB';
 import { BSON, EJSON } from 'bson';
 import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import { MenuRefresh } from './CommonComp';
 
 function TablesTree() {
   const { uuid } = useContext(UuidContext);
@@ -87,7 +87,7 @@ function TablesTree() {
     handleReload();
   }, []);
 
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   return (
     <TreeItem
       itemId={uuid + '-tables'}
@@ -137,7 +137,7 @@ function TableTree(props: {
   let { table, reloadTables, size } = props;
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   let support_trigger =
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.MsSql ||
@@ -540,7 +540,7 @@ function ColumnNullness({ nullness, handleNullness }) {
 
 function TableColumnsTree(props: { table: string }) {
   let { table } = props;
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const { uuid } = useContext(UuidContext);
@@ -1581,7 +1581,7 @@ function RedisTables(prpos: { schema?: string }) {
     );
   };
 
-  let { setUpMenu } = useContext(MenuContext);
+  let { setUpMenu } = useContext(ContextMenuContext);
   return (
     <TreeItem
       itemId={getPrefix()}

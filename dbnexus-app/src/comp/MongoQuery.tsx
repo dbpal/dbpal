@@ -8,11 +8,9 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
 import { generateRandomString } from './helper';
 import { EditorBar, LoadStoreQuery, SettingsContext } from './Common';
-
 import { NotificationContext } from './Notification';
-
 import { LogLevelSel } from './CommonComp';
-
+import * as esprima from 'esprima';
 initMongoQueryGlobals();
 
 function makeLog(level, ...msg: any[]): string {
@@ -71,8 +69,8 @@ function MongoQuery(props: { uuid: string }) {
     };
     // we need set up level when `methodFactory` is changed
     // otherwise logger will not working why
+    // looks a bug to me.
     logger.setLevel('trace');
-
     editor.onDidChangeCursorPosition(() => {
       setLoggerPos(editor.getPosition());
     });
@@ -95,19 +93,20 @@ function MongoQuery(props: { uuid: string }) {
     }
     modifyEditorContent(loggerEditor);
     setErr(null);
-    try {
-      let e = eval(text);
-      console.log('!!!!!!!!!!!!!!!!!!!', e);
-    } catch (e) {
-      if (e instanceof SyntaxError) {
-        console.log('!!!!!!!!!!!!!!!', e.cause, e.message, e.name, e.stack);
-      }
-      if (e instanceof ReferenceError) {
-        console.log('!!!!!!!!!!!!!!!', e.cause, e.message, e.name, e.stack);
-      }
 
+    try {
+      // capture some error from `esprima parser`.
+      esprima.parseScript(text);
+    } catch (e) {
+      setErr(`${e.lineNumber}:${e.column} ${e.description}`);
+      return;
+    }
+
+    try {
+      eval(text);
+    } catch (e) {
       setErr(e);
-      console.log('eeeeeeeeeeeeeeee', e);
+      console.log('mongo query error:', e);
     }
   };
   let theme = useContext(SettingsContext).theme == 'dark' ? 'vs-dark' : 'light';
@@ -212,11 +211,12 @@ function MongoQuery(props: { uuid: string }) {
 */
 function modifyEditorContent(
   editor: editor.IStandaloneCodeEditor,
+  // means clean text
   text = undefined
 ) {
   if (!text) {
-    // means clean text
     editor.setValue('');
+    return;
   }
   const model = editor.getModel();
   if (model) {
