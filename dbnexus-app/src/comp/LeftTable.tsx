@@ -567,7 +567,8 @@ function TableColumnsTree(props: { table: string }) {
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Mysql ||
-    kind == DataSourceKind.Postgres;
+    kind == DataSourceKind.Postgres ||
+    kind == DataSourceKind.Oracle;
 
   useEffect(() => {
     reload();

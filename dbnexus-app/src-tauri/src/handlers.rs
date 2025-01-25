@@ -17,6 +17,18 @@ use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 
 #[tauri::command]
+pub async fn delete_password(name: String) -> Result<(), ErrorFrontend> {
+    let entry = keyring::Entry::new("dbpal", &name)?;
+    entry.delete_credential()?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn save_password(name: String, pass: String) -> Result<(), ErrorFrontend> {
+    let entry = keyring::Entry::new("dbpal", &name)?;
+    entry.set_password(&pass)?;
+    Ok(())
+}
+#[tauri::command]
 pub async fn page_init_callback(app: tauri::State<'_, App>) -> Result<(), ()> {
     log::info!("page init call clear all open connection.");
     *app.opens.lock().await = Default::default();
@@ -2234,6 +2246,15 @@ impl From<bson::oid::Error> for ErrorFrontend {
 }
 impl From<serde_json::Error> for ErrorFrontend {
     fn from(value: serde_json::Error) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+        }
+    }
+}
+
+impl From<keyring::Error> for ErrorFrontend {
+    fn from(value: keyring::Error) -> Self {
         Self {
             reason: format!("{}", value),
             detail: format!("{:?}", value),

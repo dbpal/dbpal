@@ -40,6 +40,11 @@ tauri-plugin-store = "2"
 tauri-plugin-http = "2"
 enum-iterator = "*"
 tauri-plugin-clipboard-manager = "2.2.0"
+keyring = { version = "3", features = [
+    "apple-native",
+    "windows-native",
+    "sync-secret-service",
+] }
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]

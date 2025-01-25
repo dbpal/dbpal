@@ -345,7 +345,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
         };
     }
   };
-  const handleTestConnection = () => {
+  const handleTestConnection = async () => {
     const config = makeConfig();
     if (config) {
       console.log('test config:', config);
@@ -409,6 +409,16 @@ export default function AddConfig(props: { handleClose: () => void }) {
     if (!config) {
       return;
     }
+    if (password) {
+      try {
+        await invoke('save_password', { name: connectionName, pass: password });
+      } catch (e) {
+        showNotification('error', 'save password failed', e);
+        return;
+      }
+    }
+    //@ts-ignore
+    config.password = '';
     let old = await (await appStore()).get(AppStoreKey.ConnectionConfig);
     if (!old) {
       old = [];

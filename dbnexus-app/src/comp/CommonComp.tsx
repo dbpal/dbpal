@@ -262,7 +262,11 @@ function MenuDeleteConfig({ name }) {
     if (!confirm) {
       return;
     }
-
+    try {
+      await invoke('delete_password', { name });
+    } catch (e) {
+      console.log('delete password err:', e);
+    }
     try {
       let old = await (
         await appStore()

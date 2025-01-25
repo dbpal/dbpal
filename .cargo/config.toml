@@ -1,11 +1,5 @@
 
 
-# This line needs to come before anything else in Cargo.toml
-cargo-features = ["codegen-backend"]
-
-[profile.dev]
-codegen-backend = "cranelift"
-
 
 [build]
 rustflags = ["-Z", "threads=8"]

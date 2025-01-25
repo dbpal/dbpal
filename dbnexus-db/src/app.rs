@@ -92,6 +92,35 @@ pub enum DBConnectionConfig {
         name: String,
     },
 }
+
+impl DBConnectionConfig {
+    pub fn set_password(&mut self, pass: String) {
+        match self {
+            DBConnectionConfig::Sqlite { .. } => {}
+            DBConnectionConfig::Mysql { conn, .. } => {
+                conn.password = Some(pass);
+            }
+            DBConnectionConfig::MariaDB { conn, .. } => {
+                conn.password = Some(pass);
+            }
+            DBConnectionConfig::Postgres { conn, .. } => {
+                conn.password = Some(pass);
+            }
+            DBConnectionConfig::SqlServer { conn, .. } => {
+                conn.password = Some(pass);
+            }
+            DBConnectionConfig::Mongo { conn, .. } => {
+                conn.password = Some(pass);
+            }
+            DBConnectionConfig::Redis { conn, .. } => {
+                conn.password = Some(pass);
+            }
+            DBConnectionConfig::Oracle { conn, .. } => {
+                conn.password = pass;
+            }
+        }
+    }
+}
 impl DBConnectionConfig {
     pub async fn open(&self) -> anyhow::Result<Open> {
         match self {

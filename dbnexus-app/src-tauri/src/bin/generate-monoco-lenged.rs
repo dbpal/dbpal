@@ -1,4 +1,6 @@
-use std::{env, io::Write, path::Path};
+use std::env;
+use std::io::Write;
+use std::path::Path;
 
 use dbnexus_db::language_server::{CompletionKind, TokenModifier};
 

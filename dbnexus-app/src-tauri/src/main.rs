@@ -6,8 +6,8 @@ mod handlers;
 
 use handlers::{
     add_table_column, auto_completion, check_conn, close_conn, config_list_database_or_schema,
-    create_database, create_schema, delete, disable_trigger, drop_database, drop_index,
-    drop_materialized_view, drop_procedure, drop_schema, drop_table, drop_table_column,
+    create_database, create_schema, delete, delete_password, disable_trigger, drop_database,
+    drop_index, drop_materialized_view, drop_procedure, drop_schema, drop_table, drop_table_column,
     drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
     export_query_result_to_file, export_table_or_view, format_sql, insert, is_dangerous_sql,
     list_data_types, list_database, list_materialized_view, list_procedure, list_schema,
@@ -31,9 +31,9 @@ use handlers::{
     redis_hash_del, redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush,
     redis_list_set, redis_list_table, redis_set_add, redis_set_del, redis_set_replace,
     redis_string_set, redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table,
-    rename_index, rename_table, semantic_tokens, server_metas, show_indexes, show_procedure,
-    show_table, show_table_columns, show_trigger, show_udf, show_view, show_view_coumns,
-    test_connection, truncate_table, update,
+    rename_index, rename_table, save_password, semantic_tokens, server_metas, show_indexes,
+    show_procedure, show_table, show_table_columns, show_trigger, show_udf, show_view,
+    show_view_coumns, test_connection, truncate_table, update,
 };
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -78,8 +78,22 @@ fn main_() {
                     None => "[]".to_string(),
                 };
                 let configs: Vec<DBConnectionConfig> = serde_json::from_str(&json_str)?;
-                for c in configs.into_iter() {
+                for mut c in configs.into_iter() {
                     if c.get_name() == name {
+                        match keyring::Entry::new("dbpal", name) {
+                            Ok(en) => {
+                                match en.get_password() {
+                                    Ok(pass) => c.set_password(pass),
+                                    Err(err) => {
+                                        log::error!("get password failed,err:{}", err)
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                log::error!("get password entry failed:{}", err)
+                            }
+                        };
+
                         return anyhow::Ok(c);
                     }
                 }
@@ -261,6 +275,8 @@ fn main_() {
             mongo_query_collection_replace_one,
             mongo_query_collection_update_many,
             mongo_query_collection_update_one,
+            save_password,
+            delete_password
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

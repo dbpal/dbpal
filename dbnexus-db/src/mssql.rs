@@ -176,7 +176,12 @@ fn make_config(c: &SqlServerDbConfig) -> tiberius::Config {
     let mut config = tiberius::Config::new();
     config.host(&c.host);
     config.port(c.port);
-    config.authentication(tiberius::AuthMethod::sql_server(&c.username, &c.password));
+    if let Some(user) = &c.username {
+        if let Some(pass) = &c.password {
+            config.authentication(tiberius::AuthMethod::sql_server(user, pass));
+        }
+    }
+
     if let Some(db) = c.db.as_ref() {
         config.database(&db);
     }
@@ -227,20 +232,26 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -452,6 +463,7 @@ impl SchemaTrait for MsSqlServer {
         let sql = format!("EXEC sp_rename '{table}.{old_name}', '{new_name}', 'INDEX';");
         self.execute_simple_execute(&sql).await
     }
+
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
@@ -1325,46 +1337,57 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
             tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::String(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Guid(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Binary(x) => x
-                .as_ref()
-                .map(|x| format!("0X{}", hex::encode_upper(x)))
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Numeric(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::String(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Guid(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Binary(x) => {
+                x.as_ref()
+                    .map(|x| format!("0X{}", hex::encode_upper(x)))
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Numeric(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Xml(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Xml(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -1743,6 +1766,7 @@ impl crate::db::DBTrait for MsSqlServer {
     async fn create_schema(&self, _name: &str) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
+
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
@@ -1789,6 +1813,7 @@ impl CatalogTrait for MsSqlServer {
         conn.execute(&sql, &[]).await?;
         anyhow::Ok(())
     }
+
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!("DROP DATABASE {name};");
         let mut conn = self.get_conn().await?;
@@ -1802,8 +1827,8 @@ pub(crate) async fn make_test_object() -> MsSqlServer {
     let ss = MsSqlServer::new(SqlServerDbConfig {
         host: TEST_HOST.to_string(),
         port: 1433,
-        username: "sa".to_string(),
-        password: "sfdewRE123".to_string(),
+        username: Some("sa".to_string()),
+        password: Some("sfdewRE123".to_string()),
         db: Some("test".to_string()),
         trust_cert: true,
         schema: Some(MsSqlServer::ONLY_SCHEMA.to_string()),

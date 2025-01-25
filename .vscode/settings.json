@@ -1,31 +1,8 @@
 {
-  "cSpell.words": [
-    "autocommit",
-    "AUTOINCREMENT",
-    "dashmap",
-    "datasource",
-    "dbname",
-    "dbnexus",
-    "lineindex",
-    "rnum",
-    "rowid",
-    "ROWNUM",
-    "savepoint",
-    "sqlparser",
-    "sqlx",
-    "tauri",
-    "tinyint",
-    "Zset"
-  ],
   "rust-analyzer.cargo.extraArgs": [
     "--offline"
   ],
-  "http.proxy": "http://127.0.0.1:7890",
-  "https.proxy": "https://127.0.0.1:7890",
-  "http.proxyStrictSSL": false,
   "rust-analyzer.checkOnSave": true,
-  "rust-analyzer.cargo.features": [
-     
-  ],
+  "rust-analyzer.cargo.features": [],
   "prettier.singleQuote": true
 }

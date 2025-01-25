@@ -66,7 +66,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       {children}
       <Snackbar
         open={open}
-        autoHideDuration={msgTimeout} // 显示 5 秒
+        autoHideDuration={msgTimeout}
         onClose={handleClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         TransitionComponent={transition}

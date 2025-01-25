@@ -158,8 +158,8 @@ impl PGDbConfig {
 pub struct SqlServerDbConfig {
     pub host: String,
     pub port: u16,
-    pub username: String,
-    pub password: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
     pub db: Option<String>,
     pub trust_cert: bool,
     pub schema: Option<String>,
