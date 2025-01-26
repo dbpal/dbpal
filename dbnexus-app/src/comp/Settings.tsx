@@ -2,8 +2,10 @@ import { useContext, useEffect, useState } from 'react';
 
 import {
   Button,
+  Components,
   createTheme,
   CssBaseline,
+  CssVarsTheme,
   Divider,
   FormControl,
   InputLabel,
@@ -11,6 +13,7 @@ import {
   Select,
   Stack,
   TextField,
+  Theme,
   ThemeProvider,
   Typography,
 } from '@mui/material';
@@ -69,7 +72,7 @@ function ModifySettings() {
 
       <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
         <Typography width={headerSize}> theme: </Typography>
-        <FormControl style={{ width: '200px' }} size="small" variant="outlined">
+        <FormControl style={{ width: '200px' }} variant="outlined">
           <InputLabel id="dropdown-label">select a theme</InputLabel>
           <Select
             labelId="dropdown-label"
@@ -86,6 +89,7 @@ function ModifySettings() {
       <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
         <Typography width={headerSize}> code editor font size: </Typography>
         <TextField
+          size="small"
           value={editorFontSize}
           onChange={(e) => {
             setEditorFontSize(e.target.value);
@@ -98,7 +102,6 @@ function ModifySettings() {
       <Divider></Divider>
       <Stack direction="row">
         <Button
-          size="small"
           variant="contained"
           onClick={() => {
             handleSave();
@@ -111,8 +114,53 @@ function ModifySettings() {
   );
 }
 
-const lightTheme = createTheme();
-const darkTheme = createTheme({ palette: { mode: 'dark' } });
+const components: Components<
+  Omit<Theme, 'components' | 'palette'> & CssVarsTheme
+> = {
+  MuiButton: {
+    styleOverrides: {
+      root: {
+        fontSize: '1rem',
+        paddingLeft: '3px',
+        paddingRight: '3px',
+        paddingTop: '1px',
+        paddingBottom: '1px',
+      },
+    },
+  },
+  MuiMenuItem: {
+    styleOverrides: {
+      root: {
+        height: '1.7rem',
+        fontSize: '1rem',
+      },
+    },
+  },
+  MuiMenuList: {
+    styleOverrides: {
+      root: {
+        padding: '2px 0',
+      },
+    },
+  },
+  MuiSelect: {
+    styleOverrides: {
+      root: {
+        height: '2.5rem',
+      },
+    },
+  },
+  MuiAlert: {
+    styleOverrides: {
+      root: {
+        padding: 0,
+      },
+    },
+  },
+};
+
+const lightTheme = createTheme({ palette: { mode: 'light' }, components });
+const darkTheme = createTheme({ palette: { mode: 'dark' }, components });
 
 function SettingComp(props: { children }) {
   const { children } = props;

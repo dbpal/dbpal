@@ -135,11 +135,11 @@ function CreateDatabase({ uuid, handleClose }) {
     <Stack>
       <Stack>
         <TextField
+          size="small"
           value={database}
           onChange={(e) => {
             setDatabase(e.target.value);
           }}
-          size="small"
           error={database == ''}
           label="dadtabase name"
         ></TextField>
@@ -149,7 +149,6 @@ function CreateDatabase({ uuid, handleClose }) {
           onClick={() => {
             handleCreate();
           }}
-          size="small"
         >
           create
         </Button>
@@ -203,7 +202,6 @@ function CreateSchema(props: {
             .filter((e) => !schemaSet.has(e))
             .map((e) => (
               <Button
-                size="small"
                 key={e}
                 onClick={() => {
                   setSchema(e);
@@ -215,17 +213,16 @@ function CreateSchema(props: {
         </Stack>
         <Stack>
           <TextField
+            size="small"
             value={schema}
             onChange={(e) => {
               setSchema(e.target.value);
             }}
             label="name"
-            size="small"
           ></TextField>
         </Stack>
         <Stack direction="row">
           <Button
-            size="small"
             onClick={() => {
               handleCreate();
             }}
@@ -241,17 +238,16 @@ function CreateSchema(props: {
     <Stack>
       <Stack>
         <TextField
+          size="small"
           value={schema}
           onChange={(e) => {
             setSchema(e.target.value);
           }}
           label="name"
-          size="small"
         ></TextField>
       </Stack>
       <Stack direction="row">
         <Button
-          size="small"
           onClick={() => {
             handleCreate();
           }}
@@ -539,12 +535,7 @@ function ConnConfigInfo(props: { uuid }) {
   return (
     <Stack spacing={1}>
       <Stack direction="row">
-        <Button
-          variant="contained"
-          size="small"
-          color="primary"
-          onClick={handleInfo}
-        >
+        <Button variant="contained" color="primary" onClick={handleInfo}>
           reload
         </Button>
       </Stack>

@@ -328,6 +328,7 @@ function SqlTableView(props: {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
+          size="small"
           fullWidth
           label="where"
           variant="outlined"
@@ -335,9 +336,9 @@ function SqlTableView(props: {
           onChange={(event) => {
             setWhere(event.target.value);
           }}
-          size="small"
         />
         <TextField
+          size="small"
           fullWidth
           label="order by"
           variant="outlined"
@@ -345,11 +346,9 @@ function SqlTableView(props: {
           onChange={(event) => {
             setOrderBy(event.target.value);
           }}
-          size="small"
         />
 
         <Button
-          size="small"
           variant="contained"
           color="primary"
           onClick={() => {
@@ -370,7 +369,6 @@ function SqlTableView(props: {
             <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
               {addOP && (
                 <Button
-                  size="small"
                   color="primary"
                   variant="contained"
                   onClick={() => {
@@ -482,6 +480,7 @@ function SqlTableViewAdd(props: {
         }
         return (
           <TextField
+            size="small"
             value={args[f.field]}
             key={f.field}
             label={
@@ -497,12 +496,11 @@ function SqlTableViewAdd(props: {
               newArgs[f.field] = v;
               setArgs(newArgs);
             }}
-            size="small"
           ></TextField>
         );
       })}
       <Stack direction="row" spacing={1}>
-        <Button size="small" variant="contained" onClick={handleAdd}>
+        <Button variant="contained" onClick={handleAdd}>
           Add
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
@@ -533,38 +531,39 @@ function Menu(props: {
           </ListItemIcon>
           <ListItemText> copy </ListItemText>
         </MenuItem>
-      </MenuList>
-      <MenuItem
-        onClick={() => {
-          handleCopyToClipboard(field, showNotification);
-        }}
-      >
-        <ListItemIcon>
-          <ContentCopyIcon></ContentCopyIcon>
-        </ListItemIcon>
-        <ListItemText> copy field </ListItemText>
-      </MenuItem>
-      <MenuItem
-        onClick={() => {
-          setOrderBy(`${field} ASC`);
-        }}
-      >
-        <ListItemText> order by {field} "ASC" </ListItemText>
-      </MenuItem>
-      <MenuItem
-        onClick={() => {
-          setOrderBy(`${field} DESC`);
-        }}
-      >
-        <ListItemText> order by {field} "DESC" </ListItemText>
-      </MenuItem>
 
-      <MenuItem onClick={handleDelete}>
-        <ListItemIcon>
-          <DeleteForeverIcon></DeleteForeverIcon>
-        </ListItemIcon>
-        <ListItemText> delete </ListItemText>
-      </MenuItem>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(field, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy field </ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setOrderBy(`${field} ASC`);
+          }}
+        >
+          <ListItemText> order by {field} "ASC" </ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setOrderBy(`${field} DESC`);
+          }}
+        >
+          <ListItemText> order by {field} "DESC" </ListItemText>
+        </MenuItem>
+
+        <MenuItem onClick={handleDelete}>
+          <ListItemIcon>
+            <DeleteForeverIcon></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText> delete </ListItemText>
+        </MenuItem>
+      </MenuList>
     </Paper>
   );
 }

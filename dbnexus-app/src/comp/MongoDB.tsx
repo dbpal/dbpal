@@ -310,7 +310,6 @@ function MongoBsonEditor(props: {
             return (
               //@ts-ignore
               <Button
-                size="small"
                 key={button.buttonConent}
                 variant={button.variant}
                 color={button.color}
@@ -509,16 +508,11 @@ function MongoTableListToolBar(props: {
           </Modal>
         )}
 
-        <Button
-          size="small"
-          variant="contained"
-          color="primary"
-          onClick={doReload}
-        >
+        <Button variant="contained" color="primary" onClick={doReload}>
           Reload
         </Button>
         {/* <Button
-          size="small"
+          
           variant="contained"
           color="primary"
           onClick={doReload}

@@ -37,22 +37,22 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
   return (
     <Stack direction="row">
       <TextField
+        size="small"
         margin="normal"
         fullWidth
         label="Host"
         value={host}
-        size="small"
         onBlur={onBlur}
         sx={{ mr: 1 }}
         onChange={(e) => setHost(e.target.value)}
       />
       <TextField
+        size="small"
         margin="normal"
         fullWidth
         label="port"
         onBlur={onBlur}
         error={isNaN(parseInt(port))}
-        size="small"
         value={port}
         onChange={(e) => setPort(e.target.value)}
       />
@@ -70,7 +70,6 @@ function Sqlite(props: { path; setPath }) {
             setPath(e);
           });
         }}
-        size="small"
       >
         <AttachFileIcon></AttachFileIcon>
       </Button>
@@ -91,21 +90,21 @@ function UserAndPassword(props: {
   return (
     <Stack direction="row">
       <TextField
+        size="small"
         margin="normal"
         fullWidth
         label="User"
         value={user}
         sx={{ mr: 1 }}
-        size="small"
         onBlur={onBlur}
         onChange={(e) => setUser(e.target.value)}
       />
       <TextField
+        size="small"
         margin="normal"
         fullWidth
         label="Password"
         onBlur={onBlur}
-        size="small"
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
@@ -159,7 +158,6 @@ function Database(props: {
         {candidates.map((e) => (
           <Button
             key={e}
-            size="small"
             onClick={() => {
               setDatabase(e);
             }}
@@ -171,9 +169,9 @@ function Database(props: {
 
       <Stack direction="row">
         <TextField
+          size="small"
           margin="normal"
           label="database"
-          size="small"
           value={database}
           onBlur={onBlur}
           onChange={(e) => setDatabase(e.target.value)}
@@ -191,7 +189,6 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
       <Stack direction="row" style={{ flexWrap: 'wrap' }}>
         {candidates.map((e) => (
           <Button
-            size="small"
             key={e}
             onClick={() => {
               setSchema(e);
@@ -204,9 +201,9 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
 
       <Stack direction="row">
         <TextField
+          size="small"
           margin="normal"
           label="schema"
-          size="small"
           value={schema}
           onChange={(e) => setSchema(e.target.value)}
         />
@@ -475,14 +472,13 @@ export default function AddConfig(props: { handleClose: () => void }) {
   }, [database]);
 
   return (
-    <Stack spacing={2}>
+    <Stack>
       <Typography variant="h6" gutterBottom>
         New Connection
       </Typography>
       <FormControl fullWidth margin="normal">
         <InputLabel>Connection Type</InputLabel>
         <Select
-          size="small"
           value={connectionType}
           label="Connection Type"
           onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
@@ -664,7 +660,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
       )}
       <Stack direction="row">
         <Button
-          size="small"
           variant="outlined"
           sx={{ mr: 1 }}
           onClick={handleTestConnection}
@@ -685,13 +680,13 @@ export default function AddConfig(props: { handleClose: () => void }) {
           label="Read Only"
         />
         <TextField
+          size="small"
           margin="normal"
           label="Connection Name"
           value={connectionName}
           fullWidth
           error={!connectionName}
           required
-          size="small"
           onChange={(e) => setConnectionName(e.target.value)}
           helperText="Enter a name for this connection"
         />
@@ -701,7 +696,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
         <Button
           variant="contained"
           color="primary"
-          size="small"
           onClick={() => {
             handleSaveConnection();
           }}

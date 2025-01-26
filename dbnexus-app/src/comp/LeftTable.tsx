@@ -23,7 +23,7 @@ import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import CloseIcon from '@mui/icons-material/Close';
 import { FaListOl } from 'react-icons/fa';
-import TextFieldsIcon from '@mui/icons-material/TextFields';
+
 import {
   Box,
   Button,
@@ -201,14 +201,13 @@ function TableTypesButton(props: { handleChange; uuid }) {
   };
   return (
     <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
-      <Button size="small" onClick={toggleShow}>
+      <Button onClick={toggleShow}>
         {show && <CloseIcon></CloseIcon>} all types
       </Button>
       {show &&
         types.map((t) => (
           <Button
             key={t}
-            size="small"
             style={{ padding: '3px' }}
             onClick={() => {
               handleChange(t);
@@ -274,13 +273,13 @@ function ModifyTableColumn(props: {
   return (
     <Stack spacing={1}>
       <TextField
+        size="small"
         fullWidth
         label="New Name"
         value={newName}
         onChange={(e) => {
           setNewName(e.target.value);
         }}
-        size="small"
         required
         error={!newName}
       ></TextField>
@@ -310,12 +309,12 @@ function ModifyTableColumn(props: {
 
           <Stack direction="row" spacing={1}>
             <TextField
+              size="small"
               label="Type"
               value={newTyp}
               onChange={(e) => {
                 setNewTyp(e.target.value);
               }}
-              size="small"
             ></TextField>
             <ColumnNullness
               nullness={nullness}
@@ -325,12 +324,7 @@ function ModifyTableColumn(props: {
         </Stack>
       )}
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          color="error"
-          variant="contained"
-          onClick={handleModify}
-        >
+        <Button color="error" variant="contained" onClick={handleModify}>
           Modify
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -449,6 +443,7 @@ function TableAddColumn(props: {
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
       <TextField
+        size="small"
         value={name}
         required
         error={!name}
@@ -456,7 +451,6 @@ function TableAddColumn(props: {
           setName(e.target.value);
         }}
         label="column name"
-        size="small"
       ></TextField>
       <TableTypesButton
         uuid={uuid}
@@ -467,10 +461,10 @@ function TableAddColumn(props: {
       {/*   TODO some mariadb require a length parameter    */}
       <Stack direction="row">
         <TextField
+          size="small"
           value={typ}
           onChange={(e) => setTyp(e.target.value)}
           label="type"
-          size="small"
         ></TextField>
         <ColumnNullness
           nullness={nullness}
@@ -498,20 +492,15 @@ function TableAddColumn(props: {
       </Stack>
       <Stack>
         <TextField
+          size="small"
           value={defaultValue}
           onChange={(e) => setDefaultValue(e.target.value)}
           label="default value"
-          size="small"
         ></TextField>
       </Stack>
       <Divider></Divider>
       <Stack direction="row">
-        <Button
-          size="small"
-          variant="contained"
-          color="primary"
-          onClick={handleAdd}
-        >
+        <Button variant="contained" color="primary" onClick={handleAdd}>
           add
         </Button>
       </Stack>
@@ -689,19 +678,13 @@ function DropTable(props: {
       <Stack direction="row" spacing={1}>
         <Button
           variant="outlined"
-          size="small"
           onClick={() => {
             handleClose();
           }}
         >
           Cancel
         </Button>
-        <Button
-          size="small"
-          color="error"
-          variant="contained"
-          onClick={handleDrop}
-        >
+        <Button color="error" variant="contained" onClick={handleDrop}>
           Drop
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -1380,16 +1363,15 @@ function DupTable(props: {
   return (
     <Stack spacing={1}>
       <TextField
+        size="small"
         value={name}
         label="Duplicate Name"
         onChange={(e) => {
           setName(e.target.value);
         }}
-        size="small"
       ></TextField>
       <Stack direction="row" spacing={1}>
         <Button
-          size="small"
           variant="outlined"
           onClick={() => {
             handleClose();
@@ -1397,12 +1379,7 @@ function DupTable(props: {
         >
           Cancel
         </Button>
-        <Button
-          size="small"
-          color="primary"
-          variant="contained"
-          onClick={handleRename}
-        >
+        <Button color="primary" variant="contained" onClick={handleRename}>
           Duplicate
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -1443,20 +1420,15 @@ function RenameTable(props: {
   return (
     <Stack spacing={1}>
       <TextField
+        size="small"
         value={newName}
         label="New Name"
         onChange={(e) => {
           setNewName(e.target.value);
         }}
-        size="small"
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          color="primary"
-          variant="contained"
-          onClick={handleRename}
-        >
+        <Button color="primary" variant="contained" onClick={handleRename}>
           Rename
         </Button>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -1524,7 +1496,7 @@ function RedisTables(prpos: { schema?: string }) {
     switch (typ) {
       case RedisTableType.String:
         name = 'string';
-        icon = <TextFieldsIcon></TextFieldsIcon>;
+
         break;
       case RedisTableType.List:
         name = 'list';
@@ -1666,6 +1638,7 @@ function RedisTables(prpos: { schema?: string }) {
         >
           <Box sx={modalStyle} width="800px">
             <TextField
+              size="small"
               value={filter}
               fullWidth
               label="filer"
@@ -1673,7 +1646,6 @@ function RedisTables(prpos: { schema?: string }) {
               onChange={(e) => {
                 setFilter(e.target.value);
               }}
-              size="small"
             ></TextField>
           </Box>
         </Modal>

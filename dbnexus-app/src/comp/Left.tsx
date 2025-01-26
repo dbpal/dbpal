@@ -171,9 +171,7 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
 
   return (
     <OpenedContext.Provider value={{ opened, setOpened }}>
-      <SimpleTreeView disableSelection style={{ fontSize: '12px' }}>
-        {makeTree()}
-      </SimpleTreeView>
+      <SimpleTreeView disableSelection>{makeTree()}</SimpleTreeView>
     </OpenedContext.Provider>
   );
 }

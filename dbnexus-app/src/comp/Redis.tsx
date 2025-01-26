@@ -123,12 +123,7 @@ function RedisListAdd(props: {
       <RedisEditHexOrText handleValue={(e) => setKey(e)}></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
+        <Button color="primary" variant="contained" onClick={handleAdd}>
           PUSH
         </Button>
       </Stack>
@@ -170,7 +165,6 @@ function RedisStringTable(props: {
 
       <Stack width="100px" direction="row" spacing={1}>
         <Button
-          size="small"
           color="primary"
           variant="contained"
           onClick={() => {
@@ -213,12 +207,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
+        <Button color="primary" variant="contained" onClick={handleAdd}>
           Add
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
@@ -269,12 +258,7 @@ function RedisAddHash(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
+        <Button color="primary" variant="contained" onClick={handleAdd}>
           Add
         </Button>
       </Stack>
@@ -311,6 +295,7 @@ function RedisAddZset(props: {
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
       <TextField
+        size="small"
         value={score}
         label="score"
         error={scoreErr}
@@ -319,7 +304,6 @@ function RedisAddZset(props: {
           setScore(event.target.value);
           setScoreErr(isNaN(parseFloat(event.target.value)));
         }}
-        size="small"
       ></TextField>
 
       <RedisEditHexOrText
@@ -329,12 +313,7 @@ function RedisAddZset(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
+        <Button color="primary" variant="contained" onClick={handleAdd}>
           Add
         </Button>
       </Stack>
@@ -388,12 +367,7 @@ function RedisEditHash(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
+        <Button color="primary" variant="contained" onClick={handleModify}>
           Modify
         </Button>
       </Stack>
@@ -438,6 +412,7 @@ function RedisEditZset(props: {
     <Stack spacing={2}>
       {loading && <CircularProgress size={progressBarSize} />}
       <TextField
+        size="small"
         value={newValue}
         label="score"
         error={newValueErr}
@@ -450,7 +425,6 @@ function RedisEditZset(props: {
             setNewValueErr(false);
           }
         }}
-        size="small"
       ></TextField>
       <RedisEditHexOrText
         oldValue={oldKey}
@@ -460,12 +434,7 @@ function RedisEditZset(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
+        <Button color="primary" variant="contained" onClick={handleModify}>
           Modify
         </Button>
       </Stack>
@@ -576,6 +545,7 @@ function RedisEditHexOrText(props: {
       ></RedisEditModeSelect>
       {editModel == RedisEditMode.Text && (
         <TextField
+          size="small"
           value={newValue}
           label="key"
           multiline
@@ -584,7 +554,6 @@ function RedisEditHexOrText(props: {
             setNewValue(event.target.value);
             handleValue(stringToHex(event.target.value));
           }}
-          size="small"
         ></TextField>
       )}
 
@@ -604,18 +573,17 @@ function RedisEditHexOrText(props: {
 
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <TextField
+              size="small"
               error={addLengthErr}
               value={addLength}
               helperText="length add the hex"
               onChange={(e) => {
                 setAddLength(e.target.value);
               }}
-              size="small"
             ></TextField>
 
             <Button
               color="primary"
-              size="small"
               variant="contained"
               onClick={handleAddLength}
             >
@@ -666,7 +634,6 @@ function RedisEditList(props: {
       ></RedisEditHexOrText>
       <Stack direction="row" spacing={1}>
         <Button
-          size="small"
           color="primary"
           variant="contained"
           disabled={newValue == ''}
@@ -716,7 +683,6 @@ function RedisEditSet(props: {
       ></RedisEditHexOrText>
       <Stack direction="row" spacing={1}>
         <Button
-          size="small"
           color="primary"
           variant="contained"
           disabled={newValue == ''}
@@ -852,16 +818,15 @@ function RedisSetTable(props: {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
+          size="small"
           label="key match could be *key,key*,*key*"
           variant="outlined"
           value={keyMatch}
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
-          size="small"
         />
         <Button
-          size="small"
           variant="contained"
           color="primary"
           onClick={() => {
@@ -876,7 +841,6 @@ function RedisSetTable(props: {
         <Stack spacing={1}>
           <Stack direction="row" spacing={1}>
             <Button
-              size="small"
               variant="contained"
               color="primary"
               onClick={() => {
@@ -1009,6 +973,7 @@ function RedisListTableContextMenu(props: {
           <Box sx={modalStyle} width="800px">
             <Stack spacing={1}>
               <TextField
+                size="small"
                 value={count}
                 label="delete count"
                 onChange={(e) => {
@@ -1156,7 +1121,6 @@ function RedisListTable(props: {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
         <Button
-          size="small"
           variant="contained"
           color="primary"
           onClick={() => {
@@ -1167,7 +1131,6 @@ function RedisListTable(props: {
         </Button>
 
         <Button
-          size="small"
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
           onClick={() => {
@@ -1406,15 +1369,16 @@ function RedisZsetTable(props: {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
+          size="small"
           label="key match could be *key,key*,*key*"
           variant="outlined"
           value={keyMatch}
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
-          size="small"
         />
         <TextField
+          size="small"
           label="minimum value"
           variant="outlined"
           value={min}
@@ -1428,10 +1392,10 @@ function RedisZsetTable(props: {
             }
             setMin(event.target.value);
           }}
-          size="small"
         />
 
         <TextField
+          size="small"
           label="maxiumn value"
           variant="outlined"
           value={max}
@@ -1445,10 +1409,8 @@ function RedisZsetTable(props: {
             }
             setMax(event.target.value);
           }}
-          size="small"
         />
         <Button
-          size="small"
           variant="contained"
           color="primary"
           onClick={() => {
@@ -1463,7 +1425,6 @@ function RedisZsetTable(props: {
         <Stack spacing={1}>
           <Stack direction="row" spacing={1}>
             <Button
-              size="small"
               variant="contained"
               color="primary"
               onClick={() => {
@@ -1675,16 +1636,15 @@ function RedisHashTable(props: {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
+          size="small"
           label="key match could be *key,key*,*key*"
           variant="outlined" // 可以是 'outlined', 'filled', or 'standard'
           value={keyMatch}
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
-          size="small"
         />
         <Button
-          size="small"
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
           onClick={() => {
@@ -1699,7 +1659,6 @@ function RedisHashTable(props: {
         <Stack spacing={1}>
           <Stack direction="row" spacing={1}>
             <Button
-              size="small"
               variant="contained"
               color="primary"
               onClick={() => {
@@ -1816,16 +1775,15 @@ function RedisModifyKeyName(props: {
       </Stack>
 
       <TextField
+        size="small"
         value={newName}
         onChange={(e) => {
           setNewName(e.target.value);
         }}
         label="name"
-        size="small"
       ></TextField>
       <Stack direction="row" spacing={1}>
         <Button
-          size="small"
           disabled={name == newName}
           color="primary"
           variant="contained"

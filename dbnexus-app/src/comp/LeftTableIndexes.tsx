@@ -228,20 +228,15 @@ function RenameIndex(props: {
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
       <TextField
+        size="small"
         label="new name"
         value={newName}
         onChange={(e) => {
           setNewname(e.target.value);
         }}
-        size="small"
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          color="primary"
-          variant="contained"
-          onClick={handleRename}
-        >
+        <Button color="primary" variant="contained" onClick={handleRename}>
           Rename
         </Button>
       </Stack>

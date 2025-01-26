@@ -44,7 +44,6 @@ const LogLevelSel = ({ handleChange, level }) => {
           handleChange(e.target.value);
         }}
         variant="outlined"
-        size="small"
       >
         {levels.map((e) => (
           <MenuItem value={e} key={e}>
@@ -229,7 +228,6 @@ function SelectPageSize({
         //@ts-ignore
         variant={variant}
         fullWidth
-        size="small"
       >
         <InputLabel id="simple-select-label">{tital}</InputLabel>
         <Select

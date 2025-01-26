@@ -74,16 +74,15 @@ function TabsMenu(props: {
             close others
           </MenuItem>
         )}
+        <MenuItem
+          onClick={() => {
+            setTabs([]);
+            changeTab(0);
+          }}
+        >
+          close all
+        </MenuItem>
       </MenuList>
-
-      <MenuItem
-        onClick={() => {
-          setTabs([]);
-          changeTab(0);
-        }}
-      >
-        close all
-      </MenuItem>
     </Paper>
   );
 }
@@ -103,17 +102,12 @@ function TabsWithContent_(props: {
       {tabs.length > 0 && (
         <Stack>
           <Button
-            size="small"
-            style={{ padding: 2 }}
+            style={{ padding: 0, margin: 0 }}
             onClick={() => {
               setShow((e) => !e);
             }}
           >
-            {show ? (
-              <KeyboardArrowDownIcon fontSize="small"> </KeyboardArrowDownIcon>
-            ) : (
-              <KeyboardArrowRightIcon fontSize="small"></KeyboardArrowRightIcon>
-            )}
+            {show ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
           </Button>
         </Stack>
       )}
@@ -127,7 +121,6 @@ function TabsWithContent_(props: {
           {tabs.map((tab, index) => {
             return (
               <Button
-                size="small"
                 key={tab.id}
                 sx={{ textTransform: 'none' }}
                 onContextMenu={(e) => {

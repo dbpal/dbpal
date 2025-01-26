@@ -47,12 +47,7 @@ function DefAndMetasView(props: {
     <Stack spacing={1}>
       {loading && <CircularProgress size={progressBarSize} />}
       <Stack direction="row" spacing={1}>
-        <Button
-          size="small"
-          variant="contained"
-          color="primary"
-          onClick={handleReload}
-        >
+        <Button variant="contained" color="primary" onClick={handleReload}>
           Reload
         </Button>
       </Stack>

@@ -353,7 +353,6 @@ function SqlQuery(props: {
           </Tooltip>
           {conn && conn.isOracle && <OracleCommit conn={conn} />}
           <Button
-            size="small"
             onClick={() => {
               setShowQueryLog((prev) => !prev);
             }}

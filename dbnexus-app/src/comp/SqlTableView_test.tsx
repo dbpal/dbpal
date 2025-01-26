@@ -28,11 +28,11 @@ function XXX(props: { reloadOP: () => Promise<types.MuiDataTableListResp> }) {
   return (
     <Stack>
       <TextField
+        size="small"
         value={value}
         onChange={(e) => {
           setValue(e.target.value);
         }}
-        size="small"
       ></TextField>
       {resp && (
         <DataGrid
