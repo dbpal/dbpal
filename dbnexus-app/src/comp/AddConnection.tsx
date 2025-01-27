@@ -413,9 +413,10 @@ export default function AddConfig(props: { handleClose: () => void }) {
         showNotification('error', 'save password failed', e);
         return;
       }
+      //@ts-ignore
+      config.password = '';
     }
-    //@ts-ignore
-    config.password = '';
+
     let old = await (await appStore()).get(AppStoreKey.ConnectionConfig);
     if (!old) {
       old = [];
