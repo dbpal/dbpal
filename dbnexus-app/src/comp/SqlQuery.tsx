@@ -302,7 +302,7 @@ function SqlQuery(props: {
           </Paper>
         )}
         {connectInfo}
-        <Stack direction="row" spacing={1} style={{ paddingLeft: '40px' }}>
+        <Stack direction="row" spacing={1}>
           {loading && <CircularProgress size={progressBarSize} />}
           <Tooltip title="execute">
             <IconButton

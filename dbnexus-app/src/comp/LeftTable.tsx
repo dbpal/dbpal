@@ -48,21 +48,30 @@ import {
 } from '@mui/material';
 
 import { TabContent } from './Tabs';
-import { SqlTableView } from './SqlTableView';
+import { SqlTableView, SqlTableViewAdd } from './SqlTableView';
 import { TriggersTree } from './LeftTriggers';
 import { ExportTableOrView } from './Export';
 import AddIcon from '@mui/icons-material/Add';
 import { LeftIndexes } from './LeftTableIndexes';
 import {
+  RedisAddHash,
+  RedisAddList,
+  RedisAddSet,
+  RedisAddZset,
   RedisHashTable,
   RedisListTable,
   RedisSetTable,
   RedisStringTable,
   RedisZsetTable,
 } from './Redis';
-import { MongoTable } from './MongoDB';
+import { MongoTable, MongoTableAdd } from './MongoDB';
 import { BSON, EJSON } from 'bson';
-import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import {
+  calMenuStyle,
+  DataSourceKind,
+  generateRandomString,
+  secondConfirm,
+} from './helper';
 import { MenuRefresh } from './CommonComp';
 
 function TablesTree() {
@@ -697,8 +706,7 @@ async function makeViewTable(
   uuid,
   table: string,
   kind: DataSourceKind,
-  redisTableType: RedisTableType,
-  showNotification
+  redisTableType: RedisTableType
 ) {
   let tableList: ReactNode = null;
   switch (kind) {
@@ -742,52 +750,14 @@ async function makeViewTable(
               wheres,
             });
           }}
-          addOP={async (values) => {
-            return await invoke<types.SqlExecuteRet>('insert', {
-              name: uuid,
-              tableName: table,
-              values,
-            });
-          }}
         ></SqlTableView>
       );
       break;
     case DataSourceKind.Redis:
       switch (redisTableType) {
         case RedisTableType.String:
-          tableList = (
-            <RedisStringTable
-              modifyOP={async (value) => {
-                return await invoke('redis_string_set', {
-                  name: uuid,
-                  key: table,
-                  value,
-                });
-              }}
-              content={await (async () => {
-                try {
-                  let x = await invoke<types.MuiDataTableListResp>(
-                    'show_table',
-                    {
-                      name: uuid,
-                      tableName: table,
-                      whereStr: null,
-                      orderBy: null,
-                      page: 0,
-                      pageSize: 0,
-                    }
-                  );
-                  return x.data.data[0]['value'];
-                } catch (e) {
-                  showNotification(
-                    'success',
-                    'load redis string table failed',
-                    e
-                  );
-                }
-              })()}
-            ></RedisStringTable>
-          );
+          // right now we don't support create table
+          tableList = <></>;
           break;
         case RedisTableType.List:
           tableList = (
@@ -808,20 +778,6 @@ async function makeViewTable(
                   key: table,
                   value,
                   index,
-                });
-              }}
-              lpushOP={async (value) => {
-                return await invoke('redis_list_lpush', {
-                  name: uuid,
-                  key: table,
-                  value,
-                });
-              }}
-              rpushOP={async (value) => {
-                return await invoke('redis_list_rpush', {
-                  name: uuid,
-                  key: table,
-                  value,
                 });
               }}
               delOP={async (count, value) => {
@@ -855,13 +811,6 @@ async function makeViewTable(
                   key: table,
                   old,
                   new: newx,
-                });
-              }}
-              addOP={async (member) => {
-                return await invoke('redis_set_add', {
-                  name: uuid,
-                  key: table,
-                  member,
                 });
               }}
               delOP={async (member) => {
@@ -906,14 +855,6 @@ async function makeViewTable(
                   member,
                 });
               }}
-              addOP={async (member, value) => {
-                return await invoke('redis_zset_add', {
-                  name: uuid,
-                  key: table,
-                  member,
-                  value,
-                });
-              }}
             ></RedisZsetTable>
           );
           break;
@@ -928,14 +869,6 @@ async function makeViewTable(
                   pageSize: 0,
                   whereStr: keyMatch ? keyMatch : null,
                   orderBy: null,
-                });
-              }}
-              addOP={async (member, value) => {
-                return await invoke('redis_hash_add', {
-                  name: uuid,
-                  key: table,
-                  member,
-                  value,
                 });
               }}
               delOP={async (member) => {
@@ -1026,6 +959,158 @@ async function makeViewTable(
   return tableList;
 }
 
+async function makeAddTable(
+  uuid,
+  table: string,
+  kind: DataSourceKind,
+  redisTableType: RedisTableType,
+  showNotification
+) {
+  let tableList: ReactNode = null;
+  switch (kind) {
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.Mysql:
+    case DataSourceKind.MsSql:
+    case DataSourceKind.Sqlite:
+    case DataSourceKind.Postgres:
+    case DataSourceKind.Oracle:
+      tableList = (
+        <SqlTableViewAdd
+          addOP={async (values) => {
+            return invoke('insert', {
+              name: uuid,
+              tableName: table,
+              values,
+            });
+          }}
+          fields={await (async () => {
+            return invoke('show_table_columns', {
+              name: uuid,
+              tableName: table,
+            });
+          })()}
+        ></SqlTableViewAdd>
+      );
+      break;
+    case DataSourceKind.Redis:
+      switch (redisTableType) {
+        case RedisTableType.String:
+          tableList = (
+            <RedisStringTable
+              modifyOP={async (value) => {
+                return await invoke('redis_string_set', {
+                  name: uuid,
+                  key: table,
+                  value,
+                });
+              }}
+              content={await (async () => {
+                try {
+                  let x = await invoke<types.MuiDataTableListResp>(
+                    'show_table',
+                    {
+                      name: uuid,
+                      tableName: table,
+                      whereStr: null,
+                      orderBy: null,
+                      page: 0,
+                      pageSize: 0,
+                    }
+                  );
+                  return x.data.data[0]['value'];
+                } catch (e) {
+                  showNotification(
+                    'success',
+                    'load redis string table failed',
+                    e
+                  );
+                }
+              })()}
+            ></RedisStringTable>
+          );
+          break;
+        case RedisTableType.List:
+          tableList = (
+            <RedisAddList
+              lpushOP={async (value) => {
+                return await invoke('redis_list_lpush', {
+                  name: uuid,
+                  key: table,
+                  value,
+                });
+              }}
+              rpushOP={async (value) => {
+                return await invoke('redis_list_rpush', {
+                  name: uuid,
+                  key: table,
+                  value,
+                });
+              }}
+            ></RedisAddList>
+          );
+          break;
+
+        case RedisTableType.Set:
+          tableList = (
+            <RedisAddSet
+              addOP={async (member) => {
+                return await invoke('redis_set_add', {
+                  name: uuid,
+                  key: table,
+                  member,
+                });
+              }}
+            ></RedisAddSet>
+          );
+          break;
+        case RedisTableType.Zset:
+          tableList = (
+            <RedisAddZset
+              addOP={async (member, value) => {
+                return await invoke('redis_zset_add', {
+                  name: uuid,
+                  key: table,
+                  member,
+                  value,
+                });
+              }}
+            ></RedisAddZset>
+          );
+          break;
+        case RedisTableType.Hash:
+          tableList = (
+            <RedisAddHash
+              addOP={async (member, value) => {
+                return await invoke('redis_hash_add', {
+                  name: uuid,
+                  key: table,
+                  member,
+                  value,
+                });
+              }}
+            ></RedisAddHash>
+          );
+          break;
+      }
+      break;
+    case DataSourceKind.Mongo:
+      tableList = (
+        <MongoTableAdd
+          addOP={async (data) => {
+            return invoke<void>('mongo_insert', {
+              name: uuid,
+              tableName: table,
+              doc: BSON.serialize(data),
+            });
+          }}
+        ></MongoTableAdd>
+      );
+      break;
+  }
+
+  return tableList;
+}
+
 function TableMenu(props: {
   table: string;
   uuid: string;
@@ -1071,8 +1156,7 @@ function TableMenu(props: {
         uuid,
         table,
         kind,
-        redisTableType,
-        showNotification
+        redisTableType
       );
 
       setTabs((e) => {
@@ -1080,6 +1164,20 @@ function TableMenu(props: {
         return [...e, new TabContent(id, table, tableList)];
       });
     }
+  };
+  const handleAddData = async () => {
+    const id = generateRandomString(10);
+    let tableList: ReactNode = await makeAddTable(
+      uuid,
+      table,
+      kind,
+      redisTableType,
+      showNotification
+    );
+    setTabs((e) => {
+      setSelectIndex(tabs.length);
+      return [...e, new TabContent(id, `${table}-add`, tableList)];
+    });
   };
 
   const getExportKind = () => {
@@ -1104,6 +1202,33 @@ function TableMenu(props: {
           </ListItemIcon>
           <ListItemText> view data</ListItemText>
         </MenuItem>
+
+        {kind != DataSourceKind.Redis && (
+          <MenuItem
+            onClick={() => {
+              handleAddData();
+            }}
+          >
+            <ListItemIcon>
+              <AddIcon></AddIcon>
+            </ListItemIcon>
+            <ListItemText> add data </ListItemText>
+          </MenuItem>
+        )}
+
+        {kind == DataSourceKind.Redis &&
+          redisTableType != RedisTableType.String && (
+            <MenuItem
+              onClick={() => {
+                handleAddData();
+              }}
+            >
+              <ListItemIcon>
+                <AddIcon></AddIcon>
+              </ListItemIcon>
+              <ListItemText> add data</ListItemText>
+            </MenuItem>
+          )}
 
         <MenuItem
           onClick={() => {

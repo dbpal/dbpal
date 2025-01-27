@@ -546,7 +546,7 @@ function ConnConfigInfo(props: { uuid }) {
   );
 }
 function reloadOK(showNotification) {
-  showNotification('success', 'Reload OK');
+  showNotification('success', 'reload OK');
 }
 const registeredLanguage = new Set<string>();
 const VisiableContext = createContext(true);

@@ -102,7 +102,6 @@ function TabsWithContent_(props: {
       {tabs.length > 0 && (
         <Stack>
           <Button
-            style={{ padding: 0, margin: 0 }}
             onClick={() => {
               setShow((e) => !e);
             }}

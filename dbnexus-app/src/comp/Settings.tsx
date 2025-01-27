@@ -121,10 +121,8 @@ const components: Components<
     styleOverrides: {
       root: {
         fontSize: '1rem',
-        paddingLeft: '3px',
-        paddingRight: '3px',
-        paddingTop: '1px',
-        paddingBottom: '1px',
+        padding: '3px',
+        textTransform: 'none',
       },
     },
   },
@@ -154,6 +152,23 @@ const components: Components<
     styleOverrides: {
       root: {
         padding: 0,
+      },
+    },
+  },
+  MuiTabs: {
+    styleOverrides: {
+      root: {
+        height: '2.6rem',
+        minHeight: '1rem',
+      },
+    },
+  },
+  MuiTab: {
+    styleOverrides: {
+      root: {
+        fontSize: '1rem',
+        height: '1.2rem',
+        textTransform: 'none',
       },
     },
   },

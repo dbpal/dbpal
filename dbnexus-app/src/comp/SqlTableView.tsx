@@ -9,14 +9,13 @@ import {
 
 import types from './ApiStruct';
 import {
-  Box,
   Button,
   CircularProgress,
+  Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Paper,
   Stack,
   TextField,
@@ -29,7 +28,6 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   ContextMenuContext,
   keyNotInTable,
-  modalStyle,
   progressBarSize,
   reloadOK,
   SettingsContext,
@@ -38,8 +36,8 @@ import {
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import KeyIcon from '@mui/icons-material/Key';
-import AddIcon from '@mui/icons-material/Add';
-
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import {
   calMenuStyle,
   cloumnWidths,
@@ -85,10 +83,10 @@ function SqlTableView(props: {
     values: Map<string, string | null>
   ) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: Map<string, string>) => Promise<types.SqlExecuteRet>;
-  addOP?: (values: Map<string, string | null>) => Promise<types.SqlExecuteRet>;
+
   notWarnPri?: boolean;
 }) {
-  let { reloadOP, updateOP, deleteOP, addOP, notWarnPri } = props;
+  let { reloadOP, updateOP, deleteOP, notWarnPri } = props;
 
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -101,7 +99,7 @@ function SqlTableView(props: {
 
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [showAdd, setShowAdd] = useState(false);
+
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
 
   const visiable = useContext(VisiableContext);
@@ -355,7 +353,7 @@ function SqlTableView(props: {
             handleReload(true);
           }}
         >
-          Reload
+          reload
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
@@ -367,44 +365,10 @@ function SqlTableView(props: {
             sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
           >
             <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
-              {addOP && (
-                <Button
-                  color="primary"
-                  variant="contained"
-                  onClick={() => {
-                    setShowAdd(true);
-                  }}
-                >
-                  <AddIcon></AddIcon>
-                </Button>
-              )}
               {resp && <Typography variant="subtitle1">{resp.sql}</Typography>}
             </Stack>
             {resp && (
               <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
-            )}
-            {showAdd && (
-              <Modal
-                open={showAdd}
-                onClose={() => {
-                  setShowAdd(false);
-                }}
-                aria-labelledby="add data"
-              >
-                <Box sx={modalStyle} width="800px">
-                  <SqlTableViewAdd
-                    addOP={async (args) => {
-                      try {
-                        await addOP(args);
-                      } catch (e) {
-                        throw e;
-                      }
-                      handleReload(false);
-                    }}
-                    fields={resp.data.fields}
-                  ></SqlTableViewAdd>
-                </Box>
-              </Modal>
             )}
           </Stack>
 
@@ -499,9 +463,10 @@ function SqlTableViewAdd(props: {
           ></TextField>
         );
       })}
+      <Divider></Divider>
       <Stack direction="row" spacing={1}>
         <Button variant="contained" onClick={handleAdd}>
-          Add
+          add
         </Button>
         {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
@@ -547,14 +512,20 @@ function Menu(props: {
             setOrderBy(`${field} ASC`);
           }}
         >
-          <ListItemText> order by {field} "ASC" </ListItemText>
+          <ListItemIcon>
+            <ArrowUpwardIcon></ArrowUpwardIcon>
+          </ListItemIcon>
+          <ListItemText> {field} "ASC" </ListItemText>
         </MenuItem>
         <MenuItem
           onClick={() => {
             setOrderBy(`${field} DESC`);
           }}
         >
-          <ListItemText> order by {field} "DESC" </ListItemText>
+          <ListItemIcon>
+            <ArrowDownwardIcon></ArrowDownwardIcon>
+          </ListItemIcon>
+          <ListItemText> {field} "DESC" </ListItemText>
         </MenuItem>
 
         <MenuItem onClick={handleDelete}>
@@ -568,4 +539,4 @@ function Menu(props: {
   );
 }
 
-export { SqlTableView };
+export { SqlTableView, SqlTableViewAdd };

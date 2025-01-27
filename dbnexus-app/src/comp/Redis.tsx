@@ -75,16 +75,14 @@ enum RedisEditMode {
   Text,
 }
 
-function RedisListAdd(props: {
+function RedisAddList(props: {
   lpushOP: (value: string) => Promise<void>;
   rpushOP: (value: string) => Promise<void>;
 }) {
   const { lpushOP, rpushOP } = props;
   const [loading, setLoading] = useState(false);
-
   const [lOrR, setLOrR] = useState('lpush');
   const [key, setKey] = useState('');
-
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
     // reset some state
@@ -120,11 +118,15 @@ function RedisListAdd(props: {
           </Select>
         </FormControl>
       </Box>
-      <RedisEditHexOrText handleValue={(e) => setKey(e)}></RedisEditHexOrText>
+      <RedisEditHexOrText
+        hexRows={17}
+        textRows={18}
+        handleValue={(e) => setKey(e)}
+      ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
         <Button color="primary" variant="contained" onClick={handleAdd}>
-          PUSH
+          push
         </Button>
       </Stack>
     </Stack>
@@ -204,6 +206,8 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
         handleValue={(e) => {
           setKey(e);
         }}
+        hexRows={17}
+        textRows={18}
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
@@ -248,6 +252,8 @@ function RedisAddHash(props: {
         handleValue={(e) => {
           setKey(e);
         }}
+        hexRows={10}
+        textRows={10}
       ></RedisEditHexOrText>
       <Typography variant="h5"> value </Typography>
       <RedisEditHexOrText
@@ -255,6 +261,8 @@ function RedisAddHash(props: {
         handleValue={(e) => {
           setValue(e);
         }}
+        hexRows={10}
+        textRows={10}
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
@@ -267,7 +275,6 @@ function RedisAddHash(props: {
 }
 function RedisAddZset(props: {
   addOP: (key: string, value: number) => Promise<void>;
-  handleClose: () => void;
 }) {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
@@ -310,6 +317,8 @@ function RedisAddZset(props: {
         handleValue={(e) => {
           setKey(e);
         }}
+        hexRows={17}
+        textRows={18}
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
@@ -739,15 +748,14 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
 function RedisSetTable(props: {
   reloadOP: (keyMatch: string) => Promise<types.MuiDataTableListResp>;
   modifyOP: (oldvalue: string, newValue: string) => Promise<void>;
-  addOP: (value: string) => Promise<void>;
+
   delOP: (value: string) => Promise<void>;
 }) {
-  const { reloadOP, modifyOP, addOP, delOP } = props;
+  const { reloadOP, modifyOP, delOP } = props;
   const [keyMatch, setKeyMatch] = useState('');
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState(null);
-  const [showAdd, setShowAdd] = useState(false);
 
   const handleReload = (showOK) => {
     reloadOP(keyMatch)
@@ -833,24 +841,12 @@ function RedisSetTable(props: {
             handleReload(true);
           }}
         >
-          Reload
+          reload
         </Button>
       </Stack>
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => {
-                setShowAdd(true);
-              }}
-            >
-              <AddIcon></AddIcon>
-            </Button>
-          </Stack>
-
           {/* actual data grid */}
           {vis && (
             <div style={{ display: 'grid' }}>
@@ -900,28 +896,6 @@ function RedisSetTable(props: {
             </Modal>
           )}
         </Stack>
-      )}
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={() => {
-            setShowAdd(false);
-          }}
-          aria-labelledby="modify set"
-        >
-          <Box sx={modalStyle} width="800px">
-            <RedisAddSet
-              addOP={async (value) => {
-                try {
-                  await addOP(value);
-                } catch (e) {
-                  throw e;
-                }
-                handleReload(false);
-              }}
-            ></RedisAddSet>
-          </Box>
-        </Modal>
       )}
     </Stack>
   );
@@ -1001,16 +975,15 @@ function RedisListTableContextMenu(props: {
 function RedisListTable(props: {
   reloadOP: () => Promise<types.MuiDataTableListResp>;
   modifyOP: (index: number, newValue: string) => Promise<void>;
-  lpushOP: (value: string) => Promise<void>;
-  rpushOP: (value: string) => Promise<void>;
+
   delOP: (count: number, value: string) => Promise<void>;
 }) {
-  const { reloadOP, modifyOP, lpushOP, delOP, rpushOP } = props;
+  const { reloadOP, modifyOP, delOP } = props;
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const [resp2, setResp2] = useState<types.MuiDataTableListResp | null>(null);
 
   const [selectRow, setSelectRow] = useState<any>(null);
-  const [showAdd, setShowAdd] = useState(false);
+
   const { showNotification } = useContext(NotificationContext);
   const [pageSize, setPageSize] = useState(
     useContext(SettingsContext).pageSize
@@ -1121,23 +1094,13 @@ function RedisListTable(props: {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
         <Button
-          variant="contained"
-          color="primary"
-          onClick={() => {
-            setShowAdd(true);
-          }}
-        >
-          <AddIcon></AddIcon>
-        </Button>
-
-        <Button
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
           color="primary" // 主题颜色
           onClick={() => {
             handleReload(true);
           }} // 点击事件处理
         >
-          Reload
+          reload
         </Button>
       </Stack>
       {resp && (
@@ -1195,38 +1158,6 @@ function RedisListTable(props: {
           )}
         </Stack>
       )}
-
-      {/* // add modal */}
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={() => {
-            setShowAdd(false);
-          }}
-          aria-labelledby="modify list"
-        >
-          <Box sx={modalStyle} width="800px">
-            <RedisListAdd
-              lpushOP={async (value) => {
-                try {
-                  await lpushOP(value);
-                } catch (e) {
-                  throw e;
-                }
-                handleReload(false);
-              }}
-              rpushOP={async (value) => {
-                try {
-                  await rpushOP(value);
-                } catch (e) {
-                  throw e;
-                }
-                handleReload(false);
-              }}
-            ></RedisListAdd>
-          </Box>
-        </Modal>
-      )}
     </Stack>
   );
 }
@@ -1275,14 +1206,14 @@ function RedisZsetTable(props: {
     newKey: string,
     newValue: number
   ) => Promise<void>;
-  addOP: (key: string, value: number) => Promise<void>;
+
   delOP: (key: string) => Promise<void>;
 }) {
-  const { reloadOP, modifyOP, addOP, delOP } = props;
+  const { reloadOP, modifyOP, delOP } = props;
   const [keyMatch, setKeyMatch] = useState('');
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const [selectRow, setSelectRow] = useState<any>();
-  const [showAdd, setShowAdd] = useState(false);
+
   const [min, setMin] = useState('');
   const [max, setMax] = useState('');
   const [minErr, setMinErr] = useState(false);
@@ -1417,24 +1348,12 @@ function RedisZsetTable(props: {
             handleReload(true);
           }}
         >
-          Reload
+          reload
         </Button>
       </Stack>
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => {
-                setShowAdd(true);
-              }}
-            >
-              <AddIcon />
-            </Button>
-          </Stack>
-
           {/* actual data grid */}
           {vis && (
             <div style={{ display: 'grid' }}>
@@ -1482,33 +1401,6 @@ function RedisZsetTable(props: {
           )}
         </Stack>
       )}
-
-      {/* // add modal */}
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={() => {
-            setShowAdd(false);
-          }}
-          aria-labelledby="modify zset"
-        >
-          <Box sx={modalStyle} width="800px">
-            <RedisAddZset
-              addOP={async (key, value) => {
-                try {
-                  await addOP(key, value);
-                } catch (e) {
-                  throw e;
-                }
-                handleReload(false);
-              }}
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            ></RedisAddZset>
-          </Box>
-        </Modal>
-      )}
     </Stack>
   );
 }
@@ -1553,15 +1445,14 @@ function RedisHashTable(props: {
     newMember: string,
     newValue: string
   ) => Promise<void>;
-  addOP: (key: string, value: string) => Promise<void>;
+
   delOP: (key: string) => Promise<void>;
 }) {
-  const { reloadOP, modifyOP, addOP, delOP } = props;
+  const { reloadOP, modifyOP, delOP } = props;
   const [keyMatch, setKeyMatch] = useState('');
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<any>(null);
-  const [showAdd, setShowAdd] = useState(false);
 
   const handleReload = (showOK) => {
     reloadOP(keyMatch)
@@ -1651,24 +1542,12 @@ function RedisHashTable(props: {
             handleReload(true);
           }} // 点击事件处理
         >
-          Reload
+          reload
         </Button>
       </Stack>
 
       {resp && (
         <Stack spacing={1}>
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => {
-                setShowAdd(true);
-              }}
-            >
-              <AddIcon></AddIcon>
-            </Button>
-          </Stack>
-
           {/* actual data grid */}
           {vis && (
             <div style={{ display: 'grid' }}>
@@ -1717,29 +1596,6 @@ function RedisHashTable(props: {
             </Modal>
           )}
         </Stack>
-      )}
-
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={() => {
-            setShowAdd(false);
-          }}
-          aria-labelledby="modify hash"
-        >
-          <Box sx={modalStyle} width="800px">
-            <RedisAddHash
-              addOP={async (key, value) => {
-                try {
-                  await addOP(key, value);
-                } catch (e) {
-                  throw e;
-                }
-                handleReload(false);
-              }}
-            ></RedisAddHash>
-          </Box>
-        </Modal>
       )}
     </Stack>
   );
@@ -1804,4 +1660,9 @@ export {
   RedisSetTable,
   RedisEditHexOrText,
   RedisModifyKeyName,
+  // add
+  RedisAddSet,
+  RedisAddHash,
+  RedisAddList,
+  RedisAddZset,
 };

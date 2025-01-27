@@ -30,7 +30,6 @@ import {
 } from './MongoBsonCompiler';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -241,8 +240,9 @@ interface MongoBsonEditorCallback {
 function MongoBsonEditor(props: {
   doc: BSON.Document;
   buttons: MongoBsonEditorCallback[];
+  height?: string;
 }) {
-  let { doc, buttons } = props;
+  let { doc, buttons, height } = props;
   let editor = useRef<editor.IStandaloneCodeEditor>();
   const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
@@ -272,12 +272,14 @@ function MongoBsonEditor(props: {
   );
   const content = useRef(bsonValue2MongoBson(doc).format());
   const { showNotification } = useContext(NotificationContext);
-  const [initHeigth, _] = useState(
-    editorInitHeight(
-      content.current,
-      useContext(SettingsContext).editorFontSize * 1.2,
-      150
-    )
+  const initHeigth = useRef(
+    height
+      ? height
+      : editorInitHeight(
+          content.current,
+          useContext(SettingsContext).editorFontSize * 1.2,
+          150
+        ) + 'px'
   );
 
   return (
@@ -287,7 +289,7 @@ function MongoBsonEditor(props: {
         flexDirection: 'column',
         resize: 'vertical',
         overflow: 'auto',
-        height: initHeigth + 'px',
+        height: initHeigth.current,
       }}
     >
       <div
@@ -412,7 +414,7 @@ function MongoTableListToolBar(props: {
   viewModel: MongoDataViewModel;
   handleViewModel: (doc: MongoDataViewModel) => void;
   addOP: (doc: BSON.Document) => Promise<void>;
-  style?: CSSProperties;
+
   nonse;
 }) {
   const {
@@ -423,7 +425,6 @@ function MongoTableListToolBar(props: {
     filter,
     viewModel,
     handleViewModel,
-    style,
   } = props;
 
   const [showModifyFilter, setShowModifyFilter] = useState(false);
@@ -440,8 +441,8 @@ function MongoTableListToolBar(props: {
   }, [viewModel]);
 
   return (
-    <Stack direction="row" justifyContent="space-between" style={{ ...style }}>
-      <Stack direction="row" spacing={1} alignContent="flex-end">
+    <Stack direction="row" justifyContent="space-between">
+      <Stack direction="row" spacing={1}>
         <Typography
           onClick={() => {
             setShowModifyFilter(true);
@@ -449,7 +450,10 @@ function MongoTableListToolBar(props: {
           style={{ cursor: 'pointer' }}
           variant="subtitle1"
         >
-          filter: {bsonValue2MongoBson(filter).format()}
+          filter:
+          <span style={{ textDecoration: 'underline' }}>
+            {bsonValue2MongoBson(filter).format()}
+          </span>
         </Typography>
 
         {showModifyFilter && (
@@ -482,7 +486,10 @@ function MongoTableListToolBar(props: {
           style={{ cursor: 'pointer' }}
           variant="subtitle1"
         >
-          order by: {bsonValue2MongoBson(orderBy).format()}
+          sort:
+          <span style={{ textDecoration: 'underline' }}>
+            {bsonValue2MongoBson(orderBy).format()}
+          </span>
         </Typography>
 
         {showModifyOrderBy && (
@@ -509,19 +516,12 @@ function MongoTableListToolBar(props: {
         )}
 
         <Button variant="contained" color="primary" onClick={doReload}>
-          Reload
+          reload
         </Button>
-        {/* <Button
-          
-          variant="contained"
-          color="primary"
-          onClick={doReload}
-        >
-          <AddIcon></AddIcon>
-        </Button> */}
+
         {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
-      <Stack direction="row" style={{ padding: '5px' }}>
+      <Stack direction="row">
         <ButtonGroup variant="contained" aria-label="Basic button group">
           <IconButton
             disabled={viewModel == MongoDataViewModel.Object}
@@ -709,10 +709,12 @@ function MongoTableList(props: {
             f['width'] = width;
           }
         });
-        r.data.fields[0]['renderCell'] = function (value) {
-          let _id = value.row._id;
-          return renderId(_id);
-        };
+        if (r.data.fields.length > 0) {
+          r.data.fields[0]['renderCell'] = function (value) {
+            let _id = value.row._id;
+            return renderId(_id);
+          };
+        }
         setResp(r);
         if (showOK) {
           reloadOK(showNotification);
@@ -827,7 +829,6 @@ function MongoTableList(props: {
             <MongoDBModify
               setOP={async (doc) => {
                 try {
-                  alert(1);
                   await modifyOP(doc);
                 } catch (e) {
                   throw e;
@@ -1012,7 +1013,6 @@ function MongoTable(props: {
     >
       <MongoTableListToolBar
         addOP={async () => {}}
-        style={{ position: 'sticky', top: 0 }}
         orderBy={orderBy}
         filter={filter}
         handleFilter={(e) => {
@@ -1075,23 +1075,22 @@ function MongoTableAdd(props: {
   };
 
   return (
-    <Stack>
-      <MongoBsonEditor
-        doc={{}}
-        buttons={[
-          {
-            buttonConent: 'Add',
-            variant: 'contained',
-            disabled: (changed) => {
-              return !changed;
-            },
-            callBack: (doc) => {
-              handleAdd(doc);
-            },
+    <MongoBsonEditor
+      doc={{}}
+      height={'80vh'}
+      buttons={[
+        {
+          buttonConent: 'Add',
+          variant: 'contained',
+          disabled: (changed) => {
+            return !changed;
           },
-        ]}
-      ></MongoBsonEditor>
-    </Stack>
+          callBack: (doc) => {
+            handleAdd(doc);
+          },
+        },
+      ]}
+    ></MongoBsonEditor>
   );
 }
 
