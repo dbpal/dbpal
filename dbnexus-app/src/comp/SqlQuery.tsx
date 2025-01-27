@@ -126,13 +126,13 @@ function SqlQuery(props: {
           handelTextAndPositionChange(text, ed.getPosition());
         });
       }
-      if (handelTextAndPositionChange) {
-        ed.onDidChangeCursorPosition((_event) => {
-          let p = ed.getPosition();
-          setPos(p);
+      ed.onDidChangeCursorPosition((_event) => {
+        let p = ed.getPosition();
+        setPos(p);
+        if (handelTextAndPositionChange) {
           handelTextAndPositionChange(ed.getValue(), p);
-        });
-      }
+        }
+      });
     },
     []
   );
