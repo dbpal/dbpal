@@ -249,7 +249,7 @@ function SqlTableView(props: {
     handleReload(false);
   }, [page, pageSize, triggerReload]);
 
-  useEffect(() => {}, [orderBy]);
+  useEffect(() => { }, [orderBy]);
   useEffect(() => {
     setLastLoadTime(new Date());
   }, [resp]);

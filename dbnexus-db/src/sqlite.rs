@@ -1423,9 +1423,9 @@ mod tests {
         )
             "#
             );
-            println!("create table {} ok", tablename);
-
-            let _ = db.query_sql(query_id.clone(), &create_table).await;
+        
+            let result  = db.query_sql(query_id.clone(), &create_table).await;
+            println!("create table result:{:?}", result);
             for _ in 0..1550 {
                 let sql = format!(
                     "insert into {tablename} values({} , {} , {} , {} ,{} ,{} ,{});",
@@ -1437,7 +1437,8 @@ mod tests {
                     rand::random::<f64>() * 100000f64,
                     rand::random::<f64>() * 1100000f64,
                 );
-                let _ = db.query_sql(query_id.clone(), &sql).await.unwrap();
+                let err  = db.query_sql(query_id.clone(), &sql).await.unwrap();
+                println!("insert table result:{:?} sql:{}", err  ,sql);
             }
         }
     }

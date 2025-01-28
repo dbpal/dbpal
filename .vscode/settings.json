@@ -4,5 +4,6 @@
   ],
   "rust-analyzer.checkOnSave": true,
   "rust-analyzer.cargo.features": [],
-  "prettier.singleQuote": true
+  "prettier.singleQuote": true,
+  "editor.fontSize": 17
 }

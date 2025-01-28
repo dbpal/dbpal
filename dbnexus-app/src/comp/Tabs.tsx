@@ -10,7 +10,7 @@ class TabContent {
     public id: string,
     public header: ReactNode,
     public content: ReactNode
-  ) {}
+  ) { }
 }
 
 function TabsMenu(props: {
@@ -98,10 +98,11 @@ function TabsWithContent_(props: {
   const [show, setShow] = useState(true);
   const { setUpMenu } = useContext(ContextMenuContext);
   return (
-    <Stack spacing={1}>
+    <Stack >
       {tabs.length > 0 && (
         <Stack>
           <Button
+            style={{ padding: 0, margin: 0 }}
             onClick={() => {
               setShow((e) => !e);
             }}
