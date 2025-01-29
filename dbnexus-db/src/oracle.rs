@@ -246,12 +246,17 @@ fn gen_select_sql(
     if let Some(order_by) = order_by {
         sql.push_str(format!(" ORDER BY {}", order_by).as_str());
     }
+    let r = format!(
+        "SELECT * FROM ({})  WHERE ROWNUM <= {}",
+        sql,
+        page * page_size
+    );
 
     format!(
-        "SELECT * FROM ({})  WHERE ROWNUM BETWEEN {} AND {}",
-        sql,
-        (page - 1) * page_size + 1,
-        page * page_size
+        "{} OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
+        r,
+        (page - 1) * page_size,
+        page_size
     )
 }
 
@@ -1125,8 +1130,8 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<TableListResp> {
         let conn = self.get_conn()?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
-        let total = OracleDB::query_count(&conn, table_name, where_str)?;
         log::info!("query sql:{}", sql);
+        let total = OracleDB::query_count(&conn, table_name, where_str)?;
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let data = encode_rows(rows.into_iter().collect::<Vec<_>>(), true)?;
         let cols = self.show_table_columns(table_name).await?;
