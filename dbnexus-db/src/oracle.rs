@@ -246,11 +246,6 @@ fn gen_select_sql(
     if let Some(order_by) = order_by {
         sql.push_str(format!(" ORDER BY {}", order_by).as_str());
     }
-    let r = format!(
-        "SELECT * FROM ({})  WHERE ROWNUM <= {}",
-        sql,
-        page * page_size
-    );
 
     format!(
         "{} OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
