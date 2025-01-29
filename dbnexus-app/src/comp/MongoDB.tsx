@@ -81,6 +81,7 @@ import {
 import {
   calMenuStyle,
   cloumnWidths,
+  datagridContainerHeight,
   handleCopyToClipboard,
   saveColumnWidths,
 } from './helper';
@@ -845,7 +846,12 @@ function MongoTableList(props: {
       {resp && (
         <Stack spacing={1}>
           {vis && (
-            <div style={{ display: 'grid' }}>
+            <div
+              style={{
+                display: 'grid',
+                height: datagridContainerHeight(resp.data.data.length),
+              }}
+            >
               <DataGrid
                 slotProps={slotProps}
                 getRowId={getRowId}

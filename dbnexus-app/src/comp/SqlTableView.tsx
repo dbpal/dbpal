@@ -41,6 +41,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import {
   calMenuStyle,
   cloumnWidths,
+  datagridContainerHeight,
   handleCopyToClipboard,
   isTypeLargeText,
   saveColumnWidths,
@@ -249,7 +250,7 @@ function SqlTableView(props: {
     handleReload(false);
   }, [page, pageSize, triggerReload]);
 
-  useEffect(() => { }, [orderBy]);
+  useEffect(() => {}, [orderBy]);
   useEffect(() => {
     setLastLoadTime(new Date());
   }, [resp]);
@@ -323,7 +324,7 @@ function SqlTableView(props: {
   }, [resp]);
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ width: '99%' }}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <TextField
           size="small"
@@ -373,7 +374,12 @@ function SqlTableView(props: {
           </Stack>
 
           {visiable && (
-            <div style={{ display: 'grid' }}>
+            <div
+              style={{
+                display: 'grid',
+                height: datagridContainerHeight(resp.data.data.length),
+              }}
+            >
               <DataGrid
                 slotProps={slotProps}
                 style={dataGridStyle}

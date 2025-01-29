@@ -50,6 +50,7 @@ import AddIcon from '@mui/icons-material/Add';
 import {
   arrayToHex,
   calMenuStyle,
+  datagridContainerHeight,
   handleCopyToClipboard,
   hexToUint8Array,
   hexToUtf8,
@@ -849,7 +850,12 @@ function RedisSetTable(props: {
         <Stack spacing={1}>
           {/* actual data grid */}
           {vis && (
-            <div style={{ display: 'grid' }}>
+            <div
+              style={{
+                display: 'grid',
+                height: datagridContainerHeight(resp.data.data.length),
+              }}
+            >
               <DataGrid
                 slotProps={slotProps}
                 rowHeight={datagridRowHeight}
@@ -1106,7 +1112,12 @@ function RedisListTable(props: {
       {resp && (
         <Stack spacing={1}>
           {vis && (
-            <div style={{ display: 'grid' }}>
+            <div
+              style={{
+                display: 'grid',
+                height: datagridContainerHeight(resp.data.data.length),
+              }}
+            >
               <DataGrid
                 slotProps={slotProps}
                 rowHeight={datagridRowHeight}
@@ -1356,7 +1367,12 @@ function RedisZsetTable(props: {
         <Stack spacing={1}>
           {/* actual data grid */}
           {vis && (
-            <div style={{ display: 'grid' }}>
+            <div
+              style={{
+                display: 'grid',
+                height: datagridContainerHeight(resp.data.data.length),
+              }}
+            >
               <DataGrid
                 slotProps={slotProps}
                 rowHeight={datagridRowHeight}
@@ -1550,7 +1566,12 @@ function RedisHashTable(props: {
         <Stack spacing={1}>
           {/* actual data grid */}
           {vis && (
-            <div style={{ display: 'grid' }}>
+            <div
+              style={{
+                display: 'grid',
+                height: datagridContainerHeight(resp.data.data.length),
+              }}
+            >
               <DataGrid
                 slotProps={slotProps}
                 rowHeight={datagridRowHeight}

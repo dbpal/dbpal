@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   calMenuStyle,
   cloumnWidths,
+  datagridContainerHeight,
   generateRandomString,
   handleCopyToClipboard,
   saveColumnWidths,
@@ -93,7 +94,12 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
 
   return (
     vis && (
-      <div style={{ display: 'grid' }}>
+      <div
+        style={{
+          display: 'grid',
+          height: datagridContainerHeight(data.data.length),
+        }}
+      >
         <DataGrid
           slotProps={slotProps}
           rowHeight={datagridRowHeight}
