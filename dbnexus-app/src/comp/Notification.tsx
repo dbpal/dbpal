@@ -50,9 +50,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   };
 
   const handleClose = (_event, reason) => {
-    if (reason === 'clickaway') {
-      return; // 阻止关闭
-    }
+    // if (reason === 'clickaway') {
+    //   return; // 阻止关闭
+    // }
     setOpen(false);
   };
 

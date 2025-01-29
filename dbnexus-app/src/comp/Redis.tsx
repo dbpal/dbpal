@@ -846,62 +846,57 @@ function RedisSetTable(props: {
         </Button>
       </Stack>
 
-      {resp && (
-        <Stack spacing={1}>
-          {/* actual data grid */}
-          {vis && (
-            <div
-              style={{
-                display: 'grid',
-                height: datagridContainerHeight(resp.data.data.length),
-              }}
-            >
-              <DataGrid
-                slotProps={slotProps}
-                rowHeight={datagridRowHeight}
-                columnHeaderHeight={datagridHeaderHeight}
-                rows={resp.data.data}
-                editMode="row"
-                checkboxSelection={false}
-                onRowDoubleClick={onRowDoubleClick}
-                columns={resp.data.fields}
-                disableColumnFilter
-              ></DataGrid>
-            </div>
-          )}
+      {resp && vis && (
+        <div
+          style={{
+            display: 'grid',
+            height: datagridContainerHeight(resp.data.data.length),
+          }}
+        >
+          <DataGrid
+            slotProps={slotProps}
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
+            rows={resp.data.data}
+            editMode="row"
+            checkboxSelection={false}
+            onRowDoubleClick={onRowDoubleClick}
+            columns={resp.data.fields}
+            disableColumnFilter
+          ></DataGrid>
+        </div>
+      )}
 
-          {selectRow && (
-            <Modal
-              open={!!selectRow}
-              onClose={() => {
+      {selectRow && (
+        <Modal
+          open={!!selectRow}
+          onClose={() => {
+            setSelectRow(null);
+          }}
+          aria-labelledby="modify set"
+        >
+          <Box sx={modalStyle} width="800px">
+            <RedisEditSet
+              modifyOP={async (oldValue, newValue) => {
+                try {
+                  await modifyOP(oldValue, newValue);
+                } catch (e) {
+                  throw e;
+                }
+                //@ts-ignore
+                selectRow.value = newValue;
+                handleReload(false);
+              }}
+              //@ts-ignore
+              key={selectRow.id}
+              //@ts-ignore
+              oldValue={selectRow.value}
+              handleClose={() => {
                 setSelectRow(null);
               }}
-              aria-labelledby="modify set"
-            >
-              <Box sx={modalStyle} width="800px">
-                <RedisEditSet
-                  modifyOP={async (oldValue, newValue) => {
-                    try {
-                      await modifyOP(oldValue, newValue);
-                    } catch (e) {
-                      throw e;
-                    }
-                    //@ts-ignore
-                    selectRow.value = newValue;
-                    handleReload(false);
-                  }}
-                  //@ts-ignore
-                  key={selectRow.id}
-                  //@ts-ignore
-                  oldValue={selectRow.value}
-                  handleClose={() => {
-                    setSelectRow(null);
-                  }}
-                ></RedisEditSet>
-              </Box>
-            </Modal>
-          )}
-        </Stack>
+            ></RedisEditSet>
+          </Box>
+        </Modal>
       )}
     </Stack>
   );
@@ -1109,65 +1104,61 @@ function RedisListTable(props: {
           reload
         </Button>
       </Stack>
-      {resp && (
-        <Stack spacing={1}>
-          {vis && (
-            <div
-              style={{
-                display: 'grid',
-                height: datagridContainerHeight(resp.data.data.length),
-              }}
-            >
-              <DataGrid
-                slotProps={slotProps}
-                rowHeight={datagridRowHeight}
-                columnHeaderHeight={datagridHeaderHeight}
-                checkboxSelection={false}
-                disableMultipleRowSelection
-                disableColumnFilter
-                rows={resp.data.data}
-                columns={resp.data.fields}
-                paginationModel={paginationModel}
-                onRowDoubleClick={onRowDoubleClick}
-                pageSizeOptions={pageSizeOptions}
-                onPaginationModelChange={onPaginationModelChange}
-                sortingMode="server"
-                paginationMode="client"
-                onSortModelChange={onSortModelChange}
-              ></DataGrid>
-            </div>
-          )}
+      {resp && vis && (
+        <div
+          style={{
+            display: 'grid',
+            height: datagridContainerHeight(resp.data.data.length),
+          }}
+        >
+          <DataGrid
+            slotProps={slotProps}
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
+            checkboxSelection={false}
+            disableMultipleRowSelection
+            disableColumnFilter
+            rows={resp.data.data}
+            columns={resp.data.fields}
+            paginationModel={paginationModel}
+            onRowDoubleClick={onRowDoubleClick}
+            pageSizeOptions={pageSizeOptions}
+            onPaginationModelChange={onPaginationModelChange}
+            sortingMode="server"
+            paginationMode="client"
+            onSortModelChange={onSortModelChange}
+          ></DataGrid>
+        </div>
+      )}
 
-          {selectRow && (
-            <Modal
-              open={!!selectRow}
-              onClose={() => {
+      {selectRow && (
+        <Modal
+          open={!!selectRow}
+          onClose={() => {
+            setSelectRow(null);
+          }}
+          aria-labelledby="modify list"
+        >
+          <Box sx={modalStyle} width="800px">
+            <RedisEditList
+              modifyOP={async (index, newValue) => {
+                try {
+                  await modifyOP(index, newValue);
+                } catch (e) {
+                  throw e;
+                }
+                handleReload(false);
+                selectRow.value = newValue;
+              }}
+              key={selectRow.id}
+              oldValue={selectRow.value}
+              index={parseInt(selectRow.seq)}
+              handleClose={() => {
                 setSelectRow(null);
               }}
-              aria-labelledby="modify list"
-            >
-              <Box sx={modalStyle} width="800px">
-                <RedisEditList
-                  modifyOP={async (index, newValue) => {
-                    try {
-                      await modifyOP(index, newValue);
-                    } catch (e) {
-                      throw e;
-                    }
-                    handleReload(false);
-                    selectRow.value = newValue;
-                  }}
-                  key={selectRow.id}
-                  oldValue={selectRow.value}
-                  index={parseInt(selectRow.seq)}
-                  handleClose={() => {
-                    setSelectRow(null);
-                  }}
-                ></RedisEditList>
-              </Box>
-            </Modal>
-          )}
-        </Stack>
+            ></RedisEditList>
+          </Box>
+        </Modal>
       )}
     </Stack>
   );
@@ -1363,59 +1354,54 @@ function RedisZsetTable(props: {
         </Button>
       </Stack>
 
-      {resp && (
-        <Stack spacing={1}>
-          {/* actual data grid */}
-          {vis && (
-            <div
-              style={{
-                display: 'grid',
-                height: datagridContainerHeight(resp.data.data.length),
-              }}
-            >
-              <DataGrid
-                slotProps={slotProps}
-                rowHeight={datagridRowHeight}
-                columnHeaderHeight={datagridHeaderHeight}
-                rows={resp.data.data}
-                checkboxSelection={false}
-                editMode="row"
-                onRowDoubleClick={onRowDoubleClick}
-                columns={resp.data.fields}
-                disableColumnFilter
-              ></DataGrid>
-            </div>
-          )}
+      {resp && vis && (
+        <div
+          style={{
+            display: 'grid',
+            height: datagridContainerHeight(resp.data.data.length),
+          }}
+        >
+          <DataGrid
+            slotProps={slotProps}
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
+            rows={resp.data.data}
+            checkboxSelection={false}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
+            columns={resp.data.fields}
+            disableColumnFilter
+          ></DataGrid>
+        </div>
+      )}
 
-          {selectRow && (
-            <Modal
-              open={!!selectRow}
-              onClose={() => {
+      {selectRow && (
+        <Modal
+          open={!!selectRow}
+          onClose={() => {
+            setSelectRow(null);
+          }}
+          aria-labelledby="modify zset"
+        >
+          <Box sx={modalStyle} width="800px">
+            <RedisEditZset
+              modifyOP={async (oldKey, newKey, value) => {
+                try {
+                  await modifyOP(oldKey, newKey, value);
+                } catch (e) {
+                  throw e;
+                }
+                handleReload(false);
+              }}
+              key={selectRow}
+              oldValue={selectRow.score}
+              oldKey={selectRow.key}
+              handleClose={() => {
                 setSelectRow(null);
               }}
-              aria-labelledby="modify zset"
-            >
-              <Box sx={modalStyle} width="800px">
-                <RedisEditZset
-                  modifyOP={async (oldKey, newKey, value) => {
-                    try {
-                      await modifyOP(oldKey, newKey, value);
-                    } catch (e) {
-                      throw e;
-                    }
-                    handleReload(false);
-                  }}
-                  key={selectRow}
-                  oldValue={selectRow.score}
-                  oldKey={selectRow.key}
-                  handleClose={() => {
-                    setSelectRow(null);
-                  }}
-                ></RedisEditZset>
-              </Box>
-            </Modal>
-          )}
-        </Stack>
+            ></RedisEditZset>
+          </Box>
+        </Modal>
       )}
     </Stack>
   );
@@ -1562,61 +1548,56 @@ function RedisHashTable(props: {
         </Button>
       </Stack>
 
-      {resp && (
-        <Stack spacing={1}>
-          {/* actual data grid */}
-          {vis && (
-            <div
-              style={{
-                display: 'grid',
-                height: datagridContainerHeight(resp.data.data.length),
-              }}
-            >
-              <DataGrid
-                slotProps={slotProps}
-                rowHeight={datagridRowHeight}
-                columnHeaderHeight={datagridHeaderHeight}
-                rows={resp.data.data}
-                checkboxSelection={false}
-                editMode="row"
-                onRowDoubleClick={onRowDoubleClick}
-                columns={resp.data.fields}
-                disableColumnFilter
-              ></DataGrid>
-            </div>
-          )}
+      {resp && vis && (
+        <div
+          style={{
+            display: 'grid',
+            height: datagridContainerHeight(resp.data.data.length),
+          }}
+        >
+          <DataGrid
+            slotProps={slotProps}
+            rowHeight={datagridRowHeight}
+            columnHeaderHeight={datagridHeaderHeight}
+            rows={resp.data.data}
+            checkboxSelection={false}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
+            columns={resp.data.fields}
+            disableColumnFilter
+          ></DataGrid>
+        </div>
+      )}
 
-          {selectRow && (
-            <Modal
-              open={!!selectRow}
-              onClose={() => {
+      {selectRow && (
+        <Modal
+          open={!!selectRow}
+          onClose={() => {
+            setSelectRow(null);
+          }}
+          aria-labelledby="modify hash"
+        >
+          <Box sx={modalStyle} width="800px">
+            <RedisEditHash
+              modifyOP={async (req) => {
+                try {
+                  await modifyOP(req.oldKey, req.newKey, req.value);
+                } catch (e) {
+                  throw e;
+                }
+                selectRow.key = req.newKey;
+                selectRow.value = req.value;
+                handleReload(false);
+              }}
+              handleClose={() => {
                 setSelectRow(null);
               }}
-              aria-labelledby="modify hash"
-            >
-              <Box sx={modalStyle} width="800px">
-                <RedisEditHash
-                  modifyOP={async (req) => {
-                    try {
-                      await modifyOP(req.oldKey, req.newKey, req.value);
-                    } catch (e) {
-                      throw e;
-                    }
-                    selectRow.key = req.newKey;
-                    selectRow.value = req.value;
-                    handleReload(false);
-                  }}
-                  handleClose={() => {
-                    setSelectRow(null);
-                  }}
-                  key={selectRow.id}
-                  oldValue={selectRow.value}
-                  oldKey={selectRow.key}
-                ></RedisEditHash>
-              </Box>
-            </Modal>
-          )}
-        </Stack>
+              key={selectRow.id}
+              oldValue={selectRow.value}
+              oldKey={selectRow.key}
+            ></RedisEditHash>
+          </Box>
+        </Modal>
       )}
     </Stack>
   );
