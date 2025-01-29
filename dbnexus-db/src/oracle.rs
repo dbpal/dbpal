@@ -249,7 +249,7 @@ fn gen_select_sql(
 
     format!(
         "{} OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
-        r,
+        sql,
         (page - 1) * page_size,
         page_size
     )
