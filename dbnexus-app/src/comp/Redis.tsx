@@ -1092,7 +1092,7 @@ function RedisListTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ width: '99%' }}>
       <Stack direction="row" spacing={1}>
         <Button
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'

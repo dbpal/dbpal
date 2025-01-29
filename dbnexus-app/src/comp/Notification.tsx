@@ -64,20 +64,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   return (
     <NotificationContext.Provider value={{ showNotification }}>
       {children}
-      <Snackbar
-        open={open}
-        autoHideDuration={msgTimeout}
-        onClose={handleClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        TransitionComponent={transition}
-        sx={{ mb: 8 }} // 调整位置稍微高一些
-      >
-        <Alert severity={notification.severity} sx={{ width: '400px' }}>
-          {/* 设置更宽的宽度 */}
-          {notification.title && <AlertTitle>{notification.title}</AlertTitle>}
-          {notification.message}
-        </Alert>
-      </Snackbar>
+      {open && (
+        <Snackbar
+          open={open}
+          autoHideDuration={msgTimeout}
+          onClose={handleClose}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          TransitionComponent={transition}
+          sx={{ mb: 8 }} // 调整位置稍微高一些
+        >
+          <Alert severity={notification.severity} sx={{ width: '400px' }}>
+            {/* 设置更宽的宽度 */}
+            {notification.title && (
+              <AlertTitle>{notification.title}</AlertTitle>
+            )}
+            {notification.message}
+          </Alert>
+        </Snackbar>
+      )}
     </NotificationContext.Provider>
   );
 };
