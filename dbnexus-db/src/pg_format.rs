@@ -1,11 +1,10 @@
 use chrono::FixedOffset;
-use sqlx::Column;
 use sqlx::postgres::types::{PgInterval, PgMoney, PgRange, PgTimeTz};
 use sqlx::postgres::{PgRow, PgValueRef};
 use sqlx::types::BigDecimal;
-use sqlx::{Row, ValueRef};
+use sqlx::{Column, Row, ValueRef};
 
-use crate::db::{Field, format_data_time_fix_offset};
+use crate::db::format_data_time_fix_offset;
 
 /// right now sqlx not implement macaddr8
 /// impl it myself.
@@ -1002,16 +1001,14 @@ pub(crate) fn encode_rows(rows: &Vec<PgRow>) -> anyhow::Result<Vec<Vec<Option<St
     anyhow::Ok(ret)
 }
 
-pub(crate) fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
+pub(crate) fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
     let single_quote_str = value
         .map(|x| format!("'{}'", x))
         .unwrap_or("null".to_string());
-    let err = Err(anyhow::Error::msg(format!(
-        "type '{}' not supported",
-        f.typ
-    ))) as anyhow::Result<String>;
-    let typ = f.typ.to_uppercase();
+    let err =
+        Err(anyhow::Error::msg(format!("type '{}' not supported", typ))) as anyhow::Result<String>;
+    let typ = typ.to_uppercase();
 
     let encode = match typ.as_str() {
         "BOOL" => default_str,
@@ -1084,14 +1081,18 @@ pub(crate) fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result
         "NUMERIC[]" => single_quote_str,
         "TIMETZ" | "TIME WITH TIME ZONE" => single_quote_str,
         "TIMETZ[]" => single_quote_str,
-        "BIT" => value
-            .map(|x| format!("B'{x}'"))
-            .unwrap_or("null".to_string()),
+        "BIT" => {
+            value
+                .map(|x| format!("B'{x}'"))
+                .unwrap_or("null".to_string())
+        }
 
         "BIT[]" => single_quote_str,
-        "VARBIT" | "BIT VARYING" => value
-            .map(|x| format!("B'{x}'"))
-            .unwrap_or("null".to_string()),
+        "VARBIT" | "BIT VARYING" => {
+            value
+                .map(|x| format!("B'{x}'"))
+                .unwrap_or("null".to_string())
+        }
         "VARBIT[]" => single_quote_str,
         "NUMERIC" => default_str,
         "RECORD" => default_str,
@@ -1118,7 +1119,7 @@ pub(crate) fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result
         "MONEY[]" => single_quote_str,
         _ => default_str,
     };
-    log::trace!("type: '{}' encode '{:?}' as #{}#", f.typ, value, encode);
+    log::trace!("type: '{}' encode '{:?}' as #{}#", typ, value, encode);
     anyhow::Ok(encode)
 }
 

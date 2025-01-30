@@ -204,8 +204,8 @@ impl QuerySql for OracleDB {
                     match block_in_place(|| conn.query(&seq.sql, &[])) {
                         Ok(rows) => {
                             let rows = rows.into_iter().collect::<Vec<_>>();
-                            let cols = infer_schema_by_result(&rows, false)?;
-                            let data = encode_rows(rows, false)?;
+                            let cols = infer_schema_by_result(&rows)?;
+                            let data = encode_rows(rows)?;
                             ret.push(Ok(QueryResp::new(cols, data)));
                         }
                         Err(err) => {
@@ -239,7 +239,7 @@ fn gen_select_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!(r#"SELECT "{table_name}".*, ROWNUM as {ROW_COL} FROM "{table_name}""#);
+    let mut sql = format!(r#"SELECT * FROM "{table_name}""#);
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {}", where_str).as_str());
     }
@@ -272,11 +272,7 @@ impl OracleDB {
     }
 }
 
-const ROW_COL: &str = "RNUMXXX_YYY_ZZZZ";
-
-fn infer_schema_by_result(
-    rows: &Vec<oracle::Result<Row>>, exclude_row_num: bool,
-) -> anyhow::Result<Vec<Field>> {
+fn infer_schema_by_result(rows: &Vec<oracle::Result<Row>>) -> anyhow::Result<Vec<Field>> {
     if rows.len() == 0 {
         return anyhow::Ok(vec![]);
     }
@@ -285,14 +281,11 @@ fn infer_schema_by_result(
         Ok(x) => x,
         Err(err) => anyhow::bail!(format!("{}", err.to_string())),
     };
-    infer_schema_by_row(x, exclude_row_num)
+    infer_schema_by_row(x)
 }
-fn infer_schema_by_row(x: &oracle::Row, exclude_row_num: bool) -> anyhow::Result<Vec<Field>> {
+fn infer_schema_by_row(x: &oracle::Row) -> anyhow::Result<Vec<Field>> {
     let mut ret = Vec::with_capacity(x.column_info().len());
     for c in x.column_info().iter() {
-        if exclude_row_num && c.name() == ROW_COL {
-            continue;
-        }
         ret.push(Field::from_name_type(
             c.name().to_string(),
             c.oracle_type().to_string(),
@@ -302,9 +295,7 @@ fn infer_schema_by_row(x: &oracle::Row, exclude_row_num: bool) -> anyhow::Result
 }
 
 /// some query will auto include a ROWNUM column
-fn encode_rows(
-    rows: Vec<oracle::Result<Row>>, except_rnum: bool,
-) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+fn encode_rows(rows: Vec<oracle::Result<Row>>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut data = vec![];
     for r in rows {
         let mut values = vec![];
@@ -316,9 +307,7 @@ fn encode_rows(
                 "type '{}' not supported",
                 col_info.oracle_type()
             ))) as anyhow::Result<Vec<Vec<Option<String>>>>;
-            if except_rnum && col_info.name() == ROW_COL {
-                continue;
-            }
+
             let v = match col_info.oracle_type() {
                 oracle::sql_type::OracleType::Varchar2(_) => {
                     let x: Option<String> = r.get(c)?;
@@ -419,10 +408,10 @@ fn encode_rows(
     anyhow::Ok(data)
 }
 
-fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
+fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
-    match f.typ.to_string().to_uppercase().as_str() {
+    match typ.to_string().to_uppercase().as_str() {
         "VARCHAR2" => {
             anyhow::Ok(match value {
                 Some(x) => format!("'{}'", x),
@@ -495,7 +484,7 @@ fn put_value_in_sql(f: &Field, value: Option<&str>) -> anyhow::Result<String> {
         //         None => null_string,
         //     })
         // }
-        _ => anyhow::bail!(format!("type '{}' not handled", f.typ)),
+        _ => anyhow::bail!(format!("type '{}' not handled", typ)),
     }
 }
 
@@ -698,7 +687,7 @@ impl OracleDB {
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
 
-        let data = encode_rows(rows, false)?;
+        let data = encode_rows(rows)?;
         for d in data.into_iter() {
             let mut m = HashMap::new();
             for (d, f) in d.into_iter().zip(cols.iter()) {
@@ -788,7 +777,7 @@ impl OracleDB {
                 .await?;
         }
 
-        let data = encode_rows(rows, false)?;
+        let data = encode_rows(rows)?;
         sender
             .send(Cow::Owned(create_csv(&data, delimiter)))
             .await?;
@@ -1047,6 +1036,25 @@ impl SchemaTrait for OracleDB {
         self.list_table_impl(self.schema_str()).await
     }
 
+    async fn create_index(
+        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "CREATE {} INDEX {} ON {table}({})",
+            match kind {
+                IndexKind::Normal => "",
+                IndexKind::Primary => anyhow::bail!("can't create primary index"),
+                IndexKind::Unique => "Unique",
+            },
+            name,
+            fileds.join(",")
+        );
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, &[]))?;
+
+        anyhow::Ok(())
+    }
+
     async fn rename_index(
         &self, _table_name: &str, oldname: &str, _newname: &str,
     ) -> anyhow::Result<()> {
@@ -1056,9 +1064,10 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP INDEX {index} ON {table_name}");
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP INDEX {index}");
         let conn = self.get_conn()?;
+
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1128,7 +1137,7 @@ impl SchemaTrait for OracleDB {
         log::info!("query sql:{}", sql);
         let total = OracleDB::query_count(&conn, table_name, where_str)?;
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
-        let data = encode_rows(rows.into_iter().collect::<Vec<_>>(), true)?;
+        let data = encode_rows(rows.into_iter().collect::<Vec<_>>())?;
         let cols = self.show_table_columns(table_name).await?;
         anyhow::Ok(TableListResp::new(cols, total as usize, data, sql))
     }
@@ -1227,8 +1236,8 @@ impl SchemaTrait for OracleDB {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, f: &Field, value: Option<&str>) -> anyhow::Result<String> {
-        put_value_in_sql(f, value)
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+        put_value_in_sql(typ, value)
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
@@ -1303,8 +1312,8 @@ impl SchemaTrait for OracleDB {
                 sql,
             ));
         }
-        let cols = infer_schema_by_result(&rows, true)?;
-        let data = encode_rows(rows, true)?;
+        let cols = infer_schema_by_result(&rows)?;
+        let data = encode_rows(rows)?;
         anyhow::Ok(TableListResp::new(cols, total as usize, data, sql))
     }
 

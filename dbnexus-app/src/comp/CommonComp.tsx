@@ -19,6 +19,7 @@ import { BsDatabaseAdd } from 'react-icons/bs';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
+
 import {
   appStore,
   AppStoreKey,
@@ -313,6 +314,27 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
     ></DataGrid>
   );
 }
+
+function MenuResetColumnWidths() {
+  const { showNotification } = useContext(NotificationContext);
+  const handleReset = async () => {
+    try {
+      await (await appStore()).set(AppStoreKey.ColumnWithd, {});
+      showNotification('success', 'reset column width success');
+    } catch (e) {
+      showNotification('error', 'reset column withs failed', e);
+    }
+  };
+  return (
+    <MenuItem onClick={handleReset}>
+      <ListItemIcon>
+        <RefreshIcon></RefreshIcon>
+      </ListItemIcon>
+      <ListItemText> reset column width </ListItemText>
+    </MenuItem>
+  );
+}
+
 export {
   LogLevelSel,
   StickyNav,
@@ -329,4 +351,5 @@ export {
   SelectPageSize,
   pageSizeOptions,
   MenuDeleteConfig,
+  MenuResetColumnWidths,
 };

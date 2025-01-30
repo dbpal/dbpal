@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import {
   ContextMenuContext,
   modalStyle,
@@ -11,15 +11,23 @@ import {
   Box,
   Button,
   CircularProgress,
+  Divider,
+  FormControlLabel,
+  FormLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
   Modal,
   Paper,
+  Radio,
+  RadioGroup,
   Stack,
   TextField,
+  Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
@@ -28,6 +36,167 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 
 import { calMenuStyle, secondConfirm } from './helper';
 import { MenuRefresh } from './CommonComp';
+
+function Menu(props: { reload; uuid: string; table: string }) {
+  const { reload, uuid, table } = props;
+  const [showAdd, setShowAdd] = useState(false);
+  return (
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            setShowAdd(true);
+          }}
+        >
+          <ListItemIcon>
+            <AddIcon></AddIcon>
+          </ListItemIcon>
+          <ListItemText> add </ListItemText>
+        </MenuItem>
+        <MenuRefresh reload={reload}></MenuRefresh>
+      </MenuList>
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={() => {
+            setShowAdd(false);
+          }}
+          aria-labelledby="create database"
+        >
+          <Box sx={modalStyle} width="800px">
+            <AddIndex
+              uuid={uuid}
+              table={table}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+              realod={reload}
+            ></AddIndex>
+          </Box>
+        </Modal>
+      )}
+    </Paper>
+  );
+}
+
+function AddIndex(props: { uuid; table; handleClose; realod }) {
+  let { uuid, table, handleClose, realod } = props;
+  const [fields, setFields] = useState<types.Field[]>([]);
+  const [includes, setIncludes] = useState<string[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const indexTypes = ['normal', 'unique'];
+  const [indexType, setIndexType] = useState(indexTypes[0]);
+  const [indexName, setIndexName] = useState('');
+  const indexNameDom = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    invoke<types.Field[]>('show_table_columns', {
+      name: uuid,
+      tableName: table,
+    })
+      .then((e) => {
+        setFields(e);
+        e;
+      })
+      .catch((e) => {
+        showNotification('error', 'list fields failed', e);
+      });
+  }, []);
+  const handleAdd = async () => {
+    if (!indexName) {
+      showNotification('error', "index name can't be none");
+      indexNameDom.current.focus();
+      return;
+    }
+    if (includes.length == 0) {
+      showNotification('error', 'select at least one column');
+      return;
+    }
+    try {
+      await invoke('create_index', {
+        name: uuid,
+        tableName: table,
+        fields: includes,
+        indexType,
+        indexName: indexName ? indexName : null,
+      });
+      showNotification('success', 'create index ok');
+      handleClose();
+      realod();
+    } catch (e) {
+      showNotification('error', 'create index failed', e);
+    }
+  };
+  return (
+    <Stack spacing={1}>
+      <TextField
+        value={indexName}
+        onChange={(e) => {
+          setIndexName(e.target.value);
+        }}
+        inputRef={indexNameDom}
+        label="index name"
+        size="small"
+      ></TextField>
+      <Stack
+        direction="row"
+        style={{ flexWrap: 'wrap', justifyItems: 'flex-end' }}
+      >
+        <Typography> includes: </Typography>
+        {includes.map((x) => (
+          <Button
+            onClick={() => {
+              setIncludes((e) => e.filter((e) => e != x));
+            }}
+            key={x}
+            color="primary"
+          >
+            {x}
+          </Button>
+        ))}
+      </Stack>
+
+      <Stack
+        direction="row"
+        style={{ flexWrap: 'wrap', justifyItems: 'flex-end' }}
+      >
+        <Typography> candidates: </Typography>
+        {fields
+          .filter((f) => includes.find((e) => e == f.field) == undefined)
+          .map((x) => (
+            <Button
+              key={x.field}
+              onClick={() => {
+                setIncludes((e) => [...e, x.field]);
+              }}
+              color="primary"
+            >
+              {x.field}
+            </Button>
+          ))}
+      </Stack>
+      <FormLabel component="legend">select a type</FormLabel>
+      <RadioGroup
+        row
+        onChange={(e) => {
+          setIndexType(e.target.value);
+        }}
+        value={indexType}
+      >
+        {indexTypes.map((e) => (
+          <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
+        ))}
+      </RadioGroup>
+
+      <Divider></Divider>
+      <Stack direction="row">
+        <Button onClick={handleAdd} variant="contained" color="primary">
+          add
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
 
 function LeftIndexes(props: { table: string }) {
   const { table } = props;
@@ -62,13 +231,7 @@ function LeftIndexes(props: { table: string }) {
         direction="row"
         onContextMenu={(e) => {
           setUpMenu({
-            content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={reload}></MenuRefresh>
-                </MenuList>
-              </Paper>
-            ),
+            content: <Menu reload={reload} uuid={uuid} table={table}></Menu>,
             style: calMenuStyle(e, 70),
           });
         }}
@@ -133,6 +296,7 @@ function IndexMenu(props: {
     })
       .then(() => {
         showNotification('success', 'Drop OK');
+        reload();
       })
       .catch((e) => {
         showNotification('error', 'Drop index failure', e);

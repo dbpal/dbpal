@@ -617,6 +617,24 @@ impl SchemaTrait for MysqlDB {
         "`"
     }
 
+    async fn create_index(
+        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "CREATE {} INDEX {} ON {table}({})",
+            match kind {
+                IndexKind::Normal => "",
+                IndexKind::Primary => anyhow::bail!("can't create primary index"),
+                IndexKind::Unique => "Unique",
+            },
+            name,
+            fileds.join(",")
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"ALTER TABLE `{table_name}` DROP INDEX `{index}`;"#);
         let mut conn = self.get_conn().await?;
@@ -638,10 +656,7 @@ impl SchemaTrait for MysqlDB {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(
-                        &Field::from_name_type(name, col.typ.clone()),
-                        Some(d.as_str())
-                    )?
+                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -994,12 +1009,12 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(&self, f: &Field, value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, f: &str, value: Option<&str>) -> anyhow::Result<String> {
         let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote_str = value
             .map(|x| format!("'{}'", x))
             .unwrap_or("null".to_string());
-        let ty = f.typ.to_uppercase();
+        let ty = f.to_uppercase();
 
         let v = match ty.as_str() {
             "TINYINT" => default_str,
@@ -1111,12 +1126,14 @@ impl SchemaTrait for MysqlDB {
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
                 Ok(x) => x,
-                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
-                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
-                    Err(_err) => {
-                        anyhow::bail!("can get column as string or vec<u8>")
+                Err(_) => {
+                    match r.try_get::<'_, Vec<u8>, _>(0) {
+                        Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                        Err(_err) => {
+                            anyhow::bail!("can get column as string or vec<u8>")
+                        }
                     }
-                },
+                }
             };
             let ty: String = r.try_get(1)?;
             let null: String = r.try_get(2)?;

@@ -393,6 +393,24 @@ impl SchemaTrait for PostGresDB {
         "\""
     }
 
+    async fn create_index(
+        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "CREATE {} INDEX {} ON {table}({})",
+            match kind {
+                IndexKind::Normal => "",
+                IndexKind::Primary => anyhow::bail!("can't create primary index"),
+                IndexKind::Unique => "Unique",
+            },
+            name,
+            fileds.join(",")
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!("DROP INDEX \"{index}\";");
         let mut conn = self.get_conn().await?;
@@ -423,10 +441,7 @@ impl SchemaTrait for PostGresDB {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(
-                        &Field::from_name_type(name, col.typ.clone()),
-                        Some(d.as_str())
-                    )?
+                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -1014,8 +1029,8 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(&self, f: &Field, value: Option<&str>) -> anyhow::Result<String> {
-        put_value_in_sql(f, value)
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+        put_value_in_sql(typ, value)
     }
 
     async fn update(

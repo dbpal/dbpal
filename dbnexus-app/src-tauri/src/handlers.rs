@@ -4,8 +4,8 @@ use std::time::Duration;
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::db::{
-    ColumnType, ExportKind, Field, FormatSqlOpts, Index, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
+    ColumnType, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
     UdfOrPrecedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
@@ -293,6 +293,26 @@ pub async fn show_indexes(
     app.show_indexes(name.as_str(), &table_name)
         .await
         .map_err(ErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn create_index(
+    name: String, table_name: String, index_name: String, fields: Vec<String>, index_type: String,
+    app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+    let index_kind =
+        IndexKind::try_from(index_type.as_str()).map_err(|x| ErrorFrontend::from(x))?;
+
+    schema
+        .create_index(&table_name, &index_name, index_kind, &fields[..])
+        .await
+        .map_err(|x| ErrorFrontend::from(x))
 }
 
 #[tauri::command]
@@ -2145,6 +2165,20 @@ pub async fn redis_string_set(
     }
     return Ok(());
 }
+
+// #[tauri::command]
+// pub async fn put_value_in_sql(
+//     name: String, typ: String, value: Option<String>, app: tauri::State<'_,
+// App>, ) -> Result<String, ErrorFrontend> {
+//     let schema = app
+//         .get_schema(name.as_str())
+//         .await
+//         .map_err(ErrorFrontend::from)?;
+
+//     schema
+//         .put_value_in_sql(&typ, value.as_ref().map(|x| x.as_str()))
+//         .map_err(|x| ErrorFrontend::from(x))
+// }
 
 #[derive(serde::Serialize)]
 pub struct DocsAndCount {

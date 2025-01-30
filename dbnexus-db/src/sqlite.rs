@@ -412,6 +412,24 @@ impl SchemaTrait for SqliteDB {
         "\""
     }
 
+    async fn create_index(
+        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "CREATE {} INDEX {} ON {table}({})",
+            match kind {
+                IndexKind::Normal => "",
+                IndexKind::Primary => anyhow::bail!("can't create primary index"),
+                IndexKind::Unique => "Unique",
+            },
+            name,
+            fileds.join(",")
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         let mut conn = self.get_conn().await?;
@@ -433,10 +451,7 @@ impl SchemaTrait for SqliteDB {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(
-                        &Field::from_name_type(name, col.typ.clone()),
-                        Some(d.as_str())
-                    )?
+                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -660,8 +675,8 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(&self, f: &Field, value: Option<&str>) -> anyhow::Result<String> {
-        let v = match f.typ.to_uppercase().as_str() {
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+        let v = match typ.to_uppercase().as_str() {
             "" | "TEXT" | "DATE" | "TIME" | "DATETIME" => {
                 format!(
                     "'{}'",
@@ -674,7 +689,7 @@ impl SchemaTrait for SqliteDB {
             "BLOB" => value.unwrap_or("null").to_string(),
 
             _ => {
-                let e = format!("type '{}' not handled ,field:{:?}", f.typ, f);
+                let e = format!("type '{}' not handled", typ);
                 log::error!("{}", e);
                 anyhow::bail!(e)
             }
@@ -1096,15 +1111,21 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1423,8 +1444,8 @@ mod tests {
         )
             "#
             );
-        
-            let result  = db.query_sql(query_id.clone(), &create_table).await;
+
+            let result = db.query_sql(query_id.clone(), &create_table).await;
             println!("create table result:{:?}", result);
             for _ in 0..1550 {
                 let sql = format!(
@@ -1437,8 +1458,8 @@ mod tests {
                     rand::random::<f64>() * 100000f64,
                     rand::random::<f64>() * 1100000f64,
                 );
-                let err  = db.query_sql(query_id.clone(), &sql).await.unwrap();
-                println!("insert table result:{:?} sql:{}", err  ,sql);
+                let err = db.query_sql(query_id.clone(), &sql).await.unwrap();
+                println!("insert table result:{:?} sql:{}", err, sql);
             }
         }
     }

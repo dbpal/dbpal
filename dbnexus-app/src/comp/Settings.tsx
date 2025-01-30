@@ -121,7 +121,7 @@ const components: Components<
     styleOverrides: {
       root: {
         fontSize: '1rem',
-        padding: '3px',
+        padding: '0px 2px',
         textTransform: 'none',
       },
     },
@@ -139,7 +139,6 @@ const components: Components<
     styleOverrides: {
       cell: {
         padding: '0px 2px', // 调整单元格 padding
-
       },
       columnHeaders: {
         padding: '0px 2px', // 调整表头 padding

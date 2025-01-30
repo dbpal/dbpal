@@ -13,11 +13,10 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import {
   calMenuStyle,
-  cloumnWidths,
   datagridContainerHeight,
   generateRandomString,
   handleCopyToClipboard,
-  saveColumnWidths,
+  columnWidths,
 } from './helper.ts';
 import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import React, { memo, useCallback, useContext, useMemo } from 'react';
@@ -55,7 +54,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
     }
   });
   data.fields.forEach((e) => {
-    const width = cloumnWidths[e.field];
+    const width = columnWidths.getWidth(e.field);
     if (width) {
       e['width'] = width;
     }
@@ -71,7 +70,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   });
 
   const onColumnResize = useCallback(({ colDef, width }) => {
-    saveColumnWidths(colDef.field, width);
+    columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
   const vis = useContext(VisiableContext);
 

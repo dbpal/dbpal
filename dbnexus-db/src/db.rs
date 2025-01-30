@@ -47,6 +47,12 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
 
+    async fn create_index(
+        &self, _table: &str, _name: &str, _kind: IndexKind, _fileds: &[String],
+    ) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet>;
@@ -57,7 +63,7 @@ pub trait SchemaTrait:
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, _f: &Field, _value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
         not_support_features(self.backend_name())
     }
 
@@ -578,7 +584,7 @@ impl dyn SchemaTrait {
                     self.quote_style(),
                     k,
                     self.quote_style(),
-                    self.put_value_in_sql(f, v.as_ref().map(|x| x.as_str()))?
+                    self.put_value_in_sql(&f.typ, v.as_ref().map(|x| x.as_str()))?
                 )
                 .as_str(),
             );
@@ -647,7 +653,7 @@ impl dyn SchemaTrait {
                         self.quote_style(),
                         k,
                         self.quote_style(),
-                        self.put_value_in_sql(*f.unwrap(), v.as_ref().map(|x| x.as_str()))?
+                        self.put_value_in_sql(&f.unwrap().typ, v.as_ref().map(|x| x.as_str()))?
                     )
                     .as_str(),
                 );
@@ -719,7 +725,7 @@ impl dyn SchemaTrait {
                 }
                 let value = f.1.as_ref().map(|x| x.as_str());
                 let f = field_by_name.get(f.0).unwrap();
-                sql.push_str(&self.put_value_in_sql(f, value)?);
+                sql.push_str(&self.put_value_in_sql(&f.typ, value)?);
                 if index != last {
                     sql.push_str(",");
                 }
@@ -779,6 +785,25 @@ pub enum IndexKind {
     Unique,
     Primary,
 }
+
+impl TryFrom<&str> for IndexKind {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "primary" => Ok(Self::Primary),
+            "normal" => Ok(Self::Normal),
+            "unique" => Ok(Self::Unique),
+            _ => {
+                Err(format!(
+                    "the frontend may pass the wrong parameter of {}",
+                    value
+                ))
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub struct QueryResp {
     pub fields: Vec<Field>,

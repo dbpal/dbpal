@@ -20,7 +20,7 @@ import ListIcon from '@mui/icons-material/List';
 import { loader } from '@monaco-editor/react';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-
+import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import {
   bsonValue2MongoBson,
   formatMongoBsonStr,
@@ -70,6 +70,8 @@ import {
   keyNotInTable,
   ContextMenuContext,
 } from './Common';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import {
@@ -80,10 +82,9 @@ import {
 } from './CommonComp';
 import {
   calMenuStyle,
-  cloumnWidths,
+  columnWidths,
   datagridContainerHeight,
   handleCopyToClipboard,
-  saveColumnWidths,
 } from './helper';
 
 const mongoBsonKeywords =
@@ -618,9 +619,16 @@ function renderId(_id): any {
   return _id.toString();
 }
 
-function MongoTableListContextMenu(props: { delOP: () => void; content }) {
-  const { delOP, content } = props;
-
+function MongoTableListContextMenu(props: {
+  delOP: () => void;
+  content;
+  field;
+  setFilter;
+  loadDoc: () => Promise<BSON.Document>;
+  setSort;
+}) {
+  const { delOP, content, field, setFilter, loadDoc, setSort } = props;
+  const [showFilter, setShowFilter] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   return (
     <Paper>
@@ -638,6 +646,52 @@ function MongoTableListContextMenu(props: { delOP: () => void; content }) {
 
         <MenuItem
           onClick={() => {
+            handleCopyToClipboard(field, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy field </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            let doc = {};
+            doc[field] = 1;
+            setSort(doc);
+          }}
+        >
+          <ListItemIcon>
+            <ArrowUpwardIcon></ArrowUpwardIcon>
+          </ListItemIcon>
+          <ListItemText> {field} ASC </ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            let doc = {};
+            doc[field] = -1;
+            setSort(doc);
+          }}
+        >
+          <ListItemIcon>
+            <ArrowDownwardIcon></ArrowDownwardIcon>
+          </ListItemIcon>
+          <ListItemText> {field} DESC </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            setShowFilter(true);
+          }}
+        >
+          <ListItemIcon>
+            <FilterAltIcon></FilterAltIcon>
+          </ListItemIcon>
+          <ListItemText> filter </ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
             delOP();
           }}
         >
@@ -647,7 +701,90 @@ function MongoTableListContextMenu(props: { delOP: () => void; content }) {
           <ListItemText> delete </ListItemText>
         </MenuItem>
       </MenuList>
+
+      {showFilter && (
+        <Modal
+          open={showFilter}
+          onClose={() => {
+            setShowFilter(false);
+          }}
+          aria-labelledby="create database"
+        >
+          <Box sx={modalStyle} width="800px">
+            <MongoTableListMenuFilter
+              loadValue={async () => {
+                return loadDoc().then((x) => x[field]);
+              }}
+              setFilter={setFilter}
+              field={field}
+              handleClose={() => {
+                setShowFilter(false);
+              }}
+            ></MongoTableListMenuFilter>
+          </Box>
+        </Modal>
+      )}
     </Paper>
+  );
+}
+
+function MongoTableListMenuFilter(props: {
+  handleClose;
+  loadValue: () => Promise<any>;
+  setFilter;
+  field;
+}) {
+  const { handleClose, loadValue, setFilter, field } = props;
+  const compares = ['$eq', '$ne', '$gt', '$gte', '$lt', '$lte'];
+  const [compare, setCompare] = useState(compares[0]);
+  const { showNotification } = useContext(NotificationContext);
+  const [value, setValue] = useState(null);
+  const [doc, setDoc] = useState({});
+  useEffect(() => {
+    loadValue()
+      .then((v) => {
+        setValue(v);
+      })
+      .catch((e) => {
+        showNotification('error', 'get field value failed', e);
+      });
+  }, []);
+
+  useEffect(() => {
+    let c = {};
+    c[compare] = value;
+    let doc = {};
+    doc[field] = c;
+    setDoc(doc);
+  }, [compare, value]);
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1}>
+        {compares.map((x) => (
+          <Button
+            key={x}
+            onClick={() => {
+              setCompare(x);
+            }}
+          >
+            {x}
+          </Button>
+        ))}
+      </Stack>
+      {bsonValue2MongoBson(doc).format()}
+      <Stack direction="row">
+        <Button
+          variant="contained"
+          onClick={() => {
+            setFilter(doc);
+            handleClose();
+          }}
+        >
+          set
+        </Button>
+      </Stack>
+    </Stack>
   );
 }
 
@@ -660,7 +797,8 @@ function MongoTableList(props: {
     page: number,
     pageSize: number
   ) => Promise<types.MuiDataTableListResp>;
-  setOrderby;
+  setSort;
+  setFilter;
   loadOne: (id: any) => Promise<BSON.Document>;
   modifyOP: (doc: BSON.Document) => Promise<void>;
   deleteOP: (ids: any[]) => Promise<void>;
@@ -670,11 +808,12 @@ function MongoTableList(props: {
     filter,
     orderBy,
     reloadOP,
-    setOrderby,
+    setSort,
     loadOne,
     modifyOP,
     deleteOP,
     nonse,
+    setFilter,
   } = props;
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(
@@ -705,7 +844,7 @@ function MongoTableList(props: {
           return;
         }
         r.data.fields.forEach((f) => {
-          let width = cloumnWidths[f.field];
+          let width = columnWidths.getWidth(f.field);
           if (width) {
             f['width'] = width;
           }
@@ -763,17 +902,17 @@ function MongoTableList(props: {
 
   const onSortModelChange = useCallback((e) => {
     if (e.length == 0) {
-      setOrderby({});
+      setSort({});
       return;
     }
     let s = e[0];
     if (!s.sort) {
-      setOrderby({});
+      setSort({});
       return;
     }
     let order = {};
     order[s.field] = s.sort == 'asc' ? 1 : -1;
-    setOrderby(order);
+    setSort(order);
   }, []);
 
   const handleDel = async (id: string) => {
@@ -794,6 +933,7 @@ function MongoTableList(props: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
           let content = (target as HTMLDivElement).innerHTML;
+          let field = (target as HTMLDivElement).getAttribute('data-field');
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           setUpMenu({
             content: (
@@ -802,6 +942,13 @@ function MongoTableList(props: {
                 delOP={() => {
                   handleDel(id);
                 }}
+                field={field}
+                setFilter={setFilter}
+                loadDoc={async () => {
+                  let doc = resp.data.data.find((x) => x[keyNotInTable] == id);
+                  return await loadOne(doc['_id']);
+                }}
+                setSort={setSort}
               ></MongoTableListContextMenu>
             ),
             style: calMenuStyle(e, 200),
@@ -813,7 +960,7 @@ function MongoTableList(props: {
   }, [resp]);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
-    saveColumnWidths(colDef.field, width);
+    columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
 
   return (
@@ -1007,7 +1154,7 @@ function MongoTable(props: {
   const { reloadOPTableList, loadOne, modifyOP, realodOPDocs, deleteOP } =
     props;
   const [filter, setFilter] = useState<BSON.Document>({});
-  const [orderBy, setOrderby] = useState<BSON.Document>({});
+  const [orderBy, setSort] = useState<BSON.Document>({});
   const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
   const [nonse, setNonse] = useState(0);
   return (
@@ -1025,7 +1172,7 @@ function MongoTable(props: {
           setFilter(e);
         }}
         handleOrderBy={(e) => {
-          setOrderby(e);
+          setSort(e);
         }}
         handleReload={async () => {
           setNonse((prev) => prev + 1);
@@ -1039,18 +1186,20 @@ function MongoTable(props: {
 
       {viewModel == MongoDataViewModel.List && (
         <MongoTableList
+          setFilter={setFilter}
           filter={filter}
           orderBy={orderBy}
           reloadOP={reloadOPTableList}
           loadOne={loadOne}
           modifyOP={modifyOP}
-          setOrderby={(o) => {
-            setOrderby(o);
+          setSort={(o) => {
+            setSort(o);
           }}
           deleteOP={deleteOP}
           nonse={nonse}
         ></MongoTableList>
       )}
+
       {viewModel == MongoDataViewModel.Object && (
         <MongoTableObject
           filter={filter}

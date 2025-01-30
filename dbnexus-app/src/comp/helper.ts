@@ -331,30 +331,45 @@ enum AppStoreKey {
   ColumnWithd = 'column_widths'
 }
 
+class ColumnWidths {
+  widths = {};
+  constructor() {
 
-var cloumnWidths = {};
+    appStore().then(e => {
+      e.get(AppStoreKey.ColumnWithd).then(e => {
+        if (e) {
+          this.widths = e;
+        }
+      })
+    })
+  }
 
-appStore().then(e => {
-  e.get(AppStoreKey.ColumnWithd).then(e => {
-    if (e) {
-      cloumnWidths = e;
-    }
-  }).catch(e => {
-    console.log('get app store failed', e);
-  })
-}).catch(e => {
-  console.log('get app store failed', e);
-})
+  saveColumnWidths(name: string, width: number) {
+    this.widths[name] = width;
+    this.save();
 
-async function saveColumnWidths(name: string, width: number) {
-  cloumnWidths[name] = width;
+  }
+  save() {
+    appStore().then(e => {
+      e.set(AppStoreKey.ColumnWithd, this.widths).catch(e => {
+        console.log('save column width failed', e);
+      });
+    }).catch(e => {
+      console.log('save column width failed', e);
+    });
 
-  try {
-    await (await appStore()).set(AppStoreKey.ColumnWithd, cloumnWidths);
-  } catch (e) {
-    console.log('save column widths failed', e);
+  }
+  getWidth(key) {
+    return this.widths[key]
+  }
+  reset() {
+    this.widths = {};
+    this.save();
+
   }
 }
+var columnWidths = new ColumnWidths();
+
 const handleCopyToClipboard = (text, showNotification) => {
   writeText(text)
     .then(() => {
@@ -389,8 +404,7 @@ export {
   secondConfirm,
   appStore,
   AppStoreKey,
-  saveColumnWidths,
-  cloumnWidths,
+  columnWidths,
   handleCopyToClipboard,
   datagridContainerHeight
 };

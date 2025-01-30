@@ -9,6 +9,7 @@ import {
 
 import types from './ApiStruct';
 import {
+  Box,
   Button,
   CircularProgress,
   Divider,
@@ -16,6 +17,7 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
+  Modal,
   Paper,
   Stack,
   TextField,
@@ -28,6 +30,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   ContextMenuContext,
   keyNotInTable,
+  modalStyle,
   progressBarSize,
   reloadOK,
   SettingsContext,
@@ -38,18 +41,19 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import KeyIcon from '@mui/icons-material/Key';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import {
   calMenuStyle,
-  cloumnWidths,
+  columnWidths,
   datagridContainerHeight,
   handleCopyToClipboard,
   isTypeLargeText,
-  saveColumnWidths,
   secondConfirm,
 } from './helper';
 import {
   datagridHeaderHeight,
   datagridRowHeight,
+  MenuResetColumnWidths,
   pageSizeOptions,
 } from './CommonComp';
 
@@ -72,6 +76,45 @@ const confrimAboutPrimary = async (
 
 const getRowId = (e) => e[keyNotInTable];
 
+function WhereSort(props: {
+  open: boolean;
+  onClose;
+  value: string;
+  setValue;
+  label;
+}) {
+  const { open, onClose, value, setValue, label } = props;
+  const [newValue, setNewValue] = useState(value);
+  return (
+    <Modal open={open} onClose={onClose} aria-labelledby="create database">
+      <Box sx={modalStyle} width="800px">
+        <Stack spacing={1}>
+          <TextField
+            fullWidth
+            value={newValue}
+            onChange={(e) => {
+              setNewValue(e.target.value);
+            }}
+            label={label}
+          ></TextField>
+
+          <Stack direction="row">
+            <Button
+              variant="contained"
+              onClick={() => {
+                setValue(newValue);
+                onClose();
+              }}
+            >
+              set
+            </Button>
+          </Stack>
+        </Stack>
+      </Box>
+    </Modal>
+  );
+}
+
 function SqlTableView(props: {
   reloadOP: (
     where: string,
@@ -91,8 +134,10 @@ function SqlTableView(props: {
 
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
-  const [triggerReload, setTriggerReload] = useState(false);
-  const [orderBy, setOrderBy] = useState('');
+  const [showSetWhere, setShowSetWhere] = useState(false);
+
+  const [sort, setSort] = useState('');
+  const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(
     useContext(SettingsContext).pageSize
@@ -150,17 +195,12 @@ function SqlTableView(props: {
   const handleReload = async (showOK: boolean) => {
     setLoading(true);
     try {
-      let resp = await reloadOP(
-        where.trim(),
-        orderBy.trim(),
-        page + 1,
-        pageSize
-      );
+      let resp = await reloadOP(where.trim(), sort.trim(), page + 1, pageSize);
       setLoading(false);
       await handleResp(resp);
 
       resp.data.fields.forEach((e) => {
-        const width = cloumnWidths[e.field];
+        const width = columnWidths.getWidth(e.field);
         if (width) {
           e['width'] = width;
         }
@@ -248,9 +288,9 @@ function SqlTableView(props: {
 
   useEffect(() => {
     handleReload(false);
-  }, [page, pageSize, triggerReload]);
+  }, [page, pageSize, where, sort]);
 
-  useEffect(() => {}, [orderBy]);
+  useEffect(() => {}, [sort]);
   useEffect(() => {
     setLastLoadTime(new Date());
   }, [resp]);
@@ -267,18 +307,15 @@ function SqlTableView(props: {
 
   const onSortModelChange = useCallback((sorts) => {
     if (sorts.length == 0) {
-      setOrderBy('');
-      setTriggerReload((e) => !e);
+      setSort('');
       return;
     }
     let sort = sorts[0];
     if (!sort.sort) {
-      setOrderBy('');
-      setTriggerReload((e) => !e);
+      setSort('');
       return;
     }
-    setOrderBy(`${sort.field} ${sort.sort}`);
-    setTriggerReload((e) => !e);
+    setSort(`${sort.field} ${sort.sort}`);
   }, []);
 
   const onProcessRowUpdateError = useCallback((e) => {
@@ -290,7 +327,7 @@ function SqlTableView(props: {
     } as CSSProperties;
   }, []);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    saveColumnWidths(colDef.field, width);
+    columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
 
   const slotProps = useMemo(() => {
@@ -309,10 +346,8 @@ function SqlTableView(props: {
                 handleDelete={() => {
                   handleDetele(id);
                 }}
-                setOrderBy={(o) => {
-                  setOrderBy(o);
-                  handleReload(true);
-                }}
+                setSort={setSort}
+                setWhere={setWhere}
               ></Menu>
             ),
             style: calMenuStyle(e, 200),
@@ -326,26 +361,51 @@ function SqlTableView(props: {
   return (
     <Stack spacing={1} style={{ width: '99%' }}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
-        <TextField
-          size="small"
-          fullWidth
-          label="where"
-          variant="outlined"
-          value={where}
-          onChange={(event) => {
-            setWhere(event.target.value);
+        <span
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
+            setShowSetWhere(true);
           }}
-        />
-        <TextField
-          size="small"
-          fullWidth
-          label="order by"
-          variant="outlined"
-          value={orderBy}
-          onChange={(event) => {
-            setOrderBy(event.target.value);
+        >
+          where:
+          <span style={{ textDecoration: 'underline' }}> {where}</span>
+        </span>
+        {showSetWhere && (
+          <WhereSort
+            open={showSetWhere}
+            value={where}
+            setValue={(v) => {
+              setWhere(v);
+            }}
+            onClose={() => {
+              setShowSetWhere(false);
+            }}
+            label="where"
+          ></WhereSort>
+        )}
+        <span
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
+            setShowSetSort(true);
           }}
-        />
+        >
+          sort:
+          <span style={{ textDecoration: 'underline' }}> {sort}</span>
+        </span>
+
+        {showSetSort && (
+          <WhereSort
+            open={showSetSort}
+            value={sort}
+            setValue={(v) => {
+              setSort(v);
+            }}
+            onClose={() => {
+              setShowSetSort(false);
+            }}
+            label="sort"
+          ></WhereSort>
+        )}
 
         <Button
           variant="contained"
@@ -366,7 +426,16 @@ function SqlTableView(props: {
             sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
           >
             <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
-              {resp && <Typography variant="subtitle1">{resp.sql}</Typography>}
+              {resp && (
+                <span
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => {
+                    handleCopyToClipboard(resp.sql, showNotification);
+                  }}
+                >
+                  {resp.sql}
+                </span>
+              )}
             </Stack>
             {resp && (
               <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
@@ -484,11 +553,12 @@ function Menu(props: {
   field: string;
   content: string;
   handleDelete;
-  setOrderBy;
+  setSort;
+  setWhere;
 }) {
-  const { field, content, handleDelete, setOrderBy } = props;
+  const { field, content, handleDelete, setSort, setWhere } = props;
   const { showNotification } = useContext(NotificationContext);
-
+  const [showFilter, setShowFilter] = useState(false);
   return (
     <Paper>
       <MenuList>
@@ -515,34 +585,115 @@ function Menu(props: {
         </MenuItem>
         <MenuItem
           onClick={() => {
-            setOrderBy(`${field} ASC`);
+            setSort(`${field} ASC`);
           }}
         >
           <ListItemIcon>
             <ArrowUpwardIcon></ArrowUpwardIcon>
           </ListItemIcon>
-          <ListItemText> {field} "ASC" </ListItemText>
+          <ListItemText> {field} ASC </ListItemText>
         </MenuItem>
         <MenuItem
           onClick={() => {
-            setOrderBy(`${field} DESC`);
+            setSort(`${field} DESC`);
           }}
         >
           <ListItemIcon>
             <ArrowDownwardIcon></ArrowDownwardIcon>
           </ListItemIcon>
-          <ListItemText> {field} "DESC" </ListItemText>
+          <ListItemText> {field} DESC </ListItemText>
         </MenuItem>
 
+        <MenuItem
+          onClick={() => {
+            setShowFilter(true);
+          }}
+        >
+          <ListItemIcon>
+            <FilterAltIcon></FilterAltIcon>
+          </ListItemIcon>
+          <ListItemText> filter </ListItemText>
+        </MenuItem>
+        <MenuResetColumnWidths></MenuResetColumnWidths>
         <MenuItem onClick={handleDelete}>
           <ListItemIcon>
             <DeleteForeverIcon></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText> delete </ListItemText>
+          <ListItemText> delete row</ListItemText>
         </MenuItem>
       </MenuList>
+
+      {showFilter && (
+        <Modal
+          open={showFilter}
+          onClose={() => {
+            setShowFilter(false);
+          }}
+          aria-labelledby="create database"
+        >
+          <Box sx={modalStyle} width="800px">
+            <FilterOnValue
+              content={content}
+              setWhere={setWhere}
+              field={field}
+              handleClose={() => {
+                setShowFilter(false);
+              }}
+            ></FilterOnValue>
+          </Box>
+        </Modal>
+      )}
     </Paper>
   );
 }
 
+function FilterOnValue(props: {
+  content: string;
+  setWhere;
+  field: string;
+  handleClose;
+}) {
+  const { content, setWhere, field, handleClose } = props;
+  const compares = ['==', '<>', '>', '>=', '<', '<='];
+  const [compare, setCompare] = useState(compares[0]);
+  const formatValue = content
+    ? isNaN(parseFloat(content))
+      ? `'${content}'`
+      : content
+    : 'null';
+  const where = `${field} ${compare} ${formatValue}`;
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1}>
+        {compares.map((x) => (
+          <Button
+            key={x}
+            onClick={() => {
+              setCompare(x);
+            }}
+          >
+            {x}
+          </Button>
+        ))}
+      </Stack>
+
+      <Typography>
+        on: <em> {where} </em>
+      </Typography>
+      <Divider></Divider>
+      <Stack direction="row">
+        <Button
+          variant="contained"
+          onClick={() => {
+            setWhere(where);
+            handleClose();
+          }}
+        >
+          set
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
 export { SqlTableView, SqlTableViewAdd };

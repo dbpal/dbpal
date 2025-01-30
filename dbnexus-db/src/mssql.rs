@@ -452,6 +452,24 @@ impl SchemaTrait for MsSqlServer {
         "\""
     }
 
+    async fn create_index(
+        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "CREATE {} INDEX {} ON {table}({})",
+            match kind {
+                IndexKind::Normal => "",
+                IndexKind::Primary => anyhow::bail!("can't create primary index"),
+                IndexKind::Unique => "Unique",
+            },
+            name,
+            fileds.join(",")
+        );
+        let mut conn = self.get_conn().await?;
+        conn.execute(&sql, &[]).await?;
+        anyhow::Ok(())
+    }
+
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP INDEX "{index}" ON "{table_name}";"#);
         self.execute_simple_execute(&sql).await
@@ -478,10 +496,7 @@ impl SchemaTrait for MsSqlServer {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(
-                        &Field::from_name_type(name, col.typ.clone()),
-                        Some(d.as_str())
-                    )?
+                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -996,12 +1011,12 @@ impl SchemaTrait for MsSqlServer {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, f: &Field, value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote = value
             .map(|x| format!("'{}'", x))
             .unwrap_or("null".to_string());
-        let v = match f.typ.as_str().to_uppercase().as_str() {
+        let v = match typ.to_uppercase().as_str() {
             "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" => default_value,
             "BIT" => default_value,
             "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" => single_quote,
@@ -1010,9 +1025,9 @@ impl SchemaTrait for MsSqlServer {
             }
             "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME"
             | "DATETIMEOFFSET" => single_quote,
-            _ => anyhow::bail!("type '{}' not support", f.typ.as_str()),
+            _ => anyhow::bail!("type '{}' not support", typ),
         };
-        log::trace!("type:{:?} encode '{:?}' as #{}#", f.typ, value, v);
+        log::trace!("type:{:?} encode '{:?}' as #{}#", typ, value, v);
         anyhow::Ok(v)
     }
 
