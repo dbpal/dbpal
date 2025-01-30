@@ -137,6 +137,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
         inputRef={indexNameDom}
         label="index name"
         size="small"
+        required
       ></TextField>
       <Stack
         direction="row"

@@ -1645,7 +1645,7 @@ mod tests {
 
     use super::make_test_object;
     use crate::db::{
-        CatalogTrait, CheckConn, ExportKind, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+        CatalogTrait, CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas,
         UdfOrPrecedureExtraParameter,
     };
     use crate::enable_test_log;
@@ -1694,36 +1694,6 @@ mod tests {
         db.create_database("abc").await.unwrap();
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
-    }
-    // test on empty table query can still have column info
-    #[ignore = "sqlx don't return column info on empty result, see https://github.com/launchbadge/sqlx/issues/3552"]
-    #[tokio::test]
-    async fn empty_type_and_column_info() {
-        let db = make_test_object().await;
-        let table = "empty_table";
-        let _ = db.drop_table(table, false).await;
-        let query_id = db.open_connection().await.unwrap();
-        let query_resp = db
-            .query_sql(
-                query_id,
-                r#"
-        CREATE TABLE empty_table (
-            
-            name VARCHAR(100) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        "#,
-            )
-            .await
-            .unwrap();
-        assert!(query_resp.iter().all(|x| x.is_ok()));
-        let query_resp = <Result<QueryResp, std::string::String> as Clone>::clone(
-            &db.query_sql(query_id, "select * from empty_table")
-                .await
-                .unwrap()[0],
-        )
-        .unwrap();
-        assert!(query_resp.fields.len() > 0, "{:?}", query_resp);
     }
     #[tokio::test]
     async fn test_materialized_view() {

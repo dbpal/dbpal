@@ -12,7 +12,6 @@ import { useContext, useState } from 'react';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
 import { progressBarSize } from './Common';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { save } from '@tauri-apps/plugin-dialog';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';
@@ -31,7 +30,7 @@ function ExportView(props: {
   const [includeTableSchema, setIncludeTableScheam] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
-  const [file, setFile] = useState('');
+
   const makeConfig = (): types.ExportKind | null => {
     switch (kind) {
       case 'csv':
@@ -59,11 +58,13 @@ function ExportView(props: {
       return;
     }
     setLoading(true);
+    const file = await save();
     try {
       await exportOP(config, file);
     } catch (e) {
       setLoading(false);
       showNotification('error', 'Export Failure', e);
+
       return;
     }
     setLoading(false);
@@ -156,21 +157,10 @@ function ExportView(props: {
       {/* json line have no setttings */}
 
       {kind == 'jsonline' && <></>}
-      <Stack direction="row" sx={{ alignItems: 'flex-end' }}>
-        <Button
-          onClick={async () => {
-            let file = await save({ title: 'save file' });
-            setFile(file);
-          }}
-        >
-          <AttachFileIcon></AttachFileIcon>
-        </Button>
-        <span> file:{file} </span>
-      </Stack>
+
       <Divider></Divider>
       <Stack>
         <Button
-          disabled={!file}
           onClick={async () => {
             handleExport();
           }}

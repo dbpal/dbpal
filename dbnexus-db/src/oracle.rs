@@ -1573,14 +1573,27 @@ mod tests {
         .unwrap();
         x
     }
+
+    // when I test via `cargo test`
+    // sometimes I have this error
+    // ERROR - Transaction (Process ID 76) was deadlocked on lock resources with
+    // another process and has been chosen as the deadlock victim. Rerun the
+    // transaction. code=1205 maybe I need mutex to run one test a time.
+    fn test_lock() -> &'static Mutex<()> {
+        static MUTEX: Mutex<()> = Mutex::const_new(());
+        &MUTEX
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_server_metas() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None);
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_procedure() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let query_id = db.open_connection().await.unwrap();
         let udf_name = "DO_NOTHING_P";
@@ -1611,6 +1624,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_udf() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let query_id = db.open_connection().await.unwrap();
         let udf_name = "DO_NOTHING";
@@ -1655,6 +1669,7 @@ mod tests {
     // --show-output --nocapture
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_trigger() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let query_id = db.open_connection().await.unwrap();
         let table_name = "TEST_TRIGGER";
@@ -1698,6 +1713,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_rename() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let db_trait = &db as &dyn SchemaTrait;
         let query_id = db_trait.open_connection().await.unwrap();
@@ -1730,6 +1746,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 
     async fn test_duplicate() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
 
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -1774,11 +1791,13 @@ mod tests {
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_check_conn() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None);
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_view() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().unwrap();
         let db = &db as &dyn SchemaTrait;
@@ -1817,6 +1836,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_indexes() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().unwrap();
         let db = &db as &dyn SchemaTrait;
@@ -1843,6 +1863,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_multidb_trait() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None);
         let db = &db as &dyn DBTrait;
         let dbs = db.list_schema().await.unwrap();
@@ -1852,6 +1873,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_tables() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("APPQOSSYS".to_string()));
         let db = &db as &dyn SchemaTrait;
         let tables = db.list_table().await.unwrap();
@@ -1864,6 +1886,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_query_sql() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
 
         let db_trait = &db as &dyn SchemaTrait;
@@ -1906,6 +1929,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type1() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_TYPES1";
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -1985,6 +2009,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type2() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_TYPES2";
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -2059,6 +2084,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type3() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_TYPES3";
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -2136,6 +2162,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_type4() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_TYPES4";
         let db = make_test_object(Some("SYSTEM".to_string()));

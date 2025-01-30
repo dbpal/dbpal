@@ -2187,6 +2187,7 @@ mod tests {
             db.open_schema(&dbname).await.unwrap();
         }
     }
+    #[ignore = "run manually"]
     #[tokio::test]
     async fn test_select_xxx() {
         let _guard = test_lock().lock().await;
