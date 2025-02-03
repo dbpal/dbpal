@@ -383,6 +383,7 @@ function LeftIndexes(props: { table: string }) {
           >
             {index.on.map((e) => (
               <TreeItem
+                key={e}
                 itemId={idPrefix + '-index-' + index.name + '-col-' + e}
                 label=<span>{e}</span>
               ></TreeItem>

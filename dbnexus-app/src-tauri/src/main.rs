@@ -27,14 +27,14 @@ use handlers::{
     mongo_query_collection_update_one, mongo_query_db_drop, mongo_query_db_list_collection_names,
     mongo_query_db_run_command, mongo_show_collection_docs, mongo_show_collection_table_list,
     mongo_update_one, open_conn, oracle_query_autocommit, oracle_query_commit,
-    oracle_query_rollback, oracle_query_set_autocommit, page_init_callback, query_logs, query_sql,
-    query_sql_close_connection, query_sql_open_connection, query_sql_re_connection, redis_hash_add,
-    redis_hash_del, redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush,
-    redis_list_set, redis_list_table, redis_set_add, redis_set_del, redis_set_replace,
-    redis_string_set, redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table,
-    rename_index, rename_table, save_password, semantic_tokens, server_metas, show_indexes,
-    show_procedure, show_table, show_table_columns, show_trigger, show_udf, show_view,
-    show_view_coumns, test_connection, truncate_table, update,
+    oracle_query_rollback, oracle_query_set_autocommit, page_init_callback, put_value_in_sql,
+    query_logs, query_sql, query_sql_close_connection, query_sql_open_connection,
+    query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
+    redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_set_add,
+    redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
+    redis_zset_replace, redis_zset_show_table, rename_index, rename_table, save_password,
+    semantic_tokens, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
+    show_trigger, show_udf, show_view, show_view_coumns, test_connection, truncate_table, update,
 };
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -132,10 +132,32 @@ fn main_() {
                     &PredefinedMenuItem::undo(handle, None)?,
                     &PredefinedMenuItem::redo(handle, None)?,
                 ])?,
-                #[cfg(any(target_os = "windows", target_os = "macos"))]
                 &Submenu::with_items(handle, "window", true, &[
+                    #[cfg(any(target_os = "windows", target_os = "macos"))]
                     &PredefinedMenuItem::maximize(handle, None)?,
+                    #[cfg(any(target_os = "windows", target_os = "macos"))]
                     &PredefinedMenuItem::minimize(handle, None)?,
+                    // &MenuItem::with_id(
+                    //     handle,
+                    //     "zoom_in",
+                    //     "zoom in",
+                    //     true,
+                    //     None as Option<&'static str>,
+                    // )?,
+                    // &MenuItem::with_id(
+                    //     handle,
+                    //     "zoom_out",
+                    //     "zoom out",
+                    //     true,
+                    //     None as Option<&'static str>,
+                    // )?,
+                    // &MenuItem::with_id(
+                    //     handle,
+                    //     "zoom_reset",
+                    //     "zoom reset",
+                    //     true,
+                    //     None as Option<&'static str>,
+                    // )?,
                     #[cfg(any(target_os = "macos"))]
                     &PredefinedMenuItem::fullscreen(handle, None)?,
                 ])?,
@@ -158,6 +180,15 @@ fn main_() {
             }
             if event.id.0 == "show_settings" {
                 handle.emit("show_settings", "").unwrap();
+            }
+            if event.id.0 == "zoom_in" {
+                handle.emit("zoom_in", "").unwrap();
+            }
+            if event.id.0 == "zoom_out" {
+                handle.emit("zoom_out", "").unwrap();
+            }
+            if event.id.0 == "zoom_reset" {
+                handle.emit("zoom_reset", "").unwrap();
             }
             if event.id.0 == "open_dev_tools" {
                 let window = handle.get_webview_window("main").unwrap();
@@ -280,7 +311,8 @@ fn main_() {
             delete_password,
             create_index,
             mongo_list_time_serial_collection,
-            mongo_create_index
+            mongo_create_index,
+            put_value_in_sql
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

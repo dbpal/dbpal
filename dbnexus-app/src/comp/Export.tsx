@@ -1,7 +1,6 @@
 import {
   Button,
   Checkbox,
-  CircularProgress,
   Divider,
   FormControlLabel,
   Stack,
@@ -11,7 +10,6 @@ import {
 import { useContext, useState } from 'react';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
-import { progressBarSize } from './Common';
 import { save } from '@tauri-apps/plugin-dialog';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';

@@ -9,6 +9,7 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
+
 interface ConfirmOptions {
   title: string;
   content?: string;
@@ -226,6 +227,7 @@ function extractConfigNameFromUuid(uuid: string): string {
 function getViewportSize() {
   const width = window.innerWidth; // 获取视口的宽度
   const height = window.innerHeight; // 获取视口的高度
+
   return { width, height }; // 返回一个对象，包含宽度和高度
 }
 
@@ -241,8 +243,7 @@ function calMenuStyle(e, eheigth: number): CSSProperties {
   ret.bottom = 'auto';
   ret.left = 'auto';
   ret.right = 'auto';
-  const menuWidth = 150;
-  if (width - x > menuWidth) {
+  if (width - x > 150) {
     // this is click have a lot of space on the right
     ret.left =
       x -
@@ -252,7 +253,7 @@ function calMenuStyle(e, eheigth: number): CSSProperties {
     ret.right = width - x - 10 + 'px';
   }
 
-  if (height - y > eheigth) {
+  if (height - y > (eheigth)) {
     // 这个是点击的位置下面有很大的空间
     ret.top = y - 10 + 'px';
   } else {
@@ -406,5 +407,6 @@ export {
   AppStoreKey,
   columnWidths,
   handleCopyToClipboard,
-  datagridContainerHeight
+  datagridContainerHeight,
+
 };

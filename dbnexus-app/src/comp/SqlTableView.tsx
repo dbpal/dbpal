@@ -137,10 +137,10 @@ function SqlTableView(props: {
     values: Map<string, string | null>
   ) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: Map<string, string>) => Promise<types.SqlExecuteRet>;
-
+  put_value_in_sql: (typ: string, value?: string) => Promise<string>;
   notWarnPri?: boolean;
 }) {
-  let { reloadOP, updateOP, deleteOP, notWarnPri } = props;
+  let { reloadOP, updateOP, deleteOP, notWarnPri, put_value_in_sql } = props;
 
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -346,6 +346,7 @@ function SqlTableView(props: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
           let field = (target as HTMLDivElement).getAttribute('data-field');
+
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           setUpMenu({
@@ -358,6 +359,12 @@ function SqlTableView(props: {
                 }}
                 setSort={setSort}
                 setWhere={setWhere}
+                put_value_in_sql={(value) => {
+                  return put_value_in_sql(
+                    resp.data.fields.find((e) => e.field == field).typ,
+                    value
+                  );
+                }}
               ></Menu>
             ),
             style: calMenuStyle(e, 200),
@@ -564,8 +571,10 @@ function Menu(props: {
   handleDelete;
   setSort;
   setWhere;
+  put_value_in_sql: (value?: string) => Promise<string>;
 }) {
-  const { field, content, handleDelete, setSort, setWhere } = props;
+  const { field, content, handleDelete, setSort, setWhere, put_value_in_sql } =
+    props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
   return (
@@ -648,6 +657,9 @@ function Menu(props: {
               handleClose={() => {
                 setShowFilter(false);
               }}
+              put_value_in_sql={(value) => {
+                return put_value_in_sql(value);
+              }}
             ></FilterOnValue>
           </Box>
         </Modal>
@@ -661,17 +673,22 @@ function FilterOnValue(props: {
   setWhere;
   field: string;
   handleClose;
+  put_value_in_sql: (x: string) => Promise<string>;
 }) {
-  const { content, setWhere, field, handleClose } = props;
+  const { content, setWhere, field, handleClose, put_value_in_sql } = props;
   const compares = ['==', '<>', '>', '>=', '<', '<='];
   const [compare, setCompare] = useState(compares[0]);
-  const formatValue = content
-    ? isNaN(parseFloat(content))
-      ? `'${content}'`
-      : content
-    : 'null';
-  const where = `${field} ${compare} ${formatValue}`;
 
+  const [formatValue, setFormatValue] = useState('');
+  useEffect(() => {
+    put_value_in_sql(content).then((value) => {
+      setFormatValue(value);
+    });
+  }, []);
+
+  const where = () => {
+    return `${field} ${compare} ${formatValue}`;
+  };
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -688,14 +705,14 @@ function FilterOnValue(props: {
       </Stack>
 
       <Typography>
-        on: <em> {where} </em>
+        on: <em> {where()} </em>
       </Typography>
       <Divider></Divider>
       <Stack direction="row">
         <Button
           variant="contained"
           onClick={() => {
-            setWhere(where);
+            setWhere(where());
             handleClose();
           }}
         >

@@ -2200,19 +2200,19 @@ pub async fn redis_string_set(
     return Ok(());
 }
 
-// #[tauri::command]
-// pub async fn put_value_in_sql(
-//     name: String, typ: String, value: Option<String>, app: tauri::State<'_,
-// App>, ) -> Result<String, ErrorFrontend> {
-//     let schema = app
-//         .get_schema(name.as_str())
-//         .await
-//         .map_err(ErrorFrontend::from)?;
+#[tauri::command]
+pub async fn put_value_in_sql(
+    name: String, typ: String, value: Option<String>, app: tauri::State<'_, App>,
+) -> Result<String, ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
 
-//     schema
-//         .put_value_in_sql(&typ, value.as_ref().map(|x| x.as_str()))
-//         .map_err(|x| ErrorFrontend::from(x))
-// }
+    schema
+        .put_value_in_sql(&typ, value.as_ref().map(|x| x.as_str()))
+        .map_err(|x| ErrorFrontend::from(x))
+}
 
 #[derive(serde::Serialize)]
 pub struct DocsAndCount {

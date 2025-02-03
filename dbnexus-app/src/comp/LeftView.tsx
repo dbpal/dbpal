@@ -317,6 +317,13 @@ function ViewMenu(props: {
                   pageSize,
                 });
               }}
+              put_value_in_sql={async (typ, value) => {
+                return invoke('put_value_in_sql', {
+                  name: uuid,
+                  typ,
+                  value: value ? value : null,
+                });
+              }}
             ></SqlTableView>
           );
           break;
