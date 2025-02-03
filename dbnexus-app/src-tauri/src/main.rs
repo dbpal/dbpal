@@ -11,8 +11,9 @@ use handlers::{
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
     export_query_result_to_file, export_table_or_view, format_sql, insert, is_dangerous_sql,
     list_data_types, list_database, list_materialized_view, list_procedure, list_schema,
-    list_table, list_trigger, list_udf, list_view, modify_table_column, mongo_delete_ids,
-    mongo_get_one_document_by_id, mongo_insert, mongo_query_collection_count_docs,
+    list_table, list_trigger, list_udf, list_view, modify_table_column, mongo_create_index,
+    mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
+    mongo_list_time_serial_collection, mongo_query_collection_count_docs,
     mongo_query_collection_create_index, mongo_query_collection_create_search_index,
     mongo_query_collection_delete_many, mongo_query_collection_delete_one,
     mongo_query_collection_distinct, mongo_query_collection_drop,
@@ -277,7 +278,9 @@ fn main_() {
             mongo_query_collection_update_one,
             save_password,
             delete_password,
-            create_index
+            create_index,
+            mongo_list_time_serial_collection,
+            mongo_create_index
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

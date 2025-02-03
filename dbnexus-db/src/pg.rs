@@ -14,9 +14,9 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDbConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, HumanSize, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -901,7 +901,8 @@ impl SchemaTrait for PostGresDB {
 
         let mut sqls = Vec::with_capacity(indexes.len());
         for index in indexes.iter() {
-            let index_sql = get_index_def(&mut conn, table_name, &index.name).await?;
+            let index_sql =
+                get_index_def(&mut conn, table_name, &index.name.as_ref().unwrap()).await?;
             sqls.push(index_sql);
         }
         anyhow::Ok(CreateTableAndIndexSql {
@@ -1112,6 +1113,33 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+        let schema = self.must_schema();
+
+        let sql = format!(
+            r#"
+            SELECT 
+                matviewname,
+                pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(matviewname)) as size 
+            FROM 
+                pg_matviews where schemaname = '{}';
+        "#,
+            schema,
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            let size: Option<i64> = r.get(1);
+            ret.push(ListMaterializedView {
+                name,
+                size: size.map(|x| HumanSize(Box::new(x))),
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let s = format!(
             r#"
@@ -1208,6 +1236,17 @@ impl SchemaTrait for PostGresDB {
         let data = encode_rows(&row)?;
         let fields = self.show_table_columns(table_name).await?;
         anyhow::Ok(TableListResp::new(fields, total, data, sql))
+    }
+
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
+        let schema = self.must_schema();
+        let sql = format!(
+            r#"DROP MATERIALIZED VIEW  "{}"."{}" RESTRICT"#,
+            schema, name
+        );
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1575,49 +1614,6 @@ impl CatalogTrait for PostGresDB {
 
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!("DROP DATABASE {name};");
-        let mut conn = self.get_conn().await?;
-        sqlx::query(&sql).execute(conn.deref_mut()).await?;
-        anyhow::Ok(())
-    }
-}
-
-pub type ListMaterializedView = ListTable;
-
-#[allow(dead_code)]
-impl PostGresDB {
-    pub async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
-        let schema = self.must_schema();
-
-        let sql = format!(
-            r#"
-            SELECT 
-                matviewname,
-                pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(matviewname)) as size 
-            FROM 
-                pg_matviews where schemaname = '{}';
-        "#,
-            schema,
-        );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.get(0);
-            let size: Option<i64> = r.get(1);
-            ret.push(ListMaterializedView {
-                name,
-                size: size.map(|x| HumanSize(Box::new(x))),
-            });
-        }
-        anyhow::Ok(ret)
-    }
-
-    pub async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
-        let schema = self.must_schema();
-        let sql = format!(
-            r#"DROP MATERIALIZED VIEW  "{}"."{}" RESTRICT"#,
-            schema, name
-        );
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())

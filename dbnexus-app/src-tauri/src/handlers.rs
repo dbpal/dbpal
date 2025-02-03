@@ -12,7 +12,6 @@ use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
-use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 
@@ -216,6 +215,31 @@ pub async fn list_table(
         .await
         .map_err(ErrorFrontend::from)
 }
+#[tauri::command]
+pub async fn mongo_list_time_serial_collection(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<ListTable>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    log::info!("show table_name db:{}", name);
+    let schema = app
+        .get_schema(&name)
+        .await
+        .map_err(|x| ErrorFrontend::from(x))?;
+
+    let ret = match schema.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.list_time_serial_collection()
+                .await
+                .map_err(|x| ErrorFrontend::from(x))?
+        }
+        None => {
+            return Err(ErrorFrontend::from(format!("'{}' is not a mongo", name)));
+        }
+    };
+
+    Ok(ret)
+}
 
 #[tauri::command]
 pub async fn redis_list_table(
@@ -315,6 +339,32 @@ pub async fn create_index(
         .map_err(|x| ErrorFrontend::from(x))
 }
 
+#[tauri::command]
+pub async fn mongo_create_index(
+    name: String, table_name: String, index_name: Option<String>, keys: Vec<u8>, unique: bool,
+    app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let keys = parse_bson_doc(&keys)?;
+
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    match schema.as_any().downcast_ref::<Mongo>() {
+        Some(x) => {
+            x.create_index(&table_name, index_name, unique, keys)
+                .await
+                .map_err(|x| ErrorFrontend::from(x))?
+        }
+        None => {
+            return Err(ErrorFrontend::from(format!("'{}' not a mongo", name)));
+        }
+    };
+    Ok(())
+}
 #[tauri::command]
 pub async fn rename_index(
     name: String, table_name: String, old_name: String, new_name: String,
@@ -500,19 +550,9 @@ pub async fn list_materialized_view(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    match s.as_any().downcast_ref::<PostGresDB>() {
-        Some(x) => {
-            x.list_materialized_view()
-                .await
-                .map_err(|e| ErrorFrontend::from(e))
-        }
-        None => {
-            return Err(ErrorFrontend::from(format!(
-                "open named '{}' is not postgres",
-                name
-            )));
-        }
-    }
+    s.list_materialized_view()
+        .await
+        .map_err(|x| ErrorFrontend::from(x))
 }
 #[tauri::command]
 pub async fn drop_view(
@@ -536,16 +576,10 @@ pub async fn drop_materialized_view(
         .await
         .map_err(|x| ErrorFrontend::from(x))?;
 
-    match schema.as_any().downcast_ref::<PostGresDB>() {
-        Some(x) => {
-            x.drop_materialized_view(&view_name)
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?;
-            Ok(())
-        }
-
-        None => Err(ErrorFrontend::from(format!("'{}' is not a postgres", name))),
-    }
+    schema
+        .drop_materialized_view(&view_name)
+        .await
+        .map_err(|e| ErrorFrontend::from(e))
 }
 
 #[tauri::command]

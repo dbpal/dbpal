@@ -3,14 +3,7 @@ import SplitPane from 'react-split-pane';
 import { MultiQueryResp } from './QueryResp';
 
 import './style/react-split-pane.css';
-import {
-  Button,
-  CircularProgress,
-  IconButton,
-  Paper,
-  Stack,
-  Tooltip,
-} from '@mui/material';
+import { Button, IconButton, Paper, Stack, Tooltip } from '@mui/material';
 
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -29,7 +22,6 @@ import {
   IQueryConn,
   MakeIQueryConn,
   msgTimeout,
-  progressBarSize,
   SettingsContext,
 } from './Common.tsx';
 import { NotificationContext } from './Notification.tsx';
@@ -80,7 +72,7 @@ function OracleCommit(props: { conn: IQueryConn }) {
     <>
       <Tooltip title="reverse commit mode">
         <Button onClick={handleReverse}>
-          {commit ? 'auto' : 'Manual'}-commit
+          {commit ? 'auto' : 'manual'}-commit
         </Button>
       </Tooltip>
       {!commit && (
@@ -303,9 +295,9 @@ function SqlQuery(props: {
         )}
         {connectInfo}
         <Stack direction="row" spacing={1}>
-          {loading && <CircularProgress size={progressBarSize} />}
           <Tooltip title="execute">
             <IconButton
+              loading={loading}
               disabled={loading || conn == null}
               onClick={() => {
                 handleQuery(editor.current.getValue());

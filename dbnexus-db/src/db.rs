@@ -47,6 +47,14 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
 
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+        not_support_features(self.backend_name())
+    }
+
+    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
     async fn create_index(
         &self, _table: &str, _name: &str, _kind: IndexKind, _fileds: &[String],
     ) -> anyhow::Result<()> {
@@ -501,6 +509,7 @@ impl Display for HumanSize {
         )
     }
 }
+pub type ListMaterializedView = ListTable;
 
 impl Debug for HumanSize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -758,13 +767,13 @@ impl From<u64> for SqlExecuteRet {
 }
 #[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct Index {
-    pub name: String,
+    pub name: Option<String>,
     pub kind: IndexKind,
     pub on: Vec<String>,
 }
 
 impl Index {
-    pub fn new(name: impl Into<String>, kind: IndexKind, on: Vec<String>) -> Self {
+    pub fn new(name: impl Into<Option<String>>, kind: IndexKind, on: Vec<String>) -> Self {
         let name = name.into();
         Self { name, kind, on }
     }

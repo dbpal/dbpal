@@ -1,8 +1,6 @@
-import React, { ReactNode, useContext, useState } from 'react';
+import React, { ReactNode, useContext } from 'react';
 import { Stack, Button, Paper, MenuItem, MenuList } from '@mui/material';
 
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import { ContextMenuContext, VisiableContext } from './Common';
 import { calMenuStyle } from './helper';
 class TabContent {
@@ -10,7 +8,7 @@ class TabContent {
     public id: string,
     public header: ReactNode,
     public content: ReactNode
-  ) { }
+  ) {}
 }
 
 function TabsMenu(props: {
@@ -95,60 +93,46 @@ function TabsWithContent_(props: {
   setTabs;
 }) {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
-  const [show, setShow] = useState(true);
+
   const { setUpMenu } = useContext(ContextMenuContext);
   return (
-    <Stack >
-      {tabs.length > 0 && (
-        <Stack>
-          <Button
-            style={{ padding: 0, margin: 0 }}
-            onClick={() => {
-              setShow((e) => !e);
-            }}
-          >
-            {show ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
-          </Button>
-        </Stack>
-      )}
-      {show && (
-        <Stack
-          direction="row"
-          style={{
-            flexWrap: 'wrap',
-          }}
-        >
-          {tabs.map((tab, index) => {
-            return (
-              <Button
-                key={tab.id}
-                sx={{ textTransform: 'none' }}
-                onContextMenu={(e) => {
-                  setUpMenu({
-                    content: (
-                      <TabsMenu
-                        index={index}
-                        handleClose={handleClose}
-                        setTabs={setTabs}
-                        tabsLength={tabs.length}
-                        changeTab={changeTab}
-                        selectIndex={selectIndex}
-                      ></TabsMenu>
-                    ),
-                    style: calMenuStyle(e, 100),
-                  });
-                }}
-                variant={index == selectIndex ? 'outlined' : 'text'}
-                onClick={() => {
-                  changeTab(index);
-                }}
-              >
-                {tab.header}
-              </Button>
-            );
-          })}
-        </Stack>
-      )}
+    <Stack spacing={2}>
+      <Stack
+        direction="row"
+        style={{
+          flexWrap: 'wrap',
+        }}
+      >
+        {tabs.map((tab, index) => {
+          return (
+            <Button
+              key={tab.id}
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <TabsMenu
+                      index={index}
+                      handleClose={handleClose}
+                      setTabs={setTabs}
+                      tabsLength={tabs.length}
+                      changeTab={changeTab}
+                      selectIndex={selectIndex}
+                    ></TabsMenu>
+                  ),
+                  style: calMenuStyle(e, 100),
+                });
+              }}
+              variant={index == selectIndex ? 'contained' : 'text'}
+              onClick={() => {
+                changeTab(index);
+              }}
+            >
+              {tab.header}
+            </Button>
+          );
+        })}
+      </Stack>
+
       <div>
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>

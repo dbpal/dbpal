@@ -101,7 +101,6 @@ function RedisAddList(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <Box width="200px">
         <FormControl fullWidth>
           <InputLabel id="simple-select-label">Direction</InputLabel>
@@ -126,7 +125,12 @@ function RedisAddList(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleAdd}>
+        <Button
+          loading={loading}
+          color="primary"
+          variant="contained"
+          onClick={handleAdd}
+        >
           push
         </Button>
       </Stack>
@@ -168,6 +172,7 @@ function RedisStringTable(props: {
 
       <Stack width="100px" direction="row" spacing={1}>
         <Button
+          loading={loading}
           color="primary"
           variant="contained"
           onClick={() => {
@@ -176,7 +181,6 @@ function RedisStringTable(props: {
         >
           Set
         </Button>
-        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
     </Stack>
   );
@@ -246,7 +250,6 @@ function RedisAddHash(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <Typography variant="h5"> key </Typography>
       <RedisEditHexOrText
         oldValue={key}
@@ -267,7 +270,12 @@ function RedisAddHash(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleAdd}>
+        <Button
+          loading={loading}
+          color="primary"
+          variant="contained"
+          onClick={handleAdd}
+        >
           Add
         </Button>
       </Stack>
@@ -301,7 +309,6 @@ function RedisAddZset(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <TextField
         size="small"
         value={score}
@@ -323,7 +330,12 @@ function RedisAddZset(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleAdd}>
+        <Button
+          loading={loading}
+          color="primary"
+          variant="contained"
+          onClick={handleAdd}
+        >
           Add
         </Button>
       </Stack>
@@ -360,7 +372,6 @@ function RedisEditHash(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <Typography variant="h5">key</Typography>
       <RedisEditHexOrText
         oldValue={newKey}
@@ -377,7 +388,12 @@ function RedisEditHash(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleModify}>
+        <Button
+          loading={loading}
+          color="primary"
+          variant="contained"
+          onClick={handleModify}
+        >
           Modify
         </Button>
       </Stack>
@@ -420,7 +436,6 @@ function RedisEditZset(props: {
 
   return (
     <Stack spacing={2}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <TextField
         size="small"
         value={newValue}
@@ -444,7 +459,12 @@ function RedisEditZset(props: {
       ></RedisEditHexOrText>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleModify}>
+        <Button
+          loading={loading}
+          color="primary"
+          variant="contained"
+          onClick={handleModify}
+        >
           Modify
         </Button>
       </Stack>
@@ -635,7 +655,6 @@ function RedisEditList(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <RedisEditHexOrText
         oldValue={oldValue}
         handleValue={(e) => {
@@ -644,6 +663,7 @@ function RedisEditList(props: {
       ></RedisEditHexOrText>
       <Stack direction="row" spacing={1}>
         <Button
+          loading={loading}
           color="primary"
           variant="contained"
           disabled={newValue == ''}
@@ -684,7 +704,6 @@ function RedisEditSet(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <RedisEditHexOrText
         oldValue={oldValue}
         handleValue={(e) => {
@@ -693,6 +712,7 @@ function RedisEditSet(props: {
       ></RedisEditHexOrText>
       <Stack direction="row" spacing={1}>
         <Button
+          loading={loading}
           color="primary"
           variant="contained"
           disabled={newValue == ''}
@@ -1629,7 +1649,6 @@ function RedisModifyKeyName(props: {
     <Stack spacing={1}>
       <Stack direction="row">
         <Typography variant="subtitle1"> New name: </Typography>
-        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
 
       <TextField
@@ -1642,6 +1661,7 @@ function RedisModifyKeyName(props: {
       ></TextField>
       <Stack direction="row" spacing={1}>
         <Button
+          loading={loading}
           disabled={name == newName}
           color="primary"
           variant="contained"

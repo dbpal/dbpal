@@ -75,7 +75,6 @@ function ExportView(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <Stack direction="row" spacing={1}>
         {support_kind.map((e) => (
           <Button
@@ -164,6 +163,7 @@ function ExportView(props: {
           onClick={async () => {
             handleExport();
           }}
+          loading={loading}
         >
           <Tooltip title="export">
             <ArrowCircleDownIcon> </ArrowCircleDownIcon>

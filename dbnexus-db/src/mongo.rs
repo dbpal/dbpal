@@ -6,8 +6,9 @@ use std::time::Duration;
 
 use dashmap::DashSet;
 use futures_util::StreamExt;
+use mongodb::IndexModel;
 use mongodb::bson::{Document, doc};
-use mongodb::options::ServerAddress;
+use mongodb::options::{IndexOptions, ServerAddress};
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 
 use crate::TEST_HOST;
@@ -257,6 +258,20 @@ impl Mongo {
             .insert_one(doc)
             .await?;
         anyhow::Ok(ret)
+    }
+
+    pub async fn create_index(
+        &self, collection_name: &str, index_name: Option<String>, unique: bool, keys: Document,
+    ) -> anyhow::Result<()> {
+        let db = self.get_db().await?;
+        let mut options = IndexOptions::default();
+        options.unique = Some(unique);
+        options.name = index_name;
+
+        db.collection::<Document>(collection_name)
+            .create_index(IndexModel::builder().keys(keys).options(options).build())
+            .await?;
+        anyhow::Ok(())
     }
 
     pub async fn get_one_document_by_id(
@@ -536,11 +551,11 @@ impl Mongo {
 }
 
 impl Mongo {
-    pub async fn show_mongo_time_serial_collection(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    pub async fn list_time_serial_collection(&self) -> anyhow::Result<Vec<ListTable>> {
         let ts = self
             .list_collection_name_by_type(Some(CollectionType::Timeseries))
             .await?;
-        anyhow::Ok(ts.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ts.into_iter().map(ListTable::from).collect())
     }
 
     pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<()> {
@@ -649,6 +664,54 @@ impl SchemaTrait for Mongo {
         self.show_columns_impl(&table_name).await
     }
 
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
+        if index == "_id_" {
+            anyhow::bail!("can't rename this index");
+        }
+        let db = self.get_db().await?;
+        db.collection::<Document>(&table_name)
+            .drop_index(index)
+            .await?;
+        anyhow::Ok(())
+    }
+
+    async fn rename_index(
+        &self, table_name: &str, oldname: &str, newname: &str,
+    ) -> anyhow::Result<()> {
+        if oldname == "_id_" {
+            anyhow::bail!("can't rename this index");
+        }
+        let db = self.get_db().await?;
+        let mut indexes = db.collection::<Document>(table_name).list_indexes().await?;
+
+        while let Some(index_model) = indexes.next().await {
+            let mut index_model = index_model?;
+            if index_model
+                .options
+                .as_ref()
+                .map(|x| x.name.as_ref().map(|x| x == oldname))
+                .flatten()
+                .unwrap_or(false)
+            {
+                // found
+                db.collection::<Document>(table_name)
+                    .drop_index(oldname)
+                    .await?;
+
+                if index_model.options.is_none() {
+                    index_model.options = Some(IndexOptions::default());
+                }
+                index_model.options.as_mut().unwrap().name = Some(newname.to_string());
+
+                db.collection::<Document>(table_name)
+                    .create_index(index_model)
+                    .await?;
+                return anyhow::Ok(());
+            }
+        }
+        anyhow::bail!(format!("index '{}' not found", oldname))
+    }
+
     async fn show_table(
         &self, _table_name: &str, _filter: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize,
@@ -656,14 +719,20 @@ impl SchemaTrait for Mongo {
         anyhow::bail!("use mongo special method")
     }
 
-    async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
+    async fn show_indexes(&self, col_name: &str) -> anyhow::Result<Vec<Index>> {
         let db = self.get_db().await?;
-        let mut stream = db.collection::<Document>(table_name).list_indexes().await?;
+        let mut stream = db.collection::<Document>(col_name).list_indexes().await?;
         let mut ret = Vec::new();
         while let Some(index_model) = stream.next().await {
             let index_model = index_model?;
+            let name = index_model
+                .options
+                .as_ref()
+                .map(|x| x.name.clone())
+                .flatten();
+
             ret.push(Index::new(
-                index_model.keys.to_string(),
+                name,
                 if index_model
                     .options
                     .as_ref()
@@ -674,7 +743,7 @@ impl SchemaTrait for Mongo {
                 } else {
                     IndexKind::Normal
                 },
-                vec![],
+                vec![serde_json::to_string(&index_model.keys)?],
             ))
         }
 
@@ -772,6 +841,7 @@ mod tests {
 
     use bson::oid::ObjectId;
     use bson::{Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
+    use mongodb::options::TimeseriesOptions;
 
     use super::make_test_object;
     use crate::db::{DBTrait, SchemaTrait, ServerMetas};
@@ -919,7 +989,7 @@ mod tests {
         println!("{:?}", metas);
     }
     #[tokio::test]
-    async fn test_show_index() {
+    async fn test_index() {
         let db = make_test_object();
         let table = "test_index";
         let _ = db.drop_table(&table, false).await;
@@ -929,6 +999,21 @@ mod tests {
             .unwrap();
         let indexes = db.show_indexes(&table).await.unwrap();
         println!("indexes{:?}", indexes);
+
+        let index_name = "test_index_aaa";
+
+        db.create_index(table, Some(index_name.to_string()), false, doc! {"aaa" : 1})
+            .await
+            .unwrap();
+        let index_name2 = format!("{}_1", index_name);
+
+        db.rename_index(&table, &index_name, &index_name2)
+            .await
+            .unwrap();
+        db.rename_index(&table, &index_name2, &index_name)
+            .await
+            .unwrap();
+        db.drop_index(table, &index_name).await.unwrap();
     }
     #[tokio::test]
     async fn test_truncat() {
@@ -1038,6 +1123,32 @@ mod tests {
             .await
             .unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn test_time_serial() {
+        let table = "test_time_serial";
+        let db = make_test_object();
+        let _ = db.drop_table(table, false).await;
+
+        {
+            let builder = TimeseriesOptions::builder();
+            let op = builder.time_field("time_field").build();
+
+            let db = db.get_db().await.unwrap();
+            db.create_collection("test_time_serial")
+                .timeseries(op)
+                .await
+                .unwrap();
+        }
+        let time = bson::DateTime::from_millis(1111111111);
+
+        db.insert(
+            table,
+            doc! {"a" : rand::random::<i32 >() , "time_field" :time },
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]

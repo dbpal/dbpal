@@ -38,7 +38,7 @@ import { MenuRefresh } from './CommonComp';
 
 enum ViewKind {
   Normal,
-  PostGresMaterrialized,
+  Materrialized,
 }
 
 function ViewsTree(props: { viewkind: ViewKind }) {
@@ -55,7 +55,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
     case ViewKind.Normal:
       invokeName = 'list_view';
       break;
-    case ViewKind.PostGresMaterrialized:
+    case ViewKind.Materrialized:
       invokeName = 'list_materialized_view';
       break;
   }
@@ -82,7 +82,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
     case ViewKind.Normal:
       itemId = uuid + '-views';
       break;
-    case ViewKind.PostGresMaterrialized:
+    case ViewKind.Materrialized:
       itemId = uuid + '-materialized-views';
       break;
   }
@@ -92,7 +92,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
     case ViewKind.Normal:
       name = 'views';
       break;
-    case ViewKind.PostGresMaterrialized:
+    case ViewKind.Materrialized:
       name = 'materizlized views';
       break;
   }
@@ -173,7 +173,7 @@ function ViewTree(props: {
           <Stack direction="row" spacing={1}>
             <VisibilityIcon></VisibilityIcon> <span> {view} </span>
           </Stack>
-          {viewkind == ViewKind.PostGresMaterrialized && <span> {size} </span>}
+          {viewkind == ViewKind.Materrialized && <span> {size} </span>}
         </Stack>
       }
     >
@@ -267,7 +267,7 @@ function ViewMenu(props: {
       case ViewKind.Normal:
         invokeName = 'drop_view';
         break;
-      case ViewKind.PostGresMaterrialized:
+      case ViewKind.Materrialized:
         invokeName = 'drop_materialized_view';
         break;
     }

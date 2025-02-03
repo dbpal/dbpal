@@ -11,7 +11,6 @@ import types from './ApiStruct';
 import {
   Box,
   Button,
-  CircularProgress,
   Divider,
   ListItemIcon,
   ListItemText,
@@ -31,7 +30,6 @@ import {
   ContextMenuContext,
   keyNotInTable,
   modalStyle,
-  progressBarSize,
   reloadOK,
   SettingsContext,
   VisiableContext,
@@ -85,6 +83,7 @@ function WhereSort(props: {
 }) {
   const { open, onClose, value, setValue, label } = props;
   const [newValue, setNewValue] = useState(value);
+
   return (
     <Modal open={open} onClose={onClose} aria-labelledby="create database">
       <Box sx={modalStyle} width="800px">
@@ -96,9 +95,10 @@ function WhereSort(props: {
               setNewValue(e.target.value);
             }}
             label={label}
+            size="small"
           ></TextField>
 
-          <Stack direction="row">
+          <Stack direction="row" spacing={1}>
             <Button
               variant="contained"
               onClick={() => {
@@ -108,6 +108,16 @@ function WhereSort(props: {
             >
               set
             </Button>
+            {newValue && (
+              <Button
+                variant="contained"
+                onClick={() => {
+                  setNewValue('');
+                }}
+              >
+                clear
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Box>
@@ -368,7 +378,7 @@ function SqlTableView(props: {
           }}
         >
           where:
-          <span style={{ textDecoration: 'underline' }}> {where}</span>
+          <span style={{ fontStyle: 'italic' }}> {where}</span>
         </span>
         {showSetWhere && (
           <WhereSort
@@ -390,7 +400,7 @@ function SqlTableView(props: {
           }}
         >
           sort:
-          <span style={{ textDecoration: 'underline' }}> {sort}</span>
+          <span style={{ fontStyle: 'italic' }}> {sort}</span>
         </span>
 
         {showSetSort && (
@@ -408,6 +418,7 @@ function SqlTableView(props: {
         )}
 
         <Button
+          loading={loading}
           variant="contained"
           color="primary"
           onClick={() => {
@@ -416,7 +427,6 @@ function SqlTableView(props: {
         >
           reload
         </Button>
-        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
       {resp && (
         <>
@@ -540,10 +550,9 @@ function SqlTableViewAdd(props: {
       })}
       <Divider></Divider>
       <Stack direction="row" spacing={1}>
-        <Button variant="contained" onClick={handleAdd}>
+        <Button loading={loading} variant="contained" onClick={handleAdd}>
           add
         </Button>
-        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
     </Stack>
   );

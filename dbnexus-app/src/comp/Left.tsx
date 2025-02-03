@@ -63,7 +63,7 @@ import {
   MenuOpenConn,
   MenuRefresh,
 } from './CommonComp.tsx';
-import { RedisTables, TablesTree } from './LeftTable.tsx';
+import { RedisTables, TablesTree, TablesType } from './LeftTable.tsx';
 import { ViewKind, ViewsTree } from './LeftView.tsx';
 import { UdfsTree } from './LeftUdf.tsx';
 import { ProceduresTree } from './LeftProcedure.tsx';
@@ -242,21 +242,24 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           kind == DataSourceKind.Mongo ||
           kind == DataSourceKind.Oracle) && (
           <>
-            <TablesTree></TablesTree>
-
-            <ViewsTree viewkind={ViewKind.Normal}></ViewsTree>
-
-            {kind == DataSourceKind.Postgres && (
-              <ViewsTree viewkind={ViewKind.PostGresMaterrialized}></ViewsTree>
+            <TablesTree typ={TablesType.Normal} />
+            {kind == DataSourceKind.Mongo && (
+              <TablesTree typ={TablesType.MongoTimeSerial} />
             )}
+            <ViewsTree viewkind={ViewKind.Normal} />
 
-            {support_procedure && <ProceduresTree></ProceduresTree>}
+            {kind == DataSourceKind.Postgres ||
+              (kind == DataSourceKind.Oracle && (
+                <ViewsTree viewkind={ViewKind.Materrialized} />
+              ))}
+
+            {support_procedure && <ProceduresTree />}
             {support_udf && <UdfsTree></UdfsTree>}
           </>
         )}
 
       {opened && kind == DataSourceKind.Redis && (
-        <RedisTables schema={schema}></RedisTables>
+        <RedisTables schema={schema} />
       )}
     </TreeItem>
   );

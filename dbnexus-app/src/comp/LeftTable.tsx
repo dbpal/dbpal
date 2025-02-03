@@ -7,7 +7,6 @@ import {
   tabsHasId,
   TabsSetContext,
   ConnTypeContext,
-  progressBarSize,
   DocsAndCount,
 } from './Common';
 import types from './ApiStruct';
@@ -74,7 +73,14 @@ import {
 } from './helper';
 import { MenuRefresh } from './CommonComp';
 
-function TablesTree() {
+enum TablesType {
+  Normal,
+  MongoTimeSerial,
+}
+
+function TablesTree(props: { typ: TablesType }) {
+  const { typ } = props;
+
   const { uuid } = useContext(UuidContext);
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
@@ -82,7 +88,17 @@ function TablesTree() {
 
   const handleReload = () => {
     setLoading(true);
-    invoke<types.ListTable[]>('list_table', { name: uuid })
+    let invokeName;
+    switch (typ) {
+      case TablesType.Normal:
+        invokeName = 'list_table';
+        break;
+      case TablesType.MongoTimeSerial:
+        invokeName = 'mongo_list_time_serial_collection';
+        break;
+    }
+
+    invoke<types.ListTable[]>(invokeName, { name: uuid })
       .then((ts) => {
         setLoading(false);
         setTables(ts);
@@ -97,9 +113,19 @@ function TablesTree() {
   }, []);
 
   let { setUpMenu } = useContext(ContextMenuContext);
+
+  let tablesText;
+  switch (typ) {
+    case TablesType.Normal:
+      tablesText = 'tables';
+      break;
+    case TablesType.MongoTimeSerial:
+      tablesText = 'time serial';
+      break;
+  }
   return (
     <TreeItem
-      itemId={uuid + '-tables'}
+      itemId={uuid + '-tables-' + typ + '-'}
       label=<Stack
         spacing={1}
         direction="row"
@@ -118,7 +144,7 @@ function TablesTree() {
         }}
       >
         <TableViewIcon></TableViewIcon>
-        <span> tables </span>
+        <span> {tablesText} </span>
         {loading && (
           <CircularProgress size={progressBarSizeSmall}></CircularProgress>
         )}
@@ -333,10 +359,14 @@ function ModifyTableColumn(props: {
         </Stack>
       )}
       <Stack direction="row" spacing={1}>
-        <Button color="error" variant="contained" onClick={handleModify}>
+        <Button
+          loading={loading}
+          color="error"
+          variant="contained"
+          onClick={handleModify}
+        >
           Modify
         </Button>
-        {loading && <CircularProgress size={progressBarSizeSmall} />}
       </Stack>
     </Stack>
   );
@@ -450,7 +480,6 @@ function TableAddColumn(props: {
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <TextField
         size="small"
         value={name}
@@ -509,7 +538,12 @@ function TableAddColumn(props: {
       </Stack>
       <Divider></Divider>
       <Stack direction="row">
-        <Button variant="contained" color="primary" onClick={handleAdd}>
+        <Button
+          loading={loading}
+          variant="contained"
+          color="primary"
+          onClick={handleAdd}
+        >
           add
         </Button>
       </Stack>
@@ -693,10 +727,14 @@ function DropTable(props: {
         >
           Cancel
         </Button>
-        <Button color="error" variant="contained" onClick={handleDrop}>
+        <Button
+          loading={loading}
+          color="error"
+          variant="contained"
+          onClick={handleDrop}
+        >
           Drop
         </Button>
-        {loading && <CircularProgress size={progressBarSizeSmall} />}
       </Stack>
     </Stack>
   );
@@ -706,7 +744,8 @@ async function makeViewTable(
   uuid,
   table: string,
   kind: DataSourceKind,
-  redisTableType: RedisTableType
+  redisTableType: RedisTableType,
+  showNotification
 ) {
   let tableList: ReactNode = null;
   switch (kind) {
@@ -756,8 +795,39 @@ async function makeViewTable(
     case DataSourceKind.Redis:
       switch (redisTableType) {
         case RedisTableType.String:
-          // right now we don't support create table
-          tableList = <></>;
+          tableList = (
+            <RedisStringTable
+              modifyOP={async (value) => {
+                return await invoke('redis_string_set', {
+                  name: uuid,
+                  key: table,
+                  value,
+                });
+              }}
+              content={await (async () => {
+                try {
+                  let x = await invoke<types.MuiDataTableListResp>(
+                    'show_table',
+                    {
+                      name: uuid,
+                      tableName: table,
+                      whereStr: null,
+                      orderBy: null,
+                      page: 0,
+                      pageSize: 0,
+                    }
+                  );
+                  return x.data.data[0]['value'];
+                } catch (e) {
+                  showNotification(
+                    'success',
+                    'load redis string table failed',
+                    e
+                  );
+                }
+              })()}
+            ></RedisStringTable>
+          );
           break;
         case RedisTableType.List:
           tableList = (
@@ -963,8 +1033,7 @@ async function makeAddTable(
   uuid,
   table: string,
   kind: DataSourceKind,
-  redisTableType: RedisTableType,
-  showNotification
+  redisTableType: RedisTableType
 ) {
   let tableList: ReactNode = null;
   switch (kind) {
@@ -1004,28 +1073,7 @@ async function makeAddTable(
                   value,
                 });
               }}
-              content={await (async () => {
-                try {
-                  let x = await invoke<types.MuiDataTableListResp>(
-                    'show_table',
-                    {
-                      name: uuid,
-                      tableName: table,
-                      whereStr: null,
-                      orderBy: null,
-                      page: 0,
-                      pageSize: 0,
-                    }
-                  );
-                  return x.data.data[0]['value'];
-                } catch (e) {
-                  showNotification(
-                    'success',
-                    'load redis string table failed',
-                    e
-                  );
-                }
-              })()}
+              content={''}
             ></RedisStringTable>
           );
           break;
@@ -1119,7 +1167,6 @@ function TableMenu(props: {
   redisTableType?: RedisTableType;
 }) {
   let { table, uuid, reload, kind, redisTableType } = props;
-
   const [showDup, setshowDup] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [showDrop, setShowDrop] = useState(false);
@@ -1156,7 +1203,8 @@ function TableMenu(props: {
         uuid,
         table,
         kind,
-        redisTableType
+        redisTableType,
+        showNotification
       );
 
       setTabs((e) => {
@@ -1171,8 +1219,7 @@ function TableMenu(props: {
       uuid,
       table,
       kind,
-      redisTableType,
-      showNotification
+      redisTableType
     );
     setTabs((e) => {
       setSelectIndex(tabs.length);
@@ -1504,10 +1551,14 @@ function DupTable(props: {
         >
           Cancel
         </Button>
-        <Button color="primary" variant="contained" onClick={handleRename}>
+        <Button
+          loading={loading}
+          color="primary"
+          variant="contained"
+          onClick={handleRename}
+        >
           Duplicate
         </Button>
-        {loading && <CircularProgress size={progressBarSizeSmall} />}
       </Stack>
     </Stack>
   );
@@ -1553,10 +1604,14 @@ function RenameTable(props: {
         }}
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleRename}>
+        <Button
+          loading={loading}
+          color="primary"
+          variant="contained"
+          onClick={handleRename}
+        >
           Rename
         </Button>
-        {loading && <CircularProgress size={progressBarSizeSmall} />}
       </Stack>
     </Stack>
   );
@@ -1787,4 +1842,4 @@ enum RedisTableType {
   Hash,
 }
 
-export { TablesTree, RedisTables };
+export { TablesTree, TablesType, RedisTables };

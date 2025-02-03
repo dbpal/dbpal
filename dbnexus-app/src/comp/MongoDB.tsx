@@ -236,7 +236,7 @@ interface MongoBsonEditorCallback {
   disabled?: (docHasChange: boolean) => boolean;
   variant?: string;
   callBack: (doc: BSON.Document) => void;
-  buttonConent: string;
+  buttonText: string;
 }
 
 function MongoBsonEditor(props: {
@@ -314,7 +314,7 @@ function MongoBsonEditor(props: {
             return (
               //@ts-ignore
               <Button
-                key={button.buttonConent}
+                key={button.buttonText}
                 variant={button.variant}
                 color={button.color}
                 onClick={() => {
@@ -332,7 +332,7 @@ function MongoBsonEditor(props: {
                   button.disabled ? button.disabled(docHasChange) : false
                 }
               >
-                {button.buttonConent}
+                {button.buttonText}
               </Button>
             );
           })}
@@ -396,7 +396,7 @@ function MongoDBModify(props: {
               handleModify(doc);
             },
             variant: 'contained',
-            buttonConent: buttonName,
+            buttonText: buttonName,
             disabled: (changed) => {
               return !changed;
             },
@@ -443,7 +443,13 @@ function MongoTableListToolBar(props: {
   }, [viewModel]);
 
   return (
-    <Stack direction="row" justifyContent="space-between">
+    <Stack
+      direction="row"
+      style={{
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}
+    >
       <Stack direction="row" spacing={1}>
         <Typography
           onClick={() => {
@@ -453,7 +459,7 @@ function MongoTableListToolBar(props: {
           variant="subtitle1"
         >
           filter:
-          <span style={{ textDecoration: 'underline' }}>
+          <span style={{ fontStyle: 'italic' }}>
             {bsonValue2MongoBson(filter).format()}
           </span>
         </Typography>
@@ -489,7 +495,7 @@ function MongoTableListToolBar(props: {
           variant="subtitle1"
         >
           sort:
-          <span style={{ textDecoration: 'underline' }}>
+          <span style={{ fontStyle: 'italic' }}>
             {bsonValue2MongoBson(orderBy).format()}
           </span>
         </Typography>
@@ -517,14 +523,17 @@ function MongoTableListToolBar(props: {
           </Modal>
         )}
 
-        <Button variant="contained" color="primary" onClick={doReload}>
+        <Button
+          loading={loading}
+          variant="contained"
+          color="primary"
+          onClick={doReload}
+        >
           reload
         </Button>
-
-        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
       <Stack direction="row">
-        <ButtonGroup variant="contained" aria-label="Basic button group">
+        <ButtonGroup aria-label="Basic button group">
           <IconButton
             disabled={viewModel == MongoDataViewModel.Object}
             onClick={() => {
@@ -1083,7 +1092,7 @@ function MongoTableObject(props: {
                 doc={doc}
                 buttons={[
                   {
-                    buttonConent: 'set',
+                    buttonText: 'set',
                     callBack: (doc) => {
                       modifyOP(doc)
                         .then(() => {
@@ -1095,7 +1104,7 @@ function MongoTableObject(props: {
                     },
                   },
                   {
-                    buttonConent: 'delete',
+                    buttonText: 'delete',
                     color: 'error',
                     callBack: (_) => {
                       handleDetele([doc._id]);
@@ -1235,7 +1244,7 @@ function MongoTableAdd(props: {
       height={'80vh'}
       buttons={[
         {
-          buttonConent: 'Add',
+          buttonText: 'Add',
           variant: 'contained',
           disabled: (changed) => {
             return !changed;

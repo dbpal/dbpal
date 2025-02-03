@@ -27,8 +27,8 @@ export namespace types {
     export type SqlServerDbConfig = {
         "host": string;
         "port": types.U16;
-        "username": string;
-        "password": string;
+        "username": (string | null);
+        "password": (string | null);
         "db": (string | null);
         "trust_cert": boolean;
         "schema": (string | null);
@@ -121,7 +121,7 @@ export namespace types {
     };
     export type IndexKind = ("Normal" | "Unique" | "Primary");
     export type Index = {
-        "name": string;
+        "name": (string | null);
         "kind": types.IndexKind;
         "on": (string)[];
     };

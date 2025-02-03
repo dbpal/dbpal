@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import {
+  ConnTypeContext,
   ContextMenuContext,
   modalStyle,
   progressBarSize,
@@ -27,19 +28,54 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-
-import { calMenuStyle, secondConfirm } from './helper';
+import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
 import { MenuRefresh } from './CommonComp';
+import { MongoBsonEditor } from './MongoDB';
+import { BSON } from 'bson';
 
-function Menu(props: { reload; uuid: string; table: string }) {
-  const { reload, uuid, table } = props;
+function Menu(props: {
+  reload;
+  uuid: string;
+  table: string;
+  kind: DataSourceKind;
+}) {
+  const { reload, uuid, table, kind } = props;
   const [showAdd, setShowAdd] = useState(false);
+
+  let addIndex;
+
+  switch (kind) {
+    case DataSourceKind.Mongo:
+      addIndex = (
+        <MongoAddIndex
+          uuid={uuid}
+          table={table}
+          handleClose={() => {
+            setShowAdd(false);
+          }}
+          realod={reload}
+        ></MongoAddIndex>
+      );
+      break;
+
+    default:
+      addIndex = (
+        <AddIndex
+          uuid={uuid}
+          table={table}
+          handleClose={() => {
+            setShowAdd(false);
+          }}
+          realod={reload}
+        ></AddIndex>
+      );
+  }
+
   return (
     <Paper>
       <MenuList>
@@ -64,14 +100,7 @@ function Menu(props: { reload; uuid: string; table: string }) {
           aria-labelledby="create database"
         >
           <Box sx={modalStyle} width="800px">
-            <AddIndex
-              uuid={uuid}
-              table={table}
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              realod={reload}
-            ></AddIndex>
+            {addIndex}
           </Box>
         </Modal>
       )}
@@ -79,8 +108,80 @@ function Menu(props: { reload; uuid: string; table: string }) {
   );
 }
 
+function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
+  const { uuid, table, handleClose, realod } = props;
+
+  const indexTypes = ['normal', 'unique'];
+  const [indexType, setIndexType] = useState(indexTypes[0]);
+  const [indexName, setIndexName] = useState('');
+  const indexNameDom = useRef<HTMLInputElement>(null);
+
+  const { showNotification } = useContext(NotificationContext);
+  const handleAdd = async (keys) => {
+    try {
+      if (!indexName) {
+        showNotification('error', "index name can't be none");
+        indexNameDom.current.focus();
+        return;
+      }
+      await invoke('mongo_create_index', {
+        name: uuid,
+        tableName: table,
+        keys: BSON.serialize(keys),
+        unique: indexType == 'unique',
+        indexName: indexName ? indexName : null,
+      });
+      showNotification('success', 'create index ok');
+      handleClose();
+      realod();
+    } catch (e) {
+      showNotification('error', 'create index failed', e);
+    }
+  };
+
+  return (
+    <Stack spacing={1}>
+      <TextField
+        value={indexName}
+        onChange={(e) => {
+          setIndexName(e.target.value);
+        }}
+        inputRef={indexNameDom}
+        label="index name"
+        size="small"
+        required
+      ></TextField>
+
+      <RadioGroup
+        row
+        onChange={(e) => {
+          setIndexType(e.target.value);
+        }}
+        value={indexType}
+      >
+        {indexTypes.map((e) => (
+          <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
+        ))}
+      </RadioGroup>
+      <MongoBsonEditor
+        doc={{}}
+        height="250px"
+        buttons={[
+          {
+            buttonText: 'create index',
+            callBack: (keys) => {
+              handleAdd(keys);
+            },
+          },
+        ]}
+      ></MongoBsonEditor>
+    </Stack>
+  );
+}
+
 function AddIndex(props: { uuid; table; handleClose; realod }) {
   let { uuid, table, handleClose, realod } = props;
+
   const [fields, setFields] = useState<types.Field[]>([]);
   const [includes, setIncludes] = useState<string[]>([]);
   const { showNotification } = useContext(NotificationContext);
@@ -127,6 +228,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
       showNotification('error', 'create index failed', e);
     }
   };
+
   return (
     <Stack spacing={1}>
       <TextField
@@ -144,6 +246,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
         style={{ flexWrap: 'wrap', justifyItems: 'flex-end' }}
       >
         <Typography> includes: </Typography>
+
         {includes.map((x) => (
           <Button
             onClick={() => {
@@ -151,6 +254,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
             }}
             key={x}
             color="primary"
+            variant="outlined"
           >
             {x}
           </Button>
@@ -201,14 +305,13 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
 
 function LeftIndexes(props: { table: string }) {
   const { table } = props;
-
   const { uuid } = useContext(UuidContext);
   const [loading, setLoading] = useState(false);
   const idPrefix = uuid + '-table-' + table + '-indexes-';
   const [indexes, setIndexes] = useState<types.Index[]>([]);
   const { showNotification } = useContext(NotificationContext);
   let { setUpMenu } = useContext(ContextMenuContext);
-
+  const { kind } = useContext(ConnTypeContext);
   const reload = () => {
     setLoading(true);
     invoke<types.Index[]>('show_indexes', { name: uuid, tableName: table })
@@ -232,7 +335,14 @@ function LeftIndexes(props: { table: string }) {
         direction="row"
         onContextMenu={(e) => {
           setUpMenu({
-            content: <Menu reload={reload} uuid={uuid} table={table}></Menu>,
+            content: (
+              <Menu
+                reload={reload}
+                uuid={uuid}
+                table={table}
+                kind={kind}
+              ></Menu>
+            ),
             style: calMenuStyle(e, 70),
           });
         }}
@@ -248,23 +358,36 @@ function LeftIndexes(props: { table: string }) {
             key={index.name}
             label=<Stack
               direction="row"
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <IndexMenu
-                      uuid={uuid}
-                      table={table}
-                      indexName={index.name}
-                      reload={reload}
-                    ></IndexMenu>
-                  ),
-                  style: calMenuStyle(e, 70),
-                });
-              }}
+              spacing={1}
+              onContextMenu={
+                index.name
+                  ? (e) => {
+                      setUpMenu({
+                        content: (
+                          <IndexMenu
+                            uuid={uuid}
+                            table={table}
+                            indexName={index.name}
+                            reload={reload}
+                          ></IndexMenu>
+                        ),
+                        style: calMenuStyle(e, 70),
+                      });
+                    }
+                  : undefined
+              }
             >
-              <span> {index.name} </span>
+              <span>{index.name}</span>
+              {index.kind != 'Normal' && <span> {index.kind} </span>}
             </Stack>
-          ></TreeItem>
+          >
+            {index.on.map((e) => (
+              <TreeItem
+                itemId={idPrefix + '-index-' + index.name + '-col-' + e}
+                label=<span>{e}</span>
+              ></TreeItem>
+            ))}
+          </TreeItem>
         );
       })}
     </TreeItem>

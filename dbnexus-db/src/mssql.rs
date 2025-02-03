@@ -946,7 +946,7 @@ impl SchemaTrait for MsSqlServer {
                         x.on.push(col);
                     } else {
                         ret.insert(name.clone(), Index {
-                            name,
+                            name: Some(name),
                             kind: if is_unique.unwrap_or_default() {
                                 IndexKind::Unique
                             } else {

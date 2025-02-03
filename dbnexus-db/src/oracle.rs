@@ -15,9 +15,9 @@ use tokio::task::block_in_place;
 use crate::datasource_config::OracleDbConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index,
-    IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter, not_support_features,
+    IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter, not_support_features,
 };
 use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -861,6 +861,30 @@ impl OracleDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+        let sql = "SELECT MVIEW_NAME FROM USER_MVIEWS";
+        let conn = self.get_conn()?;
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
+
+        let mut ret = Vec::new();
+
+        for row in rows {
+            let row = row?;
+            let name: String = row.get(0)?;
+            ret.push(ListMaterializedView::from(name));
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP MATERIALIZED VIEW {name}");
+
+        let conn = self.get_conn()?;
+
+        block_in_place(|| conn.execute(&sql, &[]))?;
+        anyhow::Ok(())
+    }
+
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         let sql = format!(
             r#"
@@ -870,7 +894,7 @@ impl SchemaTrait for OracleDB {
         "#
         );
         let conn = self.get_conn()?;
-        let rows = conn.query(&sql, &[])?;
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
 
         for row in rows {
@@ -933,7 +957,7 @@ impl SchemaTrait for OracleDB {
         let indexes = self.show_indexes(&table_name).await?;
         let mut indexes_sql = Vec::new();
         for i in indexes.iter() {
-            let s = create_index_sql(&conn, &i.name, self.schema_str())?;
+            let s = create_index_sql(&conn, &i.name.as_ref().unwrap(), self.schema_str())?;
             indexes_sql.push(s);
         }
         anyhow::Ok(CreateTableAndIndexSql {
@@ -1171,7 +1195,7 @@ impl SchemaTrait for OracleDB {
                     query_index_unique(&conn, &name, table_name)?
                 };
                 ret.insert(name.clone(), Index {
-                    name,
+                    name: Some(name),
                     kind: if primary {
                         IndexKind::Primary
                     } else if unique {
@@ -1802,7 +1826,7 @@ mod tests {
         let conn = db.get_conn().unwrap();
         let db = &db as &dyn SchemaTrait;
         let _ = db.drop_table("TEST_VIEW_TABLE", false).await;
-        let _ = db.drop_view("PRODUCT_VIEW").await;
+        let _ = db.drop_view("TEST_VIEW").await;
 
         let ss = vec![
             r#"
@@ -1818,7 +1842,7 @@ VALUES ('iPhone 13', 'Electronics', 799.99)",
 TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 'Electronics', 699.99)",
             r#"
-            CREATE VIEW PRODUCT_VIEW AS
+            CREATE VIEW TEST_VIEW AS
             SELECT product_id, product_name, category, price
             FROM  TEST_VIEW_TABLE"#,
         ];
@@ -1829,11 +1853,55 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         let views = db.list_view().await.unwrap();
         println!("{:?}", views);
 
-        let resp = db.show_view("PRODUCT_VIEW", None, None, 1, 100).await;
+        let resp = db.show_view("TEST_VIEW", None, None, 1, 100).await;
         println!("show view:{:?}", resp);
-        let sql = db.create_view_sql("PRODUCT_VIEW").await.unwrap();
+        let sql = db.create_view_sql("TEST_VIEW").await.unwrap();
         println!("create view sql:{}", sql);
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_materilized_view() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("SYSTEM".to_string()));
+        let conn = db.get_conn().unwrap();
+        let db = &db as &dyn SchemaTrait;
+        let _ = db.drop_table("TEST_MATERLIZED_VIEW_TABLE", false).await;
+        let _ = db.drop_materialized_view("TEST_MATERLIZED_VIEW").await;
+
+        let ss = vec![
+            r#"
+        CREATE TABLE  TEST_MATERLIZED_VIEW_TABLE (
+            product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            product_name VARCHAR2(50) NOT NULL,
+            category     VARCHAR2(30) NOT NULL,
+            price        NUMBER(8,2)  NOT NULL
+        )"#,
+            "INSERT INTO TEST_MATERLIZED_VIEW_TABLE (product_name, category, price)
+VALUES ('iPhone 13', 'Electronics', 799.99)",
+            "INSERT INTO
+TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
+'Electronics', 699.99)",
+            r#"
+            CREATE MATERIALIZED VIEW TEST_MATERLIZED_VIEW AS
+            SELECT product_id, product_name, category, price
+            FROM  TEST_MATERLIZED_VIEW_TABLE"#,
+        ];
+
+        for s in ss.iter() {
+            conn.execute(*s, &[])
+                .expect(format!("sql {} execute failed", *s).as_str());
+        }
+        let views = db.list_view().await.unwrap();
+        println!("{:?}", views);
+
+        let resp = db
+            .show_view("TEST_MATERLIZED_VIEW", None, None, 1, 100)
+            .await;
+        println!("show view:{:?}", resp);
+        let sql = db.create_view_sql("TEST_MATERLIZED_VIEW").await.unwrap();
+        println!("create view sql:{}", sql);
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_indexes() {
         let _guard = test_lock().lock().await;

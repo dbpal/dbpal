@@ -1,13 +1,8 @@
 import { useContext, useEffect, useState } from 'react';
 
 import { NotificationContext } from './Notification';
-import { Button, CircularProgress, Stack, Typography } from '@mui/material';
-import {
-  DefAndMetas,
-  progressBarSize,
-  SettingsContext,
-  SimpleResizeEditor,
-} from './Common';
+import { Button, Stack, Typography } from '@mui/material';
+import { DefAndMetas, SettingsContext, SimpleResizeEditor } from './Common';
 
 import { Variant } from '@mui/material/styles/createTypography';
 import { MetaValuesView } from './CommonComp';
@@ -45,9 +40,13 @@ function DefAndMetasView(props: {
   const { theme } = useContext(SettingsContext);
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <Stack direction="row" spacing={1}>
-        <Button variant="contained" color="primary" onClick={handleReload}>
+        <Button
+          loading={loading}
+          variant="contained"
+          color="primary"
+          onClick={handleReload}
+        >
           reload
         </Button>
       </Stack>
