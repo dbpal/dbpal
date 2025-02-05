@@ -60,13 +60,13 @@ impl std::fmt::Debug for OracleDB {
 }
 
 impl OracleDB {
-    pub fn new(config: OracleDbConfig) -> anyhow::Result<Self> {
+    pub fn new(config: OracleDbConfig, min_conn: Option<u32>) -> anyhow::Result<Self> {
         let pool = oracle::pool::PoolBuilder::new(
             &config.username,
             &config.password,
             format!("//{}:{}/{}", config.host, config.port, config.db),
         )
-        .min_connections(20)
+        .min_connections(min_conn.unwrap_or(20))
         .max_connections(100)
         .build()?;
         anyhow::Ok(Self {
@@ -608,22 +608,30 @@ fn encode_rows_as_json(rows: Vec<oracle::Result<Row>>) -> anyhow::Result<Vec<ser
     anyhow::Ok(datas)
 }
 
-fn create_view_sql(conn: &Connection, view_name: &str) -> anyhow::Result<String> {
-    let sql = format!("SELECT text FROM user_views WHERE view_name = '{view_name}'");
-    let row = conn.query_row(&sql, &[])?;
+fn create_view_sql(
+    conn: &Connection, view_name: &str, materialized: bool,
+) -> anyhow::Result<String> {
+    let sql = if materialized {
+        format!(
+            "SELECT DBMS_METADATA.GET_DDL('MATERIALIZED_VIEW', '{view_name}') AS create_statement FROM dual"
+        )
+    } else {
+        format!("SELECT text FROM user_views WHERE view_name = '{view_name}'")
+    };
+    let row = block_in_place(|| conn.query_row(&sql, &[]))?;
     let s: String = row.get(0)?;
     anyhow::Ok(s)
 }
 fn create_table_sql(conn: &Connection, table_name: &str) -> anyhow::Result<String> {
     let sql = format!("SELECT DBMS_METADATA.GET_DDL('TABLE', '{table_name}')  FROM dual");
-    let row = conn.query_row(&sql, &[])?;
+    let row = block_in_place(|| conn.query_row(&sql, &[]))?;
     let s: String = row.get(0)?;
     anyhow::Ok(s)
 }
 
 fn create_index_sql(conn: &Connection, name: &str, schema: &str) -> anyhow::Result<String> {
     let sql = format!("SELECT DBMS_METADATA.GET_DDL('INDEX', '{name}', '{schema}') FROM dual;");
-    let row = conn.query_row(&sql, &[])?;
+    let row = block_in_place(|| conn.query_row(&sql, &[]))?;
     let s: String = row.get(0)?;
     anyhow::Ok(s)
 }
@@ -966,10 +974,10 @@ impl SchemaTrait for OracleDB {
         })
     }
 
-    async fn create_view_sql(&self, view_name: &str) -> anyhow::Result<String> {
+    async fn create_view_sql(&self, view_name: &str, materialized: bool) -> anyhow::Result<String> {
         let conn = self.get_conn()?;
 
-        anyhow::Ok(create_view_sql(&conn, view_name)?)
+        anyhow::Ok(create_view_sql(&conn, view_name, materialized)?)
     }
 
     async fn export_table_or_view(
@@ -1584,16 +1592,19 @@ mod tests {
     use super::*;
     use crate::{TEST_HOST, enable_test_log};
     fn make_test_object(schema: Option<String>) -> OracleDB {
-        let x = OracleDB::new(OracleDbConfig {
-            username: "system".to_string(),
-            password: "welcome123".to_string(),
-            schema,
-            read_only: false,
-            host: TEST_HOST.to_string(),
-            port: 1521,
-            call_timeout: None,
-            db: "XE".to_string(),
-        })
+        let x = OracleDB::new(
+            OracleDbConfig {
+                username: "system".to_string(),
+                password: "welcome123".to_string(),
+                schema,
+                read_only: false,
+                host: TEST_HOST.to_string(),
+                port: 1521,
+                call_timeout: None,
+                db: "XE".to_string(),
+            },
+            Some(2),
+        )
         .unwrap();
         x
     }
@@ -1855,7 +1866,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 
         let resp = db.show_view("TEST_VIEW", None, None, 1, 100).await;
         println!("show view:{:?}", resp);
-        let sql = db.create_view_sql("TEST_VIEW").await.unwrap();
+        let sql = db.create_view_sql("TEST_VIEW", false).await.unwrap();
         println!("create view sql:{}", sql);
     }
 
@@ -1898,7 +1909,10 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
             .show_view("TEST_MATERLIZED_VIEW", None, None, 1, 100)
             .await;
         println!("show view:{:?}", resp);
-        let sql = db.create_view_sql("TEST_MATERLIZED_VIEW").await.unwrap();
+        let sql = db
+            .create_view_sql("TEST_MATERLIZED_VIEW", true)
+            .await
+            .unwrap();
         println!("create view sql:{}", sql);
     }
 

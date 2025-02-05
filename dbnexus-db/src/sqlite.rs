@@ -588,7 +588,7 @@ impl SchemaTrait for SqliteDB {
         }
     }
 
-    async fn create_view_sql(&self, view_name: &str) -> anyhow::Result<String> {
+    async fn create_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
         self.create_table_or_view_sql(view_name, "view").await
     }
 

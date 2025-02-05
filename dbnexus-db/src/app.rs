@@ -190,13 +190,13 @@ impl DBConnectionConfig {
                 match conn.schema.as_ref() {
                     Some(_) => {
                         let db: Arc<dyn SchemaTrait> =
-                            Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
+                            Arc::new(crate::oracle::OracleDB::new(conn.clone(), None)?);
 
                         anyhow::Ok(Open::Schema(db))
                     }
                     None => {
                         let db: Arc<dyn DBTrait> =
-                            Arc::new(crate::oracle::OracleDB::new(conn.clone())?);
+                            Arc::new(crate::oracle::OracleDB::new(conn.clone(), None)?);
 
                         anyhow::Ok(Open::DataBase(db))
                     }

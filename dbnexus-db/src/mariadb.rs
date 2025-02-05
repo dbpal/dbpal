@@ -74,8 +74,4 @@ mod tests {
     async fn test_query() {
         test_fns::test_query(make_test_object(make_config()).await).await;
     }
-    #[tokio::test]
-    async fn show_build_in_fns() {
-        test_fns::show_build_in_fns(make_test_object(make_config()).await).await;
-    }
 }

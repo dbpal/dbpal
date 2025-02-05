@@ -676,7 +676,7 @@ function FilterOnValue(props: {
   put_value_in_sql: (x: string) => Promise<string>;
 }) {
   const { content, setWhere, field, handleClose, put_value_in_sql } = props;
-  const compares = ['==', '<>', '>', '>=', '<', '<='];
+  const compares = ['=', '<>', '>', '>=', '<', '<='];
   const [compare, setCompare] = useState(compares[0]);
 
   const [formatValue, setFormatValue] = useState('');

@@ -1,15 +1,16 @@
-use std::{borrow::Cow, ops::DerefMut, sync::Arc};
+use std::borrow::Cow;
+use std::ops::DerefMut;
+use std::sync::Arc;
 
-use crate::{
-    db::{BackendName, DBTrait, FormatSqlOpts, not_support_features},
-    helper::sqlformat_format_sql,
-    language_server::{
-        AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-        try_completion_on_syntax,
-    },
-    mysql::MysqlDB,
-};
 use sqlx::Row;
+
+use crate::db::{BackendName, DBTrait, FormatSqlOpts, not_support_features};
+use crate::helper::sqlformat_format_sql;
+use crate::language_server::{
+    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
+    try_completion_on_syntax,
+};
+use crate::mysql::MysqlDB;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MysqlDB {
@@ -21,6 +22,7 @@ impl LexerCompletionTrait for MysqlDB {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         self.build_fn_completion_items().await.unwrap_or(vec![])
     }
+
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         // when suggest on table or view using lexer I don't know the table schema
         // we just select all from the database
@@ -119,7 +121,8 @@ impl MysqlDB {
         }
         return self.config.db.as_deref();
     }
-    fn not_allow_empty_schema<'a>(schema: Option<&'a str>) -> anyhow::Result<&'a str> {
+
+    pub(crate) fn not_allow_empty_schema<'a>(schema: Option<&'a str>) -> anyhow::Result<&'a str> {
         match schema {
             Some(x) => return anyhow::Ok(x),
             None => anyhow::bail!("empty schema"),
@@ -146,6 +149,7 @@ impl AstCompletionHelper for MysqlDB {
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
+
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -160,6 +164,7 @@ impl AstCompletionHelper for MysqlDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_function(
         &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -174,10 +179,12 @@ impl AstCompletionHelper for MysqlDB {
             .await
             .map(|x| {
                 x.into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Function,
-                        desc: None,
+                    .map(|x| {
+                        CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::Function,
+                            desc: None,
+                        }
                     })
                     .collect::<Vec<_>>()
             })?
@@ -222,6 +229,7 @@ impl AstCompletionHelper for MysqlDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         let sql = "show variables";
         let mut conn = self.get_conn().await?;
@@ -237,6 +245,7 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
+
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
@@ -261,10 +270,12 @@ impl AstCompletionHelper for MysqlDB {
         }
         anyhow::Ok(ret)
     }
+
     // TODO sqlpaser支持解析mysql 的role语句吗
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
+
     async fn list_constraint(
         &self, _db: Option<&str>, schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -285,6 +296,7 @@ impl AstCompletionHelper for MysqlDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_table_trigger(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -310,10 +322,11 @@ impl AstCompletionHelper for MysqlDB {
 mod tests {
     use std::path::Path;
 
-    use crate::{
-        TEST_HOST, datasource_config::MysqlDbConfig, db::QuerySql, enable_test_log,
-        language_server::completion_test::test_file_auto_completion, mysql::MysqlDB,
-    };
+    use crate::datasource_config::MysqlDbConfig;
+    use crate::db::QuerySql;
+    use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::mysql::MysqlDB;
+    use crate::{TEST_HOST, enable_test_log};
 
     async fn make_test_object(config: MysqlDbConfig) -> MysqlDB {
         let db = MysqlDB::new(config).await.unwrap();
@@ -330,9 +343,7 @@ mod tests {
         }
     }
 
-    /*
-       partition test failed , sqlparser can't parse a valid partition statement.
-    */
+    // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
         let db = make_test_object(make_config()).await;

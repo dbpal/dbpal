@@ -55,14 +55,17 @@ function ExportView(props: {
     if (!config) {
       return;
     }
-    setLoading(true);
+
     const file = await save();
+    if (!file) {
+      return;
+    }
     try {
+      setLoading(true);
       await exportOP(config, file);
     } catch (e) {
       setLoading(false);
       showNotification('error', 'Export Failure', e);
-
       return;
     }
     setLoading(false);

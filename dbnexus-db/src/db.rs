@@ -195,7 +195,9 @@ pub trait SchemaTrait:
         ))
     }
 
-    async fn create_view_sql(&self, _view_name: &str) -> anyhow::Result<String> {
+    async fn create_view_sql(
+        &self, _view_name: &str, _materialized: bool,
+    ) -> anyhow::Result<String> {
         // anyhow::bail!(format!("sql server don't support create_view_sql"))
         not_support_features(self.backend_name())
     }
