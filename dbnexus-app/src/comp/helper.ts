@@ -106,6 +106,15 @@ function hexTryToUtf8(hex): string | Uint8Array {
   }
   return utf8String;
 }
+function uint8ArrayToUtf8(uint8Array): string {
+
+  const decoder = new TextDecoder('utf-8');
+  const str = decoder.decode(uint8Array);
+
+  return str
+
+
+}
 
 function hexToUint8Array(hex) {
   if (!hex) {
@@ -440,5 +449,5 @@ export {
   columnWidths,
   handleCopyToClipboard,
   datagridContainerHeight,
-
+  uint8ArrayToUtf8
 };

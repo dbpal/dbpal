@@ -216,12 +216,10 @@ impl QuerySql for OracleDB {
                 SqlKind::Execution => {
                     let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
                     match stmt {
-                        Ok(x) => {
-                            match x.row_count() {
-                                Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
-                                Err(err) => ret.push(Err(err.to_string())),
-                            }
-                        }
+                        Ok(x) => match x.row_count() {
+                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
+                            Err(err) => ret.push(Err(err.to_string())),
+                        },
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
@@ -412,72 +410,50 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
 
     match typ.to_string().to_uppercase().as_str() {
-        "VARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NVARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "CHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "RAW" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
-            anyhow::Ok(match value {
-                Some(x) => x.to_string(),
-                None => null_string,
-            })
-        }
-        "CLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "BLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "LONG" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "TIMESTAMP" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
+        "VARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NVARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "CHAR" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCHAR" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "RAW" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
+            Some(x) => x.to_string(),
+            None => null_string,
+        }),
+        "CLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCLOB" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "BLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "LONG" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "TIMESTAMP" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -771,12 +747,11 @@ impl OracleDB {
         let rows: Vec<_> = rows.collect();
         if include_header && rows.len() > 0 {
             let fs = match rows.get(0).unwrap() {
-                Ok(x) => {
-                    x.column_info()
-                        .iter()
-                        .map(|x| Some(x.name().to_owned()))
-                        .collect::<Vec<_>>()
-                }
+                Ok(x) => x
+                    .column_info()
+                    .iter()
+                    .map(|x| Some(x.name().to_owned()))
+                    .collect::<Vec<_>>(),
                 Err(_) => vec![],
             };
 
@@ -1150,11 +1125,15 @@ impl SchemaTrait for OracleDB {
                 "".to_owned()
             },
             if let Some(dv) = typ.default_value.as_ref() {
-                format!("DEFAULT {}", dv)
+                format!(
+                    "DEFAULT {}",
+                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
+                )
             } else {
                 "".to_owned()
             }
         );
+
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())

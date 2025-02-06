@@ -466,14 +466,24 @@ function MenuConnectionInfo({ uuid }) {
 }
 
 class UserSettings {
-  constructor(
-    public theme: string = 'light',
-    public pageSize: number = 100,
-    public editorFontSize: number = 18
-  ) {}
+  theme: string = 'light';
+  pageSize: number = 100;
+  editorFontSize: number;
+
+  constructor(theme?, pageSize?, editorFontSize?) {
+    if (theme) {
+      this.theme = theme;
+    }
+    if (pageSize) {
+      this.pageSize = pageSize;
+    }
+    if (editorFontSize) {
+      this.editorFontSize = editorFontSize;
+    }
+  }
 }
 
-const SettingsContext = createContext<UserSettings>(new UserSettings());
+const SettingsContext = createContext<UserSettings>(null);
 
 const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
 

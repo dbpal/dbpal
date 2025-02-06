@@ -54,10 +54,10 @@ import {
   ContextMenuContext,
   datagridContainerHeight,
   handleCopyToClipboard,
-  hexToUint8Array,
-  hexToUtf8,
   hexTryToUtf8,
   stringToHex,
+  stringToHexArray,
+  uint8ArrayToUtf8,
 } from './helper.ts';
 import {
   datagridHeaderHeight,
@@ -510,7 +510,7 @@ function RedisValueEditor(props: {
   textRows?: number;
 }) {
   let { oldValue, handleValue, hexRows, textRows } = props;
-  const [newValue, setNewValue] = useState<String | Uint8Array>('');
+  const [newValue, setNewValue] = useState<string | Uint8Array>('');
   const [editModel, setEditModel] = useState<RedisEditorMode>(
     RedisEditorMode.Text
   );
@@ -531,6 +531,21 @@ function RedisValueEditor(props: {
     }
     setNewValue(value);
   }, []);
+
+  useEffect(() => {
+    if (editModel == RedisEditorMode.Hex && typeof newValue == 'string') {
+      setNewValue((e) => stringToHexArray(e as string));
+    }
+    if (
+      (editModel == RedisEditorMode.Text ||
+        editModel == RedisEditorMode.Json) &&
+      typeof newValue == 'object'
+    ) {
+      setNewValue((e) => {
+        return uint8ArrayToUtf8(e);
+      });
+    }
+  }, [editModel]);
 
   const [addLength, setAddLength] = useState('1');
   const [addLengthErr, setAddLengthErr] = useState(false);
@@ -560,18 +575,6 @@ function RedisValueEditor(props: {
     setNewValue(array);
     handleValue(arrayToHex(array));
   };
-
-  useEffect(() => {
-    switch (editModel) {
-      case RedisEditorMode.Text:
-        let v = hexToUtf8(oldValue);
-        setNewValue(v);
-        break;
-      case RedisEditorMode.Hex:
-        setNewValue(hexToUint8Array(oldValue));
-        break;
-    }
-  }, [editModel]);
 
   if (!hexRows) {
     hexRows = 5;
@@ -604,7 +607,8 @@ function RedisValueEditor(props: {
       {editModel == RedisEditorMode.Json && (
         <SimpleResizeEditor
           language="json"
-          value={newValue as string}
+          // in some times newvalue is not change as a string
+          value={typeof newValue == 'object' ? '' : newValue}
           onMount={(editor) => {
             editor.onDidChangeModelContent(() => {
               const value = editor.getValue();
@@ -618,6 +622,7 @@ function RedisValueEditor(props: {
               }
             });
           }}
+          style={{ height: '65vh' }}
           barLeft={jsonErr}
         ></SimpleResizeEditor>
       )}

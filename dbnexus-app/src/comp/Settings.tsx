@@ -194,7 +194,7 @@ function SettingComp(props: { children }) {
       .then((setting) => {
         setSetting(
           // why new a object because of js is a dynamic language
-          // UserSettings maybe have no value on disk
+          // UserSettings maybe have no value on store
           new UserSettings(
             setting.theme,
             setting.pageSize,

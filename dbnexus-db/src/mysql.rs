@@ -569,14 +569,12 @@ impl MysqlDB {
             // tidb return data_length as `BIGINT` no UNSIGNED
             let size: Option<u64> = match r.try_get::<'_, u64, _>(1) {
                 Ok(x) => Some(x),
-                Err(_) => {
-                    match r.try_get::<'_, i64, _>(1) {
-                        Ok(x) => Some(x as u64),
-                        Err(_) => {
-                            anyhow::bail!("extract data_length failed:{:?}", r)
-                        }
+                Err(_) => match r.try_get::<'_, i64, _>(1) {
+                    Ok(x) => Some(x as u64),
+                    Err(_) => {
+                        anyhow::bail!("extract data_length failed:{:?}", r)
                     }
-                }
+                },
             };
 
             ret.push(ListTable::new(table_name, size));
@@ -815,6 +813,14 @@ impl SchemaTrait for MysqlDB {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
         let sql = format!("CREATE TABLE `{dup}` AS SELECT * FROM {table}");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+    async fn rename_index(
+        &self, table_name: &str, oldname: &str, newname: &str,
+    ) -> anyhow::Result<()> {
+        let sql = format!("ALTER TABLE {table_name} RENAME INDEX {oldname} TO {newname}");
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -1128,14 +1134,12 @@ impl SchemaTrait for MysqlDB {
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
                 Ok(x) => x,
-                Err(_) => {
-                    match r.try_get::<'_, Vec<u8>, _>(0) {
-                        Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
-                        Err(_err) => {
-                            anyhow::bail!("can get column as string or vec<u8>")
-                        }
+                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
+                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                    Err(_err) => {
+                        anyhow::bail!("can get column as string or vec<u8>")
                     }
-                }
+                },
             };
             // due to issue https://github.com/launchbadge/sqlx/issues/3390
             let ty: String = r.try_get_unchecked(1)?;
