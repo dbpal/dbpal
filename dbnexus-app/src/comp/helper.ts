@@ -32,7 +32,7 @@ async function secondConfirm({
 }
 
 function datagridContainerHeight(length) {
-  return length < 25 ? undefined : '80vh';
+  return length < 20 ? undefined : '78vh';
 
 }
 

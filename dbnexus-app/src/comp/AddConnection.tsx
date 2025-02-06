@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 
 import {
   TextField,
@@ -217,6 +217,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
 
   const [connectionType, setConnectionType] = useState(DataSourceKind.Mysql);
   const [connectionName, setConnectionName] = useState('');
+  const connectionNameDom = useRef(null);
   const [host, setHost] = useState('localhost');
   const [port, setPort] = useState('3306');
   const [user, setUser] = useState('');
@@ -414,6 +415,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   const handleSaveConnection = async () => {
     if (!connectionName) {
       showNotification('error', 'Connection Name is empty.');
+      connectionNameDom.current.focus();
       return;
     }
     const config = makeConfig();
@@ -449,24 +451,16 @@ export default function AddConfig(props: { handleClose: () => void }) {
   };
 
   useEffect(() => {
-    switch (connectionType) {
-      case DataSourceKind.MsSql:
-      case DataSourceKind.Postgres:
-      case DataSourceKind.MariaDB:
-      case DataSourceKind.Mysql:
-      case DataSourceKind.Redis:
-      case DataSourceKind.Mongo:
-        let config = makeConfig();
-        if (config) {
-          invoke<string[]>('config_list_database_or_schema', { conn: config })
-            .then((e) => {
-              setDatabaseCandidats(e);
-            })
-            .catch((e) => {
-              console.log('list database failed,', e);
-              setDatabaseCandidats([]);
-            });
-        }
+    let config = makeConfig();
+    if (config) {
+      invoke<string[]>('config_list_database_or_schema', { conn: config })
+        .then((e) => {
+          setDatabaseCandidats(e);
+        })
+        .catch((e) => {
+          console.log('list database failed,', e);
+          setDatabaseCandidats([]);
+        });
     }
   }, [triggerReLoad]);
 
@@ -702,7 +696,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           label="Connection Name"
           value={connectionName}
           fullWidth
-          error={!connectionName}
+          inputRef={connectionNameDom}
           required
           onChange={(e) => setConnectionName(e.target.value)}
           helperText="Enter a name for this connection"

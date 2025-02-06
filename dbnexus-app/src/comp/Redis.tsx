@@ -36,7 +36,7 @@ import {
 } from './Common.tsx';
 import * as esprima from 'esprima';
 import { types } from './ApiStruct.ts';
-
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { NotificationContext } from './Notification';
 import {
   DataGrid,
@@ -930,7 +930,7 @@ function RedisSetTable(props: {
           }}
           aria-labelledby="modify set"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="950px">
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
                 try {
@@ -963,7 +963,7 @@ function RedisListTableContextMenu(props: {
 }) {
   const { delOP, content } = props;
 
-  const [count, setCount] = useState('0');
+  const [count, setCount] = useState('1');
   const [showDel, setShowDel] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   return (
@@ -1000,7 +1000,7 @@ function RedisListTableContextMenu(props: {
           }}
           aria-labelledby="modify list"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="950px">
             <Stack spacing={1}>
               <TextField
                 size="small"
@@ -1011,9 +1011,11 @@ function RedisListTableContextMenu(props: {
                 }}
                 helperText=<span
                   style={{ cursor: 'pointer' }}
-                  onClick={() => {}}
+                  onClick={() => {
+                    openUrl('https://redis.io/docs/latest/commands/lrem/');
+                  }}
                 >
-                  xxxx
+                  count???
                 </span>
                 type="number"
               ></TextField>
@@ -1200,7 +1202,7 @@ function RedisListTable(props: {
           }}
           aria-labelledby="modify list"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="950px">
             <RedisEditList
               modifyOP={async (index, newValue) => {
                 try {
@@ -1444,7 +1446,7 @@ function RedisZsetTable(props: {
           }}
           aria-labelledby="modify zset"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="950px">
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
                 try {
@@ -1638,7 +1640,7 @@ function RedisHashTable(props: {
           }}
           aria-labelledby="modify hash"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="950px">
             <RedisEditHash
               modifyOP={async (req) => {
                 try {
@@ -1721,7 +1723,7 @@ export {
   RedisHashTable,
   RedisZsetTable,
   RedisSetTable,
-  RedisValueEditor as RedisEditHexOrText,
+  RedisValueEditor,
   RedisModifyKeyName,
   // add
   RedisAddSet,

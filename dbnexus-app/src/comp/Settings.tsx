@@ -191,15 +191,19 @@ function SettingComp(props: { children }) {
   const reload = async () => {
     (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
-      .then((s) => {
-        if (!s) {
-          s = new UserSettings();
-        }
-        setSetting(s);
+      .then((setting) => {
+        setSetting(
+          // why new a object because of js is a dynamic language
+          // UserSettings maybe have no value on disk
+          new UserSettings(
+            setting.theme,
+            setting.pageSize,
+            setting.editorFontSize
+          )
+        );
       })
-
       .catch((e) => {
-        alert(`list user settings failed`);
+        alert(`list user settings failed ${e.toString()}`);
         console.log('list user settting failed', e);
       });
   };

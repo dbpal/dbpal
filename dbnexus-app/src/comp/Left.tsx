@@ -360,7 +360,7 @@ function DatabaseMenu(props: {
           }}
           aria-labelledby="create database"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="600px">
             <CreateSchema
               uuid={uuid}
               handleClose={() => {
@@ -440,7 +440,7 @@ function CatalogMenu(props: {
           }}
           aria-labelledby="create database"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="600px">
             <CreateDatabase
               uuid={uuid}
               handleClose={() => {

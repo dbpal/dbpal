@@ -1137,7 +1137,8 @@ impl SchemaTrait for MysqlDB {
                     }
                 }
             };
-            let ty: String = r.try_get(1)?;
+            // due to issue https://github.com/launchbadge/sqlx/issues/3390
+            let ty: String = r.try_get_unchecked(1)?;
             let null: String = r.try_get(2)?;
             let key: Option<String> = r.try_get(3)?;
             let default_value: Option<String> = r.try_get(4)?;

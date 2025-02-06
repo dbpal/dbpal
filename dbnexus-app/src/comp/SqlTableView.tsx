@@ -87,7 +87,7 @@ function WhereSort(props: {
 
   return (
     <Modal open={open} onClose={onClose} aria-labelledby="create database">
-      <Box sx={modalStyle} width="800px">
+      <Box sx={modalStyle} width="700px">
         <Stack spacing={1}>
           <TextField
             fullWidth
@@ -658,7 +658,7 @@ function Menu(props: {
           }}
           aria-labelledby="create database"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="700px">
             <FilterOnValue
               content={content}
               setWhere={setWhere}

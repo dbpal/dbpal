@@ -477,7 +477,7 @@ function MongoTableListToolBar(props: {
             }}
             aria-labelledby="set filter"
           >
-            <Box sx={modalStyle} width="800px">
+            <Box sx={modalStyle} width="950px">
               <MongoDBModify
                 buttonName="Set"
                 setOP={async (doc) => {
@@ -513,7 +513,7 @@ function MongoTableListToolBar(props: {
             }}
             aria-labelledby="order by"
           >
-            <Box sx={modalStyle} width="800px">
+            <Box sx={modalStyle} width="950px">
               <MongoDBModify
                 buttonName="Set"
                 setOP={async (doc) => {
@@ -724,7 +724,7 @@ function MongoTableListContextMenu(props: {
           }}
           aria-labelledby="create database"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="950px">
             <MongoTableListMenuFilter
               loadValue={async () => {
                 return loadDoc().then((x) => x[field]);
@@ -987,7 +987,7 @@ function MongoTableList(props: {
           }}
           aria-labelledby="modify set"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="950px">
             <MongoDBModify
               setOP={async (doc) => {
                 try {

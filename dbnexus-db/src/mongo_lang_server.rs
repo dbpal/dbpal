@@ -288,6 +288,7 @@ mod tests {
         let names = x.query_db_list_collection_names().await.unwrap();
         println!("{:?}", names);
     }
+    #[ignore = "xxx maybe not exists"]
     #[tokio::test]
     async fn test_list_index_names() {
         let x = make_test_object();

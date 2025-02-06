@@ -23,6 +23,7 @@
         }
       ]
     },
+    "opener:allow-default-urls",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
     "fs:default",
@@ -36,6 +37,7 @@
     {
       "identifier": "fs:scope",
       "allow": ["**/*"]
-    }
+    },
+    "opener:default"
   ]
 }

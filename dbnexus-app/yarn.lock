@@ -1040,6 +1040,13 @@
   dependencies:
     "@tauri-apps/api" "^2.0.0"
 
+"@tauri-apps/plugin-opener@^2.2.5":
+  version "2.2.5"
+  resolved "https://registry.npmmirror.com/@tauri-apps/plugin-opener/-/plugin-opener-2.2.5.tgz#928b917d28d3e8b5bafb90f5f91fb0ed20c27fd4"
+  integrity sha512-hHsJ9RPWpZvZEPVFaL+d25gABMUMOf/A6ESXnvf/ii9guTukj58WXsAE/SOysXRIhej7kseRCxnOnIMpSCdUsQ==
+  dependencies:
+    "@tauri-apps/api" "^2.0.0"
+
 "@tauri-apps/plugin-shell@^2.2.0":
   version "2.2.0"
   resolved "https://registry.npmmirror.com/@tauri-apps/plugin-shell/-/plugin-shell-2.2.0.tgz#3a52375457ae8358666ff80a968cc93d92573abf"
@@ -1051,13 +1058,6 @@
   version "2.2.0"
   resolved "https://registry.npmmirror.com/@tauri-apps/plugin-store/-/plugin-store-2.2.0.tgz#e7cddd3692bdb3e8625b77d70dbede76b31d0986"
   integrity sha512-hJTRtuJis4w5fW1dkcgftsYxKXK0+DbAqurZ3CURHG5WkAyyZgbxpeYctw12bbzF9ZbZREXZklPq8mocCC3Sgg==
-  dependencies:
-    "@tauri-apps/api" "^2.0.0"
-
-"@tauri-apps/plugin-stronghold@~2":
-  version "2.2.0"
-  resolved "https://registry.npmmirror.com/@tauri-apps/plugin-stronghold/-/plugin-stronghold-2.2.0.tgz#191b51d9bf18b33f8ee399aa185f6ae59fe967c9"
-  integrity sha512-N0SxfcNifvlXQ3ZHGxx9ecWNZGXtYJ6PBL0Ac8bGs90I2e2a0+JJcsAnMxQA5XQcIQfpYIXPgf0hNCliz828fw==
   dependencies:
     "@tauri-apps/api" "^2.0.0"
 

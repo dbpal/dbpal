@@ -1,4 +1,4 @@
-import { ReactNode, useContext, useEffect, useState } from 'react';
+import { ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import {
   modalStyle,
   progressBarSizeSmall,
@@ -443,11 +443,12 @@ function TableAddColumn(props: {
   const [defaultValue, setDefaultValue] = useState('');
   const supportAfter =
     kind == DataSourceKind.Mysql || kind == DataSourceKind.MariaDB;
-
+  const nameDom = useRef(null);
   const [loading, setLoading] = useState(false);
   const handleAdd = () => {
     if (!name) {
       showNotification('error', 'column name is empty');
+      nameDom.current.focus();
       return;
     }
     if (!typ) {
@@ -484,7 +485,7 @@ function TableAddColumn(props: {
         size="small"
         value={name}
         required
-        error={!name}
+        inputRef={nameDom}
         onChange={(e) => {
           setName(e.target.value);
         }}
@@ -600,7 +601,8 @@ function TableColumnsTree(props: { table: string }) {
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
-    kind == DataSourceKind.Oracle;
+    kind == DataSourceKind.Oracle ||
+    kind == DataSourceKind.TiDB;
 
   useEffect(() => {
     reload();
@@ -1388,7 +1390,7 @@ function TableMenu(props: {
           }}
           aria-labelledby="drop"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="700px">
             <ExportTableOrView
               uuid={uuid}
               name={table}

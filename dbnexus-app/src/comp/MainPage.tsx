@@ -135,7 +135,7 @@ export default function MainPage() {
                 }}
                 aria-labelledby="add column"
               >
-                <Box sx={modalStyle} width="800px">
+                <Box sx={modalStyle} width="950px">
                   <AddConfig
                     handleClose={() => {
                       setShowAddConnection(false);

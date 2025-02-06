@@ -676,7 +676,9 @@ impl SchemaTrait for SqliteDB {
     }
 
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        let v = match typ.to_uppercase().as_str() {
+        let typ = typ.to_uppercase();
+
+        let v = match typ.as_str() {
             "" | "TEXT" | "DATE" | "TIME" | "DATETIME" => {
                 format!(
                     "'{}'",
@@ -685,9 +687,19 @@ impl SchemaTrait for SqliteDB {
                         .unwrap_or("null".to_string())
                 )
             }
+            _ if text_like(typ.as_str()) => {
+                format!(
+                    "'{}'",
+                    value
+                        .map(|x| x.replace("'", "''"))
+                        .unwrap_or("null".to_string())
+                )
+            }
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
+            _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) => {
+                value.unwrap_or("null").to_string()
+            }
             "BLOB" => value.unwrap_or("null").to_string(),
-
             _ => {
                 let e = format!("type '{}' not handled", typ);
                 log::error!("{}", e);
@@ -907,8 +919,8 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
     let null_value = serde_json::Value::Null;
 
     for c in 0..r.columns().len() {
-        let ty = r.column(c).type_info().name();
-        let v: serde_json::Value = match ty {
+        let typ = r.column(c).type_info().name().to_uppercase();
+        let v: serde_json::Value = match typ.as_str() {
             "NULL" | "" => {
                 // null table is not always null. I quote `suitable for
                 // representing missing or unknown data`
@@ -926,13 +938,18 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                 }
             }
 
-            "TEXT" => {
+            _ if text_like(&typ) => {
                 let v: Option<String> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::String(x))
                     .unwrap_or(null_value.clone())
             }
-            "REAL" => {
+            _ if real_like(&typ) => {
                 let v: Option<f64> = r.try_get(c)?;
+                v.map(|x| serde_json::Value::from(x))
+                    .unwrap_or(null_value.clone())
+            }
+            _ if integer_like(&typ) => {
+                let v: Option<i64> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::from(x))
                     .unwrap_or(null_value.clone())
             }
@@ -943,17 +960,11 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                     .unwrap_or(null_value.clone())
             }
 
-            "INTEGER" => {
-                let v: Option<i64> = r.try_get(c)?;
-                v.map(|x| serde_json::Value::from(x))
-                    .unwrap_or(null_value.clone())
-            }
-            "NUMERIC" => {
+            _ if numreic_like(&typ) => {
                 let v: Option<f64> = r.try_get(c)?;
                 v.map(|x| serde_json::Value::from(x))
                     .unwrap_or(null_value.clone())
             }
-
             // non-standard extensions 这些实际上不存在？
             "BOOLEAN" => {
                 let v: Option<bool> = r.try_get(c)?;
@@ -975,12 +986,43 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                 v.map(|x| serde_json::Value::from(x.to_string()))
                     .unwrap_or(null_value.clone())
             }
-            _ => anyhow::bail!(format!("type '{ty}' not supported")),
+            _ => anyhow::bail!(format!("type '{typ}' not supported")),
         };
 
         values.insert(r.column(c).name().to_owned(), v);
     }
     anyhow::Ok(serde_json::Value::Object(values))
+}
+
+fn integer_like(typ: &str) -> bool {
+    typ == "INT"
+        || typ == "INTEGER"
+        || typ == "TINYINT"
+        || typ == "SMALLINT"
+        || typ == "MEDIUMINT"
+        || typ == "BIGINT"
+        || typ == "UNSIGNED BIG INT"
+        || typ == "INT2"
+        || typ == "INT8"
+}
+
+fn numreic_like(typ: &str) -> bool {
+    return typ == "NUMERIC" || typ.starts_with("DECIMAL");
+}
+
+fn text_like(typ: &str) -> bool {
+    return typ.starts_with("CHARACTER")
+        || typ.starts_with("VARCHAR")
+        || typ.starts_with("VARYING CHARACTER")
+        || typ.starts_with("NCHAR")
+        || typ.starts_with("NATIVE CHARACTER")
+        || typ.starts_with("NVARCHAR")
+        || typ == "TEXT"
+        || typ == "CLOB";
+}
+
+fn real_like(typ: &str) -> bool {
+    typ == "REAL" || typ == "DOUBLE" || typ == "DOUBLE PRECISION" || typ == "FLOAT"
 }
 
 fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
@@ -1023,11 +1065,11 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
                     v.map(|x| encode_bytes(x.as_slice()))
                 }
 
-                "INTEGER" => {
+                _ if integer_like(ty) => {
                     let v: Option<i64> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
-                "NUMERIC" => {
+                _ if numreic_like(ty) => {
                     let v: Option<f64> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
@@ -1111,21 +1153,15 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
