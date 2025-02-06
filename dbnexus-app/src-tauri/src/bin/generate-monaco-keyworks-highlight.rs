@@ -10,6 +10,7 @@ use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS;
 use dbnexus_db::sqlite::SqliteDB;
+use dbnexus_db::tidb::TiDB;
 
 fn compose(name: &str, content: &str) -> String {
     return format!("const {} = {};", name, content);
@@ -77,10 +78,17 @@ fn main() {
             .unwrap();
         file.write("\n".as_bytes()).unwrap();
     }
+    // tidb
+    {
+        let content = TiDB::monaco_editor_keyword_regexp();
+        file.write(compose("tidbKeywords", &content).as_bytes())
+            .unwrap();
+        file.write("\n".as_bytes()).unwrap();
+    }
 
     // TODO add more
     file.write(
-        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords }"#.as_bytes(),
+        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords ,tidbKeywords }"#.as_bytes(),
     )
     .unwrap();
 }

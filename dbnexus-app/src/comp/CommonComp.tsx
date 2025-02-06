@@ -8,10 +8,12 @@ import {
   Tooltip,
   Typography,
   Box,
+  Paper,
+  MenuList,
 } from '@mui/material';
-import { ReactNode, useContext, useEffect, useState } from 'react';
+import { ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { types } from './ApiStruct';
-import { DataGrid } from '@mui/x-data-grid';
+import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -19,12 +21,16 @@ import { BsDatabaseAdd } from 'react-icons/bs';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
-
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import {
   appStore,
   AppStoreKey,
+  calMenuStyle,
+  columnWidths,
+  ContextMenuContext,
   DataSourceKind,
   errToString,
+  handleCopyToClipboard,
   secondConfirm,
 } from './helper';
 import { TbDatabasePlus } from 'react-icons/tb';
@@ -305,8 +311,48 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
     }
   });
 
+  function Menu(props: { content: string }) {
+    const { content } = props;
+
+    const { showNotification } = useContext(NotificationContext);
+    return (
+      <Paper>
+        <MenuList>
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> copy </ListItemText>
+          </MenuItem>
+        </MenuList>
+      </Paper>
+    );
+  }
+  const { setUpMenu } = useContext(ContextMenuContext);
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { target } = e;
+          let content = (target as HTMLDivElement).innerHTML;
+
+          setUpMenu({
+            content: <Menu content={content}></Menu>,
+            style: calMenuStyle(e, 200),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, []);
+
   return (
     <DataGrid
+      slotProps={slotProps}
       rowHeight={datagridRowHeight}
       columnHeaderHeight={datagridHeaderHeight}
       columns={columns}
@@ -318,12 +364,8 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
 function MenuResetColumnWidths() {
   const { showNotification } = useContext(NotificationContext);
   const handleReset = async () => {
-    try {
-      await (await appStore()).set(AppStoreKey.ColumnWithd, {});
-      showNotification('success', 'reset column width success');
-    } catch (e) {
-      showNotification('error', 'reset column withs failed', e);
-    }
+    columnWidths.reset();
+    showNotification('success', 'reset column width success');
   };
   return (
     <MenuItem onClick={handleReset}>

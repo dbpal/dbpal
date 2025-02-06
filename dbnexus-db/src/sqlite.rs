@@ -418,7 +418,7 @@ impl SchemaTrait for SqliteDB {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
             match kind {
-                IndexKind::Normal => "",
+                IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
                 IndexKind::Unique => "Unique",
             },
@@ -858,7 +858,7 @@ impl SchemaTrait for SqliteDB {
                 if unique == 1 {
                     IndexKind::Unique
                 } else {
-                    IndexKind::Normal
+                    IndexKind::Index
                 },
                 on,
             ))

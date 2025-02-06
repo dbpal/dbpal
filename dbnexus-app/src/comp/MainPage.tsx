@@ -13,16 +13,12 @@ import {
 
 import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
-import {
-  ContextMenuContext,
-  modalStyle,
-  tabsHasId,
-  TabsSetContext,
-} from './Common.tsx';
+import { modalStyle, tabsHasId } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import AddConfig from './AddConnection.tsx';
 import { ModifySettings, SettingComp } from './Settings.tsx';
+import { ContextMenuContext, TabsSetContext } from './helper.ts';
 
 export default function MainPage() {
   const [showAddConnection, setShowAddConnection] = useState(false);
@@ -82,8 +78,15 @@ export default function MainPage() {
     (index: number) => {
       let id = tabs[index].id;
       setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
-      if (selectIndex >= index && selectIndex > 0) {
-        setSelectIndex(selectIndex - 1);
+      if (selectIndex != index) {
+        // not close current
+        if (index < selectIndex) {
+          setSelectIndex(selectIndex - 1);
+        }
+      } else {
+        if (selectIndex > 0) {
+          setSelectIndex(selectIndex - 1);
+        }
       }
     },
     [tabs]

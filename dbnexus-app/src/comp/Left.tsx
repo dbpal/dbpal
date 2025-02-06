@@ -13,9 +13,6 @@ import {
 import { useContext, useEffect, useState } from 'react';
 
 import {
-  UuidContext,
-  ConnTypeContext,
-  ContextMenuContext,
   progressBarSizeSmall,
   appStore,
   AppStoreKey,
@@ -26,7 +23,6 @@ import {
   dropDatabase,
   CreateSchema,
   dropSchema,
-  TabsSetContext,
   initMonacoLanague,
   makeQueryConnInfo,
   QueryConn,
@@ -45,9 +41,13 @@ import { debug } from './debug';
 import { TabContent } from './Tabs';
 import {
   calMenuStyle,
+  ConnTypeContext,
   connTypeToDataSourceKind,
+  ContextMenuContext,
   DataSourceKind,
   generateRandomString,
+  TabsSetContext,
+  UuidContext,
 } from './helper';
 import { SqlQuery } from './SqlQuery';
 import { RedisQuery } from './RedisQuery';
@@ -136,6 +136,7 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
       case 'mariadb':
       case 'mysql':
+      case 'tidb':
         return config.db ? (
           <SchemaTree></SchemaTree>
         ) : (
@@ -240,7 +241,8 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           kind == DataSourceKind.MsSql ||
           kind == DataSourceKind.Postgres ||
           kind == DataSourceKind.Mongo ||
-          kind == DataSourceKind.Oracle) && (
+          kind == DataSourceKind.Oracle ||
+          kind == DataSourceKind.TiDB) && (
           <>
             <TablesTree typ={TablesType.Normal} />
             {kind == DataSourceKind.Mongo && (
@@ -478,6 +480,7 @@ async function openNewQuery(
     case DataSourceKind.MariaDB:
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
+    case DataSourceKind.TiDB:
       content = (
         <SqlQuery
           language={uuid}

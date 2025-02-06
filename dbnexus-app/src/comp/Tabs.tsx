@@ -1,15 +1,8 @@
-import React, { ReactNode, useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { Stack, Button, Paper, MenuItem, MenuList } from '@mui/material';
 
-import { ContextMenuContext, VisiableContext } from './Common';
-import { calMenuStyle } from './helper';
-class TabContent {
-  constructor(
-    public id: string,
-    public header: ReactNode,
-    public content: ReactNode
-  ) {}
-}
+import { VisiableContext } from './Common';
+import { calMenuStyle, ContextMenuContext, TabContent } from './helper';
 
 function TabsMenu(props: {
   index;
@@ -18,9 +11,17 @@ function TabsMenu(props: {
   changeTab;
   tabsLength;
   selectIndex;
+  setHideAll;
 }) {
-  const { index, handleClose, setTabs, changeTab, tabsLength, selectIndex } =
-    props;
+  const {
+    index,
+    handleClose,
+    setTabs,
+    changeTab,
+    tabsLength,
+    selectIndex,
+    setHideAll,
+  } = props;
 
   return (
     <Paper>
@@ -72,6 +73,7 @@ function TabsMenu(props: {
             close others
           </MenuItem>
         )}
+
         <MenuItem
           onClick={() => {
             setTabs([]);
@@ -79,6 +81,14 @@ function TabsMenu(props: {
           }}
         >
           close all
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            setHideAll(true);
+          }}
+        >
+          hide all
         </MenuItem>
       </MenuList>
     </Paper>
@@ -95,50 +105,65 @@ function TabsWithContent_(props: {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
 
   const { setUpMenu } = useContext(ContextMenuContext);
+  const [hideAll, setHideAll] = useState(false);
   return (
     <Stack spacing={2}>
-      <Stack
-        direction="row"
-        style={{
-          flexWrap: 'wrap',
-        }}
-      >
-        {tabs.map((tab, index) => {
-          return (
-            <Button
-              key={tab.id}
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <TabsMenu
-                      index={index}
-                      handleClose={handleClose}
-                      setTabs={setTabs}
-                      tabsLength={tabs.length}
-                      changeTab={changeTab}
-                      selectIndex={selectIndex}
-                    ></TabsMenu>
-                  ),
-                  style: calMenuStyle(e, 100),
-                });
-              }}
-              variant={index == selectIndex ? 'contained' : 'text'}
-              onClick={() => {
-                changeTab(index);
-              }}
-            >
-              {tab.header}
-            </Button>
-          );
-        })}
-      </Stack>
+      {hideAll && (
+        <Stack>
+          <Button
+            onClick={() => {
+              setHideAll(false);
+            }}
+            style={{ padding: 0, margin: 0 }}
+          >
+            all tabs
+          </Button>
+        </Stack>
+      )}
 
-      <div>
+      {!hideAll && (
+        <Stack
+          direction="row"
+          style={{
+            flexWrap: 'wrap',
+          }}
+        >
+          {tabs.map((tab, index) => {
+            return (
+              <Button
+                key={tab.id}
+                onContextMenu={(e) => {
+                  setUpMenu({
+                    content: (
+                      <TabsMenu
+                        index={index}
+                        handleClose={handleClose}
+                        setTabs={setTabs}
+                        tabsLength={tabs.length}
+                        changeTab={changeTab}
+                        selectIndex={selectIndex}
+                        setHideAll={setHideAll}
+                      ></TabsMenu>
+                    ),
+                    style: calMenuStyle(e, 100),
+                  });
+                }}
+                variant={index == selectIndex ? 'contained' : 'text'}
+                onClick={() => {
+                  changeTab(index);
+                }}
+              >
+                {tab.header}
+              </Button>
+            );
+          })}
+        </Stack>
+      )}
+
+      <div style={{ width: '99%' }}>
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
-            <div style={{ width: '100%' }} hidden={selectIndex !== index}>
-              {tab.content}
-            </div>
+            <div hidden={selectIndex !== index}>{tab.content}</div>
           </VisiableContext.Provider>
         ))}
       </div>

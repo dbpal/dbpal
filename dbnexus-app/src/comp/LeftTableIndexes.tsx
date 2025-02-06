@@ -1,12 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import {
-  ConnTypeContext,
-  ContextMenuContext,
-  modalStyle,
-  progressBarSize,
-  progressBarSizeSmall,
-  UuidContext,
-} from './Common';
+import { modalStyle, progressBarSize, progressBarSizeSmall } from './Common';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import {
   Box,
@@ -25,6 +18,7 @@ import {
   RadioGroup,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -33,7 +27,14 @@ import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import {
+  calMenuStyle,
+  ConnTypeContext,
+  ContextMenuContext,
+  DataSourceKind,
+  secondConfirm,
+  UuidContext,
+} from './helper';
 import { MenuRefresh } from './CommonComp';
 import { MongoBsonEditor } from './MongoDB';
 import { BSON } from 'bson';
@@ -377,8 +378,9 @@ function LeftIndexes(props: { table: string }) {
                   : undefined
               }
             >
-              <span>{index.name}</span>
-              {index.kind != 'Normal' && <span> {index.kind} </span>}
+              <Tooltip title={index.kind}>
+                <span>{index.name}</span>
+              </Tooltip>
             </Stack>
           >
             {index.on.map((e) => (

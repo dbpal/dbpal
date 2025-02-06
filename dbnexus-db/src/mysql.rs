@@ -625,7 +625,7 @@ impl SchemaTrait for MysqlDB {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
             match kind {
-                IndexKind::Normal => "",
+                IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
                 IndexKind::Unique => "Unique",
             },
@@ -1193,7 +1193,7 @@ impl SchemaTrait for MysqlDB {
                         } else if unique.map(|x| x != 0).unwrap_or_default() {
                             IndexKind::Unique
                         } else {
-                            IndexKind::Normal
+                            IndexKind::Index
                         },
                         vec![column_name],
                     ),

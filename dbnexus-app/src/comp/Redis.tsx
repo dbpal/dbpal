@@ -1,4 +1,5 @@
 import React, {
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -31,9 +32,9 @@ import {
   SettingsContext,
   reloadOK,
   VisiableContext,
-  ContextMenuContext,
+  SimpleResizeEditor,
 } from './Common.tsx';
-
+import * as esprima from 'esprima';
 import { types } from './ApiStruct.ts';
 
 import { NotificationContext } from './Notification';
@@ -50,6 +51,7 @@ import AddIcon from '@mui/icons-material/Add';
 import {
   arrayToHex,
   calMenuStyle,
+  ContextMenuContext,
   datagridContainerHeight,
   handleCopyToClipboard,
   hexToUint8Array,
@@ -71,9 +73,10 @@ class RedisZsetHashModifyReq {
   ) {}
 }
 
-enum RedisEditMode {
+enum RedisEditorMode {
   Hex,
   Text,
+  Json,
 }
 
 function RedisAddList(props: {
@@ -118,11 +121,11 @@ function RedisAddList(props: {
           </Select>
         </FormControl>
       </Box>
-      <RedisEditHexOrText
+      <RedisValueEditor
         hexRows={17}
         textRows={18}
         handleValue={(e) => setKey(e)}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
         <Button
@@ -161,14 +164,14 @@ function RedisStringTable(props: {
 
   return (
     <Stack spacing={1}>
-      <RedisEditHexOrText
+      <RedisValueEditor
         oldValue={newContent}
         handleValue={(e) => {
           setNewConent(e);
         }}
         textRows={22}
         hexRows={0x17}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
 
       <Stack width="100px" direction="row" spacing={1}>
         <Button
@@ -207,13 +210,13 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
 
   return (
     <Stack spacing={1}>
-      <RedisEditHexOrText
+      <RedisValueEditor
         handleValue={(e) => {
           setKey(e);
         }}
         hexRows={17}
         textRows={18}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
         <Button color="primary" variant="contained" onClick={handleAdd}>
@@ -251,23 +254,23 @@ function RedisAddHash(props: {
   return (
     <Stack spacing={1}>
       <Typography variant="h5"> key </Typography>
-      <RedisEditHexOrText
+      <RedisValueEditor
         oldValue={key}
         handleValue={(e) => {
           setKey(e);
         }}
         hexRows={10}
         textRows={10}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
       <Typography variant="h5"> value </Typography>
-      <RedisEditHexOrText
+      <RedisValueEditor
         oldValue={value}
         handleValue={(e) => {
           setValue(e);
         }}
         hexRows={10}
         textRows={10}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
         <Button
@@ -321,13 +324,13 @@ function RedisAddZset(props: {
         }}
       ></TextField>
 
-      <RedisEditHexOrText
+      <RedisValueEditor
         handleValue={(e) => {
           setKey(e);
         }}
         hexRows={17}
         textRows={18}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
         <Button
@@ -373,19 +376,19 @@ function RedisEditHash(props: {
   return (
     <Stack spacing={1}>
       <Typography variant="h5">key</Typography>
-      <RedisEditHexOrText
+      <RedisValueEditor
         oldValue={newKey}
         handleValue={(e) => {
           setNewKey(e);
         }}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
       <Typography variant="h5">value</Typography>
-      <RedisEditHexOrText
+      <RedisValueEditor
         oldValue={newValue}
         handleValue={(e) => {
           setNewValue(e);
         }}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
         <Button
@@ -394,7 +397,7 @@ function RedisEditHash(props: {
           variant="contained"
           onClick={handleModify}
         >
-          Modify
+          modify
         </Button>
       </Stack>
     </Stack>
@@ -451,12 +454,12 @@ function RedisEditZset(props: {
           }
         }}
       ></TextField>
-      <RedisEditHexOrText
+      <RedisValueEditor
         oldValue={oldKey}
         handleValue={(e) => {
           setNewKey(e);
         }}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
         <Button
@@ -465,7 +468,7 @@ function RedisEditZset(props: {
           variant="contained"
           onClick={handleModify}
         >
-          Modify
+          modify
         </Button>
       </Stack>
     </Stack>
@@ -473,13 +476,13 @@ function RedisEditZset(props: {
 }
 
 function RedisEditModeSelect(props: {
-  mode: RedisEditMode;
-  handleChange: (mode: RedisEditMode) => void;
+  mode: RedisEditorMode;
+  handleChange: (mode: RedisEditorMode) => void;
 }) {
   const { mode, handleChange } = props;
 
   return (
-    <Box sx={{ minWidth: 100 }}>
+    <Box>
       <FormControl fullWidth>
         <InputLabel id="simple-select-label">viewer</InputLabel>
         <Select
@@ -487,19 +490,20 @@ function RedisEditModeSelect(props: {
           id="simple-select"
           value={mode}
           onChange={(e) => {
-            handleChange(e.target.value as RedisEditMode);
+            handleChange(e.target.value as RedisEditorMode);
           }}
           label="viewer"
         >
-          <MenuItem value={RedisEditMode.Hex}>hex</MenuItem>
-          <MenuItem value={RedisEditMode.Text}>text</MenuItem>
+          <MenuItem value={RedisEditorMode.Text}>text</MenuItem>
+          <MenuItem value={RedisEditorMode.Json}>json</MenuItem>
+          <MenuItem value={RedisEditorMode.Hex}>hex</MenuItem>
         </Select>
       </FormControl>
     </Box>
   );
 }
 
-function RedisEditHexOrText(props: {
+function RedisValueEditor(props: {
   oldValue?: string;
   handleValue: (a: string) => void;
   hexRows?: number;
@@ -507,20 +511,30 @@ function RedisEditHexOrText(props: {
 }) {
   let { oldValue, handleValue, hexRows, textRows } = props;
   const [newValue, setNewValue] = useState<String | Uint8Array>('');
-  const [editModel, setEditModel] = useState<RedisEditMode>(RedisEditMode.Text);
+  const [editModel, setEditModel] = useState<RedisEditorMode>(
+    RedisEditorMode.Text
+  );
   useEffect(() => {
     let value = hexTryToUtf8(oldValue);
     if (typeof value === 'string') {
-      setEditModel(RedisEditMode.Text);
+      let isJson = false;
+      try {
+        isJson = typeof JSON.parse(value) == 'object';
+      } catch (e) {}
+      if (isJson) {
+        setEditModel(RedisEditorMode.Json);
+      } else {
+        setEditModel(RedisEditorMode.Text);
+      }
     } else {
-      setEditModel(RedisEditMode.Hex);
+      setEditModel(RedisEditorMode.Hex);
     }
     setNewValue(value);
   }, []);
 
   const [addLength, setAddLength] = useState('1');
   const [addLengthErr, setAddLengthErr] = useState(false);
-
+  const [jsonErr, setJsonErr] = useState<ReactNode>(null);
   const [nonce, setNonce] = useState(0);
   // The callback facilitates updates to the source data.
   const handleSetValue = React.useCallback(
@@ -549,18 +563,18 @@ function RedisEditHexOrText(props: {
 
   useEffect(() => {
     switch (editModel) {
-      case RedisEditMode.Text:
+      case RedisEditorMode.Text:
         let v = hexToUtf8(oldValue);
         setNewValue(v);
         break;
-      case RedisEditMode.Hex:
+      case RedisEditorMode.Hex:
         setNewValue(hexToUint8Array(oldValue));
         break;
     }
   }, [editModel]);
 
   if (!hexRows) {
-    hexRows = 0x5;
+    hexRows = 5;
   }
   if (!textRows) {
     textRows = 4;
@@ -573,7 +587,7 @@ function RedisEditHexOrText(props: {
           setEditModel(mode);
         }}
       ></RedisEditModeSelect>
-      {editModel == RedisEditMode.Text && (
+      {editModel == RedisEditorMode.Text && (
         <TextField
           size="small"
           value={newValue}
@@ -587,7 +601,28 @@ function RedisEditHexOrText(props: {
         ></TextField>
       )}
 
-      {editModel == RedisEditMode.Hex && (
+      {editModel == RedisEditorMode.Json && (
+        <SimpleResizeEditor
+          language="json"
+          value={newValue as string}
+          onMount={(editor) => {
+            editor.onDidChangeModelContent(() => {
+              const value = editor.getValue();
+              setNewValue(value);
+              handleValue(stringToHex(value));
+              try {
+                esprima.parseScript(value);
+              } catch (e) {
+                setJsonErr(`${e.lineNumber}:${e.column} ${e.description}`);
+                return;
+              }
+            });
+          }}
+          barLeft={jsonErr}
+        ></SimpleResizeEditor>
+      )}
+
+      {editModel == RedisEditorMode.Hex && (
         <Stack spacing={1}>
           <HexEditor
             rows={hexRows}
@@ -655,12 +690,12 @@ function RedisEditList(props: {
 
   return (
     <Stack spacing={1}>
-      <RedisEditHexOrText
+      <RedisValueEditor
         oldValue={oldValue}
         handleValue={(e) => {
           setNewValue(e);
         }}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
       <Stack direction="row" spacing={1}>
         <Button
           loading={loading}
@@ -669,7 +704,7 @@ function RedisEditList(props: {
           disabled={newValue == ''}
           onClick={handleModify}
         >
-          Modify
+          modify
         </Button>
       </Stack>
     </Stack>
@@ -704,12 +739,12 @@ function RedisEditSet(props: {
 
   return (
     <Stack spacing={1}>
-      <RedisEditHexOrText
+      <RedisValueEditor
         oldValue={oldValue}
         handleValue={(e) => {
           setNewValue(e);
         }}
-      ></RedisEditHexOrText>
+      ></RedisValueEditor>
       <Stack direction="row" spacing={1}>
         <Button
           loading={loading}
@@ -718,7 +753,7 @@ function RedisEditSet(props: {
           disabled={newValue == ''}
           onClick={handleModify}
         >
-          Modify
+          modify
         </Button>
       </Stack>
     </Stack>
@@ -923,7 +958,7 @@ function RedisSetTable(props: {
 }
 
 function RedisListTableContextMenu(props: {
-  delOP: (count: number) => void;
+  delOP: (count: number) => Promise<void>;
   content;
 }) {
   const { delOP, content } = props;
@@ -974,12 +1009,19 @@ function RedisListTableContextMenu(props: {
                 onChange={(e) => {
                   setCount(e.target.value);
                 }}
+                helperText=<span
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => {}}
+                >
+                  xxxx
+                </span>
                 type="number"
               ></TextField>
               <Stack direction="row">
                 <Button
-                  onClick={() => {
-                    delOP(parseInt(count));
+                  onClick={async () => {
+                    await delOP(parseInt(count));
+                    setShowDel(false);
                   }}
                 >
                   delete
@@ -996,7 +1038,6 @@ function RedisListTableContextMenu(props: {
 function RedisListTable(props: {
   reloadOP: () => Promise<types.MuiDataTableListResp>;
   modifyOP: (index: number, newValue: string) => Promise<void>;
-
   delOP: (count: number, value: string) => Promise<void>;
 }) {
   const { reloadOP, modifyOP, delOP } = props;
@@ -1098,7 +1139,7 @@ function RedisListTable(props: {
           setUpMenu({
             content: (
               <RedisListTableContextMenu
-                delOP={(count) => {
+                delOP={async (count) => {
                   handleDel(id, count);
                 }}
                 content={content}
@@ -1112,7 +1153,7 @@ function RedisListTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   return (
-    <Stack spacing={1} style={{ width: '99%' }}>
+    <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
         <Button
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'
@@ -1680,7 +1721,7 @@ export {
   RedisHashTable,
   RedisZsetTable,
   RedisSetTable,
-  RedisEditHexOrText,
+  RedisValueEditor as RedisEditHexOrText,
   RedisModifyKeyName,
   // add
   RedisAddSet,

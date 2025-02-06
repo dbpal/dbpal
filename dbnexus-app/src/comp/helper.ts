@@ -4,7 +4,7 @@
 
 import { languages } from "monaco-editor";
 import types from "./ApiStruct";
-import { CSSProperties } from "react";
+import { createContext, CSSProperties, ReactNode } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -285,12 +285,14 @@ function errToString(message) {
 enum DataSourceKind {
   Mysql,
   MariaDB,
+  TiDB,
   Sqlite,
   Postgres,
   MsSql,
   Redis,
   Mongo,
-  Oracle
+  Oracle,
+
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
@@ -299,6 +301,8 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
       return DataSourceKind.Mysql;
     case 'mariadb':
       return DataSourceKind.MariaDB;
+    case "tidb":
+      return DataSourceKind.TiDB;
     case 'redis':
       return DataSourceKind.Redis;
     case 'mongo':
@@ -381,8 +385,36 @@ const handleCopyToClipboard = (text, showNotification) => {
     });
 };
 
+class TabContent {
+  constructor(
+    public id: string,
+    public header: ReactNode,
+    public content: ReactNode
+  ) { }
+}
+const TabsSetContext = createContext<{
+  tabs: TabContent[];
+  setTabs;
+  setSelectIndex;
+}>(null);
 
+const ConnTypeContext = createContext<{
+  kind: DataSourceKind;
+}>(null);
+
+const UuidContext = createContext<{
+  uuid: string;
+}>(null);
+
+const ContextMenuContext = createContext<{
+  setUpMenu: ({ content, style }) => void;
+}>(null);
 export {
+  TabsSetContext,
+  ConnTypeContext,
+  UuidContext,
+  ContextMenuContext,
+  TabContent,
   randomTestThrowFunction,
   generateRandomString,
   delayedReturn,

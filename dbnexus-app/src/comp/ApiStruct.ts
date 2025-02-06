@@ -79,6 +79,10 @@ export namespace types {
     } & (types.MysqlDbConfig & {
         "name": string;
     })) | ({
+        "conn_type": "tidb";
+    } & (types.MysqlDbConfig & {
+        "name": string;
+    })) | ({
         "conn_type": "postgres";
     } & (types.PGDbConfig & {
         "name": string;
@@ -119,7 +123,7 @@ export namespace types {
         "is_primary": boolean;
         "is_auto_increment": boolean;
     };
-    export type IndexKind = ("Normal" | "Unique" | "Primary");
+    export type IndexKind = ("Index" | "Unique" | "Primary");
     export type Index = {
         "name": (string | null);
         "kind": types.IndexKind;

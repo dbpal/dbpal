@@ -140,9 +140,6 @@ const components: Components<
       cell: {
         padding: '0px 2px', // 调整单元格 padding
       },
-      columnHeaders: {
-        padding: '0px 2px', // 调整表头 padding
-      },
     },
   },
   MuiMenuList: {

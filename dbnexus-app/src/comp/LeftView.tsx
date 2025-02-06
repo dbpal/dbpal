@@ -1,13 +1,5 @@
 import { ReactNode, useContext, useEffect, useState } from 'react';
-import {
-  ConnTypeContext,
-  ContextMenuContext,
-  UuidContext,
-  progressBarSizeSmall,
-  tabsHasId,
-  TabsSetContext,
-  modalStyle,
-} from './Common';
+import { progressBarSizeSmall, tabsHasId, modalStyle } from './Common';
 import { NotificationContext } from './Notification';
 
 import { invoke } from '@tauri-apps/api/core';
@@ -33,7 +25,15 @@ import ListIcon from '@mui/icons-material/List';
 import { SqlTableView } from './SqlTableView';
 import { TabContent } from './Tabs';
 import { ExportTableOrView } from './Export';
-import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import {
+  calMenuStyle,
+  ConnTypeContext,
+  ContextMenuContext,
+  DataSourceKind,
+  secondConfirm,
+  TabsSetContext,
+  UuidContext,
+} from './helper';
 import { MenuRefresh } from './CommonComp';
 
 enum ViewKind {

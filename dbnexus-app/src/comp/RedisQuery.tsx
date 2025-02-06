@@ -92,7 +92,7 @@ function RedisQuery(props: {
       onDragFinished={(_: number): void => {
         setIsDragging(false);
       }} // 拖动结束
-      style={{ position: 'relative', width: '99%' }}
+      style={{ position: 'relative' }}
     >
       <SqlQuery
         handelTextAndPositionChange={(text, pos) => {

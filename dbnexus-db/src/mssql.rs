@@ -458,7 +458,7 @@ impl SchemaTrait for MsSqlServer {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
             match kind {
-                IndexKind::Normal => "",
+                IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
                 IndexKind::Unique => "Unique",
             },
@@ -950,7 +950,7 @@ impl SchemaTrait for MsSqlServer {
                             kind: if is_unique.unwrap_or_default() {
                                 IndexKind::Unique
                             } else {
-                                IndexKind::Normal
+                                IndexKind::Index
                             },
                             on: vec![col],
                         });

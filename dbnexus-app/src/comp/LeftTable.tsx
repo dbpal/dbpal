@@ -1,12 +1,8 @@
 import { ReactNode, useContext, useEffect, useState } from 'react';
 import {
-  ContextMenuContext,
   modalStyle,
-  UuidContext,
   progressBarSizeSmall,
   tabsHasId,
-  TabsSetContext,
-  ConnTypeContext,
   DocsAndCount,
 } from './Common';
 import types from './ApiStruct';
@@ -67,9 +63,13 @@ import { MongoTable, MongoTableAdd } from './MongoDB';
 import { BSON, EJSON } from 'bson';
 import {
   calMenuStyle,
+  ConnTypeContext,
+  ContextMenuContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
+  TabsSetContext,
+  UuidContext,
 } from './helper';
 import { MenuRefresh } from './CommonComp';
 
@@ -365,7 +365,7 @@ function ModifyTableColumn(props: {
           variant="contained"
           onClick={handleModify}
         >
-          Modify
+          modify
         </Button>
       </Stack>
     </Stack>
@@ -678,7 +678,14 @@ function DropTable(props: {
   const { showNotification } = useContext(NotificationContext);
   const [cascade, setCascade] = useState(false);
 
-  const handleDrop = () => {
+  const handleDrop = async () => {
+    const confirm = await secondConfirm({
+      confirmText: 'drop',
+      title: `are u sure to drop table '${table}'`,
+    });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
     invoke('drop_table', { name: uuid, tableName: table, cascade })
       .then(() => {
@@ -720,20 +727,12 @@ function DropTable(props: {
       )}
       <Stack direction="row" spacing={1}>
         <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
-        <Button
           loading={loading}
           color="error"
           variant="contained"
           onClick={handleDrop}
         >
-          Drop
+          drop
         </Button>
       </Stack>
     </Stack>
@@ -755,6 +754,7 @@ async function makeViewTable(
     case DataSourceKind.Sqlite:
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
+    case DataSourceKind.TiDB:
       tableList = (
         <SqlTableView
           reloadOP={async (
@@ -1050,6 +1050,7 @@ async function makeAddTable(
     case DataSourceKind.Sqlite:
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
+    case DataSourceKind.TiDB:
       tableList = (
         <SqlTableViewAdd
           addOP={async (values) => {
@@ -1551,20 +1552,12 @@ function DupTable(props: {
       ></TextField>
       <Stack direction="row" spacing={1}>
         <Button
-          variant="outlined"
-          onClick={() => {
-            handleClose();
-          }}
-        >
-          Cancel
-        </Button>
-        <Button
           loading={loading}
           color="primary"
           variant="contained"
           onClick={handleRename}
         >
-          Duplicate
+          duplicate
         </Button>
       </Stack>
     </Stack>

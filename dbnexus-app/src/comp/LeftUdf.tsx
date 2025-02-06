@@ -12,13 +12,9 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
 
 import {
-  ConnTypeContext,
   extraParametersFromMetaValues,
   initMonacoLanague,
-  ContextMenuContext,
   tabsHasId,
-  TabsSetContext,
-  UuidContext,
 } from './Common';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
@@ -27,7 +23,15 @@ import { TabContent } from './Tabs';
 import { DefAndMetasView } from './UdfAndMetaView';
 
 import { TbMathFunction } from 'react-icons/tb';
-import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import {
+  calMenuStyle,
+  ConnTypeContext,
+  ContextMenuContext,
+  DataSourceKind,
+  secondConfirm,
+  TabsSetContext,
+  UuidContext,
+} from './helper';
 import { MenuRefresh } from './CommonComp';
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);

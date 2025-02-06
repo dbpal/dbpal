@@ -399,7 +399,7 @@ impl SchemaTrait for PostGresDB {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
             match kind {
-                IndexKind::Normal => "",
+                IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
                 IndexKind::Unique => "Unique",
             },
@@ -1563,7 +1563,7 @@ async fn get_index_kind(
             if create_index.unique {
                 anyhow::Ok(IndexKind::Unique)
             } else {
-                anyhow::Ok(IndexKind::Normal)
+                anyhow::Ok(IndexKind::Index)
             }
         }
 

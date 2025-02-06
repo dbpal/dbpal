@@ -23,6 +23,7 @@ import { BSON } from 'bson';
 import {
   createContext,
   CSSProperties,
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -56,6 +57,7 @@ import {
   postgresKeywords,
   redisKeywords,
   sqliteKeywords,
+  tidbKeywords,
 } from './keywords';
 import {
   open,
@@ -72,6 +74,7 @@ import {
   extractConfigNameFromUuid,
   getViewportSize,
   secondConfirm,
+  TabsSetContext,
 } from './helper';
 import { MetaValuesView } from './CommonComp';
 
@@ -339,10 +342,11 @@ function SimpleResizeEditor(props: {
   value: string;
   onMount?: OnMount;
   options?: editor.IStandaloneEditorConstructionOptions;
-  style?: CSSProperties;
   minHeigth?: number;
+  barLeft?: ReactNode;
+  style?: CSSProperties;
 }) {
-  let { language, value, onMount, options, style, minHeigth } = props;
+  let { language, value, onMount, options, minHeigth, barLeft, style } = props;
   const [pos, setPos] = useState<Position>(null);
   let height = editorInitHeight(
     value,
@@ -379,7 +383,6 @@ function SimpleResizeEditor(props: {
           flexGrow: 1,
           flexShrink: 1,
           minHeight: 0,
-          width: '99%',
           height: height + 'px',
         }}
       >
@@ -395,28 +398,10 @@ function SimpleResizeEditor(props: {
           }}
         ></Editor>
       </div>
-      <EditorBar pos={pos}></EditorBar>
+      <EditorBar left={barLeft} pos={pos}></EditorBar>
     </div>
   );
 }
-
-const TabsSetContext = createContext<{
-  tabs: TabContent[];
-  setTabs;
-  setSelectIndex;
-}>(null);
-
-const ConnTypeContext = createContext<{
-  kind: DataSourceKind;
-}>(null);
-
-const UuidContext = createContext<{
-  uuid: string;
-}>(null);
-
-const ContextMenuContext = createContext<{
-  setUpMenu: ({ content, style }) => void;
-}>(null);
 
 const msgTimeout = 5000;
 
@@ -638,6 +623,31 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           tokenizer: {
             root: [
               [mysqlKeywords, 'keyword'],
+              [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
+              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+              [/\'(?:\\.|[^\\\'])*\'/, 'string'],
+              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+            ],
+          },
+          brackets: [
+            { open: '(', close: ')', token: 'delimiter.parenthesis' },
+            { open: '[', close: ']', token: 'delimiter.square' },
+          ],
+        } as languages.IMonarchLanguage,
+        autoCompletion,
+        format
+      );
+      break;
+    case DataSourceKind.TiDB:
+      initLanguageXXX(
+        uuid,
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [tidbKeywords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
@@ -974,13 +984,9 @@ export {
   EditorBar,
   SimpleResizeEditor,
   editorInitHeight,
-  TabsSetContext,
   tabsHasId,
   msgTimeout,
-  UuidContext,
   progressBarSize,
-  ContextMenuContext,
-  ConnTypeContext,
   progressBarSizeSmall,
   extraParametersFromMetaValues,
   SettingsContext,

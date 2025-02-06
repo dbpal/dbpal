@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -27,7 +28,6 @@ import { NotificationContext } from './Notification';
 import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  ContextMenuContext,
   keyNotInTable,
   modalStyle,
   reloadOK,
@@ -43,6 +43,7 @@ import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import {
   calMenuStyle,
   columnWidths,
+  ContextMenuContext,
   datagridContainerHeight,
   handleCopyToClipboard,
   isTypeLargeText,
@@ -376,7 +377,7 @@ function SqlTableView(props: {
   }, [resp]);
 
   return (
-    <Stack spacing={1} style={{ width: '99%' }}>
+    <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <span
           style={{ cursor: 'pointer' }}
@@ -502,16 +503,15 @@ function SqlTableViewAdd(props: {
   const [loading, setLoading] = useState(false);
   const [args, setArgs] = useState({});
   const { showNotification } = useContext(NotificationContext);
-
+  const inputDoms = useRef([]);
   const handleAdd = () => {
-    // verify not null
-    // TODO more check
     for (let i = 0; i < fields.length; i++) {
       let f = fields[i];
       if (f.is_auto_increment) {
         continue;
       }
       if (!args[f.field] && !f.nullable) {
+        inputDoms.current[i].focus();
         showNotification('error', `filed '${f.field}' need be filled`);
         return;
       }
@@ -530,29 +530,38 @@ function SqlTableViewAdd(props: {
 
   return (
     <Stack spacing={1}>
-      {fields.map((f) => {
+      {fields.map((f, index) => {
         if (f.is_auto_increment) {
           return;
         }
         return (
-          <TextField
-            size="small"
-            value={args[f.field]}
+          <Stack
             key={f.field}
-            label={
-              f.field + ' ' + f.typ + ' ' + (f.nullable ? 'null' : 'not null')
-            }
-            required={!f.nullable}
-            multiline={isTypeLargeText(f.typ)}
-            rows={4}
-            onChange={(e) => {
-              const value = e.target.value;
-              const v = value ? value : null;
-              let newArgs = { ...args };
-              newArgs[f.field] = v;
-              setArgs(newArgs);
-            }}
-          ></TextField>
+            direction="row"
+            spacing={1}
+            sx={{ alignContent: 'flex-end', justifyContent: 'flex-end' }}
+          >
+            <TextField
+              inputRef={(x) => {
+                inputDoms.current[index] = x;
+              }}
+              size="small"
+              value={args[f.field]}
+              helperText={f.typ + ' ' + (f.nullable ? 'null' : 'not null')}
+              required={!f.nullable}
+              label={f.field}
+              multiline={isTypeLargeText(f.typ)}
+              rows={4}
+              fullWidth
+              onChange={(e) => {
+                const value = e.target.value;
+                const v = value ? value : null;
+                let newArgs = { ...args };
+                newArgs[f.field] = v;
+                setArgs(newArgs);
+              }}
+            ></TextField>
+          </Stack>
         );
       })}
       <Divider></Divider>

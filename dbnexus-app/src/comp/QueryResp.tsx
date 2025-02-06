@@ -17,10 +17,11 @@ import {
   generateRandomString,
   handleCopyToClipboard,
   columnWidths,
+  ContextMenuContext,
 } from './helper.ts';
 import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import React, { memo, useCallback, useContext, useMemo } from 'react';
-import { ContextMenuContext, VisiableContext } from './Common.tsx';
+import { VisiableContext } from './Common.tsx';
 import { datagridHeaderHeight, datagridRowHeight } from './CommonComp.tsx';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification.tsx';

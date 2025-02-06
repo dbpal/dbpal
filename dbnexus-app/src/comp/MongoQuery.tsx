@@ -112,7 +112,7 @@ function MongoQuery(props: { uuid: string }) {
   let theme = useContext(SettingsContext).theme == 'dark' ? 'vs-dark' : 'light';
 
   return (
-    <Stack style={{ width: '99%' }} spacing={1}>
+    <Stack spacing={1}>
       <Stack direction="row" style={{ alignContent: 'flex-end' }} spacing={1}>
         <Tooltip title="execute">
           <IconButton

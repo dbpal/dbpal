@@ -1074,7 +1074,7 @@ impl SchemaTrait for OracleDB {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
             match kind {
-                IndexKind::Normal => "",
+                IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
                 IndexKind::Unique => "Unique",
             },
@@ -1209,7 +1209,7 @@ impl SchemaTrait for OracleDB {
                     } else if unique {
                         IndexKind::Unique
                     } else {
-                        IndexKind::Normal
+                        IndexKind::Index
                     },
                     on: vec![col_name],
                 });

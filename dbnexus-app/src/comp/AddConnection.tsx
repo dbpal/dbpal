@@ -271,6 +271,17 @@ export default function AddConfig(props: { handleClose: () => void }) {
           read_only: readOnly,
           name: connectionName,
         };
+      case DataSourceKind.TiDB:
+        return {
+          conn_type: 'tidb',
+          host: host,
+          port: portInt,
+          username: user,
+          password: pass_null,
+          db: db_null,
+          read_only: readOnly,
+          name: connectionName,
+        };
       case DataSourceKind.Postgres:
         return {
           conn_type: 'postgres',
@@ -367,6 +378,9 @@ export default function AddConfig(props: { handleClose: () => void }) {
       case DataSourceKind.MariaDB:
       case DataSourceKind.Mysql:
         setPort('3306');
+        break;
+      case DataSourceKind.TiDB:
+        setPort('4000');
         break;
       case DataSourceKind.Sqlite:
         break;
@@ -486,6 +500,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
         >
           <MenuItem value={DataSourceKind.Mysql}>MySQL</MenuItem>
           <MenuItem value={DataSourceKind.MariaDB}>MariaDB</MenuItem>
+          <MenuItem value={DataSourceKind.TiDB}>TIDB</MenuItem>
           <MenuItem value={DataSourceKind.Postgres}>PostgreSQL</MenuItem>
           <MenuItem value={DataSourceKind.Sqlite}>SQLite</MenuItem>
           <MenuItem value={DataSourceKind.Redis}>Redis</MenuItem>
@@ -498,7 +513,8 @@ export default function AddConfig(props: { handleClose: () => void }) {
       </FormControl>
 
       {(connectionType == DataSourceKind.Mysql ||
-        connectionType == DataSourceKind.MariaDB) && (
+        connectionType == DataSourceKind.MariaDB ||
+        connectionType == DataSourceKind.TiDB) && (
         <>
           <HostAndPort
             host={host}

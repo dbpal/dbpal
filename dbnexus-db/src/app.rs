@@ -26,24 +26,12 @@ impl DBConnectionConfig {
             DBConnectionConfig::Sqlite { name, .. }
             | DBConnectionConfig::Mysql { name, .. }
             | DBConnectionConfig::MariaDB { name, .. }
+            | DBConnectionConfig::Tidb { name, .. }
             | DBConnectionConfig::Postgres { name, .. }
             | DBConnectionConfig::SqlServer { name, .. }
             | DBConnectionConfig::Mongo { name, .. }
             | DBConnectionConfig::Redis { name, .. }
             | DBConnectionConfig::Oracle { name, .. } => name.as_str(),
-        }
-    }
-
-    pub fn get_kind_str(&self) -> &str {
-        match self {
-            DBConnectionConfig::Sqlite { .. } => "sqlite",
-            DBConnectionConfig::Mysql { .. } => "mysql",
-            DBConnectionConfig::MariaDB { .. } => "mariadb",
-            DBConnectionConfig::Postgres { .. } => "postgres",
-            DBConnectionConfig::SqlServer { .. } => "mssql",
-            DBConnectionConfig::Mongo { .. } => "mongo",
-            DBConnectionConfig::Redis { .. } => "redis",
-            DBConnectionConfig::Oracle { .. } => "oracle",
         }
     }
 }
@@ -62,6 +50,11 @@ pub enum DBConnectionConfig {
         name: String,
     },
     MariaDB {
+        #[serde(flatten)]
+        conn: MysqlDbConfig,
+        name: String,
+    },
+    Tidb {
         #[serde(flatten)]
         conn: MysqlDbConfig,
         name: String,
@@ -101,6 +94,9 @@ impl DBConnectionConfig {
                 conn.password = Some(pass);
             }
             DBConnectionConfig::MariaDB { conn, .. } => {
+                conn.password = Some(pass);
+            }
+            DBConnectionConfig::Tidb { conn, .. } => {
                 conn.password = Some(pass);
             }
             DBConnectionConfig::Postgres { conn, .. } => {
@@ -147,6 +143,22 @@ impl DBConnectionConfig {
                     }
                 }
             }
+            DBConnectionConfig::Tidb { conn, name: _ } => {
+                match &conn.db {
+                    Some(_) => {
+                        let db: Arc<dyn SchemaTrait> =
+                            Arc::new(crate::tidb::TiDB::new(conn.clone()).await?);
+
+                        anyhow::Ok(Open::Schema(db))
+                    }
+                    None => {
+                        let db: Arc<dyn DBTrait> =
+                            Arc::new(crate::tidb::TiDB::new(conn.clone()).await?);
+                        anyhow::Ok(Open::DataBase(db))
+                    }
+                }
+            }
+
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {

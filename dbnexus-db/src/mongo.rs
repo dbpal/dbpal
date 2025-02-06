@@ -741,7 +741,7 @@ impl SchemaTrait for Mongo {
                 {
                     IndexKind::Unique
                 } else {
-                    IndexKind::Normal
+                    IndexKind::Index
                 },
                 vec![serde_json::to_string(&index_model.keys)?],
             ))

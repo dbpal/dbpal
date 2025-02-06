@@ -1,13 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import {
-  ContextMenuContext,
-  progressBarSizeSmall,
-  tabsHasId,
-  TabsSetContext,
-  UuidContext,
-  initMonacoLanague,
-  ConnTypeContext,
-} from './Common';
+import { progressBarSizeSmall, tabsHasId, initMonacoLanague } from './Common';
 import { NotificationContext } from './Notification';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
@@ -28,7 +20,15 @@ import { TriggerDetail } from './TriggerDetail';
 import InfoIcon from '@mui/icons-material/Info';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
-import { calMenuStyle, DataSourceKind, secondConfirm } from './helper';
+import {
+  calMenuStyle,
+  ConnTypeContext,
+  ContextMenuContext,
+  DataSourceKind,
+  secondConfirm,
+  TabsSetContext,
+  UuidContext,
+} from './helper';
 import { MenuRefresh } from './CommonComp';
 function TriggersTree(props: { table: string }) {
   const { uuid } = useContext(UuidContext);

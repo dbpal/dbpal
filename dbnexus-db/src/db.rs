@@ -783,7 +783,7 @@ impl Index {
 
 #[derive(Clone, serde::Serialize, Copy, Debug, TypeDef)]
 pub enum IndexKind {
-    Normal,
+    Index,
     Unique,
     Primary,
 }
@@ -794,7 +794,7 @@ impl TryFrom<&str> for IndexKind {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
             "primary" => Ok(Self::Primary),
-            "normal" => Ok(Self::Normal),
+            "normal" => Ok(Self::Index),
             "unique" => Ok(Self::Unique),
             _ => {
                 Err(format!(

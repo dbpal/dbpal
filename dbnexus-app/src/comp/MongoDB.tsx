@@ -68,7 +68,6 @@ import {
   VisiableContext,
   reloadOK,
   keyNotInTable,
-  ContextMenuContext,
 } from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -83,6 +82,7 @@ import {
 import {
   calMenuStyle,
   columnWidths,
+  ContextMenuContext,
   datagridContainerHeight,
   handleCopyToClipboard,
 } from './helper';
@@ -284,6 +284,10 @@ function MongoBsonEditor(props: {
         ) + 'px'
   );
 
+  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+    return { fontSize: useContext(SettingsContext).editorFontSize };
+  }, []);
+
   return (
     <div
       style={{
@@ -305,6 +309,7 @@ function MongoBsonEditor(props: {
           onMount={handleEditorDidMount}
           language="mongoBson"
           value={content.current}
+          options={options}
         ></Editor>
       </div>
 
@@ -1167,12 +1172,7 @@ function MongoTable(props: {
   const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
   const [nonse, setNonse] = useState(0);
   return (
-    <Stack
-      spacing={1}
-      style={{
-        width: '99%',
-      }}
-    >
+    <Stack spacing={1}>
       <MongoTableListToolBar
         addOP={async () => {}}
         orderBy={orderBy}
@@ -1244,7 +1244,7 @@ function MongoTableAdd(props: {
       height={'80vh'}
       buttons={[
         {
-          buttonText: 'Add',
+          buttonText: 'add',
           variant: 'contained',
           disabled: (changed) => {
             return !changed;
