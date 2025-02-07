@@ -165,8 +165,8 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
 
       default:
-        throw `impl this kind`;
         console.log('impl database kind:', config);
+        throw `impl this kind`;
     }
   };
 

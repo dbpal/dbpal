@@ -418,6 +418,11 @@ const UuidContext = createContext<{
 const ContextMenuContext = createContext<{
   setUpMenu: ({ content, style }) => void;
 }>(null);
+
+function noUse(...args) {
+  //@ts-ignore
+  let _args = args;
+}
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -449,5 +454,6 @@ export {
   columnWidths,
   handleCopyToClipboard,
   datagridContainerHeight,
-  uint8ArrayToUtf8
+  uint8ArrayToUtf8,
+  noUse
 };

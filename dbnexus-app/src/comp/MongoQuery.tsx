@@ -6,7 +6,7 @@ import { editor, Position, Range } from 'monaco-editor';
 import * as loglevel from 'loglevel';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
-import { generateRandomString } from './helper';
+import { generateRandomString, noUse } from './helper';
 import { EditorBar, LoadStoreQuery, SettingsContext } from './Common';
 import { NotificationContext } from './Notification';
 import { LogLevelSel } from './CommonComp';
@@ -49,9 +49,9 @@ function MongoQuery(props: { uuid: string }) {
     loglevel.getLogger(generateRandomString(10))
   );
   const [loggerlevel, setLoggerlevel] = useState('trace');
-  //@ts-ignore db is use in `user query`
-  const db = new MongoDBQuery(uuid);
 
+  const db = new MongoDBQuery(uuid);
+  noUse(db);
   useEffect(() => {
     logger.setLevel(loggerlevel as loglevel.LogLevelDesc);
   }, [loggerlevel]);

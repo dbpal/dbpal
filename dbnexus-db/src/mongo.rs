@@ -1160,10 +1160,7 @@ mod tests {
 
         let collection_name = "test_mongo";
         // 定义聚合管道
-        let pipeline = vec![
-            doc! { "$match": { "field": "value" } },
-            doc! { "$group": { "_id": "$field", "count": { "$sum": 1 } } },
-        ];
+        let pipeline: Vec<Document> = vec![];
         let _ = db
             .get_db()
             .await

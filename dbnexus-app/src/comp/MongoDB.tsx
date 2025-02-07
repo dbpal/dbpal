@@ -365,7 +365,7 @@ function MongoBsonEditor(props: {
 
 function MongoDBModify(props: {
   doc: BSON.Document;
-  setOP: (doc: BSON.Document) => Promise<void>;
+  setOP?: (doc: BSON.Document) => Promise<void>;
   buttonName: string;
   handleClose?;
 }) {
@@ -394,19 +394,23 @@ function MongoDBModify(props: {
       {loading && <CircularProgress size={progressBarSize} />}
       <MongoBsonEditor
         doc={doc}
-        buttons={[
-          {
-            color: 'primary',
-            callBack: (doc) => {
-              handleModify(doc);
-            },
-            variant: 'contained',
-            buttonText: buttonName,
-            disabled: (changed) => {
-              return !changed;
-            },
-          },
-        ]}
+        buttons={
+          setOP
+            ? [
+                {
+                  color: 'primary',
+                  callBack: (doc) => {
+                    handleModify(doc);
+                  },
+                  variant: 'contained',
+                  buttonText: buttonName,
+                  disabled: (changed) => {
+                    return !changed;
+                  },
+                },
+              ]
+            : []
+        }
       ></MongoBsonEditor>
     </Stack>
   );
@@ -634,7 +638,7 @@ function renderId(_id): any {
 }
 
 function MongoTableListContextMenu(props: {
-  delOP: () => void;
+  delOP?: () => void;
   content;
   field;
   setFilter;
@@ -704,16 +708,18 @@ function MongoTableListContextMenu(props: {
           </ListItemIcon>
           <ListItemText> filter </ListItemText>
         </MenuItem>
-        <MenuItem
-          onClick={() => {
-            delOP();
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText> delete </ListItemText>
-        </MenuItem>
+        {delOP && (
+          <MenuItem
+            onClick={() => {
+              delOP();
+            }}
+          >
+            <ListItemIcon>
+              <DeleteForeverIcon></DeleteForeverIcon>
+            </ListItemIcon>
+            <ListItemText> delete </ListItemText>
+          </MenuItem>
+        )}
       </MenuList>
 
       {showFilter && (
@@ -814,8 +820,8 @@ function MongoTableList(props: {
   setSort;
   setFilter;
   loadOne: (id: any) => Promise<BSON.Document>;
-  modifyOP: (doc: BSON.Document) => Promise<void>;
-  deleteOP: (ids: any[]) => Promise<void>;
+  modifyOP?: (doc: BSON.Document) => Promise<void>;
+  deleteOP?: (ids: any[]) => Promise<void>;
   nonse;
 }) {
   const {
@@ -929,16 +935,18 @@ function MongoTableList(props: {
     setSort(order);
   }, []);
 
-  const handleDel = async (id: string) => {
-    let del = resp.data.data.find((e) => e[keyNotInTable] == id);
-    try {
-      await deleteOP([del['_id']]);
-      showNotification('success', 'delete OK');
-      handleReload(false);
-    } catch (e) {
-      showNotification('error', 'delete failed', e);
-    }
-  };
+  const handleDel = deleteOP
+    ? async (id: string) => {
+        let del = resp.data.data.find((e) => e[keyNotInTable] == id);
+        try {
+          await deleteOP([del['_id']]);
+          showNotification('success', 'delete OK');
+          handleReload(false);
+        } catch (e) {
+          showNotification('error', 'delete failed', e);
+        }
+      }
+    : undefined;
   const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
@@ -953,9 +961,13 @@ function MongoTableList(props: {
             content: (
               <MongoTableListContextMenu
                 content={content}
-                delOP={() => {
-                  handleDel(id);
-                }}
+                delOP={
+                  handleDel
+                    ? () => {
+                        handleDel(id);
+                      }
+                    : undefined
+                }
                 field={field}
                 setFilter={setFilter}
                 loadDoc={async () => {
@@ -989,16 +1001,20 @@ function MongoTableList(props: {
         >
           <Box sx={modalStyle} width="950px">
             <MongoDBModify
-              setOP={async (doc) => {
-                try {
-                  await modifyOP(doc);
-                } catch (e) {
-                  throw e;
-                }
-                handleReload(false);
-              }}
+              setOP={
+                modifyOP
+                  ? async (doc) => {
+                      try {
+                        await modifyOP(doc);
+                      } catch (e) {
+                        throw e;
+                      }
+                      handleReload(false);
+                    }
+                  : undefined
+              }
               doc={selectModifyDoc}
-              buttonName="Modify"
+              buttonName="modify"
             ></MongoDBModify>
           </Box>
         </Modal>
@@ -1050,8 +1066,8 @@ function MongoTableObject(props: {
     page: number,
     pageSize: number
   ) => Promise<DocsAndCount>;
-  modifyOP: (doc: BSON.Document) => Promise<void>;
-  deleteOP: (ids: any[]) => Promise<void>;
+  modifyOP?: (doc: BSON.Document) => Promise<void>;
+  deleteOP?: (ids: any[]) => Promise<void>;
   nonse;
 }) {
   const { filter, orderBy, realodOPDocs, modifyOP, deleteOP, nonse } = props;
@@ -1097,27 +1113,31 @@ function MongoTableObject(props: {
               <MongoBsonEditor
                 key={doc._id}
                 doc={doc}
-                buttons={[
-                  {
-                    buttonText: 'set',
-                    callBack: (doc) => {
-                      modifyOP(doc)
-                        .then(() => {
-                          showNotification('success', 'Modify OK');
-                        })
-                        .catch((e) => {
-                          showNotification('error', 'Modify failure', e);
-                        });
-                    },
-                  },
-                  {
-                    buttonText: 'delete',
-                    color: 'error',
-                    callBack: (_) => {
-                      handleDetele([doc._id]);
-                    },
-                  },
-                ]}
+                buttons={
+                  modifyOP && deleteOP
+                    ? [
+                        {
+                          buttonText: 'set',
+                          callBack: (doc) => {
+                            modifyOP(doc)
+                              .then(() => {
+                                showNotification('success', 'Modify OK');
+                              })
+                              .catch((e) => {
+                                showNotification('error', 'Modify failure', e);
+                              });
+                          },
+                        },
+                        {
+                          buttonText: 'delete',
+                          color: 'error',
+                          callBack: (_) => {
+                            handleDetele([doc._id]);
+                          },
+                        },
+                      ]
+                    : []
+                }
               ></MongoBsonEditor>
             );
           })}
@@ -1164,8 +1184,8 @@ function MongoTable(props: {
     pageSize: number
   ) => Promise<DocsAndCount>;
   loadOne: (id: any) => Promise<BSON.Document>;
-  modifyOP: (doc: BSON.Document) => Promise<void>;
-  deleteOP: (ids: any[]) => Promise<void>;
+  modifyOP?: (doc: BSON.Document) => Promise<void>;
+  deleteOP?: (ids: any[]) => Promise<void>;
 }) {
   const { reloadOPTableList, loadOne, modifyOP, realodOPDocs, deleteOP } =
     props;
