@@ -468,6 +468,8 @@ function SqlTableView(props: {
               }}
             >
               <DataGrid
+                showCellVerticalBorder
+                showColumnVerticalBorder
                 slotProps={slotProps}
                 style={dataGridStyle}
                 rowHeight={datagridRowHeight}

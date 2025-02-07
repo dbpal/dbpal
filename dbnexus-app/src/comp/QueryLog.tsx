@@ -66,6 +66,8 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
       {vis && (
         <div style={{ display: 'grid' }}>
           <DataGrid
+            showCellVerticalBorder
+            showColumnVerticalBorder
             onRowDoubleClick={onRowDoubleClick}
             columns={columns}
             rows={logs}

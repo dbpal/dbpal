@@ -1014,6 +1014,8 @@ function MongoTableList(props: {
               }}
             >
               <DataGrid
+                showCellVerticalBorder
+                showColumnVerticalBorder
                 slotProps={slotProps}
                 getRowId={getRowId}
                 rowHeight={datagridRowHeight}
@@ -1136,7 +1138,7 @@ function MongoTableObject(props: {
             </Typography>
             <SelectPageSize
               options={[10, 20]}
-              pageSize={10}
+              pageSize={pageSize}
               handleChange={(size) => {
                 setPageSize(size);
               }}

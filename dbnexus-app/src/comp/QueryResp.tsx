@@ -101,6 +101,8 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
         }}
       >
         <DataGrid
+          showCellVerticalBorder
+          showColumnVerticalBorder
           slotProps={slotProps}
           rowHeight={datagridRowHeight}
           columnHeaderHeight={datagridHeaderHeight}

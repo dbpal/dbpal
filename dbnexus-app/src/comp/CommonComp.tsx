@@ -352,6 +352,8 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
 
   return (
     <DataGrid
+      showCellVerticalBorder
+      showColumnVerticalBorder
       slotProps={slotProps}
       rowHeight={datagridRowHeight}
       columnHeaderHeight={datagridHeaderHeight}

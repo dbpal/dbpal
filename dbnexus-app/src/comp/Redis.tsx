@@ -914,6 +914,8 @@ function RedisSetTable(props: {
           }}
         >
           <DataGrid
+            showCellVerticalBorder
+            showColumnVerticalBorder
             slotProps={slotProps}
             rowHeight={datagridRowHeight}
             columnHeaderHeight={datagridHeaderHeight}
@@ -1180,6 +1182,8 @@ function RedisListTable(props: {
           }}
         >
           <DataGrid
+            showCellVerticalBorder
+            showColumnVerticalBorder
             slotProps={slotProps}
             rowHeight={datagridRowHeight}
             columnHeaderHeight={datagridHeaderHeight}
@@ -1430,6 +1434,8 @@ function RedisZsetTable(props: {
           }}
         >
           <DataGrid
+            showCellVerticalBorder
+            showColumnVerticalBorder
             slotProps={slotProps}
             rowHeight={datagridRowHeight}
             columnHeaderHeight={datagridHeaderHeight}
@@ -1624,6 +1630,8 @@ function RedisHashTable(props: {
           }}
         >
           <DataGrid
+            showCellVerticalBorder
+            showColumnVerticalBorder
             slotProps={slotProps}
             rowHeight={datagridRowHeight}
             columnHeaderHeight={datagridHeaderHeight}
