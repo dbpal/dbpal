@@ -2,8 +2,6 @@
 logs
 *.log
 
-dbnexus-app/package-lock.json
-dbnexus-app/pnpm-lock.yaml
 dbnexus-app/src/comp/Test.jsx
 dbnexus-app/src/comp/Test.jsx
 dbnexus-app/test.html
