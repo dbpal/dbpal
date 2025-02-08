@@ -378,14 +378,16 @@ function MongoDBModify(props: {
     setOP(doc)
       .then(() => {
         showNotification('success', 'Modify OK');
-        setLoading(false);
+
         if (handleClose) {
           handleClose();
         }
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Modify failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -443,7 +445,7 @@ function MongoTableListToolBar(props: {
   const [loading, setLoading] = useState(false);
   const doReload = () => {
     setLoading(true);
-    handleReload().then(() => {
+    handleReload().finally(() => {
       setLoading(false);
     });
   };

@@ -41,12 +41,13 @@ function TriggersTree(props: { table: string }) {
     setLoading(true);
     invoke<types.NamedStaff[]>('list_trigger', { name: uuid, tableName: table })
       .then((ts) => {
-        setLoading(false);
         setTriggers(ts);
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'list trigger failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
   useEffect(() => {

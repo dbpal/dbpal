@@ -71,12 +71,13 @@ function ViewsTree(props: { viewkind: ViewKind }) {
     setLoading(true);
     invoke<types.NamedStaff[] | types.ListTable[]>(invokeName, { name: uuid })
       .then((ts) => {
-        setLoading(false);
         setViews(ts);
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'list view failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
   useEffect(() => {
@@ -199,12 +200,13 @@ function ViewColumnsTree(props: { view: string }) {
     setLoading(true);
     invoke<types.Field[]>('show_view_coumns', { name: uuid, viewName: view })
       .then((fs) => {
-        setLoading(false);
         setFields(fs);
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'list column failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
   let { setUpMenu } = useContext(ContextMenuContext);

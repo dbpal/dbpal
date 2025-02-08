@@ -100,12 +100,13 @@ function TablesTree(props: { typ: TablesType }) {
 
     invoke<types.ListTable[]>(invokeName, { name: uuid })
       .then((ts) => {
-        setLoading(false);
         setTables(ts);
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'list table failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
   useEffect(() => {
@@ -294,14 +295,15 @@ function ModifyTableColumn(props: {
       typ: typePara,
     })
       .then((_) => {
-        setLoading(false);
         showNotification('success', 'Modify column OK');
         reload();
         handleClose();
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Modify column Failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -468,14 +470,15 @@ function TableAddColumn(props: {
       },
     })
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Add Column OK');
         handleClose();
         reload();
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Add Column failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -587,12 +590,13 @@ function TableColumnsTree(props: { table: string }) {
       tableName: table,
     })
       .then((fs) => {
-        setLoading(false);
         setFields(fs);
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'list column failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -691,14 +695,15 @@ function DropTable(props: {
     setLoading(true);
     invoke('drop_table', { name: uuid, tableName: table, cascade })
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Drop table OK');
         reloadTables();
         handleClose();
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Drop table failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -1532,13 +1537,15 @@ function DupTable(props: {
     setLoading(true);
     invoke('duplicate_table', { name: uuid, from: table, to: name })
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Duplicate OK');
         reloadTables();
         handleClose();
       })
       .catch((e) => {
         showNotification('error', 'Duplicate failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -1584,14 +1591,15 @@ function RenameTable(props: {
     setLoading(true);
     invoke('rename_table', { name: uuid, old: table, new: newName })
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Rename OK');
         reloadTables();
         handleClose();
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Rename failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -1642,10 +1650,11 @@ function RedisTables(prpos: { schema?: string }) {
     })
       .then((e) => {
         setTables(e);
-        setLoading(false);
       })
       .catch((e) => {
         showNotification('error', 'list redis table failed', e);
+      })
+      .finally(() => {
         setLoading(false);
       });
   };

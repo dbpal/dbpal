@@ -207,7 +207,7 @@ function SqlQuery(props: {
       .queryOP(text)
       .then((resp) => {
         setResp(resp);
-        setLoading(false);
+
         if (showQueryLog) {
           handleLoadQueryLog();
         }
@@ -225,9 +225,11 @@ function SqlQuery(props: {
         showNotification('success', 'Execute OK');
       })
       .catch((e) => {
-        setLoading(false);
         setResp([]);
         showNotification('error', 'query failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 

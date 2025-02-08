@@ -595,12 +595,13 @@ function CatalogTree(_props: {}) {
     setLoading(true);
     invoke<string[]>('list_database', { name })
       .then((ds) => {
-        setLoading(false);
         setDatabases(ds);
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'list database failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
   const { opened, setOpened } = useContext(OpenedContext);
@@ -675,12 +676,13 @@ function DatabaseTree(props: {
     setLoading(true);
     invoke<string[]>('list_schema', { name })
       .then((ds) => {
-        setLoading(false);
         setSchemas(ds);
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'list schema failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 

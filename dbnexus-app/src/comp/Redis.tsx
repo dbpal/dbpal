@@ -34,7 +34,7 @@ import {
   VisiableContext,
   SimpleResizeEditor,
 } from './Common.tsx';
-import * as esprima from 'esprima';
+
 import { types } from './ApiStruct.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { NotificationContext } from './Notification';
@@ -93,12 +93,13 @@ function RedisAddList(props: {
     setLoading(true);
     (lOrR == 'lpush' ? lpushOP : rpushOP)(key)
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Push OK');
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Push OK', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -125,6 +126,7 @@ function RedisAddList(props: {
         hexRows={17}
         textRows={18}
         handleValue={(e) => setKey(e)}
+        jsonHeigth="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -153,12 +155,13 @@ function RedisStringTable(props: {
     setLoading(true);
     modifyOP(newContent)
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Modify OK');
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Modify failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -171,6 +174,7 @@ function RedisStringTable(props: {
         }}
         textRows={22}
         hexRows={0x17}
+        jsonHeigth="60vh"
       ></RedisValueEditor>
 
       <Stack width="100px" direction="row" spacing={1}>
@@ -200,10 +204,11 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
     addOP(key)
       .then(() => {
         showNotification('success', 'Add ok');
-        setLoading(false);
       })
       .catch((e) => {
         showNotification('error', 'Add error', e);
+      })
+      .finally(() => {
         setLoading(false);
       });
   };
@@ -216,6 +221,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
         }}
         hexRows={17}
         textRows={18}
+        jsonHeigth="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -242,12 +248,13 @@ function RedisAddHash(props: {
     setLoading(true);
     addOP(key, value)
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Add OK');
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('success', 'Add Error', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -261,6 +268,7 @@ function RedisAddHash(props: {
         }}
         hexRows={10}
         textRows={10}
+        jsonHeigth="40vh"
       ></RedisValueEditor>
       <Typography variant="h5"> value </Typography>
       <RedisValueEditor
@@ -270,6 +278,7 @@ function RedisAddHash(props: {
         }}
         hexRows={10}
         textRows={10}
+        jsonHeigth="40vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -301,12 +310,13 @@ function RedisAddZset(props: {
     setLoading(true);
     addOP(key, parseFloat(score))
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Add OK');
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('success', 'Add Failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -330,6 +340,7 @@ function RedisAddZset(props: {
         }}
         hexRows={17}
         textRows={18}
+        jsonHeigth="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -364,11 +375,13 @@ function RedisEditHash(props: {
     modifyOP(new RedisZsetHashModifyReq(oldKey, newKey, newValue))
       .then(() => {
         showNotification('success', 'Modify OK');
-        setLoading(false);
+
         handleClose();
       })
       .catch((e) => {
         showNotification('success', 'Modify failure', e);
+      })
+      .finally(() => {
         setLoading(false);
       });
   };
@@ -427,13 +440,14 @@ function RedisEditZset(props: {
 
     modifyOP(oldKey, newKey, parseInt(newValue))
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Modify OK');
         handleClose();
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Modify Failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -508,8 +522,9 @@ function RedisValueEditor(props: {
   handleValue: (a: string) => void;
   hexRows?: number;
   textRows?: number;
+  jsonHeigth?: string;
 }) {
-  let { oldValue, handleValue, hexRows, textRows } = props;
+  let { oldValue, handleValue, hexRows, textRows, jsonHeigth } = props;
   const [newValue, setNewValue] = useState<string | Uint8Array>('');
   const [editModel, setEditModel] = useState<RedisEditorMode>(
     RedisEditorMode.Text
@@ -549,7 +564,7 @@ function RedisValueEditor(props: {
 
   const [addLength, setAddLength] = useState('1');
   const [addLengthErr, setAddLengthErr] = useState(false);
-  const [jsonErr, setJsonErr] = useState<ReactNode>(null);
+
   const [nonce, setNonce] = useState(0);
   // The callback facilitates updates to the source data.
   const handleSetValue = React.useCallback(
@@ -581,6 +596,9 @@ function RedisValueEditor(props: {
   }
   if (!textRows) {
     textRows = 4;
+  }
+  if (!jsonHeigth) {
+    jsonHeigth = '20vh';
   }
   return (
     <Stack spacing={1}>
@@ -614,16 +632,9 @@ function RedisValueEditor(props: {
               const value = editor.getValue();
               setNewValue(value);
               handleValue(stringToHex(value));
-              try {
-                esprima.parseScript(value);
-              } catch (e) {
-                setJsonErr(`${e.lineNumber}:${e.column} ${e.description}`);
-                return;
-              }
             });
           }}
-          style={{ height: '65vh' }}
-          barLeft={jsonErr}
+          style={{ height: jsonHeigth }}
         ></SimpleResizeEditor>
       )}
 
@@ -682,14 +693,15 @@ function RedisEditList(props: {
     setLoading(true);
     modifyOP(index, newValue)
       .then(() => {
-        setLoading(false);
         setNewValue('');
         showNotification('success', 'Modify OK', '');
         handleClose();
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('success', 'Modify Failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -731,14 +743,15 @@ function RedisEditSet(props: {
     setLoading(true);
     modifyOP(oldValue, newValue)
       .then(() => {
-        setLoading(false);
         setNewValue('');
         showNotification('success', 'Modify OK');
         handleClose();
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('success', 'Modify Failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -1692,12 +1705,13 @@ function RedisModifyKeyName(props: {
     setLoading(true);
     modifyOP(newName, name)
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Modify OK');
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Modify failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 

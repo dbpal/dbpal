@@ -317,12 +317,13 @@ function LeftIndexes(props: { table: string }) {
     setLoading(true);
     invoke<types.Index[]>('show_indexes', { name: uuid, tableName: table })
       .then((indexes) => {
-        setLoading(false);
         setIndexes(indexes);
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'list indexes failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -505,14 +506,15 @@ function RenameIndex(props: {
       newName: newName,
     })
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Rename OK');
         reload();
         handleClose();
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Rename Failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
   return (

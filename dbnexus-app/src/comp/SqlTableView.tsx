@@ -209,7 +209,6 @@ function SqlTableView(props: {
       let resp = await reloadOP(where.trim(), sort.trim(), page + 1, pageSize);
       setLoading(false);
       await handleResp(resp);
-
       resp.data.fields.forEach((e) => {
         const width = columnWidths.getWidth(e.field);
         if (width) {
@@ -521,12 +520,13 @@ function SqlTableViewAdd(props: {
     setLoading(true);
     addOP(args)
       .then(() => {
-        setLoading(false);
         showNotification('success', 'Add OK');
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'Add failure', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 

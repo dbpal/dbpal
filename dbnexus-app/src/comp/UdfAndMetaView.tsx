@@ -25,11 +25,12 @@ function DefAndMetasView(props: {
     reloadOP()
       .then((detail) => {
         setDetail(detail);
-        setLoading(false);
       })
       .catch((e) => {
-        setLoading(false);
         showNotification('error', 'fetch detail failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
