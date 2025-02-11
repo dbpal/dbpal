@@ -149,6 +149,11 @@ const components: Components<
     styleOverrides: {
       cell: {
         padding: '0px 2px', // 调整单元格 padding
+        fontSize: '0.9rem',
+      },
+      columnHeaders: {
+        fontSize: '0.7rem', // 调整表头字体大小
+        fontWeight: 'normal', // 可选：调整表头字体粗细
       },
     },
   },
