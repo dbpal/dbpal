@@ -147,31 +147,28 @@ impl AstCompletionHelper for OracleDB {
         }
         let mut ret: Vec<_> = ret
             .into_iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Function,
+                desc: None,
             })
             .collect();
 
         if include_build_in {
-            ret.extend(ORACLE_BUILD_IN_FUNCTIONS.iter().map(|x| {
-                CompletionItem {
-                    item: (*x).into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                }
+            ret.extend(ORACLE_BUILD_IN_FUNCTIONS.iter().map(|x| CompletionItem {
+                item: (*x).into(),
+                kind: CompletionKind::Function,
+                desc: None,
             }));
         }
         anyhow::Ok(ret)
     }
 
     async fn list_procedure(
-        &self, _db: Option<&str>, _schema: Option<&str>,
+        &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        self.list_procedure_impl()
+        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        self.list_procedure_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }

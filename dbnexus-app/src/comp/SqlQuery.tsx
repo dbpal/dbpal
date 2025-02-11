@@ -20,6 +20,7 @@ import { editor, Position } from 'monaco-editor';
 import {
   EditorBar,
   IQueryConn,
+  LoadStoreFileForQuery,
   MakeIQueryConn,
   msgTimeout,
   SettingsContext,
@@ -28,6 +29,7 @@ import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { secondConfirm } from './helper.ts';
+const fileFilter = { filters: [{ name: 'sql', extensions: ['sql'] }] };
 
 function OracleCommit(props: { conn: IQueryConn }) {
   const { conn } = props;
@@ -102,6 +104,7 @@ function SqlQuery(props: {
   const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
     null
   );
+  const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const { theme } = useContext(SettingsContext);
   const handleEditorDidMount = useCallback(
@@ -296,7 +299,7 @@ function SqlQuery(props: {
           </Paper>
         )}
         {connectInfo}
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
           <Tooltip title="execute">
             <IconButton
               loading={loading}
@@ -346,6 +349,18 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
           {conn && conn.isOracle && <OracleCommit conn={conn} />}
+          <LoadStoreFileForQuery
+            file={file}
+            getQuery={() => {
+              return editor.current.getValue();
+            }}
+            handleChange={(file, content) => {
+              setFile(file);
+              editor.current.setValue(content);
+            }}
+            openOpt={{ ...fileFilter }}
+            saveOpt={{ ...fileFilter }}
+          ></LoadStoreFileForQuery>
           <Button
             onClick={() => {
               setShowQueryLog((prev) => !prev);

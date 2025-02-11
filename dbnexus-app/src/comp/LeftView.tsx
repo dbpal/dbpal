@@ -185,13 +185,13 @@ function ViewTree(props: {
         </Stack>
       }
     >
-      <ViewColumnsTree view={view}></ViewColumnsTree>
+      <ViewColumnsTree view={view} viewkind={viewkind}></ViewColumnsTree>
     </TreeItem>
   );
 }
 
-function ViewColumnsTree(props: { view: string }) {
-  const { view } = props;
+function ViewColumnsTree(props: { view: string; viewkind: ViewKind }) {
+  const { view, viewkind } = props;
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const { uuid } = useContext(UuidContext);
@@ -213,7 +213,7 @@ function ViewColumnsTree(props: { view: string }) {
   useEffect(() => {
     reload();
   }, []);
-  let idPrefix = uuid + '-viees-' + view + 'columns';
+  let idPrefix = uuid + '-views-' + view + viewkind + '-columns-';
   return (
     <TreeItem
       itemId={idPrefix}

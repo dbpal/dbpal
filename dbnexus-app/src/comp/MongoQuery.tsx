@@ -7,9 +7,9 @@ import * as loglevel from 'loglevel';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
 import { generateRandomString, noUse } from './helper';
-import { EditorBar, LoadStoreQuery, SettingsContext } from './Common';
+import { EditorBar, LoadStoreFileForQuery, SettingsContext } from './Common';
 import { NotificationContext } from './Notification';
-import { LogLevelSel } from './CommonComp';
+import { LogLevelSelection } from './CommonComp';
 import * as esprima from 'esprima';
 initMongoQueryGlobals();
 
@@ -113,7 +113,7 @@ function MongoQuery(props: { uuid: string }) {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" style={{ alignContent: 'flex-end' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'flex-end' }} spacing={1}>
         <Tooltip title="execute">
           <IconButton
             onClick={() => {
@@ -125,13 +125,13 @@ function MongoQuery(props: { uuid: string }) {
             <PlayArrowIcon />
           </IconButton>
         </Tooltip>
-        <LogLevelSel
+        <LogLevelSelection
           handleChange={(e) => {
             setLoggerlevel(e);
           }}
           level={loggerlevel}
-        ></LogLevelSel>
-        <LoadStoreQuery
+        ></LogLevelSelection>
+        <LoadStoreFileForQuery
           openOpt={{ ...fileFilter }}
           saveOpt={{ canCreateDirectories: true, ...fileFilter }}
           getQuery={() => {
@@ -142,7 +142,7 @@ function MongoQuery(props: { uuid: string }) {
             setFile(f);
             editor.current.setValue(text);
           }}
-        ></LoadStoreQuery>
+        ></LoadStoreFileForQuery>
       </Stack>
       <div
         style={{

@@ -408,9 +408,14 @@ fn encode_rows(rows: Vec<oracle::Result<Row>>) -> anyhow::Result<Vec<Vec<Option<
 
 fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let null_string = "NULL".to_string();
+    let typ = typ.to_string().to_uppercase();
 
-    match typ.to_string().to_uppercase().as_str() {
+    match typ.as_str() {
         "VARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        _ if typ.starts_with("VARCHAR2") => anyhow::Ok(match value {
             Some(x) => format!("'{}'", x),
             None => null_string,
         }),
@@ -418,7 +423,16 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
             Some(x) => format!("N'{}'", x),
             None => null_string,
         }),
+        _ if typ.starts_with("NVARCHAR2") => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+
         "CHAR" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        _ if typ.starts_with("CHAR") => anyhow::Ok(match value {
             Some(x) => format!("'{}'", x),
             None => null_string,
         }),
@@ -426,14 +440,29 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
             Some(x) => format!("N'{}'", x),
             None => null_string,
         }),
+        _ if typ.starts_with("NCHAR") => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
         "RAW" => anyhow::Ok(match value {
             Some(x) => format!("'{}'", x),
             None => null_string,
         }),
+        _ if typ.starts_with("RAW") => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+
         "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
             Some(x) => x.to_string(),
             None => null_string,
         }),
+
+        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => anyhow::Ok(match value {
+            Some(x) => x.to_string(),
+            None => null_string,
+        }),
+
         "CLOB" => anyhow::Ok(match value {
             Some(x) => format!("'{}'", x),
             None => null_string,
@@ -451,6 +480,10 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
             None => null_string,
         }),
         "TIMESTAMP" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        _ if typ.starts_with("TIMESTAMP") => anyhow::Ok(match value {
             Some(x) => format!("'{}'", x),
             None => null_string,
         }),
@@ -845,7 +878,10 @@ impl OracleDB {
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
-        let sql = "SELECT MVIEW_NAME FROM USER_MVIEWS";
+        let sql = format!(
+            "SELECT MVIEW_NAME FROM USER_MVIEWS  WHERE OWNER='{}' ",
+            self.schema_str()
+        );
         let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
 
@@ -873,8 +909,9 @@ impl SchemaTrait for OracleDB {
             r#"
         SELECT column_name, data_type
             FROM all_tab_columns
-            WHERE table_name = '{view_name}' ORDER BY column_name
-        "#
+            WHERE table_name = '{view_name}'  AND OWNER = '{}'  ORDER BY column_name 
+        "#,
+            self.schema_str()
         );
         let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
@@ -1400,10 +1437,12 @@ impl SchemaTrait for OracleDB {
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
-            SELECT object_name
-            FROM user_objects
-            WHERE object_type = 'FUNCTION'
-        "#
+           SELECT object_name 
+            FROM all_objects 
+            WHERE object_type = 'FUNCTION' 
+            AND owner = '{}'
+        "#,
+            self.schema_str()
         );
         let conn = self.get_conn()?;
         let mut ret = Vec::new();
@@ -1435,7 +1474,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_procedure_impl().await
+        self.list_procedure_impl(self.schema_str()).await
     }
 
     async fn show_procedure(
@@ -1459,13 +1498,17 @@ impl SchemaTrait for OracleDB {
 }
 
 impl OracleDB {
-    pub(crate) async fn list_procedure_impl(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_procedure_impl(
+        &self, schema: &str,
+    ) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
-            SELECT object_name, status
-                FROM user_objects
-                WHERE object_type = 'PROCEDURE'
-        "#
+                SELECT object_name 
+                FROM all_objects 
+                WHERE object_type = 'PROCEDURE' 
+                AND owner = '{}'
+        "#,
+            schema
         );
         let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
@@ -1473,10 +1516,9 @@ impl OracleDB {
         for row in rows {
             let row = row?;
             let name: String = row.get(0)?;
-            let status: String = row.get(1)?;
             ret.push(NamedStaff {
                 name,
-                metas: vec![MetaValue::new("status", status)],
+                metas: vec![],
             });
         }
         anyhow::Ok(ret)
@@ -1881,8 +1923,8 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
             conn.execute(*s, &[])
                 .expect(format!("sql {} execute failed", *s).as_str());
         }
-        let views = db.list_view().await.unwrap();
-        println!("{:?}", views);
+        let views = db.list_materialized_view().await.unwrap();
+        println!("list_materialized_view:{:?}", views);
 
         let resp = db
             .show_view("TEST_MATERLIZED_VIEW", None, None, 1, 100)

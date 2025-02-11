@@ -912,7 +912,7 @@ function extractBaseName(file) {
   return fileName;
 }
 
-function LoadStoreQuery(props: {
+function LoadStoreFileForQuery(props: {
   file;
   getQuery: () => string;
   handleChange: (file, content) => void;
@@ -970,9 +970,9 @@ function LoadStoreQuery(props: {
     <>
       {file && (
         <>
-          <Button onClick={handleClose}> close </Button>
+          <Button onClick={handleClose}>close file</Button>
           <Tooltip title={file}>
-            <Typography> {extractBaseName(file)}</Typography>
+            <Typography>{extractBaseName(file)}</Typography>
           </Tooltip>
         </>
       )}
@@ -1016,7 +1016,7 @@ export {
   makeQueryConnInfo,
   QueryConn,
   AppStoreKey,
-  LoadStoreQuery,
+  LoadStoreFileForQuery,
   keyNotInTable,
 };
 

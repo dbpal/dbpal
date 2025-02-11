@@ -121,11 +121,21 @@ const components: Components<
     styleOverrides: {
       root: {
         fontSize: '1rem',
-        padding: '0px 2px',
+        padding: '2px 4px',
         textTransform: 'none',
       },
     },
   },
+  MuiIconButton: {
+    styleOverrides: {
+      root: {
+        fontSize: '1rem',
+        padding: '2px 4px',
+        textTransform: 'none',
+      },
+    },
+  },
+
   MuiMenuItem: {
     styleOverrides: {
       root: {

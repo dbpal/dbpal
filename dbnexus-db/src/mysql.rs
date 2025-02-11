@@ -565,7 +565,7 @@ impl MysqlDB {
         let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
-            let table_name: String = r.get(0);
+            let table_name: String = r.try_get_unchecked(0)?;
             // tidb return data_length as `BIGINT` no UNSIGNED
             let size: Option<u64> = match r.try_get::<'_, u64, _>(1) {
                 Ok(x) => Some(x),
@@ -595,7 +595,7 @@ impl MysqlDB {
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
-            let name: String = r.get(0);
+            let name: String = r.try_get_unchecked(0)?;
             ret.push(NamedStaff::from(name));
         }
         anyhow::Ok(ret)
@@ -1142,11 +1142,12 @@ impl SchemaTrait for MysqlDB {
                 },
             };
             // due to issue https://github.com/launchbadge/sqlx/issues/3390
+            // use `try_get_unchecked` to extract
             let ty: String = r.try_get_unchecked(1)?;
             let null: String = r.try_get(2)?;
-            let key: Option<String> = r.try_get(3)?;
-            let default_value: Option<String> = r.try_get(4)?;
-            let extra: String = r.try_get(5)?;
+            let key: Option<String> = r.try_get_unchecked(3)?;
+            let default_value: Option<String> = r.try_get_unchecked(4)?;
+            let extra: String = r.try_get_unchecked(5)?;
 
             ret.push(Field::new(
                 name,
@@ -1357,7 +1358,7 @@ impl DBTrait for MysqlDB {
 
         let mut ret = Vec::new();
         for r in rows.iter() {
-            let name: String = r.get(0);
+            let name: String = r.try_get_unchecked(0)?;
             if name.eq_ignore_ascii_case("information_schema")
                 || name.eq_ignore_ascii_case("mysql")
                 || name.eq_ignore_ascii_case("performance_schema")

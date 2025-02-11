@@ -128,36 +128,32 @@ impl DBConnectionConfig {
                 anyhow::Ok(Open::Schema(db))
             }
             DBConnectionConfig::Mysql { conn, name: _ }
-            | DBConnectionConfig::MariaDB { conn, name: _ } => {
-                match &conn.db {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+            | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
 
-                        anyhow::Ok(Open::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> =
-                            Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
-                        anyhow::Ok(Open::DataBase(db))
-                    }
+                    anyhow::Ok(Open::Schema(db))
                 }
-            }
-            DBConnectionConfig::Tidb { conn, name: _ } => {
-                match &conn.db {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(crate::tidb::TiDB::new(conn.clone()).await?);
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+                    anyhow::Ok(Open::DataBase(db))
+                }
+            },
+            DBConnectionConfig::Tidb { conn, name: _ } => match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(crate::tidb::TiDB::new(conn.clone()).await?);
 
-                        anyhow::Ok(Open::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> =
-                            Arc::new(crate::tidb::TiDB::new(conn.clone()).await?);
-                        anyhow::Ok(Open::DataBase(db))
-                    }
+                    anyhow::Ok(Open::Schema(db))
                 }
-            }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(crate::tidb::TiDB::new(conn.clone()).await?);
+                    anyhow::Ok(Open::DataBase(db))
+                }
+            },
 
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
@@ -198,22 +194,19 @@ impl DBConnectionConfig {
 
                 anyhow::Ok(db)
             }
-            DBConnectionConfig::Oracle { conn, name: _ } => {
-                match conn.schema.as_ref() {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(crate::oracle::OracleDB::new(conn.clone(), None)?);
-
-                        anyhow::Ok(Open::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> =
-                            Arc::new(crate::oracle::OracleDB::new(conn.clone(), None)?);
-
-                        anyhow::Ok(Open::DataBase(db))
-                    }
+            DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(crate::oracle::OracleDB::new(conn.clone(), None)?);
+                    anyhow::Ok(Open::Schema(db))
                 }
-            }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(crate::oracle::OracleDB::new(conn.clone(), None)?);
+
+                    anyhow::Ok(Open::DataBase(db))
+                }
+            },
         }
     }
 }

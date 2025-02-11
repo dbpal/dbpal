@@ -2,7 +2,12 @@ import React, { useContext, useState } from 'react';
 import { Stack, Button, Paper, MenuItem, MenuList } from '@mui/material';
 
 import { VisiableContext } from './Common';
-import { calMenuStyle, ContextMenuContext, TabContent } from './helper';
+import {
+  calMenuStyle,
+  ContextMenuContext,
+  secondConfirm,
+  TabContent,
+} from './helper';
 
 function TabsMenu(props: {
   index;
@@ -75,7 +80,15 @@ function TabsMenu(props: {
         )}
 
         <MenuItem
-          onClick={() => {
+          onClick={async () => {
+            const confirm = await secondConfirm({
+              title: 'close all tab',
+              content: 'are u sure',
+              confirmText: 'close',
+            });
+            if (!confirm) {
+              return;
+            }
             setTabs([]);
             changeTab(0);
           }}
@@ -127,6 +140,7 @@ function TabsWithContent_(props: {
           style={{
             flexWrap: 'wrap',
           }}
+          spacing={1}
         >
           {tabs.map((tab, index) => {
             return (

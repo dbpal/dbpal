@@ -14,16 +14,17 @@ use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
+pub const PASSWORD_KEY: &str = "dbpal";
 
 #[tauri::command]
 pub async fn delete_password(name: String) -> Result<(), ErrorFrontend> {
-    let entry = keyring::Entry::new("dbpal", &name)?;
+    let entry = keyring::Entry::new(PASSWORD_KEY, &name)?;
     entry.delete_credential()?;
     Ok(())
 }
 #[tauri::command]
 pub async fn save_password(name: String, pass: String) -> Result<(), ErrorFrontend> {
-    let entry = keyring::Entry::new("dbpal", &name)?;
+    let entry = keyring::Entry::new(PASSWORD_KEY, &name)?;
     entry.set_password(&pass)?;
     Ok(())
 }
@@ -64,12 +65,10 @@ pub async fn drop_database(
             Ok(())
         }
 
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db catalog",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
     }
 }
 
@@ -99,12 +98,10 @@ pub async fn drop_schema(
 
             Ok(())
         }
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db database",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
     }
 }
 
@@ -141,12 +138,10 @@ pub async fn create_database(
             Ok(())
         }
 
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db catalog",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
     }
 }
 
@@ -177,12 +172,10 @@ pub async fn create_schema(
 
             Ok(())
         }
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db database",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
     }
 }
 
@@ -228,11 +221,10 @@ pub async fn mongo_list_time_serial_collection(
         .map_err(|x| ErrorFrontend::from(x))?;
 
     let ret = match schema.as_any().downcast_ref::<Mongo>() {
-        Some(x) => {
-            x.list_time_serial_collection()
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?
-        }
+        Some(x) => x
+            .list_time_serial_collection()
+            .await
+            .map_err(|x| ErrorFrontend::from(x))?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' is not a mongo", name)));
         }
@@ -354,11 +346,10 @@ pub async fn mongo_create_index(
         .map_err(ErrorFrontend::from)?;
 
     match schema.as_any().downcast_ref::<Mongo>() {
-        Some(x) => {
-            x.create_index(&table_name, index_name, unique, keys)
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?
-        }
+        Some(x) => x
+            .create_index(&table_name, index_name, unique, keys)
+            .await
+            .map_err(|x| ErrorFrontend::from(x))?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' not a mongo", name)));
         }
@@ -678,13 +669,11 @@ pub async fn query_sql(
 
     result.map_err(ErrorFrontend::from).map(|x| {
         x.into_iter()
-            .map(|x| {
-                match x {
-                    Err(e) => Err(e),
-                    Ok(x) => {
-                        let QueryResp { fields, data } = x;
-                        Ok(MuiDataGridData::from((fields, data)))
-                    }
+            .map(|x| match x {
+                Err(e) => Err(e),
+                Ok(x) => {
+                    let QueryResp { fields, data } = x;
+                    Ok(MuiDataGridData::from((fields, data)))
                 }
             })
             .collect::<Vec<_>>()
@@ -845,12 +834,10 @@ pub async fn config_list_database_or_schema(
 ) -> Result<Vec<String>, ErrorFrontend> {
     let x = conn.open().await?;
     match x {
-        Open::Catalog(catalog_trait) => {
-            catalog_trait
-                .list_database()
-                .await
-                .map_err(ErrorFrontend::from)
-        }
+        Open::Catalog(catalog_trait) => catalog_trait
+            .list_database()
+            .await
+            .map_err(ErrorFrontend::from),
         Open::DataBase(dbtrait) => dbtrait.list_schema().await.map_err(ErrorFrontend::from),
         Open::Schema(_) => Ok(vec![]),
     }
@@ -953,11 +940,10 @@ pub async fn oracle_query_set_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_set_autocommit(query_id, commit)
-                .await
-                .map_err(ErrorFrontend::from)
-        }
+        Some(x) => x
+            .query_set_autocommit(query_id, commit)
+            .await
+            .map_err(ErrorFrontend::from),
         None => Err(ErrorFrontend::from(format!("db '{}' is not oracle", name))),
     }
 }
@@ -972,11 +958,10 @@ pub async fn oracle_query_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_autocommit(query_id)
-                .await
-                .map_err(ErrorFrontend::from)
-        }
+        Some(x) => x
+            .query_autocommit(query_id)
+            .await
+            .map_err(ErrorFrontend::from),
         None => Err(ErrorFrontend::from(format!("db '{}' is not oracle", name))),
     }
 }
@@ -991,11 +976,10 @@ pub async fn oracle_query_commit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_commit(query_id)
-                .await
-                .map_err(|e| ErrorFrontend::from(e))
-        }
+        Some(x) => x
+            .query_commit(query_id)
+            .await
+            .map_err(|e| ErrorFrontend::from(e)),
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -1010,11 +994,10 @@ pub async fn oracle_query_rollback(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_rollback(query_id)
-                .await
-                .map_err(|e| ErrorFrontend::from(e))
-        }
+        Some(x) => x
+            .query_rollback(query_id)
+            .await
+            .map_err(|e| ErrorFrontend::from(e)),
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -2401,15 +2384,16 @@ impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
             .into_iter()
             .map(|x| {
                 let mut m = HashMap::new();
-                fields.iter().zip(x.into_iter()).for_each(|(f, value)| {
-                    match value {
+                fields
+                    .iter()
+                    .zip(x.into_iter())
+                    .for_each(|(f, value)| match value {
                         Some(value) => {
                             m.insert(f.field.clone(), value);
                         }
 
                         None => {}
-                    }
-                });
+                    });
 
                 m
             })

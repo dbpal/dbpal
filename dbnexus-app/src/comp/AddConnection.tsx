@@ -232,7 +232,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   const { showNotification } = useContext(NotificationContext);
   const [testOk, setTestOk] = useState(false);
   const [trustCert, setTrustCert] = useState(false);
-  const [databaseCandidates, setDatabaseCandidats] = useState([]);
+  const [databaseCandidates, setDatabaseCandidates] = useState([]);
   const [schema, setSchema] = useState('');
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
@@ -408,7 +408,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
     setPassword('');
     setDatabase('');
     setPassword('');
-    setDatabaseCandidats([]);
+    setDatabaseCandidates([]);
     setSchemesCandidats([]);
     setSchema('');
   }, [connectionType]);
@@ -452,20 +452,28 @@ export default function AddConfig(props: { handleClose: () => void }) {
 
   useEffect(() => {
     let config = makeConfig();
+    if (connectionType == DataSourceKind.Oracle) {
+      // TODO oracle have bug rigthnow
+      return;
+    }
     if (config) {
       invoke<string[]>('config_list_database_or_schema', { conn: config })
         .then((e) => {
-          setDatabaseCandidats(e);
+          setDatabaseCandidates(e);
         })
         .catch((e) => {
           console.log('list database failed,', e);
-          setDatabaseCandidats([]);
+          setDatabaseCandidates([]);
         });
     }
   }, [triggerReLoad]);
 
   useEffect(() => {
-    if (database && connectionType == DataSourceKind.Postgres) {
+    if (
+      database &&
+      (connectionType == DataSourceKind.Postgres ||
+        connectionType == DataSourceKind.Oracle)
+    ) {
       let config = makeConfig();
       if (config) {
         invoke<string[]>('config_list_database_or_schema', { conn: config })
@@ -473,7 +481,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
             setSchemesCandidats(e);
           })
           .catch((e) => {
-            console.log('list database failed,', e);
+            console.log('list schemas failed,', e);
             setSchemesCandidats([]);
           });
       }
@@ -711,7 +719,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
             handleSaveConnection();
           }}
         >
-          Save
+          save
         </Button>
       </Stack>
     </Stack>

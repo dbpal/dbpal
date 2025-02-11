@@ -38,7 +38,7 @@ import LinkIcon from '@mui/icons-material/Link';
 
 import CloseIcon from '@mui/icons-material/Close';
 
-const LogLevelSel = ({ handleChange, level }) => {
+const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
 
   return (
@@ -380,7 +380,7 @@ function MenuResetColumnWidths() {
 }
 
 export {
-  LogLevelSel,
+  LogLevelSelection,
   StickyNav,
   MetaValuesView,
   datagridRowHeight,
