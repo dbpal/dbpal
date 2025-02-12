@@ -796,12 +796,10 @@ impl TryFrom<&str> for IndexKind {
             "primary" => Ok(Self::Primary),
             "normal" => Ok(Self::Index),
             "unique" => Ok(Self::Unique),
-            _ => {
-                Err(format!(
-                    "the frontend may pass the wrong parameter of {}",
-                    value
-                ))
-            }
+            _ => Err(format!(
+                "the frontend may pass the wrong parameter of {}",
+                value
+            )),
         }
     }
 }

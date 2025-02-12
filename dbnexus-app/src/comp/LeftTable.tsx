@@ -352,12 +352,14 @@ function ModifyTableColumn(props: {
               onChange={(e) => {
                 setNewTyp(e.target.value);
               }}
+              fullWidth
             ></TextField>
-            <ColumnNullness
-              nullness={nullness}
-              handleNullness={setNullness}
-            ></ColumnNullness>
+            <ColumnParentThesesHint />
           </Stack>
+          <ColumnNullness
+            nullness={nullness}
+            handleNullness={setNullness}
+          ></ColumnNullness>
         </Stack>
       )}
       <Stack direction="row" spacing={1}>
@@ -411,7 +413,7 @@ function TableColumnsMenu(props: {
           }}
           aria-labelledby="add column"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="900px">
             <TableAddColumn
               table={table}
               uuid={uuid}
@@ -427,6 +429,10 @@ function TableColumnsMenu(props: {
       )}
     </Paper>
   );
+}
+
+function ColumnParentThesesHint() {
+  return <span> some type require specify a size like `varchar(128)`</span>;
 }
 function TableAddColumn(props: {
   table: string;
@@ -503,35 +509,21 @@ function TableAddColumn(props: {
       {/*   TODO some mariadb require a length parameter    */}
       <Stack direction="row">
         <TextField
+          fullWidth
           size="small"
           value={typ}
           onChange={(e) => setTyp(e.target.value)}
           label="type"
         ></TextField>
-        <ColumnNullness
-          nullness={nullness}
-          handleNullness={(e) => {
-            setNullness(e);
-          }}
-        ></ColumnNullness>
-        {supportAfter && (
-          <FormControl style={{ minWidth: '180px' }}>
-            <InputLabel id="dropdown-label">Select After column </InputLabel>
-            <Select
-              labelId="dropdown-label"
-              value={after}
-              onChange={(e) => {
-                setAfter(e.target.value);
-              }}
-            >
-              <MenuItem value="">none</MenuItem>
-              {fields.map((e) => (
-                <MenuItem value={e.field}> {e.field} </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
+        <ColumnParentThesesHint />
       </Stack>
+      <ColumnNullness
+        nullness={nullness}
+        handleNullness={(e) => {
+          setNullness(e);
+        }}
+      ></ColumnNullness>
+
       <Stack>
         <TextField
           size="small"
@@ -540,6 +532,24 @@ function TableAddColumn(props: {
           label="default value"
         ></TextField>
       </Stack>
+      {supportAfter && (
+        <FormControl style={{ minWidth: '180px' }}>
+          <InputLabel id="dropdown-label">Select After column </InputLabel>
+          <Select
+            labelId="dropdown-label"
+            value={after}
+            onChange={(e) => {
+              setAfter(e.target.value);
+            }}
+          >
+            <MenuItem value="">none</MenuItem>
+            {fields.map((e) => (
+              <MenuItem value={e.field}> {e.field} </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      )}
+
       <Divider></Divider>
       <Stack direction="row">
         <Button

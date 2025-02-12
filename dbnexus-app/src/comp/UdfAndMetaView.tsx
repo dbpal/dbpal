@@ -64,8 +64,12 @@ function DefAndMetasView(props: {
               }
             }}
           ></SimpleResizeEditor>
-          <Typography variant={titleVariant}> Some Metas </Typography>
-          <MetaValuesView values={detail.metas}></MetaValuesView>
+          {detail.metas.length > 0 && (
+            <>
+              <Typography variant={titleVariant}> Some Metas </Typography>
+              <MetaValuesView values={detail.metas}></MetaValuesView>
+            </>
+          )}
         </div>
       )}
     </Stack>

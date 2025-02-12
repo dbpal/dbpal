@@ -36,7 +36,7 @@ impl LexerCompletionTrait for MysqlDB {
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
-            let name: String = r.try_get(0)?;
+            let name: String = r.try_get_unchecked(0)?;
             ret.push(name);
         }
         anyhow::Ok(ret)
@@ -179,12 +179,10 @@ impl AstCompletionHelper for MysqlDB {
             .await
             .map(|x| {
                 x.into_iter()
-                    .map(|x| {
-                        CompletionItem {
-                            item: x.into(),
-                            kind: CompletionKind::Function,
-                            desc: None,
-                        }
+                    .map(|x| CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Function,
+                        desc: None,
                     })
                     .collect::<Vec<_>>()
             })?

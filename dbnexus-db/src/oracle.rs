@@ -14,10 +14,11 @@ use tokio::task::block_in_place;
 
 use crate::datasource_config::OracleDbConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index,
-    IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter, not_support_features,
+    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
+    HumanSize, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    not_support_features,
 };
 use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -840,6 +841,33 @@ fn type_support_compare(_typ: &str) -> bool {
     true
 }
 impl OracleDB {
+    pub(crate) fn query_size(
+        &self, names: &[String],
+    ) -> anyhow::Result<HashMap<String, Option<i64>>> {
+        let sql = format!(
+            r#"
+            SELECT
+            segment_name,
+            bytes
+        FROM
+            user_segments
+        WHERE
+            segment_name in ('{}') -- 替换为你的表名
+            
+        "#,
+            names.join("','")
+        );
+        let conn = self.get_conn()?;
+        let rows = block_in_place(|| conn.query(&sql, &[]))?;
+        let mut ret = HashMap::new();
+        for row in rows {
+            let row = row?;
+            let name: String = row.get(0)?;
+            let size: Option<i64> = row.get(1)?;
+            ret.insert(name, size);
+        }
+        anyhow::Ok(ret)
+    }
     pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"SELECT TABLE_NAME FROM DBA_TABLES WHERE OWNER = '{}'  ORDER BY TABLE_NAME "#,
@@ -853,7 +881,19 @@ impl OracleDB {
             let name: String = r.get(0)?;
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+        let sizes = self.query_size(&ret[..])?;
+
+        anyhow::Ok(
+            ret.into_iter()
+                .map(|x| ListTable {
+                    size: sizes
+                        .get(&x)
+                        .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
+                        .flatten(),
+                    name: x,
+                })
+                .collect(),
+        )
     }
 
     pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -890,9 +930,22 @@ impl SchemaTrait for OracleDB {
         for row in rows {
             let row = row?;
             let name: String = row.get(0)?;
-            ret.push(ListMaterializedView::from(name));
+
+            ret.push(name);
         }
-        anyhow::Ok(ret)
+        let sizes = self.query_size(&ret[..])?;
+
+        anyhow::Ok(
+            ret.into_iter()
+                .map(|x| ListTable {
+                    size: sizes
+                        .get(&x)
+                        .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
+                        .flatten(),
+                    name: x,
+                })
+                .collect(),
+        )
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
