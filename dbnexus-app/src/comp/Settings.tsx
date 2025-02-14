@@ -18,7 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
-import { appStore, AppStoreKey, SettingsContext, UserSettings } from './Common';
+import { appStore, AppStoreKey, SettingContext, UserSettings } from './Common';
 import { SelectPageSize } from './CommonComp';
 
 function ModifySettings() {
@@ -27,6 +27,10 @@ function ModifySettings() {
   const [pageSize, setPageSize] = useState(0);
   const [theme, setTheme] = useState('');
   const [editorFontSize, setEditorFontSize] = useState('18');
+  const [rootFontSize, setRootFontSize] = useState('18');
+  const [datagridRowHeight, setDatagridRowHeight] = useState('24');
+  const [datagridHeaderHeight, setDatagridHeaderHeight] = useState('30');
+
   const reload = async () => {
     (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
@@ -34,6 +38,9 @@ function ModifySettings() {
         setPageSize(settings.pageSize);
         setTheme(settings.theme);
         setEditorFontSize(settings.editorFontSize + '');
+        setRootFontSize(settings.rootFontSize + '');
+        setDatagridRowHeight(settings.datagridRowHeight + '');
+        setDatagridHeaderHeight(settings.datagridHeaderHeight + '');
       })
       .catch((e) => {
         showNotification('error', 'port is not a number', e);
@@ -47,7 +54,14 @@ function ModifySettings() {
     (await appStore())
       .set(
         AppStoreKey.UserSetttings,
-        new UserSettings(theme, pageSize, parseInt(editorFontSize))
+        new UserSettings(
+          theme,
+          pageSize,
+          parseInt(editorFontSize),
+          parseInt(rootFontSize),
+          parseInt(datagridRowHeight),
+          parseInt(datagridHeaderHeight)
+        )
       )
       .then(() => {
         showNotification('success', 'Save Setting OK');
@@ -69,7 +83,6 @@ function ModifySettings() {
           }}
         ></SelectPageSize>
       </Stack>
-
       <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
         <Typography width={headerSize}> theme: </Typography>
         <FormControl style={{ width: '200px' }} variant="outlined">
@@ -95,10 +108,42 @@ function ModifySettings() {
             setEditorFontSize(e.target.value);
           }}
           error={isNaN(parseInt(editorFontSize))}
-          helperText="please input a int"
         ></TextField>
       </Stack>
-
+      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
+        <Typography width={headerSize}> font size: </Typography>
+        <TextField
+          size="small"
+          value={rootFontSize}
+          onChange={(e) => {
+            setRootFontSize(e.target.value);
+          }}
+          error={isNaN(parseInt(rootFontSize))}
+          helperText="overall font size"
+        ></TextField>
+      </Stack>
+      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
+        <Typography width={headerSize}> table header size: </Typography>
+        <TextField
+          size="small"
+          value={datagridHeaderHeight}
+          onChange={(e) => {
+            setDatagridHeaderHeight(e.target.value);
+          }}
+          error={isNaN(parseInt(datagridHeaderHeight))}
+        ></TextField>
+      </Stack>
+      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
+        <Typography width={headerSize}> table row size: </Typography>
+        <TextField
+          size="small"
+          value={datagridRowHeight}
+          onChange={(e) => {
+            setDatagridRowHeight(e.target.value);
+          }}
+          error={isNaN(parseInt(datagridRowHeight))}
+        ></TextField>
+      </Stack>
       <Divider></Divider>
       <Stack direction="row">
         <Button
@@ -212,9 +257,15 @@ function SettingComp(props: { children }) {
           new UserSettings(
             setting.theme,
             setting.pageSize,
-            setting.editorFontSize
+            setting.editorFontSize,
+            setting.rootFontSize,
+            setting.datagridRowHeight,
+            setting.datagridHeaderHeight
           )
         );
+
+        document.documentElement.style.fontSize =
+          (setting.rootFontSize ? setting.rootFontSize : 15) + 'px';
       })
       .catch((e) => {
         alert(`list user settings failed ${e.toString()}`);
@@ -241,9 +292,9 @@ function SettingComp(props: { children }) {
   return (
     <ThemeProvider theme={!isDark() ? lightTheme : darkTheme}>
       <CssBaseline />
-      <SettingsContext.Provider value={setting}>
+      <SettingContext.Provider value={setting}>
         {children}
-      </SettingsContext.Provider>
+      </SettingContext.Provider>
     </ThemeProvider>
   );
 }

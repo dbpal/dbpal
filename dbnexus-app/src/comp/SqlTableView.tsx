@@ -31,7 +31,7 @@ import {
   keyNotInTable,
   modalStyle,
   reloadOK,
-  SettingsContext,
+  SettingContext,
   VisiableContext,
 } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
@@ -49,12 +49,7 @@ import {
   isTypeLargeText,
   secondConfirm,
 } from './helper';
-import {
-  datagridHeaderHeight,
-  datagridRowHeight,
-  MenuResetColumnWidths,
-  pageSizeOptions,
-} from './CommonComp';
+import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
 
 const confrimAboutPrimary = async (
   notWarnPri,
@@ -150,9 +145,8 @@ function SqlTableView(props: {
   const [sort, setSort] = useState('');
   const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(
-    useContext(SettingsContext).pageSize
-  );
+  const setting = useContext(SettingContext);
+  const [pageSize, setPageSize] = useState(setting.pageSize);
 
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
@@ -471,8 +465,8 @@ function SqlTableView(props: {
                 showColumnVerticalBorder
                 slotProps={slotProps}
                 style={dataGridStyle}
-                rowHeight={datagridRowHeight}
-                columnHeaderHeight={datagridHeaderHeight}
+                rowHeight={setting.datagridRowHeight}
+                columnHeaderHeight={setting.datagridHeaderHeight}
                 getRowId={getRowId}
                 paginationModel={paginationModel}
                 pageSizeOptions={pageSizeOptions}

@@ -21,8 +21,8 @@ import {
 } from './helper.ts';
 import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import React, { memo, useCallback, useContext, useMemo } from 'react';
-import { VisiableContext } from './Common.tsx';
-import { datagridHeaderHeight, datagridRowHeight } from './CommonComp.tsx';
+import { SettingContext, VisiableContext } from './Common.tsx';
+
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification.tsx';
 
@@ -91,7 +91,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
       },
     } as GridSlotsComponentsProps;
   }, []);
-
+  const setting = useContext(SettingContext);
   return (
     vis && (
       <div
@@ -104,8 +104,8 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}
-          rowHeight={datagridRowHeight}
-          columnHeaderHeight={datagridHeaderHeight}
+          rowHeight={setting.datagridRowHeight}
+          columnHeaderHeight={setting.datagridHeaderHeight}
           columns={data.fields}
           rows={data.data}
           filterMode="client" // 使用客户端过滤

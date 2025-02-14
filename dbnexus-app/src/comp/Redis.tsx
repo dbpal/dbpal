@@ -28,7 +28,7 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   modalStyle,
   progressBarSize,
-  SettingsContext,
+  SettingContext,
   reloadOK,
   VisiableContext,
   SimpleResizeEditor,
@@ -58,11 +58,7 @@ import {
   stringToHexArray,
   uint8ArrayToUtf8,
 } from './helper.ts';
-import {
-  datagridHeaderHeight,
-  datagridRowHeight,
-  pageSizeOptions,
-} from './CommonComp.tsx';
+import { pageSizeOptions } from './CommonComp.tsx';
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -894,7 +890,7 @@ function RedisSetTable(props: {
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
-
+  const settings = useContext(SettingContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -929,8 +925,8 @@ function RedisSetTable(props: {
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
+            rowHeight={settings.datagridRowHeight}
+            columnHeaderHeight={settings.datagridHeaderHeight}
             rows={resp.data.data}
             editMode="row"
             checkboxSelection={false}
@@ -1068,9 +1064,7 @@ function RedisListTable(props: {
   const [selectRow, setSelectRow] = useState<any>(null);
 
   const { showNotification } = useContext(NotificationContext);
-  const [pageSize, setPageSize] = useState(
-    useContext(SettingsContext).pageSize
-  );
+  const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
   const [page, setPage] = useState(0);
 
   const handleReload = (showReloadOK: boolean) => {
@@ -1173,6 +1167,7 @@ function RedisListTable(props: {
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
+  const setting = useContext(SettingContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -1197,8 +1192,8 @@ function RedisListTable(props: {
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
+            rowHeight={setting.datagridRowHeight}
+            columnHeaderHeight={setting.datagridHeaderHeight}
             checkboxSelection={false}
             disableMultipleRowSelection
             disableColumnFilter
@@ -1381,7 +1376,7 @@ function RedisZsetTable(props: {
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
-
+  const setting = useContext(SettingContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -1449,8 +1444,8 @@ function RedisZsetTable(props: {
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
+            rowHeight={setting.datagridRowHeight}
+            columnHeaderHeight={setting.datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection={false}
             editMode="row"
@@ -1610,7 +1605,7 @@ function RedisHashTable(props: {
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
-
+  const setting = useContext(SettingContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -1645,8 +1640,8 @@ function RedisHashTable(props: {
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
+            rowHeight={setting.datagridRowHeight}
+            columnHeaderHeight={setting.datagridHeaderHeight}
             rows={resp.data.data}
             checkboxSelection={false}
             editMode="row"

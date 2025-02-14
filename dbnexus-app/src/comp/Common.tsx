@@ -1,5 +1,6 @@
 import {
   Button,
+  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -350,7 +351,7 @@ function SimpleResizeEditor(props: {
   const [pos, setPos] = useState<Position>(null);
   let height = editorInitHeight(
     value,
-    useContext(SettingsContext).editorFontSize * 1.2
+    useContext(SettingContext).editorFontSize * 1.2
   );
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
@@ -367,7 +368,7 @@ function SimpleResizeEditor(props: {
     []
   );
 
-  const { theme } = useContext(SettingsContext);
+  const { theme } = useContext(SettingContext);
   return (
     <div
       style={{
@@ -392,7 +393,7 @@ function SimpleResizeEditor(props: {
           value={value}
           theme={theme == 'dark' ? 'vs-dark' : 'light'}
           options={{
-            fontSize: useContext(SettingsContext).editorFontSize,
+            fontSize: useContext(SettingContext).editorFontSize,
             wordWrap: 'on',
             ...options,
           }}
@@ -469,8 +470,17 @@ class UserSettings {
   theme: string = 'light';
   pageSize: number = 100;
   editorFontSize: number;
-
-  constructor(theme?, pageSize?, editorFontSize?) {
+  rootFontSize: number = 15;
+  datagridRowHeight: number = 24;
+  datagridHeaderHeight: number = 30;
+  constructor(
+    theme?,
+    pageSize?,
+    editorFontSize?,
+    rootFontSize?,
+    datagridRowHeight?,
+    datagridHeaderHeight?
+  ) {
     if (theme) {
       this.theme = theme;
     }
@@ -480,10 +490,19 @@ class UserSettings {
     if (editorFontSize) {
       this.editorFontSize = editorFontSize;
     }
+    if (rootFontSize) {
+      this.rootFontSize = rootFontSize;
+    }
+    if (datagridHeaderHeight) {
+      this.datagridHeaderHeight = datagridHeaderHeight;
+    }
+    if (datagridRowHeight) {
+      this.datagridRowHeight = datagridRowHeight;
+    }
   }
 }
 
-const SettingsContext = createContext<UserSettings>(null);
+const SettingContext = createContext<UserSettings>(null);
 
 const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
 
@@ -976,9 +995,9 @@ function LoadStoreFileForQuery(props: {
           </Tooltip>
         </>
       )}
-      <Button onClick={loadFile}>
+      <IconButton onClick={loadFile}>
         <AttachFileIcon></AttachFileIcon>
-      </Button>
+      </IconButton>
 
       <Button onClick={handleSave}>save</Button>
     </>
@@ -999,7 +1018,7 @@ export {
   progressBarSize,
   progressBarSizeSmall,
   extraParametersFromMetaValues,
-  SettingsContext,
+  SettingContext,
   appStore,
   UserSettings,
   VisiableContext,

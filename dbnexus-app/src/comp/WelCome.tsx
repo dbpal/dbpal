@@ -1,4 +1,11 @@
-import { Link, List, ListItem, Stack, Typography } from '@mui/material';
+import {
+  Divider,
+  Link,
+  List,
+  ListItem,
+  Stack,
+  Typography,
+} from '@mui/material';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 function WelCome() {
@@ -14,14 +21,15 @@ function WelCome() {
     'postgres',
   ];
   return (
-    <Stack>
+    <Stack spacing={1}>
       <Typography variant="h5">
         dbpal is a database management system that easy to use.
       </Typography>
-      <Typography variant="subtitle1">right now we support:</Typography>
+      <Divider></Divider>
+      <Typography variant="h6">rightnow we support:</Typography>
       <List>
         {databases.map((e) => (
-          <ListItem key={e}> {e} </ListItem>
+          <ListItem key={e}>{e}</ListItem>
         ))}
       </List>
 
@@ -32,7 +40,7 @@ function WelCome() {
           openUrl('https://github.com/dbpal/docs/blob/main/README.md');
         }}
       >
-        more information.
+        more information
       </Link>
     </Stack>
   );

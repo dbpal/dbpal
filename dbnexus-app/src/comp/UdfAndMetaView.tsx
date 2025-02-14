@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 
 import { NotificationContext } from './Notification';
 import { Button, Stack, Typography } from '@mui/material';
-import { DefAndMetas, SettingsContext, SimpleResizeEditor } from './Common';
+import { DefAndMetas, SettingContext, SimpleResizeEditor } from './Common';
 
 import { Variant } from '@mui/material/styles/createTypography';
 import { MetaValuesView } from './CommonComp';
@@ -38,7 +38,7 @@ function DefAndMetasView(props: {
     handleReload();
   }, []);
 
-  const { theme } = useContext(SettingsContext);
+  const { theme } = useContext(SettingContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>

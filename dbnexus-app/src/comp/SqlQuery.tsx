@@ -23,7 +23,7 @@ import {
   LoadStoreFileForQuery,
   MakeIQueryConn,
   msgTimeout,
-  SettingsContext,
+  SettingContext,
 } from './Common.tsx';
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
@@ -106,7 +106,7 @@ function SqlQuery(props: {
   );
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
-  const { theme } = useContext(SettingsContext);
+  const { theme } = useContext(SettingContext);
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, monaco) => {
       editor.current = ed;
@@ -385,7 +385,7 @@ function SqlQuery(props: {
             onMount={handleEditorDidMount}
             value=""
             options={{
-              fontSize: useContext(SettingsContext).editorFontSize,
+              fontSize: useContext(SettingContext).editorFontSize,
               wordWrap: 'on',
             }}
           ></Editor>

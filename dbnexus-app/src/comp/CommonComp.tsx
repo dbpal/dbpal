@@ -37,6 +37,7 @@ import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 
 import CloseIcon from '@mui/icons-material/Close';
+import { SettingContext } from './Common';
 
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
@@ -61,9 +62,6 @@ const LogLevelSelection = ({ handleChange, level }) => {
     </FormControl>
   );
 };
-
-const datagridRowHeight = 25;
-const datagridHeaderHeight = 36;
 
 function StickyNav(props: { children: ReactNode[] | ReactNode }) {
   const { children } = props;
@@ -349,14 +347,14 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
       },
     } as GridSlotsComponentsProps;
   }, []);
-
+  const setting = useContext(SettingContext);
   return (
     <DataGrid
       showCellVerticalBorder
       showColumnVerticalBorder
       slotProps={slotProps}
-      rowHeight={datagridRowHeight}
-      columnHeaderHeight={datagridHeaderHeight}
+      rowHeight={setting.datagridRowHeight}
+      columnHeaderHeight={setting.datagridHeaderHeight}
       columns={columns}
       rows={values}
     ></DataGrid>
@@ -383,8 +381,6 @@ export {
   LogLevelSelection,
   StickyNav,
   MetaValuesView,
-  datagridRowHeight,
-  datagridHeaderHeight,
   MenuNewQuery,
   MenuCreateDatabase,
   MenuRefresh,

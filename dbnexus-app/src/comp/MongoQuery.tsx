@@ -7,7 +7,7 @@ import * as loglevel from 'loglevel';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
 import { generateRandomString, noUse } from './helper';
-import { EditorBar, LoadStoreFileForQuery, SettingsContext } from './Common';
+import { EditorBar, LoadStoreFileForQuery, SettingContext } from './Common';
 import { NotificationContext } from './Notification';
 import { LogLevelSelection } from './CommonComp';
 import * as esprima from 'esprima';
@@ -109,7 +109,7 @@ function MongoQuery(props: { uuid: string }) {
       console.log('mongo query error:', e);
     }
   };
-  let theme = useContext(SettingsContext).theme == 'dark' ? 'vs-dark' : 'light';
+  let theme = useContext(SettingContext).theme == 'dark' ? 'vs-dark' : 'light';
 
   return (
     <Stack spacing={1}>
@@ -160,7 +160,7 @@ function MongoQuery(props: { uuid: string }) {
             language="javascript"
             options={{
               fontFamily: 'Fira Code',
-              fontSize: useContext(SettingsContext).editorFontSize,
+              fontSize: useContext(SettingContext).editorFontSize,
             }}
             theme={theme}
           ></Editor>
@@ -192,7 +192,7 @@ function MongoQuery(props: { uuid: string }) {
         <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
             options={{
-              fontSize: useContext(SettingsContext).editorFontSize,
+              fontSize: useContext(SettingContext).editorFontSize,
               wordWrap: 'on',
             }}
             language="log"

@@ -4,11 +4,15 @@ import { DataGrid, GridPaginationModel } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
 import { useCallback, useContext, useMemo, useState } from 'react';
-import { modalStyle, SimpleResizeEditor, VisiableContext } from './Common.tsx';
+import {
+  modalStyle,
+  SettingContext,
+  SimpleResizeEditor,
+  VisiableContext,
+} from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import { GridInitialStateCommunity } from '@mui/x-data-grid/models/gridStateCommunity';
-import { datagridHeaderHeight, datagridRowHeight } from './CommonComp.tsx';
 
 const initialState: GridInitialStateCommunity = {
   sorting: { sortModel: [{ field: 'time', sort: 'desc' }] },
@@ -61,6 +65,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
     setPagesize(e.pageSize);
   }, []);
   let vis = useContext(VisiableContext);
+  const setting = useContext(SettingContext);
   return (
     <Stack>
       {vis && (
@@ -71,8 +76,8 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
             onRowDoubleClick={onRowDoubleClick}
             columns={columns}
             rows={logs}
-            rowHeight={datagridRowHeight}
-            columnHeaderHeight={datagridHeaderHeight}
+            rowHeight={setting.datagridRowHeight}
+            columnHeaderHeight={setting.datagridHeaderHeight}
             pageSizeOptions={[10, 15]}
             paginationModel={paginationModel}
             onPaginationModelChange={onPaginationModelChange}

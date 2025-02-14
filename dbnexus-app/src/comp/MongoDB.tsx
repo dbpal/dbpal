@@ -64,7 +64,7 @@ import {
   MongoDataViewModel,
   editorInitHeight,
   progressBarSize,
-  SettingsContext,
+  SettingContext,
   VisiableContext,
   reloadOK,
   keyNotInTable,
@@ -73,12 +73,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
-import {
-  datagridHeaderHeight,
-  datagridRowHeight,
-  pageSizeOptions,
-  SelectPageSize,
-} from './CommonComp';
+import { pageSizeOptions, SelectPageSize } from './CommonComp';
 import {
   calMenuStyle,
   columnWidths,
@@ -249,7 +244,7 @@ function MongoBsonEditor(props: {
   const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
   const [err, setErr] = useState<MongoBsonError>(null);
-  const { theme } = useContext(SettingsContext);
+  const { theme } = useContext(SettingContext);
 
   const handleEditorDidMount = useCallback(
     (ce: editor.IStandaloneCodeEditor, monaco) => {
@@ -273,19 +268,18 @@ function MongoBsonEditor(props: {
     []
   );
   const content = useRef(bsonValue2MongoBson(doc).format());
+  const settings = useContext(SettingContext);
+
   const { showNotification } = useContext(NotificationContext);
   const initHeigth = useRef(
     height
       ? height
-      : editorInitHeight(
-          content.current,
-          useContext(SettingsContext).editorFontSize * 1.2,
-          150
-        ) + 'px'
+      : editorInitHeight(content.current, settings.editorFontSize * 1.2, 150) +
+          'px'
   );
 
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
-    return { fontSize: useContext(SettingsContext).editorFontSize };
+    return { fontSize: settings.editorFontSize };
   }, []);
 
   return (
@@ -838,9 +832,7 @@ function MongoTableList(props: {
     setFilter,
   } = props;
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(
-    useContext(SettingsContext).pageSize
-  );
+  const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
   const { showNotification } = useContext(NotificationContext);
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
@@ -990,7 +982,7 @@ function MongoTableList(props: {
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
-
+  const setting = useContext(SettingContext);
   return (
     <>
       {selectModifyDoc && (
@@ -1036,8 +1028,8 @@ function MongoTableList(props: {
                 showColumnVerticalBorder
                 slotProps={slotProps}
                 getRowId={getRowId}
-                rowHeight={datagridRowHeight}
-                columnHeaderHeight={datagridHeaderHeight}
+                rowHeight={setting.datagridRowHeight}
+                columnHeaderHeight={setting.datagridHeaderHeight}
                 rowCount={resp.total}
                 columns={resp.data.fields}
                 rows={resp.data.data}
