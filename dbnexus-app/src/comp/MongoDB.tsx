@@ -838,8 +838,10 @@ function MongoTableList(props: {
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
+  const [loading, setLoading] = useState(false);
 
   const handleReload = async (showOK) => {
+    setLoading(true);
     reloadOP(filter, orderBy, page + 1, pageSize)
       .then((r) => {
         let has_null = false;
@@ -876,6 +878,9 @@ function MongoTableList(props: {
       })
       .catch((e) => {
         showNotification('error', 'fetch data failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -1024,6 +1029,7 @@ function MongoTableList(props: {
               }}
             >
               <DataGrid
+                loading={loading}
                 showCellVerticalBorder
                 showColumnVerticalBorder
                 slotProps={slotProps}

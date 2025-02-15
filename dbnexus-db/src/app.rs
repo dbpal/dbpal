@@ -5,8 +5,8 @@ use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
 use crate::datasource_config::{
-    MongoConfig, MysqlDbConfig, OracleDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
-    SqliteDbConfig,
+    MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
+    SqliteDBConfig,
 };
 use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
@@ -41,47 +41,47 @@ impl DBConnectionConfig {
 pub enum DBConnectionConfig {
     Sqlite {
         #[serde(flatten)]
-        conn: SqliteDbConfig,
+        conn: SqliteDBConfig,
         name: String,
     },
     Mysql {
         #[serde(flatten)]
-        conn: MysqlDbConfig,
+        conn: MysqlDBConfig,
         name: String,
     },
     MariaDB {
         #[serde(flatten)]
-        conn: MysqlDbConfig,
+        conn: MysqlDBConfig,
         name: String,
     },
     Tidb {
         #[serde(flatten)]
-        conn: MysqlDbConfig,
+        conn: MysqlDBConfig,
         name: String,
     },
     Postgres {
         #[serde(flatten)]
-        conn: PGDbConfig,
+        conn: PGDBConfig,
         name: String,
     },
     SqlServer {
         #[serde(flatten)]
-        conn: SqlServerDbConfig,
+        conn: SqlServerDBConfig,
         name: String,
     },
     Mongo {
         #[serde(flatten)]
-        conn: MongoConfig,
+        conn: MongoDBConfig,
         name: String,
     },
     Redis {
         #[serde(flatten)]
-        conn: RedisDbConfig,
+        conn: RedisDBConfig,
         name: String,
     },
     Oracle {
         #[serde(flatten)]
-        conn: OracleDbConfig,
+        conn: OracleDBConfig,
         name: String,
     },
 }
@@ -463,7 +463,7 @@ impl App {
 mod tests {
     use super::DBNexusConfigs;
     use crate::app::DBConnectionConfig;
-    use crate::datasource_config::MysqlDbConfig;
+    use crate::datasource_config::MysqlDBConfig;
 
     #[test]
     fn print_config() {
@@ -472,7 +472,7 @@ mod tests {
                 let mut m = Vec::new();
 
                 m.push(DBConnectionConfig::Mysql {
-                    conn: MysqlDbConfig {
+                    conn: MysqlDBConfig {
                         host: "127.0.0.1".to_string(),
                         port: 33,
                         username: "aaa".to_string(),

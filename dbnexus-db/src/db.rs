@@ -448,8 +448,25 @@ impl dyn SchemaTrait {
 pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + Debug + ServerMetas {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
-    async fn create_schema(&self, name: &str) -> anyhow::Result<()>;
+    async fn create_schema(
+        &self, name: &str, extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()>;
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()>;
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "extra", rename_all = "lowercase")]
+pub enum CreateSchemaExtra {
+    // CREATE KEYSPACE my_keyspace
+    // WITH REPLICATION = {
+    //     'class': 'SimpleStrategy',
+    //     'replication_factor': 3
+    // };
+    Cassandra {
+        // class is the keyword for frontend
+        class_name: String,
+        replication_factor: u32,
+    },
 }
 
 #[async_trait::async_trait]

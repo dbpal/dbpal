@@ -461,6 +461,7 @@ function SqlTableView(props: {
               }}
             >
               <DataGrid
+                loading={loading}
                 showCellVerticalBorder
                 showColumnVerticalBorder
                 slotProps={slotProps}

@@ -158,7 +158,7 @@ pub async fn create_schema(
         .map_err(|x| ErrorFrontend::from(x))?;
     match x {
         Open::DataBase(x) => {
-            x.create_schema(&schema)
+            x.create_schema(&schema, None)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
             let db = x

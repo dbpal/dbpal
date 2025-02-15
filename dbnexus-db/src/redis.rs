@@ -13,10 +13,11 @@ use sqlparser::tokenizer::Token;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
-use crate::datasource_config::RedisDbConfig;
+use crate::datasource_config::RedisDBConfig;
 use crate::db::{
-    BackendName, CheckConn, DBTrait, ExportKind, Field, Index, ListTable, QueryResp, QuerySql,
-    QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
+    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, ListTable,
+    QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet,
+    TableListResp,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
@@ -27,14 +28,14 @@ use crate::redis_lang_server::RedisDialet;
 
 #[derive(Clone)]
 pub struct RedisDB {
-    config: RedisDbConfig,
+    config: RedisDBConfig,
     m: ConnectionManager,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
 }
 
 impl RedisDB {
-    pub async fn new(config: RedisDbConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: RedisDBConfig) -> anyhow::Result<Self> {
         let conn_str = config.make_conn_string();
         log::info!("connect to redis var:{:?}", conn_str);
 
@@ -793,18 +794,14 @@ impl SchemaTrait for RedisDB {
             RedisType::String => anyhow::Ok(vec![Field::from_name_type("value", "string")]),
             RedisType::List => anyhow::Ok(vec![Field::from_name_type("list element", "string")]),
             RedisType::Set => anyhow::Ok(vec![Field::from_name_type("set element", "string")]),
-            RedisType::Hash => {
-                anyhow::Ok(vec![
-                    Field::from_name_type("key", "string"),
-                    Field::from_name_type("value", "string"),
-                ])
-            }
-            RedisType::Zset => {
-                anyhow::Ok(vec![
-                    Field::from_name_type("value", "string"),
-                    Field::from_name_type("score", "float64"),
-                ])
-            }
+            RedisType::Hash => anyhow::Ok(vec![
+                Field::from_name_type("key", "string"),
+                Field::from_name_type("value", "string"),
+            ]),
+            RedisType::Zset => anyhow::Ok(vec![
+                Field::from_name_type("value", "string"),
+                Field::from_name_type("score", "float64"),
+            ]),
         }
     }
 
@@ -1036,7 +1033,9 @@ impl DBTrait for RedisDB {
         anyhow::Ok(Arc::new(db))
     }
 
-    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
+    async fn create_schema(
+        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()> {
         // In Redis, the concept of a "database" is somewhat different from traditional
         // relational databases. Redis uses a single instance with multiple logical
         // databases, each identified by an index number (default is 0-15 for most
@@ -1214,11 +1213,9 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialet, line).tokenize()?;
         let c = tokens
             .iter()
-            .filter(|x| {
-                match x {
-                    Token::Whitespace(_) => false,
-                    _ => true,
-                }
+            .filter(|x| match x {
+                Token::Whitespace(_) => false,
+                _ => true,
             })
             .map(|x| x.to_string())
             .collect();
@@ -1258,12 +1255,10 @@ async fn query_sql(
 fn encode_response_value_to_string(v: &Value) -> String {
     match v {
         Value::Int(v) => v.to_string(),
-        Value::BulkString(x) => {
-            match from_utf8(x.as_slice()) {
-                Ok(x) => x.to_owned(),
-                Err(_) => format!("0x{}", hex::encode(x.as_slice())),
-            }
-        }
+        Value::BulkString(x) => match from_utf8(x.as_slice()) {
+            Ok(x) => x.to_owned(),
+            Err(_) => format!("0x{}", hex::encode(x.as_slice())),
+        },
         Value::SimpleString(x) => x.to_owned(),
         Value::Double(d) => d.to_string(),
         Value::Boolean(x) => x.to_string(),
@@ -1442,13 +1437,13 @@ mod tests {
     use redis::AsyncCommands;
 
     use super::{RedisDB, extract_db_from_info_key_space, split_info_colon};
-    use crate::datasource_config::RedisDbConfig;
+    use crate::datasource_config::RedisDBConfig;
     use crate::db::{DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas};
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::{TEST_HOST, enable_test_log};
 
     async fn make_test_object() -> RedisDB {
-        let db = RedisDB::new(RedisDbConfig {
+        let db = RedisDB::new(RedisDBConfig {
             host: TEST_HOST.to_string(),
             port: None,
             username: None,
@@ -1561,7 +1556,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_schema() {
         enable_test_log();
         let db = make_test_object().await;
-        db.create_schema("db11").await.unwrap();
+        db.create_schema("db11", None).await.unwrap();
         let db11 = db.open_schema("db11").await.unwrap();
         let db11 = db11.as_any().downcast_ref::<RedisDB>().unwrap();
         db11.string_set("xxxxx", "yyyy".as_bytes()).await.unwrap();

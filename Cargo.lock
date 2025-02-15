@@ -737,6 +737,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "cassandra-cpp"
+version = "3.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d341b47bc58a273da72536e76af56df43b5a2d7d7f00b9a5f0dcc6c977524eab"
+dependencies = [
+ "bigdecimal",
+ "cassandra-cpp-sys",
+ "error-chain",
+ "libc",
+ "log",
+ "parking_lot",
+ "slog",
+ "uuid",
+]
+
+[[package]]
+name = "cassandra-cpp-sys"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6141bc859dd66c4775d89945dda7ca392994d8efacecb756502d7dc32fb7e2cd"
+
+[[package]]
 name = "cc"
 version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1266,6 +1288,7 @@ dependencies = [
  "bb8-tiberius",
  "bit-vec",
  "bson",
+ "cassandra-cpp",
  "chrono",
  "dashmap",
  "enum-iterator",
@@ -1662,6 +1685,16 @@ checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "error-chain"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d2f06b9cac1506ece98fe3231e3cc9c4410ec3d5b1f24ae1c8946f0742cdefc"
+dependencies = [
+ "backtrace",
+ "version_check",
 ]
 
 [[package]]
@@ -5322,6 +5355,12 @@ checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "slog"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8347046d4ebd943127157b94d63abb990fcf729dc4e9978927fdf4ac3c998d06"
 
 [[package]]
 name = "smallvec"

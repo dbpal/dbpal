@@ -320,18 +320,18 @@ impl AstCompletionHelper for MysqlDB {
 mod tests {
     use std::path::Path;
 
-    use crate::datasource_config::MysqlDbConfig;
+    use crate::datasource_config::MysqlDBConfig;
     use crate::db::QuerySql;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::mysql::MysqlDB;
     use crate::{TEST_HOST, enable_test_log};
 
-    async fn make_test_object(config: MysqlDbConfig) -> MysqlDB {
+    async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
         let db = MysqlDB::new(config).await.unwrap();
         db
     }
-    fn make_config() -> MysqlDbConfig {
-        MysqlDbConfig {
+    fn make_config() -> MysqlDBConfig {
+        MysqlDBConfig {
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),

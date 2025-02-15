@@ -1630,7 +1630,7 @@ function RenameTable(props: {
           variant="contained"
           onClick={handleRename}
         >
-          Rename
+          rename
         </Button>
       </Stack>
     </Stack>

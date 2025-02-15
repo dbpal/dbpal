@@ -13,12 +13,12 @@ use sqlx::types::BigDecimal;
 use sqlx::{Column, Executor, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
-use crate::datasource_config::MysqlDbConfig;
+use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index,
-    IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfDetail, UdfOrPrecedureExtraParameter,
+    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
+    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -27,7 +27,7 @@ use crate::query_log::QueryLog;
 #[derive(Clone)]
 pub struct MysqlDB {
     pool: sqlx::MySqlPool,
-    pub(crate) config: MysqlDbConfig,
+    pub(crate) config: MysqlDBConfig,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
 }
 
@@ -1327,7 +1327,7 @@ fn encode_rows(
 }
 
 impl MysqlDB {
-    pub async fn new(config: MysqlDbConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: MysqlDBConfig) -> anyhow::Result<Self> {
         log::info!("mysql config:{:?}", config);
         let mut opts = sqlx::mysql::MySqlConnectOptions::new();
         opts = opts
@@ -1396,7 +1396,9 @@ impl DBTrait for MysqlDB {
         Ok(Arc::new(x))
     }
 
-    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
+    async fn create_schema(
+        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()> {
         let sql = format!("CREATE DATABASE {name}");
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
@@ -1504,7 +1506,7 @@ pub(crate) mod test_fns {
     use super::*;
     use crate::enable_test_log;
     // this test no need clean up, we use memory sqlite db.
-    pub(crate) async fn make_test_object(config: MysqlDbConfig) -> MysqlDB {
+    pub(crate) async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
         let db = MysqlDB::new(config).await.unwrap();
         db
     }
@@ -2100,10 +2102,10 @@ pub(crate) mod test_fns {
 mod tests {
     use super::test_fns::{self, make_test_object};
     use crate::TEST_HOST;
-    use crate::datasource_config::MysqlDbConfig;
+    use crate::datasource_config::MysqlDBConfig;
 
-    pub(crate) fn make_config() -> MysqlDbConfig {
-        MysqlDbConfig {
+    pub(crate) fn make_config() -> MysqlDBConfig {
+        MysqlDBConfig {
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),

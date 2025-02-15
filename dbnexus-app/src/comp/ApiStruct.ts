@@ -2,12 +2,12 @@
 
 export default types;
 export namespace types {
-    export type SqliteDbConfig = {
+    export type SqliteDBConfig = {
         "path": string;
         "read_only": boolean;
     };
     export type U16 = number;
-    export type MysqlDbConfig = {
+    export type MysqlDBConfig = {
         "host": string;
         "port": types.U16;
         "username": string;
@@ -15,7 +15,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
     };
-    export type PGDbConfig = {
+    export type PGDBConfig = {
         "host": string;
         "port": types.U16;
         "username": string;
@@ -24,7 +24,7 @@ export namespace types {
         "schema": (string | null);
         "read_only": boolean;
     };
-    export type SqlServerDbConfig = {
+    export type SqlServerDBConfig = {
         "host": string;
         "port": types.U16;
         "username": (string | null);
@@ -35,7 +35,7 @@ export namespace types {
         "read_only": boolean;
     };
     export type U64 = number;
-    export type MongoConfig = {
+    export type MongoDBConfig = {
         "host": string;
         "port": types.U16;
         "username": (string | null);
@@ -48,7 +48,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
     };
-    export type RedisDbConfig = {
+    export type RedisDBConfig = {
         "host": string;
         "port": (types.U16 | null);
         "username": (string | null);
@@ -56,7 +56,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
     };
-    export type OracleDbConfig = {
+    export type OracleDBConfig = {
         "username": string;
         "password": string;
         "host": string;
@@ -68,39 +68,39 @@ export namespace types {
     };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
-    } & (types.SqliteDbConfig & {
+    } & (types.SqliteDBConfig & {
         "name": string;
     })) | ({
         "conn_type": "mysql";
-    } & (types.MysqlDbConfig & {
+    } & (types.MysqlDBConfig & {
         "name": string;
     })) | ({
         "conn_type": "mariadb";
-    } & (types.MysqlDbConfig & {
+    } & (types.MysqlDBConfig & {
         "name": string;
     })) | ({
         "conn_type": "tidb";
-    } & (types.MysqlDbConfig & {
+    } & (types.MysqlDBConfig & {
         "name": string;
     })) | ({
         "conn_type": "postgres";
-    } & (types.PGDbConfig & {
+    } & (types.PGDBConfig & {
         "name": string;
     })) | ({
         "conn_type": "sqlserver";
-    } & (types.SqlServerDbConfig & {
+    } & (types.SqlServerDBConfig & {
         "name": string;
     })) | ({
         "conn_type": "mongo";
-    } & (types.MongoConfig & {
+    } & (types.MongoDBConfig & {
         "name": string;
     })) | ({
         "conn_type": "redis";
-    } & (types.RedisDbConfig & {
+    } & (types.RedisDBConfig & {
         "name": string;
     })) | ({
         "conn_type": "oracle";
-    } & (types.OracleDbConfig & {
+    } & (types.OracleDBConfig & {
         "name": string;
     })));
     export type ListTable = {

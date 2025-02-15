@@ -11,7 +11,7 @@ mod tests {
         use crate::handlers::{MuiDataGridData, MuiDataTableListResp};
         use dbnexus_db::app::{self};
         use dbnexus_db::datasource_config::{
-            MongoConfig, MysqlDbConfig, PGDbConfig, RedisDbConfig, SqlServerDbConfig,
+            MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };
         use dbnexus_db::db::{
             ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListTable, NamedStaff,
@@ -33,8 +33,8 @@ mod tests {
         let ts_module = {
             let api = vec![
                 &app::DBConnectionConfig::INFO,
-                &PGDbConfig::INFO,
-                &SqlServerDbConfig::INFO,
+                &PGDBConfig::INFO,
+                &SqlServerDBConfig::INFO,
                 &ListTable::INFO,
                 &Field::INFO,
                 &Index::INFO,
@@ -52,9 +52,9 @@ mod tests {
                 &ProcedureDetail::INFO,
                 &FormatSqlOpts::INFO,
                 &FormatSqlOptsIndent::INFO,
-                &RedisDbConfig::INFO,
-                &MysqlDbConfig::INFO,
-                &MongoConfig::INFO,
+                &RedisDBConfig::INFO,
+                &MysqlDBConfig::INFO,
+                &MongoDBConfig::INFO,
                 &MuiDataTableListResp::INFO,
                 &MuiDataGridData::INFO,
                 &QueryLogEvent::INFO,

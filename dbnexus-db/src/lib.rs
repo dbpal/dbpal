@@ -25,6 +25,8 @@ pub mod query_log;
 pub mod redis;
 pub mod redis_lang_server;
 // pub mod semantic_token;
+pub mod cassandra;
+pub mod cassrandra_lang_server;
 pub mod mongo_lang_server;
 pub mod oracle_lang_server;
 pub mod sqlite;

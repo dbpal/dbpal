@@ -11,12 +11,13 @@ use sqlx::postgres::PgRow;
 use sqlx::{Column, Executor, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
-use crate::datasource_config::PGDbConfig;
+use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind,
-    Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
+    DBTrait, ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
+    UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -27,7 +28,7 @@ use crate::query_log::QueryLog;
 #[derive(Clone)]
 pub struct PostGresDB {
     pool: sqlx::PgPool,
-    pub(crate) config: PGDbConfig,
+    pub(crate) config: PGDBConfig,
     pub(crate) query_connection:
         Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
 }
@@ -73,7 +74,9 @@ impl DBTrait for PostGresDB {
         Ok(Arc::new(x))
     }
 
-    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
+    async fn create_schema(
+        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()> {
         let sql = format!("CREATE SCHEMA {name};");
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
@@ -1320,7 +1323,7 @@ impl std::fmt::Debug for PostGresDB {
 }
 
 impl PostGresDB {
-    pub async fn new(conn: PGDbConfig) -> anyhow::Result<Self> {
+    pub async fn new(conn: PGDBConfig) -> anyhow::Result<Self> {
         let mut opts = sqlx::postgres::PgConnectOptions::new();
         opts = opts
             .host(&conn.host)
@@ -1618,7 +1621,7 @@ impl CatalogTrait for PostGresDB {
 
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> PostGresDB {
-    let pg = PostGresDB::new(PGDbConfig {
+    let pg = PostGresDB::new(PGDBConfig {
         host: crate::TEST_HOST.to_string(),
         port: 5432,
         username: "postgres".to_string(),
@@ -2277,7 +2280,7 @@ mod tests {
         let pg = make_test_object().await;
 
         let tr = &pg as &dyn crate::db::DBTrait;
-        let _ = tr.create_schema("abc").await;
+        let _ = tr.create_schema("abc", None).await;
 
         let resp = tr.list_schema().await.unwrap();
         assert_eq!(resp, vec!["abc", "public", "xxx"]);

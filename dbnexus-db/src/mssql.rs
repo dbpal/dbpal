@@ -4,6 +4,19 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(test)]
+use crate::TEST_HOST;
+use crate::datasource_config::SqlServerDBConfig;
+use crate::db::{
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, DBTrait, ExportKind,
+    Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    format_data_time_fix_offset, not_support_features,
+};
+use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::meta_value::MetaValue;
+use crate::query_log::QueryLog;
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_core::future::BoxFuture;
@@ -14,22 +27,10 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
-use crate::TEST_HOST;
-use crate::datasource_config::SqlServerDbConfig;
-use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfDetail, UdfOrPrecedureExtraParameter, format_data_time_fix_offset, not_support_features,
-};
-use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
-use crate::meta_value::MetaValue;
-use crate::query_log::QueryLog;
-
 #[derive(Clone)]
 pub struct MsSqlServer {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
-    pub(crate) config: SqlServerDbConfig,
+    pub(crate) config: SqlServerDBConfig,
 
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
 }
@@ -161,7 +162,7 @@ impl ServerMetas for MsSqlServer {
     }
 }
 impl MsSqlServer {
-    pub async fn new(c: SqlServerDbConfig) -> anyhow::Result<Self> {
+    pub async fn new(c: SqlServerDBConfig) -> anyhow::Result<Self> {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
         let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
         anyhow::Ok(Self {
@@ -172,7 +173,7 @@ impl MsSqlServer {
     }
 }
 
-fn make_config(c: &SqlServerDbConfig) -> tiberius::Config {
+fn make_config(c: &SqlServerDBConfig) -> tiberius::Config {
     let mut config = tiberius::Config::new();
     config.host(&c.host);
     config.port(c.port);
@@ -232,26 +233,20 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => {
-                chrono::NaiveDateTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Date(_) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Time(_x) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-            }
+            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string()),
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -1352,57 +1347,46 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
             tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::String(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
-            tiberius::ColumnData::Guid(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
-            tiberius::ColumnData::Binary(x) => {
-                x.as_ref()
-                    .map(|x| format!("0X{}", hex::encode_upper(x)))
-                    .map(serde_json::Value::from)
-            }
-            tiberius::ColumnData::Numeric(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::String(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
+            tiberius::ColumnData::Guid(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
+            tiberius::ColumnData::Binary(x) => x
+                .as_ref()
+                .map(|x| format!("0X{}", hex::encode_upper(x)))
+                .map(serde_json::Value::from),
+            tiberius::ColumnData::Numeric(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Xml(x) => {
-                x.as_ref()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::Xml(x) => x
+                .as_ref()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => {
-                chrono::NaiveDateTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Date(_) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Time(_x) => {
-                chrono::NaiveTime::from_sql(value)
-                    .ok()
-                    .flatten()
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
-            }
+            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.to_string())
+                .map(serde_json::Value::from),
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -1778,7 +1762,7 @@ impl crate::db::DBTrait for MsSqlServer {
         Ok(Arc::new(x))
     }
 
-    async fn create_schema(&self, _name: &str) -> anyhow::Result<()> {
+    async fn create_schema(&self, _name: &str, _: Option<CreateSchemaExtra>) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
 
@@ -1837,9 +1821,9 @@ impl CatalogTrait for MsSqlServer {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub(crate) async fn make_test_object() -> MsSqlServer {
-    let ss = MsSqlServer::new(SqlServerDbConfig {
+    let ss = MsSqlServer::new(SqlServerDBConfig {
         host: TEST_HOST.to_string(),
         port: 1433,
         username: Some("sa".to_string()),

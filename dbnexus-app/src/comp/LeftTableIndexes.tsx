@@ -530,7 +530,7 @@ function RenameIndex(props: {
       ></TextField>
       <Stack direction="row" spacing={1}>
         <Button color="primary" variant="contained" onClick={handleRename}>
-          Rename
+          rename
         </Button>
       </Stack>
     </Stack>

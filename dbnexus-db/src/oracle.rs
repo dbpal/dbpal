@@ -12,13 +12,13 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::datasource_config::OracleDbConfig;
+use crate::datasource_config::OracleDBConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field,
-    HumanSize, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
-    not_support_features,
+    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
+    UdfOrPrecedureExtraParameter, not_support_features,
 };
 use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -29,7 +29,7 @@ use crate::query_log::QueryLog;
 pub struct OracleDB {
     pool: Pool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
-    pub(crate) config: OracleDbConfig,
+    pub(crate) config: OracleDBConfig,
 }
 
 #[async_trait::async_trait]
@@ -61,7 +61,7 @@ impl std::fmt::Debug for OracleDB {
 }
 
 impl OracleDB {
-    pub fn new(config: OracleDbConfig, min_conn: Option<u32>) -> anyhow::Result<Self> {
+    pub fn new(config: OracleDBConfig, min_conn: Option<u32>) -> anyhow::Result<Self> {
         let pool = oracle::pool::PoolBuilder::new(
             &config.username,
             &config.password,
@@ -1630,7 +1630,9 @@ impl DBTrait for OracleDB {
         anyhow::Ok(Arc::new(x))
     }
 
-    async fn create_schema(&self, _name: &str) -> anyhow::Result<()> {
+    async fn create_schema(
+        &self, _name: &str, _extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
 
@@ -1667,7 +1669,7 @@ mod tests {
     use crate::{TEST_HOST, enable_test_log};
     fn make_test_object(schema: Option<String>) -> OracleDB {
         let x = OracleDB::new(
-            OracleDbConfig {
+            OracleDBConfig {
                 username: "system".to_string(),
                 password: "welcome123".to_string(),
                 schema,

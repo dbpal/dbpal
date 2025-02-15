@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::datasource_config::MysqlDbConfig;
+use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index,
-    IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
+    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
+    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
     UdfOrPrecedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
@@ -25,7 +25,7 @@ impl BackendName for TiDB {
 }
 
 impl TiDB {
-    pub async fn new(config: MysqlDbConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: MysqlDBConfig) -> anyhow::Result<Self> {
         let db = Self {
             db: Arc::new(MysqlDB::new(config).await?),
         };
@@ -297,8 +297,10 @@ impl DBTrait for TiDB {
         anyhow::Ok(Arc::new(db))
     }
 
-    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
-        self.db.create_schema(name).await
+    async fn create_schema(
+        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()> {
+        self.db.create_schema(name, _extra).await
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
@@ -317,11 +319,11 @@ impl ServerMetas for TiDB {
 #[cfg(test)]
 mod tests {
     use crate::TEST_HOST;
-    use crate::datasource_config::MysqlDbConfig;
+    use crate::datasource_config::MysqlDBConfig;
     use crate::mysql::test_fns::{self, make_test_object};
 
-    pub(crate) fn make_config() -> MysqlDbConfig {
-        MysqlDbConfig {
+    pub(crate) fn make_config() -> MysqlDBConfig {
+        MysqlDBConfig {
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: None,

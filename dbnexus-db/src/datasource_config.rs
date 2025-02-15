@@ -1,7 +1,7 @@
 use typescript_type_def::TypeDef;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
-pub struct MongoConfig {
+pub struct MongoDBConfig {
     pub host: String,
     pub port: u16,
     pub username: Option<String>,
@@ -13,7 +13,7 @@ pub struct MongoConfig {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
-pub struct MysqlDbConfig {
+pub struct MysqlDBConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
@@ -23,13 +23,13 @@ pub struct MysqlDbConfig {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
-pub struct SqliteDbConfig {
+pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
-pub struct RedisDbConfig {
+pub struct RedisDBConfig {
     pub host: String,
     pub port: Option<u16>,
     pub username: Option<String>,
@@ -37,7 +37,7 @@ pub struct RedisDbConfig {
     pub db: Option<String>,
     pub read_only: bool,
 }
-impl RedisDbConfig {
+impl RedisDBConfig {
     // I used this in test and why??
     #[cfg(test)]
     fn new(
@@ -93,15 +93,15 @@ impl RedisDbConfig {
 #[test]
 fn test_redis_make_conn_string() {
     assert_eq!(
-        RedisDbConfig::new("127.0.0.1".to_string(), Some(111), None, None, None).make_conn_string(),
+        RedisDBConfig::new("127.0.0.1".to_string(), Some(111), None, None, None).make_conn_string(),
         "redis://127.0.0.1:111/"
     );
     assert_eq!(
-        RedisDbConfig::new("127.0.0.1".to_string(), None, None, None, None).make_conn_string(),
+        RedisDBConfig::new("127.0.0.1".to_string(), None, None, None, None).make_conn_string(),
         "redis://127.0.0.1/"
     );
     assert_eq!(
-        RedisDbConfig::new(
+        RedisDBConfig::new(
             "127.0.0.1".to_string(),
             None,
             Some("aaa".to_owned()),
@@ -112,7 +112,7 @@ fn test_redis_make_conn_string() {
         "redis://aaa:bbb@127.0.0.1/"
     );
     assert_eq!(
-        RedisDbConfig::new(
+        RedisDBConfig::new(
             "127.0.0.1".to_string(),
             None,
             Some("aaa".to_owned()),
@@ -124,7 +124,7 @@ fn test_redis_make_conn_string() {
     );
 
     assert_eq!(
-        RedisDbConfig::new(
+        RedisDBConfig::new(
             "127.0.0.1".to_string(),
             None,
             Some("aaa".to_owned()),
@@ -137,7 +137,7 @@ fn test_redis_make_conn_string() {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
-pub struct PGDbConfig {
+pub struct PGDBConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
@@ -147,7 +147,7 @@ pub struct PGDbConfig {
     pub read_only: bool,
 }
 
-impl PGDbConfig {
+impl PGDBConfig {
     pub(crate) fn db_str(&self) -> &str {
         self.db.as_ref().unwrap().as_str()
     }
@@ -155,7 +155,7 @@ impl PGDbConfig {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
 
-pub struct SqlServerDbConfig {
+pub struct SqlServerDBConfig {
     pub host: String,
     pub port: u16,
     pub username: Option<String>,
@@ -166,7 +166,7 @@ pub struct SqlServerDbConfig {
     pub read_only: bool,
 }
 
-impl SqlServerDbConfig {
+impl SqlServerDBConfig {
     pub(crate) fn must_db(&self) -> &String {
         self.db.as_ref().unwrap()
     }
@@ -177,7 +177,7 @@ impl SqlServerDbConfig {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
-pub struct OracleDbConfig {
+pub struct OracleDBConfig {
     pub username: String,
     pub password: String,
     pub host: String,
@@ -187,4 +187,20 @@ pub struct OracleDbConfig {
     pub call_timeout: Option<u64>,
     pub read_only: bool,
     pub db: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+pub struct CassandraDBConfig {
+    pub host: String,
+    pub port: Option<u16>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub db: Option<String>,
+    pub read_only: bool,
+}
+
+impl CassandraDBConfig {
+    pub(crate) fn schema_str(&self) -> &str {
+        self.db.as_deref().unwrap()
+    }
 }

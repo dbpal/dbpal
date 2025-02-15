@@ -825,8 +825,9 @@ function RedisSetTable(props: {
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState(null);
-
+  const [loading, setLoading] = useState(false);
   const handleReload = (showOK) => {
+    setLoading(true);
     reloadOP(keyMatch)
       .then((resp) => {
         resp.data.data.forEach((e) => {
@@ -843,6 +844,9 @@ function RedisSetTable(props: {
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -909,6 +913,7 @@ function RedisSetTable(props: {
           onClick={() => {
             handleReload(true);
           }}
+          loading={loading}
         >
           reload
         </Button>
@@ -1066,8 +1071,10 @@ function RedisListTable(props: {
   const { showNotification } = useContext(NotificationContext);
   const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
   const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   const handleReload = (showReloadOK: boolean) => {
+    setLoading(true);
     reloadOP()
       .then((resp) => {
         resp.data.data.forEach((e) => {
@@ -1087,6 +1094,9 @@ function RedisListTable(props: {
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -1177,6 +1187,7 @@ function RedisListTable(props: {
           onClick={() => {
             handleReload(true);
           }} // 点击事件处理
+          loading={loading}
         >
           reload
         </Button>
@@ -1189,6 +1200,7 @@ function RedisListTable(props: {
           }}
         >
           <DataGrid
+            loading={loading}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
@@ -1299,7 +1311,7 @@ function RedisZsetTable(props: {
   const [max, setMax] = useState('');
   const [minErr, setMinErr] = useState(false);
   const [maxErr, setMaxErr] = useState(false);
-
+  const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const handleReload = (showOK: boolean) => {
     if (minErr || maxErr) {
@@ -1307,7 +1319,7 @@ function RedisZsetTable(props: {
     }
     let minValue = parseFloat(min);
     let maxValue = parseFloat(max);
-
+    setLoading(true);
     reloadOP(keyMatch, minValue, maxValue)
       .then((resp) => {
         resp.data.data.forEach((e) => {
@@ -1329,6 +1341,9 @@ function RedisZsetTable(props: {
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -1428,6 +1443,7 @@ function RedisZsetTable(props: {
           onClick={() => {
             handleReload(true);
           }}
+          loading={loading}
         >
           reload
         </Button>
@@ -1441,6 +1457,7 @@ function RedisZsetTable(props: {
           }}
         >
           <DataGrid
+            loading={loading}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
@@ -1536,8 +1553,9 @@ function RedisHashTable(props: {
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<any>(null);
-
+  const [loading, setLoading] = useState(false);
   const handleReload = (showOK) => {
+    setLoading(true);
     reloadOP(keyMatch)
       .then((resp) => {
         resp.data.data.forEach((e) => {
@@ -1558,6 +1576,9 @@ function RedisHashTable(props: {
       })
       .catch((e) => {
         showNotification('error', 'load data error', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
@@ -1624,6 +1645,7 @@ function RedisHashTable(props: {
           onClick={() => {
             handleReload(true);
           }} // 点击事件处理
+          loading={loading}
         >
           reload
         </Button>
@@ -1637,6 +1659,7 @@ function RedisHashTable(props: {
           }}
         >
           <DataGrid
+            loading={loading}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}

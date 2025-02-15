@@ -12,11 +12,11 @@ use mongodb::options::{IndexOptions, ServerAddress};
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 
 use crate::TEST_HOST;
-use crate::datasource_config::MongoConfig;
+use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    BackendName, CheckConn, DBTrait, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    not_support_features,
+    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, IndexKind,
+    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
+    TableListResp, not_support_features,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -36,7 +36,7 @@ impl std::fmt::Debug for Mongo {
 }
 
 impl Mongo {
-    pub fn new(ds: MongoConfig) -> anyhow::Result<Self> {
+    pub fn new(ds: MongoDBConfig) -> anyhow::Result<Self> {
         let mut opts = mongodb::options::ClientOptions::default();
         opts.hosts = vec![ServerAddress::Tcp {
             host: ds.host.to_string(),
@@ -100,7 +100,9 @@ impl DBTrait for Mongo {
         return anyhow::Ok(Arc::new(x));
     }
 
-    async fn create_schema(&self, name: &str) -> anyhow::Result<()> {
+    async fn create_schema(
+        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()> {
         self.created_databases.insert(name.to_owned());
         anyhow::Ok(())
     }
@@ -820,7 +822,7 @@ impl Mongo {
 // this used in test
 #[allow(unused)]
 pub(crate) fn make_test_object() -> Mongo {
-    let x = Mongo::new(MongoConfig {
+    let x = Mongo::new(MongoDBConfig {
         host: TEST_HOST.to_string(),
         port: 27017,
         username: None,
@@ -849,7 +851,7 @@ mod tests {
     #[tokio::test]
     async fn test_multi_db() {
         let multi = make_test_object();
-        let _ = multi.create_schema("abc").await;
+        let _ = multi.create_schema("abc", None).await;
         let dbs = DBTrait::list_schema(&multi).await.unwrap();
         println!("{:?}", dbs);
         for db in dbs.iter() {
