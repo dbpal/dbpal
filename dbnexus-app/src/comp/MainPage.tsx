@@ -104,7 +104,6 @@ export default function MainPage() {
       style={{
         minHeight: '100vh',
         height: 'auto',
-        padding: '8px',
       }}
     >
       <Left></Left>
@@ -130,7 +129,10 @@ export default function MainPage() {
             {showAddConnection && (
               <Modal
                 open={showAddConnection}
-                onClose={() => {
+                onClose={(_, reason) => {
+                  if (reason === 'backdropClick') {
+                    return;
+                  }
                   setShowAddConnection(false);
                 }}
                 aria-labelledby="add column"

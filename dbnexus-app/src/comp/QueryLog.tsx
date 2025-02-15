@@ -89,7 +89,10 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
       {selectSql && (
         <Modal
           open={!!selectSql}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectSql('');
           }}
           aria-labelledby="sql"

@@ -95,7 +95,10 @@ function Menu(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowAdd(false);
           }}
           aria-labelledby="create database"
@@ -459,7 +462,10 @@ function IndexMenu(props: {
       {showRename && (
         <Modal
           open={showRename}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowRename(false);
           }}
           aria-labelledby="rename"

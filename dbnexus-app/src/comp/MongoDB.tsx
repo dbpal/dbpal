@@ -472,7 +472,10 @@ function MongoTableListToolBar(props: {
         {showModifyFilter && (
           <Modal
             open={showModifyFilter}
-            onClose={() => {
+            onClose={(_, reason) => {
+              if (reason === 'backdropClick') {
+                return;
+              }
               setShowModifyFilter(false);
             }}
             aria-labelledby="set filter"
@@ -508,7 +511,10 @@ function MongoTableListToolBar(props: {
         {showModifyOrderBy && (
           <Modal
             open={showModifyOrderBy}
-            onClose={() => {
+            onClose={(_, reason) => {
+              if (reason === 'backdropClick') {
+                return;
+              }
               setShowModifyOrderBy(false);
             }}
             aria-labelledby="order by"
@@ -721,7 +727,10 @@ function MongoTableListContextMenu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowFilter(false);
           }}
           aria-labelledby="create database"
@@ -993,7 +1002,10 @@ function MongoTableList(props: {
       {selectModifyDoc && (
         <Modal
           open={!!selectModifyDoc}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectModifyDoc(null);
           }}
           aria-labelledby="modify set"

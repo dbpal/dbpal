@@ -945,7 +945,10 @@ function RedisSetTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectRow(null);
           }}
           aria-labelledby="modify set"
@@ -1015,7 +1018,10 @@ function RedisListTableContextMenu(props: {
       {showDel && (
         <Modal
           open={!!showDel}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowDel(null);
           }}
           aria-labelledby="modify list"
@@ -1225,7 +1231,10 @@ function RedisListTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectRow(null);
           }}
           aria-labelledby="modify list"
@@ -1476,7 +1485,10 @@ function RedisZsetTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectRow(null);
           }}
           aria-labelledby="modify zset"
@@ -1678,7 +1690,10 @@ function RedisHashTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectRow(null);
           }}
           aria-labelledby="modify hash"

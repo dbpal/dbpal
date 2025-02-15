@@ -447,7 +447,10 @@ function ViewMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowExport(false);
           }}
           aria-labelledby="drop"

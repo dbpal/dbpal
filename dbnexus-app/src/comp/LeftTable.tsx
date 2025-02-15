@@ -408,7 +408,10 @@ function TableColumnsMenu(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowAdd(false);
           }}
           aria-labelledby="add column"
@@ -1360,7 +1363,10 @@ function TableMenu(props: {
       {showDup && (
         <Modal
           open={showDup}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setshowDup(false);
           }}
           aria-labelledby="set filter"
@@ -1380,7 +1386,10 @@ function TableMenu(props: {
       {showRename && (
         <Modal
           open={showRename}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowRename(false);
           }}
           aria-labelledby="rename"
@@ -1400,7 +1409,10 @@ function TableMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowExport(false);
           }}
           aria-labelledby="drop"
@@ -1422,7 +1434,10 @@ function TableMenu(props: {
       {showDrop && (
         <Modal
           open={showDrop}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowDrop(false);
           }}
           aria-labelledby="drop"
@@ -1506,7 +1521,10 @@ function TableColumnMenu(props: {
       {showModify && (
         <Modal
           open={showModify}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowModify(false);
           }}
           aria-labelledby="set filter"
@@ -1832,7 +1850,10 @@ function RedisTables(prpos: { schema?: string }) {
       {showEditFilter && (
         <Modal
           open={showEditFilter}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowEditFilter(false);
           }}
           aria-labelledby="add column"

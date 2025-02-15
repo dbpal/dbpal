@@ -355,7 +355,10 @@ function DatabaseMenu(props: {
       {showCreateSchema && (
         <Modal
           open={showCreateSchema}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowCreateSchema(false);
           }}
           aria-labelledby="create database"
@@ -435,7 +438,10 @@ function CatalogMenu(props: {
       {showCreateDB && (
         <Modal
           open={showCreateDB}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowCreateDB(false);
           }}
           aria-labelledby="create database"

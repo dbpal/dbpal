@@ -81,7 +81,16 @@ function WhereSort(props: {
   const [newValue, setNewValue] = useState(value);
 
   return (
-    <Modal open={open} onClose={onClose} aria-labelledby="create database">
+    <Modal
+      open={open}
+      onClose={(_, reason) => {
+        if (reason === 'backdropClick') {
+          return;
+        }
+        onClose();
+      }}
+      aria-labelledby="create database"
+    >
       <Box sx={modalStyle} width="700px">
         <Stack spacing={1}>
           <TextField
@@ -650,7 +659,10 @@ function Menu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowFilter(false);
           }}
           aria-labelledby="create database"

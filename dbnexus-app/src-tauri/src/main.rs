@@ -132,32 +132,12 @@ fn main_() {
                     &PredefinedMenuItem::undo(handle, None)?,
                     &PredefinedMenuItem::redo(handle, None)?,
                 ])?,
+                #[cfg(any(target_os = "windows", target_os = "macos"))]
                 &Submenu::with_items(handle, "window", true, &[
                     #[cfg(any(target_os = "windows", target_os = "macos"))]
                     &PredefinedMenuItem::maximize(handle, None)?,
                     #[cfg(any(target_os = "windows", target_os = "macos"))]
                     &PredefinedMenuItem::minimize(handle, None)?,
-                    // &MenuItem::with_id(
-                    //     handle,
-                    //     "zoom_in",
-                    //     "zoom in",
-                    //     true,
-                    //     None as Option<&'static str>,
-                    // )?,
-                    // &MenuItem::with_id(
-                    //     handle,
-                    //     "zoom_out",
-                    //     "zoom out",
-                    //     true,
-                    //     None as Option<&'static str>,
-                    // )?,
-                    // &MenuItem::with_id(
-                    //     handle,
-                    //     "zoom_reset",
-                    //     "zoom reset",
-                    //     true,
-                    //     None as Option<&'static str>,
-                    // )?,
                     #[cfg(any(target_os = "macos"))]
                     &PredefinedMenuItem::fullscreen(handle, None)?,
                 ])?,
@@ -181,15 +161,7 @@ fn main_() {
             if event.id.0 == "show_settings" {
                 handle.emit("show_settings", "").unwrap();
             }
-            if event.id.0 == "zoom_in" {
-                handle.emit("zoom_in", "").unwrap();
-            }
-            if event.id.0 == "zoom_out" {
-                handle.emit("zoom_out", "").unwrap();
-            }
-            if event.id.0 == "zoom_reset" {
-                handle.emit("zoom_reset", "").unwrap();
-            }
+
             if event.id.0 == "open_dev_tools" {
                 let window = handle.get_webview_window("main").unwrap();
                 window.open_devtools();

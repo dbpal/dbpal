@@ -377,7 +377,6 @@ function SqlQuery(props: {
             flexShrink: 1,
             minHeight: 0,
             height: '400px',
-            width: '99%',
           }}
         >
           <Editor
