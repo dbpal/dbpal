@@ -20,7 +20,7 @@ use crate::db::{
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
     UdfOrPrecedureExtraParameter, not_support_features,
 };
-use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
 use crate::query_log::QueryLog;
@@ -78,7 +78,7 @@ impl OracleDB {
     }
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
+fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
     // TODO use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::GenericDialect {};
     sql_to_sql_seq(
@@ -182,7 +182,7 @@ impl QuerySql for OracleDB {
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
-                vec![SqlSeq {
+                vec![SqlWithKind {
                     sql: sql.to_string(),
                     kind: SqlKind::Query,
                 }]

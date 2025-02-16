@@ -44,5 +44,6 @@ humansize = "*"
 memory-stats = "1.2.0"
 rand = "*"
 enum-iterator = "2.1.0"
-cassandra-cpp = "3.0.2"
+cdrs-tokio = "8.1.5"
+num-bigint = "*"
 [dev-dependencies]

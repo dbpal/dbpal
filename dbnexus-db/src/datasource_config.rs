@@ -195,12 +195,12 @@ pub struct CassandraDBConfig {
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub db: Option<String>,
+    pub keyspace: Option<String>,
     pub read_only: bool,
 }
 
 impl CassandraDBConfig {
-    pub(crate) fn schema_str(&self) -> &str {
-        self.db.as_deref().unwrap()
+    pub(crate) fn keyspace_str(&self) -> &str {
+        self.keyspace.as_deref().unwrap()
     }
 }

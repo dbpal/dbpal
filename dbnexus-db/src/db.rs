@@ -290,10 +290,7 @@ pub enum UdfOrPrecedureExtraParameter {
 }
 
 pub(crate) fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
-    anyhow::bail!(format!(
-        "this backend '{}' don't support this feature",
-        name
-    ))
+    anyhow::bail!(format!("the backend '{}' don't support this feature", name))
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
