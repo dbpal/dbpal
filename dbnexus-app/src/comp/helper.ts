@@ -342,7 +342,8 @@ const appStore = async () => {
 enum AppStoreKey {
   UserSetttings = 'user_settings',
   ConnectionConfig = 'connection_config',
-  ColumnWithd = 'column_widths'
+  ColumnWithd = 'column_widths',
+  LeftSize = 'left_size'
 }
 
 class ColumnWidths {
@@ -423,6 +424,20 @@ function noUse(...args) {
   //@ts-ignore
   let _args = args;
 }
+const filterStyle = {
+  style: {
+    cursor: 'pointer',
+    flexGrow: 1,
+    flexShrink: 1,
+    borderRadius: '10px',
+    color: 'black',
+    padding: '4px 6px',
+  } as CSSProperties,
+  filter: '#28A745',
+  sort: '#5FBA7F',
+  on: { fontStyle: 'italic', fontWeight: '900' } as CSSProperties
+};
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -455,5 +470,7 @@ export {
   handleCopyToClipboard,
   datagridContainerHeight,
   uint8ArrayToUtf8,
-  noUse
+  noUse,
+  filterStyle
+
 };

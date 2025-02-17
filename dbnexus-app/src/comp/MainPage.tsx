@@ -18,7 +18,12 @@ import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import AddConfig from './AddConnection.tsx';
 import { ModifySettings, SettingComp } from './Settings.tsx';
-import { ContextMenuContext, TabsSetContext } from './helper.ts';
+import {
+  appStore,
+  AppStoreKey,
+  ContextMenuContext,
+  TabsSetContext,
+} from './helper.ts';
 
 export default function MainPage() {
   const [showAddConnection, setShowAddConnection] = useState(false);
@@ -95,15 +100,30 @@ export default function MainPage() {
     setSelectIndex(index as number);
   }, []);
 
+  const [leftSize, setLeftSize] = useState(300);
+  useEffect(() => {
+    let a = async () => {
+      let size = await (await appStore()).get<number>(AppStoreKey.LeftSize);
+      if (!size) {
+        size = 300;
+      }
+      setLeftSize(size);
+    };
+    a();
+  }, []);
+
   let mainContent = (
     //@ts-ignore
     <SplitPane
       split="vertical"
       minSize={0}
-      defaultSize={300}
+      defaultSize={leftSize}
       style={{
         minHeight: '100vh',
         height: 'auto',
+      }}
+      onDragFinished={async (newsize) => {
+        (await appStore()).set(AppStoreKey.LeftSize, newsize);
       }}
     >
       <Left></Left>

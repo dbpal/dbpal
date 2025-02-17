@@ -1,6 +1,8 @@
 #![allow(unused)]
 use core::panic;
-use std::{arch::x86_64, collections::HashMap, iter::Cloned, sync::Arc, time::Duration};
+use std::{
+    arch::x86_64, collections::HashMap, hash::Hash, iter::Cloned, sync::Arc, time::Duration,
+};
 
 use cdrs_tokio::{
     authenticators::{StaticPasswordAuthenticator, StaticPasswordAuthenticatorProvider},
@@ -29,6 +31,7 @@ use crate::{
     },
     helper::{SqlKind, SqlWithKind, sql_to_sql_seq},
     meta_value::MetaValue,
+    query_log::QueryLog,
 };
 use cdrs_tokio::cluster::session::SessionBuilder;
 
@@ -301,12 +304,15 @@ fn encode_rows_canssrandra_type(value: &mut CassandraType) -> anyhow::Result<Str
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
     async fn query_sql(
-        &self, _query_id: uuid::Uuid, sql: &str,
+        &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        self.invalid_page_caching(None);
         let seq = get_sql_seq(sql).unwrap_or(vec![SqlWithKind {
             sql: sql.to_string(),
             kind: SqlKind::Query,
         }]);
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+
         let mut ret = vec![];
         for s in seq.iter() {
             match self.session.query(&s.sql).await {
@@ -321,12 +327,12 @@ impl QuerySql for CassandraDB {
                         ret.push(Ok(QueryResp { fields, data }));
                     }
                 }
-
                 Err(err) => {
                     ret.push(Err(err.to_string()));
                 }
             }
         }
+        query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
@@ -352,7 +358,7 @@ impl CassandraDB {
             "SELECT table_name FROM system_schema.tables WHERE keyspace_name = '{keyspace}';"
         );
         let body = self.session.query(sql).await?.response_body()?;
-        check_body_error(&body)?;
+
         let mut ret = Vec::new();
         for row in body.into_rows().unwrap_or_default() {
             let name: Option<String> = row.get_by_index(0)?;
@@ -363,23 +369,22 @@ impl CassandraDB {
     }
 }
 
-fn check_body_error(body: &ResponseBody) -> anyhow::Result<()> {
-    match body {
-        ResponseBody::Error(e) => Err(anyhow::Error::msg(e.message.clone())),
-        _ => Ok(()),
-    }
-}
-
 impl CassandraDB {
-    fn invalid_page_caching(&self, table: &str) {
-        self.paging_cache.remove(&table.to_string());
+    // page caching size
+    const PAGE_CACHE_LIMIG_SIZE: usize = 2000;
+    fn invalid_page_caching(&self, table: Option<&str>) {
+        if let Some(table) = table {
+            self.paging_cache.remove(&table.to_string());
+        } else {
+            self.paging_cache.clear();
+        }
     }
 
     fn page_caching_totoal(&self, name: &str) -> usize {
         self.paging_cache
             .get(&name.to_string())
             .map(|x| x.result.data.len())
-            .unwrap_or(0)
+            .unwrap_or(usize::MAX)
     }
 
     async fn page_caching_show(
@@ -415,7 +420,7 @@ impl CassandraDB {
             page_size
         );
         let sql = format!(
-            r#"SELECT * FROM "{name}" {} {} LIMIT 10000 "#,
+            r#"SELECT * FROM "{name}" {} {} LIMIT {} "#,
             if let Some(where_str) = where_str {
                 format!(" WHERE {} ", where_str)
             } else {
@@ -425,7 +430,8 @@ impl CassandraDB {
                 format!(" ORDER BY {} ", order_by)
             } else {
                 "".to_string()
-            }
+            },
+            Self::PAGE_CACHE_LIMIG_SIZE
         );
         let body = self.session.query(&sql).await?.response_body()?;
         let meta = body.as_rows_metadata().map(|x| x.clone());
@@ -522,7 +528,21 @@ impl SchemaTrait for CassandraDB {
             .page_caching_show(table_name, where_str, order_by, page, page_size)
             .await?;
 
-        ret.fields = self.show_table_columns(&table_name).await?;
+        let fields = self.show_table_columns(&table_name).await?;
+        let mut m = HashMap::new();
+
+        fields.iter().for_each(|x| {
+            m.insert(x.field.clone(), x);
+        });
+
+        ret.fields.iter_mut().for_each(|field| {
+            let f = m.get(&field.field);
+            if let Some(f) = f {
+                field.is_primary = f.is_primary;
+                field.nullable = f.nullable;
+                field.typ = f.typ.clone();
+            }
+        });
 
         let QueryResp { fields, data } = ret;
 
@@ -545,7 +565,7 @@ impl SchemaTrait for CassandraDB {
         let sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &fs, &values)?;
 
         self.session.query(&sql).await?;
-
+        self.invalid_page_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: 1,
@@ -569,6 +589,7 @@ impl SchemaTrait for CassandraDB {
             type_support_compare,
         )?;
         self.session.query(&sql).await?;
+        self.invalid_page_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet::from((sql, 1)))
     }
 
@@ -593,6 +614,7 @@ impl SchemaTrait for CassandraDB {
             type_support_compare,
         )?;
         self.session.query(&sql).await?;
+        self.invalid_page_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: 1,
@@ -639,7 +661,7 @@ impl DBTrait for CassandraDB {
             .query("DESCRIBE KEYSPACES")
             .await?
             .response_body()?;
-        check_body_error(&body)?;
+
         let mut ret = Vec::new();
 
         for row in body.into_rows().unwrap_or_default() {

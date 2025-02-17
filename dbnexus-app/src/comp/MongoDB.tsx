@@ -79,6 +79,7 @@ import {
   columnWidths,
   ContextMenuContext,
   datagridContainerHeight,
+  filterStyle,
   handleCopyToClipboard,
 } from './helper';
 
@@ -456,18 +457,17 @@ function MongoTableListToolBar(props: {
       }}
     >
       <Stack direction="row" spacing={1}>
-        <Typography
+        <span
           onClick={() => {
             setShowModifyFilter(true);
           }}
-          style={{ cursor: 'pointer' }}
-          variant="subtitle1"
+          style={{ ...filterStyle.style, backgroundColor: filterStyle.filter }}
         >
-          filter:
-          <span style={{ fontStyle: 'italic' }}>
+          <span>filter:&nbsp;</span>
+          <span style={{ ...filterStyle.on }}>
             {bsonValue2MongoBson(filter).format()}
           </span>
-        </Typography>
+        </span>
 
         {showModifyFilter && (
           <Modal
@@ -495,18 +495,17 @@ function MongoTableListToolBar(props: {
           </Modal>
         )}
 
-        <Typography
+        <span
           onClick={() => {
             setShowModifyOrderBy(true);
           }}
-          style={{ cursor: 'pointer' }}
-          variant="subtitle1"
+          style={{ ...filterStyle.style, backgroundColor: filterStyle.sort }}
         >
-          sort:
-          <span style={{ fontStyle: 'italic' }}>
+          <span> sort: &nbsp;</span>
+          <span style={{ ...filterStyle.on }}>
             {bsonValue2MongoBson(orderBy).format()}
           </span>
-        </Typography>
+        </span>
 
         {showModifyOrderBy && (
           <Modal

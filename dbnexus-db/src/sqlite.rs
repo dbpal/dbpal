@@ -679,7 +679,7 @@ impl SchemaTrait for SqliteDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" => {
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => {
                 format!(
                     "'{}'",
                     value
@@ -700,6 +700,7 @@ impl SchemaTrait for SqliteDB {
                 value.unwrap_or("null").to_string()
             }
             "BLOB" => value.unwrap_or("null").to_string(),
+
             _ => {
                 let e = format!("type '{}' not handled", typ);
                 log::error!("{}", e);

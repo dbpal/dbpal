@@ -270,9 +270,6 @@ fn make_table_list_from_meta_and_row(
 }
 
 fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    if rows.len() == 0 {
-        return anyhow::Ok(vec![]);
-    }
     let mut data = vec![];
     for r in rows.iter() {
         let mut values: Vec<Option<String>> = Vec::new();
@@ -610,7 +607,7 @@ impl SchemaTrait for MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(x) => {
-                    let name: Option<&str> = x.get(0);
+                    let name: Option<&str> = x.try_get(0)?;
                     ret.push(name.unwrap().to_string());
                 }
                 tiberius::QueryItem::Metadata(_) => {}
@@ -641,9 +638,9 @@ impl SchemaTrait for MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(x) => {
-                    let name: Option<bool> = x.get(0);
-                    let is_instead_of_trigger: Option<bool> = x.get(1);
-                    let sql: Option<&str> = x.get(2);
+                    let name: Option<bool> = x.try_get(0)?;
+                    let is_instead_of_trigger: Option<bool> = x.try_get(1)?;
+                    let sql: Option<&str> = x.try_get(2)?;
                     result = Some((
                         name.unwrap_or_default(),
                         is_instead_of_trigger.unwrap_or_default(),
@@ -751,7 +748,7 @@ impl SchemaTrait for MsSqlServer {
             }
         }
         let ret = match meta {
-            Some(x) => make_table_list_from_meta_and_row(&x, &rows, total as usize, sql)?,
+            Some(meta) => make_table_list_from_meta_and_row(&meta, &rows, total as usize, sql)?,
             None => anyhow::bail!("SELECT should yield at lease one meta"),
         };
         anyhow::Ok(ret)
@@ -837,12 +834,12 @@ impl SchemaTrait for MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
-                    let name: Option<&str> = row.get(0);
+                    let name: Option<&str> = row.try_get(0)?;
                     let name = name.unwrap().to_string();
-                    let data_type: Option<&str> = row.get(1);
+                    let data_type: Option<&str> = row.try_get(1)?;
                     let data_type = data_type.unwrap().to_string();
-                    let default_value: Option<&str> = row.get(2);
-                    let nullable: Option<&str> = row.get(3);
+                    let default_value: Option<&str> = row.try_get(2)?;
+                    let nullable: Option<&str> = row.try_get(3)?;
                     ret.push(Field::new(
                         name,
                         data_type,
@@ -1012,14 +1009,19 @@ impl SchemaTrait for MsSqlServer {
             .map(|x| format!("'{}'", x))
             .unwrap_or("null".to_string());
         let v = match typ.to_uppercase().as_str() {
-            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" => default_value,
-            "BIT" => default_value,
-            "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" => single_quote,
-            "BINARY" | "VARBINARY" | "IMAGE" | "UNIQUEIDENTIFIER" | "NUMERIC" | "DECIMAL" => {
-                default_value
+            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
+            | "INT1" | "INT8" | "FLOAT4" | "FLOAT8" | "INTN" | "DECIMALN" | "NUMERICN"
+            | "FLOATN" | "NUMERIC" | "DECIMAL" => default_value,
+            "BIT" | "BITN" | "BIGVARBIN" => default_value,
+            "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "BIGVARCHAR"
+            | "BIGCHAR" => single_quote,
+            "UNIQUEIDENTIFIER" => default_value,
+            "BINARY" | "VARBINARY" | "IMAGE" | "BIGBINARY" => default_value,
+            "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME" | "DATETIME4"
+            | "DATEN" | "DATETIMEN" | "DATETIMEOFFSET" | "TIMEN" | "DATETIMEOFFSETN" => {
+                single_quote
             }
-            "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME"
-            | "DATETIMEOFFSET" => single_quote,
+            "NULL" => default_value,
             _ => anyhow::bail!("type '{}' not support", typ),
         };
         log::trace!("type:{:?} encode '{:?}' as #{}#", typ, value, v);
@@ -1269,7 +1271,7 @@ impl MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
-                    count = row.get(0);
+                    count = row.try_get(0)?;
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
@@ -1294,7 +1296,7 @@ impl MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(x) => {
-                    count = x.get(0);
+                    count = x.try_get(0)?;
                     break;
                 }
                 tiberius::QueryItem::Metadata(_) => {}

@@ -193,7 +193,7 @@ const components: Components<
   MuiDataGrid: {
     styleOverrides: {
       cell: {
-        fontSize: '0.9rem',
+        fontSize: '1rem',
       },
       columnHeaders: {
         fontSize: '0.8rem', // 调整表头字体大小

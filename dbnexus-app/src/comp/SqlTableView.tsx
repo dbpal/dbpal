@@ -45,11 +45,13 @@ import {
   columnWidths,
   ContextMenuContext,
   datagridContainerHeight,
+  filterStyle,
   handleCopyToClipboard,
   isTypeLargeText,
   secondConfirm,
 } from './helper';
 import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
+import { log } from 'console';
 
 const confrimAboutPrimary = async (
   notWarnPri,
@@ -382,13 +384,17 @@ function SqlTableView(props: {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <span
-          style={{ cursor: 'pointer' }}
+          style={{
+            ...filterStyle.style,
+            backgroundColor: filterStyle.filter,
+            width: '60%',
+          }}
           onClick={() => {
             setShowSetWhere(true);
           }}
         >
-          where:
-          <span style={{ fontStyle: 'italic' }}> {where}</span>
+          <span> filter:&nbsp;</span>
+          <span style={{ ...filterStyle.on }}>{where}</span>
         </span>
         {showSetWhere && (
           <WhereSort
@@ -400,17 +406,21 @@ function SqlTableView(props: {
             onClose={() => {
               setShowSetWhere(false);
             }}
-            label="where"
+            label="filter"
           ></WhereSort>
         )}
         <span
-          style={{ cursor: 'pointer' }}
+          style={{
+            ...filterStyle.style,
+            backgroundColor: filterStyle.sort,
+            width: '30%',
+          }}
           onClick={() => {
             setShowSetSort(true);
           }}
         >
-          sort:
-          <span style={{ fontStyle: 'italic' }}> {sort}</span>
+          <span> sort: </span>
+          <span style={{ ...filterStyle.on }}>{sort}</span>
         </span>
 
         {showSetSort && (
@@ -696,12 +706,16 @@ function FilterOnValue(props: {
   const { content, setWhere, field, handleClose, put_value_in_sql } = props;
   const compares = ['=', '<>', '>', '>=', '<', '<='];
   const [compare, setCompare] = useState(compares[0]);
-
+  const { showNotification } = useContext(NotificationContext);
   const [formatValue, setFormatValue] = useState('');
   useEffect(() => {
-    put_value_in_sql(content).then((value) => {
-      setFormatValue(value);
-    });
+    put_value_in_sql(content)
+      .then((value) => {
+        setFormatValue(value);
+      })
+      .catch((e) => {
+        showNotification('error', 'put value in sql failed', e);
+      });
   }, []);
 
   const where = () => {
