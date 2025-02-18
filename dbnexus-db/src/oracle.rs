@@ -1134,7 +1134,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
@@ -1144,7 +1144,7 @@ impl SchemaTrait for OracleDB {
                 IndexKind::Unique => "Unique",
             },
             name,
-            fileds.join(",")
+            fields.join(",")
         );
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;

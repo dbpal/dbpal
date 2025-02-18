@@ -445,7 +445,7 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
@@ -455,7 +455,7 @@ impl SchemaTrait for MsSqlServer {
                 IndexKind::Unique => "Unique",
             },
             name,
-            fileds.join(",")
+            fields.join(",")
         );
         let mut conn = self.get_conn().await?;
         conn.execute(&sql, &[]).await?;

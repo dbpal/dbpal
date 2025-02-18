@@ -2,6 +2,7 @@ pub mod handlers;
 
 #[cfg(test)]
 mod tests {
+    use dbnexus_db::datasource_config::CassandraDBConfig;
 
     #[test]
     fn generate_ts_def() {
@@ -59,6 +60,7 @@ mod tests {
                 &MuiDataGridData::INFO,
                 &QueryLogEvent::INFO,
                 &SemanticToken::INFO,
+                &CassandraDBConfig::INFO,
             ];
 
             let mut buf = Vec::new();

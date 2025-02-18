@@ -5,8 +5,8 @@ use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
 use crate::datasource_config::{
-    MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
-    SqliteDBConfig,
+    CassandraDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig,
+    SqlServerDBConfig, SqliteDBConfig,
 };
 use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
@@ -31,7 +31,8 @@ impl DBConnectionConfig {
             | DBConnectionConfig::SqlServer { name, .. }
             | DBConnectionConfig::Mongo { name, .. }
             | DBConnectionConfig::Redis { name, .. }
-            | DBConnectionConfig::Oracle { name, .. } => name.as_str(),
+            | DBConnectionConfig::Oracle { name, .. }
+            | DBConnectionConfig::Cassandra { name, .. } => name.as_str(),
         }
     }
 }
@@ -84,6 +85,11 @@ pub enum DBConnectionConfig {
         conn: OracleDBConfig,
         name: String,
     },
+    Cassandra {
+        #[serde(flatten)]
+        conn: CassandraDBConfig,
+        name: String,
+    },
 }
 
 impl DBConnectionConfig {
@@ -114,6 +120,7 @@ impl DBConnectionConfig {
             DBConnectionConfig::Oracle { conn, .. } => {
                 conn.password = pass;
             }
+            DBConnectionConfig::Cassandra { conn, .. } => conn.password = Some(pass),
         }
     }
 }
@@ -154,7 +161,6 @@ impl DBConnectionConfig {
                     anyhow::Ok(Open::DataBase(db))
                 }
             },
-
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
@@ -176,7 +182,6 @@ impl DBConnectionConfig {
                     None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
-
             DBConnectionConfig::Mongo { conn, name: _ } => {
                 let db: Arc<Mongo> = Arc::new(crate::mongo::Mongo::new(conn.clone())?);
                 match conn.db {
@@ -207,6 +212,14 @@ impl DBConnectionConfig {
                     anyhow::Ok(Open::DataBase(db))
                 }
             },
+            DBConnectionConfig::Cassandra { conn, .. } => {
+                let redis = crate::cassandra::CassandraDB::new(conn.clone()).await?;
+                let db = match &conn.keyspace {
+                    Some(_) => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
+                    None => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
+                };
+                anyhow::Ok(db)
+            }
         }
     }
 }

@@ -112,9 +112,9 @@ impl SchemaTrait for TiDB {
     }
 
     async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
-        self.db.create_index(&table, name, kind, &fileds).await
+        self.db.create_index(&table, name, kind, &fields).await
     }
 
     async fn insert(

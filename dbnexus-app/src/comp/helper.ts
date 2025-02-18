@@ -435,7 +435,7 @@ const filterStyle = {
   } as CSSProperties,
   filter: '#28A745',
   sort: '#5FBA7F',
-  on: { fontStyle: 'italic', fontWeight: '900' } as CSSProperties
+  on: { fontStyle: 'italic', fontWeight: '900', fontSize: '1.1rem' } as CSSProperties
 };
 
 export {

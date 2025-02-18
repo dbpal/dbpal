@@ -45,10 +45,11 @@ const modalStyle: SxProps = {
   left: '50%',
   transform: 'translate(-50%, -50%)',
   bgcolor: 'background.paper',
-  border: '1px solid #000',
+  border: '1px solid gray',
   boxShadow: 24,
   margin: 0,
-  p: 4,
+  borderRadius: '5px',
+  p: 1,
 };
 
 import {

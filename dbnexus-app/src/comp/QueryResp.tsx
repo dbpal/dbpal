@@ -20,7 +20,13 @@ import {
   ContextMenuContext,
 } from './helper.ts';
 import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
-import React, { memo, useCallback, useContext, useMemo } from 'react';
+import React, {
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+} from 'react';
 import { SettingContext, VisiableContext } from './Common.tsx';
 
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -161,6 +167,9 @@ function MultiQueryResp_(props: { data: any[] }) {
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
   };
+  useEffect(() => {
+    setValue(0);
+  }, [data]);
   let idPrefix = generateRandomString(10);
   const vis = useContext(VisiableContext);
   return (

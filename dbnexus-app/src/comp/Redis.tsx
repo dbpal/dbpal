@@ -447,7 +447,7 @@ function RedisEditZset(props: {
   };
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1}>
       <TextField
         size="small"
         value={newValue}

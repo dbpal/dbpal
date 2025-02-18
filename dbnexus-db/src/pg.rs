@@ -397,7 +397,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
@@ -407,7 +407,7 @@ impl SchemaTrait for PostGresDB {
                 IndexKind::Unique => "Unique",
             },
             name,
-            fileds.join(",")
+            fields.join(",")
         );
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;

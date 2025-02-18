@@ -1582,7 +1582,7 @@ function DupTable(props: {
       <TextField
         size="small"
         value={name}
-        label="Duplicate Name"
+        label="duplicate name"
         onChange={(e) => {
           setName(e.target.value);
         }}
@@ -1611,9 +1611,17 @@ function RenameTable(props: {
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(table);
   const { showNotification } = useContext(NotificationContext);
-  const handleRename = () => {
+  const handleRename = async () => {
     if (newName == table) {
       showNotification('error', 'name not changed');
+      return;
+    }
+    const confirm = await secondConfirm({
+      title: 'rename table',
+      content: `are u sure going to rename table '${table}'`,
+      confirmText: 'rename',
+    });
+    if (!confirm) {
       return;
     }
     setLoading(true);

@@ -66,6 +66,14 @@ export namespace types {
         "read_only": boolean;
         "db": string;
     };
+    export type CassandraDBConfig = {
+        "host": string;
+        "port": (types.U16 | null);
+        "username": (string | null);
+        "password": (string | null);
+        "keyspace": (string | null);
+        "read_only": boolean;
+    };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -101,6 +109,10 @@ export namespace types {
     })) | ({
         "conn_type": "oracle";
     } & (types.OracleDBConfig & {
+        "name": string;
+    })) | ({
+        "conn_type": "cassandra";
+    } & (types.CassandraDBConfig & {
         "name": string;
     })));
     export type ListTable = {

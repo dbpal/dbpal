@@ -137,13 +137,12 @@ pub trait SchemaTrait:
         &self, sql: &str, kind: ExportKind, file: &str,
     ) -> anyhow::Result<()> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-        let h1 = {
+        let j1 = {
             let x = self.clone();
             let sql = sql.to_string();
-            let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
-            h1
+            tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await })
         };
-        let h2 = {
+        let j2 = {
             let filepath = file.to_string();
             tokio::spawn(async move {
                 let mut file = tokio::fs::File::create(&filepath).await?;
@@ -153,8 +152,8 @@ pub trait SchemaTrait:
                 anyhow::Ok(())
             })
         };
-        h1.await??;
-        h2.await??;
+        j1.await??;
+        j2.await??;
         anyhow::Ok(())
     }
 
@@ -190,9 +189,7 @@ pub trait SchemaTrait:
     async fn create_table_and_index_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        anyhow::bail!(format!(
-            "sql server don't support create_table_and_index_sql"
-        ))
+        not_support_features(self.backend_name())
     }
 
     async fn create_view_sql(
@@ -881,7 +878,7 @@ impl TableListResp {
             debug_assert_eq!(
                 x.len(),
                 self.fields.len(),
-                "fileds:{:?},data:{:?}",
+                "fields:{:?},data:{:?}",
                 self.fields,
                 self.data
             );

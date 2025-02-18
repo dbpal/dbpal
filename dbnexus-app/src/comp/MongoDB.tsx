@@ -482,7 +482,7 @@ function MongoTableListToolBar(props: {
           >
             <Box sx={modalStyle} width="950px">
               <MongoDBModify
-                buttonName="Set"
+                buttonName="set"
                 setOP={async (doc) => {
                   handleFilter(doc);
                 }}

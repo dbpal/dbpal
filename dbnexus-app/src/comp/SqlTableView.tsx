@@ -51,7 +51,6 @@ import {
   secondConfirm,
 } from './helper';
 import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
-import { log } from 'console';
 
 const confrimAboutPrimary = async (
   notWarnPri,
@@ -396,19 +395,7 @@ function SqlTableView(props: {
           <span> filter:&nbsp;</span>
           <span style={{ ...filterStyle.on }}>{where}</span>
         </span>
-        {showSetWhere && (
-          <WhereSort
-            open={showSetWhere}
-            value={where}
-            setValue={(v) => {
-              setWhere(v);
-            }}
-            onClose={() => {
-              setShowSetWhere(false);
-            }}
-            label="filter"
-          ></WhereSort>
-        )}
+
         <span
           style={{
             ...filterStyle.style,
@@ -422,20 +409,6 @@ function SqlTableView(props: {
           <span> sort: </span>
           <span style={{ ...filterStyle.on }}>{sort}</span>
         </span>
-
-        {showSetSort && (
-          <WhereSort
-            open={showSetSort}
-            value={sort}
-            setValue={(v) => {
-              setSort(v);
-            }}
-            onClose={() => {
-              setShowSetSort(false);
-            }}
-            label="sort"
-          ></WhereSort>
-        )}
 
         <Button
           loading={loading}
@@ -505,6 +478,32 @@ function SqlTableView(props: {
             </div>
           )}
         </>
+      )}
+      {showSetWhere && (
+        <WhereSort
+          open={showSetWhere}
+          value={where}
+          setValue={(v) => {
+            setWhere(v);
+          }}
+          onClose={() => {
+            setShowSetWhere(false);
+          }}
+          label="filter"
+        ></WhereSort>
+      )}
+      {showSetSort && (
+        <WhereSort
+          open={showSetSort}
+          value={sort}
+          setValue={(v) => {
+            setSort(v);
+          }}
+          onClose={() => {
+            setShowSetSort(false);
+          }}
+          label="sort"
+        ></WhereSort>
       )}
     </Stack>
   );

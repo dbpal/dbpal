@@ -120,7 +120,7 @@ function TabsWithContent_(props: {
   const { setUpMenu } = useContext(ContextMenuContext);
   const [hideAll, setHideAll] = useState(false);
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1}>
       {hideAll && (
         <Stack>
           <Button
