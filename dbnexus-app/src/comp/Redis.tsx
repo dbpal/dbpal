@@ -181,7 +181,7 @@ function RedisStringTable(props: {
             handleModify();
           }}
         >
-          Set
+          set
         </Button>
       </Stack>
     </Stack>

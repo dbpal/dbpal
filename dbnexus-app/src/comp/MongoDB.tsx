@@ -325,6 +325,7 @@ function MongoBsonEditor(props: {
                     button.callBack(doc);
                   } catch (e) {
                     showNotification('error', 'mongo bson compile failed', e);
+                    console.log('mongo bson compile failed', e);
                     return;
                   }
                 }}
@@ -456,7 +457,7 @@ function MongoTableListToolBar(props: {
         alignItems: 'center',
       }}
     >
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
         <span
           onClick={() => {
             setShowModifyFilter(true);
@@ -520,7 +521,7 @@ function MongoTableListToolBar(props: {
           >
             <Box sx={modalStyle} width="950px">
               <MongoDBModify
-                buttonName="Set"
+                buttonName="set"
                 setOP={async (doc) => {
                   handleOrderBy(doc);
                 }}

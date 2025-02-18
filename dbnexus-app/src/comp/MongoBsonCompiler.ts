@@ -102,7 +102,10 @@ class MongoBsonAs {
     if (ty === 'object' && v instanceof Array && this.extra.isInt8()) {
       return Binary.fromInt8Array(new Int8Array(v));
     }
-    this.cannotConvert(ty, 'date');
+    if (v instanceof Array) {
+      return new Binary(new Uint8Array(v), subType)
+    }
+    this.cannotConvert(ty, 'binary');
   }
 
   compileJavascript(): Code {
@@ -111,7 +114,7 @@ class MongoBsonAs {
     if (ty === 'string') {
       return new Code(v);
     }
-    this.cannotConvert(ty, 'date');
+    this.cannotConvert(ty, 'code');
   }
 
   compileDecimal(): Decimal128 {
@@ -123,14 +126,18 @@ class MongoBsonAs {
     if (ty === 'number') {
       return new Decimal128(v.toString());
     }
-    this.cannotConvert(ty, 'date');
+    this.cannotConvert(ty, 'decimal128');
   }
 
   compileDate(): Date {
     let v = this.value.compile();
     let ty = typeof v;
     if (ty === 'string') {
-      return new Date(v);
+      let x = new Date(v);
+      if (x instanceof Date) {
+        return x
+      }
+      throw new MongoBsonError(`not a valid date string:${v}`, this.kind.loc);
     }
     this.cannotConvert(ty, 'date');
   }
@@ -167,7 +174,7 @@ class MongoBsonAs {
     if (ty === 'string') {
       return new Long(v);
     }
-    this.cannotConvert(ty, 'int');
+    this.cannotConvert(ty, 'long');
   }
   compileTimestamp(): Timestamp {
     let v = this.value.compile();
@@ -181,7 +188,7 @@ class MongoBsonAs {
     if (ty === 'number') {
       return new Timestamp(new Long(v));
     }
-    this.cannotConvert(ty, 'int');
+    this.cannotConvert(ty, 'timestamp');
   }
 }
 
@@ -230,11 +237,13 @@ class MongoBsonBinaryAllSubType {
     return this.extra[index];
   }
   isFloat32(): boolean {
-    return this.extraIndex(0).value.toLowerCase() == 'float32';
+    let extra = this.extraIndex(0);
+    return extra && extra.value.toLowerCase() == 'float32';
   }
 
   isInt8(): boolean {
-    return this.extraIndex(0).value.toLowerCase() == 'int8';
+    let extra = this.extraIndex(0);
+    return extra && extra.value.toLowerCase() == 'int8';
   }
 
   static allValues(): string[] {
@@ -342,7 +351,7 @@ class MongoBsonValue {
       case MongoBsonValueKind.Object:
         return (this.value as MongoBsonObject).compile();
       case MongoBsonValueKind.RegExp:
-        return new RegExp(this.asToken().value);
+        return eval(this.asToken().value);
       case MongoBsonValueKind.Null:
         return null;
       case MongoBsonValueKind.Undefined:
@@ -917,11 +926,11 @@ function toMongoBson(a: any): MongoBsonValue {
           value: a.toISOString(),
         });
       }
-      if (a instanceof BSONRegExp) {
-        return new MongoBsonValue(MongoBsonValueKind.RegExp, {
-          value: '/' + a.pattern + '/' + a.options,
-        });
-      }
+      // if (a instanceof BSONRegExp) {
+      //   return new MongoBsonValue(MongoBsonValueKind.RegExp, {
+      //     value: a.pattern + a.options,
+      //   });
+      // }
       if (a instanceof RegExp) {
         return new MongoBsonValue(MongoBsonValueKind.RegExp, {
           value: '/' + a.source + '/' + a.flags,
@@ -979,7 +988,7 @@ function bsonValue2MongoBson(x: Uint8Array | Document): MongoBsonObject {
   let eles: Document;
   if (x instanceof Uint8Array) {
     eles = BSON.deserialize(x, {
-      bsonRegExp: true,
+      bsonRegExp: false,
       promoteLongs: false,
       promoteBuffers: false,
       promoteValues: false,

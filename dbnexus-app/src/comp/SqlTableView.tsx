@@ -381,12 +381,11 @@ function SqlTableView(props: {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="flex-start">
+      <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
         <span
           style={{
             ...filterStyle.style,
             backgroundColor: filterStyle.filter,
-            width: '60%',
           }}
           onClick={() => {
             setShowSetWhere(true);
@@ -400,7 +399,6 @@ function SqlTableView(props: {
           style={{
             ...filterStyle.style,
             backgroundColor: filterStyle.sort,
-            width: '30%',
           }}
           onClick={() => {
             setShowSetSort(true);

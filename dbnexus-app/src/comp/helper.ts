@@ -427,8 +427,7 @@ function noUse(...args) {
 const filterStyle = {
   style: {
     cursor: 'pointer',
-    flexGrow: 1,
-    flexShrink: 1,
+
     borderRadius: '10px',
     color: 'black',
     padding: '4px 6px',
