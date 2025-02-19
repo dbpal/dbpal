@@ -309,12 +309,14 @@ function ViewMenu(props: {
         case DataSourceKind.TiDB:
           list = (
             <SqlTableView
+              kind={kind}
               notWarnPri={true}
               reloadOP={async (
                 where: string,
                 orderBy: string,
                 page: number,
-                pageSize: number
+                pageSize: number,
+                extra
               ) => {
                 let where_null = where ? where : null;
                 let orderBy_null = orderBy ? orderBy : null;
@@ -325,6 +327,7 @@ function ViewMenu(props: {
                   orderBy: orderBy_null,
                   page,
                   pageSize,
+                  extra,
                 });
               }}
               put_value_in_sql={async (typ, value) => {
@@ -453,7 +456,6 @@ function ViewMenu(props: {
             }
             setShowExport(false);
           }}
-          aria-labelledby="drop"
         >
           <Box sx={modalStyle} width="800px">
             <ExportTableOrView

@@ -149,9 +149,13 @@ function Database(props: {
   setDatabase;
   candidates: string[];
   onBlur?;
+  lable?: string;
 }) {
-  let { database, setDatabase, candidates, onBlur } = props;
+  let { database, setDatabase, candidates, onBlur, lable } = props;
 
+  if (!lable) {
+    lable = 'database';
+  }
   return (
     <Stack>
       <Stack direction="row" style={{ flexWrap: 'wrap' }}>
@@ -171,7 +175,7 @@ function Database(props: {
         <TextField
           size="small"
           margin="normal"
-          label="database"
+          label={lable}
           value={database}
           onBlur={onBlur}
           onChange={(e) => setDatabase(e.target.value)}
@@ -258,6 +262,17 @@ export default function AddConfig(props: { handleClose: () => void }) {
           username: user,
           password: pass_null,
           db: db_null,
+          read_only: readOnly,
+          name: connectionName,
+        };
+      case DataSourceKind.Cassandra:
+        return {
+          conn_type: 'cassandra',
+          host: host,
+          port: portInt,
+          username: user_null,
+          password: pass_null,
+          keyspace: db_null,
           read_only: readOnly,
           name: connectionName,
         };
@@ -403,6 +418,9 @@ export default function AddConfig(props: { handleClose: () => void }) {
       case DataSourceKind.Oracle:
         setPort('1521');
         break;
+      case DataSourceKind.Cassandra:
+        setPort('9042');
+        break;
     }
     setUser('');
     setPassword('');
@@ -511,6 +529,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           <MenuItem value={DataSourceKind.MsSql}>
             Sql server(microsoft)
           </MenuItem>
+          <MenuItem value={DataSourceKind.Cassandra}>cassandra</MenuItem>
         </Select>
       </FormControl>
 
@@ -568,6 +587,32 @@ export default function AddConfig(props: { handleClose: () => void }) {
               candidates={schemaCandidates}
             ></Schema>
           )}
+        </>
+      )}
+
+      {connectionType == DataSourceKind.Cassandra && (
+        <>
+          <HostAndPort
+            host={host}
+            port={port}
+            setHost={setHost}
+            setPort={setPort}
+            onBlur={toggleTriggerReload}
+          ></HostAndPort>
+          <UserAndPassword
+            user={user}
+            password={password}
+            setUser={setUser}
+            onBlur={toggleTriggerReload}
+            setPassword={setPassword}
+          ></UserAndPassword>
+          <Database
+            candidates={databaseCandidates}
+            database={database}
+            setDatabase={setDatabase}
+            onBlur={toggleTriggerReload}
+            lable="key space"
+          ></Database>
         </>
       )}
       {connectionType == DataSourceKind.Redis && (
@@ -683,7 +728,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           sx={{ mr: 1 }}
           onClick={handleTestConnection}
         >
-          Test
+          test
         </Button>
         {testOk && <Alert severity="success"> Test OK </Alert>}
         {testLoading && <CircularProgress size={progressBarSize} />}

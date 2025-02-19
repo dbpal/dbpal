@@ -1,9 +1,12 @@
 import {
   Button,
+  FormControlLabel,
   IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
+  Radio,
+  RadioGroup,
   Stack,
   SxProps,
   TextField,
@@ -165,15 +168,20 @@ function CreateDatabase({ uuid, handleClose }) {
 function CreateSchema(props: {
   uuid;
   handleClose;
+  handleReload;
   kind: DataSourceKind;
   schemas: string[];
 }) {
   //@ts-ignore
-  const { uuid, handleClose, kind, schemas } = props;
+  const { uuid, handleClose, kind, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
   const { showNotification } = useContext(NotificationContext);
   const [schema, setSchema] = useState('');
-
+  const replicationStrateges = ['SimpleStrategy', 'NetworkTopologyStrategy'];
+  const [replicationStrategy, setReplicationStrategy] = useState(
+    replicationStrateges[0]
+  );
+  const [replicationFactor, setReplicationFactor] = useState('3');
   const handleCreate = () => {
     if (!schema) {
       showNotification('error', 'Schema is empty');
@@ -183,25 +191,79 @@ function CreateSchema(props: {
       showNotification('error', `'${schema}' already exists.`);
       return;
     }
-    invoke('create_schema', { name: uuid, schema })
+    let extra = null;
+    switch (kind) {
+      case DataSourceKind.Cassandra:
+        extra = {
+          extra: 'cassandra',
+          replication_strategy: replicationStrategy,
+          replication_factor: parseInt(replicationFactor),
+        };
+        break;
+    }
+    invoke('create_schema', { name: uuid, schema, extra })
       .then(() => {
         showNotification('success', 'Create OK');
         handleClose();
+        handleReload();
       })
       .catch((e) => {
         showNotification('error', 'Create Failure', e);
       });
   };
 
+  if (kind == DataSourceKind.Cassandra) {
+    //
+    return (
+      <Stack spacing={1}>
+        <RadioGroup
+          row
+          onChange={(e) => {
+            setReplicationStrategy(e.target.value);
+          }}
+          value={replicationStrategy}
+        >
+          {replicationStrateges.map((e) => (
+            <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
+          ))}
+        </RadioGroup>
+        <TextField
+          type="number"
+          size="small"
+          value={replicationFactor}
+          onChange={(e) => {
+            setReplicationFactor(e.target.value);
+          }}
+          label="replication factor"
+        ></TextField>
+        <TextField
+          size="small"
+          value={schema}
+          onChange={(e) => {
+            setSchema(e.target.value);
+          }}
+          label="name"
+        ></TextField>
+        <Stack direction="row">
+          <Button
+            onClick={() => {
+              handleCreate();
+            }}
+          >
+            create
+          </Button>
+        </Stack>
+      </Stack>
+    );
+  }
   if (kind == DataSourceKind.Redis) {
     // redis have special create
     const range = [];
     for (let i = 0; i < 16; i++) {
       range.push('db' + i);
     }
-
     return (
-      <Stack>
+      <Stack spacing={1}>
         <Stack direction="row" style={{ flexWrap: 'wrap' }}>
           {range
             .filter((e) => !schemaSet.has(e))
@@ -240,7 +302,7 @@ function CreateSchema(props: {
   }
 
   return (
-    <Stack>
+    <Stack spacing={1}>
       <Stack>
         <TextField
           size="small"

@@ -163,7 +163,8 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
       case 'oracle':
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
-
+      case 'cassandra':
+        return config.keyspace ? <SchemaTree /> : <DatabaseTree />;
       default:
         console.log('impl database kind:', config);
         throw `impl this kind`;
@@ -234,32 +235,59 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         {!schema && opened && <ConnStatus uuid={uuid}></ConnStatus>}
       </Stack>
     >
+      {opened && kind == DataSourceKind.Sqlite && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.Cassandra && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Materrialized}></ViewsTree>
+        </>
+      )}
+      {opened && kind == DataSourceKind.Mongo && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
       {opened &&
-        (kind == DataSourceKind.Sqlite ||
-          kind == DataSourceKind.Mysql ||
+        (kind == DataSourceKind.Mysql ||
           kind == DataSourceKind.MariaDB ||
-          kind == DataSourceKind.MsSql ||
-          kind == DataSourceKind.Postgres ||
-          kind == DataSourceKind.Mongo ||
-          kind == DataSourceKind.Oracle ||
           kind == DataSourceKind.TiDB) && (
           <>
             <TablesTree typ={TablesType.Normal} />
-            {kind == DataSourceKind.Mongo && (
-              <TablesTree typ={TablesType.MongoTimeSerial} />
-            )}
             <ViewsTree viewkind={ViewKind.Normal} />
-
-            {kind == DataSourceKind.Postgres ||
-              (kind == DataSourceKind.Oracle && (
-                <ViewsTree viewkind={ViewKind.Materrialized} />
-              ))}
-
-            {support_procedure && <ProceduresTree />}
-            {support_udf && <UdfsTree></UdfsTree>}
           </>
         )}
-
+      {opened && kind == DataSourceKind.Postgres && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewkind={ViewKind.Materrialized} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.Oracle && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewkind={ViewKind.Materrialized} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.MsSql && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
+      {opened && (
+        <>
+          {support_procedure && <ProceduresTree />}
+          {support_udf && <UdfsTree></UdfsTree>}
+        </>
+      )}
       {opened && kind == DataSourceKind.Redis && (
         <RedisTables schema={schema} />
       )}
@@ -361,7 +389,6 @@ function DatabaseMenu(props: {
             }
             setShowCreateSchema(false);
           }}
-          aria-labelledby="create database"
         >
           <Box sx={modalStyle} width="600px">
             <CreateSchema
@@ -372,6 +399,7 @@ function DatabaseMenu(props: {
               }}
               kind={kind}
               schemas={schemas}
+              handleReload={reload}
             ></CreateSchema>
           </Box>
         </Modal>
@@ -444,7 +472,6 @@ function CatalogMenu(props: {
             }
             setShowCreateDB(false);
           }}
-          aria-labelledby="create database"
         >
           <Box sx={modalStyle} width="600px">
             <CreateDatabase

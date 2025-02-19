@@ -134,6 +134,7 @@ export namespace types {
          */
         "is_primary": boolean;
         "is_auto_increment": boolean;
+        "sortable": boolean;
     };
     export type IndexKind = ("Index" | "Unique" | "Primary");
     export type Index = {

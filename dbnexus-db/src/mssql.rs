@@ -10,8 +10,8 @@ use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, DBTrait, ExportKind,
     Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
     format_data_time_fix_offset, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
@@ -721,7 +721,7 @@ impl SchemaTrait for MsSqlServer {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -868,7 +868,7 @@ impl SchemaTrait for MsSqlServer {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -2015,7 +2015,7 @@ mod tests {
             .unwrap();
 
         db_trait
-            .show_table("test_rename2", None, None, 1, 100)
+            .show_table("test_rename2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -2054,7 +2054,7 @@ mod tests {
             .unwrap();
 
         let resp = db_trait
-            .show_table("test_duplicate2", None, None, 1, 100)
+            .show_table("test_duplicate2", None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -2236,7 +2236,10 @@ mod tests {
             .await
             .unwrap();
 
-        let resp = db.show_view("test_view", None, None, 1, 100).await.unwrap();
+        let resp = db
+            .show_view("test_view", None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("resp:{:?}", resp);
     }
 
@@ -2414,7 +2417,10 @@ mod tests {
         })
         .await
         .unwrap();
-        let list = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let list = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("ret:{:?}", list);
     }
 
@@ -2467,7 +2473,10 @@ mod tests {
         })
         .await
         .unwrap();
-        let list = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let list = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("ret:{:?}", list);
     }
 
@@ -2522,7 +2531,10 @@ mod tests {
         })
         .await
         .unwrap();
-        let list = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let list = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("ret:{:?}", list);
     }
 
@@ -2589,7 +2601,10 @@ mod tests {
         })
         .await
         .unwrap();
-        let list = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let list = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("ret:{:?}", list);
     }
 }

@@ -17,8 +17,8 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -45,6 +45,7 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
             default_value: None,
             is_primary: false,
             is_auto_increment: false,
+            sortable: true,
         });
     }
     ret
@@ -947,7 +948,7 @@ impl SchemaTrait for MysqlDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
         let mut conn = self.get_conn().await?;
@@ -1170,7 +1171,7 @@ impl SchemaTrait for MysqlDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
@@ -1607,7 +1608,7 @@ pub(crate) mod test_fns {
             .unwrap();
 
         db_trait
-            .show_table("test_rename2", None, None, 1, 100)
+            .show_table("test_rename2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1644,7 +1645,7 @@ pub(crate) mod test_fns {
             .unwrap();
 
         let resp = db_trait
-            .show_table("test_duplicate2", None, None, 1, 100)
+            .show_table("test_duplicate2", None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -1922,7 +1923,10 @@ pub(crate) mod test_fns {
 
         db.insert(table_name, values).await.unwrap();
 
-        let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let cols = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", cols);
     }
 
@@ -1964,7 +1968,10 @@ pub(crate) mod test_fns {
 
         db.insert(table_name, values).await.unwrap();
 
-        let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let cols = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", cols);
     }
 
@@ -2007,7 +2014,10 @@ pub(crate) mod test_fns {
 
         db.insert(table_name, values).await.unwrap();
 
-        let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let cols = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", cols);
     }
 
@@ -2045,7 +2055,10 @@ pub(crate) mod test_fns {
 
         db.insert(table_name, values).await.unwrap();
 
-        let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let cols = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", cols);
     }
 

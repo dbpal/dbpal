@@ -155,7 +155,6 @@ export default function MainPage() {
                   }
                   setShowAddConnection(false);
                 }}
-                aria-labelledby="add column"
               >
                 <Box sx={modalStyle} width="950px">
                   <AddConfig

@@ -101,7 +101,6 @@ function Menu(props: {
             }
             setShowAdd(false);
           }}
-          aria-labelledby="create database"
         >
           <Box sx={modalStyle} width="800px">
             {addIndex}
@@ -245,10 +244,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
         size="small"
         required
       ></TextField>
-      <Stack
-        direction="row"
-        style={{ flexWrap: 'wrap', justifyItems: 'flex-end' }}
-      >
+      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography> includes: </Typography>
 
         {includes.map((x) => (
@@ -265,10 +261,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
         ))}
       </Stack>
 
-      <Stack
-        direction="row"
-        style={{ flexWrap: 'wrap', justifyItems: 'flex-end' }}
-      >
+      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography> candidates: </Typography>
         {fields
           .filter((f) => includes.find((e) => e == f.field) == undefined)
@@ -468,7 +461,6 @@ function IndexMenu(props: {
             }
             setShowRename(false);
           }}
-          aria-labelledby="rename"
         >
           <Box sx={modalStyle} width="800px">
             <RenameIndex

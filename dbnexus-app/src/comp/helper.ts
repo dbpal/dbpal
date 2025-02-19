@@ -301,7 +301,7 @@ enum DataSourceKind {
   Redis,
   Mongo,
   Oracle,
-
+  Cassandra,
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
@@ -324,7 +324,10 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
       return DataSourceKind.Postgres;
     case 'oracle':
       return DataSourceKind.Oracle;
-
+    case 'cassandra':
+      return DataSourceKind.Cassandra
+    default:
+      console.log("connection typt not handle:", name);
   }
 }
 function isTypeLargeText(s: string): boolean {
@@ -427,10 +430,9 @@ function noUse(...args) {
 const filterStyle = {
   style: {
     cursor: 'pointer',
-
-    borderRadius: '10px',
+    borderRadius: '4px',
     color: 'black',
-    padding: '4px 6px',
+    padding: '2px 6px',
   } as CSSProperties,
   filter: '#28A745',
   sort: '#5FBA7F',

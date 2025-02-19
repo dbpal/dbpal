@@ -17,7 +17,7 @@ import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
-import { BsDatabaseAdd } from 'react-icons/bs';
+import { BsDatabaseAdd, BsFileBreakFill } from 'react-icons/bs';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
@@ -177,6 +177,16 @@ function ConnStatus({ uuid }) {
 
 function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   const { handleCreate, kind } = props;
+  let name = 'database';
+  switch (kind) {
+    case DataSourceKind.MsSql:
+    case DataSourceKind.Postgres:
+      name = 'schema';
+      break;
+    case DataSourceKind.Cassandra:
+      name = 'key space';
+      break;
+  }
   return (
     <MenuItem
       onClick={() => {
@@ -186,12 +196,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
       <ListItemIcon>
         <TbDatabasePlus></TbDatabasePlus>
       </ListItemIcon>
-      <ListItemText>
-        create
-        {kind == DataSourceKind.MsSql || kind == DataSourceKind.Postgres
-          ? ' schema'
-          : ' database'}
-      </ListItemText>
+      <ListItemText> {`create ${name}`} </ListItemText>
     </MenuItem>
   );
 }

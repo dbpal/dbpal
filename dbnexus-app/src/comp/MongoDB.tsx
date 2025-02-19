@@ -479,7 +479,6 @@ function MongoTableListToolBar(props: {
               }
               setShowModifyFilter(false);
             }}
-            aria-labelledby="set filter"
           >
             <Box sx={modalStyle} width="950px">
               <MongoDBModify
@@ -517,7 +516,6 @@ function MongoTableListToolBar(props: {
               }
               setShowModifyOrderBy(false);
             }}
-            aria-labelledby="order by"
           >
             <Box sx={modalStyle} width="950px">
               <MongoDBModify
@@ -733,7 +731,6 @@ function MongoTableListContextMenu(props: {
             }
             setShowFilter(false);
           }}
-          aria-labelledby="create database"
         >
           <Box sx={modalStyle} width="950px">
             <MongoTableListMenuFilter
@@ -1008,7 +1005,6 @@ function MongoTableList(props: {
             }
             setSelectModifyDoc(null);
           }}
-          aria-labelledby="modify set"
         >
           <Box sx={modalStyle} width="950px">
             <MongoDBModify

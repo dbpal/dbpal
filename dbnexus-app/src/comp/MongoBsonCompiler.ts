@@ -5,7 +5,6 @@ import {
   Long,
   ObjectId,
   Timestamp,
-  BSONRegExp,
   Code,
   Decimal128,
   Binary,
@@ -926,11 +925,6 @@ function toMongoBson(a: any): MongoBsonValue {
           value: a.toISOString(),
         });
       }
-      // if (a instanceof BSONRegExp) {
-      //   return new MongoBsonValue(MongoBsonValueKind.RegExp, {
-      //     value: a.pattern + a.options,
-      //   });
-      // }
       if (a instanceof RegExp) {
         return new MongoBsonValue(MongoBsonValueKind.RegExp, {
           value: '/' + a.source + '/' + a.flags,

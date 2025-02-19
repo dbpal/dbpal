@@ -16,8 +16,8 @@ use sqlx::{Column, Executor, Row, SqliteConnection, TypeInfo};
 use crate::MemoryLimit;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, Index,
-    IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -802,7 +802,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
@@ -820,7 +820,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str.clone()).await?;
@@ -906,6 +906,7 @@ fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
             default_value: None,
             is_primary: false,
             is_auto_increment: false,
+            sortable: true,
         });
     }
     ret
@@ -1538,7 +1539,7 @@ mod tests {
             .unwrap();
 
         db_trait
-            .show_table("test_rename2", None, None, 1, 100)
+            .show_table("test_rename2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1568,7 +1569,7 @@ mod tests {
             .unwrap();
 
         db_trait
-            .show_table("test_duplicate2", None, None, 1, 100)
+            .show_table("test_duplicate2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1783,7 +1784,10 @@ mod tests {
         let r = db.update(table_name, values.clone(), wheres).await.unwrap();
         println!("{:?}", r);
 
-        let cols = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let cols = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", cols);
 
         let indexes = db.show_indexes(table_name).await.unwrap();
@@ -1816,7 +1820,7 @@ mod tests {
         let views = db.list_view().await.unwrap();
         for v in views.iter() {
             let list = db
-                .show_view(&v.name.as_str(), None, None, 1, 100)
+                .show_view(&v.name.as_str(), None, None, 1, 100, None)
                 .await
                 .unwrap();
             println!("view value:{:?}", list);

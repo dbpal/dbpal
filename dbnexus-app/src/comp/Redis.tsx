@@ -951,7 +951,6 @@ function RedisSetTable(props: {
             }
             setSelectRow(null);
           }}
-          aria-labelledby="modify set"
         >
           <Box sx={modalStyle} width="950px">
             <RedisEditSet
@@ -1024,7 +1023,6 @@ function RedisListTableContextMenu(props: {
             }
             setShowDel(null);
           }}
-          aria-labelledby="modify list"
         >
           <Box sx={modalStyle} width="950px">
             <Stack spacing={1}>
@@ -1237,7 +1235,6 @@ function RedisListTable(props: {
             }
             setSelectRow(null);
           }}
-          aria-labelledby="modify list"
         >
           <Box sx={modalStyle} width="950px">
             <RedisEditList
@@ -1491,7 +1488,6 @@ function RedisZsetTable(props: {
             }
             setSelectRow(null);
           }}
-          aria-labelledby="modify zset"
         >
           <Box sx={modalStyle} width="950px">
             <RedisEditZset
@@ -1696,7 +1692,6 @@ function RedisHashTable(props: {
             }
             setSelectRow(null);
           }}
-          aria-labelledby="modify hash"
         >
           <Box sx={modalStyle} width="950px">
             <RedisEditHash

@@ -263,8 +263,9 @@ function ModifyTableColumn(props: {
   handleClose;
   reload;
   typ: string;
+  kind: DataSourceKind;
 }) {
-  let { uuid, table, col, handleClose, reload, typ } = props;
+  let { uuid, table, col, handleClose, reload, typ, kind } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
   const [newTyp, setNewTyp] = useState(typ);
@@ -356,10 +357,12 @@ function ModifyTableColumn(props: {
             ></TextField>
             <ColumnParentThesesHint />
           </Stack>
-          <ColumnNullness
-            nullness={nullness}
-            handleNullness={setNullness}
-          ></ColumnNullness>
+          {kindSupportNull(kind) && (
+            <ColumnNullness
+              nullness={nullness}
+              handleNullness={setNullness}
+            ></ColumnNullness>
+          )}
         </Stack>
       )}
       <Stack direction="row" spacing={1}>
@@ -414,7 +417,6 @@ function TableColumnsMenu(props: {
             }
             setShowAdd(false);
           }}
-          aria-labelledby="add column"
         >
           <Box sx={modalStyle} width="900px">
             <TableAddColumn
@@ -436,6 +438,13 @@ function TableColumnsMenu(props: {
 
 function ColumnParentThesesHint() {
   return <span> some type require specify a size like `varchar(128)`</span>;
+}
+
+function kindSupportNull(kind: DataSourceKind): boolean {
+  return kind != DataSourceKind.Cassandra;
+}
+function kindSupportDefault(kind: DataSourceKind): boolean {
+  return kind != DataSourceKind.Cassandra;
 }
 function TableAddColumn(props: {
   table: string;
@@ -491,6 +500,8 @@ function TableAddColumn(props: {
       });
   };
 
+  const supportNull = kindSupportNull(kind);
+  const supportDefault = kindSupportDefault(kind);
   return (
     <Stack spacing={1}>
       <TextField
@@ -520,21 +531,26 @@ function TableAddColumn(props: {
         ></TextField>
         <ColumnParentThesesHint />
       </Stack>
-      <ColumnNullness
-        nullness={nullness}
-        handleNullness={(e) => {
-          setNullness(e);
-        }}
-      ></ColumnNullness>
+      {supportNull && (
+        <ColumnNullness
+          nullness={nullness}
+          handleNullness={(e) => {
+            setNullness(e);
+          }}
+        ></ColumnNullness>
+      )}
 
-      <Stack>
-        <TextField
-          size="small"
-          value={defaultValue}
-          onChange={(e) => setDefaultValue(e.target.value)}
-          label="default value"
-        ></TextField>
-      </Stack>
+      {supportDefault && (
+        <Stack>
+          <TextField
+            size="small"
+            value={defaultValue}
+            onChange={(e) => setDefaultValue(e.target.value)}
+            label="default value"
+          ></TextField>
+        </Stack>
+      )}
+
       {supportAfter && (
         <FormControl style={{ minWidth: '180px' }}>
           <InputLabel id="dropdown-label">Select After column </InputLabel>
@@ -619,7 +635,8 @@ function TableColumnsTree(props: { table: string }) {
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.Oracle ||
-    kind == DataSourceKind.TiDB;
+    kind == DataSourceKind.TiDB ||
+    kind == DataSourceKind.Cassandra;
 
   useEffect(() => {
     reload();
@@ -668,6 +685,7 @@ function TableColumnsTree(props: { table: string }) {
                         col={f.field}
                         reload={reload}
                         typ={f.typ}
+                        kind={kind}
                       ></TableColumnMenu>
                     ),
                     style: calMenuStyle(e, 70),
@@ -775,13 +793,16 @@ async function makeViewTable(
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
     case DataSourceKind.TiDB:
+    case DataSourceKind.Cassandra:
       tableList = (
         <SqlTableView
+          kind={kind}
           reloadOP={async (
             where: string,
             orderBy: string,
             page: number,
-            pageSize: number
+            pageSize: number,
+            extra
           ) => {
             let where_null = where ? where : null;
             let orderBy_null = orderBy ? orderBy : null;
@@ -792,6 +813,7 @@ async function makeViewTable(
               orderBy: orderBy_null,
               page,
               pageSize,
+              extra,
             });
           }}
           updateOP={async (wheres, values) => {
@@ -1071,6 +1093,7 @@ async function makeAddTable(
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
     case DataSourceKind.TiDB:
+    case DataSourceKind.Cassandra:
       tableList = (
         <SqlTableViewAdd
           addOP={async (values) => {
@@ -1369,7 +1392,6 @@ function TableMenu(props: {
             }
             setshowDup(false);
           }}
-          aria-labelledby="set filter"
         >
           <Box sx={modalStyle} width="800px">
             <DupTable
@@ -1392,7 +1414,6 @@ function TableMenu(props: {
             }
             setShowRename(false);
           }}
-          aria-labelledby="rename"
         >
           <Box sx={modalStyle} width="800px">
             <RenameTable
@@ -1415,7 +1436,6 @@ function TableMenu(props: {
             }
             setShowExport(false);
           }}
-          aria-labelledby="drop"
         >
           <Box sx={modalStyle} width="700px">
             <ExportTableOrView
@@ -1440,7 +1460,6 @@ function TableMenu(props: {
             }
             setShowDrop(false);
           }}
-          aria-labelledby="drop"
         >
           <Box sx={modalStyle} width="800px">
             <DropTable
@@ -1465,8 +1484,9 @@ function TableColumnMenu(props: {
   col: string;
   reload;
   typ: string;
+  kind: DataSourceKind;
 }) {
-  const { table, col, reload, uuid, typ } = props;
+  const { table, col, reload, uuid, typ, kind } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showModify, setShowModify] = useState(false);
   const handleDrop = async () => {
@@ -1527,7 +1547,6 @@ function TableColumnMenu(props: {
             }
             setShowModify(false);
           }}
-          aria-labelledby="set filter"
         >
           <Box sx={modalStyle} width="800px">
             <ModifyTableColumn
@@ -1537,6 +1556,7 @@ function TableColumnMenu(props: {
               handleClose={() => {
                 setShowModify(false);
               }}
+              kind={kind}
               typ={typ}
               reload={reload}
             ></ModifyTableColumn>
@@ -1864,7 +1884,6 @@ function RedisTables(prpos: { schema?: string }) {
             }
             setShowEditFilter(false);
           }}
-          aria-labelledby="add column"
         >
           <Box sx={modalStyle} width="800px">
             <TextField

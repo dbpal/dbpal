@@ -95,7 +95,6 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
             }
             setSelectSql('');
           }}
-          aria-labelledby="sql"
         >
           <Box sx={modalStyle} width="800px">
             <SimpleResizeEditor

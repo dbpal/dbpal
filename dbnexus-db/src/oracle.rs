@@ -16,8 +16,8 @@ use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
+    ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
     UdfOrPrecedureExtraParameter, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
@@ -1231,7 +1231,7 @@ impl SchemaTrait for OracleDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let conn = self.get_conn()?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
@@ -1397,7 +1397,7 @@ impl SchemaTrait for OracleDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let conn = self.get_conn()?;
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
@@ -1849,7 +1849,7 @@ mod tests {
             .unwrap();
 
         db_trait
-            .show_table("TEST_RENAME2", None, None, 1, 100)
+            .show_table("TEST_RENAME2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1895,7 +1895,7 @@ mod tests {
             .unwrap();
 
         let resp = db_trait
-            .show_table("TEST_DUPLICATE2", None, None, 1, 100)
+            .show_table("TEST_DUPLICATE2", None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -1940,7 +1940,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         let views = db.list_view().await.unwrap();
         println!("{:?}", views);
 
-        let resp = db.show_view("TEST_VIEW", None, None, 1, 100).await;
+        let resp = db.show_view("TEST_VIEW", None, None, 1, 100, None).await;
         println!("show view:{:?}", resp);
         let sql = db.create_view_sql("TEST_VIEW", false).await.unwrap();
         println!("create view sql:{}", sql);
@@ -1982,7 +1982,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         println!("list_materialized_view:{:?}", views);
 
         let resp = db
-            .show_view("TEST_MATERLIZED_VIEW", None, None, 1, 100)
+            .show_view("TEST_MATERLIZED_VIEW", None, None, 1, 100, None)
             .await;
         println!("show view:{:?}", resp);
         let sql = db
@@ -2079,7 +2079,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.query_commit(query_uuid).await.unwrap();
 
         let resp = db_trait
-            .show_table("TEST_QUERY", None, None, 1, 100)
+            .show_table("TEST_QUERY", None, None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2129,7 +2129,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.insert(&table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2204,7 +2204,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.insert(&table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2280,7 +2280,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.insert(&table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2352,7 +2352,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.insert(&table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);

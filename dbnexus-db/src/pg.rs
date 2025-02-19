@@ -15,8 +15,8 @@ use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
     DBTrait, ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
     UdfOrPrecedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
@@ -920,7 +920,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(view_name, where_str).await?;
 
@@ -1216,7 +1216,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(
@@ -1368,6 +1368,7 @@ fn get_rows_types(rows: &Vec<PgRow>) -> Vec<Field> {
             default_value: None,
             is_primary: false,
             is_auto_increment: false,
+            sortable: true,
         });
     }
     ret
@@ -1720,7 +1721,10 @@ mod tests {
         );
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
-            let table_resp = db.show_view(&l.name, None, None, 1, 100).await.unwrap();
+            let table_resp = db
+                .show_view(&l.name, None, None, 1, 100, None)
+                .await
+                .unwrap();
             println!("resp:{:?}", table_resp);
         }
     }
@@ -1763,7 +1767,7 @@ mod tests {
             .unwrap();
 
         db_trait
-            .show_table("test_rename2", None, None, 1, 100)
+            .show_table("test_rename2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1802,7 +1806,7 @@ mod tests {
             .unwrap();
 
         let resp = db_trait
-            .show_table("test_duplicate2", None, None, 1, 100)
+            .show_table("test_duplicate2", None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -2264,7 +2268,10 @@ mod tests {
         let pg = &pg as &dyn SchemaTrait;
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2341,7 +2348,10 @@ mod tests {
 
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2400,7 +2410,10 @@ mod tests {
         let pg = &pg as &dyn SchemaTrait;
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2480,7 +2493,10 @@ mod tests {
 
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         // let json = pg
         //     .export_table_to_string(&table_name, ExportKind::Json { pretty:
@@ -2556,7 +2572,10 @@ mod tests {
 
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2614,7 +2633,10 @@ mod tests {
             Some("{10:00:00+03,15:30:00+03}".to_string()),
         );
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
 
         let json = pg
@@ -2666,7 +2688,10 @@ mod tests {
 
         values.insert("numeric_column".to_string(), Some("123.45".to_string()));
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2736,7 +2761,10 @@ mod tests {
         );
 
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2798,7 +2826,10 @@ mod tests {
         values.insert("tstz_range_array".to_string(), Some("{}".to_string()));
 
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2871,7 +2902,10 @@ mod tests {
             Some("{$5.00,$15.75}".to_string()),
         );
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
 
         let json = pg

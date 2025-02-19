@@ -4,9 +4,9 @@ use std::time::Duration;
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::db::{
-    ColumnType, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
-    UdfOrPrecedureExtraParameter,
+    ColumnType, CreateSchemaExtra, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp,
+    TriggerDetail, UdfDetail, UdfOrPrecedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
@@ -147,7 +147,7 @@ pub async fn create_database(
 
 #[tauri::command]
 pub async fn create_schema(
-    name: String, schema: String, app: tauri::State<'_, App>,
+    name: String, schema: String, extra: Option<CreateSchemaExtra>, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -158,7 +158,7 @@ pub async fn create_schema(
         .map_err(|x| ErrorFrontend::from(x))?;
     match x {
         Open::DataBase(x) => {
-            x.create_schema(&schema, None)
+            x.create_schema(&schema, extra)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
             let db = x
@@ -281,7 +281,7 @@ pub async fn show_table_columns(
 #[tauri::command]
 pub async fn show_table(
     name: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, app: tauri::State<'_, App>,
+    page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -293,6 +293,7 @@ pub async fn show_table(
             order_by,
             page,
             page_size,
+            extra,
         )
         .await
         .map_err(ErrorFrontend::from)?;
@@ -586,7 +587,7 @@ pub async fn drop_table(
 #[tauri::command]
 pub async fn show_view(
     name: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, app: tauri::State<'_, App>,
+    page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -597,6 +598,7 @@ pub async fn show_view(
         order_by,
         page,
         page_size,
+        extra,
     )
     .await
     .map_err(ErrorFrontend::from)

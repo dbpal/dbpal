@@ -33,7 +33,7 @@ pub trait SchemaTrait:
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp>;
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>>;
 
@@ -107,7 +107,7 @@ pub trait SchemaTrait:
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize,
+        _page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         not_support_features(self.backend_name())
     }
@@ -115,7 +115,7 @@ pub trait SchemaTrait:
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         // 有些后端没有数据 也能得到完整的结果所以提供一个默认实现
         // 后端基于sqlx的需要使用prepare_with这种特殊的接口
-        self.show_view(view_name, None, None, 1, 1)
+        self.show_view(view_name, None, None, 1, 1, None)
             .await
             .map(|x| x.fields)
     }
@@ -458,7 +458,7 @@ pub enum CreateSchemaExtra {
     // };
     Cassandra {
         // class is the keyword for frontend
-        class_name: String,
+        replication_strategy: String,
         replication_factor: u32,
     },
 }
@@ -625,12 +625,13 @@ impl dyn SchemaTrait {
         }
 
         let mut sql = format!(
-            "DELETE FROM {}{table_name} WHERE ",
+            "DELETE FROM {}{} WHERE ",
             if let Some(schema) = schema {
                 format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
             } else {
                 "".to_string()
-            }
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
         );
 
         sql.push_str(
@@ -654,12 +655,13 @@ impl dyn SchemaTrait {
         }
 
         let mut sql = format!(
-            "UPDATE {}{table_name} SET ",
+            "UPDATE {}{} SET ",
             if let Some(schema) = schema {
                 format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
             } else {
                 "".to_string()
-            }
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
         );
         {
             let last = values.len() - 1;
@@ -698,12 +700,13 @@ impl dyn SchemaTrait {
         values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let mut sql = format!(
-            "INSERT INTO {}{table_name}(",
+            "INSERT INTO {}{}(",
             if let Some(schema) = schema {
                 format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
             } else {
                 "".to_string()
-            }
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
         );
         // fields
         {
@@ -837,6 +840,7 @@ impl QueryResp {
                 default_value: None,
                 is_primary: false,
                 is_auto_increment: false,
+                sortable: true,
             }],
         }
     }
@@ -851,6 +855,7 @@ impl QueryResp {
                 default_value: None,
                 is_primary: false,
                 is_auto_increment: false,
+                sortable: true,
             }],
         }
     }
@@ -930,6 +935,7 @@ impl TableListResp {
                 default_value: None,
                 is_primary: false,
                 is_auto_increment: false,
+                sortable: true,
             }],
         }
     }
@@ -946,6 +952,8 @@ pub struct Field {
     pub is_primary: bool,
     //
     pub is_auto_increment: bool,
+
+    pub sortable: bool,
 }
 
 impl Field {
@@ -960,7 +968,11 @@ impl Field {
             default_value: None,
             is_auto_increment: false,
             is_primary: false,
+            sortable: true,
         }
+    }
+    pub fn with_sortable(&mut self, sortable: bool) {
+        self.sortable = sortable;
     }
 }
 
@@ -978,6 +990,7 @@ impl Field {
             default_value,
             is_primary,
             is_auto_increment,
+            sortable: true,
         }
     }
 }
@@ -1025,6 +1038,12 @@ impl PartialEq for TriggerDetail {
             && self.sql == other.sql
             && self.enable == other.enable
     }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(tag = "extra", rename_all = "lowercase")]
+pub enum ShowExtraArgs {
+    Cassandra { allow_filtering: bool },
 }
 
 impl Eq for TriggerDetail {}
