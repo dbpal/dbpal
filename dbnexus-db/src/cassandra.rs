@@ -18,8 +18,8 @@ use crate::{
     datasource_config::CassandraDBConfig,
     db::{
         BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-        ExportKind, Field, Index, IndexKind, ListTable, QueryResp, QuerySql, SchemaTrait,
-        ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
+        ExportKind, Field, Index, IndexKind, ListMaterializedView, ListTable, QueryResp, QuerySql,
+        SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
     },
     helper::{SqlKind, SqlWithKind, create_csv, sql_to_sql_seq},
     meta_value::MetaValue,
@@ -70,10 +70,11 @@ impl PageCache {
         }
         let end = page * page_size;
         let end = std::cmp::min(end, length);
+        let data = (&self.result.data[start..end]).to_vec();
 
         QueryResp {
             fields: self.result.fields.clone(),
-            data: (&self.result.data[start..end]).to_vec(),
+            data,
         }
     }
 }
@@ -834,13 +835,6 @@ impl CassandraDB {
             extra: extra.clone(),
         };
 
-        let allow_filtering = match &extra {
-            Some(x) => match x {
-                ShowExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
-            },
-            None => false,
-        };
-
         {
             let cache = self.paging_cache.get(&name.to_string()).map(|x| x.clone());
             if let Some(cache) = cache {
@@ -863,6 +857,12 @@ impl CassandraDB {
             page,
             page_size
         );
+        let allow_filtering = match &extra {
+            Some(x) => match x {
+                ShowExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
+            },
+            None => false,
+        };
         let sql = format!(
             r#"SELECT * FROM "{name}" {} {}  {} "#,
             if let Some(where_str) = where_str {
@@ -1060,6 +1060,34 @@ impl CassandraDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for CassandraDB {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP MATERIALIZED VIEW {name};");
+        self.session.query(sql).await?;
+        anyhow::Ok(())
+    }
+
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+        let sql = format!(
+            "select view_name from system_schema.views where keyspace_name='{}'",
+            self.config.keyspace_str()
+        );
+        let rows = self
+            .session
+            .query(sql)
+            .await?
+            .response_body()?
+            .into_rows()
+            .unwrap_or_default();
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: Option<String> = row.get_by_index(0)?;
+            if let Some(name) = name {
+                ret.push(ListTable::from(name));
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn export_table_or_view(
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1405,6 +1433,21 @@ impl SchemaTrait for CassandraDB {
         let sql = format!("ALTER TABLE {table} DROP {col};");
         self.session.query(&sql).await?;
         anyhow::Ok(())
+    }
+    async fn show_view(
+        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+        page_size: usize, extra: Option<ShowExtraArgs>,
+    ) -> anyhow::Result<TableListResp> {
+        let x = self
+            .page_caching_show(view_name, where_str, order_by, page, page_size, extra)
+            .await?;
+        let QueryResp { fields, data } = x;
+        anyhow::Ok(TableListResp {
+            fields,
+            total: self.page_caching_totoal(&view_name),
+            data,
+            sql: self.page_caching_sql(&view_name),
+        })
     }
 }
 
@@ -2377,5 +2420,67 @@ mod tests {
 
         let list = db.show_indexes(&table_name).await.unwrap();
         println!("indexes:{:?}", list);
+    }
+
+    #[tokio::test]
+    async fn test_view() {
+        let db = make_test_object(Some("test".to_string())).await;
+        let table_name = "test_view_table";
+        let view_name = "test_view";
+        let _ = db.drop_materialized_view(view_name).await;
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = db.open_connection().await.unwrap();
+        let x = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_view_table (
+                    id UUID PRIMARY KEY,
+                    name TEXT,
+                    age INT
+                );
+                "#,
+            )
+            .await
+            .unwrap();
+        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        let x = db
+            .query_sql(
+                query_id,
+                r#"
+            INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Alice', 30);
+            INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Bob', 25);
+            INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Charlie', 35);
+            INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Diana', 28);
+            INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Eve', 22);
+            "#,
+            )
+            .await
+            .unwrap();
+        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+
+        let x = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE MATERIALIZED VIEW test_view AS
+                SELECT * FROM test_view_table
+                WHERE age IS NOT NULL AND id IS NOT NULL
+                PRIMARY KEY (age, id);
+            "#,
+            )
+            .await
+            .unwrap();
+        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+
+        let list = db.list_materialized_view().await.unwrap();
+        println!("view list:{:?}", list);
+        {
+            let resp = db
+                .show_view(&view_name, None, None, 1, 100, None)
+                .await
+                .unwrap();
+            println!("resp:{:?}", resp);
+        }
     }
 }

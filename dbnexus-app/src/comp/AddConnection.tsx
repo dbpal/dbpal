@@ -507,7 +507,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   }, [database]);
 
   return (
-    <Stack>
+    <Stack spacing={1}>
       <Typography variant="h6" gutterBottom>
         New Connection
       </Typography>
@@ -723,6 +723,16 @@ export default function AddConfig(props: { handleClose: () => void }) {
         <Sqlite path={path} setPath={setPath}></Sqlite>
       )}
       <Stack direction="row">
+        <FormControlLabel
+          control={
+            <Switch
+              size="small"
+              checked={readOnly}
+              onChange={(e) => setReadOnly(e.target.checked)}
+            />
+          }
+          label="Read Only"
+        />
         <Button
           variant="outlined"
           sx={{ mr: 1 }}
@@ -734,15 +744,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
         {testLoading && <CircularProgress size={progressBarSize} />}
       </Stack>
       <Stack direction="row" alignItems="flex-start" spacing={2}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={readOnly}
-              onChange={(e) => setReadOnly(e.target.checked)}
-            />
-          }
-          label="Read Only"
-        />
         <TextField
           size="small"
           margin="normal"

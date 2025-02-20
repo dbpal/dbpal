@@ -851,7 +851,27 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
         format
       );
       break;
-
+    case DataSourceKind.Cassandra:
+      initLanguageXXX(
+        uuid,
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              // TODO oracleKeywords
+              [oracleKeywords, 'keyword'],
+              [/[_a-z][_a-z0-9]*/i, 'identifier'],
+              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
+              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+            ],
+          },
+        } as languages.IMonarchLanguage,
+        autoCompletion,
+        format
+      );
+      break;
     default:
       throw `impl this ${kind}`;
   }

@@ -307,6 +307,7 @@ function ViewMenu(props: {
         case DataSourceKind.Postgres:
         case DataSourceKind.Oracle:
         case DataSourceKind.TiDB:
+        case DataSourceKind.Cassandra:
           list = (
             <SqlTableView
               kind={kind}

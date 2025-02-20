@@ -423,10 +423,7 @@ const ContextMenuContext = createContext<{
   setUpMenu: ({ content, style }) => void;
 }>(null);
 
-function noUse(...args) {
-  //@ts-ignore
-  let _args = args;
-}
+
 const filterStyle = {
   style: {
     cursor: 'pointer',
@@ -471,7 +468,7 @@ export {
   handleCopyToClipboard,
   datagridContainerHeight,
   uint8ArrayToUtf8,
-  noUse,
+
   filterStyle
 
 };

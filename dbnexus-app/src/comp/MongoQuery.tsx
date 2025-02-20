@@ -6,7 +6,7 @@ import { editor, Position, Range } from 'monaco-editor';
 import * as loglevel from 'loglevel';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
-import { generateRandomString, noUse } from './helper';
+import { generateRandomString } from './helper';
 import { EditorBar, LoadStoreFileForQuery, SettingContext } from './Common';
 import { NotificationContext } from './Notification';
 import { LogLevelSelection } from './CommonComp';
@@ -50,8 +50,8 @@ function MongoQuery(props: { uuid: string }) {
   );
   const [loggerlevel, setLoggerlevel] = useState('trace');
 
-  const db = new MongoDBQuery(uuid);
-  noUse(db);
+  const [db, _] = useState(new MongoDBQuery(uuid));
+
   useEffect(() => {
     logger.setLevel(loggerlevel as loglevel.LogLevelDesc);
   }, [loggerlevel]);
@@ -84,7 +84,7 @@ function MongoQuery(props: { uuid: string }) {
       setPos(ed.getPosition());
     });
   };
-
+  const setting = useContext(SettingContext);
   const handleExecute = () => {
     let text = editor.current.getValue();
     if (!text.trim()) {
@@ -109,7 +109,7 @@ function MongoQuery(props: { uuid: string }) {
       console.log('mongo query error:', e);
     }
   };
-  let theme = useContext(SettingContext).theme == 'dark' ? 'vs-dark' : 'light';
+  let theme = setting.theme == 'dark' ? 'vs-dark' : 'light';
 
   return (
     <Stack spacing={1}>
@@ -159,8 +159,7 @@ function MongoQuery(props: { uuid: string }) {
             onMount={jsCodeMount}
             language="javascript"
             options={{
-              fontFamily: 'Fira Code',
-              fontSize: useContext(SettingContext).editorFontSize,
+              fontSize: setting.editorFontSize,
             }}
             theme={theme}
           ></Editor>
@@ -192,8 +191,7 @@ function MongoQuery(props: { uuid: string }) {
         <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
             options={{
-              fontSize: useContext(SettingContext).editorFontSize,
-              wordWrap: 'on',
+              fontSize: setting.editorFontSize,
             }}
             language="log"
             theme={theme}
@@ -202,7 +200,7 @@ function MongoQuery(props: { uuid: string }) {
         </div>
         <EditorBar pos={loggerPos}></EditorBar>
       </div>
-      <div style={{ minHeight: '400px' }}></div>
+      {db && <div style={{ minHeight: '400px' }}></div>}
     </Stack>
   );
 }

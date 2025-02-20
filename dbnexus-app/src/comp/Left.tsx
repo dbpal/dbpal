@@ -514,6 +514,7 @@ async function openNewQuery(
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
     case DataSourceKind.TiDB:
+    case DataSourceKind.Cassandra:
       content = (
         <SqlQuery
           language={uuid}

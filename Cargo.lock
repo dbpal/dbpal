@@ -484,6 +484,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -1095,6 +1096,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cql3-parser"
+version = "0.4.2"
+source = "git+https://github.com/dbpal/rust-cql3-parser?rev=6f00d7b26f5c4bd4fca923de854896726b35fecb#6f00d7b26f5c4bd4fca923de854896726b35fecb"
+dependencies = [
+ "bigdecimal",
+ "bytes",
+ "hex",
+ "itertools 0.13.0",
+ "num-bigint",
+ "serde",
+ "tree-sitter",
+ "tree-sitter-cql",
+ "uuid",
+]
+
+[[package]]
 name = "crc"
 version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1339,6 +1356,7 @@ dependencies = [
  "bson",
  "cdrs-tokio",
  "chrono",
+ "cql3-parser",
  "dashmap",
  "enum-iterator",
  "futures-core",
@@ -3628,6 +3646,7 @@ checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
 dependencies = [
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -6853,6 +6872,27 @@ dependencies = [
  "serde",
  "thiserror 1.0.69",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "tree-sitter"
+version = "0.22.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df7cc499ceadd4dcdf7ec6d4cbc34ece92c3fa07821e287aedecd4416c516dca"
+dependencies = [
+ "cc",
+ "regex",
+]
+
+[[package]]
+name = "tree-sitter-cql"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39fdf3275f199260fe55b903bac78e3d85a9c95c3a8432f044d81a2d5baab6d1"
+dependencies = [
+ "cc",
+ "regex",
+ "tree-sitter",
 ]
 
 [[package]]

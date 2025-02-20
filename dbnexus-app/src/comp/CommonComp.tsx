@@ -17,7 +17,7 @@ import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
-import { BsDatabaseAdd, BsFileBreakFill } from 'react-icons/bs';
+import { BsDatabaseAdd } from 'react-icons/bs';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
@@ -83,7 +83,7 @@ function MenuNewQuery({ handle }) {
       <ListItemIcon>
         <AddIcon></AddIcon>
       </ListItemIcon>
-      <ListItemText> New Query </ListItemText>
+      <ListItemText> new query </ListItemText>
     </MenuItem>
   );
 }

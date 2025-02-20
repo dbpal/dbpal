@@ -427,6 +427,7 @@ function SqlTableView(props: {
           <FormControlLabel
             control={
               <Switch
+                size="small"
                 checked={allowFiltering}
                 onChange={(e) => setAllowFiltering(e.target.checked)}
               />

@@ -72,6 +72,7 @@ function Menu(props: {
           handleClose={() => {
             setShowAdd(false);
           }}
+          kind={kind}
           realod={reload}
         ></AddIndex>
       );
@@ -102,7 +103,7 @@ function Menu(props: {
             setShowAdd(false);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="900px">
             {addIndex}
           </Box>
         </Modal>
@@ -182,8 +183,14 @@ function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
   );
 }
 
-function AddIndex(props: { uuid; table; handleClose; realod }) {
-  let { uuid, table, handleClose, realod } = props;
+function AddIndex(props: {
+  uuid;
+  table;
+  handleClose;
+  realod;
+  kind: DataSourceKind;
+}) {
+  let { uuid, table, handleClose, realod, kind } = props;
 
   const [fields, setFields] = useState<types.Field[]>([]);
   const [includes, setIncludes] = useState<string[]>([]);
@@ -192,6 +199,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
   const [indexType, setIndexType] = useState(indexTypes[0]);
   const [indexName, setIndexName] = useState('');
   const indexNameDom = useRef<HTMLInputElement>(null);
+  const supportUnique = kind != DataSourceKind.Cassandra;
 
   useEffect(() => {
     invoke<types.Field[]>('show_table_columns', {
@@ -278,18 +286,19 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
           ))}
       </Stack>
       <FormLabel component="legend">select a type</FormLabel>
-      <RadioGroup
-        row
-        onChange={(e) => {
-          setIndexType(e.target.value);
-        }}
-        value={indexType}
-      >
-        {indexTypes.map((e) => (
-          <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
-        ))}
-      </RadioGroup>
-
+      {supportUnique && (
+        <RadioGroup
+          row
+          onChange={(e) => {
+            setIndexType(e.target.value);
+          }}
+          value={indexType}
+        >
+          {indexTypes.map((e) => (
+            <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
+          ))}
+        </RadioGroup>
+      )}
       <Divider></Divider>
       <Stack direction="row">
         <Button onClick={handleAdd} variant="contained" color="primary">
