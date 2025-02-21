@@ -258,7 +258,7 @@ lightTheme.components.MuiDataGrid.styleOverrides.row = {
     backgroundColor: '#ffffff', // 浅色模式的奇数行背景色
   },
   '&:nth-of-type(even)': {
-    backgroundColor: '#e0e0e0', // 浅色模式的偶数行背景色
+    backgroundColor: '#d0d0d0', // 浅色模式的偶数行背景色
   },
   ...rowSelected,
 };
@@ -270,7 +270,7 @@ darkTheme.components.MuiDataGrid.styleOverrides.row = {
     backgroundColor: '#00000', // 深色模式的奇数行背景色
   },
   '&:nth-of-type(even)': {
-    backgroundColor: '#1f1f1f', // 深色模式的偶数行背景色
+    backgroundColor: '#2f2f2f', // 深色模式的偶数行背景色
   },
   ...rowSelected,
 };

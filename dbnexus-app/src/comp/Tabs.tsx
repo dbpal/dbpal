@@ -174,7 +174,7 @@ function TabsWithContent_(props: {
         </Stack>
       )}
 
-      <div style={{ width: '98.5%' }}>
+      <div style={{ width: '98.7%' }}>
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
             <div hidden={selectIndex !== index}>{tab.content}</div>

@@ -11,7 +11,6 @@ import {
   Select,
   MenuItem,
   Stack,
-  CircularProgress,
   Alert,
   Divider,
 } from '@mui/material';
@@ -20,7 +19,7 @@ import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 
 import { invoke } from '@tauri-apps/api/core';
-import { appStore, AppStoreKey, msgTimeout, progressBarSize } from './Common';
+import { appStore, AppStoreKey, msgTimeout } from './Common';
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { DataSourceKind } from './helper';
@@ -722,28 +721,8 @@ export default function AddConfig(props: { handleClose: () => void }) {
       {connectionType == DataSourceKind.Sqlite && (
         <Sqlite path={path} setPath={setPath}></Sqlite>
       )}
-      <Stack direction="row">
-        <FormControlLabel
-          control={
-            <Switch
-              size="small"
-              checked={readOnly}
-              onChange={(e) => setReadOnly(e.target.checked)}
-            />
-          }
-          label="Read Only"
-        />
-        <Button
-          variant="outlined"
-          sx={{ mr: 1 }}
-          onClick={handleTestConnection}
-        >
-          test
-        </Button>
-        {testOk && <Alert severity="success"> Test OK </Alert>}
-        {testLoading && <CircularProgress size={progressBarSize} />}
-      </Stack>
-      <Stack direction="row" alignItems="flex-start" spacing={2}>
+
+      <Stack direction="row" style={{ alignItems: 'center' }} spacing={2}>
         <TextField
           size="small"
           margin="normal"
@@ -753,7 +732,17 @@ export default function AddConfig(props: { handleClose: () => void }) {
           inputRef={connectionNameDom}
           required
           onChange={(e) => setConnectionName(e.target.value)}
-          helperText="Enter a name for this connection"
+        />
+        <FormControlLabel
+          style={{ width: '180px' }}
+          control={
+            <Switch
+              size="small"
+              checked={readOnly}
+              onChange={(e) => setReadOnly(e.target.checked)}
+            />
+          }
+          label="Read Only"
         />
       </Stack>
       <Divider></Divider>
@@ -767,6 +756,15 @@ export default function AddConfig(props: { handleClose: () => void }) {
         >
           save
         </Button>
+        <Button
+          variant="outlined"
+          sx={{ mr: 1 }}
+          onClick={handleTestConnection}
+          loading={testLoading}
+        >
+          test
+        </Button>
+        {testOk && <Alert severity="success"> Test OK </Alert>}
       </Stack>
     </Stack>
   );

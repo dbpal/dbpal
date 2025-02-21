@@ -429,7 +429,7 @@ const filterStyle = {
     cursor: 'pointer',
     borderRadius: '4px',
     color: 'black',
-    padding: '2px 6px',
+    padding: '4px',
   } as CSSProperties,
   filter: '#28A745',
   sort: '#5FBA7F',
@@ -468,7 +468,5 @@ export {
   handleCopyToClipboard,
   datagridContainerHeight,
   uint8ArrayToUtf8,
-
   filterStyle
-
 };

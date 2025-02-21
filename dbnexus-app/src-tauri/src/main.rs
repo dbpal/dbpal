@@ -56,6 +56,7 @@ fn main_() {
     env_logger::init();
     let app = App::new();
     tauri::Builder::default()
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
@@ -70,7 +71,6 @@ fn main_() {
             {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
-                // window.close_devtools();
             }
 
             let store = app.store("store.json").unwrap();
@@ -149,6 +149,7 @@ fn main_() {
                         true,
                         None as Option<&'static str>,
                     )?,
+                    #[cfg(any(target_os = "macos"))]
                     &PredefinedMenuItem::about(handle, None, None)?,
                 ])?,
             ])

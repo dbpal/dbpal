@@ -5,6 +5,19 @@ import MainPage from './comp/MainPage';
 import { debug } from './comp/debug';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
+import * as tauriwindow from '@tauri-apps/api/window';
+import { platform } from '@tauri-apps/plugin-os';
+
+if (['windows', 'linux'].includes(platform())) {
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'F11') {
+      const window = tauriwindow.getCurrent();
+      window.isFullscreen().then((f) => {
+        window.setFullscreen(!f);
+      });
+    }
+  });
+}
 
 if (!debug) {
   document.addEventListener('contextmenu', function (event) {

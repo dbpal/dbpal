@@ -184,10 +184,16 @@ pub async fn open_conn(name: String, app: tauri::State<'_, App>) -> Result<(), E
     random_sleep().await;
     random_error()?;
     log::info!("open db:{}", name);
-    app.open(name.as_str())
-        .await
-        .map_err(ErrorFrontend::from)
-        .map(|_| ())
+    let secs = 5;
+
+    tokio::time::timeout(Duration::from_secs(secs), async move {
+        app.open(name.as_str())
+            .await
+            .map_err(ErrorFrontend::from)
+            .map(|_| ())
+    })
+    .await
+    .map_err(|_| ErrorFrontend::from(format!("open connection not finished in {}s", secs)))?
 }
 
 #[tauri::command]
