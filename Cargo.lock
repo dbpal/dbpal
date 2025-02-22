@@ -1098,7 +1098,7 @@ dependencies = [
 [[package]]
 name = "cql3-parser"
 version = "0.4.2"
-source = "git+https://github.com/dbpal/rust-cql3-parser?rev=6f00d7b26f5c4bd4fca923de854896726b35fecb#6f00d7b26f5c4bd4fca923de854896726b35fecb"
+source = "git+https://github.com/dbpal/rust-cql3-parser?rev=89aef5f99854449a78dc37a17363823f889374c8#89aef5f99854449a78dc37a17363823f889374c8"
 dependencies = [
  "bigdecimal",
  "bytes",

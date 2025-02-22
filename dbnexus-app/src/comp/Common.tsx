@@ -31,6 +31,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { Editor, loader, Monaco, OnMount } from '@monaco-editor/react';
@@ -123,9 +124,11 @@ function EditorBar(props: {
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState('');
-
+  const databaseDom = useRef(null);
   const handleCreate = () => {
     if (!database) {
+      databaseDom.current.focus();
+      showNotification('error', 'database name is empty');
       return;
     }
 
@@ -144,11 +147,11 @@ function CreateDatabase({ uuid, handleClose }) {
       <Stack>
         <TextField
           size="small"
+          inputRef={databaseDom}
           value={database}
           onChange={(e) => {
             setDatabase(e.target.value);
           }}
-          error={database == ''}
           label="dadtabase name"
         ></TextField>
       </Stack>

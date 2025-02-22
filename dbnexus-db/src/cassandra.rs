@@ -11,6 +11,7 @@ use cdrs_tokio::{
     },
 };
 use chrono::{DateTime, NaiveDate, NaiveTime};
+use cql3_parser::{cassandra_ast::CassandraAST, cassandra_statement::CassandraStatement};
 use dashmap::DashMap;
 use num_bigint::{BigInt, ToBigInt};
 
@@ -21,7 +22,7 @@ use crate::{
         ExportKind, Field, Index, IndexKind, ListMaterializedView, ListTable, QueryResp, QuerySql,
         SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
     },
-    helper::{SqlKind, SqlWithKind, create_csv, sql_to_sql_seq},
+    helper::create_csv,
     meta_value::MetaValue,
     query_log::QueryLog,
 };
@@ -29,7 +30,7 @@ use cdrs_tokio::cluster::session::SessionBuilder;
 
 #[derive(Clone)]
 pub(crate) struct CassandraDB {
-    session: Arc<
+    pub(crate) session: Arc<
         cdrs_tokio::cluster::session::Session<
             cdrs_tokio::transport::TransportTcp,
             cdrs_tokio::cluster::TcpConnectionManager,
@@ -39,7 +40,7 @@ pub(crate) struct CassandraDB {
             >,
         >,
     >,
-    config: CassandraDBConfig,
+    pub(crate) config: CassandraDBConfig,
 
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
 }
@@ -150,17 +151,6 @@ impl BackendName for CassandraDB {
     fn backend_name(&self) -> &str {
         "cassandra"
     }
-}
-
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
-    // TODO use oracle later when sqlparser supported
-    let dialect = sqlparser::dialect::GenericDialect {};
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
-    )
 }
 
 fn infer_fields(meta: &RowsMetadata) -> Vec<Field> {
@@ -732,22 +722,24 @@ fn format_date(mut days_since_epoch: i32) -> anyhow::Result<String> {
         None => anyhow::bail!("days is none"),
     }
 }
-
+fn sqls_to_sql(sql: &str) -> Vec<&str> {
+    CassandraAST::new(&sql)
+        .statements
+        .iter()
+        .map(|x| &sql[x.start_byte..x.end_byte])
+        .collect()
+}
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.invalid_page_caching(None);
-        let seq = get_sql_seq(sql).unwrap_or(vec![SqlWithKind {
-            sql: sql.to_string(),
-            kind: SqlKind::Query,
-        }]);
-        let mut query_log = QueryLog::get_guard(query_id, sql);
 
+        let mut query_log = QueryLog::get_guard(query_id, sql);
         let mut ret = vec![];
-        for s in seq.iter() {
-            match self.session.query(&s.sql).await {
+        for sql in sqls_to_sql(&sql) {
+            match self.session.query(&sql).await {
                 Ok(x) => {
                     let body = x.response_body()?;
                     let meta = body.as_rows_metadata().map(|x| x.clone());
@@ -779,13 +771,59 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(())
     }
 
-    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        unimplemented!()
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        let ast = CassandraAST::new(sql);
+        for stmt in ast.statements.iter() {
+            let x = match &stmt.statement {
+                CassandraStatement::AlterKeyspace(..) => true,
+                CassandraStatement::AlterMaterializedView(..) => true,
+                CassandraStatement::AlterRole(..) => true,
+                CassandraStatement::AlterTable(..) => true,
+                CassandraStatement::AlterType(..) => true,
+                CassandraStatement::AlterUser(..) => true,
+                CassandraStatement::ApplyBatch => false,
+                CassandraStatement::CreateAggregate(..) => false,
+                CassandraStatement::CreateFunction(..) => false,
+                CassandraStatement::CreateIndex(..) => false,
+                CassandraStatement::CreateKeyspace(..) => false,
+                CassandraStatement::CreateMaterializedView(..) => false,
+                CassandraStatement::CreateRole(..) => false,
+                CassandraStatement::CreateTable(..) => false,
+                CassandraStatement::CreateTrigger(..) => false,
+                CassandraStatement::CreateType(..) => false,
+                CassandraStatement::CreateUser(..) => false,
+                CassandraStatement::Delete(..) => false,
+                CassandraStatement::DropAggregate(..) => true,
+                CassandraStatement::DropFunction(..) => true,
+                CassandraStatement::DropIndex(..) => true,
+                CassandraStatement::DropKeyspace(..) => true,
+                CassandraStatement::DropMaterializedView(..) => true,
+                CassandraStatement::DropRole(..) => true,
+                CassandraStatement::DropTable(..) => true,
+                CassandraStatement::DropTrigger(..) => true,
+                CassandraStatement::DropType(..) => true,
+                CassandraStatement::DropUser(..) => true,
+                CassandraStatement::Grant(..) => true,
+                CassandraStatement::Insert(..) => false,
+                CassandraStatement::ListPermissions(..) => false,
+                CassandraStatement::ListRoles(..) => false,
+                CassandraStatement::Revoke(..) => false,
+                CassandraStatement::Select(..) => false,
+                CassandraStatement::Truncate(..) => true,
+                CassandraStatement::Update(..) => false,
+                CassandraStatement::Use(..) => false,
+                CassandraStatement::Unknown(_) => false,
+            };
+            if x {
+                return anyhow::Ok(x);
+            }
+        }
+        anyhow::Ok(false)
     }
 }
 
 impl CassandraDB {
-    async fn list_table_impl(&self, keyspace: &str) -> anyhow::Result<Vec<ListTable>> {
+    pub(crate) async fn list_table_impl(&self, keyspace: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             "SELECT table_name FROM system_schema.tables WHERE keyspace_name = '{keyspace}' order by table_name;"
         );
@@ -1057,20 +1095,13 @@ impl CassandraDB {
         anyhow::Ok(())
     }
 }
-#[async_trait::async_trait]
 
-impl SchemaTrait for CassandraDB {
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP MATERIALIZED VIEW {name};");
-        self.session.query(sql).await?;
-        anyhow::Ok(())
-    }
-
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
-        let sql = format!(
-            "select view_name from system_schema.views where keyspace_name='{}'",
-            self.config.keyspace_str()
-        );
+impl CassandraDB {
+    pub(crate) async fn list_materialized_view_impl(
+        &self, key_space: &str,
+    ) -> anyhow::Result<Vec<ListMaterializedView>> {
+        let sql =
+            format!("select view_name from system_schema.views where keyspace_name='{key_space}'",);
         let rows = self
             .session
             .query(sql)
@@ -1086,6 +1117,19 @@ impl SchemaTrait for CassandraDB {
             }
         }
         anyhow::Ok(ret)
+    }
+}
+#[async_trait::async_trait]
+impl SchemaTrait for CassandraDB {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP MATERIALIZED VIEW {name};");
+        self.session.query(sql).await?;
+        anyhow::Ok(())
+    }
+
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+        self.list_materialized_view_impl(self.config.keyspace_str())
+            .await
     }
 
     async fn export_table_or_view(
@@ -2482,5 +2526,13 @@ mod tests {
                 .unwrap();
             println!("resp:{:?}", resp);
         }
+    }
+
+    #[test]
+    fn test_parser_start_bytes() {
+        let sql = "select * from test1 ; select * from test2;";
+        let ss = sqls_to_sql(&sql);
+        println!("{:?}", ss);
+        assert!(ss.len() == 2);
     }
 }

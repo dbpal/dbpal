@@ -1682,14 +1682,3 @@ pub const REDIS_COMMANDS: &'static [&'static str] = &[
     "ZSCORE",
     "ZUNIONSTORE",
 ];
-
-#[cfg(test)]
-mod tests {
-    use crate::db::monaco_editor_keyword_regexp;
-    use crate::redis_lang_server::REDIS_COMMANDS;
-
-    #[test]
-    fn print_monaco_highligth_reg() {
-        println!("{}", monaco_editor_keyword_regexp(REDIS_COMMANDS));
-    }
-}
