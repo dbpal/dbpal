@@ -348,11 +348,7 @@ function SqlTableView(props: {
   const onProcessRowUpdateError = useCallback((e) => {
     showNotification('error', 'update failed', e);
   }, []);
-  const dataGridStyle = useMemo(() => {
-    return {
-      overflow: 'auto',
-    } as CSSProperties;
-  }, []);
+
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
@@ -483,7 +479,6 @@ function SqlTableView(props: {
                 showCellVerticalBorder
                 showColumnVerticalBorder
                 slotProps={slotProps}
-                style={dataGridStyle}
                 rowHeight={setting.datagridRowHeight}
                 columnHeaderHeight={setting.datagridHeaderHeight}
                 getRowId={getRowId}
