@@ -458,6 +458,15 @@ function MongoTableListToolBar(props: {
       }}
     >
       <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
+        <Button
+          loading={loading}
+          variant="contained"
+          color="primary"
+          onClick={doReload}
+        >
+          reload
+        </Button>
+
         <span
           onClick={() => {
             setShowModifyFilter(true);
@@ -470,31 +479,6 @@ function MongoTableListToolBar(props: {
           </span>
         </span>
 
-        {showModifyFilter && (
-          <Modal
-            open={showModifyFilter}
-            onClose={(_, reason) => {
-              if (reason === 'backdropClick') {
-                return;
-              }
-              setShowModifyFilter(false);
-            }}
-          >
-            <Box sx={modalStyle} width="950px">
-              <MongoDBModify
-                buttonName="set"
-                setOP={async (doc) => {
-                  handleFilter(doc);
-                }}
-                handleClose={() => {
-                  setShowModifyFilter(false);
-                }}
-                doc={filter}
-              ></MongoDBModify>
-            </Box>
-          </Modal>
-        )}
-
         <span
           onClick={() => {
             setShowModifyOrderBy(true);
@@ -506,40 +490,6 @@ function MongoTableListToolBar(props: {
             {bsonValue2MongoBson(orderBy).format()}
           </span>
         </span>
-
-        {showModifyOrderBy && (
-          <Modal
-            open={showModifyOrderBy}
-            onClose={(_, reason) => {
-              if (reason === 'backdropClick') {
-                return;
-              }
-              setShowModifyOrderBy(false);
-            }}
-          >
-            <Box sx={modalStyle} width="950px">
-              <MongoDBModify
-                buttonName="set"
-                setOP={async (doc) => {
-                  handleOrderBy(doc);
-                }}
-                handleClose={() => {
-                  setShowModifyOrderBy(false);
-                }}
-                doc={orderBy}
-              ></MongoDBModify>
-            </Box>
-          </Modal>
-        )}
-
-        <Button
-          loading={loading}
-          variant="contained"
-          color="primary"
-          onClick={doReload}
-        >
-          reload
-        </Button>
       </Stack>
       <Stack direction="row">
         <ButtonGroup aria-label="Basic button group">
@@ -567,6 +517,56 @@ function MongoTableListToolBar(props: {
           </IconButton>
         </ButtonGroup>
       </Stack>
+
+      {showModifyFilter && (
+        <Modal
+          open={showModifyFilter}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowModifyFilter(false);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <MongoDBModify
+              buttonName="set"
+              setOP={async (doc) => {
+                handleFilter(doc);
+              }}
+              handleClose={() => {
+                setShowModifyFilter(false);
+              }}
+              doc={filter}
+            ></MongoDBModify>
+          </Box>
+        </Modal>
+      )}
+
+      {showModifyOrderBy && (
+        <Modal
+          open={showModifyOrderBy}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowModifyOrderBy(false);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <MongoDBModify
+              buttonName="set"
+              setOP={async (doc) => {
+                handleOrderBy(doc);
+              }}
+              handleClose={() => {
+                setShowModifyOrderBy(false);
+              }}
+              doc={orderBy}
+            ></MongoDBModify>
+          </Box>
+        </Modal>
+      )}
     </Stack>
   );
 }

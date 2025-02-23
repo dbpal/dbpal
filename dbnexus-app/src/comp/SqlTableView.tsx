@@ -394,6 +394,16 @@ function SqlTableView(props: {
         spacing={1}
         style={{ flexWrap: 'wrap', alignItems: 'center' }}
       >
+        <Button
+          loading={loading}
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            handleReload(true);
+          }}
+        >
+          reload
+        </Button>
         <span
           style={{
             ...filterStyle.style,
@@ -431,17 +441,6 @@ function SqlTableView(props: {
             label="allow filtering"
           />
         )}
-
-        <Button
-          loading={loading}
-          variant="contained"
-          color="primary"
-          onClick={() => {
-            handleReload(true);
-          }}
-        >
-          reload
-        </Button>
       </Stack>
       {resp && (
         <>

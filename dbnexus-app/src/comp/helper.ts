@@ -427,7 +427,7 @@ const ContextMenuContext = createContext<{
 const filterStyle = {
   style: {
     cursor: 'pointer',
-    borderRadius: '4px',
+    borderRadius: '44px',
     color: 'black',
     padding: '4px',
   } as CSSProperties,
