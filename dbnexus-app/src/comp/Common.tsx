@@ -1076,7 +1076,7 @@ function LoadStoreFileForQuery(props: {
         </>
       )}
       <IconButton onClick={loadFile}>
-        <AttachFileIcon></AttachFileIcon>
+        <AttachFileIcon />
       </IconButton>
 
       <Button onClick={handleSave}>save</Button>

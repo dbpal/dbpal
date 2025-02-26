@@ -93,7 +93,12 @@ function UdfsTree() {
     >
       {udfs.map((p) => (
         <TreeItem
-          key={p.name + '-' + p.parameters + p.cassandra_parameters.join('-')}
+          key={
+            p.name +
+            '-' +
+            p.parameters +
+            (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
+          }
           itemId={getItemId(p)}
           label=<Stack
             direction="row"

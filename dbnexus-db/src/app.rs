@@ -278,19 +278,32 @@ impl App {
             Open::Catalog(catalog_trait) => {
                 let databases = catalog_trait.list_database().await?;
                 for database in databases.iter() {
-                    let dbtrait = catalog_trait.open_db(&database).await?;
-                    self.opens
-                        .lock()
-                        .await
-                        .insert(format!("{}/{}", name, database), dbtrait.clone().into());
+                    let name = format!("{}/{}", name, database);
+                    let dbtrait = match self.get_opened(&name).await {
+                        Ok(x) => match x {
+                            Open::DataBase(x) => x.clone(),
+                            _ => unreachable!(),
+                        },
+                        Err(_) => {
+                            let dbtrait = catalog_trait.open_db(&database).await?;
+                            self.opens
+                                .lock()
+                                .await
+                                .insert(name.clone(), dbtrait.clone().into());
+                            dbtrait.clone()
+                        }
+                    };
 
                     let schemas = dbtrait.list_schema().await?;
                     for schema in schemas.iter() {
-                        let s = dbtrait.open_schema(&schema).await?;
-                        self.opens
-                            .lock()
-                            .await
-                            .insert(format!("{}/{}/{}", name, database, schema), s.into());
+                        let name = format!("{}/{}/{}", name, database, schema);
+                        match self.get_opened(&name).await {
+                            Ok(_) => {}
+                            Err(_) => {
+                                let s = dbtrait.open_schema(&schema).await?;
+                                self.opens.lock().await.insert(name, s.into());
+                            }
+                        }
                     }
                 }
             }
@@ -456,7 +469,7 @@ impl App {
         let db = self.opens.lock().await.get(name).map(|x| x.clone());
         let x = match db {
             Some(x) => x,
-            None => anyhow::bail!("db '{}' not found", name),
+            None => anyhow::bail!("db '{}' not found,the database maybe closed??", name),
         };
         anyhow::Ok(x)
     }
