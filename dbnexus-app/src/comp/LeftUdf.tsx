@@ -30,7 +30,7 @@ import {
 } from './helper';
 
 import { MenuRefresh } from './CommonComp';
-import { join } from 'path';
+
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);

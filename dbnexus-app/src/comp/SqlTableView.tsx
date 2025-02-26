@@ -1,5 +1,4 @@
 import {
-  CSSProperties,
   useCallback,
   useContext,
   useEffect,

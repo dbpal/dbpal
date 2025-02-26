@@ -307,14 +307,18 @@ impl App {
                     }
                 }
             }
+
             Open::DataBase(dbtrait) => {
                 let schemas = dbtrait.list_schema().await?;
-                for database in schemas.iter() {
-                    let s = dbtrait.open_schema(&database).await?;
-                    self.opens
-                        .lock()
-                        .await
-                        .insert(format!("{}/{}", name, database), s.into());
+                for schema in schemas.iter() {
+                    let name = format!("{}/{}", name, schema);
+                    match self.get_opened(&name).await {
+                        Ok(_) => {}
+                        Err(_) => {
+                            let s = dbtrait.open_schema(&schema).await?;
+                            self.opens.lock().await.insert(name, s.into());
+                        }
+                    }
                 }
             }
             Open::Schema(_) => {}
