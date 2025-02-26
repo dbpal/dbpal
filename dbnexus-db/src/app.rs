@@ -268,13 +268,13 @@ type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
 impl App {
     pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
-        static mut XXX: Option<GetConfigFN> = None;
+        static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
         #[allow(static_mut_refs)] // this var will init once by main
-        &mut XXX
+        &mut GET_CONFIG_FN
     }
 
-    pub async fn enter_open_child(&self, name: &str, db: &Open) -> anyhow::Result<()> {
-        match &db {
+    pub async fn enter_open_child(&self, name: &str, open: &Open) -> anyhow::Result<()> {
+        match &open {
             Open::Catalog(catalog_trait) => {
                 let databases = catalog_trait.list_database().await?;
                 for database in databases.iter() {

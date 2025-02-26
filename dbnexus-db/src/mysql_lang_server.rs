@@ -151,17 +151,22 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
+        &self, _db: Option<&str>, schema: Option<&str>, name: &str,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
         let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
-        let s = format!("describe {}.{}", schema, table);
+        use sqlx::{Column, Executor, Statement};
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
+        let sql = format!(r#"select * from `{schema}`.`{name}` limit 1"#);
+        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+        let ret = s
+            .columns()
+            .iter()
+            .map(|x| CompletionItem {
+                item: x.name().to_string().into(),
+                desc: Some(x.type_info().to_string().into()),
+                kind: CompletionKind::Column,
+            })
+            .collect::<Vec<_>>();
         anyhow::Ok(ret)
     }
 

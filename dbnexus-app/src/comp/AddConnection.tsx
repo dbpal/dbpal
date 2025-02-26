@@ -507,9 +507,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
 
   return (
     <Stack spacing={1}>
-      <Typography variant="h6" gutterBottom>
-        New Connection
-      </Typography>
+      <Typography variant="h6">New Connection</Typography>
       <FormControl fullWidth margin="normal">
         <InputLabel>Connection Type</InputLabel>
         <Select

@@ -192,14 +192,7 @@ impl CompletionStament {
                                     self.set_has_err();
                                 })
                                 .ok()
-                                .unwrap_or_default()
-                                .into_iter()
-                                .map(|x| CompletionItem {
-                                    item: x.into(),
-                                    desc: None,
-                                    kind: CompletionKind::Column,
-                                })
-                                .collect::<Vec<_>>();
+                                .unwrap_or_default();
                             cols.extend(cs.into_iter());
                         }
                         self.result = Some(cols);
@@ -800,17 +793,8 @@ impl CompletionStament {
                             self.c_on_column(&table, &idents[1]).await;
                         }
                         NearNestTableNamed::Temp { table } => {
-                            self.result = Some(
-                                table
-                                    .columns
-                                    .iter()
-                                    .map(|col| CompletionItem {
-                                        item: col.name.clone().into(),
-                                        kind: CompletionKind::Column,
-                                        desc: None,
-                                    })
-                                    .collect(),
-                            );
+                            self.result =
+                                Some(table.columns.iter().map(CompletionItem::from).collect());
                         }
                     }
                 } else {
@@ -844,16 +828,7 @@ impl CompletionStament {
                     self.c_on_column(&name, ident).await;
                 }
                 ThisTableEnum::Temp { temp } => {
-                    self.result = Some(
-                        temp.columns
-                            .iter()
-                            .map(|x| CompletionItem {
-                                item: x.name.clone().into(),
-                                kind: CompletionKind::Column,
-                                desc: None,
-                            })
-                            .collect(),
-                    );
+                    self.result = Some(temp.columns.iter().map(CompletionItem::from).collect());
                 }
             }
         } else {
@@ -871,11 +846,7 @@ impl CompletionStament {
                                 .columns
                                 .to_vec()
                                 .into_iter()
-                                .map(|x| CompletionItem {
-                                    item: x.name.into(),
-                                    kind: CompletionKind::Column,
-                                    desc: None,
-                                })
+                                .map(CompletionItem::from)
                                 .collect::<Vec<_>>()
                                 .into_iter(),
                         );
@@ -892,14 +863,7 @@ impl CompletionStament {
                                 self.set_has_err();
                             })
                             .ok()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|x| CompletionItem {
-                                item: x.into(),
-                                kind: CompletionKind::Column,
-                                desc: None,
-                            })
-                            .collect::<Vec<_>>();
+                            .unwrap_or_default();
                         old.extend(m.into_iter());
                         self.result = Some(old);
                     }
@@ -909,11 +873,7 @@ impl CompletionStament {
                                 .columns
                                 .to_vec()
                                 .into_iter()
-                                .map(|x| CompletionItem {
-                                    item: x.name.into(),
-                                    kind: CompletionKind::Column,
-                                    desc: None,
-                                })
+                                .map(CompletionItem::from)
                                 .collect::<Vec<_>>()
                                 .into_iter(),
                         );
@@ -1448,14 +1408,7 @@ impl CompletionStament {
                         self.set_has_err();
                     })
                     .ok()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|x| CompletionItem {
-                        kind: CompletionKind::Column,
-                        item: x.into(),
-                        desc: None,
-                    })
-                    .collect::<Vec<_>>(),
+                    .unwrap_or_default(),
             );
         }
     }
@@ -1727,27 +1680,14 @@ impl CompletionStament {
                                             self.set_has_err();
                                         })
                                         .unwrap_or_default()
-                                        .into_iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.into(),
-                                            kind: CompletionKind::Column,
-                                            desc: None,
-                                        }),
+                                        .into_iter(),
                                 );
                             }
                             FromTableOrTemp::Temp { table } => {
-                                cs.extend(table.columns.iter().map(|x| CompletionItem {
-                                    item: x.name.clone().into(),
-                                    kind: CompletionKind::Column,
-                                    desc: None,
-                                }));
+                                cs.extend(table.columns.iter().map(CompletionItem::from));
                             }
                             FromTableOrTemp::Unnamed { table } => {
-                                cs.extend(table.columns.iter().map(|x| CompletionItem {
-                                    item: x.name.clone().into(),
-                                    kind: CompletionKind::Column,
-                                    desc: None,
-                                }));
+                                cs.extend(table.columns.iter().map(CompletionItem::from));
                             }
                         }
                     }
@@ -1837,6 +1777,7 @@ impl CompletionStament {
                     }
                     ret.push(TempTableColumn {
                         name: expr.to_string(),
+                        typ: None,
                     });
                 }
                 SelectItem::ExprWithAlias { expr, alias } => {
@@ -1846,6 +1787,7 @@ impl CompletionStament {
                     }
                     ret.push(TempTableColumn {
                         name: alias.to_string(),
+                        typ: None,
                     });
                 }
                 SelectItem::QualifiedWildcard(object_name, _wildcard_additional_options) => {
@@ -1870,13 +1812,12 @@ impl CompletionStament {
                                             })
                                             .ok()
                                             .unwrap_or_default();
-                                        ret.extend(
-                                            f.iter().map(|x| TempTableColumn { name: x.clone() }),
-                                        );
+                                        ret.extend(f.iter().map(TempTableColumn::from));
                                     }
                                     NearNestTableNamed::Temp { table } => {
                                         ret.extend(table.columns.iter().map(|x| TempTableColumn {
                                             name: x.name.clone(),
+                                            typ: None,
                                         }));
                                     }
                                 },
@@ -1894,7 +1835,7 @@ impl CompletionStament {
                                 .map_err(|e| log::error!("list_column failed,err:{:?}", e))
                                 .ok()
                                 .unwrap_or_default();
-                            ret.extend(f.iter().map(|x| TempTableColumn { name: x.clone() }));
+                            ret.extend(f.iter().map(TempTableColumn::from));
                         }
                         _ => {
                             log::error!(
@@ -1922,7 +1863,7 @@ impl CompletionStament {
                                     .ok()
                                     .unwrap_or_default()
                                     .into_iter()
-                                    .map(|name| TempTableColumn { name })
+                                    .map(TempTableColumn::from)
                                     .collect::<Vec<_>>();
                                 ret.extend(cols.into_iter());
                             }
@@ -2006,6 +1947,7 @@ impl CompletionStament {
                             let cols = (0..es.len())
                                 .map(|x| TempTableColumn {
                                     name: format!("column_{}", x),
+                                    typ: None,
                                 })
                                 .collect::<Vec<_>>();
                             return anyhow::Ok(cols);
@@ -2042,7 +1984,7 @@ impl CompletionStament {
                     .ok()
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|x| TempTableColumn { name: x })
+                    .map(TempTableColumn::from)
                     .collect();
                 return anyhow::Ok(cols);
             }

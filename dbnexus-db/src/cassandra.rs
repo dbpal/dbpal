@@ -1,3 +1,28 @@
+/*
+出现错误 InvalidRequest: Error from server: code=2200 [Invalid query] message="org.apache.cassandra.auth.CassandraRoleManager doesn't support PASSWORD" 的原因是 Cassandra 的身份验证机制未启用，或者配置不支持密码身份验证
+。
+要解决这个问题，请按照以下步骤操作：
+1. 修改 cassandra.yaml 配置文件
+默认情况下，Cassandra 使用 AllowAllAuthenticator，这表示禁用了身份验证。你需要将其改为 PasswordAuthenticator，以启用基于密码的身份验证
+。
+
+    打开 cassandra.yaml 文件（通常位于 /etc/cassandra/conf/cassandra.yaml 或 Cassandra 安装目录的 conf 文件夹中）。
+    找到以下行：
+    yaml复制
+
+    authenticator: AllowAllAuthenticator
+
+    将其更改为：
+    yaml复制
+
+    authenticator: PasswordAuthenticator
+
+    保存文件并重启 Cassandra 服务
+
+    InvalidRequest: Error from server: code=2200 [Invalid query] message="User-defined functions are disabled in cassandra.yaml - set user_defined_functions_enabled=true to enable"
+
+*/
+
 use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
 
 use cdrs_tokio::{
@@ -11,16 +36,22 @@ use cdrs_tokio::{
     },
 };
 use chrono::{DateTime, NaiveDate, NaiveTime};
-use cql3_parser::{cassandra_ast::CassandraAST, cassandra_statement::CassandraStatement};
+use cql3_parser::{
+    cassandra_ast::CassandraAST,
+    cassandra_statement::CassandraStatement,
+    common::{ColumnDefinition, DataType},
+};
 use dashmap::DashMap;
+
 use num_bigint::{BigInt, ToBigInt};
 
 use crate::{
     datasource_config::CassandraDBConfig,
     db::{
         BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-        ExportKind, Field, Index, IndexKind, ListMaterializedView, ListTable, QueryResp, QuerySql,
-        SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
+        DefAndMetas, ExportKind, Field, Index, IndexKind, ListMaterializedView, ListTable,
+        NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
+        TableListResp, UdfOrProcedureExtraParameter,
     },
     helper::create_csv,
     meta_value::MetaValue,
@@ -29,7 +60,7 @@ use crate::{
 use cdrs_tokio::cluster::session::SessionBuilder;
 
 #[derive(Clone)]
-pub(crate) struct CassandraDB {
+pub struct CassandraDB {
     pub(crate) session: Arc<
         cdrs_tokio::cluster::session::Session<
             cdrs_tokio::transport::TransportTcp,
@@ -41,7 +72,6 @@ pub(crate) struct CassandraDB {
         >,
     >,
     pub(crate) config: CassandraDBConfig,
-
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
 }
 
@@ -640,6 +670,7 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
         }
         anyhow::Ok(format!("{{{}}}", ret.join(",")))
     }
+
     fn encode_rows_canssrandra_type(value: &mut CassandraType) -> anyhow::Result<String> {
         let ret = match value {
             CassandraType::Ascii(x) => format!("'{}'", x),
@@ -739,6 +770,7 @@ impl QuerySql for CassandraDB {
         let mut query_log = QueryLog::get_guard(query_id, sql);
         let mut ret = vec![];
         for sql in sqls_to_sql(&sql) {
+            log::trace!("execute sql:{}", sql);
             match self.session.query(&sql).await {
                 Ok(x) => {
                     let body = x.response_body()?;
@@ -1493,6 +1525,87 @@ impl SchemaTrait for CassandraDB {
             sql: self.page_caching_sql(&view_name),
         })
     }
+    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        self.list_udf_impl(self.config.keyspace_str()).await
+    }
+
+    async fn show_udf(
+        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
+        /*
+        add parameter to udf have this error
+        cassandra@cqlsh:test> DESCRIBE FUNCTION  test.test_udf(int);
+        Improper DESCRIBE command.
+         */
+
+        let sql = format!(r#" DESCRIBE FUNCTION  "{}""#, name);
+
+        let body = self.session.query(sql).await?.response_body()?;
+
+        // let meta = body.as_rows_metadata();
+        // println!("meta:{:?}", meta);
+
+        let parameters = match &extra {
+            Some(extra) => match &extra {
+                UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
+                _ => {
+                    anyhow::bail!("show udf for cassandra need extra parameter.");
+                }
+            },
+            None => anyhow::bail!("show udf for cassandra need extra parameter."),
+        };
+
+        let rows = body.into_rows().unwrap_or_default();
+
+        for row in rows.iter() {
+            let typ: Option<String> = row.get_by_index(1)?;
+            let create_statement: Option<String> = row.get_by_index(3)?;
+
+            let create_statement = create_statement.unwrap();
+
+            let parameters_try_match = extract_parameter_for_function(&create_statement)?;
+            if parameters.len() != parameters_try_match.len() {
+                continue;
+            }
+            if parameters
+                .iter()
+                .zip(parameters_try_match.iter())
+                .any(|(x, y)| {
+                    let x_type = x.replace(" ", "");
+                    let y_type = y.data_type.to_string().replace(" ", "");
+                    !x_type.eq_ignore_ascii_case(&y_type)
+                })
+            {
+                continue;
+            }
+            return anyhow::Ok(DefAndMetas {
+                def: create_statement,
+                metas: vec![MetaValue::new_opt("type", typ)],
+            });
+        }
+        anyhow::bail!("no match for parameter????");
+    }
+
+    async fn drop_udf(
+        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<()> {
+        let parameters = match &extra {
+            Some(extra) => match &extra {
+                UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
+                _ => {
+                    anyhow::bail!("drop udf for cassandra need extra parameter.");
+                }
+            },
+            None => anyhow::bail!("drop udf for cassandra need extra parameter."),
+        };
+
+        let p = format!("({})", parameters.join(","));
+
+        let sql = format!("DROP FUNCTION {name}{p} ");
+        log::info!("drop function sql:{}", sql);
+        self.session.query(sql).await?;
+        anyhow::Ok(())
+    }
 }
 
 fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
@@ -1512,6 +1625,43 @@ fn type_support_compare(_typ: &str) -> bool {
     true
 }
 
+// TODO this parse only support one parameter or `cassandra`
+// support multi parameter for aggregate functon.
+fn extract_parameter_for_aggregate(sql: &str) -> anyhow::Result<DataType> {
+    let x = CassandraAST::new(sql);
+
+    if x.statements.len() != 1 {
+        anyhow::bail!("should contains one statement.")
+    }
+
+    let s = &x.statements[0];
+
+    match &s.statement {
+        CassandraStatement::CreateAggregate(x) => anyhow::Ok(x.data_type.clone()),
+        _ => {
+            anyhow::bail!("this should be create function statement.")
+        }
+    }
+}
+
+fn extract_parameter_for_function(sql: &str) -> anyhow::Result<Vec<ColumnDefinition>> {
+    let x = CassandraAST::new(sql);
+
+    if x.statements.len() != 1 {
+        anyhow::bail!("should contains one statement.")
+    }
+
+    let s = &x.statements[0];
+
+    match &s.statement {
+        CassandraStatement::CreateFunction(x) => {
+            return anyhow::Ok(x.params.clone());
+        }
+        _ => {
+            anyhow::bail!("this should be create function statement.")
+        }
+    }
+}
 #[async_trait::async_trait]
 impl DBTrait for CassandraDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
@@ -1571,6 +1721,75 @@ impl DBTrait for CassandraDB {
     }
 }
 
+impl CassandraDB {
+    pub(crate) async fn list_udf_impl(&self, key_space: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"SELECT function_name, argument_types, return_type, language 
+                FROM system_schema.functions 
+                WHERE keyspace_name = '{key_space}';"#
+        );
+        let rows = self
+            .session
+            .query(sql)
+            .await?
+            .response_body()?
+            .into_rows()
+            .unwrap_or_default();
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: Option<String> = row.get_by_index(0)?;
+            let argument_types: Option<List> = row.get_by_index(1)?;
+            let return_type: Option<String> = row.get_by_index(2)?;
+            let language: Option<String> = row.get_by_index(3)?;
+            let parametres = if let Some(argument_types) = argument_types {
+                extract_parameters_from_server(argument_types)?
+            } else {
+                vec![]
+            };
+            let name = name.unwrap();
+            ret.push(NamedStaff {
+                name,
+                parameters: None,
+                cassandra_parameters: Some(parametres),
+                metas: vec![
+                    MetaValue::new_opt("return_type", return_type),
+                    MetaValue::new_opt("language", language),
+                ],
+            });
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+fn extract_parameters_from_server(argument_types: List) -> anyhow::Result<Vec<String>> {
+    let mut parametres = vec![];
+    let c = argument_types.as_cassandra_type()?;
+    if let Some(c) = c {
+        match c {
+            CassandraType::List(mut list) => {
+                for ele in list.iter_mut() {
+                    match ele {
+                        CassandraType::Ascii(x) => {
+                            parametres.push(x.clone());
+                        }
+                        CassandraType::Varchar(x) => {
+                            parametres.push(x.clone());
+                        }
+                        _ => {
+                            log::error!("parameter here should be string")
+                        }
+                    }
+                }
+            }
+            _ => {
+                log::error!(" parameters should be a list")
+            }
+        }
+    }
+    anyhow::Ok(parametres)
+}
+
 #[cfg(test)]
 pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
     use crate::TEST_HOST;
@@ -1578,14 +1797,107 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
     let ss = CassandraDB::new(CassandraDBConfig {
         host: TEST_HOST.to_string(),
         port: Some(9042),
-        username: None,
-        password: None,
+        username: Some("cassandra".to_string()),
+        password: Some("cassandra".to_string()),
         read_only: false,
         keyspace: db,
     })
     .await
     .unwrap();
     ss
+}
+
+impl CassandraDB {
+    pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"
+        SELECT aggregate_name, argument_types, return_type, state_func, final_func, initcond
+            FROM system_schema.aggregates
+            WHERE keyspace_name = '{}';
+        "#,
+            self.config.keyspace_str(),
+        );
+
+        let rows = self
+            .session
+            .query(&sql)
+            .await?
+            .response_body()?
+            .into_rows()
+            .unwrap_or_default();
+
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for row in rows.iter() {
+            let name: Option<String> = row.get_by_index(0)?;
+            let parameters: Option<List> = row.get_by_index(1)?;
+            let return_type: Option<String> = row.get_by_index(2)?;
+            let state_func: Option<String> = row.get_by_index(3)?;
+            let final_func: Option<String> = row.get_by_index(4)?;
+            let initcond: Option<String> = row.get_by_index(5)?;
+            let cassandra_parameters = if let Some(list) = parameters {
+                extract_parameters_from_server(list)?
+            } else {
+                vec![]
+            };
+            ret.push(NamedStaff {
+                parameters: None,
+                name: name.unwrap(),
+                metas: vec![
+                    MetaValue::new_opt("return_type", return_type),
+                    MetaValue::new_opt("state_func", state_func),
+                    MetaValue::new_opt("final_func", final_func),
+                    MetaValue::new_opt("initcond", initcond),
+                ],
+                cassandra_parameters: Some(cassandra_parameters),
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
+    pub async fn show_aggregate(
+        &self, name: &str, parameters: Vec<String>,
+    ) -> anyhow::Result<DefAndMetas> {
+        let sql = format!("DESCRIBE AGGREGATE  {name}");
+
+        let body = self.session.query(&sql).await?.response_body()?;
+        let meta = body.as_rows_metadata();
+        println!("meta:{:?}", meta);
+        let rows = body.into_rows().unwrap_or_default();
+
+        for row in rows.iter() {
+            let typ: Option<String> = row.get_by_index(1)?;
+            let create_statement: Option<String> = row.get_by_index(3)?;
+            let create_statement = create_statement.unwrap();
+            let parameters_try_match = vec![extract_parameter_for_aggregate(&create_statement)?];
+            if parameters.len() != parameters_try_match.len() {
+                continue;
+            }
+            if parameters
+                .iter()
+                .zip(parameters_try_match.iter())
+                .any(|(x, y)| {
+                    let x_type = x.replace(" ", "");
+                    let y_type = y.to_string().replace(" ", "");
+                    !x_type.eq_ignore_ascii_case(&y_type)
+                })
+            {
+                continue;
+            }
+            return anyhow::Ok(DefAndMetas {
+                def: create_statement,
+                metas: vec![MetaValue::new_opt("type", typ)],
+            });
+        }
+        anyhow::bail!("no match for parameter????");
+    }
+
+    pub async fn drop_aggregate(&self, name: &str, parameters: Vec<String>) -> anyhow::Result<()> {
+        let p = format!("({})", parameters.join(","));
+        let sql = format!("DROP AGGREGATE {name}{p} ");
+        self.session.query(sql).await?;
+        anyhow::Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1608,6 +1920,92 @@ mod tests {
 
         let schemas = db.list_schema().await.unwrap();
         println!("list schema:{:?}", schemas)
+    }
+
+    #[tokio::test]
+    async fn test_aggregate() {
+        let db = make_test_object(Some("test".to_string())).await;
+
+        {
+            // drop some function.
+            let _ = db
+                .drop_aggregate("test_aggregate", vec!["int".to_string()])
+                .await;
+            let _ = db.drop_udf(
+                "sum_state_function",
+                Some(UdfOrProcedureExtraParameter::Cassandra {
+                    parameters: vec!["int".to_string(), "int".to_string()],
+                }),
+            );
+
+            let _ = db.drop_udf(
+                "sum_final_function",
+                Some(UdfOrProcedureExtraParameter::Cassandra {
+                    parameters: vec!["int".to_string()],
+                }),
+            );
+        }
+        let query_id = db.open_connection().await.unwrap();
+
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+        CREATE OR REPLACE FUNCTION sum_state_function(state int, val int)
+            RETURNS NULL ON NULL INPUT
+            RETURNS int
+            LANGUAGE java
+            AS $$
+                return state + val; 
+            $$;
+        "#,
+            )
+            .await
+            .unwrap();
+        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
+
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE OR REPLACE FUNCTION sum_final_function(state int)
+                RETURNS NULL ON NULL INPUT
+                RETURNS int
+                LANGUAGE java
+                AS $$
+                    return state; // 直接返回累加结果
+                $$;
+    "#,
+            )
+            .await
+            .unwrap();
+        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
+
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+            CREATE AGGREGATE test_aggregate(int)
+            SFUNC sum_state_function
+            STYPE int
+            FINALFUNC sum_final_function
+            INITCOND 0;
+"#,
+            )
+            .await
+            .unwrap();
+        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
+
+        let list = db.list_aggregate().await.unwrap();
+
+        list.iter().for_each(|x| println!("aggregate:{:?}", x));
+
+        let details = db
+            .show_aggregate("test_aggregate", vec!["int".to_string()])
+            .await
+            .unwrap();
+
+        println!("details:{:?}", details);
     }
 
     #[tokio::test]
@@ -2365,6 +2763,7 @@ mod tests {
                 page_id UUID PRIMARY KEY,
                 view_count COUNTER
             );
+            
                 "#,
             )
             .await
@@ -2391,6 +2790,76 @@ mod tests {
             .await
             .unwrap();
         println!("xxxx:{:?}", resp);
+    }
+
+    #[tokio::test]
+    async fn test_udf() {
+        enable_test_log();
+        let db = make_test_object(Some("test".to_string())).await;
+        let name = "test_udf";
+        {
+            let err = db
+                .drop_udf(
+                    name,
+                    Some(UdfOrProcedureExtraParameter::Cassandra {
+                        parameters: vec!["text".to_string()],
+                    }),
+                )
+                .await;
+            if let Err(err) = err {
+                println!("drop udf error:{}", err);
+            }
+            let err = db
+                .drop_udf(
+                    name,
+                    Some(UdfOrProcedureExtraParameter::Cassandra {
+                        parameters: vec!["list<int>".to_string()],
+                    }),
+                )
+                .await;
+            if let Err(err) = err {
+                println!("drop udf error:{}", err);
+            }
+        }
+
+        db.session
+            .query(
+                r#"
+            CREATE FUNCTION IF NOT EXISTS  test_udf(input text)
+            RETURNS NULL ON NULL INPUT
+            RETURNS text
+            LANGUAGE java
+            AS 'return input;';
+        "#,
+            )
+            .await
+            .unwrap();
+
+        db.session
+            .query(
+                r#"
+            CREATE FUNCTION IF NOT EXISTS  test_udf(input list<int>)
+            RETURNS NULL ON NULL INPUT
+            RETURNS text
+            LANGUAGE java
+            AS 'return String.valueOf(input);';
+        "#,
+            )
+            .await
+            .unwrap();
+        let list = db.list_udf().await.unwrap();
+        list.iter().for_each(|x| println!("udf:{:?}", x));
+
+        let detail = db
+            .show_udf(
+                name,
+                Some(UdfOrProcedureExtraParameter::Cassandra {
+                    parameters: vec!["list <int>".to_string()],
+                }),
+            )
+            .await
+            .unwrap();
+        println!("detail:{:?}", detail);
     }
 
     #[tokio::test]
@@ -2534,5 +3003,18 @@ mod tests {
         let ss = sqls_to_sql(&sql);
         println!("{:?}", ss);
         assert!(ss.len() == 2);
+    }
+
+    #[test]
+    fn test_agg() {
+        let sql = r#"CREATE AGGREGATE my_count(text)
+                SFUNC count_state_function
+                STYPE int
+                FINALFUNC count_final_function
+                INITCOND 0;"#;
+        CassandraAST::new(&sql)
+            .statements
+            .iter()
+            .for_each(|x| println!("{:?}", x.statement));
     }
 }

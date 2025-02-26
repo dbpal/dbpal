@@ -361,7 +361,7 @@ DELIMITER ;`,
   };
 }
 
-function testUDF(): types.UdfDetail {
+function testUDF(): types.DefAndMetas {
   return {
     def: `CREATE FUNCTION AddNumbers (
     a INT,

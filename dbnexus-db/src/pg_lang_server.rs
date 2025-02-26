@@ -177,36 +177,30 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let mut sql = "SELECT column_name FROM information_schema.columns".to_string();
-        let mut has_where = false;
-        if let Some(db) = self.db_merge_config(db) {
-            has_where = true;
-            sql.push_str(format!(" WHERE table_catalog='{}'", db).as_str());
+        &self, db: Option<&str>, schema: Option<&str>, name: &str,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        use sqlx::{Column, Executor, Statement};
+        let db = self.db_merge_config(db);
+        let schema = self.schema_merge_config(schema);
+
+        if db.is_none() || schema.is_none() {
+            anyhow::bail!("need database and schema config");
         }
-        if let Some(schema) = self.schema_merge_config(schema) {
-            if has_where {
-                sql.push_str(" AND ");
-            } else {
-                sql.push_str(" WHERE ");
-            }
-            has_where = true;
-            sql.push_str(format!("table_schema='{}'", schema).as_str());
-        }
-        if has_where {
-            sql.push_str(" AND ");
-        } else {
-            sql.push_str(" WHERE ");
-        }
-        sql.push_str(format!("table_name='{}'", table).as_str());
+        let db = db.unwrap();
+        let schema = schema.unwrap();
+
+        let sql = format!(r#"select * from "{}"."{}"."{}""#, db, schema, name);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
+        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+        let ret = s
+            .columns()
+            .iter()
+            .map(|x| CompletionItem {
+                item: x.name().to_string().into(),
+                desc: Some(x.type_info().to_string().into()),
+                kind: CompletionKind::Column,
+            })
+            .collect::<Vec<_>>();
         anyhow::Ok(ret)
     }
 

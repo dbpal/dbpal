@@ -6,7 +6,7 @@ use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::db::{
     ColumnType, CreateSchemaExtra, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable,
     NamedStaff, ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp,
-    TriggerDetail, UdfDetail, UdfOrPrecedureExtraParameter,
+    TriggerDetail, DefAndMetas, UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
@@ -861,6 +861,8 @@ pub async fn list_database(
     random_sleep().await;
     random_error()?;
     let db = app.open(name.as_str()).await?;
+    app.enter_open_child(name.as_str(), &db).await?;
+
     match db {
         app::Open::Catalog(x) => x.list_database().await,
         _ => return Err(ErrorFrontend::from("not catalog trait")),
@@ -871,13 +873,11 @@ pub async fn list_database(
 #[tauri::command]
 pub async fn list_schema(
     name: String, app: tauri::State<'_, App>,
-) -> Result<
-    Vec<String>, // milliseconds
-    ErrorFrontend,
-> {
+) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.open(name.as_str()).await?;
+    app.enter_open_child(name.as_str(), &db).await?;
     match db {
         app::Open::DataBase(x) => x.list_schema().await,
         _ => return Err(ErrorFrontend::from("not database trait")),
@@ -887,10 +887,7 @@ pub async fn list_schema(
 #[tauri::command]
 pub async fn auto_completion(
     name: String, sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
-) -> Result<
-    Vec<CompletionItem>, // milliseconds
-    ErrorFrontend,
-> {
+) -> Result<Vec<CompletionItem>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     // TODO front is very hard to pass this parameter to the server
@@ -919,10 +916,7 @@ pub async fn auto_completion(
 #[tauri::command]
 pub async fn semantic_tokens(
     name: String, sql: String, app: tauri::State<'_, App>,
-) -> Result<
-    Vec<SemanticToken>, // milliseconds
-    ErrorFrontend,
-> {
+) -> Result<Vec<SemanticToken>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
@@ -2101,7 +2095,7 @@ pub async fn list_procedure(
 
 #[tauri::command]
 pub async fn show_procedure(
-    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, procedure: String, arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, App>,
 ) -> Result<ProcedureDetail, ErrorFrontend> {
     let schema = app
@@ -2116,7 +2110,7 @@ pub async fn show_procedure(
 
 #[tauri::command]
 pub async fn drop_procedure(
-    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, procedure: String, arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
@@ -2142,9 +2136,9 @@ pub async fn list_udf(
 
 #[tauri::command]
 pub async fn show_udf(
-    name: String, udf: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, udf: String, arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, App>,
-) -> Result<UdfDetail, ErrorFrontend> {
+) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
@@ -2157,7 +2151,7 @@ pub async fn show_udf(
 
 #[tauri::command]
 pub async fn drop_udf(
-    name: String, udf: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, udf: String, arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     let schema = app

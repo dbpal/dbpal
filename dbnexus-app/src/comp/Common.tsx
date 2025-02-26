@@ -57,6 +57,7 @@ const modalStyle: SxProps = {
 };
 
 import {
+  cassandraKeywords,
   mssqlKeywords,
   mysqlKeywords,
   oracleKeywords,
@@ -482,17 +483,6 @@ function tabsHasId(tabs: TabContent[], id: string): number | null {
   return null;
 }
 
-function extraParametersFromMetaValues(
-  values: types.MetaValue[]
-): string | null {
-  for (const v of values) {
-    if (v.name == 'parameters') {
-      return v.value;
-    }
-  }
-  return null;
-}
-
 interface DefAndMetas {
   def: string;
   metas: types.MetaValue[];
@@ -589,6 +579,9 @@ function ConnConfigInfo(props: { uuid }) {
         case 'postgres':
         case 'redis':
         case 'mongo':
+        case 'tidb':
+        case 'cassandra':
+        case 'oracle':
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,
@@ -861,8 +854,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              // TODO oracleKeywords
-              [oracleKeywords, 'keyword'],
+              [cassandraKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
@@ -893,6 +885,8 @@ async function makeQueryConnInfo(uuid: string) {
     case 'mariadb':
     case 'postgres':
     case 'sqlserver':
+    case 'cassandra':
+    case 'tidb':
       content = (
         <>
           <strong>{config.conn_type}</strong>
@@ -1103,7 +1097,6 @@ export {
   msgTimeout,
   progressBarSize,
   progressBarSizeSmall,
-  extraParametersFromMetaValues,
   SettingContext,
   appStore,
   UserSettings,

@@ -197,7 +197,8 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.MsSql ||
-    kind == DataSourceKind.Oracle;
+    kind == DataSourceKind.Oracle ||
+    kind == DataSourceKind.Cassandra;
 
   let { setUpMenu } = useContext(ContextMenuContext);
 

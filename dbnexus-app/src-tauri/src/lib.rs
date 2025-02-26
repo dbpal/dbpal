@@ -2,7 +2,7 @@ pub mod handlers;
 
 #[cfg(test)]
 mod tests {
-    use dbnexus_db::datasource_config::CassandraDBConfig;
+    use dbnexus_db::{cassandra::CassandraDB, datasource_config::CassandraDBConfig};
 
     #[test]
     fn generate_ts_def() {
@@ -17,7 +17,7 @@ mod tests {
         use dbnexus_db::db::{
             ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListTable, NamedStaff,
             ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
-            TriggerTiming, UdfDetail,
+            TriggerTiming, DefAndMetas,
         };
         use dbnexus_db::language_server::{CompletionItem, CompletionKind, SemanticToken};
         use dbnexus_db::query_log::QueryLogEvent;
@@ -49,7 +49,7 @@ mod tests {
                 &TriggerEnable::INFO,
                 &CompletionItem::INFO,
                 &CompletionKind::INFO,
-                &UdfDetail::INFO,
+                &DefAndMetas::INFO,
                 &ProcedureDetail::INFO,
                 &FormatSqlOpts::INFO,
                 &FormatSqlOptsIndent::INFO,
@@ -168,9 +168,17 @@ mod tests {
             file.write("\n".as_bytes()).unwrap();
         }
 
+        //
+        {
+            let content = CassandraDB::monaco_editor_keyword_regexp();
+            file.write(compose("cassandraKeywords", &content).as_bytes())
+                .unwrap();
+            file.write("\n".as_bytes()).unwrap();
+        }
+
         // TODO add more
         file.write(
-        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords ,tidbKeywords }"#.as_bytes(),
+        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords ,tidbKeywords , cassandraKeywords  }"#.as_bytes(),
     )
     .unwrap();
     }

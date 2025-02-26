@@ -232,13 +232,13 @@ pub trait SchemaTrait:
     }
 
     async fn show_udf(
-        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         not_support_features(self.backend_name())
     }
 
     async fn drop_udf(
-        &self, _name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, _name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
@@ -247,12 +247,12 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
     async fn show_procedure(
-        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         not_support_features(self.backend_name())
     }
     async fn drop_procedure(
-        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
@@ -280,10 +280,19 @@ pub struct ColumnType {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "extra", rename_all = "lowercase")]
-pub enum UdfOrPrecedureExtraParameter {
+pub enum UdfOrProcedureExtraParameter {
     PostGres {
         parameters: String, // a integer , b integer
     },
+    Cassandra {
+        parameters: Vec<String>, //
+    },
+}
+
+impl UdfOrProcedureExtraParameter {
+    pub(crate) fn wrong_type(&self) -> anyhow::Error {
+        anyhow::Error::msg(format!("wrong type of parameter of:{:?}", self))
+    }
 }
 
 pub(crate) fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
@@ -303,13 +312,13 @@ impl ProcedureDetail {
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
-pub struct UdfDetail {
+pub struct DefAndMetas {
     // definition of the sql.
     pub def: String,
     pub metas: Vec<MetaValue>,
 }
 
-impl UdfDetail {
+impl DefAndMetas {
     pub(crate) fn new(def: String, metas: Vec<MetaValue>) -> Self {
         Self { metas, def }
     }
@@ -328,6 +337,10 @@ pub trait CatalogTrait:
 /// named staff maybe used for view udf etc...
 #[derive(Debug, serde::Serialize, TypeDef)]
 pub struct NamedStaff {
+    // some backend support reload function.
+    pub parameters: Option<String>,
+    // cassandra support reload and parameter is a `Vec`
+    pub cassandra_parameters: Option<Vec<String>>,
     pub name: String,
     pub metas: Vec<MetaValue>,
 }
@@ -337,6 +350,8 @@ impl From<String> for NamedStaff {
         NamedStaff {
             name: value,
             metas: vec![],
+            parameters: None,
+            cassandra_parameters: None,
         }
     }
 }
@@ -1124,11 +1139,11 @@ pub fn monaco_editor_keyword_regexp(keywords: &[&str]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::UdfOrPrecedureExtraParameter;
+    use super::UdfOrProcedureExtraParameter;
 
     #[test]
     fn test_serde_udf_or_precedure_extra_parameter() {
-        let x = Some(UdfOrPrecedureExtraParameter::PostGres {
+        let x = Some(UdfOrProcedureExtraParameter::PostGres {
             parameters: "int".to_string(),
         });
         let s = serde_json::to_string_pretty(&x).unwrap();

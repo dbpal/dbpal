@@ -163,6 +163,7 @@ function TabsWithContent_(props: {
                   });
                 }}
                 variant={index == selectIndex ? 'contained' : 'text'}
+                color={index == selectIndex ? 'info' : ''}
                 onClick={() => {
                   changeTab(index);
                 }}
@@ -174,7 +175,7 @@ function TabsWithContent_(props: {
         </Stack>
       )}
 
-      <div style={{ width: '98.7%' }}>
+      <div style={{ paddingRight: '18px' }}>
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
             <div hidden={selectIndex !== index}>{tab.content}</div>

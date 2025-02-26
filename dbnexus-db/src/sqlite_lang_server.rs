@@ -123,11 +123,22 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        SchemaTrait::show_table_columns(self, &table)
-            .await
-            .map(|x| x.into_iter().map(|x| x.field).collect())
+        &self, _db: Option<&str>, _schema: Option<&str>, name: &str,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        use sqlx::{Column, Executor, Statement};
+        let mut conn = self.get_conn().await?;
+        let sql = format!(r#"select * from "{name}" limit 1"#);
+        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+        let ret = s
+            .columns()
+            .iter()
+            .map(|x| CompletionItem {
+                item: x.name().to_string().into(),
+                desc: Some(x.type_info().to_string().into()),
+                kind: CompletionKind::Column,
+            })
+            .collect::<Vec<_>>();
+        anyhow::Ok(ret)
     }
 
     async fn list_function(
@@ -135,12 +146,10 @@ impl AstCompletionHelper for SqliteDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let vec = SQLITE_FN_AND_DESC
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x[0].into(),
-                    kind: CompletionKind::Function,
-                    desc: Some(x[1].into()),
-                }
+            .map(|x| CompletionItem {
+                item: x[0].into(),
+                kind: CompletionKind::Function,
+                desc: Some(x[1].into()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(vec)

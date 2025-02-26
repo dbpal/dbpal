@@ -18,7 +18,7 @@ use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
     QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    TriggerEvent, TriggerTiming, DefAndMetas, UdfOrProcedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -747,7 +747,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let mut conn = self.get_conn().await?;
         let (def, metas) = FunctionOrProcedure::Procedure
@@ -758,7 +758,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn drop_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!("DROP PROCEDURE `{name}`");
         let mut conn = self.get_conn().await?;
@@ -767,18 +767,18 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn show_udf(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         let mut conn = self.get_conn().await?;
         let (def, metas) = FunctionOrProcedure::Function
             .query_details(conn.deref_mut(), self.config.db.as_ref().unwrap(), name)
             .await?;
 
-        anyhow::Ok(UdfDetail::new(def, metas))
+        anyhow::Ok(DefAndMetas::new(def, metas))
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!("DROP FUNCTION `{name}`");
         let mut conn = self.get_conn().await?;
@@ -1525,7 +1525,7 @@ pub(crate) mod test_fns {
         let _ = db_trait
             .drop_procedure(
                 f,
-                Some(UdfOrPrecedureExtraParameter::PostGres {
+                Some(UdfOrProcedureExtraParameter::PostGres {
                     parameters: "".to_string(),
                 }),
             )

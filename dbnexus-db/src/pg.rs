@@ -16,8 +16,8 @@ use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
     DBTrait, ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable,
     NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
-    UdfOrPrecedureExtraParameter,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, DefAndMetas,
+    UdfOrProcedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -548,7 +548,9 @@ impl SchemaTrait for PostGresDB {
             let p: String = r.try_get(1)?;
             ret.push(NamedStaff {
                 name,
-                metas: vec![MetaValue::new("parameters", p)],
+                parameters: Some(p),
+                metas: vec![],
+                cassandra_parameters: None,
             });
         }
 
@@ -556,14 +558,16 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
-        let arg: &UdfOrPrecedureExtraParameter = match arg.as_ref() {
+        let arg: &UdfOrProcedureExtraParameter = match arg.as_ref() {
             Some(arg) => arg,
             None => anyhow::bail!(format!("postgres need extra argument.")),
         };
         let parameters = match arg {
-            UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+            UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+
+            _ => return Err(arg.wrong_type()),
         };
         let sql = format!(
             r#"
@@ -597,14 +601,15 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_procedure(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let arg: &UdfOrPrecedureExtraParameter = match arg.as_ref() {
+        let arg: &UdfOrProcedureExtraParameter = match arg.as_ref() {
             Some(arg) => arg,
             None => anyhow::bail!(format!("postgres need extra argument.")),
         };
         let p = match arg {
-            UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+            UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+            _ => return Err(arg.wrong_type()),
         };
         let sql = format!("DROP PROCEDURE {}({})", name, p);
         let mut conn = self.get_conn().await?;
@@ -636,21 +641,21 @@ impl SchemaTrait for PostGresDB {
             let arguments: Option<String> = r.get(2);
             ret.push(NamedStaff {
                 name,
-                metas: vec![
-                    MetaValue::new_opt("return_type", return_type),
-                    MetaValue::new_opt("parameters", arguments),
-                ],
+                parameters: arguments,
+                metas: vec![MetaValue::new_opt("return_type", return_type)],
+                cassandra_parameters: None,
             });
         }
         anyhow::Ok(ret)
     }
 
     async fn show_udf(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         let arg = match &arg {
-            Some(x) => match x {
-                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+            Some(arg) => match arg {
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                _ => return Err(arg.wrong_type()),
             },
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
@@ -674,18 +679,18 @@ impl SchemaTrait for PostGresDB {
         let result_type: Option<String> = row.try_get(0)?;
         let arguments: Option<String> = row.try_get(1)?;
         let function_definition: String = row.try_get(2)?;
-        anyhow::Ok(UdfDetail::new(function_definition, vec![
+        anyhow::Ok(DefAndMetas::new(function_definition, vec![
             MetaValue::new_opt("result_type", result_type),
             MetaValue::new_opt("parameters", arguments),
         ]))
     }
 
     async fn drop_udf(
-        &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
             Some(x) => match x {
-                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
                 #[allow(unreachable_patterns)]
                 _ => {
                     anyhow::bail!("must be a postgres parameter")
@@ -1642,7 +1647,7 @@ mod tests {
     use super::make_test_object;
     use crate::db::{
         CatalogTrait, CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas,
-        UdfOrPrecedureExtraParameter,
+        UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
 
@@ -1670,7 +1675,7 @@ mod tests {
             let details = db
                 .show_procedure(
                     &l.name,
-                    Some(UdfOrPrecedureExtraParameter::PostGres {
+                    Some(UdfOrProcedureExtraParameter::PostGres {
                         parameters: "".to_string(),
                     }),
                 )
@@ -1931,7 +1936,7 @@ mod tests {
             let details = pg
                 .show_udf(
                     &l.name,
-                    Some(UdfOrPrecedureExtraParameter::PostGres {
+                    Some(UdfOrProcedureExtraParameter::PostGres {
                         parameters: "a integer, b integer".to_string(),
                     }),
                 )
@@ -1941,7 +1946,7 @@ mod tests {
             if l.name == "test_udf" {
                 pg.drop_udf(
                     &l.name,
-                    Some(UdfOrPrecedureExtraParameter::PostGres {
+                    Some(UdfOrProcedureExtraParameter::PostGres {
                         parameters: "a integer, b integer".to_string(),
                     }),
                 )

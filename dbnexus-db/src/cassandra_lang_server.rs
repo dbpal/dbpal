@@ -15,7 +15,7 @@ use cql3_parser::{
 use crate::{
     cassandra::CassandraDB,
     db::DBTrait,
-    language_server::{CompletionItem, CompletionKind, LanguageServer},
+    language_server::{CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait},
 };
 
 #[async_trait::async_trait]
@@ -31,8 +31,54 @@ impl LanguageServer for CassandraDB {
                 log::error!("try completion on parse failed:{:?}", x)
             }
         }
+        if !use_lexer {
+            return anyhow::Ok(vec![]);
+        }
 
+        return LexerCompletionTrait::do_auto_completion(
+            self,
+            sql,
+            &sqlparser::dialect::GenericDialect {},
+            sqlparser::tokenizer::Location {
+                line: line as u64,
+                column: col as u64,
+            },
+        )
+        .await;
+    }
+}
+
+#[async_trait::async_trait]
+impl LexerCompletionTrait for CassandraDB {
+    type Dialect = sqlparser::dialect::GenericDialect;
+    const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
+    const TYPES: &'static [&'static str] = TYPES;
+    const TEXTS: &'static [&'static str] = &["true", "false"];
+    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         unimplemented!()
+    }
+
+    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
+        let sql = format!("SELECT table_name FROM system_schema.tables");
+
+        let rows = self
+            .session
+            .query(sql)
+            .await?
+            .response_body()?
+            .into_rows()
+            .unwrap_or_default();
+
+        let mut ret = Vec::new();
+
+        for row in rows.iter() {
+            let name: Option<String> = row.get_by_index(0)?;
+            if let Some(name) = name {
+                ret.push(name);
+            }
+        }
+
+        anyhow::Ok(ret)
     }
 }
 
@@ -46,6 +92,27 @@ struct AstCompletion {
 }
 
 impl AstCompletion {
+    async fn on_udf(&mut self, key_space: &str, name: &Identifier) -> anyhow::Result<()> {
+        if !self.in_pos(name.span()) {
+            return anyhow::Ok(());
+        }
+        let x = self.db.list_udf_impl(key_space).await?;
+
+        self.result = Some(
+            x.into_iter()
+                .map(|x| CompletionItem {
+                    item: x.name.clone().into(),
+                    kind: CompletionKind::Function,
+                    desc: x
+                        .cassandra_parameters
+                        .clone()
+                        .map(|x| format!("{:?}", x).into()),
+                })
+                .collect(),
+        );
+        anyhow::Ok(())
+    }
+
     async fn completion(
         sql: &str, line: u32, col: u32, db: CassandraDB,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -385,7 +452,7 @@ impl AstCompletion {
             anyhow::bail!("result shold contains one result");
         }
 
-        let def: Option<String> = rows[0].get_by_index(0)?;
+        let def: Option<String> = rows[0].get_by_index(3)?;
 
         let def = def.unwrap();
 
@@ -671,11 +738,8 @@ WHERE keyspace_name = '{key_space}';"#
                     }
                     AlterTableOperation::DropCompactStorage => {}
                     AlterTableOperation::Rename(x) => {
-                        self.on_table(&FQName {
-                            keyspace: None,
-                            name: x.0.clone(),
-                        })
-                        .await?;
+                        self.on_table_or_view_column(&alter_table.name, &x.0)
+                            .await?;
 
                         if self.in_pos(x.1.span()) {
                             self.on_def = true;
@@ -725,8 +789,41 @@ WHERE keyspace_name = '{key_space}';"#
                 self.on_user(&create_user.name).await?;
             }
             CassandraStatement::ApplyBatch => {}
-            CassandraStatement::CreateAggregate(_aggregate) => {
-                todo!()
+            CassandraStatement::CreateAggregate(aggregate) => {
+                if let Some(key_space) = aggregate.name.keyspace.as_ref() {
+                    self.on_key_space(key_space).await?;
+                    if self.finished() {
+                        return anyhow::Ok(());
+                    }
+                }
+                if self.in_pos(aggregate.name.name.span()) {
+                    self.on_def = true;
+                    return anyhow::Ok(());
+                }
+                if let Some(key_space) = aggregate.sfunc.keyspace.as_ref() {
+                    self.on_key_space(key_space).await?;
+                    if self.finished() {
+                        return anyhow::Ok(());
+                    }
+                }
+                if let Some(key_space) = aggregate.finalfunc.keyspace.as_ref() {
+                    self.on_key_space(key_space).await?;
+                    if self.finished() {
+                        return anyhow::Ok(());
+                    }
+                }
+                {
+                    let key_space =
+                        self.need_key_space_identifier(aggregate.sfunc.keyspace.as_ref())?;
+
+                    self.on_udf(&key_space, &aggregate.sfunc.name).await?;
+                }
+                {
+                    let key_space =
+                        self.need_key_space_identifier(aggregate.finalfunc.keyspace.as_ref())?;
+
+                    self.on_udf(&key_space, &aggregate.finalfunc.name).await?;
+                }
             }
             CassandraStatement::CreateFunction(create_function) => {
                 if let Some(x) = create_function.name.keyspace.as_ref() {
@@ -1098,10 +1195,117 @@ WHERE keyspace_name = '{key_space}';"#
 
 #[cfg(test)]
 mod tests {
+
     use crate::{
-        cassandra::make_test_object, enable_test_log,
+        cassandra::make_test_object, db::QuerySql, enable_test_log,
         language_server::completion_test::test_file_auto_completion,
     };
+    use std::path::Path;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        let db = make_test_object(Some("test".to_string())).await;
+        enable_test_log();
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE employees (
+                    employee_id UUID PRIMARY KEY,
+                    first_name TEXT,
+                    last_name TEXT,
+                    email TEXT,
+                    hire_date TIMESTAMP,
+                    department TEXT
+                );
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+               
+                CREATE MATERIALIZED VIEW employees_by_department AS
+                    SELECT employee_id, first_name, last_name, email, hire_date
+                    FROM employees
+                    WHERE employee_id IS NOT NULL
+                    PRIMARY KEY (employee_id);
+
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE ROLE IF NOT EXISTS role_test WITH PASSWORD = 'password123' AND LOGIN = true;
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+ 
+                CREATE OR REPLACE FUNCTION no_op_state_function(state int, input int)
+                RETURNS NULL ON NULL INPUT
+                RETURNS int
+                LANGUAGE java
+                AS '
+                    return state;  
+                ';
+
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE OR REPLACE FUNCTION no_op_final_function(state int)
+                RETURNS NULL ON NULL INPUT
+                RETURNS int
+                LANGUAGE java
+                AS '
+                    return 42;  
+                ';
+            "#,
+            )
+            .await
+            .unwrap();
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+           
+                CREATE OR REPLACE AGGREGATE no_op_aggregate(int)
+                SFUNC no_op_state_function
+                STYPE int
+                FINALFUNC no_op_final_function
+                INITCOND 0;  
+        "#,
+            )
+            .await
+            .unwrap();
+
+        let manifest_dir =
+            std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
+        file_path.push("tests");
+        file_path.push("cassandra_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+    }
 
     #[ignore = "xxx"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1118,3 +1322,93 @@ mod tests {
         .await;
     }
 }
+const TYPES: &[&str] = &[
+    "CUSTOM",
+    "ASCII",
+    "BIGINT",
+    "BLOB",
+    "BOOLEAN",
+    "COUNTER",
+    "DECIMAL",
+    "DOUBLE",
+    "FLOAT",
+    "INT",
+    "TIMESTAMP",
+    "UUID",
+    "VARCHAR",
+    "VARINT",
+    "TIMEUUID",
+    "INET",
+    "DATE",
+    "TIME",
+    "SMALLINT",
+    "TINYINT",
+    "DURATION",
+    "LIST",
+    "MAP",
+    "SET",
+    "UDT",
+    "TUPLE",
+];
+const KEY_WORDS: &[&str] = &[
+    "ADD",
+    "AGGREGATE",
+    "ALLOW",
+    "ALTER",
+    "AND",
+    "ANY",
+    "APPLY",
+    "ASC",
+    "AUTHORIZE",
+    "BATCH",
+    "BEGIN",
+    "DROP",
+    "EACH_QUORUM",
+    "ENTRIES",
+    "FROM",
+    "FULL",
+    "GRANT",
+    "IF",
+    "IN",
+    "INDEX",
+    "INET",
+    "INFINITY",
+    "INSERT",
+    "INTO",
+    "KEYSPACE",
+    "KEYSPACES",
+    "LIMIT",
+    "LOCAL_ONE",
+    "LOCAL_QUORUM",
+    "MATERIALIZED",
+    "MODIFY",
+    "NAN",
+    "NORECURSIVE",
+    "NOT",
+    "OF",
+    "ON",
+    "ONE",
+    "ORDER",
+    "PARTITION",
+    "PASSWORD",
+    "PER",
+    "PRIMARY",
+    "QUORUM",
+    "RENAME",
+    "REVOKE",
+    "SCHEMA",
+    "SELECT",
+    "SET",
+    "THREE",
+    "TO",
+    "TOKEN",
+    "TRUNCATE",
+    "TWO",
+    "UNLOGGED",
+    "UPDATE",
+    "USE",
+    "USING",
+    "VIEW",
+    "WHERE",
+    "WITH",
+];

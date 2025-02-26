@@ -8,7 +8,7 @@ use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
     QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
-    UdfDetail, UdfOrPrecedureExtraParameter,
+    DefAndMetas, UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
@@ -257,13 +257,13 @@ impl SchemaTrait for TiDB {
     }
 
     async fn show_udf(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         self.db.show_udf(name, arg).await
     }
 
     async fn drop_udf(
-        &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         self.db.drop_udf(name, extra).await
     }
@@ -273,13 +273,13 @@ impl SchemaTrait for TiDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         self.db.show_procedure(name, arg).await
     }
 
     async fn drop_procedure(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         self.db.drop_procedure(name, arg).await
     }

@@ -173,33 +173,38 @@ impl AstCompletionHelper for MsSqlServer {
     }
 
     async fn list_column(
-        &self, db: Option<&str>, _schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
+        &self, db: Option<&str>, _schema: Option<&str>, name: &str,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
         let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
         let sql = format!(
-            r#"
-            SELECT  
-                COLUMN_NAME  from 
-                INFORMATION_SCHEMA.COLUMNS  
-            WHERE  TABLE_CATALOG  = '{}' AND TABLE_SCHEMA  = '{}' AND TABLE_NAME = '{}'"#,
+            r#"  select TOP 1 * from  "{}"."{}"."{}" "#,
             db,
             Self::ONLY_SCHEMA,
-            table,
+            name
         );
+
         let mut conn = self.get_conn().await?;
-        let mut stream = conn.deref_mut().simple_query(&sql).await?;
-        let mut ret = Vec::new();
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            match item {
-                QueryItem::Row(row) => {
-                    let name: Option<&str> = row.get(0);
-                    ret.push(name.unwrap_or_default().to_string());
+        let mut s = conn.simple_query(&sql).await?;
+        while let Some(s) = s.next().await {
+            let s = s?;
+            match s {
+                QueryItem::Row(_) => {}
+                QueryItem::Metadata(result_metadata) => {
+                    return anyhow::Ok(
+                        result_metadata
+                            .columns()
+                            .iter()
+                            .map(|x| CompletionItem {
+                                item: x.name().to_string().into(),
+                                desc: Some(format!("{:?}", x.column_type()).into()),
+                                kind: CompletionKind::Column,
+                            })
+                            .collect(),
+                    );
                 }
-                QueryItem::Metadata(_) => {}
             }
         }
-        anyhow::Ok(ret)
+        anyhow::Ok(vec![])
     }
 
     async fn list_function(

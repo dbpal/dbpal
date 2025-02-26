@@ -11,7 +11,7 @@ use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, DBTrait, ExportKind,
     Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
     SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    TriggerEnable, TriggerEvent, TriggerTiming, DefAndMetas, UdfOrProcedureExtraParameter,
     format_data_time_fix_offset, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
@@ -1117,8 +1117,8 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn show_udf(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
         SELECT 
@@ -1172,7 +1172,7 @@ impl SchemaTrait for MsSqlServer {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     let def: Option<&str> = row.try_get(0)?;
-                    return anyhow::Ok(UdfDetail::new(def.unwrap_or_default().to_string(), metas));
+                    return anyhow::Ok(DefAndMetas::new(def.unwrap_or_default().to_string(), metas));
                 }
                 tiberius::QueryItem::Metadata(_result_metadata) => {}
             }
@@ -1181,7 +1181,7 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::ONLY_SCHEMA);
         let mut conn = self.get_conn().await?;
@@ -1200,7 +1200,7 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn show_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let sql = format!(
             r#"
@@ -1243,7 +1243,7 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn drop_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP PROCEDURE dbo."{name}""#);
         let mut conn = self.get_conn().await?;

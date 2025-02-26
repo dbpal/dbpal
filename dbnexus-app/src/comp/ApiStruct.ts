@@ -163,6 +163,8 @@ export namespace types {
      * named staff maybe used for view udf etc...
      */
     export type NamedStaff = {
+        "parameters": (string | null);
+        "cassandra_parameters": ((string)[] | null);
         "name": string;
         "metas": (types.MetaValue)[];
     };
@@ -216,7 +218,7 @@ export namespace types {
         "desc": (string | null);
     };
     export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule");
-    export type UdfDetail = {
+    export type DefAndMetas = {
         "def": string;
         "metas": (types.MetaValue)[];
     };

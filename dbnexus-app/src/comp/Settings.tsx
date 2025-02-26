@@ -104,6 +104,7 @@ function ModifySettings() {
         <TextField
           size="small"
           value={editorFontSize}
+          type="number"
           onChange={(e) => {
             setEditorFontSize(e.target.value);
           }}
@@ -118,6 +119,7 @@ function ModifySettings() {
           onChange={(e) => {
             setRootFontSize(e.target.value);
           }}
+          type="number"
           error={isNaN(parseInt(rootFontSize))}
           helperText="overall font size"
         ></TextField>
@@ -127,6 +129,7 @@ function ModifySettings() {
         <TextField
           size="small"
           value={datagridHeaderHeight}
+          type="number"
           onChange={(e) => {
             setDatagridHeaderHeight(e.target.value);
           }}
@@ -141,6 +144,7 @@ function ModifySettings() {
           onChange={(e) => {
             setDatagridRowHeight(e.target.value);
           }}
+          type="number"
           error={isNaN(parseInt(datagridRowHeight))}
         ></TextField>
       </Stack>
@@ -254,24 +258,24 @@ const rowSelected = {
 
 //@ts-ignore
 lightTheme.components.MuiDataGrid.styleOverrides.row = {
-  '&:nth-of-type(odd)': {
-    backgroundColor: '#ffffff', // 浅色模式的奇数行背景色
-  },
-  '&:nth-of-type(even)': {
-    backgroundColor: '#d0d0d0', // 浅色模式的偶数行背景色
-  },
+  // '&:nth-of-type(odd)': {
+  //   backgroundColor: '#ffffff', // 浅色模式的奇数行背景色
+  // },
+  // '&:nth-of-type(even)': {
+  //   backgroundColor: '#d0d0d0', // 浅色模式的偶数行背景色
+  // },
   ...rowSelected,
 };
 
 const darkTheme = createTheme({ palette: { mode: 'dark' }, components });
 //@ts-ignore
 darkTheme.components.MuiDataGrid.styleOverrides.row = {
-  '&:nth-of-type(odd)': {
-    backgroundColor: '#00000', // 深色模式的奇数行背景色
-  },
-  '&:nth-of-type(even)': {
-    backgroundColor: '#2f2f2f', // 深色模式的偶数行背景色
-  },
+  // '&:nth-of-type(odd)': {
+  //   backgroundColor: '#00000', // 深色模式的奇数行背景色
+  // },
+  // '&:nth-of-type(even)': {
+  //   backgroundColor: '#2f2f2f', // 深色模式的偶数行背景色
+  // },
   ...rowSelected,
 };
 

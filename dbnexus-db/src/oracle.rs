@@ -15,10 +15,10 @@ use tokio::task::block_in_place;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
-    UdfOrPrecedureExtraParameter, not_support_features,
+    DefAndMetas, ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -1508,17 +1508,17 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_udf(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         let sql = self.get_user_source(name)?;
-        anyhow::Ok(UdfDetail {
+        anyhow::Ok(DefAndMetas {
             def: sql,
             metas: vec![],
         })
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!("DROP FUNCTION {name}");
         let conn = self.get_conn()?;
@@ -1531,7 +1531,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let sql = self.get_user_source(name)?;
         anyhow::Ok(ProcedureDetail {
@@ -1541,7 +1541,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn drop_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!("DROP PROCEDURE {}", name);
         let conn = self.get_conn()?;
@@ -1572,6 +1572,8 @@ impl OracleDB {
             ret.push(NamedStaff {
                 name,
                 metas: vec![],
+                parameters: None,
+                cassandra_parameters: None,
             });
         }
         anyhow::Ok(ret)
