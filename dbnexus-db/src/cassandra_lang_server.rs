@@ -34,7 +34,6 @@ impl LanguageServer for CassandraDB {
         if !use_lexer {
             return anyhow::Ok(vec![]);
         }
-
         return LexerCompletionTrait::do_auto_completion(
             self,
             sql,
@@ -55,7 +54,8 @@ impl LexerCompletionTrait for CassandraDB {
     const TYPES: &'static [&'static str] = TYPES;
     const TEXTS: &'static [&'static str] = &["true", "false"];
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        unimplemented!()
+        // TODO
+        anyhow::Ok(vec![])
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
@@ -77,7 +77,6 @@ impl LexerCompletionTrait for CassandraDB {
                 ret.push(name);
             }
         }
-
         anyhow::Ok(ret)
     }
 }
@@ -126,6 +125,8 @@ impl AstCompletion {
 
         let ast = CassandraAST::new(sql);
         for stmt in ast.statements.iter() {
+            log::info!("completion on ast:{:?}", stmt.statement);
+
             let _ = c.on_statement(stmt).await;
             if c.finished() {
                 return anyhow::Ok(c.result());
@@ -818,6 +819,7 @@ WHERE keyspace_name = '{key_space}';"#
 
                     self.on_udf(&key_space, &aggregate.sfunc.name).await?;
                 }
+
                 {
                     let key_space =
                         self.need_key_space_identifier(aggregate.finalfunc.keyspace.as_ref())?;
@@ -1228,6 +1230,16 @@ mod tests {
             .query_sql(
                 query_id,
                 r#"
+                CREATE INDEX email_index ON employees (email);
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
                
                 CREATE MATERIALIZED VIEW employees_by_department AS
                     SELECT employee_id, first_name, last_name, email, hire_date
@@ -1298,6 +1310,22 @@ mod tests {
             .await
             .unwrap();
 
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+           
+               CREATE TYPE IF NOT EXISTS completion_type (
+                    status TEXT,
+                    completion_date TIMESTAMP,
+                    remarks TEXT
+                );
+
+        "#,
+            )
+            .await
+            .unwrap();
+
         let manifest_dir =
             std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
@@ -1313,8 +1341,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object(Some("test".to_string())).await;
         test_file_auto_completion(
-            r#"select * from test;
-19 test_types1"#,
+            r#"TRUNCATE test.employees;
+14 test "#,
             &db,
             uuid::Uuid::new_v4(),
             false,

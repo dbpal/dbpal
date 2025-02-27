@@ -499,8 +499,6 @@ function MongoTableListToolBar(props: {
               handleViewModel(MongoDataViewModel.Object);
             }}
             edge="start"
-            color="inherit"
-            aria-label="object"
           >
             <DataObjectIcon />
           </IconButton>
@@ -510,8 +508,6 @@ function MongoTableListToolBar(props: {
             }}
             disabled={viewModel == MongoDataViewModel.List}
             edge="start"
-            color="inherit"
-            aria-label="list"
           >
             <ListIcon />
           </IconButton>

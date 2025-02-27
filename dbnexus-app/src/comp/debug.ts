@@ -1,2 +1,2 @@
-const debug = false;
+const debug = true;
 export { debug }

@@ -163,7 +163,7 @@ function TabsWithContent_(props: {
                   });
                 }}
                 variant={index == selectIndex ? 'contained' : 'text'}
-                color={index == selectIndex ? 'info' : undefined}
+                color={index == selectIndex ? 'info' : 'inherit'}
                 onClick={() => {
                   changeTab(index);
                 }}

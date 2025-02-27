@@ -65,7 +65,7 @@ import {
 } from './CommonComp.tsx';
 import { RedisTables, TablesTree, TablesType } from './LeftTable.tsx';
 import { ViewKind, ViewsTree } from './LeftView.tsx';
-import { UdfsTree } from './LeftUdf.tsx';
+import { CassaandraAggregatesTree, UdfsTree } from './LeftUdf.tsx';
 import { ProceduresTree } from './LeftProcedure.tsx';
 
 function Left_() {
@@ -288,6 +288,9 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           {support_procedure && <ProceduresTree />}
           {support_udf && <UdfsTree></UdfsTree>}
         </>
+      )}
+      {opened && kind == DataSourceKind.Cassandra && (
+        <CassaandraAggregatesTree />
       )}
       {opened && kind == DataSourceKind.Redis && (
         <RedisTables schema={schema} />

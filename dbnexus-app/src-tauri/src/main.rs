@@ -5,7 +5,8 @@ use dbnexus_db::app::{App, DBConnectionConfig};
 mod handlers;
 
 use handlers::{
-    PASSWORD_KEY, add_table_column, auto_completion, check_conn, close_conn,
+    PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
+    cassandra_list_aggregate, cassandra_show_aggregate, check_conn, close_conn,
     config_list_database_or_schema, create_database, create_index, create_schema, delete,
     delete_password, disable_trigger, drop_database, drop_index, drop_materialized_view,
     drop_procedure, drop_schema, drop_table, drop_table_column, drop_trigger, drop_udf, drop_view,
@@ -285,7 +286,10 @@ fn main_() {
             create_index,
             mongo_list_time_serial_collection,
             mongo_create_index,
-            put_value_in_sql
+            put_value_in_sql,
+            cassandra_drop_aggregate,
+            cassandra_list_aggregate,
+            cassandra_show_aggregate
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

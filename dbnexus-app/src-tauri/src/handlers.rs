@@ -3,10 +3,11 @@ use std::time::Duration;
 
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
+use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::db::{
-    ColumnType, CreateSchemaExtra, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp,
-    TriggerDetail, DefAndMetas, UdfOrProcedureExtraParameter,
+    ColumnType, CreateSchemaExtra, DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind,
+    ListTable, NamedStaff, ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp,
+    TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
@@ -14,6 +15,7 @@ use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
+
 pub const PASSWORD_KEY: &str = "dbpal";
 
 #[tauri::command]
@@ -2197,6 +2199,75 @@ pub async fn put_value_in_sql(
     schema
         .put_value_in_sql(&typ, value.as_ref().map(|x| x.as_str()))
         .map_err(|x| ErrorFrontend::from(x))
+}
+
+#[tauri::command]
+pub async fn cassandra_list_aggregate(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let ret = match schema.as_any().downcast_ref::<CassandraDB>() {
+        Some(x) => x.list_aggregate().await.map_err(ErrorFrontend::from)?,
+        None => {
+            return Err(ErrorFrontend::from(format!(
+                "'{}' is not a cassandra",
+                name
+            )));
+        }
+    };
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn cassandra_show_aggregate(
+    name: String, agg_name: String, parameters: Vec<String>, app: tauri::State<'_, App>,
+) -> Result<DefAndMetas, ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let ret = match schema.as_any().downcast_ref::<CassandraDB>() {
+        Some(x) => x
+            .show_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
+        None => {
+            return Err(ErrorFrontend::from(format!(
+                "'{}' is not a cassandra",
+                name
+            )));
+        }
+    };
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn cassandra_drop_aggregate(
+    name: String, agg_name: String, parameters: Vec<String>, app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    match schema.as_any().downcast_ref::<CassandraDB>() {
+        Some(x) => x
+            .drop_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
+        None => {
+            return Err(ErrorFrontend::from(format!(
+                "'{}' is not a cassandra",
+                name
+            )));
+        }
+    };
+    Ok(())
 }
 
 #[derive(serde::Serialize)]

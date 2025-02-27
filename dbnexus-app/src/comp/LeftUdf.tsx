@@ -10,7 +10,7 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { useContext, useEffect, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
-
+import { MdFunctions } from 'react-icons/md';
 import { initMonacoLanague, tabsHasId } from './Common';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
@@ -46,6 +46,9 @@ function UdfsTree() {
         showNotification('error', 'list udf failed', e);
       });
   };
+  useEffect(() => {
+    reload();
+  }, []);
   const getItemId = (named: types.NamedStaff) => {
     switch (kind) {
       case DataSourceKind.Postgres:
@@ -64,9 +67,7 @@ function UdfsTree() {
   };
 
   let { setUpMenu } = useContext(ContextMenuContext);
-  useEffect(() => {
-    reload();
-  }, []);
+
   return (
     <TreeItem
       itemId={idPrefix}
@@ -191,7 +192,7 @@ function UdfMenu(props: {
 
   const handleDrop = async () => {
     let confirm = await secondConfirm({
-      title: `Drop Procedure '${udf}'`,
+      title: `Drop UDF '${udf}'`,
       confirmText: 'drop',
     });
     if (!confirm) {
@@ -238,4 +239,186 @@ function UdfMenu(props: {
   );
 }
 
-export { UdfsTree };
+function CassandraAggregateMenu(props: {
+  uuid: string;
+  agg: string;
+  parameters: string[] | null;
+  reload;
+}) {
+  const { uuid, agg, reload, parameters } = props;
+  const { setSelectIndex, setTabs, tabs } = useContext(TabsSetContext);
+  const { showNotification } = useContext(NotificationContext);
+
+  const handleOpenDetails = () => {
+    initMonacoLanague(uuid, DataSourceKind.Cassandra);
+    const id = uuid + '-' + '-cassandra-aggregate-' + agg;
+    let index = tabsHasId(tabs, id);
+    if (typeof index == 'number') {
+      setSelectIndex(index);
+    } else {
+      setTabs((e) => {
+        setSelectIndex(tabs.length);
+        return [
+          ...e,
+          new TabContent(
+            id,
+            agg,
+            (
+              <DefAndMetasView
+                reloadOP={async () => {
+                  return await invoke<types.DefAndMetas>(
+                    'cassandra_show_aggregate',
+                    {
+                      name: uuid,
+                      aggName: agg,
+                      parameters,
+                    }
+                  );
+                }}
+                language={uuid}
+              ></DefAndMetasView>
+            )
+          ),
+        ];
+      });
+    }
+  };
+
+  const handleDrop = async () => {
+    let confirm = await secondConfirm({
+      title: `Drop Aggregate '${agg}'`,
+      confirmText: 'drop',
+    });
+    if (!confirm) {
+      return;
+    }
+
+    invoke('cassandra_drop_aggregate', {
+      name: uuid,
+      aggName: agg,
+      parameters,
+    })
+      .then(() => {
+        showNotification('success', 'Drop aggregate OK');
+        reload();
+      })
+      .catch((e) => {
+        showNotification('error', 'Drop aggregate Failure', e);
+      });
+  };
+
+  return (
+    <Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleOpenDetails();
+          }}
+        >
+          <ListItemIcon>
+            <InfoIcon></InfoIcon>
+          </ListItemIcon>
+          <ListItemText> detail </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          sx={{ color: 'error.main' }}
+          onClick={() => {
+            handleDrop();
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon color="error"></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText>drop</ListItemText>
+        </MenuItem>
+      </MenuList>
+    </Paper>
+  );
+}
+
+function CassaandraAggregatesTree() {
+  const { uuid } = useContext(UuidContext);
+  const idPrefix = uuid + '-cassandra-aggregate-';
+  const [aggs, setAggs] = useState<types.NamedStaff[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const reload = () => {
+    invoke<types.NamedStaff[]>('cassandra_list_aggregate', { name: uuid })
+      .then((ts) => {
+        setAggs(ts);
+      })
+      .catch((e) => {
+        showNotification('error', 'list aggregate failed', e);
+      });
+  };
+  useEffect(() => {
+    reload();
+  }, []);
+  const getItemId = (named: types.NamedStaff) => {
+    return (
+      idPrefix + '-' + named.name + '-' + named.cassandra_parameters.join('-')
+    );
+  };
+  let { setUpMenu } = useContext(ContextMenuContext);
+  return (
+    <TreeItem
+      itemId={idPrefix}
+      label=<Stack
+        spacing={1}
+        direction="row"
+        sx={{ alignItems: 'center' }}
+        onContextMenu={(e) => {
+          setUpMenu({
+            content: (
+              <Paper>
+                <MenuList>
+                  <MenuRefresh reload={reload}></MenuRefresh>
+                </MenuList>
+              </Paper>
+            ),
+            style: calMenuStyle(e, 70),
+          });
+        }}
+      >
+        <MdFunctions />
+        <span> aggregates </span>
+      </Stack>
+    >
+      {aggs.map((p) => (
+        <TreeItem
+          key={
+            p.name +
+            '-' +
+            p.parameters +
+            (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
+          }
+          itemId={getItemId(p)}
+          label=<Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: 'center' }}
+            onContextMenu={(e) => {
+              setUpMenu({
+                content: (
+                  <CassandraAggregateMenu
+                    reload={reload}
+                    uuid={uuid}
+                    agg={p.name}
+                    parameters={p.cassandra_parameters}
+                  ></CassandraAggregateMenu>
+                ),
+                style: calMenuStyle(e, 100),
+              });
+            }}
+          >
+            <MdFunctions></MdFunctions>
+            <span>{p.name}</span>
+            <em> ({p.cassandra_parameters.join(',')}) </em>
+          </Stack>
+        ></TreeItem>
+      ))}
+    </TreeItem>
+  );
+}
+
+export { UdfsTree, CassaandraAggregatesTree };

@@ -49,7 +49,7 @@ const modalStyle: SxProps = {
   left: '50%',
   transform: 'translate(-50%, -50%)',
   bgcolor: 'background.paper',
-  border: '1px solid gray',
+  border: '2px solid gray',
   boxShadow: 24,
   margin: 0,
   borderRadius: '5px',
@@ -1075,10 +1075,9 @@ function LoadStoreFileForQuery(props: {
           </Tooltip>
         </>
       )}
-      <IconButton onClick={loadFile}>
+      <IconButton onClick={loadFile} color="primary">
         <AttachFileIcon />
       </IconButton>
-
       <Button onClick={handleSave}>save</Button>
     </>
   );

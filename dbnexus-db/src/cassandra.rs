@@ -1360,6 +1360,14 @@ impl SchemaTrait for CassandraDB {
             .await?;
 
         let fields = self.show_table_columns(&table_name).await?;
+        if ret.fields.len() == 0 {
+            return anyhow::Ok(TableListResp {
+                fields,
+                data: vec![],
+                total: 0,
+                sql: None,
+            });
+        }
         let mut m = HashMap::new();
 
         fields.iter().for_each(|x| {
@@ -1374,7 +1382,6 @@ impl SchemaTrait for CassandraDB {
         });
 
         let QueryResp { fields, data } = ret;
-
         anyhow::Ok(TableListResp {
             fields,
             data,
@@ -1514,17 +1521,13 @@ impl SchemaTrait for CassandraDB {
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
-        let x = self
-            .page_caching_show(view_name, where_str, order_by, page, page_size, extra)
-            .await?;
-        let QueryResp { fields, data } = x;
-        anyhow::Ok(TableListResp {
-            fields,
-            total: self.page_caching_totoal(&view_name),
-            data,
-            sql: self.page_caching_sql(&view_name),
-        })
+        self.show_table(view_name, where_str, order_by, page, page_size, extra)
+            .await
     }
+    async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
+        self.show_table_columns(view_name).await
+    }
+
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         self.list_udf_impl(self.config.keyspace_str()).await
     }

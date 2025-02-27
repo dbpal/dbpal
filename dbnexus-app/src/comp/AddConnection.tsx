@@ -526,7 +526,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           <MenuItem value={DataSourceKind.MsSql}>
             Sql server(microsoft)
           </MenuItem>
-          <MenuItem value={DataSourceKind.Cassandra}>cassandra</MenuItem>
+          <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
         </Select>
       </FormControl>
 
