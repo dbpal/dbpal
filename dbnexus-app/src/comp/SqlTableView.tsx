@@ -406,6 +406,7 @@ function SqlTableView(props: {
           onClick={() => {
             setShowSetWhere(true);
           }}
+          className="hover-notice"
         >
           <span> filter:&nbsp;</span>
           <span style={{ ...filterStyle.on }}>{where}</span>
@@ -419,6 +420,7 @@ function SqlTableView(props: {
           onClick={() => {
             setShowSetSort(true);
           }}
+          className="hover-notice"
         >
           <span> sort: </span>
           <span style={{ ...filterStyle.on }}>{sort}</span>

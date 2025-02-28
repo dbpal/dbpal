@@ -471,6 +471,7 @@ function MongoTableListToolBar(props: {
           onClick={() => {
             setShowModifyFilter(true);
           }}
+          className="hover-notice"
           style={{ ...filterStyle.style, backgroundColor: filterStyle.filter }}
         >
           <span>filter:&nbsp;</span>
@@ -483,6 +484,7 @@ function MongoTableListToolBar(props: {
           onClick={() => {
             setShowModifyOrderBy(true);
           }}
+          className="hover-notice"
           style={{ ...filterStyle.style, backgroundColor: filterStyle.sort }}
         >
           <span> sort: &nbsp;</span>

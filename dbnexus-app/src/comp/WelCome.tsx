@@ -5,7 +5,7 @@ function WelCome() {
   const databases = [
     {
       name: 'mysql',
-      img: 'https://images.sftcdn.net/images/t_app-icon-m/p/917c77e8-96d1-11e6-8453-00163ed833e7/3780880766/mysql-com-icon.png',
+      img: 'https://www.kkidc.com/ask/uploads/allimg/20240827/2-240RG52U3600.jpg',
     },
     {
       name: 'mariadb',
@@ -13,7 +13,7 @@ function WelCome() {
     },
     {
       name: 'tidb',
-      img: 'https://avatars.githubusercontent.com/u/58058301?s=280&v=4',
+      img: 'https://img1.baidu.com/it/u=2784943579,2058069831&fm=253&fmt=auto&app=138&f=PNG?w=1276&h=500',
     },
     {
       name: 'sqlite',
@@ -63,11 +63,12 @@ function WelCome() {
               borderRadius: '4px',
               padding: '4px',
             }}
+            key={e.name}
           >
             <img
               style={{ backgroundColor: 'white', borderRadius: '8px' }}
               src={e.img}
-              width="60px"
+              width="80px"
               alt="image of database"
             />
             <span>{e.name}</span>

@@ -1781,9 +1781,9 @@ function RedisTables(prpos: { schema?: string }) {
         {tables.map((table) => (
           <TreeItem
             key={table}
-            style={{ ...treeItemCommonStyle }}
             itemId={idPrefix + table}
             label=<Stack
+              style={{ ...treeItemCommonStyle }}
               direction="row"
               onContextMenu={(e) => {
                 setUpMenu({
@@ -1836,7 +1836,7 @@ function RedisTables(prpos: { schema?: string }) {
             <Typography color="error">keys</Typography>
           </Tooltip>
         ) : (
-          <Typography>keys</Typography>
+          <span>keys</span>
         )}
 
         {loading && (
