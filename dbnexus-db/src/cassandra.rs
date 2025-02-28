@@ -48,12 +48,13 @@ use num_bigint::{BigInt, ToBigInt};
 use crate::{
     datasource_config::CassandraDBConfig,
     db::{
-        BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-        DefAndMetas, ExportKind, Field, Index, IndexKind, ListMaterializedView, ListTable,
+        BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
+        DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListMaterializedView, ListTable,
         NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
         TableListResp, UdfOrProcedureExtraParameter,
     },
     helper::create_csv,
+    language_server::LexerCompletionTrait,
     meta_value::MetaValue,
     query_log::QueryLog,
 };
@@ -154,7 +155,7 @@ impl CassandraDB {
 
 impl ServerMetas for CassandraDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
-        unimplemented!()
+        anyhow::Ok(vec![])
     }
 }
 
@@ -166,7 +167,6 @@ impl CheckConn for CassandraDB {
             .query("SELECT now() FROM system.local;")
             .await?
             .response_body()?;
-
         anyhow::Ok(now.elapsed())
     }
 }
@@ -740,8 +740,7 @@ fn format_time(x: i64) -> String {
     time.to_string()
 }
 fn format_date(mut days_since_epoch: i32) -> anyhow::Result<String> {
-    // TODO https://github.com/krojew/cdrs-tokio/issues/202
-
+    // see   https://github.com/krojew/cdrs-tokio/issues/202
     days_since_epoch &= !(1 << 31);
 
     let date = NaiveDate::from_ymd_opt(1970, 1, 1)
@@ -753,7 +752,8 @@ fn format_date(mut days_since_epoch: i32) -> anyhow::Result<String> {
         None => anyhow::bail!("days is none"),
     }
 }
-fn sqls_to_sql(sql: &str) -> Vec<&str> {
+
+fn sql_to_each(sql: &str) -> Vec<&str> {
     CassandraAST::new(&sql)
         .statements
         .iter()
@@ -766,11 +766,9 @@ impl QuerySql for CassandraDB {
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.invalid_page_caching(None);
-
         let mut query_log = QueryLog::get_guard(query_id, sql);
         let mut ret = vec![];
-        for sql in sqls_to_sql(&sql) {
-            log::trace!("execute sql:{}", sql);
+        for sql in sql_to_each(&sql) {
             match self.session.query(&sql).await {
                 Ok(x) => {
                     let body = x.response_body()?;
@@ -860,7 +858,6 @@ impl CassandraDB {
             "SELECT table_name FROM system_schema.tables WHERE keyspace_name = '{keyspace}' order by table_name;"
         );
         let body = self.session.query(sql).await?.response_body()?;
-
         let mut ret = Vec::new();
         for row in body.into_rows().unwrap_or_default() {
             let name: Option<String> = row.get_by_index(0)?;
@@ -1153,6 +1150,52 @@ impl CassandraDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
+    async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP TYPE  {typ}");
+        self.session.query(sql).await?;
+        anyhow::Ok(())
+    }
+
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
+        let sql = format!(
+            "SELECT type_name FROM system_schema.types where  keyspace_name = '{}'",
+            self.config.keyspace_str()
+        );
+        let rows = self
+            .session
+            .query(sql)
+            .await?
+            .response_body()?
+            .into_rows()
+            .unwrap_or_default();
+
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for row in rows.iter() {
+            let name: Option<String> = row.get_by_index(0)?;
+            let name = name.unwrap();
+            let sql = format!("DESCRIBE TYPE {name}");
+
+            let deccribe_rows = self
+                .session
+                .query(sql)
+                .await?
+                .response_body()?
+                .into_rows()
+                .unwrap_or_default();
+
+            if deccribe_rows.len() != 1 {
+                anyhow::bail!("describe type should return one result.")
+            }
+            let create_statement: Option<String> = deccribe_rows[0].get_by_index(3)?;
+            ret.push(CreatedType {
+                name,
+                sql: create_statement.unwrap_or_default(),
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!("DROP MATERIALIZED VIEW {name};");
         self.session.query(sql).await?;
@@ -1216,6 +1259,13 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!("CREATE INDEX {name} ON {table} ({});", fields.join(","));
         self.session.query(&sql).await?;
+        anyhow::Ok(())
+    }
+
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP INDEX IF EXISTS {index};");
+
+        self.session.query(sql).await?;
         anyhow::Ok(())
     }
 
@@ -1310,7 +1360,7 @@ impl SchemaTrait for CassandraDB {
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_table_impl(self.config.keyspace_str()).await
     }
-
+    // cassandra can use this function for materlized view too.
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let sql = format!(
             r#" SELECT column_name, type, kind
@@ -1446,6 +1496,7 @@ impl SchemaTrait for CassandraDB {
             &wheres,
             type_support_compare,
         )?;
+        log::info!("update sql:{}", sql);
         self.session.query(&sql).await?;
         self.invalid_page_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet::from((sql, 1)))
@@ -1497,7 +1548,7 @@ impl SchemaTrait for CassandraDB {
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
-        let sql = format!("ALTER TABLE {table} ADD {name } {}", col.typ);
+        let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
@@ -1540,11 +1591,8 @@ impl SchemaTrait for CassandraDB {
         cassandra@cqlsh:test> DESCRIBE FUNCTION  test.test_udf(int);
         Improper DESCRIBE command.
          */
-
         let sql = format!(r#" DESCRIBE FUNCTION  "{}""#, name);
-
         let body = self.session.query(sql).await?.response_body()?;
-
         // let meta = body.as_rows_metadata();
         // println!("meta:{:?}", meta);
 
@@ -1608,6 +1656,9 @@ impl SchemaTrait for CassandraDB {
         log::info!("drop function sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
+    }
+    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
+        anyhow::Ok(<Self as LexerCompletionTrait>::TYPES)
     }
 }
 
@@ -1811,14 +1862,13 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
 }
 
 impl CassandraDB {
-    pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    pub async fn list_aggregate_impl(&self, key_space: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
         SELECT aggregate_name, argument_types, return_type, state_func, final_func, initcond
             FROM system_schema.aggregates
-            WHERE keyspace_name = '{}';
-        "#,
-            self.config.keyspace_str(),
+            WHERE keyspace_name = '{key_space}';
+        "#
         );
 
         let rows = self
@@ -1857,6 +1907,9 @@ impl CassandraDB {
         }
         anyhow::Ok(ret)
     }
+    pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        self.list_aggregate_impl(self.config.keyspace_str()).await
+    }
 
     pub async fn show_aggregate(
         &self, name: &str, parameters: Vec<String>,
@@ -1864,8 +1917,8 @@ impl CassandraDB {
         let sql = format!("DESCRIBE AGGREGATE  {name}");
 
         let body = self.session.query(&sql).await?.response_body()?;
-        let meta = body.as_rows_metadata();
-        println!("meta:{:?}", meta);
+        let _meta = body.as_rows_metadata();
+        // println!("meta:{:?}", _meta);
         let rows = body.into_rows().unwrap_or_default();
 
         for row in rows.iter() {
@@ -2128,6 +2181,32 @@ mod tests {
         println!("resp:{:?}", resp);
     }
 
+    #[tokio::test]
+    async fn test_list_created_types() {
+        let db = make_test_object(Some("test".to_string())).await;
+        let _ = db.drop_created_type("test_type").await;
+
+        let query_id = db.open_connection().await.unwrap();
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+            CREATE TYPE test_type (
+                id int,
+                name text,
+                created_at timestamp
+            );
+        "#,
+            )
+            .await
+            .unwrap();
+        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
+
+        let list = db.list_created_types().await.unwrap();
+        for l in list.iter() {
+            println!("create type:{:?}", l);
+        }
+    }
     #[tokio::test]
     async fn test_types1() {
         let table_name = "test_types1";
@@ -2887,7 +2966,9 @@ mod tests {
     async fn test_rename() {
         let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_rename";
+        let table_name2 = format!("{}2", table_name);
         let _ = db.drop_table(table_name, false).await;
+        let _ = db.drop_table(&table_name2, false).await;
         let query_id = db.open_connection().await.unwrap();
         let x = db
             .query_sql(
@@ -2902,7 +2983,7 @@ mod tests {
             .await
             .unwrap();
         assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
-        let table_name2 = format!("{}2", table_name);
+
         db.rename_table(&table_name, &table_name2).await.unwrap();
         db.rename_table(&table_name2, &table_name).await.unwrap();
     }
@@ -2911,7 +2992,9 @@ mod tests {
     async fn test_index() {
         let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_index";
+        let _ = db.drop_index(table_name, "test_index_email_index").await;
         let _ = db.drop_table(table_name, false).await;
+
         let query_id = db.open_connection().await.unwrap();
         let x = db
             .query_sql(
@@ -2928,8 +3011,8 @@ mod tests {
             .await
             .unwrap();
         assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
-        db.create_index(&table_name, "email_index", IndexKind::Index, &[
-            "email".to_string()
+        db.create_index(&table_name, "test_index_email_index", IndexKind::Index, &[
+            "email".to_string(),
         ])
         .await
         .unwrap();
@@ -3003,7 +3086,7 @@ mod tests {
     #[test]
     fn test_parser_start_bytes() {
         let sql = "select * from test1 ; select * from test2;";
-        let ss = sqls_to_sql(&sql);
+        let ss = sql_to_each(&sql);
         println!("{:?}", ss);
         assert!(ss.len() == 2);
     }

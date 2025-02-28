@@ -4,6 +4,7 @@ import {
   progressBarSizeSmall,
   tabsHasId,
   DocsAndCount,
+  treeItemCommonStyle,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -130,7 +131,7 @@ function TablesTree(props: { typ: TablesType }) {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'flex-start' }}
+        sx={{ alignItems: 'flex-start', ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -190,7 +191,6 @@ function TableTree(props: {
           direction="row"
           spacing={1}
           justifyContent="space-between"
-          alignContent="center"
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -204,6 +204,7 @@ function TableTree(props: {
               style: calMenuStyle(e, 200),
             });
           }}
+          style={{ ...treeItemCommonStyle }}
         >
           <Stack direction="row" spacing={1}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
@@ -648,6 +649,7 @@ function TableColumnsTree(props: { table: string }) {
       itemId={uuid + '-table-' + table + 'columns'}
       label=<Stack
         spacing={1}
+        style={{ ...treeItemCommonStyle }}
         direction="row"
         onContextMenu={(e) => {
           setUpMenu({
@@ -694,7 +696,11 @@ function TableColumnsTree(props: { table: string }) {
               : undefined
           }
           itemId={idPrefix + '-' + f.field}
-          label=<Stack direction="row" spacing={1}>
+          label=<Stack
+            direction="row"
+            spacing={1}
+            style={{ ...treeItemCommonStyle }}
+          >
             {f.field} <em>({f.typ}) </em>
           </Stack>
         ></TreeItem>
@@ -1766,7 +1772,7 @@ function RedisTables(prpos: { schema?: string }) {
         label=<Stack
           spacing={1}
           direction="row"
-          sx={{ alignItems: 'flex-end' }}
+          sx={{ alignItems: 'flex-end', ...treeItemCommonStyle }}
         >
           {/* <span>{icon} </span> */}
           <span>{name}</span>
@@ -1775,6 +1781,7 @@ function RedisTables(prpos: { schema?: string }) {
         {tables.map((table) => (
           <TreeItem
             key={table}
+            style={{ ...treeItemCommonStyle }}
             itemId={idPrefix + table}
             label=<Stack
               direction="row"
@@ -1808,6 +1815,7 @@ function RedisTables(prpos: { schema?: string }) {
       label=<Stack
         spacing={1}
         direction="row"
+        style={{ ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -1840,7 +1848,7 @@ function RedisTables(prpos: { schema?: string }) {
         itemId={filterTreeID}
         label=<Stack
           direction="row"
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'pointer', ...treeItemCommonStyle }}
           onClick={() => {
             setShowEditFilter(true);
           }}

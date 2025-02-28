@@ -8,7 +8,6 @@ import {
   Modal,
   Paper,
   Stack,
-  Typography,
 } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 
@@ -26,6 +25,7 @@ import {
   initMonacoLanague,
   makeQueryConnInfo,
   QueryConn,
+  treeItemCommonStyle,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -35,7 +35,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { debug } from './debug';
 import { TabContent } from './Tabs';
@@ -229,7 +228,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
@@ -677,8 +676,9 @@ function CatalogTree(_props: {}) {
             style: calMenuStyle(e, 70),
           });
         }}
+        style={{ ...treeItemCommonStyle }}
       >
-        <Typography>{name} </Typography>
+        <span>{name} </span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
         {opened && <ConnStatus uuid={name}></ConnStatus>}
       </Stack>
@@ -761,7 +761,7 @@ function DatabaseTree(props: {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
       >
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>

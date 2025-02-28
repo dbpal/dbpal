@@ -5,9 +5,9 @@ use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::db::{
-    ColumnType, CreateSchemaExtra, DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind,
-    ListTable, NamedStaff, ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp,
-    TriggerDetail, UdfOrProcedureExtraParameter,
+    ColumnType, CreateSchemaExtra, CreatedType, DefAndMetas, ExportKind, Field, FormatSqlOpts,
+    Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, ShowExtraArgs,
+    SqlExecuteRet, TableListResp, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
@@ -622,6 +622,20 @@ pub async fn show_view_coumns(
 
     schema
         .show_view_columns(&view_name)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn list_created_types(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<CreatedType>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+
+    schema
+        .list_created_types()
         .await
         .map_err(ErrorFrontend::from)
 }

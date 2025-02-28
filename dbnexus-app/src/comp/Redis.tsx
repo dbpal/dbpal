@@ -30,7 +30,6 @@ import {
   progressBarSize,
   SettingContext,
   reloadOK,
-  VisiableContext,
   SimpleResizeEditor,
 } from './Common.tsx';
 
@@ -57,6 +56,7 @@ import {
   stringToHex,
   stringToHexArray,
   uint8ArrayToUtf8,
+  VisiableContext,
 } from './helper.ts';
 import { pageSizeOptions } from './CommonComp.tsx';
 

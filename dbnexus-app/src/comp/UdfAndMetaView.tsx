@@ -14,7 +14,7 @@ function DefAndMetasView(props: {
 }) {
   let { reloadOP, language, titleVariant } = props;
   if (!titleVariant) {
-    titleVariant = 'h3';
+    titleVariant = 'h4';
   }
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas | null>(null);
@@ -53,7 +53,7 @@ function DefAndMetasView(props: {
       </Stack>
       {detail && (
         <div style={{ display: 'grid' }}>
-          <Typography variant={titleVariant}> Sql </Typography>
+          <Typography variant={titleVariant}> Statement </Typography>
           <SimpleResizeEditor
             style={{ minHeight: '200px' }}
             language={language}

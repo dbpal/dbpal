@@ -14,10 +14,10 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, DefAndMetas,
-    UdfOrProcedureExtraParameter,
+    CreatedType, DBTrait, DefAndMetas, ExportKind, Field, HumanSize, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -392,6 +392,19 @@ impl ServerMetas for PostGresDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
+        // TODO
+        not_support_features(self.backend_name())
+    }
+    async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DROP TYPE  "{}"."{typ}" "#, self.must_schema());
+
+        let mut conn = self.get_conn().await?;
+
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     fn quote_style(&self) -> &'static str {
         "\""
     }
@@ -1402,32 +1415,26 @@ fn get_pg_type_base_on_data_type_and_udtname(
             "_text" => "TEXT[]".to_string(),
             "_varchar" => "VARCHAR[]".to_string(),
             "_int8" => "INT8[]".to_string(),
-
             "_path" => "PATH[]".to_string(),
             "_float4" => "FLOAT4[]".to_string(),
             "_float8" => "FLOAT8[]".to_string(),
             "_macaddr" => "MACADDR[]".to_string(),
             "_inet" => "INET[]".to_string(),
-
             "_timestamp" => "TIMESTAMP[]".to_string(),
             "_date" => "DATE[]".to_string(),
             "_time" => "TIME[]".to_string(),
             "_timestamptz" => "TIMESTAMPTZ[]".to_string(),
-
             "_interval" => "INTERVAL[]".to_string(),
             "_numeric" => "NUMERIC[]".to_string(),
             "_timetz" => "TIMETZ[]".to_string(),
             "_bit" => "BIT[]".to_string(),
             "_varbit" => "VARBIT[]".to_string(),
-
             "_uuid" => "UUID[]".to_string(),
             "_jsonb" => "JSONB[]".to_string(),
             "_int4range" => "INT4RANGE[]".to_string(),
-
             "_numrange" => "NUMRANGE[]".to_string(),
             "_tsrange" => "TSRANGE[]".to_string(),
             "_tstzrange" => "TSTZRANGE[]".to_string(),
-
             "_daterange" => "DATERANGE[]".to_string(),
             "_int8range" => "INT8RANGE[]".to_string(),
             "_jsonpath" => "JSONPATH[]".to_string(),
@@ -1650,6 +1657,26 @@ mod tests {
         UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
+    // #[tokio::test]
+    // async fn test_list_created_types() {
+    //     let db = make_test_object().await;
+    //     let _ = db.drop_created_type("test_type").await;
+    //     let query_id = db.open_connection().await.unwrap();
+
+    //     let _resp = db
+    //         .query_sql(
+    //             query_id,
+    //             r#"
+    //     CREATE TYPE test_type AS ENUM ('value1', 'value2', 'value3');"#,
+    //         )
+    //         .await
+    //         .unwrap();
+    //     assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
+    //     let list = db.list_created_types().await.unwrap();
+    //     for l in list.iter() {
+    //         println!("create type:{:?}", l);
+    //     }
+    // }
 
     #[tokio::test]
     async fn test_procedure() {

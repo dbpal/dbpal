@@ -1,5 +1,15 @@
 import { Editor, Monaco } from '@monaco-editor/react';
-import { Alert, Divider, IconButton, Stack, Tooltip } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Chip,
+  Divider,
+  IconButton,
+  Modal,
+  Stack,
+  Tooltip,
+  Typography,
+} from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position, Range } from 'monaco-editor';
 
@@ -7,7 +17,12 @@ import * as loglevel from 'loglevel';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
 import { generateRandomString } from './helper';
-import { EditorBar, LoadStoreFileForQuery, SettingContext } from './Common';
+import {
+  EditorBar,
+  LoadStoreFileForQuery,
+  modalStyle,
+  SettingContext,
+} from './Common';
 import { NotificationContext } from './Notification';
 import { LogLevelSelection } from './CommonComp';
 import * as esprima from 'esprima';
@@ -49,7 +64,7 @@ function MongoQuery(props: { uuid: string }) {
     loglevel.getLogger(generateRandomString(10))
   );
   const [loggerlevel, setLoggerlevel] = useState('trace');
-
+  const [showLoggerLevel, setShowLoggerLevel] = useState(false);
   const [db, _] = useState(new MongoDBQuery(uuid));
 
   useEffect(() => {
@@ -107,7 +122,9 @@ function MongoQuery(props: { uuid: string }) {
     } catch (e) {
       setErr(e);
       console.log('mongo query error:', e);
+      return;
     }
+    showNotification('success', 'execute ok');
   };
   let theme = setting.theme == 'dark' ? 'vs-dark' : 'light';
 
@@ -125,12 +142,15 @@ function MongoQuery(props: { uuid: string }) {
             <PlayArrowIcon />
           </IconButton>
         </Tooltip>
-        <LogLevelSelection
-          handleChange={(e) => {
-            setLoggerlevel(e);
+
+        <Chip
+          label={loggerlevel}
+          style={{ cursor: 'pointer', fontWeight: '800' }}
+          color="info"
+          onClick={() => {
+            setShowLoggerLevel(true);
           }}
-          level={loggerlevel}
-        ></LogLevelSelection>
+        />
         <LoadStoreFileForQuery
           openOpt={{ ...fileFilter }}
           saveOpt={{ canCreateDirectories: true, ...fileFilter }}
@@ -178,6 +198,8 @@ function MongoQuery(props: { uuid: string }) {
       </div>
 
       <Divider></Divider>
+
+      <Typography variant="h6"> logger: </Typography>
       <div
         style={{
           minHeight: '200px',
@@ -200,13 +222,34 @@ function MongoQuery(props: { uuid: string }) {
         </div>
         <EditorBar pos={loggerPos}></EditorBar>
       </div>
+
+      {showLoggerLevel && (
+        <Modal
+          open={showLoggerLevel}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowLoggerLevel(false);
+          }}
+        >
+          <Box sx={modalStyle} width="600px">
+            <LogLevelSelection
+              level={loggerlevel}
+              handleChange={(level) => {
+                setLoggerlevel(level);
+                setShowLoggerLevel(false);
+              }}
+            ></LogLevelSelection>
+          </Box>
+        </Modal>
+      )}
+
       {db && <div style={{ minHeight: '400px' }}></div>}
     </Stack>
   );
 }
-/*
-  
-*/
+
 function modifyEditorContent(
   editor: editor.IStandaloneCodeEditor,
   // means clean text

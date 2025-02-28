@@ -12,8 +12,8 @@ if (['windows', 'linux'].includes(platform())) {
   document.addEventListener('keydown', function (event) {
     if (event.key === 'F11') {
       const window = tauriwindow.getCurrent();
-      window.isFullscreen().then((f) => {
-        window.setFullscreen(!f);
+      window.isFullscreen().then((isFull) => {
+        window.setFullscreen(!isFull);
       });
     }
   });

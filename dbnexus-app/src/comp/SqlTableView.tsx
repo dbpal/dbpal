@@ -28,13 +28,7 @@ import {
 import { NotificationContext } from './Notification';
 import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  keyNotInTable,
-  modalStyle,
-  reloadOK,
-  SettingContext,
-  VisiableContext,
-} from './Common';
+import { keyNotInTable, modalStyle, reloadOK, SettingContext } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import KeyIcon from '@mui/icons-material/Key';
@@ -51,6 +45,7 @@ import {
   handleCopyToClipboard,
   isTypeLargeText,
   secondConfirm,
+  VisiableContext,
 } from './helper';
 import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
 
@@ -450,14 +445,21 @@ function SqlTableView(props: {
           >
             <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
               {resp && (
-                <span
-                  style={{ cursor: 'pointer' }}
+                <Typography
+                  sx={{
+                    cursor: 'pointer',
+                    fontWeight: '800',
+                    fontSize: '0.9rem',
+                    fontStyle: 'italic',
+                    color: 'green',
+                  }}
+                  variant="body1"
                   onClick={() => {
                     handleCopyToClipboard(resp.sql, showNotification);
                   }}
                 >
                   {resp.sql}
-                </span>
+                </Typography>
               )}
             </Stack>
             {resp && (

@@ -172,6 +172,7 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
+        fontWeight: 'bold',
       },
     },
   },
@@ -181,6 +182,7 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
+        fontWeight: 'bold',
       },
     },
   },
@@ -198,6 +200,7 @@ const components: Components<
     styleOverrides: {
       cell: {
         fontSize: '1rem',
+        fontWeight: '700',
       },
       columnHeaders: {
         fontSize: '0.8rem', // 调整表头字体大小
@@ -205,6 +208,7 @@ const components: Components<
       },
     },
   },
+
   MuiMenuList: {
     styleOverrides: {
       root: {
@@ -212,6 +216,7 @@ const components: Components<
       },
     },
   },
+
   MuiSelect: {
     styleOverrides: {
       root: {

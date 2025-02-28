@@ -49,7 +49,7 @@ const modalStyle: SxProps = {
   left: '50%',
   transform: 'translate(-50%, -50%)',
   bgcolor: 'background.paper',
-  border: '2px solid gray',
+  border: '2px solid skyblue',
   boxShadow: 24,
   margin: 0,
   borderRadius: '5px',
@@ -622,7 +622,6 @@ function reloadOK(showNotification) {
   showNotification('success', 'reload OK');
 }
 const registeredLanguage = new Set<string>();
-const VisiableContext = createContext(true);
 
 // uuid as language identifier.
 function initMonacoLanague(uuid: string, kind: DataSourceKind) {
@@ -927,6 +926,11 @@ interface IQueryConn {
   queryOP: (text: string) => Promise<any[]>;
   loadQueryLog: () => Promise<types.QueryLogEvent[]>;
   reconnect: () => Promise<void>;
+  exportQueryResult: (
+    sql: string,
+    kind: types.ExportKind,
+    file: string
+  ) => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
   destroy: () => void;
   oracleQuerySetAutocommit: (boolean) => Promise<void>;
@@ -945,6 +949,18 @@ class QueryConn implements IQueryConn {
     this.queryId = queryId;
     this.uuid = uuid;
     this.isOracle = isOracle;
+  }
+  exportQueryResult(
+    sql: string,
+    kind: types.ExportKind,
+    file: string
+  ): Promise<void> {
+    return invoke<void>('export_query_result_to_file', {
+      name: this.uuid,
+      sql,
+      kind,
+      file,
+    });
   }
 
   oracleQuerySetAutocommit(commit: boolean): Promise<void> {
@@ -1033,13 +1049,18 @@ function LoadStoreFileForQuery(props: {
     }
   };
   const handleSave = async () => {
+    let content = getQuery();
+    if (!content) {
+      showNotification('error', `can't save empty content`);
+      return;
+    }
     try {
       let ofile = file ? file : await save({ ...saveOpt });
       if (ofile) {
-        await writeFile(ofile, new TextEncoder().encode(getQuery()), {
+        await writeFile(ofile, new TextEncoder().encode(content), {
           create: true,
         });
-        handleChange(ofile, getQuery());
+        handleChange(ofile, content);
         showNotification('success', 'save file OK');
       }
     } catch (e) {
@@ -1085,6 +1106,7 @@ function LoadStoreFileForQuery(props: {
 
 type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
+const treeItemCommonStyle = { fontWeight: '700' } as CSSProperties;
 export {
   modalStyle,
   DocsAndCount,
@@ -1099,7 +1121,6 @@ export {
   SettingContext,
   appStore,
   UserSettings,
-  VisiableContext,
   OpenedContext,
   MenuConnectionInfo,
   getNamedConfig,
@@ -1115,6 +1136,7 @@ export {
   AppStoreKey,
   LoadStoreFileForQuery,
   keyNotInTable,
+  treeItemCommonStyle,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn };

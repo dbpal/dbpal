@@ -65,7 +65,6 @@ import {
   editorInitHeight,
   progressBarSize,
   SettingContext,
-  VisiableContext,
   reloadOK,
   keyNotInTable,
 } from './Common';
@@ -81,6 +80,7 @@ import {
   datagridContainerHeight,
   filterStyle,
   handleCopyToClipboard,
+  VisiableContext,
 } from './helper';
 
 const mongoBsonKeywords =

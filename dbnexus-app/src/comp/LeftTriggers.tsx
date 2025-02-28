@@ -1,5 +1,10 @@
 import { useContext, useEffect, useState } from 'react';
-import { progressBarSizeSmall, tabsHasId, initMonacoLanague } from './Common';
+import {
+  progressBarSizeSmall,
+  tabsHasId,
+  initMonacoLanague,
+  treeItemCommonStyle,
+} from './Common';
 import { NotificationContext } from './Notification';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
@@ -74,6 +79,7 @@ function TriggersTree(props: { table: string }) {
             style: calMenuStyle(e, 70),
           });
         }}
+        style={{ ...treeItemCommonStyle }}
       >
         <span> triggers </span>
         {loading && (
@@ -102,6 +108,7 @@ function TriggersTree(props: { table: string }) {
                 style: calMenuStyle(event, 70),
               });
             }}
+            style={{ ...treeItemCommonStyle }}
           >
             <span> {trigger.name} </span>
           </Stack>

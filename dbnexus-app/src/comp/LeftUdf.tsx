@@ -11,7 +11,7 @@ import { useContext, useEffect, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
 import { MdFunctions } from 'react-icons/md';
-import { initMonacoLanague, tabsHasId } from './Common';
+import { initMonacoLanague, tabsHasId, treeItemCommonStyle } from './Common';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -74,7 +74,7 @@ function UdfsTree() {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -104,7 +104,7 @@ function UdfsTree() {
           label=<Stack
             direction="row"
             spacing={1}
-            sx={{ alignItems: 'center' }}
+            sx={{ alignItems: 'center', ...treeItemCommonStyle }}
             onContextMenu={(e) => {
               setUpMenu({
                 content: (
@@ -366,7 +366,7 @@ function CassaandraAggregatesTree() {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -396,7 +396,7 @@ function CassaandraAggregatesTree() {
           label=<Stack
             direction="row"
             spacing={1}
-            sx={{ alignItems: 'center' }}
+            sx={{ alignItems: 'center', ...treeItemCommonStyle }}
             onContextMenu={(e) => {
               setUpMenu({
                 content: (

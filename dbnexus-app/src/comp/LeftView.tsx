@@ -4,6 +4,7 @@ import {
   tabsHasId,
   modalStyle,
   DocsAndCount,
+  treeItemCommonStyle,
 } from './Common';
 import { NotificationContext } from './Notification';
 
@@ -111,6 +112,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       label=<Stack
         direction="row"
         spacing={1}
+        style={{ ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -162,7 +164,7 @@ function ViewTree(props: {
         <Stack
           direction="row"
           spacing={1}
-          sx={{ justifyContent: 'space-between' }}
+          sx={{ justifyContent: 'space-between', ...treeItemCommonStyle }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -220,6 +222,7 @@ function ViewColumnsTree(props: { view: string; viewkind: ViewKind }) {
       label=<Stack
         spacing={1}
         direction="row"
+        style={{ ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -242,6 +245,7 @@ function ViewColumnsTree(props: { view: string; viewkind: ViewKind }) {
       {fields.map((f) => (
         <TreeItem
           key={f.field}
+          style={{ ...treeItemCommonStyle }}
           itemId={idPrefix + '-' + f.field}
           label=<Stack direction="row" spacing={1}>
             {f.field} <em>({f.typ}) </em>

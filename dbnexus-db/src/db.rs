@@ -29,6 +29,13 @@ pub trait SchemaTrait:
         ""
     }
 
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
+        not_support_features(self.backend_name())
+    }
+    async fn drop_created_type(&self, _typ: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
@@ -265,6 +272,12 @@ pub trait SchemaTrait:
             .any(|x| x.name.eq_ignore_ascii_case(table));
         anyhow::Ok(e)
     }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct CreatedType {
+    pub name: String,
+    pub sql: String,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

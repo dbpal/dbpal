@@ -1,5 +1,10 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { modalStyle, progressBarSize, progressBarSizeSmall } from './Common';
+import {
+  modalStyle,
+  progressBarSize,
+  progressBarSizeSmall,
+  treeItemCommonStyle,
+} from './Common';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import {
   Box,
@@ -285,19 +290,27 @@ function AddIndex(props: {
             </Button>
           ))}
       </Stack>
-      <FormLabel component="legend">select a type</FormLabel>
+
       {supportUnique && (
-        <RadioGroup
-          row
-          onChange={(e) => {
-            setIndexType(e.target.value);
-          }}
-          value={indexType}
-        >
-          {indexTypes.map((e) => (
-            <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
-          ))}
-        </RadioGroup>
+        <>
+          <FormLabel component="legend">select a type</FormLabel>
+          <RadioGroup
+            row
+            onChange={(e) => {
+              setIndexType(e.target.value);
+            }}
+            value={indexType}
+          >
+            {indexTypes.map((e) => (
+              <FormControlLabel
+                key={e}
+                value={e}
+                control={<Radio />}
+                label={e}
+              />
+            ))}
+          </RadioGroup>
+        </>
       )}
       <Divider></Divider>
       <Stack direction="row">
@@ -353,6 +366,7 @@ function LeftIndexes(props: { table: string }) {
             style: calMenuStyle(e, 70),
           });
         }}
+        style={{ ...treeItemCommonStyle }}
       >
         <span>indexes </span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -383,6 +397,7 @@ function LeftIndexes(props: { table: string }) {
                     }
                   : undefined
               }
+              style={{ ...treeItemCommonStyle }}
             >
               <Tooltip title={index.kind}>
                 <span>{index.name}</span>
@@ -393,7 +408,7 @@ function LeftIndexes(props: { table: string }) {
               <TreeItem
                 key={e}
                 itemId={idPrefix + '-index-' + index.name + '-col-' + e}
-                label=<span>{e}</span>
+                label=<span style={{ ...treeItemCommonStyle }}>{e}</span>
               ></TreeItem>
             ))}
           </TreeItem>

@@ -54,8 +54,38 @@ impl LexerCompletionTrait for CassandraDB {
     const TYPES: &'static [&'static str] = TYPES;
     const TEXTS: &'static [&'static str] = &["true", "false"];
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        // TODO
-        anyhow::Ok(vec![])
+        let mut ret = Vec::new();
+
+        if let Some(key_space) = self.config.keyspace.as_ref() {
+            {
+                ret.extend(
+                    self.list_aggregate_impl(&key_space)
+                        .await?
+                        .into_iter()
+                        .map(|x| CompletionItem {
+                            kind: CompletionKind::Function,
+                            desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
+                            item: x.name.clone().into(),
+                        }),
+                );
+            }
+            {
+                ret.extend(self.list_udf_impl(&key_space).await?.into_iter().map(|x| {
+                    CompletionItem {
+                        kind: CompletionKind::Function,
+                        desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
+                        item: x.name.clone().into(),
+                    }
+                }));
+            }
+        }
+        ret.extend(BUILD_IN_FN.iter().map(|x| CompletionItem {
+            item: (*x).into(),
+            kind: CompletionKind::Function,
+            desc: None,
+        }));
+
+        anyhow::Ok(ret)
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
@@ -217,7 +247,7 @@ impl AstCompletion {
         self.result = Some(result);
         anyhow::Ok(())
     }
-    async fn on_table(&mut self, table: &FQName) -> anyhow::Result<()> {
+    async fn on_table_or_view(&mut self, table: &FQName) -> anyhow::Result<()> {
         if let Some(key_space) = table.keyspace.as_ref() {
             self.on_key_space(key_space).await?;
             if self.finished() {
@@ -245,9 +275,23 @@ impl AstCompletion {
                 kind: CompletionKind::Table,
             })
             .collect();
+
+        result.extend(
+            self.db
+                .list_materialized_view_impl(&key_space)
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.name.into(),
+                    desc: None,
+                    kind: CompletionKind::View,
+                }),
+        );
+
         if table.keyspace.is_none() {
             result.extend(self.table_view_key_spaces().await?.into_iter());
         }
+
         self.result = Some(result);
         anyhow::Ok(())
     }
@@ -702,7 +746,7 @@ WHERE keyspace_name = '{key_space}';"#
             Resource::Role(_) => {
                 // self.on_role(r)
             }
-            Resource::Table(fqname) => self.on_table(fqname).await?,
+            Resource::Table(fqname) => self.on_table_or_view(fqname).await?,
         }
         anyhow::Ok(())
     }
@@ -719,7 +763,7 @@ WHERE keyspace_name = '{key_space}';"#
                 self.on_role(&role_common.name).await?;
             }
             CassandraStatement::AlterTable(alter_table) => {
-                self.on_table(&alter_table.name).await?;
+                self.on_table_or_view(&alter_table.name).await?;
                 match &alter_table.operation {
                     AlterTableOperation::Add(column_definitions) => {
                         for d in column_definitions.iter() {
@@ -853,7 +897,7 @@ WHERE keyspace_name = '{key_space}';"#
                         return anyhow::Ok(());
                     }
                 }
-                self.on_table(&create_index.table).await?;
+                self.on_table_or_view(&create_index.table).await?;
                 if self.finished() {
                     return anyhow::Ok(());
                 }
@@ -884,7 +928,8 @@ WHERE keyspace_name = '{key_space}';"#
                     self.on_def = true;
                     return anyhow::Ok(());
                 }
-                self.on_table(&create_materialized_view.table).await?;
+                self.on_table_or_view(&create_materialized_view.table)
+                    .await?;
                 if self.finished() {
                     return anyhow::Ok(());
                 }
@@ -1034,7 +1079,7 @@ WHERE keyspace_name = '{key_space}';"#
                 }
             }
             CassandraStatement::Delete(delete) => {
-                self.on_table(&delete.table_name).await?;
+                self.on_table_or_view(&delete.table_name).await?;
                 if self.finished() {
                     return anyhow::Ok(());
                 }
@@ -1071,14 +1116,14 @@ WHERE keyspace_name = '{key_space}';"#
                 self.on_role(&common_drop.name.name).await?;
             }
             CassandraStatement::DropTable(common_drop) => {
-                self.on_table(&common_drop.name).await?;
+                self.on_table_or_view(&common_drop.name).await?;
             }
             CassandraStatement::DropTrigger(drop_trigger) => {
                 self.on_trigger(&drop_trigger.name).await?;
                 if self.finished() {
                     return anyhow::Ok(());
                 }
-                self.on_table(&drop_trigger.table).await?;
+                self.on_table_or_view(&drop_trigger.table).await?;
             }
             CassandraStatement::DropType(common_drop) => {
                 self.on_type(&common_drop.name).await?;
@@ -1092,7 +1137,7 @@ WHERE keyspace_name = '{key_space}';"#
                 }
             }
             CassandraStatement::Insert(insert) => {
-                self.on_table(&insert.table_name).await?;
+                self.on_table_or_view(&insert.table_name).await?;
                 if self.finished() {
                     return anyhow::Ok(());
                 }
@@ -1131,7 +1176,7 @@ WHERE keyspace_name = '{key_space}';"#
                 }
             }
             CassandraStatement::Select(select) => {
-                self.on_table(&select.table_name).await?;
+                self.on_table_or_view(&select.table_name).await?;
                 if self.finished() {
                     return anyhow::Ok(());
                 }
@@ -1164,10 +1209,10 @@ WHERE keyspace_name = '{key_space}';"#
                 }
             }
             CassandraStatement::Truncate(fqname) => {
-                self.on_table(fqname).await?;
+                self.on_table_or_view(fqname).await?;
             }
             CassandraStatement::Update(update) => {
-                self.on_table(&update.table_name).await?;
+                self.on_table_or_view(&update.table_name).await?;
                 if self.finished() {
                     return anyhow::Ok(());
                 }
@@ -1439,4 +1484,31 @@ const KEY_WORDS: &[&str] = &[
     "VIEW",
     "WHERE",
     "WITH",
+    "TABLE",
+];
+
+// https://docs.datastax.com/en/cql-oss/3.x/cql/cql_reference/cql_function_r.html
+const BUILD_IN_FN: &[&str] = &[
+    "typeAsBlob",
+    "blobAsType",
+    "dateOf",
+    "now",
+    "minTimeuuid",
+    "unixTimestampOf",
+    "toDate",
+    "toTimestamp",
+    "toUnixTimestamp",
+    "toDate",
+    "toUnixTimestamp",
+    "toTimestamp",
+    "toUnixTimestamp",
+    "TOKEN",
+    "WRITETIME",
+    "TTL",
+    // TODO. I don't find full list on build in aggregate function
+    "COUNT",
+    "MAX",
+    "MIN",
+    "SUM",
+    "AVG",
 ];

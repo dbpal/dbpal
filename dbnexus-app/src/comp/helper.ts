@@ -388,7 +388,7 @@ class ColumnWidths {
   }
 }
 var columnWidths = new ColumnWidths();
-
+const VisiableContext = createContext(true);
 const handleCopyToClipboard = (text, showNotification) => {
   writeText(text)
     .then(() => {
@@ -469,5 +469,6 @@ export {
   handleCopyToClipboard,
   datagridContainerHeight,
   uint8ArrayToUtf8,
-  filterStyle
+  filterStyle,
+  VisiableContext
 };
