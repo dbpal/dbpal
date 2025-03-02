@@ -204,7 +204,6 @@ const components: Components<
       },
       columnHeaders: {
         fontSize: '0.8rem', // 调整表头字体大小
-        fontWeight: 'normal', // 可选：调整表头字体粗细
       },
     },
   },

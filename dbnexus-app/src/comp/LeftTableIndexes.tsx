@@ -541,7 +541,6 @@ function RenameIndex(props: {
   };
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <TextField
         size="small"
         label="new name"
@@ -551,7 +550,12 @@ function RenameIndex(props: {
         }}
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleRename}>
+        <Button
+          color="primary"
+          variant="contained"
+          loading={loading}
+          onClick={handleRename}
+        >
           rename
         </Button>
       </Stack>

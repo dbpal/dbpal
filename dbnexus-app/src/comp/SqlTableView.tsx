@@ -11,6 +11,7 @@ import types from './ApiStruct';
 import {
   Box,
   Button,
+  Chip,
   Divider,
   FormControlLabel,
   ListItemIcon,
@@ -35,6 +36,7 @@ import KeyIcon from '@mui/icons-material/Key';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
+import { FaArrowsAltV } from 'react-icons/fa';
 import {
   calMenuStyle,
   columnWidths,
@@ -398,33 +400,26 @@ function SqlTableView(props: {
         >
           reload
         </Button>
-        <span
-          style={{
-            ...filterStyle.style,
-            backgroundColor: filterStyle.filter,
-          }}
+
+        <Chip
+          label={where}
           onClick={() => {
             setShowSetWhere(true);
           }}
-          className="hover-notice"
-        >
-          <span> filter:&nbsp;</span>
-          <span style={{ ...filterStyle.on }}>{where}</span>
-        </span>
+          color="primary"
+          icon={<FilterAltIcon />}
+          style={{ ...filterStyle.style }}
+        ></Chip>
 
-        <span
-          style={{
-            ...filterStyle.style,
-            backgroundColor: filterStyle.sort,
-          }}
+        <Chip
+          label={sort}
           onClick={() => {
             setShowSetSort(true);
           }}
-          className="hover-notice"
-        >
-          <span> sort: </span>
-          <span style={{ ...filterStyle.on }}>{sort}</span>
-        </span>
+          color="secondary"
+          icon={<FaArrowsAltV />}
+          style={{ ...filterStyle.style }}
+        ></Chip>
         {kind == DataSourceKind.Cassandra && (
           <FormControlLabel
             control={

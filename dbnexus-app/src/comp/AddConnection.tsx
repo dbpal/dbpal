@@ -405,9 +405,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
       case DataSourceKind.MsSql:
         setPort('1433');
         break;
-      case DataSourceKind.MsSql:
-        setPort('1433');
-        break;
       case DataSourceKind.Redis:
         setPort('6379');
         break;

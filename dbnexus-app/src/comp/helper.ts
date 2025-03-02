@@ -427,14 +427,9 @@ const ContextMenuContext = createContext<{
 
 const filterStyle = {
   style: {
-    cursor: 'pointer',
-    borderRadius: '44px',
-    color: 'black',
-    padding: '4px',
+    fontSize: '1.1rem',
+    fontWeight: 'bold'
   } as CSSProperties,
-  filter: '#28A745',
-  sort: '#5FBA7F',
-  on: { fontStyle: 'italic', fontWeight: '900', fontSize: '1.1rem' } as CSSProperties
 };
 
 export {

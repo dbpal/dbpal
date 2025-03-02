@@ -1,11 +1,11 @@
-import { Divider, Link, Stack, Typography } from '@mui/material';
+import { Link, Stack, Typography } from '@mui/material';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 function WelCome() {
   const databases = [
     {
       name: 'mysql',
-      img: 'https://www.kkidc.com/ask/uploads/allimg/20240827/2-240RG52U3600.jpg',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRK-pSuE46Eo2AAuNQlLg-KAuxpUTkQsCg75A&s',
     },
     {
       name: 'mariadb',
@@ -33,7 +33,7 @@ function WelCome() {
     },
     {
       name: 'mongo',
-      img: 'https://static001.geekbang.org/infoq/7f/7f7cb6ba3b1479f16a00139df6fa620f.jpeg',
+      img: 'https://mma.prnewswire.com/media/384058/MongoDB_Logo.jpg?p=facebook',
     },
     {
       name: 'postgres',
@@ -46,10 +46,13 @@ function WelCome() {
   ];
   return (
     <Stack spacing={1}>
-      <Typography variant="h4" style={{ fontWeight: '800' }}>
+      <Typography
+        variant="h4"
+        style={{ fontWeight: '800', textDecoration: 'underline' }}
+      >
         dbpal is a database management system that easy to use.
       </Typography>
-      <Divider style={{ borderWidth: '2px' }}></Divider>
+
       <Typography variant="h6" style={{ fontWeight: '800' }}>
         right now we support:
       </Typography>

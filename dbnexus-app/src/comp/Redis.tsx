@@ -220,10 +220,14 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleAdd}>
+        <Button
+          color="primary"
+          variant="contained"
+          loading={loading}
+          onClick={handleAdd}
+        >
           Add
         </Button>
-        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
     </Stack>
   );

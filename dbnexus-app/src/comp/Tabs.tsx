@@ -1,5 +1,12 @@
 import React, { useContext, useState } from 'react';
-import { Stack, Button, Paper, MenuItem, MenuList } from '@mui/material';
+import {
+  Stack,
+  Button,
+  Paper,
+  MenuItem,
+  MenuList,
+  Divider,
+} from '@mui/material';
 
 import {
   calMenuStyle,
@@ -174,6 +181,7 @@ function TabsWithContent_(props: {
           })}
         </Stack>
       )}
+      <Divider style={{ borderWidth: '2px' }}></Divider>
 
       <div style={{ paddingRight: '18px' }}>
         {tabs.map((tab, index) => (
