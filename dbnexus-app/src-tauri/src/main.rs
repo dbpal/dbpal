@@ -5,30 +5,31 @@ use dbnexus_db::app::{App, DBConnectionConfig};
 mod handlers;
 
 use handlers::{
-    PASSWORD_KEY, add_table_column, auto_completion, check_conn, close_conn,
+    PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
+    cassandra_list_aggregate, cassandra_show_aggregate, check_conn, close_conn,
     config_list_database_or_schema, create_database, create_index, create_schema, delete,
     delete_password, disable_trigger, drop_database, drop_index, drop_materialized_view,
     drop_procedure, drop_schema, drop_table, drop_table_column, drop_trigger, drop_udf, drop_view,
     duplicate_table, enable_trigger, export_query_result_to_file, export_table_or_view, format_sql,
-    insert, is_dangerous_sql, list_data_types, list_database, list_materialized_view,
-    list_procedure, list_schema, list_table, list_trigger, list_udf, list_view,
-    modify_table_column, mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id,
-    mongo_insert, mongo_list_time_serial_collection, mongo_query_collection_count_docs,
-    mongo_query_collection_create_index, mongo_query_collection_create_search_index,
-    mongo_query_collection_delete_many, mongo_query_collection_delete_one,
-    mongo_query_collection_distinct, mongo_query_collection_drop,
-    mongo_query_collection_drop_index, mongo_query_collection_drop_indexes,
-    mongo_query_collection_drop_search_index, mongo_query_collection_find,
-    mongo_query_collection_find_one, mongo_query_collection_find_one_and_delete,
-    mongo_query_collection_find_one_and_replace, mongo_query_collection_insert_many,
-    mongo_query_collection_insert_one, mongo_query_collection_list_index_names,
-    mongo_query_collection_list_indexes, mongo_query_collection_list_search_indexes,
-    mongo_query_collection_replace_one, mongo_query_collection_update_many,
-    mongo_query_collection_update_one, mongo_query_db_drop, mongo_query_db_list_collection_names,
-    mongo_query_db_run_command, mongo_show_collection_docs, mongo_show_collection_table_list,
-    mongo_update_one, open_conn, oracle_query_autocommit, oracle_query_commit,
-    oracle_query_rollback, oracle_query_set_autocommit, page_init_callback, put_value_in_sql,
-    query_logs, query_sql, query_sql_close_connection, query_sql_open_connection,
+    insert, is_dangerous_sql, list_created_types, list_data_types, list_database,
+    list_materialized_view, list_procedure, list_schema, list_table, list_trigger, list_udf,
+    list_view, modify_table_column, mongo_create_index, mongo_delete_ids,
+    mongo_get_one_document_by_id, mongo_insert, mongo_list_time_serial_collection,
+    mongo_query_collection_count_docs, mongo_query_collection_create_index,
+    mongo_query_collection_create_search_index, mongo_query_collection_delete_many,
+    mongo_query_collection_delete_one, mongo_query_collection_distinct,
+    mongo_query_collection_drop, mongo_query_collection_drop_index,
+    mongo_query_collection_drop_indexes, mongo_query_collection_drop_search_index,
+    mongo_query_collection_find, mongo_query_collection_find_one,
+    mongo_query_collection_find_one_and_delete, mongo_query_collection_find_one_and_replace,
+    mongo_query_collection_insert_many, mongo_query_collection_insert_one,
+    mongo_query_collection_list_index_names, mongo_query_collection_list_indexes,
+    mongo_query_collection_list_search_indexes, mongo_query_collection_replace_one,
+    mongo_query_collection_update_many, mongo_query_collection_update_one, mongo_query_db_drop,
+    mongo_query_db_list_collection_names, mongo_query_db_run_command, mongo_show_collection_docs,
+    mongo_show_collection_table_list, mongo_update_one, open_conn, oracle_query_autocommit,
+    oracle_query_commit, oracle_query_rollback, oracle_query_set_autocommit, page_init_callback,
+    put_value_in_sql, query_logs, query_sql, query_sql_close_connection, query_sql_open_connection,
     query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
     redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_set_add,
     redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
@@ -56,6 +57,7 @@ fn main_() {
     env_logger::init();
     let app = App::new();
     tauri::Builder::default()
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
@@ -70,7 +72,6 @@ fn main_() {
             {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
-                // window.close_devtools();
             }
 
             let store = app.store("store.json").unwrap();
@@ -132,32 +133,12 @@ fn main_() {
                     &PredefinedMenuItem::undo(handle, None)?,
                     &PredefinedMenuItem::redo(handle, None)?,
                 ])?,
+                #[cfg(any(target_os = "windows", target_os = "macos"))]
                 &Submenu::with_items(handle, "window", true, &[
                     #[cfg(any(target_os = "windows", target_os = "macos"))]
                     &PredefinedMenuItem::maximize(handle, None)?,
                     #[cfg(any(target_os = "windows", target_os = "macos"))]
                     &PredefinedMenuItem::minimize(handle, None)?,
-                    // &MenuItem::with_id(
-                    //     handle,
-                    //     "zoom_in",
-                    //     "zoom in",
-                    //     true,
-                    //     None as Option<&'static str>,
-                    // )?,
-                    // &MenuItem::with_id(
-                    //     handle,
-                    //     "zoom_out",
-                    //     "zoom out",
-                    //     true,
-                    //     None as Option<&'static str>,
-                    // )?,
-                    // &MenuItem::with_id(
-                    //     handle,
-                    //     "zoom_reset",
-                    //     "zoom reset",
-                    //     true,
-                    //     None as Option<&'static str>,
-                    // )?,
                     #[cfg(any(target_os = "macos"))]
                     &PredefinedMenuItem::fullscreen(handle, None)?,
                 ])?,
@@ -169,6 +150,7 @@ fn main_() {
                         true,
                         None as Option<&'static str>,
                     )?,
+                    #[cfg(any(target_os = "macos"))]
                     &PredefinedMenuItem::about(handle, None, None)?,
                 ])?,
             ])
@@ -181,15 +163,7 @@ fn main_() {
             if event.id.0 == "show_settings" {
                 handle.emit("show_settings", "").unwrap();
             }
-            if event.id.0 == "zoom_in" {
-                handle.emit("zoom_in", "").unwrap();
-            }
-            if event.id.0 == "zoom_out" {
-                handle.emit("zoom_out", "").unwrap();
-            }
-            if event.id.0 == "zoom_reset" {
-                handle.emit("zoom_reset", "").unwrap();
-            }
+
             if event.id.0 == "open_dev_tools" {
                 let window = handle.get_webview_window("main").unwrap();
                 window.open_devtools();
@@ -312,7 +286,11 @@ fn main_() {
             create_index,
             mongo_list_time_serial_collection,
             mongo_create_index,
-            put_value_in_sql
+            put_value_in_sql,
+            cassandra_drop_aggregate,
+            cassandra_list_aggregate,
+            cassandra_show_aggregate,
+            list_created_types
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

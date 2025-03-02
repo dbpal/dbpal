@@ -1,5 +1,9 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { modalStyle, progressBarSize, progressBarSizeSmall } from './Common';
+import {
+  modalStyle,
+  progressBarSizeSmall,
+  treeItemCommonStyle,
+} from './Common';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import {
   Box,
@@ -72,6 +76,7 @@ function Menu(props: {
           handleClose={() => {
             setShowAdd(false);
           }}
+          kind={kind}
           realod={reload}
         ></AddIndex>
       );
@@ -95,12 +100,14 @@ function Menu(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowAdd(false);
           }}
-          aria-labelledby="create database"
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="900px">
             {addIndex}
           </Box>
         </Modal>
@@ -180,8 +187,14 @@ function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
   );
 }
 
-function AddIndex(props: { uuid; table; handleClose; realod }) {
-  let { uuid, table, handleClose, realod } = props;
+function AddIndex(props: {
+  uuid;
+  table;
+  handleClose;
+  realod;
+  kind: DataSourceKind;
+}) {
+  let { uuid, table, handleClose, realod, kind } = props;
 
   const [fields, setFields] = useState<types.Field[]>([]);
   const [includes, setIncludes] = useState<string[]>([]);
@@ -190,6 +203,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
   const [indexType, setIndexType] = useState(indexTypes[0]);
   const [indexName, setIndexName] = useState('');
   const indexNameDom = useRef<HTMLInputElement>(null);
+  const supportUnique = kind != DataSourceKind.Cassandra;
 
   useEffect(() => {
     invoke<types.Field[]>('show_table_columns', {
@@ -242,10 +256,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
         size="small"
         required
       ></TextField>
-      <Stack
-        direction="row"
-        style={{ flexWrap: 'wrap', justifyItems: 'flex-end' }}
-      >
+      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography> includes: </Typography>
 
         {includes.map((x) => (
@@ -262,10 +273,7 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
         ))}
       </Stack>
 
-      <Stack
-        direction="row"
-        style={{ flexWrap: 'wrap', justifyItems: 'flex-end' }}
-      >
+      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography> candidates: </Typography>
         {fields
           .filter((f) => includes.find((e) => e == f.field) == undefined)
@@ -281,19 +289,28 @@ function AddIndex(props: { uuid; table; handleClose; realod }) {
             </Button>
           ))}
       </Stack>
-      <FormLabel component="legend">select a type</FormLabel>
-      <RadioGroup
-        row
-        onChange={(e) => {
-          setIndexType(e.target.value);
-        }}
-        value={indexType}
-      >
-        {indexTypes.map((e) => (
-          <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
-        ))}
-      </RadioGroup>
 
+      {supportUnique && (
+        <>
+          <FormLabel component="legend">select a type</FormLabel>
+          <RadioGroup
+            row
+            onChange={(e) => {
+              setIndexType(e.target.value);
+            }}
+            value={indexType}
+          >
+            {indexTypes.map((e) => (
+              <FormControlLabel
+                key={e}
+                value={e}
+                control={<Radio />}
+                label={e}
+              />
+            ))}
+          </RadioGroup>
+        </>
+      )}
       <Divider></Divider>
       <Stack direction="row">
         <Button onClick={handleAdd} variant="contained" color="primary">
@@ -348,6 +365,7 @@ function LeftIndexes(props: { table: string }) {
             style: calMenuStyle(e, 70),
           });
         }}
+        style={{ ...treeItemCommonStyle }}
       >
         <span>indexes </span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -378,6 +396,7 @@ function LeftIndexes(props: { table: string }) {
                     }
                   : undefined
               }
+              style={{ ...treeItemCommonStyle }}
             >
               <Tooltip title={index.kind}>
                 <span>{index.name}</span>
@@ -388,7 +407,7 @@ function LeftIndexes(props: { table: string }) {
               <TreeItem
                 key={e}
                 itemId={idPrefix + '-index-' + index.name + '-col-' + e}
-                label=<span>{e}</span>
+                label=<span style={{ ...treeItemCommonStyle }}>{e}</span>
               ></TreeItem>
             ))}
           </TreeItem>
@@ -459,10 +478,12 @@ function IndexMenu(props: {
       {showRename && (
         <Modal
           open={showRename}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowRename(false);
           }}
-          aria-labelledby="rename"
         >
           <Box sx={modalStyle} width="800px">
             <RenameIndex
@@ -519,7 +540,6 @@ function RenameIndex(props: {
   };
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <TextField
         size="small"
         label="new name"
@@ -529,7 +549,12 @@ function RenameIndex(props: {
         }}
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleRename}>
+        <Button
+          color="primary"
+          variant="contained"
+          loading={loading}
+          onClick={handleRename}
+        >
           rename
         </Button>
       </Stack>

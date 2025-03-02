@@ -5,12 +5,12 @@ use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
 use crate::datasource_config::{
-    MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
-    SqliteDBConfig,
+    CassandraDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig,
+    SqlServerDBConfig, SqliteDBConfig,
 };
 use crate::db::{
-    CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, SqlExecuteRet,
-    TableListResp,
+    CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, ShowExtraArgs,
+    SqlExecuteRet, TableListResp,
 };
 use crate::mongo::Mongo;
 use crate::redis::{RedisDB, RedisListTable};
@@ -31,7 +31,8 @@ impl DBConnectionConfig {
             | DBConnectionConfig::SqlServer { name, .. }
             | DBConnectionConfig::Mongo { name, .. }
             | DBConnectionConfig::Redis { name, .. }
-            | DBConnectionConfig::Oracle { name, .. } => name.as_str(),
+            | DBConnectionConfig::Oracle { name, .. }
+            | DBConnectionConfig::Cassandra { name, .. } => name.as_str(),
         }
     }
 }
@@ -84,6 +85,11 @@ pub enum DBConnectionConfig {
         conn: OracleDBConfig,
         name: String,
     },
+    Cassandra {
+        #[serde(flatten)]
+        conn: CassandraDBConfig,
+        name: String,
+    },
 }
 
 impl DBConnectionConfig {
@@ -114,6 +120,7 @@ impl DBConnectionConfig {
             DBConnectionConfig::Oracle { conn, .. } => {
                 conn.password = pass;
             }
+            DBConnectionConfig::Cassandra { conn, .. } => conn.password = Some(pass),
         }
     }
 }
@@ -154,7 +161,6 @@ impl DBConnectionConfig {
                     anyhow::Ok(Open::DataBase(db))
                 }
             },
-
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
@@ -176,7 +182,6 @@ impl DBConnectionConfig {
                     None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
-
             DBConnectionConfig::Mongo { conn, name: _ } => {
                 let db: Arc<Mongo> = Arc::new(crate::mongo::Mongo::new(conn.clone())?);
                 match conn.db {
@@ -207,6 +212,14 @@ impl DBConnectionConfig {
                     anyhow::Ok(Open::DataBase(db))
                 }
             },
+            DBConnectionConfig::Cassandra { conn, .. } => {
+                let redis = crate::cassandra::CassandraDB::new(conn.clone()).await?;
+                let db = match &conn.keyspace {
+                    Some(_) => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
+                    None => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
+                };
+                anyhow::Ok(db)
+            }
         }
     }
 }
@@ -255,40 +268,57 @@ type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
 impl App {
     pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
-        static mut XXX: Option<GetConfigFN> = None;
+        static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
         #[allow(static_mut_refs)] // this var will init once by main
-        &mut XXX
+        &mut GET_CONFIG_FN
     }
 
-    pub async fn enter_open_child(&self, name: &str, db: &Open) -> anyhow::Result<()> {
-        match &db {
+    pub async fn enter_open_child(&self, name: &str, open: &Open) -> anyhow::Result<()> {
+        match &open {
             Open::Catalog(catalog_trait) => {
                 let databases = catalog_trait.list_database().await?;
                 for database in databases.iter() {
-                    let dbtrait = catalog_trait.open_db(&database).await?;
-                    self.opens
-                        .lock()
-                        .await
-                        .insert(format!("{}/{}", name, database), dbtrait.clone().into());
+                    let name = format!("{}/{}", name, database);
+                    let dbtrait = match self.get_opened(&name).await {
+                        Ok(x) => match x {
+                            Open::DataBase(x) => x.clone(),
+                            _ => unreachable!(),
+                        },
+                        Err(_) => {
+                            let dbtrait = catalog_trait.open_db(&database).await?;
+                            self.opens
+                                .lock()
+                                .await
+                                .insert(name.clone(), dbtrait.clone().into());
+                            dbtrait.clone()
+                        }
+                    };
 
                     let schemas = dbtrait.list_schema().await?;
                     for schema in schemas.iter() {
-                        let s = dbtrait.open_schema(&schema).await?;
-                        self.opens
-                            .lock()
-                            .await
-                            .insert(format!("{}/{}/{}", name, database, schema), s.into());
+                        let name = format!("{}/{}/{}", name, database, schema);
+                        match self.get_opened(&name).await {
+                            Ok(_) => {}
+                            Err(_) => {
+                                let s = dbtrait.open_schema(&schema).await?;
+                                self.opens.lock().await.insert(name, s.into());
+                            }
+                        }
                     }
                 }
             }
+
             Open::DataBase(dbtrait) => {
                 let schemas = dbtrait.list_schema().await?;
-                for database in schemas.iter() {
-                    let s = dbtrait.open_schema(&database).await?;
-                    self.opens
-                        .lock()
-                        .await
-                        .insert(format!("{}/{}", name, database), s.into());
+                for schema in schemas.iter() {
+                    let name = format!("{}/{}", name, schema);
+                    match self.get_opened(&name).await {
+                        Ok(_) => {}
+                        Err(_) => {
+                            let s = dbtrait.open_schema(&schema).await?;
+                            self.opens.lock().await.insert(name, s.into());
+                        }
+                    }
                 }
             }
             Open::Schema(_) => {}
@@ -363,10 +393,10 @@ impl App {
 
     pub async fn show_table(
         &self, name: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>,
-        page: usize, page_size: usize,
+        page: usize, page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let db = self.get_schema(name).await?;
-        db.show_table(table_name, where_str, order_by, page, page_size)
+        db.show_table(table_name, where_str, order_by, page, page_size, extra)
             .await
     }
 
@@ -421,10 +451,10 @@ impl App {
 
     pub async fn show_view(
         &self, name: &str, view_name: &str, where_str: Option<&str>, order_by: Option<&str>,
-        page: usize, page_size: usize,
+        page: usize, page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let db = self.get_schema(name).await?;
-        db.show_view(view_name, where_str, order_by, page, page_size)
+        db.show_view(view_name, where_str, order_by, page, page_size, _extra)
             .await
     }
 
@@ -443,7 +473,7 @@ impl App {
         let db = self.opens.lock().await.get(name).map(|x| x.clone());
         let x = match db {
             Some(x) => x,
-            None => anyhow::bail!("db '{}' not found", name),
+            None => anyhow::bail!("db '{}' not found,the database maybe closed??", name),
         };
         anyhow::Ok(x)
     }

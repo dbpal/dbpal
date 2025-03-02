@@ -10,18 +10,18 @@ use sqlparser::{
 /// front can execute a sequence of sql.
 /// this represent a single query and a kind.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SqlSeq {
+pub struct SqlWithKind {
     pub sql: String,
     pub kind: SqlKind,
 }
-impl SqlSeq {
+impl SqlWithKind {
     pub fn new(sql: impl Into<String>, kind: SqlKind) -> Self {
         let sql = sql.into();
         Self { sql, kind }
     }
 }
 
-impl std::fmt::Display for SqlSeq {
+impl std::fmt::Display for SqlWithKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "kind:{:?} sql:{}", self.kind, self.sql)
     }
@@ -107,7 +107,7 @@ pub fn sql_to_sql_seq(
     sql: &str, dialect: &dyn Dialect,
     statement_kind_stmt: impl Fn(&Statement) -> anyhow::Result<SqlKind>,
     statement_kind_sql: impl Fn(&str) -> anyhow::Result<SqlKind>,
-) -> anyhow::Result<Vec<SqlSeq>> {
+) -> anyhow::Result<Vec<SqlWithKind>> {
     fn get_sql(
         lineindex: &line_index::LineIndex, sql: &str, start: Location, end: Option<Location>,
     ) -> String {
@@ -141,7 +141,7 @@ pub fn sql_to_sql_seq(
     fn cut_sql_to_each_statement_ast(
         sql: &str, dialect: &dyn Dialect,
         statement_kind: impl Fn(&Statement) -> anyhow::Result<SqlKind>,
-    ) -> anyhow::Result<Vec<SqlSeq>> {
+    ) -> anyhow::Result<Vec<SqlWithKind>> {
         let lines = line_index::LineIndex::new(sql);
         let parser = sqlparser::parser::Parser::new(dialect);
         let mut parser = parser.try_with_sql(sql)?;
@@ -164,7 +164,7 @@ pub fn sql_to_sql_seq(
                     Some(t.span.start)
                 }
             });
-            ret.push(SqlSeq::new(sql, kind));
+            ret.push(SqlWithKind::new(sql, kind));
         }
         anyhow::Ok(ret)
     }
@@ -175,7 +175,7 @@ pub fn sql_to_sql_seq(
     // cut sql by semicolon
     fn cut_sql_to_each_statement_semi_colon(
         sql: &str, dialect: &dyn Dialect, statement_kind: impl Fn(&str) -> anyhow::Result<SqlKind>,
-    ) -> anyhow::Result<Vec<SqlSeq>> {
+    ) -> anyhow::Result<Vec<SqlWithKind>> {
         let lines = line_index::LineIndex::new(sql);
         let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql).tokenize_with_location()?;
         if tokens.len() == 0 {
@@ -199,7 +199,7 @@ pub fn sql_to_sql_seq(
                 );
                 let kind = statement_kind(sql.as_str())?;
                 if sql != ";" && !sql.is_empty() {
-                    ret.push(SqlSeq::new(sql, kind));
+                    ret.push(SqlWithKind::new(sql, kind));
                 }
                 if index + 1 < tokens.len() {
                     start = &tokens[index + 1];

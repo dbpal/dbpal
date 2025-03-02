@@ -16,8 +16,8 @@ use typescript_type_def::TypeDef;
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, ListTable,
-    QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp,
+    QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlExecuteRet, TableListResp,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
@@ -807,7 +807,7 @@ impl SchemaTrait for RedisDB {
 
     async fn show_table(
         &self, key: &str, where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize,
+        _page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
         let typ = Self::get_key_type(&mut conn, key).await?;
@@ -1661,7 +1661,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
-        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
@@ -1671,7 +1674,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, None, None, 1, 100)
+            .show_table(&table_name_dup, None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp, resp2);
@@ -1821,7 +1824,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
-        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
@@ -1830,7 +1836,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, None, None, 1, 100)
+            .show_table(&table_name_dup, None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp, resp2);
@@ -1889,7 +1895,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
-        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("resp:{:?}", resp);
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
@@ -1898,7 +1907,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, None, None, 1, 100)
+            .show_table(&table_name_dup, None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp, resp2);
@@ -1960,7 +1969,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
-        let resp = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("resp:{:?}", resp);
 
         // dup table and test eq
@@ -1970,7 +1982,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, None, None, 1, 100)
+            .show_table(&table_name_dup, None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp, resp2);

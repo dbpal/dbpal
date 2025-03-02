@@ -66,6 +66,14 @@ export namespace types {
         "read_only": boolean;
         "db": string;
     };
+    export type CassandraDBConfig = {
+        "host": string;
+        "port": (types.U16 | null);
+        "username": (string | null);
+        "password": (string | null);
+        "keyspace": (string | null);
+        "read_only": boolean;
+    };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -102,6 +110,10 @@ export namespace types {
         "conn_type": "oracle";
     } & (types.OracleDBConfig & {
         "name": string;
+    })) | ({
+        "conn_type": "cassandra";
+    } & (types.CassandraDBConfig & {
+        "name": string;
     })));
     export type ListTable = {
         "name": string;
@@ -122,6 +134,7 @@ export namespace types {
          */
         "is_primary": boolean;
         "is_auto_increment": boolean;
+        "sortable": boolean;
     };
     export type IndexKind = ("Index" | "Unique" | "Primary");
     export type Index = {
@@ -150,6 +163,8 @@ export namespace types {
      * named staff maybe used for view udf etc...
      */
     export type NamedStaff = {
+        "parameters": (string | null);
+        "cassandra_parameters": ((string)[] | null);
         "name": string;
         "metas": (types.MetaValue)[];
     };
@@ -203,7 +218,7 @@ export namespace types {
         "desc": (string | null);
     };
     export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule");
-    export type UdfDetail = {
+    export type DefAndMetas = {
         "def": string;
         "metas": (types.MetaValue)[];
     };

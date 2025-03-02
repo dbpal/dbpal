@@ -4,6 +4,7 @@ import {
   progressBarSizeSmall,
   tabsHasId,
   DocsAndCount,
+  treeItemCommonStyle,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -130,7 +131,7 @@ function TablesTree(props: { typ: TablesType }) {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'flex-start' }}
+        sx={{ alignItems: 'flex-start', ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -190,7 +191,6 @@ function TableTree(props: {
           direction="row"
           spacing={1}
           justifyContent="space-between"
-          alignContent="center"
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -204,6 +204,7 @@ function TableTree(props: {
               style: calMenuStyle(e, 200),
             });
           }}
+          style={{ ...treeItemCommonStyle }}
         >
           <Stack direction="row" spacing={1}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
@@ -263,8 +264,9 @@ function ModifyTableColumn(props: {
   handleClose;
   reload;
   typ: string;
+  kind: DataSourceKind;
 }) {
-  let { uuid, table, col, handleClose, reload, typ } = props;
+  let { uuid, table, col, handleClose, reload, typ, kind } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
   const [newTyp, setNewTyp] = useState(typ);
@@ -356,10 +358,12 @@ function ModifyTableColumn(props: {
             ></TextField>
             <ColumnParentThesesHint />
           </Stack>
-          <ColumnNullness
-            nullness={nullness}
-            handleNullness={setNullness}
-          ></ColumnNullness>
+          {kindSupportNull(kind) && (
+            <ColumnNullness
+              nullness={nullness}
+              handleNullness={setNullness}
+            ></ColumnNullness>
+          )}
         </Stack>
       )}
       <Stack direction="row" spacing={1}>
@@ -408,10 +412,12 @@ function TableColumnsMenu(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowAdd(false);
           }}
-          aria-labelledby="add column"
         >
           <Box sx={modalStyle} width="900px">
             <TableAddColumn
@@ -433,6 +439,13 @@ function TableColumnsMenu(props: {
 
 function ColumnParentThesesHint() {
   return <span> some type require specify a size like `varchar(128)`</span>;
+}
+
+function kindSupportNull(kind: DataSourceKind): boolean {
+  return kind != DataSourceKind.Cassandra;
+}
+function kindSupportDefault(kind: DataSourceKind): boolean {
+  return kind != DataSourceKind.Cassandra;
 }
 function TableAddColumn(props: {
   table: string;
@@ -488,6 +501,8 @@ function TableAddColumn(props: {
       });
   };
 
+  const supportNull = kindSupportNull(kind);
+  const supportDefault = kindSupportDefault(kind);
   return (
     <Stack spacing={1}>
       <TextField
@@ -517,21 +532,26 @@ function TableAddColumn(props: {
         ></TextField>
         <ColumnParentThesesHint />
       </Stack>
-      <ColumnNullness
-        nullness={nullness}
-        handleNullness={(e) => {
-          setNullness(e);
-        }}
-      ></ColumnNullness>
+      {supportNull && (
+        <ColumnNullness
+          nullness={nullness}
+          handleNullness={(e) => {
+            setNullness(e);
+          }}
+        ></ColumnNullness>
+      )}
 
-      <Stack>
-        <TextField
-          size="small"
-          value={defaultValue}
-          onChange={(e) => setDefaultValue(e.target.value)}
-          label="default value"
-        ></TextField>
-      </Stack>
+      {supportDefault && (
+        <Stack>
+          <TextField
+            size="small"
+            value={defaultValue}
+            onChange={(e) => setDefaultValue(e.target.value)}
+            label="default value"
+          ></TextField>
+        </Stack>
+      )}
+
       {supportAfter && (
         <FormControl style={{ minWidth: '180px' }}>
           <InputLabel id="dropdown-label">Select After column </InputLabel>
@@ -616,7 +636,8 @@ function TableColumnsTree(props: { table: string }) {
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.Oracle ||
-    kind == DataSourceKind.TiDB;
+    kind == DataSourceKind.TiDB ||
+    kind == DataSourceKind.Cassandra;
 
   useEffect(() => {
     reload();
@@ -628,6 +649,7 @@ function TableColumnsTree(props: { table: string }) {
       itemId={uuid + '-table-' + table + 'columns'}
       label=<Stack
         spacing={1}
+        style={{ ...treeItemCommonStyle }}
         direction="row"
         onContextMenu={(e) => {
           setUpMenu({
@@ -665,6 +687,7 @@ function TableColumnsTree(props: { table: string }) {
                         col={f.field}
                         reload={reload}
                         typ={f.typ}
+                        kind={kind}
                       ></TableColumnMenu>
                     ),
                     style: calMenuStyle(e, 70),
@@ -673,7 +696,11 @@ function TableColumnsTree(props: { table: string }) {
               : undefined
           }
           itemId={idPrefix + '-' + f.field}
-          label=<Stack direction="row" spacing={1}>
+          label=<Stack
+            direction="row"
+            spacing={1}
+            style={{ ...treeItemCommonStyle }}
+          >
             {f.field} <em>({f.typ}) </em>
           </Stack>
         ></TreeItem>
@@ -772,13 +799,16 @@ async function makeViewTable(
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
     case DataSourceKind.TiDB:
+    case DataSourceKind.Cassandra:
       tableList = (
         <SqlTableView
+          kind={kind}
           reloadOP={async (
             where: string,
             orderBy: string,
             page: number,
-            pageSize: number
+            pageSize: number,
+            extra
           ) => {
             let where_null = where ? where : null;
             let orderBy_null = orderBy ? orderBy : null;
@@ -789,6 +819,7 @@ async function makeViewTable(
               orderBy: orderBy_null,
               page,
               pageSize,
+              extra,
             });
           }}
           updateOP={async (wheres, values) => {
@@ -1068,6 +1099,7 @@ async function makeAddTable(
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
     case DataSourceKind.TiDB:
+    case DataSourceKind.Cassandra:
       tableList = (
         <SqlTableViewAdd
           addOP={async (values) => {
@@ -1360,10 +1392,12 @@ function TableMenu(props: {
       {showDup && (
         <Modal
           open={showDup}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setshowDup(false);
           }}
-          aria-labelledby="set filter"
         >
           <Box sx={modalStyle} width="800px">
             <DupTable
@@ -1380,10 +1414,12 @@ function TableMenu(props: {
       {showRename && (
         <Modal
           open={showRename}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowRename(false);
           }}
-          aria-labelledby="rename"
         >
           <Box sx={modalStyle} width="800px">
             <RenameTable
@@ -1400,10 +1436,12 @@ function TableMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowExport(false);
           }}
-          aria-labelledby="drop"
         >
           <Box sx={modalStyle} width="700px">
             <ExportTableOrView
@@ -1422,10 +1460,12 @@ function TableMenu(props: {
       {showDrop && (
         <Modal
           open={showDrop}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowDrop(false);
           }}
-          aria-labelledby="drop"
         >
           <Box sx={modalStyle} width="800px">
             <DropTable
@@ -1450,8 +1490,9 @@ function TableColumnMenu(props: {
   col: string;
   reload;
   typ: string;
+  kind: DataSourceKind;
 }) {
-  const { table, col, reload, uuid, typ } = props;
+  const { table, col, reload, uuid, typ, kind } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showModify, setShowModify] = useState(false);
   const handleDrop = async () => {
@@ -1506,10 +1547,12 @@ function TableColumnMenu(props: {
       {showModify && (
         <Modal
           open={showModify}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowModify(false);
           }}
-          aria-labelledby="set filter"
         >
           <Box sx={modalStyle} width="800px">
             <ModifyTableColumn
@@ -1519,6 +1562,7 @@ function TableColumnMenu(props: {
               handleClose={() => {
                 setShowModify(false);
               }}
+              kind={kind}
               typ={typ}
               reload={reload}
             ></ModifyTableColumn>
@@ -1564,7 +1608,7 @@ function DupTable(props: {
       <TextField
         size="small"
         value={name}
-        label="Duplicate Name"
+        label="duplicate name"
         onChange={(e) => {
           setName(e.target.value);
         }}
@@ -1593,9 +1637,17 @@ function RenameTable(props: {
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(table);
   const { showNotification } = useContext(NotificationContext);
-  const handleRename = () => {
+  const handleRename = async () => {
     if (newName == table) {
       showNotification('error', 'name not changed');
+      return;
+    }
+    const confirm = await secondConfirm({
+      title: 'rename table',
+      content: `are u sure going to rename table '${table}'`,
+      confirmText: 'rename',
+    });
+    if (!confirm) {
       return;
     }
     setLoading(true);
@@ -1720,7 +1772,7 @@ function RedisTables(prpos: { schema?: string }) {
         label=<Stack
           spacing={1}
           direction="row"
-          sx={{ alignItems: 'flex-end' }}
+          sx={{ alignItems: 'flex-end', ...treeItemCommonStyle }}
         >
           {/* <span>{icon} </span> */}
           <span>{name}</span>
@@ -1731,6 +1783,7 @@ function RedisTables(prpos: { schema?: string }) {
             key={table}
             itemId={idPrefix + table}
             label=<Stack
+              style={{ ...treeItemCommonStyle }}
               direction="row"
               onContextMenu={(e) => {
                 setUpMenu({
@@ -1762,6 +1815,7 @@ function RedisTables(prpos: { schema?: string }) {
       label=<Stack
         spacing={1}
         direction="row"
+        style={{ ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -1782,7 +1836,7 @@ function RedisTables(prpos: { schema?: string }) {
             <Typography color="error">keys</Typography>
           </Tooltip>
         ) : (
-          <Typography>keys</Typography>
+          <span>keys</span>
         )}
 
         {loading && (
@@ -1794,7 +1848,7 @@ function RedisTables(prpos: { schema?: string }) {
         itemId={filterTreeID}
         label=<Stack
           direction="row"
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'pointer', ...treeItemCommonStyle }}
           onClick={() => {
             setShowEditFilter(true);
           }}
@@ -1832,10 +1886,12 @@ function RedisTables(prpos: { schema?: string }) {
       {showEditFilter && (
         <Modal
           open={showEditFilter}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowEditFilter(false);
           }}
-          aria-labelledby="add column"
         >
           <Box sx={modalStyle} width="800px">
             <TextField

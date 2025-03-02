@@ -1,12 +1,19 @@
 import React, { useContext, useState } from 'react';
-import { Stack, Button, Paper, MenuItem, MenuList } from '@mui/material';
+import {
+  Stack,
+  Button,
+  Paper,
+  MenuItem,
+  MenuList,
+  Divider,
+} from '@mui/material';
 
-import { VisiableContext } from './Common';
 import {
   calMenuStyle,
   ContextMenuContext,
   secondConfirm,
   TabContent,
+  VisiableContext,
 } from './helper';
 
 function TabsMenu(props: {
@@ -120,7 +127,7 @@ function TabsWithContent_(props: {
   const { setUpMenu } = useContext(ContextMenuContext);
   const [hideAll, setHideAll] = useState(false);
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1}>
       {hideAll && (
         <Stack>
           <Button
@@ -163,6 +170,7 @@ function TabsWithContent_(props: {
                   });
                 }}
                 variant={index == selectIndex ? 'contained' : 'text'}
+                color={index == selectIndex ? 'info' : 'inherit'}
                 onClick={() => {
                   changeTab(index);
                 }}
@@ -173,8 +181,9 @@ function TabsWithContent_(props: {
           })}
         </Stack>
       )}
+      <Divider style={{ borderWidth: '2px' }}></Divider>
 
-      <div style={{ width: '99%' }}>
+      <div style={{ paddingRight: '18px' }}>
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
             <div hidden={selectIndex !== index}>{tab.content}</div>

@@ -10,11 +10,11 @@ use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, DBTrait, ExportKind,
     Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfDetail, UdfOrPrecedureExtraParameter,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, DefAndMetas, UdfOrProcedureExtraParameter,
     format_data_time_fix_offset, not_support_features,
 };
-use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use chrono::FixedOffset;
@@ -270,9 +270,6 @@ fn make_table_list_from_meta_and_row(
 }
 
 fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    if rows.len() == 0 {
-        return anyhow::Ok(vec![]);
-    }
     let mut data = vec![];
     for r in rows.iter() {
         let mut values: Vec<Option<String>> = Vec::new();
@@ -448,7 +445,7 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
@@ -458,7 +455,7 @@ impl SchemaTrait for MsSqlServer {
                 IndexKind::Unique => "Unique",
             },
             name,
-            fileds.join(",")
+            fields.join(",")
         );
         let mut conn = self.get_conn().await?;
         conn.execute(&sql, &[]).await?;
@@ -610,7 +607,7 @@ impl SchemaTrait for MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(x) => {
-                    let name: Option<&str> = x.get(0);
+                    let name: Option<&str> = x.try_get(0)?;
                     ret.push(name.unwrap().to_string());
                 }
                 tiberius::QueryItem::Metadata(_) => {}
@@ -641,9 +638,9 @@ impl SchemaTrait for MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(x) => {
-                    let name: Option<bool> = x.get(0);
-                    let is_instead_of_trigger: Option<bool> = x.get(1);
-                    let sql: Option<&str> = x.get(2);
+                    let name: Option<bool> = x.try_get(0)?;
+                    let is_instead_of_trigger: Option<bool> = x.try_get(1)?;
+                    let sql: Option<&str> = x.try_get(2)?;
                     result = Some((
                         name.unwrap_or_default(),
                         is_instead_of_trigger.unwrap_or_default(),
@@ -724,7 +721,7 @@ impl SchemaTrait for MsSqlServer {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -751,7 +748,7 @@ impl SchemaTrait for MsSqlServer {
             }
         }
         let ret = match meta {
-            Some(x) => make_table_list_from_meta_and_row(&x, &rows, total as usize, sql)?,
+            Some(meta) => make_table_list_from_meta_and_row(&meta, &rows, total as usize, sql)?,
             None => anyhow::bail!("SELECT should yield at lease one meta"),
         };
         anyhow::Ok(ret)
@@ -837,12 +834,12 @@ impl SchemaTrait for MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
-                    let name: Option<&str> = row.get(0);
+                    let name: Option<&str> = row.try_get(0)?;
                     let name = name.unwrap().to_string();
-                    let data_type: Option<&str> = row.get(1);
+                    let data_type: Option<&str> = row.try_get(1)?;
                     let data_type = data_type.unwrap().to_string();
-                    let default_value: Option<&str> = row.get(2);
-                    let nullable: Option<&str> = row.get(3);
+                    let default_value: Option<&str> = row.try_get(2)?;
+                    let nullable: Option<&str> = row.try_get(3)?;
                     ret.push(Field::new(
                         name,
                         data_type,
@@ -871,7 +868,7 @@ impl SchemaTrait for MsSqlServer {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -1012,14 +1009,19 @@ impl SchemaTrait for MsSqlServer {
             .map(|x| format!("'{}'", x))
             .unwrap_or("null".to_string());
         let v = match typ.to_uppercase().as_str() {
-            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" => default_value,
-            "BIT" => default_value,
-            "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" => single_quote,
-            "BINARY" | "VARBINARY" | "IMAGE" | "UNIQUEIDENTIFIER" | "NUMERIC" | "DECIMAL" => {
-                default_value
+            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
+            | "INT1" | "INT8" | "FLOAT4" | "FLOAT8" | "INTN" | "DECIMALN" | "NUMERICN"
+            | "FLOATN" | "NUMERIC" | "DECIMAL" => default_value,
+            "BIT" | "BITN" | "BIGVARBIN" => default_value,
+            "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "BIGVARCHAR"
+            | "BIGCHAR" => single_quote,
+            "UNIQUEIDENTIFIER" => default_value,
+            "BINARY" | "VARBINARY" | "IMAGE" | "BIGBINARY" => default_value,
+            "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME" | "DATETIME4"
+            | "DATEN" | "DATETIMEN" | "DATETIMEOFFSET" | "TIMEN" | "DATETIMEOFFSETN" => {
+                single_quote
             }
-            "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME"
-            | "DATETIMEOFFSET" => single_quote,
+            "NULL" => default_value,
             _ => anyhow::bail!("type '{}' not support", typ),
         };
         log::trace!("type:{:?} encode '{:?}' as #{}#", typ, value, v);
@@ -1115,8 +1117,8 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn show_udf(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
         SELECT 
@@ -1170,7 +1172,7 @@ impl SchemaTrait for MsSqlServer {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     let def: Option<&str> = row.try_get(0)?;
-                    return anyhow::Ok(UdfDetail::new(def.unwrap_or_default().to_string(), metas));
+                    return anyhow::Ok(DefAndMetas::new(def.unwrap_or_default().to_string(), metas));
                 }
                 tiberius::QueryItem::Metadata(_result_metadata) => {}
             }
@@ -1179,7 +1181,7 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::ONLY_SCHEMA);
         let mut conn = self.get_conn().await?;
@@ -1198,7 +1200,7 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn show_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let sql = format!(
             r#"
@@ -1241,7 +1243,7 @@ impl SchemaTrait for MsSqlServer {
     }
 
     async fn drop_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP PROCEDURE dbo."{name}""#);
         let mut conn = self.get_conn().await?;
@@ -1269,7 +1271,7 @@ impl MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
-                    count = row.get(0);
+                    count = row.try_get(0)?;
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
@@ -1294,7 +1296,7 @@ impl MsSqlServer {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(x) => {
-                    count = x.get(0);
+                    count = x.try_get(0)?;
                     break;
                 }
                 tiberius::QueryItem::Metadata(_) => {}
@@ -1738,7 +1740,7 @@ impl MsSqlServer {
 }
 
 #[allow(dead_code)]
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
+fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
     let dialect = sqlparser::dialect::MsSqlDialect {};
 
     sql_to_sql_seq(
@@ -2013,7 +2015,7 @@ mod tests {
             .unwrap();
 
         db_trait
-            .show_table("test_rename2", None, None, 1, 100)
+            .show_table("test_rename2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -2052,7 +2054,7 @@ mod tests {
             .unwrap();
 
         let resp = db_trait
-            .show_table("test_duplicate2", None, None, 1, 100)
+            .show_table("test_duplicate2", None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -2234,7 +2236,10 @@ mod tests {
             .await
             .unwrap();
 
-        let resp = db.show_view("test_view", None, None, 1, 100).await.unwrap();
+        let resp = db
+            .show_view("test_view", None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("resp:{:?}", resp);
     }
 
@@ -2412,7 +2417,10 @@ mod tests {
         })
         .await
         .unwrap();
-        let list = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let list = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("ret:{:?}", list);
     }
 
@@ -2465,7 +2473,10 @@ mod tests {
         })
         .await
         .unwrap();
-        let list = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let list = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("ret:{:?}", list);
     }
 
@@ -2520,7 +2531,10 @@ mod tests {
         })
         .await
         .unwrap();
-        let list = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let list = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("ret:{:?}", list);
     }
 
@@ -2587,7 +2601,10 @@ mod tests {
         })
         .await
         .unwrap();
-        let list = db.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let list = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("ret:{:?}", list);
     }
 }

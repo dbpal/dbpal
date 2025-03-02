@@ -15,12 +15,12 @@ use tokio::task::block_in_place;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfDetail,
-    UdfOrPrecedureExtraParameter, not_support_features,
+    DefAndMetas, ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, not_support_features,
 };
-use crate::helper::{SqlKind, SqlSeq, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
 use crate::query_log::QueryLog;
@@ -78,7 +78,7 @@ impl OracleDB {
     }
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlSeq>> {
+fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
     // TODO use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::GenericDialect {};
     sql_to_sql_seq(
@@ -182,7 +182,7 @@ impl QuerySql for OracleDB {
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
-                vec![SqlSeq {
+                vec![SqlWithKind {
                     sql: sql.to_string(),
                     kind: SqlKind::Query,
                 }]
@@ -1134,7 +1134,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
@@ -1144,7 +1144,7 @@ impl SchemaTrait for OracleDB {
                 IndexKind::Unique => "Unique",
             },
             name,
-            fileds.join(",")
+            fields.join(",")
         );
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1231,7 +1231,7 @@ impl SchemaTrait for OracleDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let conn = self.get_conn()?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
@@ -1397,7 +1397,7 @@ impl SchemaTrait for OracleDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let conn = self.get_conn()?;
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
@@ -1508,17 +1508,17 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_udf(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         let sql = self.get_user_source(name)?;
-        anyhow::Ok(UdfDetail {
+        anyhow::Ok(DefAndMetas {
             def: sql,
             metas: vec![],
         })
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!("DROP FUNCTION {name}");
         let conn = self.get_conn()?;
@@ -1531,7 +1531,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let sql = self.get_user_source(name)?;
         anyhow::Ok(ProcedureDetail {
@@ -1541,7 +1541,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn drop_procedure(
-        &self, name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!("DROP PROCEDURE {}", name);
         let conn = self.get_conn()?;
@@ -1572,6 +1572,8 @@ impl OracleDB {
             ret.push(NamedStaff {
                 name,
                 metas: vec![],
+                parameters: None,
+                cassandra_parameters: None,
             });
         }
         anyhow::Ok(ret)
@@ -1849,7 +1851,7 @@ mod tests {
             .unwrap();
 
         db_trait
-            .show_table("TEST_RENAME2", None, None, 1, 100)
+            .show_table("TEST_RENAME2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1895,7 +1897,7 @@ mod tests {
             .unwrap();
 
         let resp = db_trait
-            .show_table("TEST_DUPLICATE2", None, None, 1, 100)
+            .show_table("TEST_DUPLICATE2", None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -1940,7 +1942,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         let views = db.list_view().await.unwrap();
         println!("{:?}", views);
 
-        let resp = db.show_view("TEST_VIEW", None, None, 1, 100).await;
+        let resp = db.show_view("TEST_VIEW", None, None, 1, 100, None).await;
         println!("show view:{:?}", resp);
         let sql = db.create_view_sql("TEST_VIEW", false).await.unwrap();
         println!("create view sql:{}", sql);
@@ -1982,7 +1984,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         println!("list_materialized_view:{:?}", views);
 
         let resp = db
-            .show_view("TEST_MATERLIZED_VIEW", None, None, 1, 100)
+            .show_view("TEST_MATERLIZED_VIEW", None, None, 1, 100, None)
             .await;
         println!("show view:{:?}", resp);
         let sql = db
@@ -2079,7 +2081,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.query_commit(query_uuid).await.unwrap();
 
         let resp = db_trait
-            .show_table("TEST_QUERY", None, None, 1, 100)
+            .show_table("TEST_QUERY", None, None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2129,7 +2131,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.insert(&table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2204,7 +2206,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.insert(&table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2280,7 +2282,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.insert(&table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2352,7 +2354,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         db.insert(&table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100)
+            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);

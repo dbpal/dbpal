@@ -29,11 +29,18 @@ pub trait SchemaTrait:
         ""
     }
 
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
+        not_support_features(self.backend_name())
+    }
+    async fn drop_created_type(&self, _typ: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp>;
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>>;
 
@@ -107,7 +114,7 @@ pub trait SchemaTrait:
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize,
+        _page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         not_support_features(self.backend_name())
     }
@@ -115,7 +122,7 @@ pub trait SchemaTrait:
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         // 有些后端没有数据 也能得到完整的结果所以提供一个默认实现
         // 后端基于sqlx的需要使用prepare_with这种特殊的接口
-        self.show_view(view_name, None, None, 1, 1)
+        self.show_view(view_name, None, None, 1, 1, None)
             .await
             .map(|x| x.fields)
     }
@@ -137,13 +144,12 @@ pub trait SchemaTrait:
         &self, sql: &str, kind: ExportKind, file: &str,
     ) -> anyhow::Result<()> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-        let h1 = {
+        let j1 = {
             let x = self.clone();
             let sql = sql.to_string();
-            let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
-            h1
+            tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await })
         };
-        let h2 = {
+        let j2 = {
             let filepath = file.to_string();
             tokio::spawn(async move {
                 let mut file = tokio::fs::File::create(&filepath).await?;
@@ -153,8 +159,8 @@ pub trait SchemaTrait:
                 anyhow::Ok(())
             })
         };
-        h1.await??;
-        h2.await??;
+        j1.await??;
+        j2.await??;
         anyhow::Ok(())
     }
 
@@ -190,9 +196,7 @@ pub trait SchemaTrait:
     async fn create_table_and_index_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        anyhow::bail!(format!(
-            "sql server don't support create_table_and_index_sql"
-        ))
+        not_support_features(self.backend_name())
     }
 
     async fn create_view_sql(
@@ -235,13 +239,13 @@ pub trait SchemaTrait:
     }
 
     async fn show_udf(
-        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         not_support_features(self.backend_name())
     }
 
     async fn drop_udf(
-        &self, _name: &str, _extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, _name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
@@ -250,12 +254,12 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
     async fn show_procedure(
-        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         not_support_features(self.backend_name())
     }
     async fn drop_procedure(
-        &self, _name: &str, _arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
@@ -271,6 +275,12 @@ pub trait SchemaTrait:
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct CreatedType {
+    pub name: String,
+    pub sql: String,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ColumnType {
     // type string like `varchar`
     pub(crate) typ: String,
@@ -283,17 +293,23 @@ pub struct ColumnType {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "extra", rename_all = "lowercase")]
-pub enum UdfOrPrecedureExtraParameter {
+pub enum UdfOrProcedureExtraParameter {
     PostGres {
         parameters: String, // a integer , b integer
     },
+    Cassandra {
+        parameters: Vec<String>, //
+    },
+}
+
+impl UdfOrProcedureExtraParameter {
+    pub(crate) fn wrong_type(&self) -> anyhow::Error {
+        anyhow::Error::msg(format!("wrong type of parameter of:{:?}", self))
+    }
 }
 
 pub(crate) fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
-    anyhow::bail!(format!(
-        "this backend '{}' don't support this feature",
-        name
-    ))
+    anyhow::bail!(format!("the backend '{}' don't support this feature", name))
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
@@ -309,13 +325,13 @@ impl ProcedureDetail {
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
-pub struct UdfDetail {
+pub struct DefAndMetas {
     // definition of the sql.
     pub def: String,
     pub metas: Vec<MetaValue>,
 }
 
-impl UdfDetail {
+impl DefAndMetas {
     pub(crate) fn new(def: String, metas: Vec<MetaValue>) -> Self {
         Self { metas, def }
     }
@@ -334,6 +350,10 @@ pub trait CatalogTrait:
 /// named staff maybe used for view udf etc...
 #[derive(Debug, serde::Serialize, TypeDef)]
 pub struct NamedStaff {
+    // some backend support reload function.
+    pub parameters: Option<String>,
+    // cassandra support reload and parameter is a `Vec`
+    pub cassandra_parameters: Option<Vec<String>>,
     pub name: String,
     pub metas: Vec<MetaValue>,
 }
@@ -343,6 +363,8 @@ impl From<String> for NamedStaff {
         NamedStaff {
             name: value,
             metas: vec![],
+            parameters: None,
+            cassandra_parameters: None,
         }
     }
 }
@@ -464,7 +486,7 @@ pub enum CreateSchemaExtra {
     // };
     Cassandra {
         // class is the keyword for frontend
-        class_name: String,
+        replication_strategy: String,
         replication_factor: u32,
     },
 }
@@ -631,12 +653,13 @@ impl dyn SchemaTrait {
         }
 
         let mut sql = format!(
-            "DELETE FROM {}{table_name} WHERE ",
+            "DELETE FROM {}{} WHERE ",
             if let Some(schema) = schema {
                 format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
             } else {
                 "".to_string()
-            }
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
         );
 
         sql.push_str(
@@ -660,12 +683,13 @@ impl dyn SchemaTrait {
         }
 
         let mut sql = format!(
-            "UPDATE {}{table_name} SET ",
+            "UPDATE {}{} SET ",
             if let Some(schema) = schema {
                 format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
             } else {
                 "".to_string()
-            }
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
         );
         {
             let last = values.len() - 1;
@@ -704,12 +728,13 @@ impl dyn SchemaTrait {
         values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let mut sql = format!(
-            "INSERT INTO {}{table_name}(",
+            "INSERT INTO {}{}(",
             if let Some(schema) = schema {
                 format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
             } else {
                 "".to_string()
-            }
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
         );
         // fields
         {
@@ -843,6 +868,7 @@ impl QueryResp {
                 default_value: None,
                 is_primary: false,
                 is_auto_increment: false,
+                sortable: true,
             }],
         }
     }
@@ -857,6 +883,7 @@ impl QueryResp {
                 default_value: None,
                 is_primary: false,
                 is_auto_increment: false,
+                sortable: true,
             }],
         }
     }
@@ -884,7 +911,7 @@ impl TableListResp {
             debug_assert_eq!(
                 x.len(),
                 self.fields.len(),
-                "fileds:{:?},data:{:?}",
+                "fields:{:?},data:{:?}",
                 self.fields,
                 self.data
             );
@@ -936,6 +963,7 @@ impl TableListResp {
                 default_value: None,
                 is_primary: false,
                 is_auto_increment: false,
+                sortable: true,
             }],
         }
     }
@@ -952,6 +980,8 @@ pub struct Field {
     pub is_primary: bool,
     //
     pub is_auto_increment: bool,
+
+    pub sortable: bool,
 }
 
 impl Field {
@@ -966,7 +996,11 @@ impl Field {
             default_value: None,
             is_auto_increment: false,
             is_primary: false,
+            sortable: true,
         }
+    }
+    pub fn with_sortable(&mut self, sortable: bool) {
+        self.sortable = sortable;
     }
 }
 
@@ -984,6 +1018,7 @@ impl Field {
             default_value,
             is_primary,
             is_auto_increment,
+            sortable: true,
         }
     }
 }
@@ -1031,6 +1066,12 @@ impl PartialEq for TriggerDetail {
             && self.sql == other.sql
             && self.enable == other.enable
     }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(tag = "extra", rename_all = "lowercase")]
+pub enum ShowExtraArgs {
+    Cassandra { allow_filtering: bool },
 }
 
 impl Eq for TriggerDetail {}
@@ -1111,11 +1152,11 @@ pub fn monaco_editor_keyword_regexp(keywords: &[&str]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::UdfOrPrecedureExtraParameter;
+    use super::UdfOrProcedureExtraParameter;
 
     #[test]
     fn test_serde_udf_or_precedure_extra_parameter() {
-        let x = Some(UdfOrPrecedureExtraParameter::PostGres {
+        let x = Some(UdfOrProcedureExtraParameter::PostGres {
             parameters: "int".to_string(),
         });
         let s = serde_json::to_string_pretty(&x).unwrap();

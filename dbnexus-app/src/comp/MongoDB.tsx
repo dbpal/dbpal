@@ -4,7 +4,7 @@ import {
   Box,
   Button,
   ButtonGroup,
-  CircularProgress,
+  Chip,
   IconButton,
   ListItemIcon,
   ListItemText,
@@ -21,6 +21,7 @@ import { loader } from '@monaco-editor/react';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
+import { FaArrowsAltV } from 'react-icons/fa';
 import {
   bsonValue2MongoBson,
   formatMongoBsonStr,
@@ -63,9 +64,7 @@ import {
   modalStyle,
   MongoDataViewModel,
   editorInitHeight,
-  progressBarSize,
   SettingContext,
-  VisiableContext,
   reloadOK,
   keyNotInTable,
 } from './Common';
@@ -79,7 +78,9 @@ import {
   columnWidths,
   ContextMenuContext,
   datagridContainerHeight,
+  filterStyle,
   handleCopyToClipboard,
+  VisiableContext,
 } from './helper';
 
 const mongoBsonKeywords =
@@ -245,6 +246,7 @@ function MongoBsonEditor(props: {
   const [docHasChange, setDocHasChange] = useState(false);
   const [err, setErr] = useState<MongoBsonError>(null);
   const { theme } = useContext(SettingContext);
+  const [loading, setLoading] = useState(false);
 
   const handleEditorDidMount = useCallback(
     (ce: editor.IStandaloneCodeEditor, monaco) => {
@@ -313,19 +315,24 @@ function MongoBsonEditor(props: {
             return (
               //@ts-ignore
               <Button
+                loading={loading}
                 key={button.buttonText}
                 variant={button.variant}
                 color={button.color}
                 onClick={() => {
+                  setLoading(true);
                   try {
                     let doc = parseMongoBson(
                       editor.current.getValue()
                     ).compile();
                     button.callBack(doc);
                   } catch (e) {
+                    setLoading(false);
                     showNotification('error', 'mongo bson compile failed', e);
+                    console.log('mongo bson compile failed', e);
                     return;
                   }
+                  setLoading(false);
                 }}
                 disabled={
                   button.disabled ? button.disabled(docHasChange) : false
@@ -364,11 +371,10 @@ function MongoDBModify(props: {
   handleClose?;
 }) {
   let { doc, setOP, buttonName, handleClose } = props;
-  const [loading, setLoading] = useState(false);
+
   const { showNotification } = useContext(NotificationContext);
 
   const handleModify = (doc) => {
-    setLoading(true);
     setOP(doc)
       .then(() => {
         showNotification('success', 'Modify OK');
@@ -379,15 +385,11 @@ function MongoDBModify(props: {
       })
       .catch((e) => {
         showNotification('error', 'Modify failure', e);
-      })
-      .finally(() => {
-        setLoading(false);
       });
   };
 
   return (
     <Stack spacing={1}>
-      {loading && <CircularProgress size={progressBarSize} />}
       <MongoBsonEditor
         doc={doc}
         buttons={
@@ -415,8 +417,8 @@ function MongoDBModify(props: {
 function MongoTableListToolBar(props: {
   handleReload: () => Promise<void>;
   handleFilter: (doc: BSON.Document) => void;
-  handleOrderBy: (doc: BSON.Document) => void;
-  orderBy: BSON.Document;
+  handleSort: (doc: BSON.Document) => void;
+  sort: BSON.Document;
   filter: BSON.Document;
   viewModel: MongoDataViewModel;
   handleViewModel: (doc: MongoDataViewModel) => void;
@@ -427,15 +429,15 @@ function MongoTableListToolBar(props: {
   const {
     handleReload,
     handleFilter,
-    handleOrderBy,
-    orderBy,
+    handleSort,
+    sort,
     filter,
     viewModel,
     handleViewModel,
   } = props;
 
   const [showModifyFilter, setShowModifyFilter] = useState(false);
-  const [showModifyOrderBy, setShowModifyOrderBy] = useState(false);
+  const [showModifySort, setShowModifySort] = useState(false);
   const [loading, setLoading] = useState(false);
   const doReload = () => {
     setLoading(true);
@@ -455,79 +457,7 @@ function MongoTableListToolBar(props: {
         alignItems: 'center',
       }}
     >
-      <Stack direction="row" spacing={1}>
-        <Typography
-          onClick={() => {
-            setShowModifyFilter(true);
-          }}
-          style={{ cursor: 'pointer' }}
-          variant="subtitle1"
-        >
-          filter:
-          <span style={{ fontStyle: 'italic' }}>
-            {bsonValue2MongoBson(filter).format()}
-          </span>
-        </Typography>
-
-        {showModifyFilter && (
-          <Modal
-            open={showModifyFilter}
-            onClose={() => {
-              setShowModifyFilter(false);
-            }}
-            aria-labelledby="set filter"
-          >
-            <Box sx={modalStyle} width="950px">
-              <MongoDBModify
-                buttonName="Set"
-                setOP={async (doc) => {
-                  handleFilter(doc);
-                }}
-                handleClose={() => {
-                  setShowModifyFilter(false);
-                }}
-                doc={filter}
-              ></MongoDBModify>
-            </Box>
-          </Modal>
-        )}
-
-        <Typography
-          onClick={() => {
-            setShowModifyOrderBy(true);
-          }}
-          style={{ cursor: 'pointer' }}
-          variant="subtitle1"
-        >
-          sort:
-          <span style={{ fontStyle: 'italic' }}>
-            {bsonValue2MongoBson(orderBy).format()}
-          </span>
-        </Typography>
-
-        {showModifyOrderBy && (
-          <Modal
-            open={showModifyOrderBy}
-            onClose={() => {
-              setShowModifyOrderBy(false);
-            }}
-            aria-labelledby="order by"
-          >
-            <Box sx={modalStyle} width="950px">
-              <MongoDBModify
-                buttonName="Set"
-                setOP={async (doc) => {
-                  handleOrderBy(doc);
-                }}
-                handleClose={() => {
-                  setShowModifyOrderBy(false);
-                }}
-                doc={orderBy}
-              ></MongoDBModify>
-            </Box>
-          </Modal>
-        )}
-
+      <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
         <Button
           loading={loading}
           variant="contained"
@@ -536,6 +466,26 @@ function MongoTableListToolBar(props: {
         >
           reload
         </Button>
+
+        <Chip
+          label={bsonValue2MongoBson(filter).format()}
+          onClick={() => {
+            setShowModifyFilter(true);
+          }}
+          color="primary"
+          icon={<FilterAltIcon />}
+          style={{ ...filterStyle.style }}
+        ></Chip>
+
+        <Chip
+          label={bsonValue2MongoBson(sort).format()}
+          onClick={() => {
+            setShowModifySort(true);
+          }}
+          color="secondary"
+          icon={<FaArrowsAltV />}
+          style={{ ...filterStyle.style }}
+        ></Chip>
       </Stack>
       <Stack direction="row">
         <ButtonGroup aria-label="Basic button group">
@@ -545,8 +495,6 @@ function MongoTableListToolBar(props: {
               handleViewModel(MongoDataViewModel.Object);
             }}
             edge="start"
-            color="inherit"
-            aria-label="object"
           >
             <DataObjectIcon />
           </IconButton>
@@ -556,13 +504,61 @@ function MongoTableListToolBar(props: {
             }}
             disabled={viewModel == MongoDataViewModel.List}
             edge="start"
-            color="inherit"
-            aria-label="list"
           >
             <ListIcon />
           </IconButton>
         </ButtonGroup>
       </Stack>
+
+      {showModifyFilter && (
+        <Modal
+          open={showModifyFilter}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowModifyFilter(false);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <MongoDBModify
+              buttonName="set"
+              setOP={async (doc) => {
+                handleFilter(doc);
+              }}
+              handleClose={() => {
+                setShowModifyFilter(false);
+              }}
+              doc={filter}
+            ></MongoDBModify>
+          </Box>
+        </Modal>
+      )}
+
+      {showModifySort && (
+        <Modal
+          open={showModifySort}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowModifySort(false);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <MongoDBModify
+              buttonName="set"
+              setOP={async (doc) => {
+                handleSort(doc);
+              }}
+              handleClose={() => {
+                setShowModifySort(false);
+              }}
+              doc={sort}
+            ></MongoDBModify>
+          </Box>
+        </Modal>
+      )}
     </Stack>
   );
 }
@@ -721,10 +717,12 @@ function MongoTableListContextMenu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowFilter(false);
           }}
-          aria-labelledby="create database"
         >
           <Box sx={modalStyle} width="950px">
             <MongoTableListMenuFilter
@@ -806,10 +804,10 @@ function MongoTableListMenuFilter(props: {
 
 function MongoTableList(props: {
   filter: BSON.Document;
-  orderBy: BSON.Document;
+  sort: BSON.Document;
   reloadOP: (
     filter: BSON.Document,
-    orderBy: BSON.Document,
+    sort: BSON.Document,
     page: number,
     pageSize: number
   ) => Promise<types.MuiDataTableListResp>;
@@ -822,7 +820,7 @@ function MongoTableList(props: {
 }) {
   const {
     filter,
-    orderBy,
+    sort,
     reloadOP,
     setSort,
     loadOne,
@@ -842,7 +840,7 @@ function MongoTableList(props: {
 
   const handleReload = async (showOK) => {
     setLoading(true);
-    reloadOP(filter, orderBy, page + 1, pageSize)
+    reloadOP(filter, sort, page + 1, pageSize)
       .then((r) => {
         let has_null = false;
         r.data.data.forEach((e) => {
@@ -886,7 +884,7 @@ function MongoTableList(props: {
 
   useEffect(() => {
     handleReload(true);
-  }, [page, pageSize, filter, orderBy]);
+  }, [page, pageSize, filter, sort]);
 
   useEffect(() => {
     handleReload(true);
@@ -993,10 +991,12 @@ function MongoTableList(props: {
       {selectModifyDoc && (
         <Modal
           open={!!selectModifyDoc}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectModifyDoc(null);
           }}
-          aria-labelledby="modify set"
         >
           <Box sx={modalStyle} width="950px">
             <MongoDBModify
@@ -1059,10 +1059,10 @@ function MongoTableList(props: {
 
 function MongoTableObject(props: {
   filter: BSON.Document;
-  orderBy: BSON.Document;
+  sort: BSON.Document;
   realodOPDocs: (
     filter: BSON.Document,
-    orderBy: BSON.Document,
+    sort: BSON.Document,
     page: number,
     pageSize: number
   ) => Promise<DocsAndCount>;
@@ -1070,13 +1070,13 @@ function MongoTableObject(props: {
   deleteOP?: (ids: any[]) => Promise<void>;
   nonse;
 }) {
-  const { filter, orderBy, realodOPDocs, modifyOP, deleteOP, nonse } = props;
+  const { filter, sort, realodOPDocs, modifyOP, deleteOP, nonse } = props;
   const [docs, setDocs] = useState<DocsAndCount | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const { showNotification } = useContext(NotificationContext);
   const handleReload = async (showOK) => {
-    realodOPDocs(filter, orderBy, page, pageSize)
+    realodOPDocs(filter, sort, page, pageSize)
       .then((resp) => {
         setDocs(resp);
         if (showOK) {
@@ -1100,7 +1100,7 @@ function MongoTableObject(props: {
 
   useEffect(() => {
     handleReload(false);
-  }, [page, pageSize, filter, orderBy]);
+  }, [page, pageSize, filter, sort]);
   useEffect(() => {
     handleReload(true);
   }, [nonse]);
@@ -1173,13 +1173,13 @@ function MongoTableObject(props: {
 function MongoTable(props: {
   reloadOPTableList: (
     filter: BSON.Document,
-    orderBy: BSON.Document,
+    sort: BSON.Document,
     page: number,
     pageSize: number
   ) => Promise<types.MuiDataTableListResp>;
   realodOPDocs: (
     filter: BSON.Document,
-    orderBy: BSON.Document,
+    sort: BSON.Document,
     page: number,
     pageSize: number
   ) => Promise<DocsAndCount>;
@@ -1190,19 +1190,19 @@ function MongoTable(props: {
   const { reloadOPTableList, loadOne, modifyOP, realodOPDocs, deleteOP } =
     props;
   const [filter, setFilter] = useState<BSON.Document>({});
-  const [orderBy, setSort] = useState<BSON.Document>({});
+  const [sort, setSort] = useState<BSON.Document>({});
   const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
   const [nonse, setNonse] = useState(0);
   return (
     <Stack spacing={1}>
       <MongoTableListToolBar
         addOP={async () => {}}
-        orderBy={orderBy}
+        sort={sort}
         filter={filter}
         handleFilter={(e) => {
           setFilter(e);
         }}
-        handleOrderBy={(e) => {
+        handleSort={(e) => {
           setSort(e);
         }}
         handleReload={async () => {
@@ -1219,7 +1219,7 @@ function MongoTable(props: {
         <MongoTableList
           setFilter={setFilter}
           filter={filter}
-          orderBy={orderBy}
+          sort={sort}
           reloadOP={reloadOPTableList}
           loadOne={loadOne}
           modifyOP={modifyOP}
@@ -1234,7 +1234,7 @@ function MongoTable(props: {
       {viewModel == MongoDataViewModel.Object && (
         <MongoTableObject
           filter={filter}
-          orderBy={orderBy}
+          sort={sort}
           realodOPDocs={realodOPDocs}
           modifyOP={modifyOP}
           deleteOP={deleteOP}

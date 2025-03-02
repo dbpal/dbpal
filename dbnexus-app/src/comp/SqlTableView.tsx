@@ -1,5 +1,4 @@
 import {
-  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -12,7 +11,9 @@ import types from './ApiStruct';
 import {
   Box,
   Button,
+  Chip,
   Divider,
+  FormControlLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -20,6 +21,7 @@ import {
   Modal,
   Paper,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -27,27 +29,25 @@ import {
 import { NotificationContext } from './Notification';
 import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  keyNotInTable,
-  modalStyle,
-  reloadOK,
-  SettingContext,
-  VisiableContext,
-} from './Common';
+import { keyNotInTable, modalStyle, reloadOK, SettingContext } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import KeyIcon from '@mui/icons-material/Key';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
+import { FaArrowsAltV } from 'react-icons/fa';
 import {
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
   datagridContainerHeight,
+  DataSourceKind,
+  filterStyle,
   handleCopyToClipboard,
   isTypeLargeText,
   secondConfirm,
+  VisiableContext,
 } from './helper';
 import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
 
@@ -81,7 +81,15 @@ function WhereSort(props: {
   const [newValue, setNewValue] = useState(value);
 
   return (
-    <Modal open={open} onClose={onClose} aria-labelledby="create database">
+    <Modal
+      open={open}
+      onClose={(_, reason) => {
+        if (reason === 'backdropClick') {
+          return;
+        }
+        onClose();
+      }}
+    >
       <Box sx={modalStyle} width="700px">
         <Stack spacing={1}>
           <TextField
@@ -126,7 +134,8 @@ function SqlTableView(props: {
     where: string,
     orderBy: string,
     page: number,
-    pageSize: number
+    pageSize: number,
+    extra
   ) => Promise<types.MuiDataTableListResp>;
   updateOP?: (
     wheres: Map<string, string | null>,
@@ -135,25 +144,23 @@ function SqlTableView(props: {
   deleteOP?: (wheres: Map<string, string>) => Promise<types.SqlExecuteRet>;
   put_value_in_sql: (typ: string, value?: string) => Promise<string>;
   notWarnPri?: boolean;
+  kind: DataSourceKind;
 }) {
-  let { reloadOP, updateOP, deleteOP, notWarnPri, put_value_in_sql } = props;
-
+  let { reloadOP, updateOP, deleteOP, notWarnPri, put_value_in_sql, kind } =
+    props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
   const [showSetWhere, setShowSetWhere] = useState(false);
-
   const [sort, setSort] = useState('');
   const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
   const [pageSize, setPageSize] = useState(setting.pageSize);
-
   const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
   const { showNotification } = useContext(NotificationContext);
-
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
-
   const visiable = useContext(VisiableContext);
+  const [allowFiltering, setAllowFiltering] = useState(false);
 
   const handleResp = (resp: types.MuiDataTableListResp) => {
     resp.data.data.forEach((data) => {
@@ -200,7 +207,19 @@ function SqlTableView(props: {
   const handleReload = async (showOK: boolean) => {
     setLoading(true);
     try {
-      let resp = await reloadOP(where.trim(), sort.trim(), page + 1, pageSize);
+      let extra = null;
+      switch (kind) {
+        case DataSourceKind.Cassandra:
+          extra = { extra: 'cassandra', allow_filtering: allowFiltering };
+          break;
+      }
+      let resp = await reloadOP(
+        where.trim(),
+        sort.trim(),
+        page + 1,
+        pageSize,
+        extra
+      );
       setLoading(false);
       await handleResp(resp);
       resp.data.fields.forEach((e) => {
@@ -291,8 +310,8 @@ function SqlTableView(props: {
   };
 
   useEffect(() => {
-    handleReload(false);
-  }, [page, pageSize, where, sort]);
+    handleReload(true);
+  }, [page, pageSize, where, sort, allowFiltering]);
 
   useEffect(() => {}, [sort]);
   useEffect(() => {
@@ -325,11 +344,7 @@ function SqlTableView(props: {
   const onProcessRowUpdateError = useCallback((e) => {
     showNotification('error', 'update failed', e);
   }, []);
-  const dataGridStyle = useMemo(() => {
-    return {
-      overflow: 'auto',
-    } as CSSProperties;
-  }, []);
+
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
@@ -340,7 +355,6 @@ function SqlTableView(props: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
           let field = (target as HTMLDivElement).getAttribute('data-field');
-
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           setUpMenu({
@@ -371,53 +385,11 @@ function SqlTableView(props: {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="flex-start">
-        <span
-          style={{ cursor: 'pointer' }}
-          onClick={() => {
-            setShowSetWhere(true);
-          }}
-        >
-          where:
-          <span style={{ fontStyle: 'italic' }}> {where}</span>
-        </span>
-        {showSetWhere && (
-          <WhereSort
-            open={showSetWhere}
-            value={where}
-            setValue={(v) => {
-              setWhere(v);
-            }}
-            onClose={() => {
-              setShowSetWhere(false);
-            }}
-            label="where"
-          ></WhereSort>
-        )}
-        <span
-          style={{ cursor: 'pointer' }}
-          onClick={() => {
-            setShowSetSort(true);
-          }}
-        >
-          sort:
-          <span style={{ fontStyle: 'italic' }}> {sort}</span>
-        </span>
-
-        {showSetSort && (
-          <WhereSort
-            open={showSetSort}
-            value={sort}
-            setValue={(v) => {
-              setSort(v);
-            }}
-            onClose={() => {
-              setShowSetSort(false);
-            }}
-            label="sort"
-          ></WhereSort>
-        )}
-
+      <Stack
+        direction="row"
+        spacing={1}
+        style={{ flexWrap: 'wrap', alignItems: 'center' }}
+      >
         <Button
           loading={loading}
           variant="contained"
@@ -428,6 +400,38 @@ function SqlTableView(props: {
         >
           reload
         </Button>
+
+        <Chip
+          label={where}
+          onClick={() => {
+            setShowSetWhere(true);
+          }}
+          color="primary"
+          icon={<FilterAltIcon />}
+          style={{ ...filterStyle.style }}
+        ></Chip>
+
+        <Chip
+          label={sort}
+          onClick={() => {
+            setShowSetSort(true);
+          }}
+          color="secondary"
+          icon={<FaArrowsAltV />}
+          style={{ ...filterStyle.style }}
+        ></Chip>
+        {kind == DataSourceKind.Cassandra && (
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={allowFiltering}
+                onChange={(e) => setAllowFiltering(e.target.checked)}
+              />
+            }
+            label="allow filtering"
+          />
+        )}
       </Stack>
       {resp && (
         <>
@@ -438,14 +442,21 @@ function SqlTableView(props: {
           >
             <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
               {resp && (
-                <span
-                  style={{ cursor: 'pointer' }}
+                <Typography
+                  sx={{
+                    cursor: 'pointer',
+                    fontWeight: '800',
+                    fontSize: '0.9rem',
+                    fontStyle: 'italic',
+                    color: 'green',
+                  }}
+                  variant="body1"
                   onClick={() => {
                     handleCopyToClipboard(resp.sql, showNotification);
                   }}
                 >
                   {resp.sql}
-                </span>
+                </Typography>
               )}
             </Stack>
             {resp && (
@@ -465,7 +476,6 @@ function SqlTableView(props: {
                 showCellVerticalBorder
                 showColumnVerticalBorder
                 slotProps={slotProps}
-                style={dataGridStyle}
                 rowHeight={setting.datagridRowHeight}
                 columnHeaderHeight={setting.datagridHeaderHeight}
                 getRowId={getRowId}
@@ -486,6 +496,32 @@ function SqlTableView(props: {
             </div>
           )}
         </>
+      )}
+      {showSetWhere && (
+        <WhereSort
+          open={showSetWhere}
+          value={where}
+          setValue={(v) => {
+            setWhere(v);
+          }}
+          onClose={() => {
+            setShowSetWhere(false);
+          }}
+          label="filter"
+        ></WhereSort>
+      )}
+      {showSetSort && (
+        <WhereSort
+          open={showSetSort}
+          value={sort}
+          setValue={(v) => {
+            setSort(v);
+          }}
+          onClose={() => {
+            setShowSetSort(false);
+          }}
+          label="sort"
+        ></WhereSort>
       )}
     </Stack>
   );
@@ -650,10 +686,12 @@ function Menu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowFilter(false);
           }}
-          aria-labelledby="create database"
         >
           <Box sx={modalStyle} width="700px">
             <FilterOnValue
@@ -684,12 +722,16 @@ function FilterOnValue(props: {
   const { content, setWhere, field, handleClose, put_value_in_sql } = props;
   const compares = ['=', '<>', '>', '>=', '<', '<='];
   const [compare, setCompare] = useState(compares[0]);
-
+  const { showNotification } = useContext(NotificationContext);
   const [formatValue, setFormatValue] = useState('');
   useEffect(() => {
-    put_value_in_sql(content).then((value) => {
-      setFormatValue(value);
-    });
+    put_value_in_sql(content)
+      .then((value) => {
+        setFormatValue(value);
+      })
+      .catch((e) => {
+        showNotification('error', 'put value in sql failed', e);
+      });
   }, []);
 
   const where = () => {

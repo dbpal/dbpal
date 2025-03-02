@@ -9,7 +9,6 @@ import {
   Button,
   Stack,
   Box,
-  CircularProgress,
   TextField,
   MenuItem,
   FormControl,
@@ -27,10 +26,8 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   modalStyle,
-  progressBarSize,
   SettingContext,
   reloadOK,
-  VisiableContext,
   SimpleResizeEditor,
 } from './Common.tsx';
 
@@ -57,6 +54,7 @@ import {
   stringToHex,
   stringToHexArray,
   uint8ArrayToUtf8,
+  VisiableContext,
 } from './helper.ts';
 import { pageSizeOptions } from './CommonComp.tsx';
 
@@ -181,7 +179,7 @@ function RedisStringTable(props: {
             handleModify();
           }}
         >
-          Set
+          set
         </Button>
       </Stack>
     </Stack>
@@ -220,10 +218,14 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
-        <Button color="primary" variant="contained" onClick={handleAdd}>
+        <Button
+          color="primary"
+          variant="contained"
+          loading={loading}
+          onClick={handleAdd}
+        >
           Add
         </Button>
-        {loading && <CircularProgress size={progressBarSize} />}
       </Stack>
     </Stack>
   );
@@ -447,7 +449,7 @@ function RedisEditZset(props: {
   };
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1}>
       <TextField
         size="small"
         value={newValue}
@@ -945,10 +947,12 @@ function RedisSetTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectRow(null);
           }}
-          aria-labelledby="modify set"
         >
           <Box sx={modalStyle} width="950px">
             <RedisEditSet
@@ -1015,10 +1019,12 @@ function RedisListTableContextMenu(props: {
       {showDel && (
         <Modal
           open={!!showDel}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowDel(null);
           }}
-          aria-labelledby="modify list"
         >
           <Box sx={modalStyle} width="950px">
             <Stack spacing={1}>
@@ -1225,10 +1231,12 @@ function RedisListTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectRow(null);
           }}
-          aria-labelledby="modify list"
         >
           <Box sx={modalStyle} width="950px">
             <RedisEditList
@@ -1476,10 +1484,12 @@ function RedisZsetTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectRow(null);
           }}
-          aria-labelledby="modify zset"
         >
           <Box sx={modalStyle} width="950px">
             <RedisEditZset
@@ -1678,10 +1688,12 @@ function RedisHashTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setSelectRow(null);
           }}
-          aria-labelledby="modify hash"
         >
           <Box sx={modalStyle} width="950px">
             <RedisEditHash

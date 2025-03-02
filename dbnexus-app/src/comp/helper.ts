@@ -221,6 +221,7 @@ function backendCompletionItemToEditor(
         kind: getKind(e.kind),
         insertText: e.item,
         range: undefined,
+        documentation: e.desc,
       };
     }),
   };
@@ -301,7 +302,7 @@ enum DataSourceKind {
   Redis,
   Mongo,
   Oracle,
-
+  Cassandra,
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
@@ -324,7 +325,10 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
       return DataSourceKind.Postgres;
     case 'oracle':
       return DataSourceKind.Oracle;
-
+    case 'cassandra':
+      return DataSourceKind.Cassandra
+    default:
+      console.log("connection typt not handle:", name);
   }
 }
 function isTypeLargeText(s: string): boolean {
@@ -342,7 +346,8 @@ const appStore = async () => {
 enum AppStoreKey {
   UserSetttings = 'user_settings',
   ConnectionConfig = 'connection_config',
-  ColumnWithd = 'column_widths'
+  ColumnWithd = 'column_widths',
+  LeftSize = 'left_size'
 }
 
 class ColumnWidths {
@@ -383,7 +388,7 @@ class ColumnWidths {
   }
 }
 var columnWidths = new ColumnWidths();
-
+const VisiableContext = createContext(true);
 const handleCopyToClipboard = (text, showNotification) => {
   writeText(text)
     .then(() => {
@@ -419,10 +424,14 @@ const ContextMenuContext = createContext<{
   setUpMenu: ({ content, style }) => void;
 }>(null);
 
-function noUse(...args) {
-  //@ts-ignore
-  let _args = args;
-}
+
+const filterStyle = {
+  style: {
+    fontSize: '1.1rem',
+    fontWeight: 'bold'
+  } as CSSProperties,
+};
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -455,5 +464,6 @@ export {
   handleCopyToClipboard,
   datagridContainerHeight,
   uint8ArrayToUtf8,
-  noUse
+  filterStyle,
+  VisiableContext
 };

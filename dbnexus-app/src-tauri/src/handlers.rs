@@ -3,10 +3,11 @@ use std::time::Duration;
 
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
+use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::db::{
-    ColumnType, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
-    UdfOrPrecedureExtraParameter,
+    ColumnType, CreateSchemaExtra, CreatedType, DefAndMetas, ExportKind, Field, FormatSqlOpts,
+    Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, ShowExtraArgs,
+    SqlExecuteRet, TableListResp, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
@@ -14,6 +15,7 @@ use dbnexus_db::mongo::Mongo;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
+
 pub const PASSWORD_KEY: &str = "dbpal";
 
 #[tauri::command]
@@ -147,7 +149,7 @@ pub async fn create_database(
 
 #[tauri::command]
 pub async fn create_schema(
-    name: String, schema: String, app: tauri::State<'_, App>,
+    name: String, schema: String, extra: Option<CreateSchemaExtra>, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -158,7 +160,7 @@ pub async fn create_schema(
         .map_err(|x| ErrorFrontend::from(x))?;
     match x {
         Open::DataBase(x) => {
-            x.create_schema(&schema, None)
+            x.create_schema(&schema, extra)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
             let db = x
@@ -184,10 +186,16 @@ pub async fn open_conn(name: String, app: tauri::State<'_, App>) -> Result<(), E
     random_sleep().await;
     random_error()?;
     log::info!("open db:{}", name);
-    app.open(name.as_str())
-        .await
-        .map_err(ErrorFrontend::from)
-        .map(|_| ())
+    let secs = 5;
+
+    tokio::time::timeout(Duration::from_secs(secs), async move {
+        app.open(name.as_str())
+            .await
+            .map_err(ErrorFrontend::from)
+            .map(|_| ())
+    })
+    .await
+    .map_err(|_| ErrorFrontend::from(format!("open connection not finished in {}s", secs)))?
 }
 
 #[tauri::command]
@@ -281,7 +289,7 @@ pub async fn show_table_columns(
 #[tauri::command]
 pub async fn show_table(
     name: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, app: tauri::State<'_, App>,
+    page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -293,6 +301,7 @@ pub async fn show_table(
             order_by,
             page,
             page_size,
+            extra,
         )
         .await
         .map_err(ErrorFrontend::from)?;
@@ -586,7 +595,7 @@ pub async fn drop_table(
 #[tauri::command]
 pub async fn show_view(
     name: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, app: tauri::State<'_, App>,
+    page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataTableListResp, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -597,6 +606,7 @@ pub async fn show_view(
         order_by,
         page,
         page_size,
+        extra,
     )
     .await
     .map_err(ErrorFrontend::from)
@@ -612,6 +622,20 @@ pub async fn show_view_coumns(
 
     schema
         .show_view_columns(&view_name)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn list_created_types(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<CreatedType>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+
+    schema
+        .list_created_types()
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -853,6 +877,8 @@ pub async fn list_database(
     random_sleep().await;
     random_error()?;
     let db = app.open(name.as_str()).await?;
+    app.enter_open_child(name.as_str(), &db).await?;
+
     match db {
         app::Open::Catalog(x) => x.list_database().await,
         _ => return Err(ErrorFrontend::from("not catalog trait")),
@@ -863,13 +889,11 @@ pub async fn list_database(
 #[tauri::command]
 pub async fn list_schema(
     name: String, app: tauri::State<'_, App>,
-) -> Result<
-    Vec<String>, // milliseconds
-    ErrorFrontend,
-> {
+) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.open(name.as_str()).await?;
+    app.enter_open_child(name.as_str(), &db).await?;
     match db {
         app::Open::DataBase(x) => x.list_schema().await,
         _ => return Err(ErrorFrontend::from("not database trait")),
@@ -879,10 +903,7 @@ pub async fn list_schema(
 #[tauri::command]
 pub async fn auto_completion(
     name: String, sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
-) -> Result<
-    Vec<CompletionItem>, // milliseconds
-    ErrorFrontend,
-> {
+) -> Result<Vec<CompletionItem>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     // TODO front is very hard to pass this parameter to the server
@@ -911,10 +932,7 @@ pub async fn auto_completion(
 #[tauri::command]
 pub async fn semantic_tokens(
     name: String, sql: String, app: tauri::State<'_, App>,
-) -> Result<
-    Vec<SemanticToken>, // milliseconds
-    ErrorFrontend,
-> {
+) -> Result<Vec<SemanticToken>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
@@ -2093,7 +2111,7 @@ pub async fn list_procedure(
 
 #[tauri::command]
 pub async fn show_procedure(
-    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, procedure: String, arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, App>,
 ) -> Result<ProcedureDetail, ErrorFrontend> {
     let schema = app
@@ -2108,7 +2126,7 @@ pub async fn show_procedure(
 
 #[tauri::command]
 pub async fn drop_procedure(
-    name: String, procedure: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, procedure: String, arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
@@ -2134,9 +2152,9 @@ pub async fn list_udf(
 
 #[tauri::command]
 pub async fn show_udf(
-    name: String, udf: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, udf: String, arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, App>,
-) -> Result<UdfDetail, ErrorFrontend> {
+) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
@@ -2149,7 +2167,7 @@ pub async fn show_udf(
 
 #[tauri::command]
 pub async fn drop_udf(
-    name: String, udf: String, arg: Option<UdfOrPrecedureExtraParameter>,
+    name: String, udf: String, arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
@@ -2195,6 +2213,75 @@ pub async fn put_value_in_sql(
     schema
         .put_value_in_sql(&typ, value.as_ref().map(|x| x.as_str()))
         .map_err(|x| ErrorFrontend::from(x))
+}
+
+#[tauri::command]
+pub async fn cassandra_list_aggregate(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let ret = match schema.as_any().downcast_ref::<CassandraDB>() {
+        Some(x) => x.list_aggregate().await.map_err(ErrorFrontend::from)?,
+        None => {
+            return Err(ErrorFrontend::from(format!(
+                "'{}' is not a cassandra",
+                name
+            )));
+        }
+    };
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn cassandra_show_aggregate(
+    name: String, agg_name: String, parameters: Vec<String>, app: tauri::State<'_, App>,
+) -> Result<DefAndMetas, ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let ret = match schema.as_any().downcast_ref::<CassandraDB>() {
+        Some(x) => x
+            .show_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
+        None => {
+            return Err(ErrorFrontend::from(format!(
+                "'{}' is not a cassandra",
+                name
+            )));
+        }
+    };
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn cassandra_drop_aggregate(
+    name: String, agg_name: String, parameters: Vec<String>, app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    match schema.as_any().downcast_ref::<CassandraDB>() {
+        Some(x) => x
+            .drop_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
+        None => {
+            return Err(ErrorFrontend::from(format!(
+                "'{}' is not a cassandra",
+                name
+            )));
+        }
+    };
+    Ok(())
 }
 
 #[derive(serde::Serialize)]

@@ -1,9 +1,12 @@
 import {
   Button,
+  FormControlLabel,
   IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
+  Radio,
+  RadioGroup,
   Stack,
   SxProps,
   TextField,
@@ -28,6 +31,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { Editor, loader, Monaco, OnMount } from '@monaco-editor/react';
@@ -45,13 +49,15 @@ const modalStyle: SxProps = {
   left: '50%',
   transform: 'translate(-50%, -50%)',
   bgcolor: 'background.paper',
-  border: '1px solid #000',
+  border: '2px solid skyblue',
   boxShadow: 24,
   margin: 0,
-  p: 4,
+  borderRadius: '5px',
+  p: 1,
 };
 
 import {
+  cassandraKeywords,
   mssqlKeywords,
   mysqlKeywords,
   oracleKeywords,
@@ -119,9 +125,11 @@ function EditorBar(props: {
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState('');
-
+  const databaseDom = useRef(null);
   const handleCreate = () => {
     if (!database) {
+      databaseDom.current.focus();
+      showNotification('error', 'database name is empty');
       return;
     }
 
@@ -140,11 +148,11 @@ function CreateDatabase({ uuid, handleClose }) {
       <Stack>
         <TextField
           size="small"
+          inputRef={databaseDom}
           value={database}
           onChange={(e) => {
             setDatabase(e.target.value);
           }}
-          error={database == ''}
           label="dadtabase name"
         ></TextField>
       </Stack>
@@ -164,15 +172,20 @@ function CreateDatabase({ uuid, handleClose }) {
 function CreateSchema(props: {
   uuid;
   handleClose;
+  handleReload;
   kind: DataSourceKind;
   schemas: string[];
 }) {
   //@ts-ignore
-  const { uuid, handleClose, kind, schemas } = props;
+  const { uuid, handleClose, kind, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
   const { showNotification } = useContext(NotificationContext);
   const [schema, setSchema] = useState('');
-
+  const replicationStrateges = ['SimpleStrategy', 'NetworkTopologyStrategy'];
+  const [replicationStrategy, setReplicationStrategy] = useState(
+    replicationStrateges[0]
+  );
+  const [replicationFactor, setReplicationFactor] = useState('3');
   const handleCreate = () => {
     if (!schema) {
       showNotification('error', 'Schema is empty');
@@ -182,25 +195,79 @@ function CreateSchema(props: {
       showNotification('error', `'${schema}' already exists.`);
       return;
     }
-    invoke('create_schema', { name: uuid, schema })
+    let extra = null;
+    switch (kind) {
+      case DataSourceKind.Cassandra:
+        extra = {
+          extra: 'cassandra',
+          replication_strategy: replicationStrategy,
+          replication_factor: parseInt(replicationFactor),
+        };
+        break;
+    }
+    invoke('create_schema', { name: uuid, schema, extra })
       .then(() => {
         showNotification('success', 'Create OK');
         handleClose();
+        handleReload();
       })
       .catch((e) => {
         showNotification('error', 'Create Failure', e);
       });
   };
 
+  if (kind == DataSourceKind.Cassandra) {
+    //
+    return (
+      <Stack spacing={1}>
+        <RadioGroup
+          row
+          onChange={(e) => {
+            setReplicationStrategy(e.target.value);
+          }}
+          value={replicationStrategy}
+        >
+          {replicationStrateges.map((e) => (
+            <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
+          ))}
+        </RadioGroup>
+        <TextField
+          type="number"
+          size="small"
+          value={replicationFactor}
+          onChange={(e) => {
+            setReplicationFactor(e.target.value);
+          }}
+          label="replication factor"
+        ></TextField>
+        <TextField
+          size="small"
+          value={schema}
+          onChange={(e) => {
+            setSchema(e.target.value);
+          }}
+          label="name"
+        ></TextField>
+        <Stack direction="row">
+          <Button
+            onClick={() => {
+              handleCreate();
+            }}
+          >
+            create
+          </Button>
+        </Stack>
+      </Stack>
+    );
+  }
   if (kind == DataSourceKind.Redis) {
     // redis have special create
     const range = [];
     for (let i = 0; i < 16; i++) {
       range.push('db' + i);
     }
-
     return (
-      <Stack>
+      <Stack spacing={1}>
         <Stack direction="row" style={{ flexWrap: 'wrap' }}>
           {range
             .filter((e) => !schemaSet.has(e))
@@ -239,7 +306,7 @@ function CreateSchema(props: {
   }
 
   return (
-    <Stack>
+    <Stack spacing={1}>
       <Stack>
         <TextField
           size="small"
@@ -416,17 +483,6 @@ function tabsHasId(tabs: TabContent[], id: string): number | null {
   return null;
 }
 
-function extraParametersFromMetaValues(
-  values: types.MetaValue[]
-): string | null {
-  for (const v of values) {
-    if (v.name == 'parameters') {
-      return v.value;
-    }
-  }
-  return null;
-}
-
 interface DefAndMetas {
   def: string;
   metas: types.MetaValue[];
@@ -523,6 +579,9 @@ function ConnConfigInfo(props: { uuid }) {
         case 'postgres':
         case 'redis':
         case 'mongo':
+        case 'tidb':
+        case 'cassandra':
+        case 'oracle':
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,
@@ -563,7 +622,6 @@ function reloadOK(showNotification) {
   showNotification('success', 'reload OK');
 }
 const registeredLanguage = new Set<string>();
-const VisiableContext = createContext(true);
 
 // uuid as language identifier.
 function initMonacoLanague(uuid: string, kind: DataSourceKind) {
@@ -788,7 +846,26 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
         format
       );
       break;
-
+    case DataSourceKind.Cassandra:
+      initLanguageXXX(
+        uuid,
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [cassandraKeywords, 'keyword'],
+              [/[_a-z][_a-z0-9]*/i, 'identifier'],
+              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
+              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+            ],
+          },
+        } as languages.IMonarchLanguage,
+        autoCompletion,
+        format
+      );
+      break;
     default:
       throw `impl this ${kind}`;
   }
@@ -807,6 +884,8 @@ async function makeQueryConnInfo(uuid: string) {
     case 'mariadb':
     case 'postgres':
     case 'sqlserver':
+    case 'cassandra':
+    case 'tidb':
       content = (
         <>
           <strong>{config.conn_type}</strong>
@@ -847,6 +926,11 @@ interface IQueryConn {
   queryOP: (text: string) => Promise<any[]>;
   loadQueryLog: () => Promise<types.QueryLogEvent[]>;
   reconnect: () => Promise<void>;
+  exportQueryResult: (
+    sql: string,
+    kind: types.ExportKind,
+    file: string
+  ) => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
   destroy: () => void;
   oracleQuerySetAutocommit: (boolean) => Promise<void>;
@@ -865,6 +949,18 @@ class QueryConn implements IQueryConn {
     this.queryId = queryId;
     this.uuid = uuid;
     this.isOracle = isOracle;
+  }
+  exportQueryResult(
+    sql: string,
+    kind: types.ExportKind,
+    file: string
+  ): Promise<void> {
+    return invoke<void>('export_query_result_to_file', {
+      name: this.uuid,
+      sql,
+      kind,
+      file,
+    });
   }
 
   oracleQuerySetAutocommit(commit: boolean): Promise<void> {
@@ -953,13 +1049,18 @@ function LoadStoreFileForQuery(props: {
     }
   };
   const handleSave = async () => {
+    let content = getQuery();
+    if (!content) {
+      showNotification('error', `can't save empty content`);
+      return;
+    }
     try {
       let ofile = file ? file : await save({ ...saveOpt });
       if (ofile) {
-        await writeFile(ofile, new TextEncoder().encode(getQuery()), {
+        await writeFile(ofile, new TextEncoder().encode(content), {
           create: true,
         });
-        handleChange(ofile, getQuery());
+        handleChange(ofile, content);
         showNotification('success', 'save file OK');
       }
     } catch (e) {
@@ -995,10 +1096,9 @@ function LoadStoreFileForQuery(props: {
           </Tooltip>
         </>
       )}
-      <IconButton onClick={loadFile}>
-        <AttachFileIcon></AttachFileIcon>
+      <IconButton onClick={loadFile} color="primary">
+        <AttachFileIcon />
       </IconButton>
-
       <Button onClick={handleSave}>save</Button>
     </>
   );
@@ -1006,6 +1106,7 @@ function LoadStoreFileForQuery(props: {
 
 type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
+const treeItemCommonStyle = { fontWeight: '600' } as CSSProperties;
 export {
   modalStyle,
   DocsAndCount,
@@ -1017,11 +1118,9 @@ export {
   msgTimeout,
   progressBarSize,
   progressBarSizeSmall,
-  extraParametersFromMetaValues,
   SettingContext,
   appStore,
   UserSettings,
-  VisiableContext,
   OpenedContext,
   MenuConnectionInfo,
   getNamedConfig,
@@ -1037,6 +1136,7 @@ export {
   AppStoreKey,
   LoadStoreFileForQuery,
   keyNotInTable,
+  treeItemCommonStyle,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn };

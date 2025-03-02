@@ -1,7 +1,9 @@
 {
   "identifier": "main-capability",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:path:default",
     "core:event:default",
@@ -34,10 +36,14 @@
     "fs:allow-exists",
     "fs:allow-watch",
     "fs:read-dirs",
+    "core:window:allow-set-fullscreen",
     {
       "identifier": "fs:scope",
-      "allow": ["**/*"]
+      "allow": [
+        "**/*"
+      ]
     },
-    "opener:default"
+    "opener:default",
+    "os:default"
   ]
 }

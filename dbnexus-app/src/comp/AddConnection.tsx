@@ -11,7 +11,6 @@ import {
   Select,
   MenuItem,
   Stack,
-  CircularProgress,
   Alert,
   Divider,
 } from '@mui/material';
@@ -20,7 +19,7 @@ import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 
 import { invoke } from '@tauri-apps/api/core';
-import { appStore, AppStoreKey, msgTimeout, progressBarSize } from './Common';
+import { appStore, AppStoreKey, msgTimeout } from './Common';
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { DataSourceKind } from './helper';
@@ -149,9 +148,13 @@ function Database(props: {
   setDatabase;
   candidates: string[];
   onBlur?;
+  lable?: string;
 }) {
-  let { database, setDatabase, candidates, onBlur } = props;
+  let { database, setDatabase, candidates, onBlur, lable } = props;
 
+  if (!lable) {
+    lable = 'database';
+  }
   return (
     <Stack>
       <Stack direction="row" style={{ flexWrap: 'wrap' }}>
@@ -171,7 +174,7 @@ function Database(props: {
         <TextField
           size="small"
           margin="normal"
-          label="database"
+          label={lable}
           value={database}
           onBlur={onBlur}
           onChange={(e) => setDatabase(e.target.value)}
@@ -258,6 +261,17 @@ export default function AddConfig(props: { handleClose: () => void }) {
           username: user,
           password: pass_null,
           db: db_null,
+          read_only: readOnly,
+          name: connectionName,
+        };
+      case DataSourceKind.Cassandra:
+        return {
+          conn_type: 'cassandra',
+          host: host,
+          port: portInt,
+          username: user_null,
+          password: pass_null,
+          keyspace: db_null,
           read_only: readOnly,
           name: connectionName,
         };
@@ -391,9 +405,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
       case DataSourceKind.MsSql:
         setPort('1433');
         break;
-      case DataSourceKind.MsSql:
-        setPort('1433');
-        break;
       case DataSourceKind.Redis:
         setPort('6379');
         break;
@@ -402,6 +413,9 @@ export default function AddConfig(props: { handleClose: () => void }) {
         break;
       case DataSourceKind.Oracle:
         setPort('1521');
+        break;
+      case DataSourceKind.Cassandra:
+        setPort('9042');
         break;
     }
     setUser('');
@@ -489,10 +503,8 @@ export default function AddConfig(props: { handleClose: () => void }) {
   }, [database]);
 
   return (
-    <Stack>
-      <Typography variant="h6" gutterBottom>
-        New Connection
-      </Typography>
+    <Stack spacing={1}>
+      <Typography variant="h6">New Connection</Typography>
       <FormControl fullWidth margin="normal">
         <InputLabel>Connection Type</InputLabel>
         <Select
@@ -511,6 +523,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           <MenuItem value={DataSourceKind.MsSql}>
             Sql server(microsoft)
           </MenuItem>
+          <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
         </Select>
       </FormControl>
 
@@ -568,6 +581,32 @@ export default function AddConfig(props: { handleClose: () => void }) {
               candidates={schemaCandidates}
             ></Schema>
           )}
+        </>
+      )}
+
+      {connectionType == DataSourceKind.Cassandra && (
+        <>
+          <HostAndPort
+            host={host}
+            port={port}
+            setHost={setHost}
+            setPort={setPort}
+            onBlur={toggleTriggerReload}
+          ></HostAndPort>
+          <UserAndPassword
+            user={user}
+            password={password}
+            setUser={setUser}
+            onBlur={toggleTriggerReload}
+            setPassword={setPassword}
+          ></UserAndPassword>
+          <Database
+            candidates={databaseCandidates}
+            database={database}
+            setDatabase={setDatabase}
+            onBlur={toggleTriggerReload}
+            lable="key space"
+          ></Database>
         </>
       )}
       {connectionType == DataSourceKind.Redis && (
@@ -677,27 +716,8 @@ export default function AddConfig(props: { handleClose: () => void }) {
       {connectionType == DataSourceKind.Sqlite && (
         <Sqlite path={path} setPath={setPath}></Sqlite>
       )}
-      <Stack direction="row">
-        <Button
-          variant="outlined"
-          sx={{ mr: 1 }}
-          onClick={handleTestConnection}
-        >
-          Test
-        </Button>
-        {testOk && <Alert severity="success"> Test OK </Alert>}
-        {testLoading && <CircularProgress size={progressBarSize} />}
-      </Stack>
-      <Stack direction="row" alignItems="flex-start" spacing={2}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={readOnly}
-              onChange={(e) => setReadOnly(e.target.checked)}
-            />
-          }
-          label="Read Only"
-        />
+
+      <Stack direction="row" style={{ alignItems: 'center' }} spacing={2}>
         <TextField
           size="small"
           margin="normal"
@@ -707,7 +727,17 @@ export default function AddConfig(props: { handleClose: () => void }) {
           inputRef={connectionNameDom}
           required
           onChange={(e) => setConnectionName(e.target.value)}
-          helperText="Enter a name for this connection"
+        />
+        <FormControlLabel
+          style={{ width: '180px' }}
+          control={
+            <Switch
+              size="small"
+              checked={readOnly}
+              onChange={(e) => setReadOnly(e.target.checked)}
+            />
+          }
+          label="Read Only"
         />
       </Stack>
       <Divider></Divider>
@@ -721,6 +751,15 @@ export default function AddConfig(props: { handleClose: () => void }) {
         >
           save
         </Button>
+        <Button
+          variant="outlined"
+          sx={{ mr: 1 }}
+          onClick={handleTestConnection}
+          loading={testLoading}
+        >
+          test
+        </Button>
+        {testOk && <Alert severity="success"> Test OK </Alert>}
       </Stack>
     </Stack>
   );

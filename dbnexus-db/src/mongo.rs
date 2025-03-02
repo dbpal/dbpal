@@ -15,8 +15,8 @@ use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp, not_support_features,
+    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -627,7 +627,7 @@ impl SchemaTrait for Mongo {
 
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize,
+        _page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         anyhow::bail!("use mongo special method")
     }
@@ -716,7 +716,7 @@ impl SchemaTrait for Mongo {
 
     async fn show_table(
         &self, _table_name: &str, _filter: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize,
+        _page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         anyhow::bail!("use mongo special method")
     }
@@ -1176,6 +1176,21 @@ mod tests {
             .unwrap();
         let view_names = db.list_view().await.unwrap();
         println!("view names:{:?}", view_names)
+    }
+    #[tokio::test]
+    async fn test_xxx() {
+        let db = make_test_object();
+
+        let view_name = "test_mongo";
+
+        let docs = db
+            .show_collection_docs(view_name, doc! {}, doc! {}, 1, 100)
+            .await
+            .unwrap();
+
+        for d in docs.docs.iter() {
+            println!("{:?}", d);
+        }
     }
 
     #[tokio::test]

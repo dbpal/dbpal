@@ -11,9 +11,20 @@ import {
   Paper,
   MenuList,
 } from '@mui/material';
-import { ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { types } from './ApiStruct';
-import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  GridSlotsComponentsProps,
+  GridSortModel,
+} from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -22,12 +33,15 @@ import LinkOffIcon from '@mui/icons-material/LinkOff';
 import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import {
   appStore,
   AppStoreKey,
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
+  datagridContainerHeight,
   DataSourceKind,
   errToString,
   handleCopyToClipboard,
@@ -43,7 +57,7 @@ const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
 
   return (
-    <FormControl style={{ width: '100px' }}>
+    <FormControl fullWidth>
       <InputLabel id="dropdown-label">log level</InputLabel>
       <Select
         labelId="dropdown-label"
@@ -83,7 +97,7 @@ function MenuNewQuery({ handle }) {
       <ListItemIcon>
         <AddIcon></AddIcon>
       </ListItemIcon>
-      <ListItemText> New Query </ListItemText>
+      <ListItemText> new query </ListItemText>
     </MenuItem>
   );
 }
@@ -177,6 +191,16 @@ function ConnStatus({ uuid }) {
 
 function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   const { handleCreate, kind } = props;
+  let name = 'database';
+  switch (kind) {
+    case DataSourceKind.MsSql:
+    case DataSourceKind.Postgres:
+      name = 'schema';
+      break;
+    case DataSourceKind.Cassandra:
+      name = 'key space';
+      break;
+  }
   return (
     <MenuItem
       onClick={() => {
@@ -186,12 +210,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
       <ListItemIcon>
         <TbDatabasePlus></TbDatabasePlus>
       </ListItemIcon>
-      <ListItemText>
-        create
-        {kind == DataSourceKind.MsSql || kind == DataSourceKind.Postgres
-          ? ' schema'
-          : ' database'}
-      </ListItemText>
+      <ListItemText> {`create ${name}`} </ListItemText>
     </MenuItem>
   );
 }
@@ -301,7 +320,7 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
     { field: 'value', flex },
     { field: 'desc', flex },
   ];
-
+  const [sortModel, setSortModel] = useState<GridSortModel>([]);
   values.forEach((e) => {
     if (!('id' in e)) {
       //@ts-ignore
@@ -309,8 +328,8 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
     }
   });
 
-  function Menu(props: { content: string }) {
-    const { content } = props;
+  function Menu(props: { content: string; setSort; field: string }) {
+    const { content, setSort, field } = props;
 
     const { showNotification } = useContext(NotificationContext);
     return (
@@ -326,6 +345,27 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
             </ListItemIcon>
             <ListItemText> copy </ListItemText>
           </MenuItem>
+
+          <MenuItem
+            onClick={() => {
+              setSort([{ field, sort: 'asc' }] as GridSortModel);
+            }}
+          >
+            <ListItemIcon>
+              <ArrowUpwardIcon></ArrowUpwardIcon>
+            </ListItemIcon>
+            <ListItemText> {field} ASC </ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              setSort([{ field, sort: 'desc' }] as GridSortModel);
+            }}
+          >
+            <ListItemIcon>
+              <ArrowDownwardIcon></ArrowDownwardIcon>
+            </ListItemIcon>
+            <ListItemText> {field} DESC </ListItemText>
+          </MenuItem>
         </MenuList>
       </Paper>
     );
@@ -337,9 +377,15 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
         onContextMenu: (e) => {
           const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
-
+          let filed = (target as HTMLDivElement).getAttribute('data-field');
           setUpMenu({
-            content: <Menu content={content}></Menu>,
+            content: (
+              <Menu
+                content={content}
+                field={filed}
+                setSort={setSortModel}
+              ></Menu>
+            ),
             style: calMenuStyle(e, 200),
           });
         },
@@ -348,16 +394,30 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
     } as GridSlotsComponentsProps;
   }, []);
   const setting = useContext(SettingContext);
+
+  const onSortModelChange = useCallback((e) => {
+    setSortModel(e);
+  }, []);
+
   return (
-    <DataGrid
-      showCellVerticalBorder
-      showColumnVerticalBorder
-      slotProps={slotProps}
-      rowHeight={setting.datagridRowHeight}
-      columnHeaderHeight={setting.datagridHeaderHeight}
-      columns={columns}
-      rows={values}
-    ></DataGrid>
+    <div
+      style={{
+        display: 'grid',
+        height: datagridContainerHeight(values.length),
+      }}
+    >
+      <DataGrid
+        sortModel={sortModel}
+        onSortModelChange={onSortModelChange}
+        showCellVerticalBorder
+        showColumnVerticalBorder
+        slotProps={slotProps}
+        rowHeight={setting.datagridRowHeight}
+        columnHeaderHeight={setting.datagridHeaderHeight}
+        columns={columns}
+        rows={values}
+      ></DataGrid>
+    </div>
   );
 }
 

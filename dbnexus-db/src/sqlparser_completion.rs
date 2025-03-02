@@ -169,9 +169,38 @@ pub(crate) enum NearNestTableNamed {
 #[derive(Clone, Debug)]
 pub struct TempTableColumn {
     pub(crate) name: String,
-    // typ: String,
+    pub(crate) typ: Option<String>,
 }
 
+impl From<TempTableColumn> for CompletionItem {
+    fn from(value: TempTableColumn) -> Self {
+        Self::from(&value)
+    }
+}
+impl From<&TempTableColumn> for CompletionItem {
+    fn from(value: &TempTableColumn) -> Self {
+        Self {
+            item: value.name.to_string().into(),
+            kind: CompletionKind::Column,
+            desc: value.typ.as_ref().map(|x| x.clone().into()),
+        }
+    }
+}
+
+impl From<&CompletionItem> for TempTableColumn {
+    fn from(value: &CompletionItem) -> Self {
+        debug_assert!(value.kind == CompletionKind::Column);
+        Self {
+            name: value.item.to_string(),
+            typ: value.desc.as_ref().map(|x| x.to_string()),
+        }
+    }
+}
+impl From<CompletionItem> for TempTableColumn {
+    fn from(value: CompletionItem) -> Self {
+        Self::from(&value)
+    }
+}
 #[derive(Clone, Debug)]
 pub struct TempTable {
     pub(crate) columns: Arc<Vec<TempTableColumn>>,
@@ -558,6 +587,7 @@ impl CompletionStament {
                                 .iter()
                                 .map(|c| TempTableColumn {
                                     name: c.name.value.clone(),
+                                    typ: Some(c.data_type.to_string()),
                                 })
                                 .collect(),
                         ),

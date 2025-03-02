@@ -10,11 +10,7 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { useContext, useEffect, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
-import {
-  extraParametersFromMetaValues,
-  initMonacoLanague,
-  tabsHasId,
-} from './Common';
+import { initMonacoLanague, tabsHasId, treeItemCommonStyle } from './Common';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -51,7 +47,7 @@ function ProceduresTree() {
   const getItemId = (x: types.NamedStaff) => {
     switch (kind) {
       case DataSourceKind.Postgres:
-        let p = extraParametersFromMetaValues(x.metas);
+        let p = x.parameters;
         return idPrefix + '-' + x.name + '-' + p;
       default:
         return idPrefix + '-' + x.name;
@@ -67,7 +63,7 @@ function ProceduresTree() {
       label=<Stack
         direction="row"
         spacing={1}
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -87,7 +83,7 @@ function ProceduresTree() {
     >
       {ps.map((p) => (
         <TreeItem
-          key={p.name + '-' + extraParametersFromMetaValues(p.metas)}
+          key={p.name + '-' + p.parameters}
           itemId={getItemId(p)}
           sx={{ alignItems: 'flex-end' }}
           label=<Stack
@@ -101,19 +97,17 @@ function ProceduresTree() {
                     uuid={uuid}
                     kind={kind}
                     procedure={p.name}
-                    parameters={extraParametersFromMetaValues(p.metas)}
+                    parameters={p.parameters}
                   ></ProcedureMenu>
                 ),
                 style: calMenuStyle(e, 100),
               });
             }}
-            sx={{ alignItems: 'center' }}
+            sx={{ alignItems: 'center', ...treeItemCommonStyle }}
           >
             <SiProcessingfoundation></SiProcessingfoundation>
             <span>{p.name}</span>
-            {kind == DataSourceKind.Postgres && (
-              <em> ( {extraParametersFromMetaValues(p.metas)} ) </em>
-            )}
+            {kind == DataSourceKind.Postgres && <em> ( {p.parameters} ) </em>}
           </Stack>
         ></TreeItem>
       ))}

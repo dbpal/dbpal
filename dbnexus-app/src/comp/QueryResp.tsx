@@ -18,16 +18,30 @@ import {
   handleCopyToClipboard,
   columnWidths,
   ContextMenuContext,
+  VisiableContext,
 } from './helper.ts';
-import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
-import React, { memo, useCallback, useContext, useMemo } from 'react';
-import { SettingContext, VisiableContext } from './Common.tsx';
+import {
+  DataGrid,
+  GridSlotsComponentsProps,
+  GridSortModel,
+} from '@mui/x-data-grid';
+import React, {
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import { SettingContext } from './Common.tsx';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification.tsx';
 
-function RespContextMenu(props: { content }) {
-  const { content } = props;
+function RespContextMenu(props: { content; field; setSort }) {
+  const { content, field, setSort } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
     <Paper>
@@ -41,6 +55,38 @@ function RespContextMenu(props: { content }) {
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
           <ListItemText> copy </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(field, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy field </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            setSort([{ field, sort: 'asc' }] as GridSortModel);
+          }}
+        >
+          <ListItemIcon>
+            <ArrowUpwardIcon></ArrowUpwardIcon>
+          </ListItemIcon>
+          <ListItemText> {field} ASC </ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setSort([{ field, sort: 'desc' }] as GridSortModel);
+          }}
+        >
+          <ListItemIcon>
+            <ArrowDownwardIcon></ArrowDownwardIcon>
+          </ListItemIcon>
+          <ListItemText> {field} DESC </ListItemText>
         </MenuItem>
       </MenuList>
     </Paper>
@@ -74,7 +120,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
     columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
   const vis = useContext(VisiableContext);
-
+  const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
@@ -82,8 +128,16 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
         onContextMenu: (e) => {
           const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+
           setUpMenu({
-            content: <RespContextMenu content={content}></RespContextMenu>,
+            content: (
+              <RespContextMenu
+                content={content}
+                field={field}
+                setSort={setSortModel}
+              ></RespContextMenu>
+            ),
             style: calMenuStyle(e, 200),
           });
         },
@@ -92,6 +146,10 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
     } as GridSlotsComponentsProps;
   }, []);
   const setting = useContext(SettingContext);
+  const onSortModelChange = useCallback((e) => {
+    setSortModel(e);
+  }, []);
+
   return (
     vis && (
       <div
@@ -101,6 +159,8 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
         }}
       >
         <DataGrid
+          sortModel={sortModel}
+          onSortModelChange={onSortModelChange}
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}
@@ -130,7 +190,6 @@ function CustomTabPanel(props: TabPanelProps) {
       role="tabpanel"
       hidden={value !== index}
       id={`${idPrefix}-tabpanel-${index}`}
-      aria-labelledby={`${idPrefix}-tab-${index}`}
       {...other}
     >
       {value === index && <div>{children}</div>}
@@ -161,6 +220,9 @@ function MultiQueryResp_(props: { data: any[] }) {
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
   };
+  useEffect(() => {
+    setValue(0);
+  }, [data]);
   let idPrefix = generateRandomString(10);
   const vis = useContext(VisiableContext);
   return (

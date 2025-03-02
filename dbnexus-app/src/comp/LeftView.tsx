@@ -4,6 +4,7 @@ import {
   tabsHasId,
   modalStyle,
   DocsAndCount,
+  treeItemCommonStyle,
 } from './Common';
 import { NotificationContext } from './Notification';
 
@@ -111,6 +112,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       label=<Stack
         direction="row"
         spacing={1}
+        style={{ ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -162,7 +164,7 @@ function ViewTree(props: {
         <Stack
           direction="row"
           spacing={1}
-          sx={{ justifyContent: 'space-between' }}
+          sx={{ justifyContent: 'space-between', ...treeItemCommonStyle }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -220,6 +222,7 @@ function ViewColumnsTree(props: { view: string; viewkind: ViewKind }) {
       label=<Stack
         spacing={1}
         direction="row"
+        style={{ ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -242,6 +245,7 @@ function ViewColumnsTree(props: { view: string; viewkind: ViewKind }) {
       {fields.map((f) => (
         <TreeItem
           key={f.field}
+          style={{ ...treeItemCommonStyle }}
           itemId={idPrefix + '-' + f.field}
           label=<Stack direction="row" spacing={1}>
             {f.field} <em>({f.typ}) </em>
@@ -307,14 +311,17 @@ function ViewMenu(props: {
         case DataSourceKind.Postgres:
         case DataSourceKind.Oracle:
         case DataSourceKind.TiDB:
+        case DataSourceKind.Cassandra:
           list = (
             <SqlTableView
+              kind={kind}
               notWarnPri={true}
               reloadOP={async (
                 where: string,
                 orderBy: string,
                 page: number,
-                pageSize: number
+                pageSize: number,
+                extra
               ) => {
                 let where_null = where ? where : null;
                 let orderBy_null = orderBy ? orderBy : null;
@@ -325,6 +332,7 @@ function ViewMenu(props: {
                   orderBy: orderBy_null,
                   page,
                   pageSize,
+                  extra,
                 });
               }}
               put_value_in_sql={async (typ, value) => {
@@ -447,10 +455,12 @@ function ViewMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowExport(false);
           }}
-          aria-labelledby="drop"
         >
           <Box sx={modalStyle} width="800px">
             <ExportTableOrView

@@ -1,7 +1,7 @@
 # Logs
 logs
 *.log
-
+dbnexus-app/src/comp/debug.ts
 dbnexus-app/src/comp/Test.jsx
 dbnexus-app/src/comp/Test.jsx
 dbnexus-app/test.html

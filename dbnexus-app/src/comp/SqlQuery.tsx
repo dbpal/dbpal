@@ -3,7 +3,15 @@ import SplitPane from 'react-split-pane';
 import { MultiQueryResp } from './QueryResp';
 
 import './style/react-split-pane.css';
-import { Button, IconButton, Paper, Stack, Tooltip } from '@mui/material';
+import {
+  Box,
+  Button,
+  IconButton,
+  Modal,
+  Paper,
+  Stack,
+  Tooltip,
+} from '@mui/material';
 
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -22,6 +30,7 @@ import {
   IQueryConn,
   LoadStoreFileForQuery,
   MakeIQueryConn,
+  modalStyle,
   msgTimeout,
   SettingContext,
 } from './Common.tsx';
@@ -29,7 +38,12 @@ import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { secondConfirm } from './helper.ts';
-const fileFilter = { filters: [{ name: 'sql', extensions: ['sql'] }] };
+import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
+import { ExportView } from './Export.tsx';
+
+const fileFilter = {
+  filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
+};
 
 function OracleCommit(props: { conn: IQueryConn }) {
   const { conn } = props;
@@ -106,6 +120,7 @@ function SqlQuery(props: {
   );
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
+  const [showExport, setShowExport] = useState(false);
   const { theme } = useContext(SettingContext);
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, monaco) => {
@@ -203,7 +218,6 @@ function SqlQuery(props: {
         e
       );
     }
-
     let now = new Date();
     setLoading(true);
     conn
@@ -348,6 +362,28 @@ function SqlQuery(props: {
               <RefreshIcon color={showSuggestReconn ? 'error' : 'inherit'} />
             </IconButton>
           </Tooltip>
+
+          <Tooltip title="export  query result of selected statement">
+            <IconButton
+              disabled={loading || conn == null}
+              onClick={() => {
+                const value = editor.current
+                  .getModel()
+                  .getValueInRange(editor.current.getSelection());
+
+                if (!value) {
+                  showNotification('error', 'u need select a statement.');
+                  return;
+                }
+                setShowExport(true);
+              }}
+              color="primary"
+              aria-label="execute"
+            >
+              <ArrowCircleDownRoundedIcon />
+            </IconButton>
+          </Tooltip>
+
           {conn && conn.isOracle && <OracleCommit conn={conn} />}
           <LoadStoreFileForQuery
             file={file}
@@ -377,7 +413,6 @@ function SqlQuery(props: {
             flexShrink: 1,
             minHeight: 0,
             height: '400px',
-            width: '99%',
           }}
         >
           <Editor
@@ -395,6 +430,40 @@ function SqlQuery(props: {
           pos={pos}
         ></EditorBar>
       </div>
+
+      {showExport && (
+        <Modal
+          open={showExport}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowExport(false);
+          }}
+        >
+          <Box sx={modalStyle} width="600px">
+            <ExportView
+              handleClose={() => {
+                setShowExport(false);
+              }}
+              support_kind={['csv', 'json', 'jsonline']}
+              exportOP={async (kind, file) => {
+                try {
+                  const sql = editor.current
+                    .getModel()
+                    .getValueInRange(editor.current.getSelection());
+
+                  await conn.exportQueryResult(sql, kind, file);
+                  showNotification('success', 'export OK');
+                } catch (e) {
+                  showNotification('error', 'export failure', e);
+                }
+              }}
+              supportCsvHeader={true}
+            ></ExportView>
+          </Box>
+        </Modal>
+      )}
       <div>
         <MultiQueryResp data={resp}></MultiQueryResp>
       </div>

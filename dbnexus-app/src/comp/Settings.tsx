@@ -104,6 +104,7 @@ function ModifySettings() {
         <TextField
           size="small"
           value={editorFontSize}
+          type="number"
           onChange={(e) => {
             setEditorFontSize(e.target.value);
           }}
@@ -118,6 +119,7 @@ function ModifySettings() {
           onChange={(e) => {
             setRootFontSize(e.target.value);
           }}
+          type="number"
           error={isNaN(parseInt(rootFontSize))}
           helperText="overall font size"
         ></TextField>
@@ -127,6 +129,7 @@ function ModifySettings() {
         <TextField
           size="small"
           value={datagridHeaderHeight}
+          type="number"
           onChange={(e) => {
             setDatagridHeaderHeight(e.target.value);
           }}
@@ -141,6 +144,7 @@ function ModifySettings() {
           onChange={(e) => {
             setDatagridRowHeight(e.target.value);
           }}
+          type="number"
           error={isNaN(parseInt(datagridRowHeight))}
         ></TextField>
       </Stack>
@@ -168,6 +172,7 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
+        fontWeight: 'bold',
       },
     },
   },
@@ -177,6 +182,7 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
+        fontWeight: 'bold',
       },
     },
   },
@@ -193,14 +199,15 @@ const components: Components<
   MuiDataGrid: {
     styleOverrides: {
       cell: {
-        fontSize: '0.9rem',
+        fontSize: '1rem',
+        fontWeight: '700',
       },
       columnHeaders: {
         fontSize: '0.8rem', // 调整表头字体大小
-        fontWeight: 'normal', // 可选：调整表头字体粗细
       },
     },
   },
+
   MuiMenuList: {
     styleOverrides: {
       root: {
@@ -208,6 +215,7 @@ const components: Components<
       },
     },
   },
+
   MuiSelect: {
     styleOverrides: {
       root: {
@@ -242,7 +250,38 @@ const components: Components<
 };
 
 const lightTheme = createTheme({ palette: { mode: 'light' }, components });
+const rowSelected = {
+  '&.Mui-selected': {
+    backgroundColor: '#1976d2', // 蓝色背景
+    color: '#ffffff', // 白色字体
+    '&:hover': {
+      backgroundColor: '#115293', // 悬停时的背景色
+    },
+  },
+};
+
+//@ts-ignore
+lightTheme.components.MuiDataGrid.styleOverrides.row = {
+  // '&:nth-of-type(odd)': {
+  //   backgroundColor: '#ffffff', // 浅色模式的奇数行背景色
+  // },
+  // '&:nth-of-type(even)': {
+  //   backgroundColor: '#d0d0d0', // 浅色模式的偶数行背景色
+  // },
+  ...rowSelected,
+};
+
 const darkTheme = createTheme({ palette: { mode: 'dark' }, components });
+//@ts-ignore
+darkTheme.components.MuiDataGrid.styleOverrides.row = {
+  // '&:nth-of-type(odd)': {
+  //   backgroundColor: '#00000', // 深色模式的奇数行背景色
+  // },
+  // '&:nth-of-type(even)': {
+  //   backgroundColor: '#2f2f2f', // 深色模式的偶数行背景色
+  // },
+  ...rowSelected,
+};
 
 function SettingComp(props: { children }) {
   const { children } = props;

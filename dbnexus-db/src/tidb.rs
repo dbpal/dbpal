@@ -7,8 +7,8 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet, TableListResp, TriggerDetail, UdfDetail,
-    UdfOrPrecedureExtraParameter,
+    QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+    DefAndMetas, UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
@@ -90,10 +90,10 @@ impl SchemaTrait for TiDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         self.db
-            .show_table(&table_name, where_str, order_by, page, page_size)
+            .show_table(&table_name, where_str, order_by, page, page_size, extra)
             .await
     }
 
@@ -112,9 +112,9 @@ impl SchemaTrait for TiDB {
     }
 
     async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
-        self.db.create_index(&table, name, kind, &fileds).await
+        self.db.create_index(&table, name, kind, &fields).await
     }
 
     async fn insert(
@@ -181,10 +181,10 @@ impl SchemaTrait for TiDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         self.db
-            .show_view(view_name, where_str, order_by, page, page_size)
+            .show_view(view_name, where_str, order_by, page, page_size, None)
             .await
     }
 
@@ -257,13 +257,13 @@ impl SchemaTrait for TiDB {
     }
 
     async fn show_udf(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         self.db.show_udf(name, arg).await
     }
 
     async fn drop_udf(
-        &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         self.db.drop_udf(name, extra).await
     }
@@ -273,13 +273,13 @@ impl SchemaTrait for TiDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         self.db.show_procedure(name, arg).await
     }
 
     async fn drop_procedure(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         self.db.drop_procedure(name, arg).await
     }

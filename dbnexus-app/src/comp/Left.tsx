@@ -8,7 +8,6 @@ import {
   Modal,
   Paper,
   Stack,
-  Typography,
 } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 
@@ -26,6 +25,7 @@ import {
   initMonacoLanague,
   makeQueryConnInfo,
   QueryConn,
+  treeItemCommonStyle,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -35,7 +35,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { debug } from './debug';
 import { TabContent } from './Tabs';
@@ -65,7 +64,7 @@ import {
 } from './CommonComp.tsx';
 import { RedisTables, TablesTree, TablesType } from './LeftTable.tsx';
 import { ViewKind, ViewsTree } from './LeftView.tsx';
-import { UdfsTree } from './LeftUdf.tsx';
+import { CassaandraAggregatesTree, UdfsTree } from './LeftUdf.tsx';
 import { ProceduresTree } from './LeftProcedure.tsx';
 
 function Left_() {
@@ -163,7 +162,8 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
       case 'oracle':
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
-
+      case 'cassandra':
+        return config.keyspace ? <SchemaTree /> : <DatabaseTree />;
       default:
         console.log('impl database kind:', config);
         throw `impl this kind`;
@@ -196,7 +196,8 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.MsSql ||
-    kind == DataSourceKind.Oracle;
+    kind == DataSourceKind.Oracle ||
+    kind == DataSourceKind.Cassandra;
 
   let { setUpMenu } = useContext(ContextMenuContext);
 
@@ -227,39 +228,69 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
         {!schema && opened && <ConnStatus uuid={uuid}></ConnStatus>}
       </Stack>
     >
+      {opened && kind == DataSourceKind.Sqlite && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.Cassandra && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Materrialized}></ViewsTree>
+        </>
+      )}
+      {opened && kind == DataSourceKind.Mongo && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
       {opened &&
-        (kind == DataSourceKind.Sqlite ||
-          kind == DataSourceKind.Mysql ||
+        (kind == DataSourceKind.Mysql ||
           kind == DataSourceKind.MariaDB ||
-          kind == DataSourceKind.MsSql ||
-          kind == DataSourceKind.Postgres ||
-          kind == DataSourceKind.Mongo ||
-          kind == DataSourceKind.Oracle ||
           kind == DataSourceKind.TiDB) && (
           <>
             <TablesTree typ={TablesType.Normal} />
-            {kind == DataSourceKind.Mongo && (
-              <TablesTree typ={TablesType.MongoTimeSerial} />
-            )}
             <ViewsTree viewkind={ViewKind.Normal} />
-
-            {kind == DataSourceKind.Postgres ||
-              (kind == DataSourceKind.Oracle && (
-                <ViewsTree viewkind={ViewKind.Materrialized} />
-              ))}
-
-            {support_procedure && <ProceduresTree />}
-            {support_udf && <UdfsTree></UdfsTree>}
           </>
         )}
-
+      {opened && kind == DataSourceKind.Postgres && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewkind={ViewKind.Materrialized} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.Oracle && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewkind={ViewKind.Materrialized} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.MsSql && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
+      {opened && (
+        <>
+          {support_procedure && <ProceduresTree />}
+          {support_udf && <UdfsTree></UdfsTree>}
+        </>
+      )}
+      {opened && kind == DataSourceKind.Cassandra && (
+        <CassaandraAggregatesTree />
+      )}
       {opened && kind == DataSourceKind.Redis && (
         <RedisTables schema={schema} />
       )}
@@ -355,10 +386,12 @@ function DatabaseMenu(props: {
       {showCreateSchema && (
         <Modal
           open={showCreateSchema}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowCreateSchema(false);
           }}
-          aria-labelledby="create database"
         >
           <Box sx={modalStyle} width="600px">
             <CreateSchema
@@ -369,6 +402,7 @@ function DatabaseMenu(props: {
               }}
               kind={kind}
               schemas={schemas}
+              handleReload={reload}
             ></CreateSchema>
           </Box>
         </Modal>
@@ -435,10 +469,12 @@ function CatalogMenu(props: {
       {showCreateDB && (
         <Modal
           open={showCreateDB}
-          onClose={() => {
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
             setShowCreateDB(false);
           }}
-          aria-labelledby="create database"
         >
           <Box sx={modalStyle} width="600px">
             <CreateDatabase
@@ -481,6 +517,7 @@ async function openNewQuery(
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
     case DataSourceKind.TiDB:
+    case DataSourceKind.Cassandra:
       content = (
         <SqlQuery
           language={uuid}
@@ -639,8 +676,9 @@ function CatalogTree(_props: {}) {
             style: calMenuStyle(e, 70),
           });
         }}
+        style={{ ...treeItemCommonStyle }}
       >
-        <Typography>{name} </Typography>
+        <span>{name} </span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
         {opened && <ConnStatus uuid={name}></ConnStatus>}
       </Stack>
@@ -723,7 +761,7 @@ function DatabaseTree(props: {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
       >
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>

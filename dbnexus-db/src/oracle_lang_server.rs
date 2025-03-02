@@ -91,23 +91,25 @@ impl AstCompletionHelper for OracleDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let schmea = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-        let sql = format!(
-            "SELECT  COLUMN_NAME FROM ALL_TAB_COLUMNs WHERE TABLE_NAME = '{table}' AND OWNER ='{}'",
-            schmea
-        );
-        let conn = self.get_conn()?;
-        let rows = conn.query(&sql, &[])?;
-        let mut ret = Vec::new();
+        &self, _db: Option<&str>, schema: Option<&str>, name: &str,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let sql = format!(r#"select * from "{}"."{}""#, schema, name);
 
-        for row in rows {
-            let row = row?;
-            let name: String = row.get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
+        let conn = self.get_conn()?;
+
+        let row = conn.query_row(&sql, &[])?;
+
+        anyhow::Ok(
+            row.column_info()
+                .iter()
+                .map(|x| CompletionItem {
+                    item: x.name().to_string().into(),
+                    desc: Some(x.oracle_type().to_string().into()),
+                    kind: CompletionKind::Column,
+                })
+                .collect(),
+        )
     }
 
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {

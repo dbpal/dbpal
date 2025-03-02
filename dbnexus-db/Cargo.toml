@@ -44,5 +44,7 @@ humansize = "*"
 memory-stats = "1.2.0"
 rand = "*"
 enum-iterator = "2.1.0"
-cassandra-cpp = "3.0.2"
+cdrs-tokio = "8.1.5"
+num-bigint = "*"
+cql3-parser = { git = "https://github.com/dbpal/rust-cql3-parser", rev = "89aef5f99854449a78dc37a17363823f889374c8" }
 [dev-dependencies]

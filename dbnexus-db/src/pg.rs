@@ -14,10 +14,10 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfDetail,
-    UdfOrPrecedureExtraParameter,
+    CreatedType, DBTrait, DefAndMetas, ExportKind, Field, HumanSize, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -392,12 +392,25 @@ impl ServerMetas for PostGresDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
+        // TODO
+        not_support_features(self.backend_name())
+    }
+    async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DROP TYPE  "{}"."{typ}" "#, self.must_schema());
+
+        let mut conn = self.get_conn().await?;
+
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     fn quote_style(&self) -> &'static str {
         "\""
     }
 
     async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fileds: &[String],
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
@@ -407,7 +420,7 @@ impl SchemaTrait for PostGresDB {
                 IndexKind::Unique => "Unique",
             },
             name,
-            fileds.join(",")
+            fields.join(",")
         );
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -548,7 +561,9 @@ impl SchemaTrait for PostGresDB {
             let p: String = r.try_get(1)?;
             ret.push(NamedStaff {
                 name,
-                metas: vec![MetaValue::new("parameters", p)],
+                parameters: Some(p),
+                metas: vec![],
+                cassandra_parameters: None,
             });
         }
 
@@ -556,14 +571,16 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
-        let arg: &UdfOrPrecedureExtraParameter = match arg.as_ref() {
+        let arg: &UdfOrProcedureExtraParameter = match arg.as_ref() {
             Some(arg) => arg,
             None => anyhow::bail!(format!("postgres need extra argument.")),
         };
         let parameters = match arg {
-            UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+            UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+
+            _ => return Err(arg.wrong_type()),
         };
         let sql = format!(
             r#"
@@ -597,14 +614,15 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_procedure(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let arg: &UdfOrPrecedureExtraParameter = match arg.as_ref() {
+        let arg: &UdfOrProcedureExtraParameter = match arg.as_ref() {
             Some(arg) => arg,
             None => anyhow::bail!(format!("postgres need extra argument.")),
         };
         let p = match arg {
-            UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+            UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+            _ => return Err(arg.wrong_type()),
         };
         let sql = format!("DROP PROCEDURE {}({})", name, p);
         let mut conn = self.get_conn().await?;
@@ -636,21 +654,21 @@ impl SchemaTrait for PostGresDB {
             let arguments: Option<String> = r.get(2);
             ret.push(NamedStaff {
                 name,
-                metas: vec![
-                    MetaValue::new_opt("return_type", return_type),
-                    MetaValue::new_opt("parameters", arguments),
-                ],
+                parameters: arguments,
+                metas: vec![MetaValue::new_opt("return_type", return_type)],
+                cassandra_parameters: None,
             });
         }
         anyhow::Ok(ret)
     }
 
     async fn show_udf(
-        &self, name: &str, arg: Option<UdfOrPrecedureExtraParameter>,
-    ) -> anyhow::Result<UdfDetail> {
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
         let arg = match &arg {
-            Some(x) => match x {
-                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+            Some(arg) => match arg {
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                _ => return Err(arg.wrong_type()),
             },
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
@@ -674,18 +692,18 @@ impl SchemaTrait for PostGresDB {
         let result_type: Option<String> = row.try_get(0)?;
         let arguments: Option<String> = row.try_get(1)?;
         let function_definition: String = row.try_get(2)?;
-        anyhow::Ok(UdfDetail::new(function_definition, vec![
+        anyhow::Ok(DefAndMetas::new(function_definition, vec![
             MetaValue::new_opt("result_type", result_type),
             MetaValue::new_opt("parameters", arguments),
         ]))
     }
 
     async fn drop_udf(
-        &self, name: &str, extra: Option<UdfOrPrecedureExtraParameter>,
+        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
             Some(x) => match x {
-                UdfOrPrecedureExtraParameter::PostGres { parameters } => parameters,
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
                 #[allow(unreachable_patterns)]
                 _ => {
                     anyhow::bail!("must be a postgres parameter")
@@ -920,7 +938,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(view_name, where_str).await?;
 
@@ -1216,7 +1234,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(
@@ -1368,6 +1386,7 @@ fn get_rows_types(rows: &Vec<PgRow>) -> Vec<Field> {
             default_value: None,
             is_primary: false,
             is_auto_increment: false,
+            sortable: true,
         });
     }
     ret
@@ -1396,32 +1415,26 @@ fn get_pg_type_base_on_data_type_and_udtname(
             "_text" => "TEXT[]".to_string(),
             "_varchar" => "VARCHAR[]".to_string(),
             "_int8" => "INT8[]".to_string(),
-
             "_path" => "PATH[]".to_string(),
             "_float4" => "FLOAT4[]".to_string(),
             "_float8" => "FLOAT8[]".to_string(),
             "_macaddr" => "MACADDR[]".to_string(),
             "_inet" => "INET[]".to_string(),
-
             "_timestamp" => "TIMESTAMP[]".to_string(),
             "_date" => "DATE[]".to_string(),
             "_time" => "TIME[]".to_string(),
             "_timestamptz" => "TIMESTAMPTZ[]".to_string(),
-
             "_interval" => "INTERVAL[]".to_string(),
             "_numeric" => "NUMERIC[]".to_string(),
             "_timetz" => "TIMETZ[]".to_string(),
             "_bit" => "BIT[]".to_string(),
             "_varbit" => "VARBIT[]".to_string(),
-
             "_uuid" => "UUID[]".to_string(),
             "_jsonb" => "JSONB[]".to_string(),
             "_int4range" => "INT4RANGE[]".to_string(),
-
             "_numrange" => "NUMRANGE[]".to_string(),
             "_tsrange" => "TSRANGE[]".to_string(),
             "_tstzrange" => "TSTZRANGE[]".to_string(),
-
             "_daterange" => "DATERANGE[]".to_string(),
             "_int8range" => "INT8RANGE[]".to_string(),
             "_jsonpath" => "JSONPATH[]".to_string(),
@@ -1641,9 +1654,29 @@ mod tests {
     use super::make_test_object;
     use crate::db::{
         CatalogTrait, CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas,
-        UdfOrPrecedureExtraParameter,
+        UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
+    // #[tokio::test]
+    // async fn test_list_created_types() {
+    //     let db = make_test_object().await;
+    //     let _ = db.drop_created_type("test_type").await;
+    //     let query_id = db.open_connection().await.unwrap();
+
+    //     let _resp = db
+    //         .query_sql(
+    //             query_id,
+    //             r#"
+    //     CREATE TYPE test_type AS ENUM ('value1', 'value2', 'value3');"#,
+    //         )
+    //         .await
+    //         .unwrap();
+    //     assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
+    //     let list = db.list_created_types().await.unwrap();
+    //     for l in list.iter() {
+    //         println!("create type:{:?}", l);
+    //     }
+    // }
 
     #[tokio::test]
     async fn test_procedure() {
@@ -1669,7 +1702,7 @@ mod tests {
             let details = db
                 .show_procedure(
                     &l.name,
-                    Some(UdfOrPrecedureExtraParameter::PostGres {
+                    Some(UdfOrProcedureExtraParameter::PostGres {
                         parameters: "".to_string(),
                     }),
                 )
@@ -1720,7 +1753,10 @@ mod tests {
         );
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
-            let table_resp = db.show_view(&l.name, None, None, 1, 100).await.unwrap();
+            let table_resp = db
+                .show_view(&l.name, None, None, 1, 100, None)
+                .await
+                .unwrap();
             println!("resp:{:?}", table_resp);
         }
     }
@@ -1763,7 +1799,7 @@ mod tests {
             .unwrap();
 
         db_trait
-            .show_table("test_rename2", None, None, 1, 100)
+            .show_table("test_rename2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1802,7 +1838,7 @@ mod tests {
             .unwrap();
 
         let resp = db_trait
-            .show_table("test_duplicate2", None, None, 1, 100)
+            .show_table("test_duplicate2", None, None, 1, 100, None)
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -1927,7 +1963,7 @@ mod tests {
             let details = pg
                 .show_udf(
                     &l.name,
-                    Some(UdfOrPrecedureExtraParameter::PostGres {
+                    Some(UdfOrProcedureExtraParameter::PostGres {
                         parameters: "a integer, b integer".to_string(),
                     }),
                 )
@@ -1937,7 +1973,7 @@ mod tests {
             if l.name == "test_udf" {
                 pg.drop_udf(
                     &l.name,
-                    Some(UdfOrPrecedureExtraParameter::PostGres {
+                    Some(UdfOrProcedureExtraParameter::PostGres {
                         parameters: "a integer, b integer".to_string(),
                     }),
                 )
@@ -2264,7 +2300,10 @@ mod tests {
         let pg = &pg as &dyn SchemaTrait;
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2341,7 +2380,10 @@ mod tests {
 
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2400,7 +2442,10 @@ mod tests {
         let pg = &pg as &dyn SchemaTrait;
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2480,7 +2525,10 @@ mod tests {
 
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         // let json = pg
         //     .export_table_to_string(&table_name, ExportKind::Json { pretty:
@@ -2556,7 +2604,10 @@ mod tests {
 
         pg.insert(table_name, values).await.unwrap();
 
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2614,7 +2665,10 @@ mod tests {
             Some("{10:00:00+03,15:30:00+03}".to_string()),
         );
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
 
         let json = pg
@@ -2666,7 +2720,10 @@ mod tests {
 
         values.insert("numeric_column".to_string(), Some("123.45".to_string()));
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2736,7 +2793,10 @@ mod tests {
         );
 
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2798,7 +2858,10 @@ mod tests {
         values.insert("tstz_range_array".to_string(), Some("{}".to_string()));
 
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
         let json = pg
             .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
@@ -2871,7 +2934,10 @@ mod tests {
             Some("{$5.00,$15.75}".to_string()),
         );
         pg.insert(table_name, values).await.unwrap();
-        let x = pg.show_table(table_name, None, None, 1, 100).await.unwrap();
+        let x = pg
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
         println!("{:?}", x);
 
         let json = pg
