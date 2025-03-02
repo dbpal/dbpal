@@ -9,7 +9,6 @@ import {
   Button,
   Stack,
   Box,
-  CircularProgress,
   TextField,
   MenuItem,
   FormControl,
@@ -27,7 +26,6 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   modalStyle,
-  progressBarSize,
   SettingContext,
   reloadOK,
   SimpleResizeEditor,

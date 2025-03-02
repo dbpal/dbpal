@@ -1,7 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import {
   modalStyle,
-  progressBarSize,
   progressBarSizeSmall,
   treeItemCommonStyle,
 } from './Common';
