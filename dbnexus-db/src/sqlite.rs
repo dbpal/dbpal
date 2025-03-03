@@ -1439,10 +1439,11 @@ mod tests {
 
     // this test no need clean up, we use memory sqlite db.
     async fn make_test_object() -> SqliteDB {
-        let path = std::env::var("NEXUS_TEST_SQLITE")
-            .unwrap_or("/Users/yuyang/tests/test.sqlite.db".to_string());
-        println!("db path:{:?}", path);
-        let db = SqliteDB::new(path, false).await.unwrap();
+        let path = std::env!("CARGO_MANIFEST_DIR");
+
+        let db = SqliteDB::new(format!("{path}/tests/sqlite.test.db"), false)
+            .await
+            .unwrap();
         db
     }
     #[ignore = "this test run by hand"]

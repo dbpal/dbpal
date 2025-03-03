@@ -10,6 +10,8 @@ import {
   Box,
   Paper,
   MenuList,
+  Stack,
+  Button,
 } from '@mui/material';
 import {
   ReactNode,
@@ -56,24 +58,38 @@ import { SettingContext } from './Common';
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
 
+  const getColor = (level: string) => {
+    switch (level) {
+      case 'trace':
+        return 'primary';
+      case 'debug':
+        return 'secondary';
+      case 'info':
+        return 'info';
+      case 'warn':
+        return 'warning';
+      case 'error':
+        return 'error';
+    }
+  };
+
   return (
-    <FormControl fullWidth>
-      <InputLabel id="dropdown-label">log level</InputLabel>
-      <Select
-        labelId="dropdown-label"
-        value={level}
-        onChange={(e) => {
-          handleChange(e.target.value);
-        }}
-        variant="outlined"
-      >
-        {levels.map((e) => (
-          <MenuItem value={e} key={e}>
+    <Stack direction="row" spacing={1}>
+      {levels.map((e) => {
+        return (
+          <Button
+            variant={level == e ? 'contained' : 'outlined'}
+            disabled={level == e}
+            color={getColor(e)}
+            onClick={() => {
+              handleChange(e);
+            }}
+          >
             {e}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
+          </Button>
+        );
+      })}
+    </Stack>
   );
 };
 

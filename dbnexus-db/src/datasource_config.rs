@@ -29,6 +29,20 @@ pub struct SqliteDBConfig {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+pub struct DuckDBConfig {
+    pub path: String,
+    pub read_only: bool,
+    pub database: Option<String>,
+    pub schema: Option<String>,
+}
+
+impl DuckDBConfig {
+    pub(crate) fn schema_str(&self) -> &str {
+        self.schema.as_ref().expect("must be some")
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
 pub struct RedisDBConfig {
     pub host: String,
     pub port: Option<u16>,

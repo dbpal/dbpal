@@ -13,11 +13,11 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    CreatedType, DBTrait, DefAndMetas, ExportKind, Field, HumanSize, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, Field, HumanSize, Index,
+    IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -1617,7 +1617,9 @@ impl CatalogTrait for PostGresDB {
         anyhow::Ok(Arc::new(x))
     }
 
-    async fn create_database(&self, name: &str) -> anyhow::Result<()> {
+    async fn create_database(
+        &self, name: &str, _extra: Option<CreateDatabaseExtra>,
+    ) -> anyhow::Result<()> {
         let sql = format!("CREATE DATABASE {name}");
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;

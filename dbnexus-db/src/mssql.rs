@@ -8,11 +8,11 @@ use std::time::Duration;
 use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, DBTrait, ExportKind,
-    Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, DefAndMetas, UdfOrProcedureExtraParameter,
-    format_data_time_fix_offset, not_support_features,
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, format_data_time_fix_offset, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -1172,7 +1172,10 @@ impl SchemaTrait for MsSqlServer {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     let def: Option<&str> = row.try_get(0)?;
-                    return anyhow::Ok(DefAndMetas::new(def.unwrap_or_default().to_string(), metas));
+                    return anyhow::Ok(DefAndMetas::new(
+                        def.unwrap_or_default().to_string(),
+                        metas,
+                    ));
                 }
                 tiberius::QueryItem::Metadata(_result_metadata) => {}
             }
@@ -1808,7 +1811,9 @@ impl CatalogTrait for MsSqlServer {
         anyhow::Ok(Arc::new(x))
     }
 
-    async fn create_database(&self, name: &str) -> anyhow::Result<()> {
+    async fn create_database(
+        &self, name: &str, extra: Option<CreateDatabaseExtra>,
+    ) -> anyhow::Result<()> {
         let sql = format!("CREATE DATABASE {name}");
         let mut conn = self.get_conn().await?;
         conn.execute(&sql, &[]).await?;
@@ -1979,7 +1984,7 @@ mod tests {
     async fn test_list_database() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let _ = db.create_database("abc").await;
+        let _ = db.create_database("abc", None).await;
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
         assert_eq!(dbs, vec![

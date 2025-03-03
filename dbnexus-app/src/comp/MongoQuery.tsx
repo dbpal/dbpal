@@ -8,7 +8,6 @@ import {
   Modal,
   Stack,
   Tooltip,
-  Typography,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position, Range } from 'monaco-editor';
@@ -199,7 +198,11 @@ function MongoQuery(props: { uuid: string }) {
 
       <Divider></Divider>
 
-      <Typography variant="h6"> logger: </Typography>
+      <Chip
+        color="info"
+        label=" logger"
+        style={{ fontWeight: 'bold', fontSize: '1.2rem' }}
+      />
       <div
         style={{
           minHeight: '200px',

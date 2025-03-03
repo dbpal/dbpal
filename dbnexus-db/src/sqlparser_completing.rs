@@ -1368,7 +1368,7 @@ impl CompletionStament {
                                 // temp this table only use in table create
                                 // I think I should never enter here.
                                 log::error!(
-                                    "temp this table only use in table create , I think I should never enter here. "
+                                    "temp this table only use in table create , I think I should never enter here."
                                 );
                             }
                         }

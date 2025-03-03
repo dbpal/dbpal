@@ -1311,7 +1311,6 @@ impl SchemaTrait for CassandraDB {
         let sql = self.create_table_and_index_sql(table).await?.create_table;
         // replace table name.
         let sql = sql.replacen(table, dup, 1);
-
         log::info!("dup table create table sql:{}", sql);
         // here we create the table
         self.session.query(sql).await?;

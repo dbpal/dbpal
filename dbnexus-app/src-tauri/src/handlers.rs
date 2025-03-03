@@ -5,9 +5,9 @@ use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::db::{
-    ColumnType, CreateSchemaExtra, CreatedType, DefAndMetas, ExportKind, Field, FormatSqlOpts,
-    Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, ShowExtraArgs,
-    SqlExecuteRet, TableListResp, TriggerDetail, UdfOrProcedureExtraParameter,
+    ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreatedType, DefAndMetas, ExportKind,
+    Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
+    ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
@@ -43,7 +43,7 @@ pub async fn drop_database(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("open db:{}", name);
+    log::info!("drop db:{}", name);
     let x = app
         .get_opened(name.as_str())
         .await
@@ -109,7 +109,7 @@ pub async fn drop_schema(
 
 #[tauri::command]
 pub async fn create_database(
-    name: String, database: String, app: tauri::State<'_, App>,
+    name: String, database: String, extra: Option<CreateDatabaseExtra>, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -120,7 +120,7 @@ pub async fn create_database(
         .map_err(|x| ErrorFrontend::from(x))?;
     match x {
         Open::Catalog(x) => {
-            x.create_database(&database)
+            x.create_database(&database, extra)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
@@ -222,7 +222,7 @@ pub async fn mongo_list_time_serial_collection(
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("show table_name db:{}", name);
+
     let schema = app
         .get_schema(&name)
         .await
@@ -1184,7 +1184,7 @@ pub async fn mongo_delete_ids(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<Mongo>() {
-        Some(x) => x.delete_ids(table_name.as_str(), ids).await,
+        Some(x) => x.delete_by_ids(table_name.as_str(), ids).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| ErrorFrontend::from(e))
@@ -2332,7 +2332,7 @@ impl From<tauri::Error> for ErrorFrontend {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
         };
-        log::error!("msg:{},details:{}", x.reason, x.detail);
+        log::error!("msg:{},backtrace:{}", x.reason, x.detail);
         x
     }
 }
@@ -2342,7 +2342,7 @@ impl From<anyhow::Error> for ErrorFrontend {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
         };
-        log::error!("msg:{},details:{}", x.reason, x.detail);
+        log::error!("msg:{},backtrace:{}", x.reason, x.detail);
         x
     }
 }

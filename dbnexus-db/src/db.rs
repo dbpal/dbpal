@@ -42,7 +42,9 @@ pub trait SchemaTrait:
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp>;
-    async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>>;
+    async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
+        not_support_features(self.backend_name())
+    }
 
     async fn rename_index(
         &self, _table_name: &str, _oldname: &str, _newname: &str,
@@ -343,8 +345,15 @@ pub trait CatalogTrait:
 {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
-    async fn create_database(&self, name: &str) -> anyhow::Result<()>;
+    async fn create_database(
+        &self, name: &str, extra: Option<CreateDatabaseExtra>,
+    ) -> anyhow::Result<()>;
     async fn drop_database(&self, name: &str) -> anyhow::Result<()>;
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub enum CreateDatabaseExtra {
+    DuckDB { path: String },
 }
 
 /// named staff maybe used for view udf etc...
@@ -999,6 +1008,7 @@ impl Field {
             sortable: true,
         }
     }
+
     pub fn with_sortable(&mut self, sortable: bool) {
         self.sortable = sortable;
     }

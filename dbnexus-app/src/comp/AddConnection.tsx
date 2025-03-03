@@ -37,7 +37,6 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
     <Stack direction="row">
       <TextField
         size="small"
-        margin="normal"
         fullWidth
         label="Host"
         value={host}
@@ -47,7 +46,6 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
       />
       <TextField
         size="small"
-        margin="normal"
         fullWidth
         label="port"
         onBlur={onBlur}
@@ -90,7 +88,6 @@ function UserAndPassword(props: {
     <Stack direction="row">
       <TextField
         size="small"
-        margin="normal"
         fullWidth
         label="User"
         value={user}
@@ -100,7 +97,6 @@ function UserAndPassword(props: {
       />
       <TextField
         size="small"
-        margin="normal"
         fullWidth
         label="Password"
         onBlur={onBlur}
@@ -173,7 +169,6 @@ function Database(props: {
       <Stack direction="row">
         <TextField
           size="small"
-          margin="normal"
           label={lable}
           value={database}
           onBlur={onBlur}
@@ -205,7 +200,6 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
       <Stack direction="row">
         <TextField
           size="small"
-          margin="normal"
           label="schema"
           value={schema}
           onChange={(e) => setSchema(e.target.value)}
@@ -432,13 +426,35 @@ export default function AddConfig(props: { handleClose: () => void }) {
       connectionNameDom.current.focus();
       return;
     }
+
     const config = makeConfig();
     if (!config) {
       return;
     }
+
+    let connections = await (
+      await appStore()
+    ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
+    if (!connections) {
+      connections = [];
+    }
+    if (connectionName.includes('/')) {
+      showNotification('error', "connection name can't contains /");
+      connectionNameDom.current.focus();
+      return;
+    }
+    if (connections.find((e) => e.name == connectionName)) {
+      showNotification('error', 'name aleary been taken');
+      connectionNameDom.current.focus();
+      return;
+    }
+
     if (password) {
       try {
-        await invoke('save_password', { name: connectionName, pass: password });
+        await invoke('save_password', {
+          name: connectionName,
+          pass: password,
+        });
       } catch (e) {
         showNotification('error', 'save password failed', e);
         return;
@@ -447,14 +463,10 @@ export default function AddConfig(props: { handleClose: () => void }) {
       config.password = '';
     }
 
-    let old = await (await appStore()).get(AppStoreKey.ConnectionConfig);
-    if (!old) {
-      old = [];
-    }
-    //@ts-ignore
-    old = [config, ...old];
+    connections = [config, ...connections];
+
     (await appStore())
-      .set(AppStoreKey.ConnectionConfig, old)
+      .set(AppStoreKey.ConnectionConfig, connections)
       .then((_) => {
         showNotification('success', 'Add Connection OK');
         handleClose();
@@ -505,7 +517,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   return (
     <Stack spacing={1}>
       <Typography variant="h6">New Connection</Typography>
-      <FormControl fullWidth margin="normal">
+      <FormControl fullWidth>
         <InputLabel>Connection Type</InputLabel>
         <Select
           value={connectionType}
@@ -521,7 +533,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           <MenuItem value={DataSourceKind.Mongo}>Mongo</MenuItem>
           <MenuItem value={DataSourceKind.Oracle}>Oracel</MenuItem>
           <MenuItem value={DataSourceKind.MsSql}>
-            Sql server(microsoft)
+            Sql Server(microsoft)
           </MenuItem>
           <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
         </Select>
@@ -720,7 +732,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
       <Stack direction="row" style={{ alignItems: 'center' }} spacing={2}>
         <TextField
           size="small"
-          margin="normal"
           label="Connection Name"
           value={connectionName}
           fullWidth

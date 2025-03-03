@@ -16,9 +16,9 @@ use tokio::sync::Mutex;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEvent, TriggerTiming, DefAndMetas, UdfOrProcedureExtraParameter,
+    DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -1329,7 +1329,6 @@ fn encode_rows(
 
 impl MysqlDB {
     pub async fn new(config: MysqlDBConfig) -> anyhow::Result<Self> {
-        log::info!("mysql config:{:?}", config);
         let mut opts = sqlx::mysql::MySqlConnectOptions::new();
         opts = opts
             .host(&config.host)

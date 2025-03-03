@@ -908,6 +908,7 @@ function RedisSetTable(props: {
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
+          style={{ width: '35%' }}
         />
         <Button
           variant="contained"
@@ -1411,6 +1412,7 @@ function RedisZsetTable(props: {
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
+          style={{ width: '35%' }}
         />
         <TextField
           size="small"
@@ -1648,6 +1650,7 @@ function RedisHashTable(props: {
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
+          style={{ width: '35%' }}
         />
         <Button
           variant="contained" // 可以是 'text', 'outlined', 或 'contained'

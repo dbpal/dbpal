@@ -1217,7 +1217,11 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
                 Token::Whitespace(_) => false,
                 _ => true,
             })
-            .map(|x| x.to_string())
+            .map(|x| match x {
+                Token::SingleQuotedString(x) => x.to_string(),
+                Token::DoubleQuotedString(x) => x.to_string(),
+                _ => x.to_string(),
+            })
             .collect();
         commands.push(c);
     }

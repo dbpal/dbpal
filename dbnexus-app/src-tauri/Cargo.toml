@@ -1,10 +1,10 @@
 [package]
-name = "dbnexus-app"
+name = "dbpal"
 version = "0.0.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "A database management system"
+authors = ["yuyangxxxmail@gmailc.om"]
 edition = "2021"
-default-run = "dbnexus-app"
+default-run = "dbpal"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -54,6 +54,7 @@ custom-protocol = ["tauri/custom-protocol"]
 # 打开口所有的接口都会卡一会
 random-sleep = []
 random-error = []
+duckdb = ["dbnexus-db/duckdb"]
 
 
 [lib]

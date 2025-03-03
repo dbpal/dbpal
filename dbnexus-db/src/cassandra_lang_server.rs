@@ -28,7 +28,7 @@ impl LanguageServer for CassandraDB {
         match r {
             Ok(x) => return anyhow::Ok(x),
             Err(x) => {
-                log::error!("try completion on parse failed:{:?}", x)
+                log::error!("try completion on ast failed:{:?}", x)
             }
         }
         if !use_lexer {
@@ -156,7 +156,6 @@ impl AstCompletion {
         let ast = CassandraAST::new(sql);
         for stmt in ast.statements.iter() {
             log::info!("completion on ast:{:?}", stmt.statement);
-
             let _ = c.on_statement(stmt).await;
             if c.finished() {
                 return anyhow::Ok(c.result());
@@ -227,7 +226,7 @@ impl AstCompletion {
         let key_space = self
             .need_key_space_identifier(name.keyspace.as_ref())
             .map_err(|x| {
-                log::error!("{}", x);
+                log::error!("need key space:{}", x);
             })
             .unwrap_or_default();
         let mut result: Vec<CompletionItem> = self

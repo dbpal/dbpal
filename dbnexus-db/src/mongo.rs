@@ -308,7 +308,7 @@ impl Mongo {
         anyhow::Ok(ret)
     }
 
-    pub async fn delete_ids(
+    pub async fn delete_by_ids(
         &self, collection_name: &str, ids: Vec<bson::Bson>,
     ) -> anyhow::Result<DeleteResult> {
         self.can_write()?;
