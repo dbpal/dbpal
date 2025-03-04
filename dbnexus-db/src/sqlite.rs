@@ -1433,19 +1433,22 @@ fn gen_show_sql(
 }
 
 #[cfg(test)]
+
+// this test no need clean up, we use memory sqlite db.
+pub(crate) async fn make_test_object() -> SqliteDB {
+    let path = std::env!("CARGO_MANIFEST_DIR");
+
+    let db = SqliteDB::new(format!("{path}/tests/sqlite.test.db"), false)
+        .await
+        .unwrap();
+    db
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::enable_test_log;
 
-    // this test no need clean up, we use memory sqlite db.
-    async fn make_test_object() -> SqliteDB {
-        let path = std::env!("CARGO_MANIFEST_DIR");
-
-        let db = SqliteDB::new(format!("{path}/tests/sqlite.test.db"), false)
-            .await
-            .unwrap();
-        db
-    }
     #[ignore = "this test run by hand"]
     #[tokio::test]
     async fn test_do_has_data_query() {

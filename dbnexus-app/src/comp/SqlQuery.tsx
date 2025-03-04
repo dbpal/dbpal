@@ -1,7 +1,7 @@
 import { Editor } from '@monaco-editor/react';
 import SplitPane from 'react-split-pane';
 import { MultiQueryResp } from './QueryResp';
-
+import EventNoteIcon from '@mui/icons-material/EventNote';
 import './style/react-split-pane.css';
 import {
   Box,
@@ -397,15 +397,21 @@ function SqlQuery(props: {
             openOpt={{ ...fileFilter }}
             saveOpt={{ ...fileFilter }}
           ></LoadStoreFileForQuery>
-          <Button
-            onClick={() => {
-              setShowQueryLog((prev) => !prev);
-            }}
-            color={showQueryLog ? 'error' : 'info'}
-            disabled={conn == null}
-          >
-            {showQueryLog ? <CloseIcon></CloseIcon> : ''} query log
-          </Button>
+          <Tooltip title="query log">
+            <IconButton
+              onClick={() => {
+                setShowQueryLog((prev) => !prev);
+              }}
+              color={showQueryLog ? 'error' : 'info'}
+              disabled={conn == null}
+            >
+              {showQueryLog ? (
+                <CloseIcon></CloseIcon>
+              ) : (
+                <EventNoteIcon></EventNoteIcon>
+              )}
+            </IconButton>
+          </Tooltip>
         </Stack>
         <div
           style={{

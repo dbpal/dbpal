@@ -47,12 +47,13 @@ enum-iterator = "2.1.0"
 cdrs-tokio = "8.1.5"
 num-bigint = "*"
 r2d2 = "*"
+clickhouse = { version = "0.13.1", features = ["rustls-tls", "time", "uuid"] }
 # https://github.com/duckdb/duckdb-rs/issues/436  
 duckdb = { version = "=1.1.1", features = ["bundled"], optional = true }
-libduckdb-sys = "=1.1.1"
+libduckdb-sys = { version = "=1.1.1", optional = true }
 cql3-parser = { git = "https://github.com/dbpal/rust-cql3-parser", rev = "89aef5f99854449a78dc37a17363823f889374c8" }
 [dev-dependencies]
 
 
 [features]
-duckdb = ["dep:duckdb"]
+duckdb = ["dep:duckdb", "dep:libduckdb-sys"]

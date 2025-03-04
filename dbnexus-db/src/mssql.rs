@@ -1812,7 +1812,7 @@ impl CatalogTrait for MsSqlServer {
     }
 
     async fn create_database(
-        &self, name: &str, extra: Option<CreateDatabaseExtra>,
+        &self, name: &str, _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         let sql = format!("CREATE DATABASE {name}");
         let mut conn = self.get_conn().await?;

@@ -1068,13 +1068,11 @@ mod tests {
     use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::sqlite::SqliteDB;
-    fn test_db() -> String {
-        std::env::var("NEXUS_TEST_SQLITE").unwrap().to_string()
-    }
+    use crate::sqlite::make_test_object;
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
-        let db = SqliteDB::new(test_db(), false).await.unwrap();
+        let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
         let _ = db
             .query_sql(
@@ -1125,7 +1123,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_completion_xxx() {
         enable_test_log();
-        let db = SqliteDB::new(test_db(), false).await.unwrap();
+        let db = make_test_object().await;
         test_file_auto_completion(
             r#"PRAGMA user_version;
 12 user_version"#,

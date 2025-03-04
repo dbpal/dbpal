@@ -142,14 +142,16 @@ function MongoQuery(props: { uuid: string }) {
           </IconButton>
         </Tooltip>
 
-        <Chip
-          label={loggerlevel}
-          style={{ cursor: 'pointer', fontWeight: '800' }}
-          color="info"
-          onClick={() => {
-            setShowLoggerLevel(true);
-          }}
-        />
+        <Tooltip title="logger level">
+          <Chip
+            label={loggerlevel}
+            style={{ fontWeight: '700' }}
+            color="primary"
+            onClick={() => {
+              setShowLoggerLevel(true);
+            }}
+          />
+        </Tooltip>
         <LoadStoreFileForQuery
           openOpt={{ ...fileFilter }}
           saveOpt={{ canCreateDirectories: true, ...fileFilter }}
@@ -166,7 +168,7 @@ function MongoQuery(props: { uuid: string }) {
       <div
         style={{
           minHeight: '200px',
-          height: '500px',
+          height: '60vh',
           resize: 'vertical',
           display: 'flex',
           flexDirection: 'column',

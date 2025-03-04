@@ -27,6 +27,8 @@ pub mod redis_lang_server;
 // pub mod semantic_token;
 pub mod cassandra;
 pub mod cassandra_lang_server;
+pub mod clickhouse;
+pub mod clickhouse_lang_server;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
 #[cfg(feature = "duckdb")]
@@ -54,7 +56,13 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            eprintln!("{} - {}", record.level(), record.args());
+            eprintln!(
+                "{}:{}  {} - {}",
+                record.file().unwrap_or_default(),
+                record.line().unwrap_or_default(),
+                record.level(),
+                record.args()
+            );
         }
     }
 

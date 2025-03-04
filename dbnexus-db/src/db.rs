@@ -42,7 +42,7 @@ pub trait SchemaTrait:
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp>;
-    async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
+    async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
         not_support_features(self.backend_name())
     }
 

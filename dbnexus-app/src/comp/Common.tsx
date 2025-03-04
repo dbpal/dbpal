@@ -13,7 +13,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-
+import SaveIcon from '@mui/icons-material/Save';
 import {
   languages,
   Position as EditorPositon,
@@ -36,7 +36,7 @@ import {
 } from 'react';
 import { Editor, loader, Monaco, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
-
+import EventNoteIcon from '@mui/icons-material/EventNote';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 
@@ -1096,10 +1096,16 @@ function LoadStoreFileForQuery(props: {
           </Tooltip>
         </>
       )}
-      <IconButton onClick={loadFile} color="primary">
-        <AttachFileIcon />
-      </IconButton>
-      <Button onClick={handleSave}>save</Button>
+      <Tooltip title="attach file">
+        <IconButton onClick={loadFile} color="primary">
+          <AttachFileIcon />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="save query to file">
+        <IconButton onClick={handleSave} color="primary">
+          <SaveIcon />
+        </IconButton>
+      </Tooltip>
     </>
   );
 }

@@ -54,7 +54,15 @@ fn main() {
 }
 
 fn main_() {
-    env_logger::init();
+    {
+        use env_logger::{Builder, Env};
+
+        let mut builder = Builder::from_env(Env::default());
+        builder.format_file(true);
+        builder.format_line_number(true);
+
+        builder.try_init().unwrap();
+    }
     let app = App::new();
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())

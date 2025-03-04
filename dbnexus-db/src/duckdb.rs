@@ -9,8 +9,8 @@ use tokio::task::block_in_place;
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateDatabaseExtra, CreateSchemaExtra, DBTrait, Field,
-    ListTable, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
-    TableListResp, not_support_features,
+    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::meta_value::MetaValue;
 
@@ -23,7 +23,11 @@ impl r2d2::ManageConnection for PoolManage {
     type Error = duckdb::Error;
 
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let conn = duckdb::Connection::open(&self.path)?;
+        let mut config = duckdb::Config::default();
+
+        config = config.access_mode(duckdb::AccessMode::ReadWrite)?;
+
+        let conn = duckdb::Connection::open_with_flags(&self.path, config)?;
         Ok(conn)
     }
 
@@ -62,6 +66,14 @@ impl DuckDB {
 
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManage>> {
         let conn = block_in_place(|| self.pool.get())?;
+
+        if let Some(d) = self.config.database.as_ref() {
+            conn.execute(&format!("use {}", d), [])?;
+        }
+        if let Some(s) = self.config.schema.as_ref() {
+            conn.execute(&format!("SET SCHEMA '{s}';"), [])?;
+        }
+
         anyhow::Ok(conn)
     }
 }
@@ -76,7 +88,6 @@ impl std::fmt::Debug for DuckDB {
 impl CheckConn for DuckDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let conn = self.get_conn()?;
-
         let now = std::time::Instant::now();
         conn.execute("select 1", [])?;
         anyhow::Ok(now.elapsed())
@@ -113,6 +124,22 @@ impl QuerySql for DuckDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for DuckDB {
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        unimplemented!()
+    }
+    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+    async fn show_view(
+        &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
+        _page_size: usize, _extra: Option<ShowExtraArgs>,
+    ) -> anyhow::Result<TableListResp> {
+        unimplemented!()
+    }
+    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+        unimplemented!()
+    }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -133,7 +160,7 @@ impl SchemaTrait for DuckDB {
         unimplemented!()
     }
 
-    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+    async fn show_view_columns(&self, name: &str) -> anyhow::Result<Vec<Field>> {
         unimplemented!()
     }
 
@@ -180,7 +207,10 @@ impl SchemaTrait for DuckDB {
 
 impl DBTrait for DuckDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "SHOW SCHEMAS;";
+        let sql = format!(
+            "SELECT schema_name  FROM information_schema.schemata  where catalog_name = '{}' ;",
+            self.config.database_str()
+        );
         let conn = self.get_conn()?;
         let mut p = conn.prepare(&sql)?;
         let mut rows = block_in_place(|| p.query([]))?;
@@ -193,17 +223,25 @@ impl DBTrait for DuckDB {
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        unimplemented!()
+        let mut x = Clone::clone(self);
+        x.config.schema = Some(name.to_owned());
+        anyhow::Ok(Arc::new(x))
     }
 
     async fn create_schema(
-        &self, name: &str, extra: Option<CreateSchemaExtra>,
+        &self, name: &str, _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        unimplemented!()
+        let sql = format!("CREATE SCHEMA {};", name);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        unimplemented!()
+        let sql = format!("DROP SCHEMA {} CASCADE;", name);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
     }
 }
 
@@ -224,9 +262,9 @@ impl CatalogTrait for DuckDB {
         anyhow::Ok(ret)
     }
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
-        let mut config = self.config.clone();
-        let d = DuckDB::new(config)?;
-        anyhow::Ok(Arc::new(d))
+        let mut x = Clone::clone(self);
+        x.config.database = Some(name.to_owned());
+        anyhow::Ok(Arc::new(x))
     }
     async fn create_database(
         &self, name: &str, extra: Option<CreateDatabaseExtra>,
@@ -235,11 +273,12 @@ impl CatalogTrait for DuckDB {
             Some(x) => match &x {
                 CreateDatabaseExtra::DuckDB { path } => path,
             },
-            None => anyhow::bail!("attch database need extra parameter."),
+            None => anyhow::bail!("attach database need extra parameter."),
         };
-        let sql = format!("ATTACH '{path}' AS {name};");
-        log::info!("attach sql:{}", sql);
+        let sql = format!("ATTACH '{path}' AS {name}");
+
         let conn = self.get_conn()?;
+        log::info!("attach sql:{} {} ", sql, conn.is_autocommit());
         conn.execute(&sql, [])?;
         anyhow::Ok(())
     }
@@ -288,7 +327,7 @@ mod tests {
 
         let db = make_test_object(None);
         db.create_database(
-            "abc1111",
+            "abc",
             Some(CreateDatabaseExtra::DuckDB {
                 path: {
                     let dir = env!("CARGO_MANIFEST_DIR");
@@ -299,18 +338,22 @@ mod tests {
         )
         .await
         .unwrap();
-        println!("11111111111111");
 
-        tokio::time::sleep(Duration::from_secs(5)).await;
-        println!("222222");
         let x = db.list_database().await.unwrap();
         println!("database:{:?}", x);
+        db.drop_database("abc").await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-
     async fn test_schema() {
         let db = make_test_object(None);
+        let schema_name = "abc";
+        let _err = db.drop_schema(schema_name).await;
+        if let Err(err) = _err {
+            log::error!("drop schema failed,err:{}", err);
+        }
+        db.create_schema(schema_name, None).await.unwrap();
+        db.open_schema(schema_name).await.unwrap();
 
         let x = db.list_schema().await.unwrap();
         println!("schemas:{:?}", x);

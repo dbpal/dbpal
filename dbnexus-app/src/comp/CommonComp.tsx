@@ -78,6 +78,7 @@ const LogLevelSelection = ({ handleChange, level }) => {
       {levels.map((e) => {
         return (
           <Button
+            key={e}
             variant={level == e ? 'contained' : 'outlined'}
             disabled={level == e}
             color={getColor(e)}
