@@ -142,6 +142,30 @@ const QUERY_AUTO_COMMIT: bool = true;
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
+    }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -983,27 +1007,6 @@ impl SchemaTrait for OracleDB {
         "\""
     }
 
-    async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::CSV {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-        }
-    }
-
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
@@ -1303,7 +1306,7 @@ impl SchemaTrait for OracleDB {
         let id = stmt.last_row_id()?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes,
+            changes: Some(changes),
             last_insert_row_id: None,
             last_insert_id_string: id,
         })
@@ -1329,7 +1332,7 @@ impl SchemaTrait for OracleDB {
         let stmt = block_in_place(|| conn.execute(sql.as_str(), &[]))?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes: stmt.row_count()?,
+            changes: Some(stmt.row_count()?),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -1367,7 +1370,7 @@ impl SchemaTrait for OracleDB {
         let row_count = stmt.row_count()?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes: row_count,
+            changes: Some(row_count),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })

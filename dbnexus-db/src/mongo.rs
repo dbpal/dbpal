@@ -789,6 +789,9 @@ impl SchemaTrait for Mongo {
 
 #[async_trait::async_trait]
 impl QuerySql for Mongo {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {

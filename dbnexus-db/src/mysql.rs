@@ -795,27 +795,6 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
-    async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::CSV {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-        }
-    }
-
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
@@ -1007,7 +986,7 @@ impl SchemaTrait for MysqlDB {
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -1080,7 +1059,7 @@ impl SchemaTrait for MysqlDB {
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql: s,
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -1105,7 +1084,7 @@ impl SchemaTrait for MysqlDB {
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql: s,
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -1415,11 +1394,34 @@ impl DBTrait for MysqlDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MysqlDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
+    }
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

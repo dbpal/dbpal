@@ -544,27 +544,6 @@ impl SchemaTrait for MsSqlServer {
         anyhow::Ok(())
     }
 
-    async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::CSV {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-        }
-    }
-
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
@@ -974,7 +953,7 @@ impl SchemaTrait for MsSqlServer {
         let _r = conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet {
             sql: s,
-            changes: 1, // I know this
+            changes: Some(1), // I know this
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -1060,7 +1039,7 @@ impl SchemaTrait for MsSqlServer {
         let r = conn.execute(sql.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes: r.rows_affected().iter().sum(),
+            changes: Some(r.rows_affected().iter().sum()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -1624,8 +1603,32 @@ impl MsSqlServer {
 type Connection = Client<Compat<TcpStream>>;
 #[async_trait::async_trait]
 impl QuerySql for MsSqlServer {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
+    }
+
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {

@@ -647,12 +647,28 @@ pub async fn export_query_result_to_file(
     random_sleep().await;
     random_error()?;
     let sql = sql.as_str();
-    app.get_schema(name.as_str())
+    let opend = app
+        .get_opened(name.as_str())
         .await
-        .map_err(ErrorFrontend::from)?
-        .export_query_result_to_file(sql, kind, &file)
-        .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+        .map_err(ErrorFrontend::from)?;
+    match opend {
+        Open::Catalog(x) => {
+            x.export_query_result_to_file(sql, kind, &file)
+                .await
+                .map_err(|x| ErrorFrontend::from(x))?;
+        }
+        Open::DataBase(x) => {
+            x.export_query_result_to_file(sql, kind, &file)
+                .await
+                .map_err(|x| ErrorFrontend::from(x))?;
+        }
+        Open::Schema(x) => {
+            x.export_query_result_to_file(sql, kind, &file)
+                .await
+                .map_err(|x| ErrorFrontend::from(x))?;
+        }
+    };
+
     Ok(())
 }
 #[tauri::command]

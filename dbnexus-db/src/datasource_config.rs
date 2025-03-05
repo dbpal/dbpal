@@ -30,6 +30,13 @@ pub struct ClickHouseConfig {
     pub password: Option<String>,
     pub db: Option<String>,
     pub read_only: bool,
+    pub https: bool,
+}
+
+impl ClickHouseConfig {
+    pub(crate) fn db_str(&self) -> &str {
+        self.db.as_ref().map(|x| x.as_str()).expect("must be some")
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]

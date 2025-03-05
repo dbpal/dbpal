@@ -47,6 +47,7 @@ enum-iterator = "2.1.0"
 cdrs-tokio = "8.1.5"
 num-bigint = "*"
 r2d2 = "*"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 clickhouse = { version = "0.13.1", features = ["rustls-tls", "time", "uuid"] }
 # https://github.com/duckdb/duckdb-rs/issues/436  
 duckdb = { version = "=1.1.1", features = ["bundled"], optional = true }

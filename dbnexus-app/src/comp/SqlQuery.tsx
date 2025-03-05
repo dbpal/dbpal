@@ -123,13 +123,8 @@ function SqlQuery(props: {
   const [showExport, setShowExport] = useState(false);
   const { theme } = useContext(SettingContext);
   const handleEditorDidMount = useCallback(
-    (ed: editor.IStandaloneCodeEditor, monaco) => {
+    (ed: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ed;
-      if (theme == 'dark') {
-        monaco.editor.setTheme('vs-dark');
-      } else {
-        monaco.editor.setTheme('light');
-      }
       if (handelTextAndPositionChange) {
         ed.onDidChangeModelContent((_event) => {
           let text = ed.getValue();
@@ -429,6 +424,7 @@ function SqlQuery(props: {
               fontSize: useContext(SettingContext).editorFontSize,
               wordWrap: 'on',
             }}
+            theme={theme == 'dark' ? 'vs-dark' : 'light'}
           ></Editor>
         </div>
         <EditorBar

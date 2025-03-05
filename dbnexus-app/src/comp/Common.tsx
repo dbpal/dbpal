@@ -879,6 +879,11 @@ async function makeQueryConnInfo(uuid: string) {
     return;
   }
   let content;
+  let s = {
+    fontSize: '0.9rem',
+    color: 'gray',
+  } as CSSProperties;
+
   switch (config.conn_type) {
     case 'mysql':
     case 'mariadb':
@@ -887,31 +892,31 @@ async function makeQueryConnInfo(uuid: string) {
     case 'cassandra':
     case 'tidb':
       content = (
-        <>
-          <strong>{config.conn_type}</strong>
+        <div style={s}>
+          <strong>{config.conn_type}</strong>&nbsp;
           <span>
             {config.username}@{config.host}:{config.port}/
           </span>
-        </>
+        </div>
       );
       break;
     case 'sqlite':
       content = (
-        <>
-          <strong>sqlite</strong>
+        <div style={s}>
+          <strong>sqlite</strong>&nbsp;
           <span> {config.path}</span>
-        </>
+        </div>
       );
       break;
     case 'redis':
       content = (
-        <>
-          <strong>{config.conn_type}</strong>
+        <div style={s}>
+          <strong>{config.conn_type}</strong>&nbsp;
           <span>
             {config.username} {config.username && '@'}
             {config.host}:{config.port}
           </span>
-        </>
+        </div>
       );
       break;
   }

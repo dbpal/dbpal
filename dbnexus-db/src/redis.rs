@@ -1071,6 +1071,9 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
             x.first()

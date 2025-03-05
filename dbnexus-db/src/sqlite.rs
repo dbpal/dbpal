@@ -475,27 +475,6 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(ret)
     }
 
-    async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::CSV {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-        }
-    }
-
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
@@ -656,7 +635,7 @@ impl SchemaTrait for SqliteDB {
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -731,7 +710,7 @@ impl SchemaTrait for SqliteDB {
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql: s,
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -750,7 +729,7 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             last_insert_row_id: Some(r.last_insert_rowid()),
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_id_string: None,
         })
     }
@@ -1176,6 +1155,30 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {

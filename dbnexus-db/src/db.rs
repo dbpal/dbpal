@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
+
 use serde::Serializer;
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
@@ -28,47 +29,16 @@ pub trait SchemaTrait:
     fn quote_style(&self) -> &'static str {
         ""
     }
-
-    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
-        not_support_features(self.backend_name())
-    }
-    async fn drop_created_type(&self, _typ: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
-    }
-
+    /// if this connection is read only
+    fn read_only(&self) -> bool;
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
+    async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp>;
-    async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        not_support_features(self.backend_name())
-    }
-
-    async fn rename_index(
-        &self, _table_name: &str, _oldname: &str, _newname: &str,
-    ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
-    }
-
-    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
-    }
-
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
-        not_support_features(self.backend_name())
-    }
-
-    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
-    }
-
-    async fn create_index(
-        &self, _table: &str, _name: &str, _kind: IndexKind, _fileds: &[String],
-    ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
-    }
 
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
@@ -77,6 +47,24 @@ pub trait SchemaTrait:
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet>;
+
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()>;
+
+    async fn delete(
+        &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<SqlExecuteRet>;
+
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        not_support_features(self.backend_name())
+    }
+    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
+
+    fn clone(&self) -> Box<dyn SchemaTrait>;
+
+    // impl on need
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
@@ -101,19 +89,41 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()>;
-
-    async fn delete(
-        &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet>;
-
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn rename_index(
+        &self, _table_name: &str, _oldname: &str, _newname: &str,
+    ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
-    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
+
+    async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
         not_support_features(self.backend_name())
     }
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
+
+    async fn create_index(
+        &self, _table: &str, _name: &str, _kind: IndexKind, _fileds: &[String],
+    ) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
+    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+        not_support_features(self.backend_name())
+    }
+
+    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
+    async fn export_table_or_view(
+        &self, _name: &str, _kind: ExportKind,
+        _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowExtraArgs>,
@@ -129,49 +139,12 @@ pub trait SchemaTrait:
             .map(|x| x.fields)
     }
 
-    async fn export_table_or_view(
-        &self, _name: &str, _kind: ExportKind,
-        _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
-    }
-
-    async fn export_query_result(
-        &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
-    }
-
-    async fn export_query_result_to_file(
-        &self, sql: &str, kind: ExportKind, file: &str,
-    ) -> anyhow::Result<()> {
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-        let j1 = {
-            let x = self.clone();
-            let sql = sql.to_string();
-            tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await })
-        };
-        let j2 = {
-            let filepath = file.to_string();
-            tokio::spawn(async move {
-                let mut file = tokio::fs::File::create(&filepath).await?;
-                while let Some(r) = receiver.recv().await {
-                    file.write_all(r.as_bytes()).await?;
-                }
-                anyhow::Ok(())
-            })
-        };
-        j1.await??;
-        j2.await??;
-        anyhow::Ok(())
-    }
-
     async fn export_table_to_file(
         &self, table_name: &str, filepath: &str, kind: ExportKind,
     ) -> anyhow::Result<()> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
-            let x = self.clone();
+            let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
             let h1 =
                 tokio::spawn(
@@ -194,7 +167,6 @@ pub trait SchemaTrait:
         anyhow::Ok(())
     }
 
-    fn clone(&self) -> Box<dyn SchemaTrait>;
     async fn create_table_and_index_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
@@ -207,8 +179,6 @@ pub trait SchemaTrait:
         // anyhow::bail!(format!("sql server don't support create_view_sql"))
         not_support_features(self.backend_name())
     }
-    /// if this connection is read only
-    fn read_only(&self) -> bool;
 
     fn can_write(&self) -> anyhow::Result<()> {
         if self.read_only() {
@@ -233,8 +203,6 @@ pub trait SchemaTrait:
     async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
-    async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
         not_support_features(self.backend_name())
@@ -273,6 +241,12 @@ pub trait SchemaTrait:
             .iter()
             .any(|x| x.name.eq_ignore_ascii_case(table));
         anyhow::Ok(e)
+    }
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
+        not_support_features(self.backend_name())
+    }
+    async fn drop_created_type(&self, _typ: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
     }
 }
 
@@ -429,7 +403,7 @@ impl dyn SchemaTrait {
     ) -> anyhow::Result<String> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
-            let x = self.clone();
+            let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
             let h1 =
                 tokio::spawn(
@@ -456,7 +430,7 @@ impl dyn SchemaTrait {
     ) -> anyhow::Result<String> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
-            let x = self.clone();
+            let x = SchemaTrait::clone(self);
             let sql = sql.to_string();
             let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
             h1
@@ -510,6 +484,14 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
+
+    fn clone(&self) -> Box<dyn QuerySql>;
+
+    async fn export_query_result(
+        &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
     async fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         let logs = QueryLog::get_instance()
             .get(&id)
@@ -519,6 +501,29 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
     }
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
         not_support_features(self.backend_name())
+    }
+    async fn export_query_result_to_file(
+        &self, sql: &str, kind: ExportKind, file: &str,
+    ) -> anyhow::Result<()> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let j1 = {
+            let x = self.clone();
+            let sql = sql.to_string();
+            tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await })
+        };
+        let j2 = {
+            let filepath = file.to_string();
+            tokio::spawn(async move {
+                let mut file = tokio::fs::File::create(&filepath).await?;
+                while let Some(r) = receiver.recv().await {
+                    file.write_all(r.as_bytes()).await?;
+                }
+                anyhow::Ok(())
+            })
+        };
+        j1.await??;
+        j2.await??;
+        anyhow::Ok(())
     }
 }
 
@@ -792,7 +797,8 @@ impl dyn SchemaTrait {
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct SqlExecuteRet {
     pub sql: String,
-    pub changes: u64,
+    // some backend can't get the changes result
+    pub changes: Option<u64>,
     pub last_insert_row_id: Option<i64>,
     /// most of the database have id int but mongo have string
     pub last_insert_id_string: Option<String>,
@@ -802,7 +808,7 @@ impl From<(String, u64)> for SqlExecuteRet {
     fn from((sql, changes): (String, u64)) -> Self {
         Self {
             sql,
-            changes,
+            changes: Some(changes),
             last_insert_id_string: None,
             last_insert_row_id: None,
         }
@@ -812,7 +818,7 @@ impl From<u64> for SqlExecuteRet {
     fn from(changes: u64) -> Self {
         Self {
             sql: "".to_string(),
-            changes,
+            changes: Some(changes),
             last_insert_id_string: None,
             last_insert_row_id: None,
         }
@@ -1208,5 +1214,66 @@ mod tests {
             },
         );
         println!("{}", r)
+    }
+}
+
+pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
+    use sqlparser::ast::DataType;
+
+    match x {
+        DataType::TinyInt(_)
+        | DataType::UnsignedTinyInt(_)
+        | DataType::Int2(_)
+        | DataType::UnsignedInt2(_)
+        | DataType::SmallInt(_)
+        | DataType::UnsignedSmallInt(_)
+        | DataType::MediumInt(_)
+        | DataType::UnsignedMediumInt(_)
+        | DataType::Int(_)
+        | DataType::Int4(_)
+        | DataType::Int8(_)
+        | DataType::Int16
+        | DataType::Int32
+        | DataType::Int64
+        | DataType::Int128
+        | DataType::Int256
+        | DataType::Integer(_)
+        | DataType::UnsignedInt(_)
+        | DataType::UnsignedInt4(_)
+        | DataType::UnsignedInteger(_)
+        | DataType::UInt8
+        | DataType::UInt16
+        | DataType::UInt32
+        | DataType::UInt64
+        | DataType::UInt128
+        | DataType::UInt256
+        | DataType::BigInt(_)
+        | DataType::UnsignedBigInt(_)
+        | DataType::UnsignedInt8(_) => true,
+
+        _ => false,
+    }
+}
+
+// float decimal all consider as float number
+pub(crate) fn ty_is_float(x: &sqlparser::ast::DataType) -> bool {
+    use sqlparser::ast::DataType;
+
+    match x {
+        DataType::Numeric(_)
+        | DataType::Decimal(_)
+        | DataType::BigNumeric(_)
+        | DataType::BigDecimal(_)
+        | DataType::Dec(_)
+        | DataType::Float(_)
+        | DataType::Float4
+        | DataType::Float32
+        | DataType::Float64
+        | DataType::Real
+        | DataType::Float8
+        | DataType::Double
+        | DataType::DoublePrecision => true,
+
+        _ => false,
     }
 }

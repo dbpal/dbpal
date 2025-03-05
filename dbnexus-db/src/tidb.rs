@@ -6,9 +6,9 @@ use std::time::Duration;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
-    QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
-    DefAndMetas, UdfOrProcedureExtraParameter,
+    DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
+    TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
@@ -47,6 +47,15 @@ impl std::fmt::Debug for TiDB {
 }
 #[async_trait::async_trait]
 impl QuerySql for TiDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        self.db.export_query_result(sql, kind, sender).await
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -77,7 +86,7 @@ impl SchemaTrait for TiDB {
     }
 
     fn quote_style(&self) -> &'static str {
-        ""
+        self.db.quote_style()
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -196,12 +205,6 @@ impl SchemaTrait for TiDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         self.db.export_table_or_view(name, kind, sender).await
-    }
-
-    async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        self.db.export_query_result(sql, kind, sender).await
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
