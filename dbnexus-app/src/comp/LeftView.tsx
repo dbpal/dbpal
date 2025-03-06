@@ -48,7 +48,7 @@ enum ViewKind {
   Normal,
   Materrialized,
 }
-
+import CalendarViewWeekIcon from '@mui/icons-material/CalendarViewWeek';
 function ViewsTree(props: { viewkind: ViewKind }) {
   const { viewkind } = props;
 
@@ -97,12 +97,16 @@ function ViewsTree(props: { viewkind: ViewKind }) {
   }
 
   let name;
+  let icon;
+
   switch (viewkind) {
     case ViewKind.Normal:
       name = 'views';
+      icon = <VisibilityIcon></VisibilityIcon>;
       break;
     case ViewKind.Materrialized:
-      name = 'materizlized views';
+      name = 'materialized views';
+      icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
       break;
   }
 
@@ -126,7 +130,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
           });
         }}
       >
-        <VisibilityIcon></VisibilityIcon>
+        {icon}
         <span> {name} </span>
         {loading && (
           <CircularProgress size={progressBarSizeSmall}></CircularProgress>
@@ -157,6 +161,15 @@ function ViewTree(props: {
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(ContextMenuContext);
+  let icon;
+  switch (viewkind) {
+    case ViewKind.Materrialized:
+      icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
+      break;
+    case ViewKind.Normal:
+      icon = <VisibilityIcon></VisibilityIcon>;
+      break;
+  }
   return (
     <TreeItem
       itemId={uuid + '-view-' + view}
@@ -181,7 +194,7 @@ function ViewTree(props: {
           }}
         >
           <Stack direction="row" spacing={1}>
-            <VisibilityIcon></VisibilityIcon> <span> {view} </span>
+            {icon} <span> {view} </span>
           </Stack>
           {viewkind == ViewKind.Materrialized && <span> {size} </span>}
         </Stack>

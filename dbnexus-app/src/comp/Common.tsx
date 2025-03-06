@@ -581,6 +581,7 @@ function ConnConfigInfo(props: { uuid }) {
         case 'tidb':
         case 'cassandra':
         case 'oracle':
+        case 'clickhouse':
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,

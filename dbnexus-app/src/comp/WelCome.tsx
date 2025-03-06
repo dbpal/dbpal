@@ -43,6 +43,10 @@ function WelCome() {
       name: 'cassandra',
       img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Cassandra_logo.svg/800px-Cassandra_logo.svg.png',
     },
+    {
+      name: 'clickhouse',
+      img: 'https://pic.rmb.bdstatic.com/bjh/6cd1c89eb632abaffcde8c19ebca83261118.png',
+    },
   ];
   return (
     <Stack spacing={1}>
