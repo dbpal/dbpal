@@ -19,18 +19,27 @@ pub trait BackendName {
     fn backend_name(&self) -> &str;
 }
 
+pub trait ReadOnlyTrait {
+    fn read_only(&self) -> bool;
+    fn can_write(&self) -> anyhow::Result<()> {
+        if self.read_only() {
+            return Err(anyhow::Error::msg("this connection is readonly"));
+        }
+        anyhow::Ok(())
+    }
+}
+
 /// A db representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait:
-    Sync + Send + QuerySql + CheckConn + std::fmt::Debug + ServerMetas + 'static
+    Sync + Send + QuerySql + CheckConn + std::fmt::Debug + ServerMetas + 'static + ReadOnlyTrait
 {
     fn as_any(&self) -> &dyn std::any::Any;
 
     fn quote_style(&self) -> &'static str {
         ""
     }
-    /// if this connection is read only
-    fn read_only(&self) -> bool;
+
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
@@ -72,10 +81,11 @@ pub trait SchemaTrait:
         not_support_features(self.backend_name())
     }
 
-    async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<()> {
+    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         not_support_features(self.backend_name())
     }
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
+
+    async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
     async fn modify_table_column(
@@ -176,15 +186,7 @@ pub trait SchemaTrait:
     async fn create_view_sql(
         &self, _view_name: &str, _materialized: bool,
     ) -> anyhow::Result<String> {
-        // anyhow::bail!(format!("sql server don't support create_view_sql"))
         not_support_features(self.backend_name())
-    }
-
-    fn can_write(&self) -> anyhow::Result<()> {
-        if self.read_only() {
-            return Err(anyhow::Error::msg("this source is readonly"));
-        }
-        anyhow::Ok(())
     }
 
     async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -315,7 +317,7 @@ impl DefAndMetas {
 
 #[async_trait::async_trait]
 pub trait CatalogTrait:
-    Send + Sync + 'static + QuerySql + CheckConn + LanguageServer + Debug + ServerMetas
+    Send + Sync + 'static + QuerySql + CheckConn + LanguageServer + Debug + ServerMetas + ReadOnlyTrait
 {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
@@ -396,8 +398,9 @@ pub struct CreateTableAndIndexSql {
     /// this can be empty
     pub indexes: Vec<String>,
 }
+
+#[allow(unused)]
 impl dyn SchemaTrait {
-    #[allow(unused)]
     pub async fn export_table_to_string(
         &self, table_name: &str, kind: ExportKind,
     ) -> anyhow::Result<String> {
@@ -424,7 +427,6 @@ impl dyn SchemaTrait {
         h2.await?
     }
 
-    #[allow(unused)]
     pub async fn export_query_result_to_string(
         &self, sql: &str, kind: ExportKind,
     ) -> anyhow::Result<String> {
@@ -450,7 +452,9 @@ impl dyn SchemaTrait {
 }
 
 #[async_trait::async_trait]
-pub trait DBTrait: Sync + Send + QuerySql + 'static + CheckConn + Debug + ServerMetas {
+pub trait DBTrait:
+    Sync + Send + QuerySql + 'static + CheckConn + Debug + ServerMetas + ReadOnlyTrait
+{
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
     async fn create_schema(
@@ -630,7 +634,7 @@ impl dyn SchemaTrait {
             let f = f.map(|x| *x);
 
             if f.is_none() {
-                anyhow::bail!("field  '{}' not found", k);
+                continue;
             }
             let f = f.unwrap();
             // some type can't compare

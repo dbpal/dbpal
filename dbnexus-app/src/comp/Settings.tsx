@@ -219,7 +219,7 @@ const components: Components<
   MuiSelect: {
     styleOverrides: {
       root: {
-        height: '2rem',
+        height: '2.3rem',
         fontSize: '1rem',
       },
     },

@@ -11,7 +11,7 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
-use dbnexus_db::mongo::Mongo;
+use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
@@ -228,7 +228,7 @@ pub async fn mongo_list_time_serial_collection(
         .await
         .map_err(|x| ErrorFrontend::from(x))?;
 
-    let ret = match schema.as_any().downcast_ref::<Mongo>() {
+    let ret = match schema.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x
             .list_time_serial_collection()
             .await
@@ -354,7 +354,7 @@ pub async fn mongo_create_index(
         .await
         .map_err(ErrorFrontend::from)?;
 
-    match schema.as_any().downcast_ref::<Mongo>() {
+    match schema.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x
             .create_index(&table_name, index_name, unique, keys)
             .await
@@ -646,24 +646,24 @@ pub async fn export_query_result_to_file(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let sql = sql.as_str();
+
     let opend = app
         .get_opened(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match opend {
         Open::Catalog(x) => {
-            x.export_query_result_to_file(sql, kind, &file)
+            x.export_query_result_to_file(&sql, kind, &file)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
         }
         Open::DataBase(x) => {
-            x.export_query_result_to_file(sql, kind, &file)
+            x.export_query_result_to_file(&sql, kind, &file)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
         }
         Open::Schema(x) => {
-            x.export_query_result_to_file(sql, kind, &file)
+            x.export_query_result_to_file(&sql, kind, &file)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
         }
@@ -677,16 +677,16 @@ pub async fn is_dangerous_sql(
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let sql = sql.as_str();
+
     let db = app
         .get_opened(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
     let result = match db {
-        Open::DataBase(x) => x.is_dangerous_sql(sql),
-        Open::Schema(x) => x.is_dangerous_sql(sql),
-        Open::Catalog(x) => x.is_dangerous_sql(sql),
+        Open::DataBase(x) => x.is_dangerous_sql(&sql),
+        Open::Schema(x) => x.is_dangerous_sql(&sql),
+        Open::Catalog(x) => x.is_dangerous_sql(&sql),
     }
     .map_err(|x| ErrorFrontend::from(x))?;
 
@@ -698,13 +698,13 @@ pub async fn query_sql(
 ) -> Result<Vec<Result<MuiDataGridData, String>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let sql = sql.as_str();
+
     let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
 
     let result = match db {
-        Open::DataBase(x) => x.query_sql(query_id, sql).await,
-        Open::Schema(x) => x.query_sql(query_id, sql).await,
-        Open::Catalog(x) => x.query_sql(query_id, sql).await,
+        Open::DataBase(x) => x.query_sql(query_id, &sql).await,
+        Open::Schema(x) => x.query_sql(query_id, &sql).await,
+        Open::Catalog(x) => x.query_sql(query_id, &sql).await,
     };
 
     result.map_err(ErrorFrontend::from).map(|x| {
@@ -1159,7 +1159,7 @@ pub async fn mongo_insert(
         .get_schema(name.as_str())
         .await
         .map_err(|e| ErrorFrontend::from(e))?;
-    match db.as_any().downcast_ref::<Mongo>() {
+    match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.insert(table_name.as_str(), doc).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1177,7 +1177,7 @@ pub async fn mongo_update_one(
         .get_schema(name.as_str())
         .await
         .map_err(|e| ErrorFrontend::from(e))?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.update_one(table_name.as_str(), doc).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1199,7 +1199,7 @@ pub async fn mongo_delete_ids(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<Mongo>() {
+    match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.delete_by_ids(table_name.as_str(), ids).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1219,7 +1219,7 @@ pub async fn mongo_show_collection_table_list(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<Mongo>() {
+    match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
             x.show_collection_table_list(table_name.as_str(), filter, sort, page, page_size)
                 .await
@@ -1243,7 +1243,7 @@ pub async fn mongo_show_collection_docs(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let docs = match db.as_any().downcast_ref::<Mongo>() {
+    let docs = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
             x.show_collection_docs(table_name.as_str(), filter, sort, page, page_size)
                 .await
@@ -1264,7 +1264,7 @@ pub async fn mongo_get_one_document_by_id(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let doc = match db.as_any().downcast_ref::<Mongo>() {
+    let doc = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.get_one_document_by_id(table_name.as_str(), id).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1282,7 +1282,7 @@ pub async fn mongo_query_db_drop(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<Mongo>() {
+    match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_db_drop().await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1299,7 +1299,7 @@ pub async fn mongo_query_db_list_collection_names(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_db_list_collection_names().await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1317,7 +1317,7 @@ pub async fn mongo_query_db_run_command(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_db_run_command(command).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1335,7 +1335,7 @@ pub async fn mongo_query_collection_count_docs(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_count_docs(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1354,7 +1354,7 @@ pub async fn mongo_query_collection_create_index(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_create_index(&col, index).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1373,7 +1373,7 @@ pub async fn mongo_query_collection_create_search_index(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
             x.query_collection_create_search_index(&col, index, index_name)
                 .await
@@ -1394,7 +1394,7 @@ pub async fn mongo_query_collection_delete_many(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_delete_many(&col, query).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1412,7 +1412,7 @@ pub async fn mongo_query_collection_delete_one(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_delete_one(&col, query).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1431,7 +1431,7 @@ pub async fn mongo_query_collection_distinct(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let values = match db.as_any().downcast_ref::<Mongo>() {
+    let values = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_distinct(&col, query, &field).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1450,7 +1450,7 @@ pub async fn mongo_query_collection_drop(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<Mongo>() {
+    match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_drop(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1469,7 +1469,7 @@ pub async fn mongo_query_collection_drop_index(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<Mongo>() {
+    match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_drop_index(&col, &index).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1487,7 +1487,7 @@ pub async fn mongo_query_collection_drop_indexes(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<Mongo>() {
+    match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_drop_indexes(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1504,7 +1504,7 @@ pub async fn mongo_query_collection_drop_search_index(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<Mongo>() {
+    match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_drop_search_index(&col, &index).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1547,7 +1547,7 @@ pub async fn mongo_query_collection_find(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let docs = match db.as_any().downcast_ref::<Mongo>() {
+    let docs = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
             x.query_collection_find(&col, projection, filter, sort, max, min, limit, skip)
                 .await
@@ -1596,7 +1596,7 @@ pub async fn mongo_query_collection_find_one(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
             x.query_collection_find_one(&col, projection, filter, sort, max, min, skip)
                 .await
@@ -1622,7 +1622,7 @@ pub async fn mongo_query_collection_find_one_and_delete(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_find_one_and_delete(&col, query).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1645,7 +1645,7 @@ pub async fn mongo_query_collection_find_one_and_replace(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
             x.query_collection_find_one_and_replace(&col, query, rep)
                 .await
@@ -1675,7 +1675,7 @@ pub async fn mongo_query_collection_insert_many(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_insert_many(&col, docs).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1694,7 +1694,7 @@ pub async fn mongo_query_collection_insert_one(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_insert_one(&col, doc).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1712,7 +1712,7 @@ pub async fn mongo_query_collection_list_index_names(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_list_index_names(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1729,7 +1729,7 @@ pub async fn mongo_query_collection_list_indexes(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let indexes = match db.as_any().downcast_ref::<Mongo>() {
+    let indexes = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_list_indexes(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1747,7 +1747,7 @@ pub async fn mongo_query_collection_list_search_indexes(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let indexes = match db.as_any().downcast_ref::<Mongo>() {
+    let indexes = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_list_search_indexes(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
@@ -1772,7 +1772,7 @@ pub async fn mongo_query_collection_replace_one(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
             x.query_collection_replace_one(&col, query, replacement)
                 .await
@@ -1795,7 +1795,7 @@ pub async fn mongo_query_collection_update_many(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
             x.query_collection_update_many(&col, query, replacement)
                 .await
@@ -1819,7 +1819,7 @@ pub async fn mongo_query_collection_update_one(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let ret = match db.as_any().downcast_ref::<Mongo>() {
+    let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
             x.query_collection_update_one(&col, query, replacement)
                 .await

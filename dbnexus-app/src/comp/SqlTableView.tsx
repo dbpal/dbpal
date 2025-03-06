@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
-
+import CancelIcon from '@mui/icons-material/Cancel';
 import types from './ApiStruct';
 import {
   Box,
@@ -44,11 +44,15 @@ import {
   datagridContainerHeight,
   DataSourceKind,
   filterStyle,
+  generateRandomString,
   handleCopyToClipboard,
   isTypeLargeText,
   secondConfirm,
+  TabContent,
+  TabsSetContext,
   VisiableContext,
 } from './helper';
+import FileCopyIcon from '@mui/icons-material/FileCopy';
 import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
 
 const confrimAboutPrimary = async (
@@ -137,17 +141,24 @@ function SqlTableView(props: {
     pageSize: number,
     extra
   ) => Promise<types.MuiDataTableListResp>;
-  updateOP?: (
-    wheres: Map<string, string | null>,
-    values: Map<string, string | null>
-  ) => Promise<types.SqlExecuteRet>;
-  deleteOP?: (wheres: Map<string, string>) => Promise<types.SqlExecuteRet>;
+  updateOP?: (wheres: object, values: object) => Promise<types.SqlExecuteRet>;
+  deleteOP?: (wheres: object) => Promise<types.SqlExecuteRet>;
   put_value_in_sql: (typ: string, value?: string) => Promise<string>;
+  addOP?: (x: object) => Promise<void>;
   notWarnPri?: boolean;
   kind: DataSourceKind;
+  tableName: string;
 }) {
-  let { reloadOP, updateOP, deleteOP, notWarnPri, put_value_in_sql, kind } =
-    props;
+  let {
+    reloadOP,
+    updateOP,
+    deleteOP,
+    notWarnPri,
+    put_value_in_sql,
+    kind,
+    tableName,
+    addOP,
+  } = props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -358,14 +369,20 @@ function SqlTableView(props: {
           let field = (target as HTMLDivElement).getAttribute('data-field');
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let row = { ...resp.data.data.find((e) => e[keyNotInTable] == id) };
+          delete row[keyNotInTable];
           setUpMenu({
             content: (
               <Menu
+                fields={resp.data.fields}
                 field={field}
                 content={content}
                 handleDelete={() => {
                   handleDetele(id);
                 }}
+                row={row}
+                tableName={tableName}
+                addOP={addOP}
                 setSort={setSort}
                 setWhere={setWhere}
                 put_value_in_sql={(value) => {
@@ -374,9 +391,31 @@ function SqlTableView(props: {
                     value
                   );
                 }}
+                setNull={
+                  updateOP
+                    ? async () => {
+                        let x = resp.data.data.find(
+                          (e) => e[keyNotInTable] == id
+                        );
+                        try {
+                          //ts-ignoe
+                          let values = {};
+                          values[field] = null;
+                          await updateOP(x, values);
+                        } catch (e) {
+                          showNotification('error', 'update failed', e);
+                          return;
+                        }
+                        showNotification('success', 'set null OK');
+                        handleReload(false);
+
+                        return;
+                      }
+                    : undefined
+                }
               ></Menu>
             ),
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e, 300),
           });
         },
         style: { cursor: 'context-menu' },
@@ -531,10 +570,20 @@ function SqlTableView(props: {
 function SqlTableViewAdd(props: {
   addOP: (args: any) => Promise<void>;
   fields: types.Field[];
+  initValues?: object;
 }) {
-  let { addOP, fields } = props;
+  let { addOP, fields, initValues } = props;
+  if (!initValues) {
+    initValues = {};
+  }
+  fields.forEach((e) => {
+    if (e.is_auto_increment) {
+      delete initValues[e.field];
+    }
+  });
+
   const [loading, setLoading] = useState(false);
-  const [args, setArgs] = useState({});
+  const [args, setArgs] = useState(initValues);
   const { showNotification } = useContext(NotificationContext);
   const inputDoms = useRef([]);
   const handleAdd = () => {
@@ -615,24 +664,59 @@ function Menu(props: {
   setSort;
   setWhere;
   put_value_in_sql: (value?: string) => Promise<string>;
+  setNull?: () => void;
+  addOP?: (x: object) => Promise<void>;
+  tableName: string;
+  row: object;
+  fields;
 }) {
-  const { field, content, handleDelete, setSort, setWhere, put_value_in_sql } =
-    props;
+  const {
+    field,
+    content,
+    handleDelete,
+    setSort,
+    setWhere,
+    put_value_in_sql,
+    setNull,
+    tableName,
+    addOP,
+    row,
+    fields,
+  } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
+  const { setTabs, setSelectTab } = useContext(TabsSetContext);
+  const handleClone = () => {
+    setTabs((tabs) => {
+      let t = (
+        <SqlTableViewAdd
+          addOP={addOP}
+          fields={fields}
+          initValues={row}
+        ></SqlTableViewAdd>
+      );
+      setSelectTab(tabs.length);
+      return [
+        ...tabs,
+        new TabContent(generateRandomString(20), `${tableName}-add`, t),
+      ];
+    });
+  };
   return (
     <Paper>
       <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> copy </ListItemText>
-        </MenuItem>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
 
         <MenuItem
           onClick={() => {
@@ -642,7 +726,7 @@ function Menu(props: {
           <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> copy field </ListItemText>
+          <ListItemText> Copy Field </ListItemText>
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -673,15 +757,36 @@ function Menu(props: {
           <ListItemIcon>
             <FilterAltIcon></FilterAltIcon>
           </ListItemIcon>
-          <ListItemText> filter </ListItemText>
+          <ListItemText> Quick Filter </ListItemText>
         </MenuItem>
-        <MenuResetColumnWidths></MenuResetColumnWidths>
+
+        {content && (
+          <MenuItem
+            onClick={() => {
+              setNull();
+            }}
+          >
+            <ListItemIcon>
+              <CancelIcon></CancelIcon>
+            </ListItemIcon>
+            <ListItemText> Set as Null </ListItemText>
+          </MenuItem>
+        )}
+        {addOP && (
+          <MenuItem onClick={handleClone}>
+            <ListItemIcon>
+              <FileCopyIcon></FileCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Clone Row </ListItemText>
+          </MenuItem>
+        )}
         <MenuItem onClick={handleDelete}>
           <ListItemIcon>
             <DeleteForeverIcon></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText> delete row</ListItemText>
+          <ListItemText> Delete Row</ListItemText>
         </MenuItem>
+        <MenuResetColumnWidths></MenuResetColumnWidths>
       </MenuList>
 
       {showFilter && (

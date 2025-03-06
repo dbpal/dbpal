@@ -36,7 +36,6 @@ import {
 } from 'react';
 import { Editor, loader, Monaco, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
-import EventNoteIcon from '@mui/icons-material/EventNote';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 
@@ -491,16 +490,16 @@ const progressBarSize = '30px';
 const progressBarSizeSmall = '20px';
 
 function MenuConnectionInfo({ uuid }) {
-  const { tabs, setSelectIndex, setTabs } = useContext(TabsSetContext);
+  const { tabs, setSelectTab, setTabs } = useContext(TabsSetContext);
 
   const handleInfo = async () => {
     let id = uuid + '-info';
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
-      setSelectIndex(index);
+      setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectIndex(tabs.length);
+        setSelectTab(tabs.length);
         return [
           ...e,
           new TabContent(
@@ -517,7 +516,7 @@ function MenuConnectionInfo({ uuid }) {
       <ListItemIcon>
         <InfoIcon></InfoIcon>
       </ListItemIcon>
-      <ListItemText> info </ListItemText>
+      <ListItemText> Info </ListItemText>
     </MenuItem>
   );
 }

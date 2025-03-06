@@ -32,6 +32,7 @@ impl LexerCompletionTrait for MysqlDB {
         SELECT table_name 
         FROM information_schema.tables  ORDER BY  table_name;
         "#;
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -157,6 +158,7 @@ impl AstCompletionHelper for MysqlDB {
         use sqlx::{Column, Executor, Statement};
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from `{schema}`.`{name}` limit 1"#);
+        log::info!("sql:{}", sql);
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
         let ret = s
             .columns()
@@ -223,6 +225,7 @@ impl AstCompletionHelper for MysqlDB {
         WHERE TABLE_SCHEMA = '{}'"#,
             schema
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -264,6 +267,7 @@ impl AstCompletionHelper for MysqlDB {
             WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}';"#,
             schema, table
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -289,6 +293,7 @@ impl AstCompletionHelper for MysqlDB {
                 WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}'"#,
             schema, table_name
         );
+        log::info!("sql:{}", sql);
 
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
@@ -310,6 +315,7 @@ impl AstCompletionHelper for MysqlDB {
                 WHERE EVENT_OBJECT_TABLE = '{}' AND TRIGGER_SCHEMA = '{}';"#,
             table, schema
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());

@@ -16,8 +16,8 @@ use typescript_type_def::TypeDef;
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, ListTable,
-    QueryResp, QuerySql, QuerySqlWithoutOpenConn, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp,
+    QueryResp, QuerySql, QuerySqlWithoutOpenConn, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlExecuteRet, TableListResp,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
@@ -749,10 +749,6 @@ impl SchemaTrait for RedisDB {
         anyhow::Ok(())
     }
 
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
-
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -1046,12 +1042,13 @@ impl DBTrait for RedisDB {
         // memory. but there is a problem if user don't create any data
         // when restart we will not have the create database
         // I think this is rare.
-
+        self.can_write()?;
         self.created_database.insert(name.to_owned());
         anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut config = self.config.clone();
         config.db = Some(name.to_owned());
         let db = Self::new(config).await?;
@@ -1229,6 +1226,12 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
         commands.push(c);
     }
     anyhow::Ok(commands)
+}
+
+impl ReadOnlyTrait for RedisDB {
+    fn read_only(&self) -> bool {
+        self.config.read_only
+    }
 }
 
 async fn query_sql(

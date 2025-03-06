@@ -245,9 +245,12 @@ function ViewColumnsTree(props: { view: string; viewkind: ViewKind }) {
       {fields.map((f) => (
         <TreeItem
           key={f.field}
-          style={{ ...treeItemCommonStyle }}
           itemId={idPrefix + '-' + f.field}
-          label=<Stack direction="row" spacing={1}>
+          label=<Stack
+            direction="row"
+            spacing={1}
+            style={{ ...treeItemCommonStyle }}
+          >
             {f.field} <em>({f.typ}) </em>
           </Stack>
         ></TreeItem>
@@ -293,13 +296,13 @@ function ViewMenu(props: {
         showNotification('error', 'Drop View Failure', e);
       });
   };
-  const { tabs, setTabs, setSelectIndex } = useContext(TabsSetContext);
+  const { tabs, setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const handleViewData = () => {
     const id = uuid + '-view-' + view;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
-      setSelectIndex(index);
+      setSelectTab(index);
     } else {
       let list: ReactNode = null;
 
@@ -312,8 +315,10 @@ function ViewMenu(props: {
         case DataSourceKind.Oracle:
         case DataSourceKind.TiDB:
         case DataSourceKind.Cassandra:
+        case DataSourceKind.ClickHouse:
           list = (
             <SqlTableView
+              tableName={view}
               kind={kind}
               notWarnPri={true}
               reloadOP={async (
@@ -404,7 +409,7 @@ function ViewMenu(props: {
       }
 
       setTabs((e) => {
-        setSelectIndex(tabs.length);
+        setSelectTab(tabs.length);
         return [...e, new TabContent(id, view, list)];
       });
     }
@@ -417,7 +422,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <ListIcon></ListIcon>
           </ListItemIcon>
-          <ListItemText> view data</ListItemText>
+          <ListItemText> View Data</ListItemText>
           <Typography
             variant="body2"
             sx={{ color: 'text.secondary' }}
@@ -432,7 +437,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <ArrowCircleDownIcon></ArrowCircleDownIcon>
           </ListItemIcon>
-          <ListItemText> export </ListItemText>
+          <ListItemText> Export </ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -444,7 +449,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop </ListItemText>
+          <ListItemText>Drop </ListItemText>
           <Typography
             variant="body2"
             sx={{ color: 'text.secondary' }}

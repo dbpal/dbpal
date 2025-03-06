@@ -308,7 +308,7 @@ function ModifyTableColumn(props: {
         setLoading(false);
       });
   };
-
+  let supoortModifyType = kind != DataSourceKind.Cassandra;
   return (
     <Stack spacing={1}>
       <TextField
@@ -322,7 +322,7 @@ function ModifyTableColumn(props: {
         required
         error={!newName}
       ></TextField>
-      {!modifyType && (
+      {supoortModifyType && !modifyType && (
         <FormControlLabel
           control={
             <Checkbox
@@ -405,7 +405,7 @@ function TableColumnsMenu(props: {
             <ListItemIcon>
               <AddIcon></AddIcon>
             </ListItemIcon>
-            <ListItemText> add column </ListItemText>
+            <ListItemText> Add Column </ListItemText>
           </MenuItem>
         )}
       </MenuList>
@@ -637,7 +637,8 @@ function TableColumnsTree(props: { table: string }) {
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.Oracle ||
     kind == DataSourceKind.TiDB ||
-    kind == DataSourceKind.Cassandra;
+    kind == DataSourceKind.Cassandra ||
+    kind == DataSourceKind.ClickHouse;
 
   useEffect(() => {
     reload();
@@ -800,8 +801,10 @@ async function makeViewTable(
     case DataSourceKind.Oracle:
     case DataSourceKind.TiDB:
     case DataSourceKind.Cassandra:
+    case DataSourceKind.ClickHouse:
       tableList = (
         <SqlTableView
+          tableName={table}
           kind={kind}
           reloadOP={async (
             where: string,
@@ -842,6 +845,13 @@ async function makeViewTable(
               name: uuid,
               typ,
               value: value ? value : null,
+            });
+          }}
+          addOP={async (values) => {
+            return invoke('insert', {
+              name: uuid,
+              tableName: table,
+              values,
             });
           }}
         ></SqlTableView>
@@ -1100,6 +1110,7 @@ async function makeAddTable(
     case DataSourceKind.Oracle:
     case DataSourceKind.TiDB:
     case DataSourceKind.Cassandra:
+    case DataSourceKind.ClickHouse:
       tableList = (
         <SqlTableViewAdd
           addOP={async (values) => {
@@ -1230,7 +1241,7 @@ function TableMenu(props: {
   const [showExport, setShowExport] = useState(false);
 
   const { showNotification } = useContext(NotificationContext);
-  const { tabs, setTabs, setSelectIndex } = useContext(TabsSetContext);
+  const { tabs, setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -1254,7 +1265,7 @@ function TableMenu(props: {
     const id = uuid + '-table-' + table;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
-      setSelectIndex(index);
+      setSelectTab(index);
     } else {
       let tableList: ReactNode = await makeViewTable(
         uuid,
@@ -1265,7 +1276,7 @@ function TableMenu(props: {
       );
 
       setTabs((e) => {
-        setSelectIndex(tabs.length);
+        setSelectTab(tabs.length);
         return [...e, new TabContent(id, table, tableList)];
       });
     }
@@ -1279,7 +1290,7 @@ function TableMenu(props: {
       redisTableType
     );
     setTabs((e) => {
-      setSelectIndex(tabs.length);
+      setSelectTab(tabs.length);
       return [...e, new TabContent(id, `${table}-add`, tableList)];
     });
   };
@@ -1304,7 +1315,7 @@ function TableMenu(props: {
           <ListItemIcon>
             <ListIcon></ListIcon>
           </ListItemIcon>
-          <ListItemText> view data</ListItemText>
+          <ListItemText> View Data</ListItemText>
         </MenuItem>
 
         {kind != DataSourceKind.Redis && (
@@ -1316,7 +1327,7 @@ function TableMenu(props: {
             <ListItemIcon>
               <AddIcon></AddIcon>
             </ListItemIcon>
-            <ListItemText> add data </ListItemText>
+            <ListItemText> Add Data </ListItemText>
           </MenuItem>
         )}
 
@@ -1330,7 +1341,7 @@ function TableMenu(props: {
               <ListItemIcon>
                 <AddIcon></AddIcon>
               </ListItemIcon>
-              <ListItemText> add data</ListItemText>
+              <ListItemText> Add Data</ListItemText>
             </MenuItem>
           )}
 
@@ -1342,7 +1353,7 @@ function TableMenu(props: {
           <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> duplicate </ListItemText>
+          <ListItemText> Duplicate </ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -1353,7 +1364,7 @@ function TableMenu(props: {
           <ListItemIcon>
             <ArrowCircleDownIcon></ArrowCircleDownIcon>
           </ListItemIcon>
-          <ListItemText> export </ListItemText>
+          <ListItemText> Export </ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -1364,7 +1375,7 @@ function TableMenu(props: {
           <ListItemIcon>
             <EditIcon></EditIcon>
           </ListItemIcon>
-          <ListItemText> rename </ListItemText>
+          <ListItemText> Rename </ListItemText>
         </MenuItem>
         <MenuItem
           sx={{ color: 'error.main' }}
@@ -1375,7 +1386,7 @@ function TableMenu(props: {
           <ListItemIcon>
             <PlaylistRemoveIcon color="error"></PlaylistRemoveIcon>
           </ListItemIcon>
-          <ListItemText> truncate </ListItemText>
+          <ListItemText> Truncate </ListItemText>
         </MenuItem>
         <MenuItem
           sx={{ color: 'error.main' }}
@@ -1386,7 +1397,7 @@ function TableMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop</ListItemText>
+          <ListItemText>Drop</ListItemText>
         </MenuItem>
       </MenuList>
       {showDup && (
@@ -1530,18 +1541,17 @@ function TableColumnMenu(props: {
           <ListItemIcon>
             <EditIcon> </EditIcon>
           </ListItemIcon>
-          <ListItemText> modify </ListItemText>
+          <ListItemText> Modify </ListItemText>
         </MenuItem>
         <MenuItem
           onClick={() => {
             handleDrop();
           }}
-          sx={{ color: 'error.main' }}
         >
           <ListItemIcon>
             <DeleteForeverIcon color="error"> </DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText color="error"> drop </ListItemText>
+          <ListItemText color="error"> Drop </ListItemText>
         </MenuItem>
       </MenuList>
       {showModify && (

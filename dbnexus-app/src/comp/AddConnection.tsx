@@ -17,10 +17,8 @@ import {
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
-
 import { invoke } from '@tauri-apps/api/core';
 import { appStore, AppStoreKey, msgTimeout } from './Common';
-
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { DataSourceKind } from './helper';
 
@@ -120,6 +118,18 @@ function EnableSSL(props: { useSSL; setUseSSL }) {
         />
       }
       label="Enable SSL"
+    />
+  );
+}
+
+function Https(props: { https; setHttps }) {
+  let { https, setHttps } = props;
+  return (
+    <FormControlLabel
+      control={
+        <Switch checked={https} onChange={(e) => setHttps(e.target.checked)} />
+      }
+      label="HTTPS"
     />
   );
 }
@@ -231,6 +241,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   const [trustCert, setTrustCert] = useState(false);
   const [databaseCandidates, setDatabaseCandidates] = useState([]);
   const [schema, setSchema] = useState('');
+  const [https, setHttps] = useState(false);
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
   };
@@ -247,6 +258,18 @@ export default function AddConfig(props: { handleClose: () => void }) {
     let db_null = database ? database : null;
     let schema_null = schema ? schema : null;
     switch (connectionType) {
+      case DataSourceKind.ClickHouse:
+        return {
+          conn_type: 'clickhouse',
+          host: host,
+          port: portInt,
+          username: user,
+          password: pass_null,
+          db: db_null,
+          read_only: readOnly,
+          name: connectionName,
+          https: https,
+        };
       case DataSourceKind.Mysql:
         return {
           conn_type: 'mysql',
@@ -411,6 +434,9 @@ export default function AddConfig(props: { handleClose: () => void }) {
       case DataSourceKind.Cassandra:
         setPort('9042');
         break;
+      case DataSourceKind.ClickHouse:
+        setPort('8123');
+        break;
     }
     setUser('');
     setPassword('');
@@ -536,6 +562,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
             Sql Server(microsoft)
           </MenuItem>
           <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
+          <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse </MenuItem>
         </Select>
       </FormControl>
 
@@ -593,6 +620,31 @@ export default function AddConfig(props: { handleClose: () => void }) {
               candidates={schemaCandidates}
             ></Schema>
           )}
+        </>
+      )}
+      {connectionType == DataSourceKind.ClickHouse && (
+        <>
+          <HostAndPort
+            host={host}
+            port={port}
+            setHost={setHost}
+            setPort={setPort}
+            onBlur={toggleTriggerReload}
+          ></HostAndPort>
+          <UserAndPassword
+            user={user}
+            password={password}
+            setUser={setUser}
+            onBlur={toggleTriggerReload}
+            setPassword={setPassword}
+          ></UserAndPassword>
+          <Database
+            candidates={databaseCandidates}
+            database={database}
+            setDatabase={setDatabase}
+            onBlur={toggleTriggerReload}
+          ></Database>
+          <Https https={https} setHttps={setHttps}></Https>
         </>
       )}
 
@@ -768,7 +820,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           onClick={handleTestConnection}
           loading={testLoading}
         >
-          test
+          test connection
         </Button>
         {testOk && <Alert severity="success"> Test OK </Alert>}
       </Stack>

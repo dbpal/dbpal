@@ -790,16 +790,18 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
   return (
     <Paper>
       <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> copy </ListItemText>
-        </MenuItem>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
 
         <MenuItem
           onClick={() => {
@@ -809,7 +811,7 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
           <ListItemIcon>
             <DeleteForeverIcon></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText> delete </ListItemText>
+          <ListItemText> Delete </ListItemText>
         </MenuItem>
       </MenuList>
     </Paper>
@@ -994,16 +996,18 @@ function RedisListTableContextMenu(props: {
   return (
     <Paper>
       <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> copy </ListItemText>
-        </MenuItem>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
 
         <MenuItem
           onClick={() => {
@@ -1013,7 +1017,7 @@ function RedisListTableContextMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText> delete </ListItemText>
+          <ListItemText> Delete </ListItemText>
         </MenuItem>
       </MenuList>
 
@@ -1270,16 +1274,18 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
   return (
     <Paper>
       <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> copy </ListItemText>
-        </MenuItem>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
 
         <MenuItem
           onClick={() => {
@@ -1289,7 +1295,7 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
           <ListItemIcon>
             <DeleteForeverIcon></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText> delete </ListItemText>
+          <ListItemText> Delete </ListItemText>
         </MenuItem>
       </MenuList>
     </Paper>
@@ -1524,16 +1530,18 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
   return (
     <Paper>
       <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> copy </ListItemText>
-        </MenuItem>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
 
         <MenuItem
           onClick={() => {
@@ -1543,7 +1551,7 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
           <ListItemIcon>
             <DeleteForeverIcon></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText> delete </ListItemText>
+          <ListItemText> Delete </ListItemText>
         </MenuItem>
       </MenuList>
     </Paper>

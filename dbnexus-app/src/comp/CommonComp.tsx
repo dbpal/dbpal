@@ -114,7 +114,7 @@ function MenuNewQuery({ handle }) {
       <ListItemIcon>
         <AddIcon></AddIcon>
       </ListItemIcon>
-      <ListItemText> new query </ListItemText>
+      <ListItemText> New Query </ListItemText>
     </MenuItem>
   );
 }
@@ -128,7 +128,7 @@ function MenuCreateDatabase({ handleCreate }) {
       <ListItemIcon>
         <BsDatabaseAdd></BsDatabaseAdd>
       </ListItemIcon>
-      <ListItemText> create database </ListItemText>
+      <ListItemText> Create Database </ListItemText>
     </MenuItem>
   );
 }
@@ -142,7 +142,7 @@ function MenuRefresh({ reload }) {
       <ListItemIcon>
         <RefreshIcon></RefreshIcon>
       </ListItemIcon>
-      <ListItemText> refresh </ListItemText>
+      <ListItemText> Refresh </ListItemText>
     </MenuItem>
   );
 }
@@ -164,7 +164,7 @@ function MenuCloseConn({ handleClose, name }) {
       <ListItemIcon>
         <LinkOffIcon></LinkOffIcon>
       </ListItemIcon>
-      <ListItemText> close connection </ListItemText>
+      <ListItemText> Close Connection </ListItemText>
     </MenuItem>
   );
 }
@@ -212,10 +212,10 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   switch (kind) {
     case DataSourceKind.MsSql:
     case DataSourceKind.Postgres:
-      name = 'schema';
+      name = 'Schema';
       break;
     case DataSourceKind.Cassandra:
-      name = 'key space';
+      name = 'Key Space';
       break;
   }
   return (
@@ -227,7 +227,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
       <ListItemIcon>
         <TbDatabasePlus></TbDatabasePlus>
       </ListItemIcon>
-      <ListItemText> {`create ${name}`} </ListItemText>
+      <ListItemText> {`Create ${name}`} </ListItemText>
     </MenuItem>
   );
 }
@@ -249,7 +249,7 @@ function MenuOpenConn({ handleOpend, name }) {
       <ListItemIcon>
         <LinkIcon></LinkIcon>
       </ListItemIcon>
-      <ListItemText> open connection </ListItemText>
+      <ListItemText> Open Connection </ListItemText>
     </MenuItem>
   );
 }
@@ -323,11 +323,12 @@ function MenuDeleteConfig({ name }) {
       onClick={() => {
         handleDelete();
       }}
+      sx={{ color: 'error.main' }}
     >
       <ListItemIcon>
-        <CloseIcon></CloseIcon>
+        <CloseIcon color="error"></CloseIcon>
       </ListItemIcon>
-      <ListItemText> drop connection </ListItemText>
+      <ListItemText color="error"> Drop Connection </ListItemText>
     </MenuItem>
   );
 }
@@ -360,7 +361,7 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
             <ListItemIcon>
               <ContentCopyIcon></ContentCopyIcon>
             </ListItemIcon>
-            <ListItemText> copy </ListItemText>
+            <ListItemText> Copy </ListItemText>
           </MenuItem>
 
           <MenuItem
@@ -449,7 +450,7 @@ function MenuResetColumnWidths() {
       <ListItemIcon>
         <RefreshIcon></RefreshIcon>
       </ListItemIcon>
-      <ListItemText> reset column width </ListItemText>
+      <ListItemText> Reset Column Width </ListItemText>
     </MenuItem>
   );
 }

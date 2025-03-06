@@ -31,17 +31,17 @@ export default function MainPage() {
   let [tabs, setTabs] = useState([
     new TabContent('welcome', 'welcome', <WelCome></WelCome>),
   ]);
-  const [selectIndex, setSelectIndex] = useState(0);
+  const [selectIndex, setSelectTab] = useState(0);
 
   useEffect(() => {
     let unlisten = listen('show_settings', () => {
       let id = 'setting';
       let index = tabsHasId(tabs, id);
       if (typeof index == 'number') {
-        setSelectIndex(index);
+        setSelectTab(index);
       } else {
         setTabs((e) => {
-          setSelectIndex(e.length);
+          setSelectTab(e.length);
           return [
             ...e,
             new TabContent(id, id, <ModifySettings></ModifySettings>),
@@ -86,18 +86,18 @@ export default function MainPage() {
       if (selectIndex != index) {
         // not close current
         if (index < selectIndex) {
-          setSelectIndex(selectIndex - 1);
+          setSelectTab(selectIndex - 1);
         }
       } else {
         if (selectIndex > 0) {
-          setSelectIndex(selectIndex - 1);
+          setSelectTab(selectIndex - 1);
         }
       }
     },
     [tabs]
   );
   const changeTab = useCallback((index) => {
-    setSelectIndex(index as number);
+    setSelectTab(index as number);
   }, []);
 
   const [leftSize, setLeftSize] = useState(300);
@@ -140,7 +140,7 @@ export default function MainPage() {
   return (
     <SettingComp>
       <ContextMenuContext.Provider value={{ setUpMenu }}>
-        <TabsSetContext.Provider value={{ setTabs, tabs, setSelectIndex }}>
+        <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab }}>
           <NotificationProvider>
             <div> {mainContent} </div>
             <div id="menu-div" style={menu && menu.style}>

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::datasource_config::ClickHouseConfig;
 #[allow(unused_imports)]
 use crate::datasource_config::{
     CassandraDBConfig, DuckDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
@@ -10,7 +11,7 @@ use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, ShowExtraArgs,
     SqlExecuteRet, TableListResp,
 };
-use crate::mongo::Mongo;
+use crate::mongo::MongoDB;
 use crate::redis::{RedisDB, RedisListTable};
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
@@ -32,7 +33,8 @@ impl DBConnectionConfig {
             | DBConnectionConfig::Mongo { name, .. }
             | DBConnectionConfig::Redis { name, .. }
             | DBConnectionConfig::Oracle { name, .. }
-            | DBConnectionConfig::Cassandra { name, .. } => name.as_str(),
+            | DBConnectionConfig::Cassandra { name, .. }
+            | DBConnectionConfig::ClickHouse { name, .. } => name.as_str(),
             #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
         }
@@ -92,6 +94,11 @@ pub enum DBConnectionConfig {
         conn: CassandraDBConfig,
         name: String,
     },
+    ClickHouse {
+        #[serde(flatten)]
+        conn: ClickHouseConfig,
+        name: String,
+    },
 
     #[cfg(feature = "duckdb")]
     DuckDB {
@@ -132,6 +139,7 @@ impl DBConnectionConfig {
             DBConnectionConfig::Cassandra { conn, .. } => conn.password = Some(pass),
             #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { .. } => {}
+            DBConnectionConfig::ClickHouse { conn, .. } => conn.password = Some(pass),
         }
     }
 }
@@ -184,7 +192,7 @@ impl DBConnectionConfig {
                 }
             }
             DBConnectionConfig::SqlServer { conn, name: _ } => {
-                let o = Arc::new(crate::mssql::MsSqlServer::new(conn.clone()).await?);
+                let o = Arc::new(crate::mssql::MsSqlServerDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
                 }
@@ -194,7 +202,7 @@ impl DBConnectionConfig {
                 }
             }
             DBConnectionConfig::Mongo { conn, name: _ } => {
-                let db: Arc<Mongo> = Arc::new(crate::mongo::Mongo::new(conn.clone())?);
+                let db: Arc<MongoDB> = Arc::new(crate::mongo::MongoDB::new(conn.clone())?);
                 match conn.db {
                     Some(_) => anyhow::Ok(Open::Schema(db)),
                     None => anyhow::Ok(Open::DataBase(db)),
@@ -224,10 +232,10 @@ impl DBConnectionConfig {
                 }
             },
             DBConnectionConfig::Cassandra { conn, .. } => {
-                let redis = crate::cassandra::CassandraDB::new(conn.clone()).await?;
+                let db = crate::cassandra::CassandraDB::new(conn.clone()).await?;
                 let db = match &conn.keyspace {
-                    Some(_) => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
-                    None => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
+                    Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                    None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
                 };
                 anyhow::Ok(db)
             }
@@ -241,6 +249,14 @@ impl DBConnectionConfig {
                     },
                     None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn CatalogTrait>)),
                 }
+            }
+            DBConnectionConfig::ClickHouse { conn, .. } => {
+                let db = crate::clickhouse::ClickHouseDB::new(conn.clone())?;
+                let db = match &conn.db {
+                    Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                    None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
+                };
+                anyhow::Ok(db)
             }
         }
     }

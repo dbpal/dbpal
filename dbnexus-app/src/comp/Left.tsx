@@ -164,6 +164,8 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
       case 'cassandra':
         return config.keyspace ? <SchemaTree /> : <DatabaseTree />;
+      case 'clickhouse':
+        return config.db ? <SchemaTree /> : <DatabaseTree />;
       default:
         console.log('impl database kind:', config);
         throw `impl this kind`;
@@ -262,6 +264,13 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
             <ViewsTree viewkind={ViewKind.Normal} />
           </>
         )}
+      {opened && kind == DataSourceKind.ClickHouse && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewkind={ViewKind.Materrialized} />
+        </>
+      )}
       {opened && kind == DataSourceKind.Postgres && (
         <>
           <TablesTree typ={TablesType.Normal} />
@@ -322,7 +331,7 @@ function DatabaseMenu(props: {
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showCreateSchema, setShowCreateSchema] = useState(false);
-  const { setSelectIndex, setTabs } = useContext(TabsSetContext);
+  const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>
       <MenuList>
@@ -342,7 +351,7 @@ function DatabaseMenu(props: {
         {opened && kind != DataSourceKind.Mongo && (
           <MenuNewQuery
             handle={() => {
-              openNewQuery(setSelectIndex, setTabs, uuid, kind);
+              openNewQuery(setSelectTab, setTabs, uuid, kind);
             }}
           ></MenuNewQuery>
         )}
@@ -424,7 +433,7 @@ function CatalogMenu(props: {
 
   const [showCreateDB, setShowCreateDB] = useState(false);
   // const { showNotification } = useContext(NotificationContext);
-  // const { setSelectIndex, setTabs } = useContext(TabsSetContext);
+  // const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>
       <MenuList>
@@ -444,7 +453,7 @@ function CatalogMenu(props: {
           <MenuNewQuery
             handle={() => {
               openNewQuery(
-                setSelectIndex,
+                setSelectTab,
                 setTabs,
                 uuid,
                 kind,
@@ -492,7 +501,7 @@ function CatalogMenu(props: {
 }
 
 async function openNewQuery(
-  setSelectIndex,
+  setSelectTab,
   setTabs,
   uuid: string,
   kind: DataSourceKind
@@ -545,7 +554,7 @@ async function openNewQuery(
   }
 
   setTabs((e: TabContent[]) => {
-    setSelectIndex(e.length);
+    setSelectTab(e.length);
     return [...e, new TabContent(id, `q@${uuid}`, content)];
   });
 }
@@ -569,7 +578,7 @@ function SchemaMenu(props: {
   } = props;
   const { showNotification } = useContext(NotificationContext);
 
-  const { setSelectIndex, setTabs } = useContext(TabsSetContext);
+  const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>
       <MenuList>
@@ -580,7 +589,7 @@ function SchemaMenu(props: {
         {opened && (
           <MenuNewQuery
             handle={() => {
-              openNewQuery(setSelectIndex, setTabs, uuid, kind);
+              openNewQuery(setSelectTab, setTabs, uuid, kind);
             }}
           ></MenuNewQuery>
         )}

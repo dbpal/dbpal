@@ -7,8 +7,8 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
-    TriggerDetail, UdfOrProcedureExtraParameter,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
+    TableListResp, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
@@ -222,11 +222,6 @@ impl SchemaTrait for TiDB {
         self.db.create_view_sql(view_name, false).await
     }
 
-    /// if this connection is read only
-    fn read_only(&self) -> bool {
-        self.db.read_only()
-    }
-
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
         self.db.list_trigger(table_name).await
     }
@@ -288,6 +283,11 @@ impl SchemaTrait for TiDB {
     }
 }
 
+impl ReadOnlyTrait for TiDB {
+    fn read_only(&self) -> bool {
+        self.db.read_only()
+    }
+}
 #[async_trait::async_trait]
 impl DBTrait for TiDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
@@ -401,5 +401,9 @@ mod tests {
     #[tokio::test]
     async fn test_query() {
         test_fns::test_query(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_table_column() {
+        test_fns::test_table_column(make_test_object(make_config()).await).await;
     }
 }

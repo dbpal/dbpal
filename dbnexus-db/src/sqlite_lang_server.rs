@@ -93,6 +93,7 @@ impl SqliteDB {
         SELECT name
             FROM sqlite_master
             WHERE type = 'index';"#;
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -128,6 +129,7 @@ impl AstCompletionHelper for SqliteDB {
         use sqlx::{Column, Executor, Statement};
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from "{name}" limit 1"#);
+        log::info!("sql:{}", sql);
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
         let ret = s
             .columns()

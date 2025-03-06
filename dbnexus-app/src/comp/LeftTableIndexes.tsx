@@ -93,7 +93,7 @@ function Menu(props: {
           <ListItemIcon>
             <AddIcon></AddIcon>
           </ListItemIcon>
-          <ListItemText> add </ListItemText>
+          <ListItemText> Add </ListItemText>
         </MenuItem>
         <MenuRefresh reload={reload}></MenuRefresh>
       </MenuList>
@@ -460,7 +460,7 @@ function IndexMenu(props: {
           <ListItemIcon>
             <EditIcon></EditIcon>
           </ListItemIcon>
-          <ListItemText> rename </ListItemText>
+          <ListItemText> Rename </ListItemText>
         </MenuItem>
         <MenuItem
           sx={{ color: 'error.main' }}
@@ -471,7 +471,7 @@ function IndexMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop</ListItemText>
+          <ListItemText>Drop</ListItemText>
         </MenuItem>
       </MenuList>
 

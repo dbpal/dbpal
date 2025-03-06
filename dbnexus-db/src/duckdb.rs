@@ -211,6 +211,7 @@ impl DBTrait for DuckDB {
             "SELECT schema_name  FROM information_schema.schemata  where catalog_name = '{}' ;",
             self.config.database_str()
         );
+        log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         let mut p = conn.prepare(&sql)?;
         let mut rows = block_in_place(|| p.query([]))?;
@@ -231,14 +232,18 @@ impl DBTrait for DuckDB {
     async fn create_schema(
         &self, name: &str, _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         let sql = format!("CREATE SCHEMA {};", name);
+        log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, []))?;
         anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let sql = format!("DROP SCHEMA {} CASCADE;", name);
+        log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, []))?;
         anyhow::Ok(())
@@ -249,6 +254,7 @@ impl DBTrait for DuckDB {
 impl CatalogTrait for DuckDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         let sql = "SELECT database_name FROM duckdb_databases();";
+        log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
 
         let mut p = conn.prepare(&sql)?;
@@ -269,6 +275,8 @@ impl CatalogTrait for DuckDB {
     async fn create_database(
         &self, name: &str, extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
+
         let path = match &extra {
             Some(x) => match &x {
                 CreateDatabaseExtra::DuckDB { path } => path,
@@ -276,7 +284,7 @@ impl CatalogTrait for DuckDB {
             None => anyhow::bail!("attach database need extra parameter."),
         };
         let sql = format!("ATTACH '{path}' AS {name}");
-
+        log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         log::info!("attach sql:{} {} ", sql, conn.is_autocommit());
         conn.execute(&sql, [])?;
@@ -295,6 +303,7 @@ impl CatalogTrait for DuckDB {
         }
 
         let sql = format!("DETACH  {name}");
+        log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, []))?;
         anyhow::Ok(())

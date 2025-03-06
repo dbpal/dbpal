@@ -50,8 +50,8 @@ use crate::{
     db::{
         BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
         DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListMaterializedView, ListTable,
-        NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
-        TableListResp, UdfOrProcedureExtraParameter,
+        NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+        SqlExecuteRet, TableListResp, UdfOrProcedureExtraParameter,
     },
     helper::create_csv,
     language_server::LexerCompletionTrait,
@@ -881,6 +881,7 @@ impl CassandraDB {
         let sql = format!(
             "SELECT table_name FROM system_schema.tables WHERE keyspace_name = '{keyspace}' order by table_name;"
         );
+        log::info!("sql:{}", sql);
         let body = self.session.query(sql).await?.response_body()?;
         let mut ret = Vec::new();
         for row in body.into_rows().unwrap_or_default() {
@@ -984,7 +985,7 @@ impl CassandraDB {
                 format!("LIMIT {}", Self::PAGE_CACHE_LIMIG_SIZE)
             }
         );
-        log::info!("query sql:{:?}", sql);
+        log::info!("sql:{:?}", sql);
 
         let body = self.session.query(&sql).await?.response_body()?;
         let meta = body.as_rows_metadata().map(|x| x.clone());
@@ -1086,12 +1087,18 @@ impl CassandraDB {
     }
 }
 
+impl ReadOnlyTrait for CassandraDB {
+    fn read_only(&self) -> bool {
+        self.config.read_only
+    }
+}
 impl CassandraDB {
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
             .await
     }
@@ -1099,12 +1106,14 @@ impl CassandraDB {
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
         self.export_query_result_as_json(&sql, pretty, sender).await
     }
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
         self.export_query_result_as_json_line(&sql, sender).await
     }
 
@@ -1122,6 +1131,7 @@ impl CassandraDB {
             }
         }
         let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
         let body = self.session.query(sql).await?.response_body()?;
         let meta = body.as_rows_metadata().map(|x| x.clone());
 
@@ -1142,6 +1152,7 @@ impl CassandraDB {
                 &fs,
                 &values,
             )?;
+            log::info!("sql:{}", sql);
             sender.send(Cow::Owned(sql)).await?;
         }
 
@@ -1155,6 +1166,7 @@ impl CassandraDB {
     ) -> anyhow::Result<Vec<ListMaterializedView>> {
         let sql =
             format!("select view_name from system_schema.views where keyspace_name='{key_space}'",);
+        log::info!("sql:{}", sql);
         let rows = self
             .session
             .query(sql)
@@ -1176,6 +1188,7 @@ impl CassandraDB {
 impl SchemaTrait for CassandraDB {
     async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
         let sql = format!("DROP TYPE  {typ}");
+        log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
     }
@@ -1185,6 +1198,7 @@ impl SchemaTrait for CassandraDB {
             "SELECT type_name FROM system_schema.types where  keyspace_name = '{}'",
             self.config.keyspace_str()
         );
+        log::info!("sql:{}", sql);
         let rows = self
             .session
             .query(sql)
@@ -1199,7 +1213,7 @@ impl SchemaTrait for CassandraDB {
             let name: Option<String> = row.get_by_index(0)?;
             let name = name.unwrap();
             let sql = format!("DESCRIBE TYPE {name}");
-
+            log::info!("sql:{}", sql);
             let deccribe_rows = self
                 .session
                 .query(sql)
@@ -1222,6 +1236,7 @@ impl SchemaTrait for CassandraDB {
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!("DROP MATERIALIZED VIEW {name};");
+        log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
     }
@@ -1261,13 +1276,14 @@ impl SchemaTrait for CassandraDB {
         &self, table: &str, name: &str, _kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!("CREATE INDEX {name} ON {table} ({});", fields.join(","));
+        log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!("DROP INDEX IF EXISTS {index};");
-
+        log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
     }
@@ -1276,7 +1292,7 @@ impl SchemaTrait for CassandraDB {
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let sql = format!(r#"DESCRIBE TABLE "{table_name}""#);
-
+        log::info!("sql:{}", sql);
         let rows = self
             .session
             .query(&sql)
@@ -1314,6 +1330,8 @@ impl SchemaTrait for CassandraDB {
         let sql = self.create_table_and_index_sql(table).await?.create_table;
         // replace table name.
         let sql = sql.replacen(table, dup, 1);
+        log::info!("sql:{}", sql);
+        log::info!("sql:{}", sql);
         log::info!("dup table create table sql:{}", sql);
         // here we create the table
         self.session.query(sql).await?;
@@ -1371,6 +1389,7 @@ impl SchemaTrait for CassandraDB {
             self.config.keyspace_str(),
             table_name
         );
+        log::info!("sql:{}", sql);
 
         let rows = self
             .session
@@ -1447,7 +1466,7 @@ impl SchemaTrait for CassandraDB {
             "SELECT index_name from system_schema.indexes WHERE  table_name = '{table_name}' AND keyspace_name = '{}'",
             self.config.keyspace_str()
         );
-
+        log::info!("sql:{}", sql);
         let rows = self
             .session
             .query(sql)
@@ -1473,7 +1492,7 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
         let fs = self.show_table_columns(&table_name).await?;
         let sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &fs, &values)?;
-        log::info!("insert sql:{}", sql);
+        log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         self.invalid_page_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet {
@@ -1498,6 +1517,7 @@ impl SchemaTrait for CassandraDB {
             &wheres,
             type_support_compare,
         )?;
+
         log::info!("update sql:{}", sql);
         self.session.query(&sql).await?;
         self.invalid_page_caching(Some(table_name));
@@ -1507,6 +1527,7 @@ impl SchemaTrait for CassandraDB {
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE "{table_name}""#);
+        log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
@@ -1524,6 +1545,7 @@ impl SchemaTrait for CassandraDB {
             &wheres,
             type_support_compare,
         )?;
+        log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         self.invalid_page_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet {
@@ -1537,11 +1559,9 @@ impl SchemaTrait for CassandraDB {
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{}";"#, table);
+        log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         anyhow::Ok(())
-    }
-    fn read_only(&self) -> bool {
-        self.config.read_only
     }
 
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
@@ -1551,22 +1571,21 @@ impl SchemaTrait for CassandraDB {
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
+        log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
+        &self, table: &str, old_name: &str, new_name: &str, _typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
-        let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name};");
+        let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name}");
+        log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        if let Some(typ) = typ {
-            let sql = format!("ALTER TABLE {table} ALTER {new_name} TYPE {};", typ.typ);
-            self.session.query(&sql).await?;
-        }
         anyhow::Ok(())
     }
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} DROP {col};");
+        log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
@@ -1594,6 +1613,7 @@ impl SchemaTrait for CassandraDB {
         Improper DESCRIBE command.
          */
         let sql = format!(r#" DESCRIBE FUNCTION  "{}""#, name);
+        log::info!("sql:{}", sql);
         let body = self.session.query(sql).await?.response_body()?;
         // let meta = body.as_rows_metadata();
         // println!("meta:{:?}", meta);
@@ -1655,7 +1675,8 @@ impl SchemaTrait for CassandraDB {
         let p = format!("({})", parameters.join(","));
 
         let sql = format!("DROP FUNCTION {name}{p} ");
-        log::info!("drop function sql:{}", sql);
+
+        log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
     }
@@ -1745,6 +1766,8 @@ impl DBTrait for CassandraDB {
     async fn create_schema(
         &self, name: &str, extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
+
         let extra = match &extra {
             Some(x) => x,
             None => anyhow::bail!("cassandra need extra paramater."),
@@ -1766,12 +1789,15 @@ impl DBTrait for CassandraDB {
         "#,
             name, replication_strategy, replication_factor
         );
+        log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP KEYSPACE {name};");
+        self.can_write()?;
+        let sql = format!("DROP KEYSPACE {name}");
+        log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
@@ -1784,6 +1810,7 @@ impl CassandraDB {
                 FROM system_schema.functions 
                 WHERE keyspace_name = '{key_space}';"#
         );
+        log::info!("sql:{}", sql);
         let rows = self
             .session
             .query(sql)
@@ -1872,7 +1899,7 @@ impl CassandraDB {
             WHERE keyspace_name = '{key_space}';
         "#
         );
-
+        log::info!("sql:{}", sql);
         let rows = self
             .session
             .query(&sql)
@@ -1917,7 +1944,7 @@ impl CassandraDB {
         &self, name: &str, parameters: Vec<String>,
     ) -> anyhow::Result<DefAndMetas> {
         let sql = format!("DESCRIBE AGGREGATE  {name}");
-
+        log::info!("sql:{}", sql);
         let body = self.session.query(&sql).await?.response_body()?;
         let _meta = body.as_rows_metadata();
         // println!("meta:{:?}", _meta);
@@ -1953,6 +1980,7 @@ impl CassandraDB {
     pub async fn drop_aggregate(&self, name: &str, parameters: Vec<String>) -> anyhow::Result<()> {
         let p = format!("({})", parameters.join(","));
         let sql = format!("DROP AGGREGATE {name}{p} ");
+        log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
     }
@@ -2831,6 +2859,54 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_table_column() {
+        enable_test_log();
+        let db = make_test_object(Some("test".to_string())).await;
+        let table_name = "test_column";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = db.open_connection().await.unwrap();
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+               CREATE TABLE test_column (
+                    id1 int,
+                    id2 int,
+                    value text,
+                    PRIMARY KEY (id1, id2)
+                );
+                        "#,
+            )
+            .await
+            .unwrap();
+
+        db.add_table_column(table_name, "name", ColumnType {
+            typ: "tinyint".to_string(),
+            nullness: None,
+            after: None,
+            default_value: Some("1".to_string()),
+        })
+        .await
+        .unwrap();
+
+        db.modify_table_column(
+            table_name,
+            "id2",
+            "name2",
+            Some(ColumnType {
+                typ: "smallint".to_string(),
+                nullness: None,
+                after: None,
+                default_value: Some("2".to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        db.drop_table_column(table_name, "value").await.unwrap();
+    }
     #[tokio::test]
     async fn test_counter() {
         enable_test_log();

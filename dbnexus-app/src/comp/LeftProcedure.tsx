@@ -124,7 +124,7 @@ function ProcedureMenu(props: {
 }) {
   const { uuid, procedure, parameters, reload, kind } = props;
 
-  const { setSelectIndex, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   let arg =
     kind == DataSourceKind.Postgres ? { extra: 'postgres', parameters } : null;
   const { showNotification } = useContext(NotificationContext);
@@ -134,10 +134,10 @@ function ProcedureMenu(props: {
     const id = uuid + '-' + '-procedure-' + procedure;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
-      setSelectIndex(index);
+      setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectIndex(tabs.length);
+        setSelectTab(tabs.length);
         return [
           ...e,
           new TabContent(
@@ -190,7 +190,7 @@ function ProcedureMenu(props: {
           <ListItemIcon>
             <InfoIcon></InfoIcon>
           </ListItemIcon>
-          <ListItemText> detail </ListItemText>
+          <ListItemText> Detail </ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -202,7 +202,7 @@ function ProcedureMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop</ListItemText>
+          <ListItemText> Drop</ListItemText>
         </MenuItem>
       </MenuList>
     </Paper>

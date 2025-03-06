@@ -74,6 +74,15 @@ export namespace types {
         "keyspace": (string | null);
         "read_only": boolean;
     };
+    export type ClickHouseConfig = {
+        "host": string;
+        "port": types.U16;
+        "username": string;
+        "password": (string | null);
+        "db": (string | null);
+        "read_only": boolean;
+        "https": boolean;
+    };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -114,6 +123,10 @@ export namespace types {
         "conn_type": "cassandra";
     } & (types.CassandraDBConfig & {
         "name": string;
+    })) | ({
+        "conn_type": "clickhouse";
+    } & (types.ClickHouseConfig & {
+        "name": string;
     })));
     export type ListTable = {
         "name": string;
@@ -145,7 +158,7 @@ export namespace types {
     export type I64 = number;
     export type SqlExecuteRet = {
         "sql": string;
-        "changes": types.U64;
+        "changes": (types.U64 | null);
         "last_insert_row_id": (types.I64 | null);
 
         /**

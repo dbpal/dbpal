@@ -18,6 +18,7 @@ impl LexerCompletionTrait for OracleDB {
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         let sql = format!(r#"SELECT TABLE_NAME FROM DBA_TABLES"#);
+        log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         let result = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
@@ -95,7 +96,7 @@ impl AstCompletionHelper for OracleDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
         let sql = format!(r#"select * from "{}"."{}""#, schema, name);
-
+        log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
 
         let row = conn.query_row(&sql, &[])?;
@@ -181,7 +182,7 @@ impl AstCompletionHelper for OracleDB {
             "SELECT INDEX_NAME FROM ALL_INDEXES WHERE OWNER='{}'",
             schema
         );
-
+        log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         let rows = conn.query(&sql, &[])?;
         let mut ret = Vec::new();

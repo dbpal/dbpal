@@ -15,9 +15,9 @@ mod tests {
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };
         use dbnexus_db::db::{
-            ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListTable, NamedStaff,
-            ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
-            TriggerTiming, DefAndMetas,
+            DefAndMetas, ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListTable,
+            NamedStaff, ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
+            TriggerTiming,
         };
         use dbnexus_db::language_server::{CompletionItem, CompletionKind, SemanticToken};
         use dbnexus_db::query_log::QueryLogEvent;
@@ -86,7 +86,7 @@ mod tests {
 
         use dbnexus_db::db::monaco_editor_keyword_regexp;
         use dbnexus_db::language_server::LexerCompletionTrait;
-        use dbnexus_db::mssql::MsSqlServer;
+        use dbnexus_db::mssql::MsSqlServerDB;
         use dbnexus_db::mysql::MysqlDB;
         use dbnexus_db::oracle::OracleDB;
         use dbnexus_db::pg::PostGresDB;
@@ -132,7 +132,7 @@ mod tests {
 
         // mssql
         {
-            let content = MsSqlServer::monaco_editor_keyword_regexp();
+            let content = MsSqlServerDB::monaco_editor_keyword_regexp();
             file.write(compose("mssqlKeywords", &content).as_bytes())
                 .unwrap();
             file.write("\n".as_bytes()).unwrap();
