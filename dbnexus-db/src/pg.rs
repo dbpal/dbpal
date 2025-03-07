@@ -13,11 +13,11 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    CreatedType, DBTrait, DefAndMetas, ExportKind, Field, HumanSize, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, Field, HumanSize, Index,
+    IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -42,7 +42,11 @@ impl CheckConn for PostGresDB {
         anyhow::Ok(ins.elapsed())
     }
 }
-
+impl ReadOnlyTrait for PostGresDB {
+    fn read_only(&self) -> bool {
+        self.config.read_only
+    }
+}
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
@@ -56,6 +60,7 @@ impl DBTrait for PostGresDB {
     "#,
             self.config.db_str()
         );
+        log::info!("sql:{}", sql);
 
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
 
@@ -77,14 +82,18 @@ impl DBTrait for PostGresDB {
     async fn create_schema(
         &self, name: &str, _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         let sql = format!("CREATE SCHEMA {name};");
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let sql = format!("DROP SCHEMA {name};");
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -112,6 +121,7 @@ impl PostGresDB {
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
+        log::info!("sql:{}", sql);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -165,6 +175,7 @@ impl PostGresDB {
             self.must_schema(),
             table_name
         );
+        log::info!("sql:{}", sql);
         self.export_query_result_as_json_line(&sql, sender).await
     }
 
@@ -208,6 +219,7 @@ impl PostGresDB {
             self.must_schema(),
             table_name
         );
+        log::info!("sql:{}", sql);
         self.export_query_result_as_json(&sql, pretty, sender).await
     }
 
@@ -250,6 +262,7 @@ impl PostGresDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
+        log::info!("sql:{}", sql);
         self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
             .await
     }
@@ -376,6 +389,7 @@ impl ServerMetas for PostGresDB {
                 FROM pg_settings
                 ORDER BY name;
                 "#;
+            log::info!("sql:{}", sql);
             let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
@@ -398,7 +412,7 @@ impl SchemaTrait for PostGresDB {
     }
     async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TYPE  "{}"."{typ}" "#, self.must_schema());
-
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
 
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
@@ -422,6 +436,7 @@ impl SchemaTrait for PostGresDB {
             name,
             fields.join(",")
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -429,6 +444,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!("DROP INDEX \"{index}\";");
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -438,6 +454,7 @@ impl SchemaTrait for PostGresDB {
         &self, _table: &str, old_name: &str, new_name: &str,
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER INDEX \"{old_name}\" RENAME TO \"{new_name}\";");
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -463,8 +480,12 @@ impl SchemaTrait for PostGresDB {
                 "".to_owned()
             }
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        sqlx::query(&sql)
+            .execute(conn.deref_mut())
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("err:{} sql:{}", e.to_string(), sql)))?;
         anyhow::Ok(())
     }
 
@@ -483,6 +504,7 @@ impl SchemaTrait for PostGresDB {
             "#
             );
             sqlx::query(&sql).execute(conn.deref_mut()).await?;
+            log::info!("sql:{}", sql);
         }
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
@@ -492,6 +514,7 @@ impl SchemaTrait for PostGresDB {
             "#,
                 typ.typ
             );
+            log::info!("sql:{}", sql);
             sqlx::query(&sql).execute(conn.deref_mut()).await?;
             if let Some(null) = typ.nullness.as_ref() {
                 let sql = if null.trim().to_lowercase() == "null" {
@@ -509,6 +532,7 @@ impl SchemaTrait for PostGresDB {
                     "#
                     )
                 };
+                log::info!("sql:{}", sql);
                 sqlx::query(&sql).execute(conn.deref_mut()).await?;
             }
         }
@@ -522,6 +546,7 @@ impl SchemaTrait for PostGresDB {
                 DROP COLUMN "{col}";
         "#
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -531,6 +556,7 @@ impl SchemaTrait for PostGresDB {
         use sqlx::{Executor, Statement};
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from "{view_name}" limit 1"#);
+        log::info!("sql:{}", sql);
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
         let ret = s
             .columns()
@@ -553,6 +579,7 @@ impl SchemaTrait for PostGresDB {
         ORDER BY p.proname;"#,
             self.must_schema()
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -598,6 +625,7 @@ impl SchemaTrait for PostGresDB {
             name,
             parameters,
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
         let return_type: Option<String> = row.try_get(0)?;
@@ -645,6 +673,8 @@ impl SchemaTrait for PostGresDB {
         "#,
             self.must_schema()
         );
+        log::info!("sql:{}", sql);
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -687,6 +717,7 @@ impl SchemaTrait for PostGresDB {
             self.must_schema(),
             arg
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
         let result_type: Option<String> = row.try_get(0)?;
@@ -718,6 +749,7 @@ impl SchemaTrait for PostGresDB {
             name,
             parameters
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -726,6 +758,7 @@ impl SchemaTrait for PostGresDB {
     async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE {table} DISABLE TRIGGER "{name}""#);
+        log::info!("sql:{}", sql);
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
@@ -733,29 +766,9 @@ impl SchemaTrait for PostGresDB {
     async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE {table} ENABLE TRIGGER "{name}""#);
+        log::info!("sql:{}", sql);
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
-    }
-
-    async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::CSV {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-        }
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -765,6 +778,7 @@ impl SchemaTrait for PostGresDB {
         let schema = self.must_schema();
 
         let sql = format!(r#"CREATE TABLE {schema}.{dup} AS TABLE "{schema}"."{table}""#);
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -773,7 +787,7 @@ impl SchemaTrait for PostGresDB {
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let schema = self.must_schema();
         let sql = format!(r#"ALTER TABLE "{schema}"."{old}" RENAME TO "{new}""#);
-        println!("sql:{}", sql);
+        log::info!("sql:{}", sql);
 
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -788,6 +802,7 @@ impl SchemaTrait for PostGresDB {
                 WHERE tgrelid = '{table_name}'::regclass;
         "#
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -813,6 +828,7 @@ impl SchemaTrait for PostGresDB {
                     AND tgname = '{name}';
         "#
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_one(conn.deref_mut())
@@ -839,6 +855,7 @@ impl SchemaTrait for PostGresDB {
          DROP TRIGGER "{name}" ON "{schema}"."{table}" 
         "#
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -864,10 +881,6 @@ impl SchemaTrait for PostGresDB {
                     .await
             }
         }
-    }
-
-    fn read_only(&self) -> bool {
-        self.config.read_only
     }
 
     /// FIXME 如果一个主键是自增的只能得到类型
@@ -909,6 +922,7 @@ impl SchemaTrait for PostGresDB {
       group by relname;
         "#
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_one(conn.deref_mut())
@@ -950,6 +964,7 @@ impl SchemaTrait for PostGresDB {
             page,
             page_size,
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -971,6 +986,7 @@ impl SchemaTrait for PostGresDB {
         let schema = self.must_schema();
 
         let sql = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
+        log::info!("sql:{}", sql);
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
@@ -983,6 +999,7 @@ impl SchemaTrait for PostGresDB {
             r#"DROP TABLE "{schema}"."{table}" {}"#,
             if cascade { " CASCADE " } else { "" }
         );
+        log::info!("sql:{}", sql);
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
@@ -1024,11 +1041,12 @@ impl SchemaTrait for PostGresDB {
             &wheres,
             type_support_compare,
         )?;
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -1064,13 +1082,13 @@ impl SchemaTrait for PostGresDB {
             &wheres,
             type_support_compare,
         )?;
-        log::trace!("update sql:{}", sql);
+        log::info!("update sql:{}", sql);
         let mut conn = self.get_conn().await?;
 
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -1093,7 +1111,7 @@ impl SchemaTrait for PostGresDB {
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql: s,
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -1108,7 +1126,7 @@ impl SchemaTrait for PostGresDB {
             self.must_schema(),
             &self.config.db_str()
         );
-
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -1121,6 +1139,7 @@ impl SchemaTrait for PostGresDB {
                 "SELECT pg_relation_size('{}') AS table_size;",
                 table.as_str()
             );
+            log::info!("sql:{}", sql);
             let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
             let size: Option<i64> = row.get(0);
             let t = ListTable::new(table, size);
@@ -1143,6 +1162,7 @@ impl SchemaTrait for PostGresDB {
         "#,
             schema,
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -1187,6 +1207,7 @@ impl SchemaTrait for PostGresDB {
                    AND tc.table_name      = '{table_name}';
         "#
             );
+            log::info!("sql:{}", sql);
 
             let rows = sqlx::query(sql.as_str())
                 .fetch_all(conn.deref_mut())
@@ -1245,6 +1266,7 @@ impl SchemaTrait for PostGresDB {
             page,
             page_size,
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -1261,6 +1283,7 @@ impl SchemaTrait for PostGresDB {
             r#"DROP MATERIALIZED VIEW  "{}"."{}" RESTRICT"#,
             schema, name
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -1459,8 +1482,31 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
 
 #[async_trait::async_trait]
 impl QuerySql for PostGresDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::PostgreSqlDialect {})
+    }
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
@@ -1547,6 +1593,7 @@ async fn get_index_def(
     let sql = format!(
         "SELECT indexdef from pg_indexes where tablename='{table_name}' and indexname='{index_name}'"
     );
+    log::info!("sql:{}", sql);
     let row = sqlx::query(sql.as_str())
         .fetch_one(conn.deref_mut())
         .await?;
@@ -1617,15 +1664,21 @@ impl CatalogTrait for PostGresDB {
         anyhow::Ok(Arc::new(x))
     }
 
-    async fn create_database(&self, name: &str) -> anyhow::Result<()> {
+    async fn create_database(
+        &self, name: &str, _extra: Option<CreateDatabaseExtra>,
+    ) -> anyhow::Result<()> {
+        self.can_write()?;
         let sql = format!("CREATE DATABASE {name}");
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
 
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP DATABASE {name};");
+        self.can_write()?;
+        let sql = format!("DROP DATABASE {name}");
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -1653,7 +1706,7 @@ mod tests {
 
     use super::make_test_object;
     use crate::db::{
-        CatalogTrait, CheckConn, ExportKind, QuerySql, SchemaTrait, ServerMetas,
+        CatalogTrait, CheckConn, ColumnType, ExportKind, QuerySql, SchemaTrait, ServerMetas,
         UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
@@ -1777,29 +1830,26 @@ mod tests {
 
     async fn test_rename() {
         let db = make_test_object().await;
-        let db_trait = &db as &dyn SchemaTrait;
-        let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("test_rename", false).await;
-        let _ = db_trait.drop_table("test_rename2", false).await;
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
+
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db.drop_table("test_rename", false).await;
+        let _ = db.drop_table("test_rename2", false).await;
+        db.query_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_rename (
                     
                     name VARCHAR(255) NOT NULL,
                     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );"#,
-            )
-            .await
-            .unwrap();
-        db_trait
-            .rename_table("test_rename", "test_rename2")
+        )
+        .await
+        .unwrap();
+        db.rename_table("test_rename", "test_rename2")
             .await
             .unwrap();
 
-        db_trait
-            .show_table("test_rename2", None, None, 1, 100, None)
+        db.show_table("test_rename2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1808,15 +1858,14 @@ mod tests {
 
     async fn test_duplicate() {
         let db = make_test_object().await;
-        let db_trait = &db as &dyn SchemaTrait;
-        let query_id = db_trait.open_connection().await.unwrap();
-        let _ = db_trait.drop_table("test_duplicate", false).await;
-        let _ = db_trait.drop_table("test_duplicate2", false).await;
 
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
+        let _ = db.drop_table("test_duplicate", false).await;
+        let _ = db.drop_table("test_duplicate2", false).await;
+        let query_id = db.open_connection().await.unwrap();
+
+        db.query_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_duplicate (
                     
                     data TEXT,
@@ -1829,15 +1878,14 @@ mod tests {
                 ('测试数据4'),
                 ('测试数据5');
                 "#,
-            )
-            .await
-            .unwrap();
-        db_trait
-            .duplicate_table("test_duplicate", "test_duplicate2")
+        )
+        .await
+        .unwrap();
+        db.duplicate_table("test_duplicate", "test_duplicate2")
             .await
             .unwrap();
 
-        let resp = db_trait
+        let resp = db
             .show_table("test_duplicate2", None, None, 1, 100, None)
             .await
             .unwrap();
@@ -1985,46 +2033,41 @@ mod tests {
 
     #[tokio::test]
     async fn test_triggers() {
-        let pg = make_test_object().await;
-        let db_trait = &pg as &dyn SchemaTrait;
+        let db = make_test_object().await;
+
         //
-        let _ = db_trait.drop_table("test_create_trigger", false).await;
-        let query_id = db_trait.open_connection().await.unwrap();
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
+        let _ = db.drop_table("test_create_trigger", false).await;
+        let query_id = db.open_connection().await.unwrap();
+        db.query_sql(
+            query_id,
+            r#"
           CREATE TABLE test_create_trigger (
             
             name VARCHAR(50)
           );
         "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap();
 
-        let _ = db_trait
-            .drop_table("test_create_trigger_update", false)
-            .await;
+        let _ = db.drop_table("test_create_trigger_update", false).await;
 
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
+        db.query_sql(
+            query_id,
+            r#"
             CREATE TABLE test_create_trigger_update (
                 
                 name VARCHAR(50),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
     "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap();
 
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
+        db.query_sql(
+            query_id,
+            r#"
             CREATE FUNCTION trigger_insert_test_create_trigger()
             RETURNS TRIGGER AS $$
             BEGIN
@@ -2034,37 +2077,34 @@ mod tests {
             END;
             $$ LANGUAGE plpgsql;
     "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap();
 
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
+        db.query_sql(
+            query_id,
+            r#"
             CREATE TRIGGER trigger_insert_test_create_trigger
             AFTER INSERT ON test_create_trigger
             FOR EACH ROW
             EXECUTE FUNCTION trigger_insert_test_create_trigger();
     "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap();
 
-        let triggers = db_trait.list_trigger("test_create_trigger").await.unwrap();
+        let triggers = db.list_trigger("test_create_trigger").await.unwrap();
         for tri in triggers.iter() {
-            let detail = db_trait
+            let detail = db
                 .show_trigger("test_create_trigger", tri.name.as_str())
                 .await
                 .unwrap();
 
             // disable trigger and enable trigger test.
-            db_trait
-                .disable_trigger("test_create_trigger", &tri.name)
+            db.disable_trigger("test_create_trigger", &tri.name)
                 .await
                 .unwrap();
-            db_trait
-                .enable_trigger("test_create_trigger", &tri.name)
+            db.enable_trigger("test_create_trigger", &tri.name)
                 .await
                 .unwrap();
 
@@ -2074,17 +2114,14 @@ mod tests {
     #[tokio::test]
     async fn test_epxort() {
         let db = make_test_object().await;
-
-        let db_trait = &db as &dyn SchemaTrait;
-        let query_id = db_trait.open_connection().await.unwrap();
+        let query_id = db.open_connection().await.unwrap();
         let table_name = "test_export_table";
 
-        let _ = db_trait.drop_table(table_name, false).await;
+        let _ = db.drop_table(table_name, false).await;
 
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
+        db.query_sql(
+            query_id,
+            r#"
             CREATE TABLE test_export_table (
                 
                 name VARCHAR(100) NOT NULL,
@@ -2097,12 +2134,12 @@ mod tests {
             ('David', '2024-06-04'),
             ('Eve', '2024-06-05');
         "#,
-            )
-            .await
-            .unwrap();
-
+        )
+        .await
+        .unwrap();
+        let schema_trait = &db as &dyn SchemaTrait;
         {
-            let e = db_trait
+            let e = schema_trait
                 .export_table_to_string(&table_name, ExportKind::CSV {
                     include_header: true,
                     delimiter: ',',
@@ -2112,7 +2149,7 @@ mod tests {
             println!("csv:{}", e);
         }
         {
-            let e = db_trait
+            let e = schema_trait
                 .export_table_to_string(&table_name, ExportKind::Sql {
                     include_table_schema: false,
                 })
@@ -2121,7 +2158,7 @@ mod tests {
             println!("sql:{}", e);
         }
         {
-            let e = db_trait
+            let e = schema_trait
                 .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
@@ -2130,7 +2167,7 @@ mod tests {
             println!("json:{}", e);
         }
         {
-            let e = db_trait
+            let e = schema_trait
                 .export_table_to_string(&table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
@@ -2139,7 +2176,7 @@ mod tests {
         }
 
         {
-            let e = db_trait
+            let e = schema_trait
                 .export_query_result_to_string("select * from test_export_table", ExportKind::CSV {
                     include_header: true,
                     delimiter: ',',
@@ -2150,7 +2187,7 @@ mod tests {
         }
 
         {
-            let e = db_trait
+            let e = schema_trait
                 .export_query_result_to_string(
                     "select * from test_export_table",
                     ExportKind::Json { pretty: true },
@@ -2162,7 +2199,7 @@ mod tests {
             println!("json:{}", e);
         }
         {
-            let e = db_trait
+            let e = schema_trait
                 .export_query_result_to_string(
                     "select * from test_export_table",
                     ExportKind::JsonLine,
@@ -2312,6 +2349,53 @@ mod tests {
         let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
         println!("export json:{}", json);
+    }
+
+    #[tokio::test]
+    async fn test_table_column() {
+        let db = make_test_object().await;
+
+        let table_name = "test_column";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = db.open_connection().await.unwrap();
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_column
+                (
+                    id INT PRIMARY KEY                     -- 主键，无符号32位整数
+                )
+                "#,
+            )
+            .await
+            .unwrap();
+
+        db.add_table_column(table_name, "name", ColumnType {
+            typ: "INT2".to_string(),
+            nullness: Some("null".to_string()),
+            after: None,
+            default_value: Some("1".to_string()),
+        })
+        .await
+        .unwrap();
+
+        db.modify_table_column(
+            table_name,
+            "name",
+            "name2",
+            Some(ColumnType {
+                typ: "INT4".to_string(),
+                nullness: Some("null".to_string()),
+                after: None,
+                default_value: Some("2".to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        db.drop_table_column(table_name, "name2").await.unwrap();
     }
 
     #[tokio::test]

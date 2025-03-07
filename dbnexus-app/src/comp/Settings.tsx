@@ -219,10 +219,24 @@ const components: Components<
   MuiSelect: {
     styleOverrides: {
       root: {
-        height: '2.5rem',
+        height: '2.3rem',
+        fontSize: '1rem',
       },
     },
   },
+  MuiTextField: {
+    styleOverrides: {
+      root: {
+        '& .MuiInputBase-root': {
+          fontSize: '1rem',
+        },
+        '& .MuiInputLabel-root': {
+          fontSize: '1rem',
+        },
+      },
+    },
+  },
+
   MuiAlert: {
     styleOverrides: {
       root: {

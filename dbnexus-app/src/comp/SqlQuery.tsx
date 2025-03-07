@@ -1,7 +1,7 @@
 import { Editor } from '@monaco-editor/react';
 import SplitPane from 'react-split-pane';
 import { MultiQueryResp } from './QueryResp';
-
+import EventNoteIcon from '@mui/icons-material/EventNote';
 import './style/react-split-pane.css';
 import {
   Box,
@@ -123,13 +123,8 @@ function SqlQuery(props: {
   const [showExport, setShowExport] = useState(false);
   const { theme } = useContext(SettingContext);
   const handleEditorDidMount = useCallback(
-    (ed: editor.IStandaloneCodeEditor, monaco) => {
+    (ed: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ed;
-      if (theme == 'dark') {
-        monaco.editor.setTheme('vs-dark');
-      } else {
-        monaco.editor.setTheme('light');
-      }
       if (handelTextAndPositionChange) {
         ed.onDidChangeModelContent((_event) => {
           let text = ed.getValue();
@@ -397,15 +392,21 @@ function SqlQuery(props: {
             openOpt={{ ...fileFilter }}
             saveOpt={{ ...fileFilter }}
           ></LoadStoreFileForQuery>
-          <Button
-            onClick={() => {
-              setShowQueryLog((prev) => !prev);
-            }}
-            color={showQueryLog ? 'error' : 'info'}
-            disabled={conn == null}
-          >
-            {showQueryLog ? <CloseIcon></CloseIcon> : ''} query log
-          </Button>
+          <Tooltip title="query log">
+            <IconButton
+              onClick={() => {
+                setShowQueryLog((prev) => !prev);
+              }}
+              color={showQueryLog ? 'error' : 'info'}
+              disabled={conn == null}
+            >
+              {showQueryLog ? (
+                <CloseIcon></CloseIcon>
+              ) : (
+                <EventNoteIcon></EventNoteIcon>
+              )}
+            </IconButton>
+          </Tooltip>
         </Stack>
         <div
           style={{
@@ -418,11 +419,14 @@ function SqlQuery(props: {
           <Editor
             language={language}
             onMount={handleEditorDidMount}
+            width="99.5%"
             value=""
             options={{
               fontSize: useContext(SettingContext).editorFontSize,
               wordWrap: 'on',
+              automaticLayout: true,
             }}
+            theme={theme == 'dark' ? 'vs-dark' : 'light'}
           ></Editor>
         </div>
         <EditorBar

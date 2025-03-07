@@ -144,7 +144,7 @@ function UdfMenu(props: {
 }) {
   const { uuid, udf, parameters, reload, kind, cassandraParameters } = props;
 
-  const { setSelectIndex, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   let arg = null;
   switch (kind) {
     case DataSourceKind.Postgres:
@@ -163,10 +163,10 @@ function UdfMenu(props: {
     const id = uuid + '-' + '-udf-' + udf;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
-      setSelectIndex(index);
+      setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectIndex(tabs.length);
+        setSelectTab(tabs.length);
         return [
           ...e,
           new TabContent(
@@ -220,7 +220,7 @@ function UdfMenu(props: {
           <ListItemIcon>
             <InfoIcon></InfoIcon>
           </ListItemIcon>
-          <ListItemText> detail </ListItemText>
+          <ListItemText> Detail </ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -232,7 +232,7 @@ function UdfMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop</ListItemText>
+          <ListItemText>Drop</ListItemText>
         </MenuItem>
       </MenuList>
     </Paper>
@@ -246,7 +246,7 @@ function CassandraAggregateMenu(props: {
   reload;
 }) {
   const { uuid, agg, reload, parameters } = props;
-  const { setSelectIndex, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
@@ -254,10 +254,10 @@ function CassandraAggregateMenu(props: {
     const id = uuid + '-' + '-cassandra-aggregate-' + agg;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
-      setSelectIndex(index);
+      setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectIndex(tabs.length);
+        setSelectTab(tabs.length);
         return [
           ...e,
           new TabContent(
@@ -318,7 +318,7 @@ function CassandraAggregateMenu(props: {
           <ListItemIcon>
             <InfoIcon></InfoIcon>
           </ListItemIcon>
-          <ListItemText> detail </ListItemText>
+          <ListItemText> Detail </ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -330,7 +330,7 @@ function CassandraAggregateMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop</ListItemText>
+          <ListItemText>Drop</ListItemText>
         </MenuItem>
       </MenuList>
     </Paper>

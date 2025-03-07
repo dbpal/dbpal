@@ -43,20 +43,24 @@ function WelCome() {
       name: 'cassandra',
       img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Cassandra_logo.svg/800px-Cassandra_logo.svg.png',
     },
+    {
+      name: 'clickhouse',
+      img: 'https://pic.rmb.bdstatic.com/bjh/6cd1c89eb632abaffcde8c19ebca83261118.png',
+    },
   ];
   return (
     <Stack spacing={1}>
       <Typography
         variant="h4"
-        style={{ fontWeight: '800', textDecoration: 'underline' }}
+        style={{ fontWeight: '700', textDecoration: 'underline' }}
       >
         dbpal is a database management system that easy to use.
       </Typography>
 
-      <Typography variant="h6" style={{ fontWeight: '800' }}>
+      <Typography variant="h6" style={{ fontWeight: '700' }}>
         right now we support:
       </Typography>
-      <Stack style={{ fontSize: '2rem', fontWeight: '800' }} spacing={1}>
+      <Stack style={{ fontSize: '2rem', fontWeight: '700' }} spacing={1}>
         {databases.map((e) => (
           <Stack
             direction="row"

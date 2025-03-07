@@ -32,6 +32,7 @@ impl LexerCompletionTrait for MysqlDB {
         SELECT table_name 
         FROM information_schema.tables  ORDER BY  table_name;
         "#;
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -141,6 +142,32 @@ impl AstCompletionHelper for MysqlDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
+    async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(None))?;
+        let sql = format!(
+            r#"
+            SELECT TRIGGER_NAME 
+                FROM INFORMATION_SCHEMA.TRIGGERS
+                WHERE TRIGGER_SCHEMA = '{}'
+         "#,
+            schema
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            ret.push(CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Trigger,
+                desc: None,
+            });
+        }
+
+        anyhow::Ok(ret)
+    }
+
     async fn list_view(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
@@ -157,6 +184,7 @@ impl AstCompletionHelper for MysqlDB {
         use sqlx::{Column, Executor, Statement};
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from `{schema}`.`{name}` limit 1"#);
+        log::info!("sql:{}", sql);
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
         let ret = s
             .columns()
@@ -223,6 +251,7 @@ impl AstCompletionHelper for MysqlDB {
         WHERE TABLE_SCHEMA = '{}'"#,
             schema
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -264,6 +293,7 @@ impl AstCompletionHelper for MysqlDB {
             WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}';"#,
             schema, table
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -289,6 +319,7 @@ impl AstCompletionHelper for MysqlDB {
                 WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}'"#,
             schema, table_name
         );
+        log::info!("sql:{}", sql);
 
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
@@ -310,6 +341,7 @@ impl AstCompletionHelper for MysqlDB {
                 WHERE EVENT_OBJECT_TABLE = '{}' AND TRIGGER_SCHEMA = '{}';"#,
             table, schema
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());

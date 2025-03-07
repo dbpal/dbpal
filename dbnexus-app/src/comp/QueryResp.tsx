@@ -46,16 +46,18 @@ function RespContextMenu(props: { content; field; setSort }) {
   return (
     <Paper>
       <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> copy </ListItemText>
-        </MenuItem>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
 
         <MenuItem
           onClick={() => {
@@ -65,7 +67,7 @@ function RespContextMenu(props: { content; field; setSort }) {
           <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> copy field </ListItemText>
+          <ListItemText> Copy field </ListItemText>
         </MenuItem>
 
         <MenuItem

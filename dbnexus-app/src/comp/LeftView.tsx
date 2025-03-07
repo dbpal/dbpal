@@ -48,7 +48,7 @@ enum ViewKind {
   Normal,
   Materrialized,
 }
-
+import CalendarViewWeekIcon from '@mui/icons-material/CalendarViewWeek';
 function ViewsTree(props: { viewkind: ViewKind }) {
   const { viewkind } = props;
 
@@ -97,12 +97,16 @@ function ViewsTree(props: { viewkind: ViewKind }) {
   }
 
   let name;
+  let icon;
+
   switch (viewkind) {
     case ViewKind.Normal:
       name = 'views';
+      icon = <VisibilityIcon></VisibilityIcon>;
       break;
     case ViewKind.Materrialized:
-      name = 'materizlized views';
+      name = 'materialized views';
+      icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
       break;
   }
 
@@ -126,7 +130,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
           });
         }}
       >
-        <VisibilityIcon></VisibilityIcon>
+        {icon}
         <span> {name} </span>
         {loading && (
           <CircularProgress size={progressBarSizeSmall}></CircularProgress>
@@ -157,6 +161,15 @@ function ViewTree(props: {
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(ContextMenuContext);
+  let icon;
+  switch (viewkind) {
+    case ViewKind.Materrialized:
+      icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
+      break;
+    case ViewKind.Normal:
+      icon = <VisibilityIcon></VisibilityIcon>;
+      break;
+  }
   return (
     <TreeItem
       itemId={uuid + '-view-' + view}
@@ -181,7 +194,7 @@ function ViewTree(props: {
           }}
         >
           <Stack direction="row" spacing={1}>
-            <VisibilityIcon></VisibilityIcon> <span> {view} </span>
+            {icon} <span> {view} </span>
           </Stack>
           {viewkind == ViewKind.Materrialized && <span> {size} </span>}
         </Stack>
@@ -245,9 +258,12 @@ function ViewColumnsTree(props: { view: string; viewkind: ViewKind }) {
       {fields.map((f) => (
         <TreeItem
           key={f.field}
-          style={{ ...treeItemCommonStyle }}
           itemId={idPrefix + '-' + f.field}
-          label=<Stack direction="row" spacing={1}>
+          label=<Stack
+            direction="row"
+            spacing={1}
+            style={{ ...treeItemCommonStyle }}
+          >
             {f.field} <em>({f.typ}) </em>
           </Stack>
         ></TreeItem>
@@ -293,13 +309,13 @@ function ViewMenu(props: {
         showNotification('error', 'Drop View Failure', e);
       });
   };
-  const { tabs, setTabs, setSelectIndex } = useContext(TabsSetContext);
+  const { tabs, setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const handleViewData = () => {
     const id = uuid + '-view-' + view;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
-      setSelectIndex(index);
+      setSelectTab(index);
     } else {
       let list: ReactNode = null;
 
@@ -312,8 +328,10 @@ function ViewMenu(props: {
         case DataSourceKind.Oracle:
         case DataSourceKind.TiDB:
         case DataSourceKind.Cassandra:
+        case DataSourceKind.ClickHouse:
           list = (
             <SqlTableView
+              tableName={view}
               kind={kind}
               notWarnPri={true}
               reloadOP={async (
@@ -404,7 +422,7 @@ function ViewMenu(props: {
       }
 
       setTabs((e) => {
-        setSelectIndex(tabs.length);
+        setSelectTab(tabs.length);
         return [...e, new TabContent(id, view, list)];
       });
     }
@@ -417,7 +435,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <ListIcon></ListIcon>
           </ListItemIcon>
-          <ListItemText> view data</ListItemText>
+          <ListItemText> View Data</ListItemText>
           <Typography
             variant="body2"
             sx={{ color: 'text.secondary' }}
@@ -432,7 +450,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <ArrowCircleDownIcon></ArrowCircleDownIcon>
           </ListItemIcon>
-          <ListItemText> export </ListItemText>
+          <ListItemText> Export </ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -444,7 +462,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop </ListItemText>
+          <ListItemText>Drop </ListItemText>
           <Typography
             variant="body2"
             sx={{ color: 'text.secondary' }}

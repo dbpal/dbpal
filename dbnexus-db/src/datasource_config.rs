@@ -23,9 +23,45 @@ pub struct MysqlDBConfig {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+pub struct ClickHouseConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: Option<String>,
+    pub db: Option<String>,
+    pub read_only: bool,
+    pub https: bool,
+}
+
+impl ClickHouseConfig {
+    pub(crate) fn db_str(&self) -> &str {
+        self.db.as_ref().map(|x| x.as_str()).expect("must be some")
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
 pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+pub struct DuckDBConfig {
+    pub path: String,
+    pub read_only: bool,
+    pub database: Option<String>,
+    pub schema: Option<String>,
+}
+
+impl DuckDBConfig {
+    #[allow(unused)]
+    pub(crate) fn schema_str(&self) -> &str {
+        self.schema.as_ref().expect("must be some")
+    }
+    #[allow(unused)]
+    pub(crate) fn database_str(&self) -> &str {
+        self.database.as_ref().expect("must be some")
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]

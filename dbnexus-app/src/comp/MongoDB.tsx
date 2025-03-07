@@ -302,6 +302,7 @@ function MongoBsonEditor(props: {
         }}
       >
         <Editor
+          width="99.5%"
           onMount={handleEditorDidMount}
           language="mongoBson"
           value={content.current}
@@ -643,16 +644,18 @@ function MongoTableListContextMenu(props: {
   return (
     <Paper>
       <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> copy </ListItemText>
-        </MenuItem>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
 
         <MenuItem
           onClick={() => {
@@ -662,7 +665,7 @@ function MongoTableListContextMenu(props: {
           <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> copy field </ListItemText>
+          <ListItemText> Copy Field </ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -698,7 +701,7 @@ function MongoTableListContextMenu(props: {
           <ListItemIcon>
             <FilterAltIcon></FilterAltIcon>
           </ListItemIcon>
-          <ListItemText> filter </ListItemText>
+          <ListItemText> Filter </ListItemText>
         </MenuItem>
         {delOP && (
           <MenuItem
@@ -709,7 +712,7 @@ function MongoTableListContextMenu(props: {
             <ListItemIcon>
               <DeleteForeverIcon></DeleteForeverIcon>
             </ListItemIcon>
-            <ListItemText> delete </ListItemText>
+            <ListItemText> Delete </ListItemText>
           </MenuItem>
         )}
       </MenuList>

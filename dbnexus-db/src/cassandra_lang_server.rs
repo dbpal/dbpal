@@ -28,7 +28,7 @@ impl LanguageServer for CassandraDB {
         match r {
             Ok(x) => return anyhow::Ok(x),
             Err(x) => {
-                log::error!("try completion on parse failed:{:?}", x)
+                log::error!("try completion on ast failed:{:?}", x)
             }
         }
         if !use_lexer {
@@ -90,7 +90,7 @@ impl LexerCompletionTrait for CassandraDB {
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         let sql = format!("SELECT table_name FROM system_schema.tables");
-
+        log::info!("sql:{}", sql);
         let rows = self
             .session
             .query(sql)
@@ -156,7 +156,6 @@ impl AstCompletion {
         let ast = CassandraAST::new(sql);
         for stmt in ast.statements.iter() {
             log::info!("completion on ast:{:?}", stmt.statement);
-
             let _ = c.on_statement(stmt).await;
             if c.finished() {
                 return anyhow::Ok(c.result());
@@ -227,7 +226,7 @@ impl AstCompletion {
         let key_space = self
             .need_key_space_identifier(name.keyspace.as_ref())
             .map_err(|x| {
-                log::error!("{}", x);
+                log::error!("need key space:{}", x);
             })
             .unwrap_or_default();
         let mut result: Vec<CompletionItem> = self
@@ -332,7 +331,7 @@ impl AstCompletion {
         }
 
         let sql = format!(" SELECT role FROM system_auth.roles;");
-
+        log::info!("sql:{}", sql);
         let rows = self
             .db
             .session
@@ -365,6 +364,7 @@ impl AstCompletion {
         let sql = format!(
             "SELECT role FROM system_auth.roles WHERE is_superuser = false   allow filtering  ;"
         );
+        log::info!("sql:{}", sql);
 
         let rows = self
             .db
@@ -410,6 +410,7 @@ impl AstCompletion {
                 IdentifierRef::Unquoted(x) => x.to_owned().to_lowercase(),
             }
         );
+        log::info!("sql:{}", sql);
 
         let rows = self
             .db
@@ -453,6 +454,7 @@ impl AstCompletion {
                 FROM system_schema.types 
                 WHERE keyspace_name = '{key_space}';"#
         );
+        log::info!("sql:{}", sql);
         let rows = self
             .db
             .session
@@ -553,7 +555,7 @@ impl AstCompletion {
 FROM system_schema.aggregates 
 WHERE keyspace_name = '{key_space}';"#
         );
-
+        log::info!("sql:{}", sql);
         let rows = self
             .db
             .session
@@ -593,10 +595,10 @@ WHERE keyspace_name = '{key_space}';"#
             r#"
             SELECT function_name 
                 FROM system_schema.functions 
-                WHERE keyspace_name = '{key_space}';
-
+                WHERE keyspace_name = '{key_space}'
         "#
         );
+        log::info!("sql:{}", sql);
 
         let rows = self
             .db
@@ -637,10 +639,10 @@ WHERE keyspace_name = '{key_space}';"#
             r#"
            SELECT index_name 
                 FROM system_schema.indexes 
-                WHERE keyspace_name = '{key_space}';
-
+                WHERE keyspace_name = '{key_space}'
         "#
         );
+        log::info!("sql:{}", sql);
 
         let rows = self
             .db
@@ -682,9 +684,10 @@ WHERE keyspace_name = '{key_space}';"#
             r#"
            SELECT trigger_name 
                 FROM system_schema.triggers 
-                WHERE keyspace_name = '{key_space}';
+                WHERE keyspace_name = '{key_space}'
         "#
         );
+        log::info!("sql:{}", sql);
 
         let rows = self
             .db

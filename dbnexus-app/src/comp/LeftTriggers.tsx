@@ -176,17 +176,17 @@ function TriggerMenu(props: {
     loadDetails();
   }, []);
 
-  const { setSelectIndex, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
 
   const handleOpenDetails = () => {
     initMonacoLanague(uuid, kind);
     const id = uuid + '-table-' + table + '-trigger-' + trigger;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
-      setSelectIndex(index);
+      setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectIndex(tabs.length);
+        setSelectTab(tabs.length);
         return [
           ...e,
           new TabContent(
@@ -235,7 +235,7 @@ function TriggerMenu(props: {
               <ListItemIcon>
                 <CancelIcon></CancelIcon>
               </ListItemIcon>
-              <ListItemText>disable</ListItemText>
+              <ListItemText>Disable</ListItemText>
             </MenuItem>
           ) : (
             <MenuItem
@@ -246,7 +246,7 @@ function TriggerMenu(props: {
               <ListItemIcon>
                 <CheckCircleIcon></CheckCircleIcon>
               </ListItemIcon>
-              <ListItemText>enable</ListItemText>
+              <ListItemText>Enable</ListItemText>
             </MenuItem>
           ))}
 
@@ -259,7 +259,7 @@ function TriggerMenu(props: {
           <ListItemIcon color="error">
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop</ListItemText>
+          <ListItemText>Drop</ListItemText>
         </MenuItem>
       </MenuList>
     </Paper>

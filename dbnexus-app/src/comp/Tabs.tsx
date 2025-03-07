@@ -190,6 +190,8 @@ function TabsWithContent_(props: {
           </VisiableContext.Provider>
         ))}
       </div>
+
+      <div style={{ minHeight: '300px' }}></div>
     </Stack>
   );
 }

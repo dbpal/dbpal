@@ -303,6 +303,7 @@ enum DataSourceKind {
   Mongo,
   Oracle,
   Cassandra,
+  ClickHouse,
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
@@ -327,6 +328,9 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
       return DataSourceKind.Oracle;
     case 'cassandra':
       return DataSourceKind.Cassandra
+    case 'clickhouse':
+      return DataSourceKind.ClickHouse
+
     default:
       console.log("connection typt not handle:", name);
   }
@@ -409,7 +413,7 @@ class TabContent {
 const TabsSetContext = createContext<{
   tabs: TabContent[];
   setTabs;
-  setSelectIndex;
+  setSelectTab;
 }>(null);
 
 const ConnTypeContext = createContext<{

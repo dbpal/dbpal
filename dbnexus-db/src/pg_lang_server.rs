@@ -62,6 +62,7 @@ impl PostGresDB {
             LEFT JOIN pg_catalog.pg_description d ON d.objoid = p.oid
             WHERE n.nspname = 'pg_catalog'  -- 只查询内置函数
             ORDER BY p.proname;"#;
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -139,6 +140,7 @@ impl AstCompletionHelper for PostGresDB {
             "#
             )
         };
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -190,6 +192,7 @@ impl AstCompletionHelper for PostGresDB {
         let schema = schema.unwrap();
 
         let sql = format!(r#"select * from "{}"."{}"."{}""#, db, schema, name);
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
         let ret = s
@@ -234,6 +237,7 @@ impl AstCompletionHelper for PostGresDB {
         "#,
             );
         }
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -268,6 +272,7 @@ impl AstCompletionHelper for PostGresDB {
                 "#
             .to_string()
         };
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -309,6 +314,7 @@ impl AstCompletionHelper for PostGresDB {
     "#,
             db.unwrap_or_default(),
         );
+        log::info!("sql:{}", sql);
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
@@ -336,6 +342,7 @@ impl AstCompletionHelper for PostGresDB {
                 table
             )
         };
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -351,6 +358,7 @@ impl AstCompletionHelper for PostGresDB {
         SELECT rolname AS role_name
             FROM pg_roles
         "#;
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -377,6 +385,7 @@ impl AstCompletionHelper for PostGresDB {
                 table
             )
         };
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -427,6 +436,7 @@ impl AstCompletionHelper for PostGresDB {
         SELECT name
             FROM pg_prepared_statements;
         "#;
+        log::info!("sql:{}", sql);
         let conn = match self.query_connection.get(&query_id).map(|x| x.clone()) {
             Some(x) => x,
             None => anyhow::bail!(format!("can't find query of {}", query_id)),
@@ -469,6 +479,7 @@ impl AstCompletionHelper for PostGresDB {
                 table,
             )
         };
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());

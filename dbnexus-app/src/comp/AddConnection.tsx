@@ -17,10 +17,8 @@ import {
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
-
 import { invoke } from '@tauri-apps/api/core';
 import { appStore, AppStoreKey, msgTimeout } from './Common';
-
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { DataSourceKind } from './helper';
 
@@ -37,7 +35,6 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
     <Stack direction="row">
       <TextField
         size="small"
-        margin="normal"
         fullWidth
         label="Host"
         value={host}
@@ -47,7 +44,6 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
       />
       <TextField
         size="small"
-        margin="normal"
         fullWidth
         label="port"
         onBlur={onBlur}
@@ -90,7 +86,6 @@ function UserAndPassword(props: {
     <Stack direction="row">
       <TextField
         size="small"
-        margin="normal"
         fullWidth
         label="User"
         value={user}
@@ -100,7 +95,6 @@ function UserAndPassword(props: {
       />
       <TextField
         size="small"
-        margin="normal"
         fullWidth
         label="Password"
         onBlur={onBlur}
@@ -124,6 +118,18 @@ function EnableSSL(props: { useSSL; setUseSSL }) {
         />
       }
       label="Enable SSL"
+    />
+  );
+}
+
+function Https(props: { https; setHttps }) {
+  let { https, setHttps } = props;
+  return (
+    <FormControlLabel
+      control={
+        <Switch checked={https} onChange={(e) => setHttps(e.target.checked)} />
+      }
+      label="HTTPS"
     />
   );
 }
@@ -173,7 +179,6 @@ function Database(props: {
       <Stack direction="row">
         <TextField
           size="small"
-          margin="normal"
           label={lable}
           value={database}
           onBlur={onBlur}
@@ -205,7 +210,6 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
       <Stack direction="row">
         <TextField
           size="small"
-          margin="normal"
           label="schema"
           value={schema}
           onChange={(e) => setSchema(e.target.value)}
@@ -237,6 +241,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   const [trustCert, setTrustCert] = useState(false);
   const [databaseCandidates, setDatabaseCandidates] = useState([]);
   const [schema, setSchema] = useState('');
+  const [https, setHttps] = useState(false);
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
   };
@@ -253,6 +258,18 @@ export default function AddConfig(props: { handleClose: () => void }) {
     let db_null = database ? database : null;
     let schema_null = schema ? schema : null;
     switch (connectionType) {
+      case DataSourceKind.ClickHouse:
+        return {
+          conn_type: 'clickhouse',
+          host: host,
+          port: portInt,
+          username: user,
+          password: pass_null,
+          db: db_null,
+          read_only: readOnly,
+          name: connectionName,
+          https: https,
+        };
       case DataSourceKind.Mysql:
         return {
           conn_type: 'mysql',
@@ -417,6 +434,9 @@ export default function AddConfig(props: { handleClose: () => void }) {
       case DataSourceKind.Cassandra:
         setPort('9042');
         break;
+      case DataSourceKind.ClickHouse:
+        setPort('8123');
+        break;
     }
     setUser('');
     setPassword('');
@@ -432,13 +452,35 @@ export default function AddConfig(props: { handleClose: () => void }) {
       connectionNameDom.current.focus();
       return;
     }
+
     const config = makeConfig();
     if (!config) {
       return;
     }
+
+    let connections = await (
+      await appStore()
+    ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
+    if (!connections) {
+      connections = [];
+    }
+    if (connectionName.includes('/')) {
+      showNotification('error', "connection name can't contains /");
+      connectionNameDom.current.focus();
+      return;
+    }
+    if (connections.find((e) => e.name == connectionName)) {
+      showNotification('error', 'name aleary been taken');
+      connectionNameDom.current.focus();
+      return;
+    }
+
     if (password) {
       try {
-        await invoke('save_password', { name: connectionName, pass: password });
+        await invoke('save_password', {
+          name: connectionName,
+          pass: password,
+        });
       } catch (e) {
         showNotification('error', 'save password failed', e);
         return;
@@ -447,14 +489,10 @@ export default function AddConfig(props: { handleClose: () => void }) {
       config.password = '';
     }
 
-    let old = await (await appStore()).get(AppStoreKey.ConnectionConfig);
-    if (!old) {
-      old = [];
-    }
-    //@ts-ignore
-    old = [config, ...old];
+    connections = [config, ...connections];
+
     (await appStore())
-      .set(AppStoreKey.ConnectionConfig, old)
+      .set(AppStoreKey.ConnectionConfig, connections)
       .then((_) => {
         showNotification('success', 'Add Connection OK');
         handleClose();
@@ -505,7 +543,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
   return (
     <Stack spacing={1}>
       <Typography variant="h6">New Connection</Typography>
-      <FormControl fullWidth margin="normal">
+      <FormControl fullWidth>
         <InputLabel>Connection Type</InputLabel>
         <Select
           value={connectionType}
@@ -521,9 +559,10 @@ export default function AddConfig(props: { handleClose: () => void }) {
           <MenuItem value={DataSourceKind.Mongo}>Mongo</MenuItem>
           <MenuItem value={DataSourceKind.Oracle}>Oracel</MenuItem>
           <MenuItem value={DataSourceKind.MsSql}>
-            Sql server(microsoft)
+            Sql Server(microsoft)
           </MenuItem>
           <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
+          <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse </MenuItem>
         </Select>
       </FormControl>
 
@@ -581,6 +620,31 @@ export default function AddConfig(props: { handleClose: () => void }) {
               candidates={schemaCandidates}
             ></Schema>
           )}
+        </>
+      )}
+      {connectionType == DataSourceKind.ClickHouse && (
+        <>
+          <HostAndPort
+            host={host}
+            port={port}
+            setHost={setHost}
+            setPort={setPort}
+            onBlur={toggleTriggerReload}
+          ></HostAndPort>
+          <UserAndPassword
+            user={user}
+            password={password}
+            setUser={setUser}
+            onBlur={toggleTriggerReload}
+            setPassword={setPassword}
+          ></UserAndPassword>
+          <Database
+            candidates={databaseCandidates}
+            database={database}
+            setDatabase={setDatabase}
+            onBlur={toggleTriggerReload}
+          ></Database>
+          <Https https={https} setHttps={setHttps}></Https>
         </>
       )}
 
@@ -720,7 +784,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
       <Stack direction="row" style={{ alignItems: 'center' }} spacing={2}>
         <TextField
           size="small"
-          margin="normal"
           label="Connection Name"
           value={connectionName}
           fullWidth
@@ -757,7 +820,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           onClick={handleTestConnection}
           loading={testLoading}
         >
-          test
+          test connection
         </Button>
         {testOk && <Alert severity="success"> Test OK </Alert>}
       </Stack>

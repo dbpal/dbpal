@@ -93,7 +93,7 @@ function Menu(props: {
           <ListItemIcon>
             <AddIcon></AddIcon>
           </ListItemIcon>
-          <ListItemText> add </ListItemText>
+          <ListItemText> Add </ListItemText>
         </MenuItem>
         <MenuRefresh reload={reload}></MenuRefresh>
       </MenuList>
@@ -203,7 +203,36 @@ function AddIndex(props: {
   const [indexType, setIndexType] = useState(indexTypes[0]);
   const [indexName, setIndexName] = useState('');
   const indexNameDom = useRef<HTMLInputElement>(null);
-  const supportUnique = kind != DataSourceKind.Cassandra;
+
+  let indexTypeJsx;
+
+  switch (kind) {
+    case DataSourceKind.Cassandra:
+      break;
+    default:
+      indexTypeJsx = (
+        <>
+          <FormLabel component="legend">unique</FormLabel>
+          <RadioGroup
+            row
+            onChange={(e) => {
+              setIndexType(e.target.value);
+            }}
+            value={indexType}
+          >
+            {indexTypes.map((e) => (
+              <FormControlLabel
+                key={e}
+                value={e}
+                control={<Radio />}
+                label={e}
+              />
+            ))}
+          </RadioGroup>
+        </>
+      );
+      break;
+  }
 
   useEffect(() => {
     invoke<types.Field[]>('show_table_columns', {
@@ -290,27 +319,7 @@ function AddIndex(props: {
           ))}
       </Stack>
 
-      {supportUnique && (
-        <>
-          <FormLabel component="legend">select a type</FormLabel>
-          <RadioGroup
-            row
-            onChange={(e) => {
-              setIndexType(e.target.value);
-            }}
-            value={indexType}
-          >
-            {indexTypes.map((e) => (
-              <FormControlLabel
-                key={e}
-                value={e}
-                control={<Radio />}
-                label={e}
-              />
-            ))}
-          </RadioGroup>
-        </>
-      )}
+      {indexTypeJsx}
       <Divider></Divider>
       <Stack direction="row">
         <Button onClick={handleAdd} variant="contained" color="primary">
@@ -460,7 +469,7 @@ function IndexMenu(props: {
           <ListItemIcon>
             <EditIcon></EditIcon>
           </ListItemIcon>
-          <ListItemText> rename </ListItemText>
+          <ListItemText> Rename </ListItemText>
         </MenuItem>
         <MenuItem
           sx={{ color: 'error.main' }}
@@ -471,7 +480,7 @@ function IndexMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText>drop</ListItemText>
+          <ListItemText>Drop</ListItemText>
         </MenuItem>
       </MenuList>
 
