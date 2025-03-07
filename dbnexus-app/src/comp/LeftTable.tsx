@@ -182,6 +182,14 @@ function TableTree(props: {
     kind == DataSourceKind.Sqlite ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.Oracle;
+  let support_index =
+    kind == DataSourceKind.MariaDB ||
+    kind == DataSourceKind.MsSql ||
+    kind == DataSourceKind.Mysql ||
+    kind == DataSourceKind.Sqlite ||
+    kind == DataSourceKind.Postgres ||
+    kind == DataSourceKind.Oracle ||
+    kind == DataSourceKind.Cassandra;
 
   return (
     <TreeItem
@@ -215,7 +223,7 @@ function TableTree(props: {
     >
       <TableColumnsTree table={table}></TableColumnsTree>
       {support_trigger && <TriggersTree table={table}></TriggersTree>}
-      <LeftIndexes table={table}></LeftIndexes>
+      {support_index && <LeftIndexes table={table}></LeftIndexes>}
     </TreeItem>
   );
 }

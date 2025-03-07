@@ -125,6 +125,7 @@ pub enum CompletionKind {
     Policy,
     Variable,
     Rule,
+    Cluster,
 }
 
 impl Into<u32> for CompletionKind {
@@ -309,6 +310,10 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName {
     }
 
     async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
 

@@ -81,6 +81,25 @@ impl CompletionStament {
         );
     }
 
+    pub(crate) async fn c_on_cluster(&mut self, c: &Ident) {
+        if !self.in_pos(&c.span) {
+            return;
+        }
+        self.result = Some(
+            self.helper
+                .list_cluster()
+                .await
+                .map_err(|x| log::error!("list_cluster failed,err:{:?}", x))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|name| CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::Cluster,
+                    desc: None,
+                })
+                .collect(),
+        );
+    }
     pub(crate) async fn c_on_mysql_trigger(&mut self, object_name: &ObjectName) {
         self.c_on_db_schema(object_name).await;
         if self.finished() {
@@ -187,9 +206,12 @@ impl CompletionStament {
                 name.push(Ident::new("fake"));
                 self.c_on_db_schema(&ObjectName(name)).await;
             }
-            ObjectType::Role => {
-                // rule not support
-            }
+            ObjectType::Role => match name.0.len() {
+                1 => self.c_on_role(name.0.first().unwrap()).await,
+                _ => {
+                    log::error!("role name is too long:{:?}", name)
+                }
+            },
             ObjectType::Sequence => {
                 // rule not support
             }
@@ -1424,6 +1446,29 @@ impl CompletionStament {
     }
     pub(crate) async fn c_on_order_by_expr(&mut self, orderby: &OrderByExpr) {
         self.c_on_expr(&orderby.expr).await;
+        if self.finished() {
+            return;
+        }
+        if let Some(full) = orderby.with_fill.as_ref() {
+            if let Some(from) = full.from.as_ref() {
+                self.c_on_expr(from).await;
+                if self.finished() {
+                    return;
+                }
+            }
+            if let Some(to) = full.to.as_ref() {
+                self.c_on_expr(to).await;
+                if self.finished() {
+                    return;
+                }
+            }
+            if let Some(step) = full.step.as_ref() {
+                self.c_on_expr(step).await;
+                if self.finished() {
+                    return;
+                }
+            }
+        }
     }
 
     pub(crate) async fn c_on_column(&mut self, table_name: &ObjectName, col: &Ident) {

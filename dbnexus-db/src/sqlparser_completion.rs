@@ -7,9 +7,9 @@ use std::{
 use sqlparser::{
     ast::{
         AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CopySource, CreateFunctionBody,
-        DataType, Declare, DeclareAssignment, GrantObjects, Ident, ObjectName, Privileges,
-        SchemaName, SelectItem, SequenceOptions, Spanned, Statement, TableConstraint, TableFactor,
-        TriggerEvent, UserDefinedTypeRepresentation,
+        DataType, Declare, DeclareAssignment, GrantObjects, Ident, ObjectName, OneOrManyWithParens,
+        Privileges, SchemaName, SelectItem, SequenceOptions, Spanned, Statement, TableConstraint,
+        TableFactor, TriggerEvent, UserDefinedTypeRepresentation,
     },
     tokenizer::{Location, Span},
 };
@@ -354,9 +354,19 @@ impl CompletionStament {
                     }
                 }
             }
-            Statement::Truncate { table_names, .. } => {
+            Statement::Truncate {
+                table_names,
+                on_cluster,
+                ..
+            } => {
                 for t in table_names.iter() {
                     self.c_on_table(&t.name).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(on_cluster) = on_cluster.as_ref() {
+                    self.c_on_cluster(on_cluster).await;
                     if self.finished() {
                         return;
                     }
@@ -607,6 +617,31 @@ impl CompletionStament {
                         }
                     }
                 }
+                if let Some(on_cluster) = create_table.on_cluster.as_ref() {
+                    self.c_on_cluster(on_cluster).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(p) = create_table.primary_key.as_ref() {
+                    self.c_on_expr(p.as_ref()).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(p) = create_table.order_by.as_ref() {
+                    match p {
+                        OneOrManyWithParens::One(p) => self.c_on_expr(p).await,
+                        OneOrManyWithParens::Many(items) => {
+                            for item in items.iter() {
+                                self.c_on_expr(item).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
                 for c in create_table.constraints.iter() {
                     match c {
                         TableConstraint::Unique {
@@ -849,9 +884,18 @@ impl CompletionStament {
                 }
             }
             Statement::AlterTable {
-                name, operations, ..
+                name,
+                operations,
+                on_cluster,
+                ..
             } => {
                 self.c_on_alert_table(name, operations).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(on_cluster) = on_cluster.as_ref() {
+                    self.c_on_cluster(on_cluster).await;
+                }
             }
 
             Statement::AlterIndex { name, operation } => {

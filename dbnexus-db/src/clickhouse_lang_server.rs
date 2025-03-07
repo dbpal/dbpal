@@ -69,6 +69,19 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for ClickHouseDB {
+    async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+         SELECT
+            cluster 
+        FROM
+            system.clusters
+
+        "#;
+        let conn = self.get_conn()?;
+        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
+        anyhow::Ok(ret)
+    }
+
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
@@ -214,13 +227,62 @@ const TYPES: &'static [&'static str] = &[
 #[cfg(test)]
 
 mod tests {
-    use std::collections::HashSet;
+    use std::{collections::HashSet, path::Path};
 
     use crate::{
         clickhouse::{ClickHouseDB, make_test_object},
-        db::monaco_editor_keyword_regexp,
-        language_server::LexerCompletionTrait,
+        db::{QuerySql, monaco_editor_keyword_regexp},
+        enable_test_log,
+        language_server::{LexerCompletionTrait, completion_test::test_file_auto_completion},
     };
+
+    // partition test failed , sqlparser can't parse a valid partition statement.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        let db = make_test_object();
+        enable_test_log();
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+                 CREATE TABLE employees (
+                    employee_id UInt32,
+                    first_name String,
+                    last_name String,
+                    position String,
+                    department String,
+                    hire_date Date,
+                    salary Float64
+                ) ENGINE = MergeTree()
+                ORDER BY employee_id;
+         "#,
+            )
+            .await
+            .unwrap();
+
+        let manifest_dir =
+            std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
+        file_path.push("tests");
+        file_path.push("clickhouse_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+    }
+    #[ignore = "xxx"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object();
+        test_file_auto_completion(
+            r#"CREATE TABLE sales_data (  order_id UInt64,  product_id UInt32, quantity UInt16,  order_date Date ) ENGINE = MergeTree() PARTITION BY toYYYYMM(order_date) ORDER BY (order_date, order_id) PRIMARY KEY order_id
+176 order_id"#,
+            &db,
+            uuid::Uuid::new_v4(),
+            false,
+        )
+        .await;
+    }
 
     // clickhouse is a little different keyword can select from database
     // but frontend still need this definition.
