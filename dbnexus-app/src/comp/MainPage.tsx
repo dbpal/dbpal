@@ -143,9 +143,11 @@ export default function MainPage() {
         <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab }}>
           <NotificationProvider>
             <div> {mainContent} </div>
+
             <div id="menu-div" style={menu && menu.style}>
               {menu && menu.content}
             </div>
+
             {showAddConnection && (
               <Modal
                 open={showAddConnection}

@@ -60,9 +60,9 @@ impl AstCompletionHelper for TiDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+        &self, _db: Option<&str>, schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_column(self.db.as_ref(), None, schema, &table).await
+        AstCompletionHelper::list_column(self.db.as_ref(), None, schema, &name).await
     }
 
     async fn list_function(

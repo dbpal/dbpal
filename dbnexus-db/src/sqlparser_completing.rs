@@ -81,9 +81,39 @@ impl CompletionStament {
         );
     }
 
-    pub(crate) async fn c_on_trigger(&mut self, _object_name: &ObjectName) {
-        unimplemented!()
+    pub(crate) async fn c_on_mysql_trigger(&mut self, object_name: &ObjectName) {
+        self.c_on_db_schema(object_name).await;
+        if self.finished() {
+            return;
+        }
+        if !object_name
+            .0
+            .last()
+            .map(|x| self.in_pos(&x.span))
+            .unwrap_or(false)
+        {
+            return;
+        }
+
+        /*
+           在 MySQL 中，SHOW CREATE TRIGGER 语句用于显示创建指定触发器的 CREATE TRIGGER 语句
+           。其基本语法为：
+           sql复制
+           SHOW CREATE TRIGGER trigger_name;
+           其中，trigger_name 是触发器的名称。需要注意的是，SHOW CREATE TRIGGER 语句不支持直接指定数据库名称。如果要查看特定数据库中的触发器定义，需要先切换到该数据库，或者在触发器名称中明确指定数据库名称
+           。
+           例如，如果要查看数据库 mydb 中名为 my_trigger 的触发器定义，可以先切换到该数据库：
+        */
+
+        self.result = Some(
+            self.helper
+                .mysql_show_create_trigger()
+                .await
+                .map_err(|x| log::error!("mysql_show_create_trigger failed,err:{}", x))
+                .unwrap_or_default(),
+        );
     }
+
     pub(crate) async fn c_on_mysql_show_create(
         &mut self, show_create: ShowCreateObject, name: &ObjectName,
     ) {
@@ -94,7 +124,7 @@ impl CompletionStament {
             ShowCreateObject::Function => self.c_on_function(&name).await,
             ShowCreateObject::Procedure => self.c_on_procedure(&name).await,
             ShowCreateObject::Table => self.c_on_table(&name).await,
-            ShowCreateObject::Trigger => self.c_on_trigger(&name).await,
+            ShowCreateObject::Trigger => self.c_on_mysql_trigger(&name).await,
             ShowCreateObject::View => self.c_on_view(&name).await,
         }
     }

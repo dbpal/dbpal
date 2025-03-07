@@ -527,6 +527,7 @@ async function openNewQuery(
     case DataSourceKind.Oracle:
     case DataSourceKind.TiDB:
     case DataSourceKind.Cassandra:
+    case DataSourceKind.ClickHouse:
       content = (
         <SqlQuery
           language={uuid}

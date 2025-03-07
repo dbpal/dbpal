@@ -58,7 +58,6 @@ impl LanguageServer for SqliteDB {
             Arc::new(Clone::clone(self)),
         )
         .await;
-        println!("completion result:{:?}", r);
 
         match r {
             Ok(xs) => return Ok(xs),

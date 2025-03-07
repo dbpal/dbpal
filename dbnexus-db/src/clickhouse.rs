@@ -130,16 +130,15 @@ fn gen_show_sql(
     sql
 }
 
-#[async_trait::async_trait]
-impl SchemaTrait for ClickHouseDB {
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+impl ClickHouseDB {
+    pub(crate) async fn list_view_impl(&self, db: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
             SELECT name
             FROM system.tables
             WHERE database = '{}' AND engine = 'View'
         "#,
-            self.config.db_str()
+            db
         );
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
@@ -147,14 +146,17 @@ impl SchemaTrait for ClickHouseDB {
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
         anyhow::Ok(ret.into_iter().map(|x| NamedStaff::from(x)).collect())
     }
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+
+    pub(crate) async fn list_materialized_view_impl(
+        &self, db: &str,
+    ) -> anyhow::Result<Vec<ListMaterializedView>> {
         let sql = format!(
             r#"
             SELECT name
             FROM system.tables
             WHERE database = '{}' AND engine = 'MaterializedView'
         "#,
-            self.config.db_str()
+            db
         );
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
@@ -165,6 +167,25 @@ impl SchemaTrait for ClickHouseDB {
                 .map(|x| ListMaterializedView::from(x))
                 .collect(),
         )
+    }
+}
+
+impl ClickHouseDB {
+    pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
+        let sql = format!("show tables from {}", db);
+        let conn = self.get_conn()?;
+        let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
+        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+    }
+}
+
+#[async_trait::async_trait]
+impl SchemaTrait for ClickHouseDB {
+    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        self.list_view_impl(self.config.db_str()).await
+    }
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+        self.list_materialized_view_impl(self.config.db_str()).await
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
@@ -310,10 +331,7 @@ impl SchemaTrait for ClickHouseDB {
         self
     }
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let sql = format!("show tables from {}", self.config.db_str());
-        let conn = self.get_conn()?;
-        let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
-        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+        self.list_table_impl(self.config.db_str()).await
     }
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let conn = self.get_conn()?;
@@ -839,7 +857,7 @@ impl std::fmt::Debug for ClickHouseDB {
 
 #[derive(Clone)]
 pub struct ClickHouseDB {
-    config: ClickHouseConfig,
+    pub(crate) config: ClickHouseConfig,
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
 }
@@ -878,7 +896,7 @@ impl ClickHouseDB {
             client,
         })
     }
-    fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManager>> {
+    pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManager>> {
         let conn = block_in_place(|| self.pool.get())?;
         anyhow::Ok(conn)
     }
@@ -920,16 +938,16 @@ impl DBTrait for ClickHouseDB {
 }
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct JsonResp {
-    meta: Vec<JsonRespMeta>,
-    data: Vec<HashMap<String, serde_json::Value>>,
+    pub(crate) meta: Vec<JsonRespMeta>,
+    pub(crate) data: Vec<HashMap<String, serde_json::Value>>,
     #[allow(unused)]
     rows: usize,
 }
 
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct JsonRespMeta {
-    name: String,
-    r#type: String,
+    pub(crate) name: String,
+    pub(crate) r#type: String,
 }
 
 impl JsonResp {
@@ -1038,7 +1056,7 @@ impl From<&JsonRespMeta> for Field {
 }
 
 impl ClickHouseDB {
-    async fn query_as_json(&self, query: &str) -> anyhow::Result<JsonResp> {
+    pub(crate) async fn query_as_json(&self, query: &str) -> anyhow::Result<JsonResp> {
         let host = format!(
             "http{}://{}:{}",
             if self.config.https { "s" } else { "" },
@@ -1064,7 +1082,7 @@ impl ClickHouseDB {
 }
 
 #[cfg(test)]
-fn make_test_object() -> ClickHouseDB {
+pub(crate) fn make_test_object() -> ClickHouseDB {
     ClickHouseDB::new(ClickHouseConfig {
         host: "127.0.0.1".to_string(),
         port: 8123,

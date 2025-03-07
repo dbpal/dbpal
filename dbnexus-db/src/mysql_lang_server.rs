@@ -142,6 +142,32 @@ impl AstCompletionHelper for MysqlDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
+    async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(None))?;
+        let sql = format!(
+            r#"
+            SELECT TRIGGER_NAME 
+                FROM INFORMATION_SCHEMA.TRIGGERS
+                WHERE TRIGGER_SCHEMA = '{}'
+         "#,
+            schema
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            ret.push(CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Trigger,
+                desc: None,
+            });
+        }
+
+        anyhow::Ok(ret)
+    }
+
     async fn list_view(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {

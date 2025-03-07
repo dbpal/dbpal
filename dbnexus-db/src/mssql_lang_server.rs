@@ -246,6 +246,7 @@ impl AstCompletionHelper for MsSqlServerDB {
 }
 
 #[cfg(test)]
+
 mod tests {
     use std::path::Path;
 

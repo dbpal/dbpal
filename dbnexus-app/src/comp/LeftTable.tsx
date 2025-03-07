@@ -1291,7 +1291,7 @@ function TableMenu(props: {
     );
     setTabs((e) => {
       setSelectTab(tabs.length);
-      return [...e, new TabContent(id, `${table}-add`, tableList)];
+      return [...e, new TabContent(id, `${table}*`, tableList)];
     });
   };
 

@@ -367,13 +367,21 @@ function SqlTableView(props: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
           let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           let row = { ...resp.data.data.find((e) => e[keyNotInTable] == id) };
           delete row[keyNotInTable];
+          let nullable = resp.data.fields.find(
+            (e) => e.field == field
+          ).nullable;
+
           setUpMenu({
             content: (
               <Menu
+                nullable={nullable}
                 fields={resp.data.fields}
                 field={field}
                 content={content}
@@ -669,6 +677,7 @@ function Menu(props: {
   tableName: string;
   row: object;
   fields;
+  nullable: boolean;
 }) {
   const {
     field,
@@ -682,6 +691,7 @@ function Menu(props: {
     addOP,
     row,
     fields,
+    nullable,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
@@ -698,7 +708,7 @@ function Menu(props: {
       setSelectTab(tabs.length);
       return [
         ...tabs,
-        new TabContent(generateRandomString(20), `${tableName}-add`, t),
+        new TabContent(generateRandomString(20), `${tableName}*`, t),
       ];
     });
   };
@@ -749,18 +759,20 @@ function Menu(props: {
           <ListItemText> {field} DESC </ListItemText>
         </MenuItem>
 
-        <MenuItem
-          onClick={() => {
-            setShowFilter(true);
-          }}
-        >
-          <ListItemIcon>
-            <FilterAltIcon></FilterAltIcon>
-          </ListItemIcon>
-          <ListItemText> Quick Filter </ListItemText>
-        </MenuItem>
-
         {content && (
+          <MenuItem
+            onClick={() => {
+              setShowFilter(true);
+            }}
+          >
+            <ListItemIcon>
+              <FilterAltIcon></FilterAltIcon>
+            </ListItemIcon>
+            <ListItemText> Quick Filter </ListItemText>
+          </MenuItem>
+        )}
+
+        {content && nullable && setNull && (
           <MenuItem
             onClick={() => {
               setNull();

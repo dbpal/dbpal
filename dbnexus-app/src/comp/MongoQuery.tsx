@@ -197,9 +197,7 @@ function MongoQuery(props: { uuid: string }) {
           pos={pos}
         ></EditorBar>
       </div>
-
       <Divider></Divider>
-
       <Chip
         color="info"
         label=" logger"
@@ -227,7 +225,6 @@ function MongoQuery(props: { uuid: string }) {
         </div>
         <EditorBar pos={loggerPos}></EditorBar>
       </div>
-
       {showLoggerLevel && (
         <Modal
           open={showLoggerLevel}
@@ -249,8 +246,8 @@ function MongoQuery(props: { uuid: string }) {
           </Box>
         </Modal>
       )}
-
-      {db && <div style={{ minHeight: '400px' }}></div>}
+      {/* // we must be db */}
+      {db && <div></div>}
     </Stack>
   );
 }
