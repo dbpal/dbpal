@@ -454,6 +454,7 @@ function SimpleResizeEditor(props: {
         }}
       >
         <Editor
+          width="99.5%"
           onMount={handleDidMount}
           language={language}
           value={value}

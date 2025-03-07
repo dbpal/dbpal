@@ -302,6 +302,7 @@ function MongoBsonEditor(props: {
         }}
       >
         <Editor
+          width="99.5%"
           onMount={handleEditorDidMount}
           language="mongoBson"
           value={content.current}

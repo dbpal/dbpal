@@ -3,7 +3,6 @@ import {
   Alert,
   Box,
   Chip,
-  Divider,
   IconButton,
   Modal,
   Stack,
@@ -178,6 +177,7 @@ function MongoQuery(props: { uuid: string }) {
       >
         <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
+            width="99.5%"
             onMount={jsCodeMount}
             language="javascript"
             options={{
@@ -219,6 +219,7 @@ function MongoQuery(props: { uuid: string }) {
             options={{
               fontSize: setting.editorFontSize,
             }}
+            width="99.5%"
             language="log"
             theme={theme}
             onMount={logEditorOnmount}

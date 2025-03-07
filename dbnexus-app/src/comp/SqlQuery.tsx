@@ -419,10 +419,12 @@ function SqlQuery(props: {
           <Editor
             language={language}
             onMount={handleEditorDidMount}
+            width="99.5%"
             value=""
             options={{
               fontSize: useContext(SettingContext).editorFontSize,
               wordWrap: 'on',
+              automaticLayout: true,
             }}
             theme={theme == 'dark' ? 'vs-dark' : 'light'}
           ></Editor>
