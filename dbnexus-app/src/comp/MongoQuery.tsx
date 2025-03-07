@@ -172,7 +172,8 @@ function MongoQuery(props: { uuid: string }) {
           resize: 'vertical',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'auto',
+          overflow: 'hidden',
+          width: '100%',
         }}
       >
         <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
@@ -197,7 +198,7 @@ function MongoQuery(props: { uuid: string }) {
           pos={pos}
         ></EditorBar>
       </div>
-      <Divider></Divider>
+
       <Chip
         color="info"
         label=" logger"
@@ -210,7 +211,7 @@ function MongoQuery(props: { uuid: string }) {
           resize: 'vertical',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'auto',
+          overflow: 'hidden',
         }}
       >
         <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
