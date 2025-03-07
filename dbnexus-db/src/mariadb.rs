@@ -74,4 +74,8 @@ mod tests {
     async fn test_query() {
         test_fns::test_query(make_test_object(make_config()).await).await;
     }
+    #[tokio::test]
+    async fn test_table_column() {
+        test_fns::test_table_column(make_test_object(make_config()).await).await;
+    }
 }

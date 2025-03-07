@@ -1493,6 +1493,7 @@ impl sqlparser::dialect::Dialect for RedisDialet {
     /// Determine if a character is a valid start character for an unquoted
     /// identifier
     fn is_identifier_start(&self, ch: char) -> bool {
+        // https://blog.csdn.net/csbysj2020/article/details/139585685
         ch.is_alphabetic()
             || ch == ':'
             || ch == '$'
@@ -1500,6 +1501,12 @@ impl sqlparser::dialect::Dialect for RedisDialet {
             || ch.is_numeric()
             || ch == '.'
             || ch == '_'
+    }
+    fn supports_string_literal_backslash_escape(&self) -> bool {
+        true
+    }
+    fn supports_unicode_string_literal(&self) -> bool {
+        true
     }
 
     /// Determine if a character is a valid unquoted identifier character

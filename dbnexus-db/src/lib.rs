@@ -27,6 +27,12 @@ pub mod redis_lang_server;
 // pub mod semantic_token;
 pub mod cassandra;
 pub mod cassandra_lang_server;
+pub mod clickhouse;
+pub mod clickhouse_lang_server;
+#[cfg(feature = "duckdb")]
+pub mod duckdb;
+#[cfg(feature = "duckdb")]
+pub mod duckdb_lang_server;
 pub mod mongo_lang_server;
 pub mod oracle_lang_server;
 pub mod sqlite;
@@ -36,6 +42,7 @@ pub mod sqlparser_completion;
 pub mod tidb;
 pub mod tidb_lang_server;
 pub mod typedef;
+
 lazy_static! {
     static ref TEST_HOST: String =
         std::env::var("NEXUS_TEST_HOST").unwrap_or("127.0.0.1".to_string());
@@ -49,7 +56,13 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            eprintln!("{} - {}", record.level(), record.args());
+            eprintln!(
+                "{}:{}  {} - {}",
+                record.file().unwrap_or_default(),
+                record.line().unwrap_or_default(),
+                record.level(),
+                record.args()
+            );
         }
     }
 

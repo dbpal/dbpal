@@ -5,10 +5,10 @@ use mongodb::{
     results::{CreateIndexResult, DeleteResult, InsertManyResult, InsertOneResult, UpdateResult},
 };
 
-use crate::mongo::Mongo;
+use crate::mongo::MongoDB;
 
 // database api
-impl Mongo {
+impl MongoDB {
     pub async fn query_db_drop(&self) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         db.drop().await?;
@@ -26,7 +26,7 @@ impl Mongo {
     }
 }
 // collection apis
-impl Mongo {
+impl MongoDB {
     pub async fn query_collection_count_docs(&self, col: &str) -> anyhow::Result<u64> {
         let db = self.get_db().await?;
         let c = db

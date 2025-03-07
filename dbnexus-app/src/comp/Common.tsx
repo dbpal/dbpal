@@ -13,7 +13,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-
+import SaveIcon from '@mui/icons-material/Save';
 import {
   languages,
   Position as EditorPositon,
@@ -36,7 +36,6 @@ import {
 } from 'react';
 import { Editor, loader, Monaco, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
-
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 
@@ -491,16 +490,16 @@ const progressBarSize = '30px';
 const progressBarSizeSmall = '20px';
 
 function MenuConnectionInfo({ uuid }) {
-  const { tabs, setSelectIndex, setTabs } = useContext(TabsSetContext);
+  const { tabs, setSelectTab, setTabs } = useContext(TabsSetContext);
 
   const handleInfo = async () => {
     let id = uuid + '-info';
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
-      setSelectIndex(index);
+      setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectIndex(tabs.length);
+        setSelectTab(tabs.length);
         return [
           ...e,
           new TabContent(
@@ -517,7 +516,7 @@ function MenuConnectionInfo({ uuid }) {
       <ListItemIcon>
         <InfoIcon></InfoIcon>
       </ListItemIcon>
-      <ListItemText> info </ListItemText>
+      <ListItemText> Info </ListItemText>
     </MenuItem>
   );
 }
@@ -582,6 +581,7 @@ function ConnConfigInfo(props: { uuid }) {
         case 'tidb':
         case 'cassandra':
         case 'oracle':
+        case 'clickhouse':
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,
@@ -727,6 +727,35 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
         format
       );
       break;
+    case DataSourceKind.ClickHouse:
+      initLanguageXXX(
+        uuid,
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [
+                /\b(COLUMN|BETWEEN|INVOKER|RESOURCE|NAMED|SEMI|ONLY|STEP|WHERE|FUNCTIONS|FREEZE|MS|SET|VISIBLE|COLUMNS|NAME|FIELDS|MATERIALIZED|CASE|DOUBLE_SHA1_PASSWORD|KEY|SQL_TSI_NANOSECOND|ROLES|CLONE|DETACHED|ASCENDING|DATE|EXCHANGE|OUTFILE|MILLISECOND|SECURITY|EMPTY|NANOSECOND|COMMIT|DELAY|PERIODIC|HOURS|ORDER|REPLICATED|VALID|COMPRESSION|PASTE|SQL_TSI_MICROSECOND|REALM|PLAINTEXT_PASSWORD|STDOUT|SQL_TSI_SECOND|MERGES|ROLE|LOCAL|CHAR|MICROSECOND|STORAGE|SYSTEM|ADD|ID|PART|MI|OUTER|PROFILES|IN|DATABASES|GLOBAL|HOUR|INJECTIVE|INTO|FOLLOWING|KEYED|GROUP|NANOSECONDS|PROTOBUF|METHODS|RESTRICT|S|SALT|CLEANUP|AZURE|NULL|QQ|SUBPARTITIONS|QUARTERS|POPULATE|IGNORE|TRIGGER|PROCESSLIST|USING|STALENESS|TRUE|FALSE|MCS|REVOKE|AUTO_INCREMENT|CURRENT_USER|DOUBLE_SHA1_HASH|CODEC|PERMANENTLY|SQL_TSI_QUARTER|SSL_CERTIFICATE|INVISIBLE|CN|PROFILE|CURRENTUSER|DROP|FETCH|UPDATE|WATCH|FORMAT|CREATE|MONTHS|SQL_TSI_WEEK|ROW|UNTIL|SOURCE|EXTENDED|COLLATE|CROSS|IS|ALGORITHM|METRICS|ACTION|UUID|MINUTES|OVERRIDABLE|FORGET|FULLTEXT|READONLY|RECOMPRESS|DICTIONARY|FOR|EXCEPT|DAY|DAYS|TTL|RIGHT|FILTER|SAN|PROJECTION|CASCADE|M|NONE|PRIVILEGES|FUNCTION|DIV|DDL|SECONDS|START|CHANGED|THAN|SAMPLE|HIERARCHICAL|TYPE|ARRAY|PREWHERE|REGEXP|TYPEOF|YEARS|SQL_TSI_YEAR|BACKUP|MONTH|RESUME|MODIFY|TOP|N|LESS|SQL_TSI_DAY|PLAN|WORKLOAD|TIME|LAYOUT|PIPELINE|MAX|BIDIRECTIONAL|INDICES|COLLECTION|AFTER|CLUSTER|ENFORCED|Q|AUTHENTICATION|ACCESS|QUALIFY|MEMORY|BOTH|CLUSTERS|H|CHANGE|CACHE|HASH|NULLS|READ|FROM|SCHEME|STRICT|SS|WHEN|INFILE|SHA256_PASSWORD|JWT|MIN|UNSET|NOT|CLUSTER_HOST_IDS|AND|SQL_TSI_HOUR|S3|CONSTRAINT|ANY|CAST|TRAILING|RECURSIVE|WINDOW|SQL_TSI_MONTH|POLICY|DEFAULT|PRECEDING|PRECISION|INHERIT|ASC|APPLY|ELSE|BY|OBJECT|MATCH|HDFS|INTERVAL|MOVE|INDEX|DD|PREFIX|FORCE|UNDROP|YY|RESET|DATA|REFRESH|TAG|LIST|MICROSECONDS|SEQUENTIAL|PARTITION|EXPRESSION|PARALLEL|SIGNED|EXPLAIN|RANDOMIZED|THEN|PART_MOVE_TO_SHARD|CHECK|TABLES|OPTION|QUOTA|SUBPARTITION|SUSPEND|GROUPING|LAST|YEAR|CHANGEABLE_IN_READONLY|TRUNCATE|REFERENCES|KERBEROS|LIMIT|TIES|BASE_BACKUP|WEEKS|KILL|ROLLUP|DESCRIBE|END|SPATIAL|ALIAS|GRANTS|INSERT|ALTER|FINAL|IF|MOD|DATABASE|BAGEXPANSION|EPHEMERAL|REPLACE|RANDOMIZE|ATTACH|RANGE|LINEAR|RESTRICTIVE|ENGINES|SETS|INTERSECT|SYNC|TAGS|MUTATION|UNSIGNED|ASSUME|BEGIN|VALUES|WATERMARK|TRACKING|DISTINCT|RENAME|FILL|PRIMARY|WRITABLE|NS|SHARD|IP|LEADING|CLEAR|DEFINER|RESTORE|FAKE|TOTALS|USE|BCRYPT_PASSWORD|LIKE|RESPECT|TO|GRANTEES|BCRYPT_HASH|STATISTICS|ADMIN|DETACH|UNBOUNDED|PULL|TEMPORARY|ON|TRANSACTION|GRANT|SQL|USER|CHARACTER|HAVING|OVER|PARTITIONS|ROLLBACK|URL|COMMENT|DEDUPLICATE|GROUPS|SECOND|SIMPLE|IMPLICIT|CUBE|FULL|VIEW|IDENTIFIED|QUERY|EXTERNAL|NEXT|SQL_TSI_MILLISECOND|SQL_TSI_MINUTE|SSH_KEY|INNER|TREE|APPEND|LIGHTWEIGHT|NEW|VARYING|D|ROWS|WRITE|GRANULARITY|STRICTLY_ASCENDING|WITH_ITEMINDEX|EVENT|AST|FIRST|MINUTE|IS_OBJECT_ID|DEPENDS|ZKPATH|EXISTS|LEFT|QUARTER|SNAPSHOT|ANTI|ENGINE|MILLISECONDS|ILIKE|LEVEL|SYNTAX|WK|INTERPOLATE|REMOVE|HOST|SHOW|CONNECTIONS|NO|TEST|SETTINGS|AS|CONST|DICTIONARIES|SETTING|OPTIMIZE|ASOF|SHA256_HASH|SKIP|SERVER|UNIQUE|DESC|DISK|EVENTS|TABLE|ASYNC|ESTIMATE|EVERY|FOREIGN|LIMITS|LIFETIME|CURRENT|DELETE|MATERIALIZE|ALL|OR|OVERRIDE|TIMESTAMP|UNION|MASK|FILESYSTEM|FILE|WITH|KEYS|OFFSET|PERSISTENT|DESCENDING|CACHES|LARGE|PARTIAL|WEEK|LIVE|WW|YYYY|ALLOWED_LATENESS|PERMISSIVE|ENABLED|NO_PASSWORD|INDEXES|HTTP|KIND|VOLUME|SELECT|UNFREEZE|MM|JOIN|LDAP|HH|DELETED)\b/,
+                'keyword',
+              ],
+              [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
+              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+              [/\'(?:\\.|[^\\\'])*\'/, 'string'],
+              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+            ],
+          },
+          brackets: [
+            { open: '(', close: ')', token: 'delimiter.parenthesis' },
+            { open: '[', close: ']', token: 'delimiter.square' },
+          ],
+        } as languages.IMonarchLanguage,
+        autoCompletion,
+        format
+      );
+      break;
+
     case DataSourceKind.TiDB:
       initLanguageXXX(
         uuid,
@@ -879,6 +908,11 @@ async function makeQueryConnInfo(uuid: string) {
     return;
   }
   let content;
+  let s = {
+    fontSize: '0.9rem',
+    color: 'gray',
+  } as CSSProperties;
+
   switch (config.conn_type) {
     case 'mysql':
     case 'mariadb':
@@ -886,32 +920,33 @@ async function makeQueryConnInfo(uuid: string) {
     case 'sqlserver':
     case 'cassandra':
     case 'tidb':
+    case 'clickhouse':
       content = (
-        <>
-          <strong>{config.conn_type}</strong>
+        <div style={s}>
+          <strong>{config.conn_type}</strong>&nbsp;
           <span>
             {config.username}@{config.host}:{config.port}/
           </span>
-        </>
+        </div>
       );
       break;
     case 'sqlite':
       content = (
-        <>
-          <strong>sqlite</strong>
+        <div style={s}>
+          <strong>sqlite</strong>&nbsp;
           <span> {config.path}</span>
-        </>
+        </div>
       );
       break;
     case 'redis':
       content = (
-        <>
-          <strong>{config.conn_type}</strong>
+        <div style={s}>
+          <strong>{config.conn_type}</strong>&nbsp;
           <span>
             {config.username} {config.username && '@'}
             {config.host}:{config.port}
           </span>
-        </>
+        </div>
       );
       break;
   }
@@ -1096,10 +1131,16 @@ function LoadStoreFileForQuery(props: {
           </Tooltip>
         </>
       )}
-      <IconButton onClick={loadFile} color="primary">
-        <AttachFileIcon />
-      </IconButton>
-      <Button onClick={handleSave}>save</Button>
+      <Tooltip title="attach file">
+        <IconButton onClick={loadFile} color="primary">
+          <AttachFileIcon />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="save query to file">
+        <IconButton onClick={handleSave} color="primary">
+          <SaveIcon />
+        </IconButton>
+      </Tooltip>
     </>
   );
 }

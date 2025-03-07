@@ -8,7 +8,6 @@ import {
   Modal,
   Stack,
   Tooltip,
-  Typography,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position, Range } from 'monaco-editor';
@@ -143,14 +142,16 @@ function MongoQuery(props: { uuid: string }) {
           </IconButton>
         </Tooltip>
 
-        <Chip
-          label={loggerlevel}
-          style={{ cursor: 'pointer', fontWeight: '800' }}
-          color="info"
-          onClick={() => {
-            setShowLoggerLevel(true);
-          }}
-        />
+        <Tooltip title="logger level">
+          <Chip
+            label={loggerlevel}
+            style={{ fontWeight: '700' }}
+            color="primary"
+            onClick={() => {
+              setShowLoggerLevel(true);
+            }}
+          />
+        </Tooltip>
         <LoadStoreFileForQuery
           openOpt={{ ...fileFilter }}
           saveOpt={{ canCreateDirectories: true, ...fileFilter }}
@@ -167,7 +168,7 @@ function MongoQuery(props: { uuid: string }) {
       <div
         style={{
           minHeight: '200px',
-          height: '500px',
+          height: '60vh',
           resize: 'vertical',
           display: 'flex',
           flexDirection: 'column',
@@ -196,10 +197,12 @@ function MongoQuery(props: { uuid: string }) {
           pos={pos}
         ></EditorBar>
       </div>
-
       <Divider></Divider>
-
-      <Typography variant="h6"> logger: </Typography>
+      <Chip
+        color="info"
+        label=" logger"
+        style={{ fontWeight: 'bold', fontSize: '1.2rem' }}
+      />
       <div
         style={{
           minHeight: '200px',
@@ -222,7 +225,6 @@ function MongoQuery(props: { uuid: string }) {
         </div>
         <EditorBar pos={loggerPos}></EditorBar>
       </div>
-
       {showLoggerLevel && (
         <Modal
           open={showLoggerLevel}
@@ -244,8 +246,8 @@ function MongoQuery(props: { uuid: string }) {
           </Box>
         </Modal>
       )}
-
-      {db && <div style={{ minHeight: '400px' }}></div>}
+      {/* // we must be db */}
+      {db && <div></div>}
     </Stack>
   );
 }

@@ -54,7 +54,15 @@ fn main() {
 }
 
 fn main_() {
-    env_logger::init();
+    {
+        use env_logger::{Builder, Env};
+
+        let mut builder = Builder::from_env(Env::default());
+        builder.format_file(true);
+        builder.format_line_number(true);
+
+        builder.try_init().unwrap();
+    }
     let app = App::new();
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
@@ -92,7 +100,10 @@ fn main_() {
                                 }
                             },
                             Err(err) => {
-                                log::error!("get password entry failed:{}", err)
+                                log::error!(
+                                    "get password entry failed:{} maybe use don't set a password",
+                                    err
+                                )
                             }
                         };
 
@@ -165,9 +176,10 @@ fn main_() {
             }
 
             if event.id.0 == "open_dev_tools" {
-                let window = handle.get_webview_window("main").unwrap();
-                window.open_devtools();
-                window.close_devtools();
+                let windows = handle.webview_windows();
+                for w in windows.values() {
+                    w.open_devtools();
+                }
             }
         })
         .plugin(tauri_plugin_dialog::init())

@@ -41,14 +41,7 @@ impl std::fmt::Display for TokenModifier {
 #[async_trait::async_trait]
 pub trait LanguageServer: BackendName {
     async fn auto_completion(
-        &self,
-        query_id: uuid::Uuid,
-        sql: &str,
-        line: u32,
-        col: u32,
-        // if use the lexer to completing
-        // right now this parameter only use in test.
-        use_lexer: bool,
+        &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn senmatic_tokens(&self, _sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
         // not used but still can be used in the future
@@ -132,6 +125,7 @@ pub enum CompletionKind {
     Policy,
     Variable,
     Rule,
+    Cluster,
 }
 
 impl Into<u32> for CompletionKind {
@@ -161,6 +155,11 @@ pub trait LexerCompletionTrait {
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         vec![]
+    }
+
+    // some backend can use a query to query this.
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(vec![])
     }
 
     fn consider_keywords() -> HashSet<String> {
@@ -216,7 +215,7 @@ pub trait LexerCompletionTrait {
                 })
                 .collect::<Vec<_>>(),
         );
-
+        ret.extend(self.get_key_words_fn().await?.into_iter());
         ret.extend(
             Self::TYPES
                 .iter()
@@ -296,11 +295,13 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName {
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>>;
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, table: &str,
+        &self, db: Option<&str>, schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn list_function(
         &self, db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
+
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
 
     async fn list_procedure(
         &self, _db: Option<&str>, _schema: Option<&str>,
@@ -308,7 +309,13 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName {
         not_support_features(self.backend_name())
     }
 
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
+    async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
 
     // postgres use `show all`
     // mysql use `show variables`

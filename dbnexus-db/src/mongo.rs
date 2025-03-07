@@ -15,27 +15,27 @@ use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp, not_support_features,
+    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
-pub struct Mongo {
+pub struct MongoDB {
     client: mongodb::Client,
     dbname: Option<String>,
     read_only: bool,
     created_databases: Arc<DashSet<String>>,
 }
 
-impl std::fmt::Debug for Mongo {
+impl std::fmt::Debug for MongoDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "mssql on:{:?}", self.dbname)
     }
 }
 
-impl Mongo {
+impl MongoDB {
     pub fn new(ds: MongoDBConfig) -> anyhow::Result<Self> {
         let mut opts = mongodb::options::ClientOptions::default();
         opts.hosts = vec![ServerAddress::Tcp {
@@ -63,22 +63,26 @@ impl Mongo {
     }
 }
 
-impl BackendName for Mongo {
+impl BackendName for MongoDB {
     fn backend_name(&self) -> &str {
         "mongo"
     }
 }
 #[async_trait::async_trait]
-impl LanguageServer for Mongo {
+impl LanguageServer for MongoDB {
     async fn auto_completion(
         &self, _uuid: uuid::Uuid, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         not_support_features(self.backend_name())
     }
 }
-
+impl ReadOnlyTrait for MongoDB {
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+}
 #[async_trait::async_trait]
-impl DBTrait for Mongo {
+impl DBTrait for MongoDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let mut names = conn
@@ -103,11 +107,13 @@ impl DBTrait for Mongo {
     async fn create_schema(
         &self, name: &str, _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         self.created_databases.insert(name.to_owned());
         anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let conn = self.get_conn().await?;
         conn.database(name).drop().await?;
         self.created_databases.remove(&name.to_owned());
@@ -239,7 +245,7 @@ fn infer_multi_value_column_names(docs: &[Document]) -> anyhow::Result<Vec<Field
 }
 
 #[async_trait::async_trait]
-impl CheckConn for Mongo {
+impl CheckConn for MongoDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         let conn = self.get_conn().await?;
@@ -248,7 +254,7 @@ impl CheckConn for Mongo {
     }
 }
 
-impl Mongo {
+impl MongoDB {
     /// normal `insert` , `update` ,`delete` works very bad with mongodb
     /// So i just impl those method on  type`Document`
     pub async fn insert(
@@ -308,7 +314,7 @@ impl Mongo {
         anyhow::Ok(ret)
     }
 
-    pub async fn delete_ids(
+    pub async fn delete_by_ids(
         &self, collection_name: &str, ids: Vec<bson::Bson>,
     ) -> anyhow::Result<DeleteResult> {
         self.can_write()?;
@@ -386,7 +392,7 @@ pub struct DocsAndCount {
     pub count: u64,
 }
 
-impl Mongo {
+impl MongoDB {
     async fn duplicate_collection_impl(
         &self, old_collection: &str, dup: &str,
     ) -> anyhow::Result<()> {
@@ -411,7 +417,7 @@ impl Mongo {
 }
 
 #[async_trait::async_trait]
-impl ServerMetas for Mongo {
+impl ServerMetas for MongoDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let admin_db = self.get_conn().await?.database("admin");
         let server_status = admin_db.run_command(doc! {"serverStatus": 1}).await?;
@@ -464,7 +470,7 @@ fn write_bson_as_json_to_file(doc: &Document, file: &str) {
     f.write(json_str.as_bytes()).unwrap();
 }
 
-impl Mongo {
+impl MongoDB {
     async fn export_stream_as_json_line(
         mut stream: mongodb::Cursor<Document>, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -526,7 +532,7 @@ impl Mongo {
     }
 }
 
-impl Mongo {
+impl MongoDB {
     pub(crate) async fn list_collection_name_by_type(
         &self, ty: Option<CollectionType>,
     ) -> anyhow::Result<Vec<String>> {
@@ -552,7 +558,7 @@ impl Mongo {
     }
 }
 
-impl Mongo {
+impl MongoDB {
     pub async fn list_time_serial_collection(&self) -> anyhow::Result<Vec<ListTable>> {
         let ts = self
             .list_collection_name_by_type(Some(CollectionType::Timeseries))
@@ -565,7 +571,7 @@ impl Mongo {
     }
 }
 
-impl Mongo {
+impl MongoDB {
     pub async fn show_columns_impl(&self, name: &str) -> anyhow::Result<Vec<Field>> {
         let db = self.get_db().await?;
         let value: Option<Document> = db.collection(name).find_one(doc! {}).await?;
@@ -579,7 +585,7 @@ impl Mongo {
 }
 
 #[async_trait::async_trait]
-impl SchemaTrait for Mongo {
+impl SchemaTrait for MongoDB {
     async fn duplicate_table(&self, old_collection: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
@@ -605,10 +611,6 @@ impl SchemaTrait for Mongo {
 
         db.run_command(cmd).await?;
         anyhow::Ok(())
-    }
-
-    fn read_only(&self) -> bool {
-        self.read_only
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -788,7 +790,10 @@ impl SchemaTrait for Mongo {
 }
 
 #[async_trait::async_trait]
-impl QuerySql for Mongo {
+impl QuerySql for MongoDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -808,7 +813,7 @@ impl QuerySql for Mongo {
     }
 }
 
-impl Mongo {
+impl MongoDB {
     pub(crate) async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
         let client = self.get_conn().await?;
         Ok(client.database(self.dbname.as_ref().unwrap()))
@@ -821,8 +826,8 @@ impl Mongo {
 
 // this used in test
 #[allow(unused)]
-pub(crate) fn make_test_object() -> Mongo {
-    let x = Mongo::new(MongoDBConfig {
+pub(crate) fn make_test_object() -> MongoDB {
+    let x = MongoDB::new(MongoDBConfig {
         host: TEST_HOST.to_string(),
         port: 27017,
         username: None,
@@ -1041,15 +1046,15 @@ mod tests {
             .await
             .unwrap();
 
-        let db_trait = &db as &dyn SchemaTrait;
-        let json = db_trait
+        let schema_trait = &db as &dyn SchemaTrait;
+        let json = schema_trait
             .export_table_to_string(&table, crate::db::ExportKind::Json { pretty: true })
             .await
             .unwrap();
         let _: serde_json::Value = serde_json::from_str(&json).unwrap();
         println!("json:{}", json);
 
-        let json_lines = db_trait
+        let json_lines = schema_trait
             .export_table_to_string(&table, crate::db::ExportKind::JsonLine)
             .await
             .unwrap();
@@ -1061,41 +1066,35 @@ mod tests {
 
     async fn test_rename() {
         let db = make_test_object();
-        let db_trait = &db as &dyn SchemaTrait;
+
         let table_name = "test_rename";
         let table_name2 = "test_rename2";
 
-        let _ = db_trait.drop_table(&table_name, false).await;
-        let _ = db_trait.drop_table(&table_name2, false).await;
+        let _ = db.drop_table(&table_name, false).await;
+        let _ = db.drop_table(&table_name2, false).await;
         let database = db.get_db().await.unwrap();
         let c = database.collection::<Document>(&table_name);
         let d = bson::doc! {"name" : 123};
         c.insert_one(d).await.unwrap();
 
-        db_trait
-            .rename_table(table_name, table_name2)
-            .await
-            .unwrap();
+        db.rename_table(table_name, table_name2).await.unwrap();
     }
     #[tokio::test]
 
     async fn test_dup() {
         let db = make_test_object();
-        let db_trait = &db as &dyn SchemaTrait;
+
         let table_name = "test_dup";
         let table_name2 = "test_dup2";
 
-        let _ = db_trait.drop_table(&table_name, false).await;
-        let _ = db_trait.drop_table(&table_name2, false).await;
+        let _ = db.drop_table(&table_name, false).await;
+        let _ = db.drop_table(&table_name2, false).await;
         let database = db.get_db().await.unwrap();
         let c = database.collection::<Document>(&table_name);
         let d = bson::doc! {"name" : 123};
         c.insert_one(d).await.unwrap();
 
-        db_trait
-            .duplicate_table(table_name, table_name2)
-            .await
-            .unwrap();
+        db.duplicate_table(table_name, table_name2).await.unwrap();
 
         let docs = db
             .show_collection_docs(table_name2, bson::doc! {}, bson::doc! {}, 1, 100)

@@ -16,8 +16,8 @@ use sqlx::{Column, Executor, Row, SqliteConnection, TypeInfo};
 use crate::MemoryLimit;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, Index,
-    IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -43,6 +43,7 @@ impl SqliteDB {
         let sql = format!(
             "SELECT sql FROM sqlite_master WHERE type = '{kind}' AND name = '{table_name}';"
         );
+        log::info!("sql:{}", sql);
         let row = sqlx::query(sql.as_str())
             .fetch_one(conn.deref_mut())
             .await?;
@@ -55,6 +56,7 @@ impl SqliteDB {
         let sql = format!(
             "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = '{table_name}';"
         );
+        log::info!("sql:{}", sql);
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
             .await?;
@@ -83,6 +85,7 @@ impl SqliteDB {
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
+        log::info!("sql:{}", sql);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -127,7 +130,7 @@ impl SqliteDB {
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
-
+        log::info!("sql:{}", sql);
         self.export_query_result_as_json_line(&sql, sender).await
     }
 
@@ -169,6 +172,7 @@ impl SqliteDB {
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
+        log::info!("sql:{}", sql);
         self.export_query_result_as_json(sql.as_str(), pretty, sender)
             .await
     }
@@ -212,6 +216,7 @@ impl SqliteDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
             .await
     }
@@ -425,6 +430,7 @@ impl SchemaTrait for SqliteDB {
             name,
             fields.join(",")
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -432,6 +438,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -457,6 +464,7 @@ impl SchemaTrait for SqliteDB {
                 "".to_owned()
             }
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
@@ -466,6 +474,7 @@ impl SchemaTrait for SqliteDB {
         use sqlx::{Executor, Statement};
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from "{view_name}" limit 1"#);
+        log::info!("sql:{}", sql);
         let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
         let ret = s
             .columns()
@@ -475,32 +484,12 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(ret)
     }
 
-    async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::CSV {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-        }
-    }
-
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
 
@@ -510,6 +499,7 @@ impl SchemaTrait for SqliteDB {
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
+        log::info!("sql:{}", sql);
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
@@ -522,6 +512,7 @@ impl SchemaTrait for SqliteDB {
             WHERE type = 'trigger' AND tbl_name = '{table_name}';
         "#
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -545,13 +536,10 @@ impl SchemaTrait for SqliteDB {
          DROP TRIGGER "{name}"
         "#
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
-    }
-
-    fn read_only(&self) -> bool {
-        self.read_only
     }
 
     async fn create_table_and_index_sql(
@@ -652,11 +640,12 @@ impl SchemaTrait for SqliteDB {
             &wheres,
             type_support_compare,
         )?;
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -679,28 +668,19 @@ impl SchemaTrait for SqliteDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => {
-                format!(
-                    "'{}'",
-                    value
-                        .map(|x| x.replace("'", "''"))
-                        .unwrap_or("null".to_string())
-                )
-            }
-            _ if text_like(typ.as_str()) => {
-                format!(
-                    "'{}'",
-                    value
-                        .map(|x| x.replace("'", "''"))
-                        .unwrap_or("null".to_string())
-                )
-            }
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
+            _ if text_like(typ.as_str()) => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) => {
                 value.unwrap_or("null").to_string()
             }
             "BLOB" => value.unwrap_or("null").to_string(),
-
             _ => {
                 let e = format!("type '{}' not handled", typ);
                 log::error!("{}", e);
@@ -719,7 +699,7 @@ impl SchemaTrait for SqliteDB {
         let fields = self.show_table_columns(table_name).await?;
 
         let mut conn = self.get_conn().await?;
-        let s = (self as &dyn crate::db::SchemaTrait).update_sql(
+        let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
             None,
             table_name,
             &fields,
@@ -727,11 +707,12 @@ impl SchemaTrait for SqliteDB {
             &wheres,
             type_support_compare,
         )?;
+        log::info!("sql:{}", sql);
 
-        let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
+        let r = sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
-            sql: s,
-            changes: r.rows_affected(),
+            sql,
+            changes: Some(r.rows_affected()),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -750,7 +731,7 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             last_insert_row_id: Some(r.last_insert_rowid()),
-            changes: r.rows_affected(),
+            changes: Some(r.rows_affected()),
             last_insert_id_string: None,
         })
     }
@@ -806,7 +787,7 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
-        log::trace!("show table sql:{}", sql);
+        log::info!("show table sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let row = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -825,7 +806,7 @@ impl SchemaTrait for SqliteDB {
         let mut conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str.clone()).await?;
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
-        log::trace!("show table sql:{}", sql);
+        log::info!("show table sql:{}", sql);
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
             .await?;
@@ -841,6 +822,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!("PRAGMA index_list({table_name})");
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(sql.as_str())
             .fetch_all(conn.deref_mut())
@@ -856,7 +838,7 @@ impl SchemaTrait for SqliteDB {
             let unique: i64 = r.get(2);
             // query create index sql
             let sql = format!("PRAGMA index_info('{name}')");
-
+            log::info!("sql:{}", sql);
             let rows = sqlx::query(sql.as_str())
                 .fetch_all(conn.deref_mut())
                 .await?;
@@ -1176,6 +1158,30 @@ fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -1433,18 +1439,28 @@ fn gen_show_sql(
 }
 
 #[cfg(test)]
+
+// this test no need clean up, we use memory sqlite db.
+pub(crate) async fn make_test_object() -> SqliteDB {
+    let path = std::env!("CARGO_MANIFEST_DIR");
+
+    let db = SqliteDB::new(format!("{path}/tests/sqlite.test.db"), false)
+        .await
+        .unwrap();
+    db
+}
+
+impl ReadOnlyTrait for SqliteDB {
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::enable_test_log;
 
-    // this test no need clean up, we use memory sqlite db.
-    async fn make_test_object() -> SqliteDB {
-        let path = std::env::var("NEXUS_TEST_SQLITE")
-            .unwrap_or("/Users/yuyang/tests/test.sqlite.db".to_string());
-        println!("db path:{:?}", path);
-        let db = SqliteDB::new(path, false).await.unwrap();
-        db
-    }
     #[ignore = "this test run by hand"]
     #[tokio::test]
     async fn test_do_has_data_query() {
@@ -1518,28 +1534,25 @@ mod tests {
 
     async fn test_rename() {
         let db = make_test_object().await;
-        let db_trait = &db as &dyn SchemaTrait;
-        let _ = db_trait.drop_table("test_rename", false).await;
-        let _ = db_trait.drop_table("test_rename2", false).await;
-        let query_id = db_trait.open_connection().await.unwrap();
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
+
+        let _ = db.drop_table("test_rename", false).await;
+        let _ = db.drop_table("test_rename2", false).await;
+        let query_id = db.open_connection().await.unwrap();
+        db.query_sql(
+            query_id,
+            r#"
                 CREATE TABLE IF NOT EXISTS test_rename (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,  
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );"#,
-            )
-            .await
-            .unwrap();
-        db_trait
-            .rename_table("test_rename", "test_rename2")
+        )
+        .await
+        .unwrap();
+        db.rename_table("test_rename", "test_rename2")
             .await
             .unwrap();
 
-        db_trait
-            .show_table("test_rename2", None, None, 1, 100, None)
+        db.show_table("test_rename2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1548,28 +1561,25 @@ mod tests {
 
     async fn test_duplicate() {
         let db = make_test_object().await;
-        let db_trait = &db as &dyn SchemaTrait;
-        let _ = db_trait.drop_table("test_duplicate", false).await;
-        let _ = db_trait.drop_table("test_duplicate2", false).await;
-        let query_id = db_trait.open_connection().await.unwrap();
-        db_trait
-            .query_sql(
-                query_id,
-                r#"
+
+        let _ = db.drop_table("test_duplicate", false).await;
+        let _ = db.drop_table("test_duplicate2", false).await;
+        let query_id = db.open_connection().await.unwrap();
+        db.query_sql(
+            query_id,
+            r#"
                 CREATE TABLE IF NOT EXISTS test_duplicate (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,  
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );"#,
-            )
-            .await
-            .unwrap();
-        db_trait
-            .rename_table("test_duplicate", "test_duplicate2")
+        )
+        .await
+        .unwrap();
+        db.rename_table("test_duplicate", "test_duplicate2")
             .await
             .unwrap();
 
-        db_trait
-            .show_table("test_duplicate2", None, None, 1, 100, None)
+        db.show_table("test_duplicate2", None, None, 1, 100, None)
             .await
             .unwrap();
     }
@@ -1580,7 +1590,7 @@ mod tests {
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
         let mut conn = db.get_conn().await.unwrap();
-        let db_trait = &db as &dyn SchemaTrait;
+        let schema_trait = &db as &dyn SchemaTrait;
         sqlx::query(
             r#"
             CREATE TABLE test_create_trigger (
@@ -1620,9 +1630,9 @@ mod tests {
         .unwrap();
         let table = "test_create_trigger";
 
-        let triggers = db_trait.list_trigger(table).await.unwrap();
+        let triggers = schema_trait.list_trigger(table).await.unwrap();
         for trigger in triggers.iter() {
-            let details = db_trait
+            let details = schema_trait
                 .show_trigger("test_create_trigger", trigger.name.as_str())
                 .await
                 .unwrap();

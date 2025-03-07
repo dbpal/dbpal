@@ -11,10 +11,10 @@ use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
     try_completion_on_syntax,
 };
-use crate::mssql::MsSqlServer;
+use crate::mssql::MsSqlServerDB;
 
 #[async_trait::async_trait]
-impl LexerCompletionTrait for MsSqlServer {
+impl LexerCompletionTrait for MsSqlServerDB {
     type Dialect = sqlparser::dialect::MsSqlDialect;
 
     const KEY_WORDS: &'static [&'static str] = KEYWORDS;
@@ -38,7 +38,7 @@ impl LexerCompletionTrait for MsSqlServer {
     }
 }
 
-impl MsSqlServer {
+impl MsSqlServerDB {
     fn db_merge_config<'a, 'b>(&'a self, db: Option<&'b str>) -> Option<&'a str>
     where
         'b: 'a,
@@ -57,7 +57,7 @@ impl MsSqlServer {
     }
 }
 #[async_trait::async_trait]
-impl LanguageServer for MsSqlServer {
+impl LanguageServer for MsSqlServerDB {
     async fn auto_completion(
         &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -98,7 +98,7 @@ impl LanguageServer for MsSqlServer {
 }
 
 #[async_trait::async_trait]
-impl AstCompletionHelper for MsSqlServer {
+impl AstCompletionHelper for MsSqlServerDB {
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
         let sql = r#"
         SELECT name AS RoleName
@@ -144,6 +144,7 @@ impl AstCompletionHelper for MsSqlServer {
             Self::ONLY_SCHEMA,
             table_name
         );
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let mut stream = conn.deref_mut().simple_query(&sql).await?;
         let mut ret = Vec::new();
@@ -182,7 +183,7 @@ impl AstCompletionHelper for MsSqlServer {
             Self::ONLY_SCHEMA,
             name
         );
-
+        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let mut s = conn.simple_query(&sql).await?;
         while let Some(s) = s.next().await {
@@ -240,11 +241,12 @@ impl AstCompletionHelper for MsSqlServer {
     }
 
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![MsSqlServer::ONLY_SCHEMA.to_string()])
+        anyhow::Ok(vec![MsSqlServerDB::ONLY_SCHEMA.to_string()])
     }
 }
 
 #[cfg(test)]
+
 mod tests {
     use std::path::Path;
 
