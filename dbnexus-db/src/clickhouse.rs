@@ -1131,7 +1131,7 @@ fn parse_type(typ: &str) -> anyhow::Result<DataType> {
 
 #[cfg(test)]
 mod tests {
-    use super::{make_test_object, parse_type};
+    use super::{get_sql_seq, make_test_object, parse_type};
     use crate::{
         db::{ColumnType, DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas},
         enable_test_log,
@@ -1611,6 +1611,31 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_get_sql_seq() {
+        let ss = get_sql_seq(
+            r#"CREATE TABLE test_types3
+            (
+                id UInt64,  
+                float32_field Float32,
+                float64_field Float64,
+                decimal32_field Decimal(10, 2), -- Decimal(精度, 小数点后位数)，这里使用 32 位存储
+                decimal64_field Decimal(18, 4), -- 64 位存储
+                decimal128_field Decimal(38, 8), -- 128 位存储
+                boolean_field UInt8 -- ClickHouse 中没有原生 Boolean 类型，通常用 UInt8 表示（0 表示 false，非 0 表示 true）
+            )
+            ENGINE = MergeTree()
+            ORDER BY id; -- 根据需要选择排序键
+        "#,
+        ) .unwrap();
+        if ss.len() != 1 {
+            for s in ss.iter() {
+                println!("{:?}", s);
+            }
+        }
+        assert!(ss.len() == 1);
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types3() {
         enable_test_log();
@@ -1786,7 +1811,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types5() {
-        // enable_test_log();
+        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
@@ -1805,7 +1830,7 @@ mod tests {
                 map_field Map(String, Int32)             -- Map 类型，键为字符串，值为 Int32
             )
             ENGINE = MergeTree()
-            ORDER BY date32_field; -- 根据 Date32 字段排序
+            ORDER BY date32_field;  
         "#,
             )
             .await
@@ -1964,6 +1989,16 @@ mod tests {
             .await
             .unwrap();
         assert!(x.iter().any(|x| x.is_err()));
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_query_empty() {
+        let db = make_test_object();
+        let query_id = db.open_connection().await.unwrap();
+        let x = db
+            .query_sql(query_id, " --   this is comment.")
+            .await
+            .unwrap();
+        assert!(x.iter().all(|x| x.is_ok()));
     }
     #[test]
     fn test_parse_type() {

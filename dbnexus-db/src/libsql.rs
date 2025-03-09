@@ -1,13 +1,11 @@
-#![allow(unused)]
 use std::{
-    borrow::Cow, collections::HashMap, future::Future, ops::Deref, result, sync::Arc,
-    time::Duration,
+    borrow::Cow, collections::HashMap, future::Future, ops::Deref, sync::Arc, time::Duration,
 };
 
 use bb8::ManageConnection;
-use cdrs_tokio::types::rows;
+
 use dashmap::DashMap;
-use libsql::{Connection, Row, Rows, ValueType, params};
+use libsql::{Connection, Row, ValueType, params};
 
 use crate::{
     datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce},
@@ -164,14 +162,14 @@ impl LibSqlDB {
             r#"SELECT sql from sqlite_master where type='table' and name='{}'"#,
             table_name
         );
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let row = conn.prepare(&s).await?.query_row(params!()).await?;
         let sql: String = row.get(0)?;
         extract_auto_increment_key(sql.as_str())
     }
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let mut s = format!(r#"SELECT count(1) from "{name}" "#);
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
@@ -363,7 +361,6 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
-        use sqlx::{Executor, Statement};
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from "{view_name}" limit 1"#);
         log::info!("sql:{}", sql);
@@ -382,13 +379,13 @@ impl SchemaTrait for LibSqlDB {
         }
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
         anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
         conn.execute(&sql, params!()).await?;
@@ -404,7 +401,7 @@ impl SchemaTrait for LibSqlDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let mut rows = conn.query(&sql, params!()).await?;
         let mut ret = Vec::new();
         while let Some(row) = rows.next().await? {
@@ -478,7 +475,7 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let mut rows = conn
             .query(
                 r#"
@@ -513,7 +510,7 @@ impl SchemaTrait for LibSqlDB {
             r#"DROP TABLE "{table}" {}"#,
             if cascade { " CASCADE " } else { "" }
         );
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         conn.execute(&s, params!()).await?;
 
         anyhow::Ok(())
@@ -569,7 +566,7 @@ impl SchemaTrait for LibSqlDB {
                 None => "null".to_string(),
             },
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
-            _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) => {
+            _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
                 value.unwrap_or("null").to_string()
             }
             "BLOB" => value.unwrap_or("null").to_string(),
@@ -590,7 +587,7 @@ impl SchemaTrait for LibSqlDB {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
 
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
             None,
             table_name,
@@ -600,10 +597,10 @@ impl SchemaTrait for LibSqlDB {
             type_support_compare,
         )?;
         log::info!("sql:{}", sql);
-        let r = conn.query(&sql, params!()).await?;
+        let changes = conn.execute(&sql, params!()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            changes: Some(conn.changes()),
+            changes: Some(changes),
             last_insert_row_id: None,
             last_insert_id_string: None,
         })
@@ -617,18 +614,18 @@ impl SchemaTrait for LibSqlDB {
         let sql =
             (self as &dyn crate::db::SchemaTrait).insert_sql(None, table_name, &fields, &values)?;
         log::trace!("insert sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let r = conn.execute(&sql, params!()).await?;
+        let conn = self.get_conn().await?;
+        let changes = conn.execute(&sql, params!()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             last_insert_row_id: Some(conn.last_insert_rowid()),
-            changes: Some(conn.changes()),
+            changes: Some(changes),
             last_insert_id_string: None,
         })
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let  mut  rows = conn.query ("SELECT name FROM sqlite_master WHERE type='table' AND name not in ('sqlite_sequence' , 'sqlite_stat1' , 'sqlite_stat4') ORDER BY name " , params!( )).await?;
         let mut ret = Vec::new();
         while let Some(r) = rows.next().await? {
@@ -644,7 +641,7 @@ impl SchemaTrait for LibSqlDB {
         let increment_key = increment_key.as_ref().map(|x| x.as_str());
 
         let s = format!(r#"pragma table_info("{table_name}")"#);
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let mut rows = conn.query(&s, params!()).await?;
         let mut ret = Vec::new();
         // cid name type     notnull  delt_value pk
@@ -677,7 +674,7 @@ impl SchemaTrait for LibSqlDB {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let mut query_rows = conn.query(&sql, params!()).await?;
         let mut rows = Vec::with_capacity(page_size);
         while let Some(r) = query_rows.next().await? {
@@ -692,7 +689,7 @@ impl SchemaTrait for LibSqlDB {
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str.clone()).await?;
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
@@ -716,7 +713,7 @@ impl SchemaTrait for LibSqlDB {
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!("PRAGMA index_list({table_name})");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let mut rows = conn.query(&sql, params!()).await?;
 
         // seq name unique origin partial
@@ -752,7 +749,7 @@ impl LibSqlDB {
     async fn create_table_or_view_sql(
         &self, table_name: &str, kind: &str,
     ) -> anyhow::Result<String> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let sql = format!(
             "SELECT sql FROM sqlite_master WHERE type = '{kind}' AND name = '{table_name}';"
         );
@@ -763,7 +760,7 @@ impl LibSqlDB {
     }
 
     async fn get_table_indexes_sql(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let sql = format!(
             "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = '{table_name}';"
         );
@@ -791,7 +788,7 @@ impl LibSqlDB {
                 sender.send("\n".into()).await?;
             }
         }
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
@@ -817,7 +814,7 @@ impl LibSqlDB {
     async fn export_query_result_as_json_line(
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let mut stream = conn.query(sql, params!()).await?;
         while let Some(row) = stream.next().await? {
             let value = encode_row_as_json(&row)?;
@@ -840,7 +837,7 @@ impl LibSqlDB {
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
 
         let mut stream = conn.query(&sql, params!()).await?;
 
@@ -883,7 +880,7 @@ impl LibSqlDB {
         &self, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn().await?;
 
         let mut stream = conn.query(&sql, params!()).await?;
         let mut first = true;
@@ -1138,7 +1135,7 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
-        let mut query_id = db.open_connection().await.unwrap();
+        let query_id = db.open_connection().await.unwrap();
 
         db.query_sql(
             query_id,
@@ -1193,7 +1190,6 @@ mod tests {
     async fn test_export_table() {
         let db = make_test_object().await;
 
-        let mut conn = db.get_conn().await.unwrap();
         let table_name = "Persons";
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();

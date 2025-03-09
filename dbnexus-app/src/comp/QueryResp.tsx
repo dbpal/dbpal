@@ -225,7 +225,9 @@ function MultiQueryResp_(props: { data: any[] }) {
     setValue(newValue);
   };
   useEffect(() => {
-    setValue(0);
+    if (value >= data.length) {
+      setValue(0);
+    }
   }, [data]);
   let idPrefix = generateRandomString(10);
   const vis = useContext(VisiableContext);

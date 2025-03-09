@@ -147,15 +147,19 @@ pub fn sql_to_sql_seq(
         let mut parser = parser.try_with_sql(sql)?;
         let mut ret = Vec::new();
         while parser.peek_token().token != Token::EOF {
-            while Token::SemiColon == parser.peek_token() {
+            while Token::SemiColon == parser.peek_token()
+                || matches!(parser.peek_token().token, Token::Whitespace(_))
+            {
                 parser.next_token();
             }
             if parser.peek_token() == Token::EOF {
                 break;
             }
+
             let start = parser.peek_token();
             let stmt = parser.parse_statement()?;
             let kind = statement_kind(&stmt)?;
+
             let sql = get_sql(&lines, sql, start.span.start, {
                 let t = parser.peek_token();
                 if t.token == Token::EOF {
@@ -170,7 +174,9 @@ pub fn sql_to_sql_seq(
     }
     match cut_sql_to_each_statement_ast(sql, dialect, statement_kind_stmt) {
         Ok(x) => return Ok(x),
-        Err(_) => {}
+        Err(err) => {
+            log::error!("on ast failedmerr:{}", err.to_string());
+        }
     }
     // cut sql by semicolon
     fn cut_sql_to_each_statement_semi_colon(
@@ -178,9 +184,15 @@ pub fn sql_to_sql_seq(
     ) -> anyhow::Result<Vec<SqlWithKind>> {
         let lines = line_index::LineIndex::new(sql);
         let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql).tokenize_with_location()?;
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|x| !matches!(x.token, Token::Whitespace(_)))
+            .collect();
+
         if tokens.len() == 0 {
             anyhow::bail!("empty sql.");
         }
+
         log::trace!("tokens:{:?}", tokens);
 
         let mut start = &tokens[0];
@@ -188,7 +200,9 @@ pub fn sql_to_sql_seq(
         let mut ret = Vec::new();
         for index in 1..tokens.len() {
             let t = &tokens[index];
-            if t.token == Token::SemiColon || index == tokens.len() - 2 {
+
+            // last one or `;`
+            if t.token == Token::SemiColon || index == tokens.len() - 1 {
                 let sql = get_sql(
                     &lines,
                     sql,
