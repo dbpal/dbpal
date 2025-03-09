@@ -957,6 +957,9 @@ function MongoTableList(props: {
           let content = (target as HTMLDivElement).innerHTML;
           let field = (target as HTMLDivElement).getAttribute('data-field');
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <MongoTableListContextMenu

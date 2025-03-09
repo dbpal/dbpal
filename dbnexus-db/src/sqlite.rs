@@ -23,7 +23,7 @@ use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 
-fn type_support_compare(_typ: &str) -> bool {
+pub(crate) fn type_support_compare(_typ: &str) -> bool {
     true
 }
 
@@ -319,7 +319,7 @@ fn test_extract_trigger_base_on_lexer() {
     }
 }
 
-fn extract_trigger_detail_from_sql(sql: String) -> anyhow::Result<TriggerDetail> {
+pub(crate) fn extract_trigger_detail_from_sql(sql: String) -> anyhow::Result<TriggerDetail> {
     extract_trigger_base_on_lexer(sql)
 }
 
@@ -894,7 +894,7 @@ fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
     ret
 }
 
-fn encode_bytes(bs: &[u8]) -> String {
+pub(crate) fn encode_bytes(bs: &[u8]) -> String {
     format!("X'{}'", hex::encode_upper(bs))
 }
 
@@ -977,8 +977,7 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
     }
     anyhow::Ok(serde_json::Value::Object(values))
 }
-
-fn integer_like(typ: &str) -> bool {
+pub(crate) fn integer_like(typ: &str) -> bool {
     typ == "INT"
         || typ == "INTEGER"
         || typ == "TINYINT"
@@ -990,11 +989,11 @@ fn integer_like(typ: &str) -> bool {
         || typ == "INT8"
 }
 
-fn numreic_like(typ: &str) -> bool {
+pub(crate) fn numreic_like(typ: &str) -> bool {
     return typ == "NUMERIC" || typ.starts_with("DECIMAL");
 }
 
-fn text_like(typ: &str) -> bool {
+pub(crate) fn text_like(typ: &str) -> bool {
     return typ.starts_with("CHARACTER")
         || typ.starts_with("VARCHAR")
         || typ.starts_with("VARYING CHARACTER")
@@ -1005,7 +1004,7 @@ fn text_like(typ: &str) -> bool {
         || typ == "CLOB";
 }
 
-fn real_like(typ: &str) -> bool {
+pub(crate) fn real_like(typ: &str) -> bool {
     typ == "REAL" || typ == "DOUBLE" || typ == "DOUBLE PRECISION" || typ == "FLOAT"
 }
 
@@ -1127,7 +1126,7 @@ impl SqliteDB {
     }
 }
 
-fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
+pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     use sqlparser::dialect::SQLiteDialect;
     let ss = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, sql)?;
     if ss.len() != 1 {
@@ -1422,7 +1421,7 @@ fn test_extract_index() {
     );
 }
 
-fn gen_show_sql(
+pub(crate) fn gen_show_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
@@ -1531,7 +1530,6 @@ mod tests {
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
     #[tokio::test]
-
     async fn test_rename() {
         let db = make_test_object().await;
 
@@ -1558,7 +1556,6 @@ mod tests {
     }
 
     #[tokio::test]
-
     async fn test_duplicate() {
         let db = make_test_object().await;
 
@@ -1584,13 +1581,12 @@ mod tests {
             .unwrap();
     }
     #[tokio::test]
-
     async fn test_triggers() {
         let db = make_test_object().await;
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
         let mut conn = db.get_conn().await.unwrap();
-        let schema_trait = &db as &dyn SchemaTrait;
+
         sqlx::query(
             r#"
             CREATE TABLE test_create_trigger (
@@ -1630,9 +1626,9 @@ mod tests {
         .unwrap();
         let table = "test_create_trigger";
 
-        let triggers = schema_trait.list_trigger(table).await.unwrap();
+        let triggers = db.list_trigger(table).await.unwrap();
         for trigger in triggers.iter() {
-            let details = schema_trait
+            let details = db
                 .show_trigger("test_create_trigger", trigger.name.as_str())
                 .await
                 .unwrap();

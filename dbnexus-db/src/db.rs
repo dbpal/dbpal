@@ -496,6 +496,7 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
+
     async fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         let logs = QueryLog::get_instance()
             .get(&id)

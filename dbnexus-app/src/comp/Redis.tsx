@@ -882,6 +882,10 @@ function RedisSetTable(props: {
           const { currentTarget, target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RedisSetTableContextMenu
@@ -1172,6 +1176,10 @@ function RedisListTable(props: {
           const { currentTarget, target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RedisListTableContextMenu
@@ -1390,6 +1398,10 @@ function RedisZsetTable(props: {
           const { currentTarget, target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RedisZSetTableContextMenu
@@ -1630,6 +1642,10 @@ function RedisHashTable(props: {
           const { currentTarget, target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RedisHashTableContextMenu

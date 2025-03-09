@@ -6,8 +6,9 @@ import {
   MenuItem,
   MenuList,
   Divider,
+  ButtonGroup,
 } from '@mui/material';
-
+import CloseIcon from '@mui/icons-material/Close';
 import {
   calMenuStyle,
   ContextMenuContext,
@@ -151,32 +152,45 @@ function TabsWithContent_(props: {
         >
           {tabs.map((tab, index) => {
             return (
-              <Button
+              <ButtonGroup
                 key={tab.id}
-                onContextMenu={(e) => {
-                  setUpMenu({
-                    content: (
-                      <TabsMenu
-                        index={index}
-                        handleClose={handleClose}
-                        setTabs={setTabs}
-                        tabsLength={tabs.length}
-                        changeTab={changeTab}
-                        selectIndex={selectIndex}
-                        setHideAll={setHideAll}
-                      ></TabsMenu>
-                    ),
-                    style: calMenuStyle(e, 100),
-                  });
-                }}
-                variant={index == selectIndex ? 'contained' : 'text'}
-                color={index == selectIndex ? 'info' : 'inherit'}
-                onClick={() => {
-                  changeTab(index);
-                }}
+                style={{ borderRadius: '8px', border: '1px solid gray' }}
               >
-                {tab.header}
-              </Button>
+                <Button
+                  onContextMenu={(e) => {
+                    setUpMenu({
+                      content: (
+                        <TabsMenu
+                          index={index}
+                          handleClose={handleClose}
+                          setTabs={setTabs}
+                          tabsLength={tabs.length}
+                          changeTab={changeTab}
+                          selectIndex={selectIndex}
+                          setHideAll={setHideAll}
+                        ></TabsMenu>
+                      ),
+                      style: calMenuStyle(e, 100),
+                    });
+                  }}
+                  sx={{ fontSize: '0.85rem' }}
+                  variant={index == selectIndex ? 'contained' : 'text'}
+                  color={index == selectIndex ? 'primary' : 'inherit'}
+                  onClick={() => {
+                    changeTab(index);
+                  }}
+                >
+                  {tab.header}
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleClose(index);
+                  }}
+                  variant="text"
+                >
+                  <CloseIcon />
+                </Button>
+              </ButtonGroup>
             );
           })}
         </Stack>

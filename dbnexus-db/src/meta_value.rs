@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
-use serde::ser::SerializeStruct;
 use serde::Serializer;
+use serde::ser::SerializeStruct;
 /// meta value can used in various place.
 #[derive()]
 pub struct MetaValue {

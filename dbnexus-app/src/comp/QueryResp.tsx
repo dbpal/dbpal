@@ -131,7 +131,9 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
           const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let field = (target as HTMLDivElement).getAttribute('data-field');
-
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RespContextMenu

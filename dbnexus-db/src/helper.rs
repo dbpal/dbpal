@@ -181,12 +181,14 @@ pub fn sql_to_sql_seq(
         if tokens.len() == 0 {
             anyhow::bail!("empty sql.");
         }
+        log::trace!("tokens:{:?}", tokens);
 
         let mut start = &tokens[0];
+
         let mut ret = Vec::new();
         for index in 1..tokens.len() {
             let t = &tokens[index];
-            if t.token == Token::SemiColon || t.token == Token::EOF {
+            if t.token == Token::SemiColon || index == tokens.len() - 2 {
                 let sql = get_sql(
                     &lines,
                     sql,

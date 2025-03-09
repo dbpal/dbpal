@@ -23,6 +23,36 @@ pub struct MysqlDBConfig {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+
+pub struct LibSqlDBConfig {
+    pub replica: bool,
+    pub source: LibSqlDBConfigSouce,
+    pub read_only: bool,
+}
+#[derive(Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[serde(tag = "source", rename_all = "lowercase")]
+pub enum LibSqlDBConfigSouce {
+    Local {
+        path: String,
+    },
+    Remote {
+        url: String,
+        auth_token: String,
+        path: String,
+    },
+}
+
+impl std::fmt::Debug for LibSqlDBConfigSouce {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LibSqlDBConfigSouce::Local { path } => write!(f, "{}", path),
+            LibSqlDBConfigSouce::Remote { url, path, .. } => write!(f, "url:{} path:{}", url, path),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+
 pub struct ClickHouseConfig {
     pub host: String,
     pub port: u16,

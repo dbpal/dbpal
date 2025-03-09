@@ -17,7 +17,7 @@ use crate::{
         ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
         ty_is_float, ty_is_int,
     },
-    helper::{SqlKind, SqlWithKind, create_csv, sql_to_sql_seq},
+    helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
 };
 
@@ -168,13 +168,27 @@ impl ClickHouseDB {
                 .collect(),
         )
     }
-}
 
-impl ClickHouseDB {
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!("show tables from {}", db);
         let conn = self.get_conn()?;
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
+        // delete materiazlied view
+
+        let mut ret = ret.into_iter().collect::<HashSet<_>>();
+
+        let m = self
+            .list_materialized_view_impl(db)
+            .await?
+            .into_iter()
+            .map(|x| x.name)
+            .collect::<Vec<_>>();
+
+        for name in m.iter() {
+            ret.remove(name);
+        }
+        let mut ret = ret.into_iter().collect::<Vec<_>>();
+        ret.sort();
         anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
     }
 }
@@ -706,8 +720,8 @@ impl ServerMetas for ClickHouseDB {
         anyhow::Ok(ret)
     }
 }
+
 fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
-    // TODO use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::ClickHouseDialect {};
     sql_to_sql_seq(
         sql,
@@ -794,6 +808,10 @@ impl QuerySql for ClickHouseDB {
     fn clone(&self) -> Box<dyn QuerySql> {
         Box::new(Clone::clone(self))
     }
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
+    }
+
     async fn query_sql(
         &self, _query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -804,6 +822,7 @@ impl QuerySql for ClickHouseDB {
         let mut ret = Vec::new();
 
         for sql in sqls.iter() {
+            log::info!("query sql kind:{:?} sql:{}", sql.kind, sql.sql);
             match sql.kind {
                 SqlKind::Query => {
                     let x = self.query_as_json(&sql.sql).await;
@@ -1063,8 +1082,15 @@ impl ClickHouseDB {
             self.config.host,
             self.config.port
         );
-        let uri = format!("{}/?query={} format json", host, query);
-
+        let uri = format!(
+            "{}/?query={} format json{}",
+            host,
+            query,
+            match &self.config.db {
+                Some(x) => format!("&database={}", x),
+                None => "".to_string(),
+            }
+        );
         log::info!("url:{}", uri);
 
         let response = self
@@ -1074,7 +1100,7 @@ impl ClickHouseDB {
             .send()
             .await?;
         if !response.status().is_success() {
-            anyhow::bail!("response not ok:{:?}", response)
+            anyhow::bail!("response not ok:body:{}", response.text().await?)
         }
         let ret = response.json::<JsonResp>().await?;
         anyhow::Ok(ret)
@@ -1668,7 +1694,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types4() {
-        // enable_test_log();
+        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
@@ -1927,6 +1953,18 @@ mod tests {
         }
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_error_query() {
+        // enable_test_log();
+        let db = make_test_object();
+        let query_id = db.open_connection().await.unwrap();
+
+        let x = db
+            .query_sql(query_id, "SELECT * fro test_types4")
+            .await
+            .unwrap();
+        assert!(x.iter().any(|x| x.is_err()));
+    }
     #[test]
     fn test_parse_type() {
         let x = parse_type("Nullable(String) ").unwrap();

@@ -395,12 +395,16 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
         onContextMenu: (e) => {
           const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
-          let filed = (target as HTMLDivElement).getAttribute('data-field');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <Menu
                 content={content}
-                field={filed}
+                field={field}
                 setSort={setSortModel}
               ></Menu>
             ),
