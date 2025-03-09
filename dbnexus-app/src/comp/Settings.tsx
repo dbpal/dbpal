@@ -265,13 +265,13 @@ const components: Components<
 
 const lightTheme = createTheme({ palette: { mode: 'light' }, components });
 const rowSelected = {
-  '&.Mui-selected': {
-    backgroundColor: '#1976d2', // 蓝色背景
-    color: '#ffffff', // 白色字体
-    '&:hover': {
-      backgroundColor: '#115293', // 悬停时的背景色
-    },
-  },
+  // '&.Mui-selected': {
+  //   backgroundColor: '#1976d2', // 蓝色背景
+  //   color: '#ffffff', // 白色字体
+  //   '&:hover': {
+  //     backgroundColor: '#115293', // 悬停时的背景色
+  //   },
+  // },
 };
 
 //@ts-ignore

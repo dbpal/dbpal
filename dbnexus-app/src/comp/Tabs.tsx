@@ -154,7 +154,10 @@ function TabsWithContent_(props: {
             return (
               <ButtonGroup
                 key={tab.id}
-                style={{ borderRadius: '8px', border: '1px solid gray' }}
+                style={{
+                  borderRadius: '8px',
+                  border: '1px solid skyblue',
+                }}
               >
                 <Button
                   onContextMenu={(e) => {
