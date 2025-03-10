@@ -16,7 +16,7 @@ import { WelCome } from './WelCome';
 import { modalStyle, tabsHasId } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
-import AddConfig from './AddConnection.tsx';
+import { AddConfig } from './AddConnection.tsx';
 import { ModifySettings, SettingComp } from './Settings.tsx';
 import {
   appStore,

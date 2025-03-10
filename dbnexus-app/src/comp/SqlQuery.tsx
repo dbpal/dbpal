@@ -10,9 +10,10 @@ import {
   Modal,
   Paper,
   Stack,
+  TextField,
   Tooltip,
 } from '@mui/material';
-
+import FavoriteIcon from '@mui/icons-material/Favorite';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
@@ -106,9 +107,21 @@ function SqlQuery(props: {
   handelTextAndPositionChange?: (text: string, pos: Position) => void;
   connectInfo?: ReactNode;
   makeConn: MakeIQueryConn;
+  value?: string;
+  saveFavoriteSql: (name: string, sql: string) => void;
 }) {
-  let { handelTextAndPositionChange, language, connectInfo, makeConn } = props;
+  let {
+    handelTextAndPositionChange,
+    language,
+    connectInfo,
+    makeConn,
+    value,
+    saveFavoriteSql,
+  } = props;
   const [resp, setResp] = useState([]);
+  const [showSetFavoriteName, setShowFavoriteName] = useState(false);
+  const [favoriteName, setFavoriteName] = useState('');
+
   let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
@@ -118,6 +131,7 @@ function SqlQuery(props: {
   const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
     null
   );
+
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
@@ -174,7 +188,6 @@ function SqlQuery(props: {
         .then(() => {
           showNotification('success', 'Reconnect OK');
         })
-
         .catch((e) => {
           showNotification('error', 'Reconnect Failure', e);
         });
@@ -374,6 +387,32 @@ function SqlQuery(props: {
               <ArrowCircleDownRoundedIcon />
             </IconButton>
           </Tooltip>
+          <Tooltip
+            title={
+              !favoriteName
+                ? 'save sql to favorite.'
+                : `save favorite sql as named '${favoriteName}'`
+            }
+          >
+            <IconButton
+              disabled={loading || conn == null}
+              onClick={() => {
+                const value = editor.current.getValue();
+                if (!value) {
+                  showNotification('error', "can't save empty statement.");
+                  return;
+                }
+                if (favoriteName) {
+                  saveFavoriteSql(favoriteName, value);
+                } else {
+                  setShowFavoriteName(true);
+                }
+              }}
+              color="primary"
+            >
+              <FavoriteIcon />
+            </IconButton>
+          </Tooltip>
 
           {conn && conn.isOracle && <OracleCommit conn={conn} />}
           <LoadStoreFileForQuery
@@ -416,7 +455,7 @@ function SqlQuery(props: {
             language={language}
             onMount={handleEditorDidMount}
             width="99.5%"
-            value=""
+            value={value}
             options={{
               fontSize: useContext(SettingContext).editorFontSize,
               wordWrap: 'on',
@@ -452,7 +491,6 @@ function SqlQuery(props: {
                   const sql = editor.current
                     .getModel()
                     .getValueInRange(editor.current.getSelection());
-
                   await conn.exportQueryResult(sql, kind, file);
                   showNotification('success', 'export OK');
                 } catch (e) {
@@ -461,6 +499,47 @@ function SqlQuery(props: {
               }}
               supportCsvHeader={true}
             ></ExportView>
+          </Box>
+        </Modal>
+      )}
+      {showSetFavoriteName && (
+        <Modal
+          open={showSetFavoriteName}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowFavoriteName(false);
+          }}
+        >
+          <Box sx={modalStyle} width="600px">
+            <Stack spacing={1}>
+              <TextField
+                fullWidth
+                label="name"
+                value={favoriteName}
+                onChange={(e) => {
+                  setFavoriteName(e.target.value);
+                }}
+                size="small"
+                required
+              ></TextField>
+              <Stack direction="row">
+                <IconButton
+                  color="primary"
+                  onClick={() => {
+                    if (!favoriteName) {
+                      showNotification('error', "name can't be empty");
+                      return;
+                    }
+                    saveFavoriteSql(favoriteName, editor.current.getValue());
+                    setShowFavoriteName(false);
+                  }}
+                >
+                  <FavoriteIcon> </FavoriteIcon>
+                </IconButton>
+              </Stack>
+            </Stack>
           </Box>
         </Modal>
       )}

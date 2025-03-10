@@ -79,6 +79,7 @@ import {
   datagridContainerHeight,
   DataSourceKind,
   generateRandomString,
+  handleCopyToClipboard,
   secondConfirm,
   TabsSetContext,
   UuidContext,
@@ -1162,40 +1163,54 @@ function ColumnsTabContent(props: {
   useEffect(() => {
     handleReload();
   }, []);
-  let cols = [
-    { field: 'field' },
-    { field: 'typ' },
-    { field: 'nullable' },
-    {
-      field: 'is_primary',
-      renderHeader: () => {
-        return 'Primary';
+  let cols = useMemo(() => {
+    return [
+      { field: 'field' },
+      { field: 'typ' },
+      { field: 'nullable' },
+      {
+        field: 'is_primary',
+        renderHeader: () => {
+          return 'Primary';
+        },
       },
-    },
-    {
-      field: 'is_auto_increment',
-      renderHeader: () => {
-        return 'auto increment';
+      {
+        field: 'is_auto_increment',
+        renderHeader: () => {
+          return 'auto increment';
+        },
       },
-    },
-    { field: 'sortable' },
-  ] as GridColDef[];
+      { field: 'sortable' },
+    ] as GridColDef[];
+  }, []);
   cols.forEach((e) => {
     const width = columnWidths.getWidth(e.field);
     if (width) {
       e.width = width;
     }
   });
-
   const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
 
-  function Menu(props: { col: string }) {
-    const { col } = props;
+  function Menu(props: { col: string; content: string }) {
+    const { col, content } = props;
 
     return (
       <Paper>
         <MenuList>
+          {content && (
+            <MenuItem
+              onClick={() => {
+                handleCopyToClipboard(content, showNotification);
+              }}
+            >
+              <ListItemIcon>
+                <ContentCopyIcon></ContentCopyIcon>
+              </ListItemIcon>
+              <ListItemText> Copy </ListItemText>
+            </MenuItem>
+          )}
+
           <MenuItem
             onClick={() => {
               let r = fields.find((e) => e.field == col);
@@ -1235,9 +1250,10 @@ function ColumnsTabContent(props: {
               return;
             }
           }
+          let content = (target as HTMLDivElement).innerHTML;
           const col = (currentTarget as HTMLDivElement).getAttribute('data-id');
           setUpMenu({
-            content: <Menu col={col}></Menu>,
+            content: <Menu col={col} content={content}></Menu>,
             style: calMenuStyle(e, 100),
           });
         },

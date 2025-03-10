@@ -1,6 +1,8 @@
 import {
   Box,
+  Button,
   CircularProgress,
+  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -8,9 +10,10 @@ import {
   Modal,
   Paper,
   Stack,
+  Tooltip,
 } from '@mui/material';
-import { useContext, useEffect, useState } from 'react';
-
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import {
   progressBarSizeSmall,
   appStore,
@@ -26,10 +29,11 @@ import {
   makeQueryConnInfo,
   QueryConn,
   treeItemCommonStyle,
+  SettingContext,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
-
+import { PiFileSqlFill } from 'react-icons/pi';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -40,14 +44,19 @@ import { debug } from './debug';
 import { TabContent } from './Tabs';
 import {
   calMenuStyle,
+  columnWidths,
   ConnTypeContext,
   connTypeToDataSourceKind,
   ContextMenuContext,
+  datagridContainerHeight,
   DataSourceKind,
+  FavoriteSql,
   generateRandomString,
+  handleCopyToClipboard,
   TabsSetContext,
   UuidContext,
 } from './helper';
+
 import { SqlQuery } from './SqlQuery';
 import { RedisQuery } from './RedisQuery';
 import { MongoQuery } from './MongoQuery.tsx';
@@ -66,10 +75,17 @@ import { RedisTables, TablesTree, TablesType } from './LeftTable.tsx';
 import { ViewKind, ViewsTree } from './LeftView.tsx';
 import { CassaandraAggregatesTree, UdfsTree } from './LeftUdf.tsx';
 import { ProceduresTree } from './LeftProcedure.tsx';
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponentsProps,
+  GridSortModel,
+} from '@mui/x-data-grid';
 
 function Left_() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
+  const [showFavoriteSql, setShowFavoriteSql] = useState(false);
 
   const handleReload = async () => {
     (await appStore())
@@ -84,10 +100,10 @@ function Left_() {
         showNotification('error', 'list all config failure', e);
       });
   };
+
   useEffect(() => {
     handleReload();
   }, []);
-
   appStore().then((appstore) => {
     appstore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
       handleReload();
@@ -100,6 +116,21 @@ function Left_() {
         overflow: 'auto',
       }}
     >
+      <Stack
+        direction="row"
+        style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}
+      >
+        <Tooltip title="Favorite sql statement">
+          <IconButton
+            onClick={() => {
+              setShowFavoriteSql(true);
+            }}
+          >
+            <PiFileSqlFill style={{ fontSize: '3rem' }}> </PiFileSqlFill>
+          </IconButton>
+        </Tooltip>
+      </Stack>
+
       <Stack>
         {configs.map((e) => {
           return (
@@ -118,7 +149,172 @@ function Left_() {
           );
         })}
       </Stack>
+
+      {showFavoriteSql && (
+        <Modal
+          open={showFavoriteSql}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowFavoriteSql(false);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <FavoriteSqlList
+              handleClose={() => {
+                setShowFavoriteSql(false);
+              }}
+            ></FavoriteSqlList>
+          </Box>
+        </Modal>
+      )}
       <div style={{ minHeight: '300px' }}></div>
+    </Stack>
+  );
+}
+
+function FavoriteSqlList(props: { handleClose }) {
+  const { handleClose } = props;
+  const { showNotification } = useContext(NotificationContext);
+  const [sqls, setSqls] = useState<FavoriteSql[]>([]);
+  const [sortModel, setSortModel] = useState<GridSortModel>([
+    { field: 'createTime', sort: 'desc' },
+  ]);
+  const handleReload = async (showOK) => {
+    try {
+      const store = await appStore();
+      let obj = await store.get<object>(FavoriteSql.key);
+
+      if (!obj) {
+        obj = {};
+      }
+      let sqls = [];
+      Object.values(obj).forEach((e) => {
+        sqls.push(e);
+      });
+      setSqls(sqls);
+    } catch (e) {
+      showNotification('error', 'list all favorite sql failed', e);
+      return;
+    }
+    if (showOK) {
+      showNotification('success', 'fetch favorite sql ok');
+    }
+  };
+
+  const onSortModelChange = useCallback((e) => {
+    setSortModel(e);
+  }, []);
+
+  useEffect(() => {
+    handleReload(false);
+  }, []);
+  const { setUpMenu } = useContext(ContextMenuContext);
+  function Menu(props: { content: string }) {
+    const { content } = props;
+    return (
+      <Paper>
+        <MenuList>
+          {content && (
+            <MenuItem
+              onClick={() => {
+                handleCopyToClipboard(content, showNotification);
+              }}
+            >
+              <ListItemIcon>
+                <ContentCopyIcon></ContentCopyIcon>
+              </ListItemIcon>
+              <ListItemText> Copy </ListItemText>
+            </MenuItem>
+          )}
+        </MenuList>
+      </Paper>
+    );
+  }
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { target } = e;
+          let content = (target as HTMLDivElement).innerHTML;
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
+          setUpMenu({
+            content: <Menu content={content}></Menu>,
+            style: calMenuStyle(e, 200),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, []);
+
+  const setting = useContext(SettingContext);
+  const columns = useMemo(() => {
+    let cols = [
+      {
+        field: 'uuid',
+        renderHeader: () => {
+          return 'connection name';
+        },
+      },
+      { field: 'name' },
+      { field: 'kind' },
+      { field: 'sql' },
+      { field: 'createTime' },
+    ] as GridColDef[];
+    cols.forEach((e) => {
+      let width = columnWidths.getWidth(e.field);
+      if (width) {
+        e.width = width;
+      }
+    });
+    return cols;
+  }, []);
+
+  const getRowId = useCallback((row) => {
+    return FavoriteSql.formatKey(row['uuid'], row['name']);
+  }, []);
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    columnWidths.saveColumnWidths(colDef.field, width);
+  }, []);
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1}>
+        <Button
+          variant="contained"
+          onClick={() => {
+            handleReload(true);
+          }}
+        >
+          reload
+        </Button>
+      </Stack>
+
+      <div
+        style={{
+          display: 'grid',
+          height: datagridContainerHeight(sqls.length),
+        }}
+      >
+        <DataGrid
+          getRowId={getRowId}
+          sortModel={sortModel}
+          onSortModelChange={onSortModelChange}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          slotProps={slotProps}
+          rowHeight={setting.datagridRowHeight}
+          columnHeaderHeight={setting.datagridHeaderHeight}
+          columns={columns}
+          rows={sqls}
+          onColumnResize={onColumnResize}
+        ></DataGrid>
+      </div>
     </Stack>
   );
 }
@@ -359,7 +555,7 @@ function DatabaseMenu(props: {
         {opened && kind != DataSourceKind.Mongo && (
           <MenuNewQuery
             handle={() => {
-              openNewQuery(setSelectTab, setTabs, uuid, kind);
+              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
             }}
           ></MenuNewQuery>
         )}
@@ -512,7 +708,8 @@ async function openNewQuery(
   setSelectTab,
   setTabs,
   uuid: string,
-  kind: DataSourceKind
+  kind: DataSourceKind,
+  showNotification
 ) {
   initMonacoLanague(uuid, kind);
 
@@ -526,6 +723,7 @@ async function openNewQuery(
     console.log('open connection:', queryId);
     return new QueryConn(uuid, queryId, kind == DataSourceKind.Oracle);
   };
+
   switch (kind) {
     case DataSourceKind.MsSql:
     case DataSourceKind.Sqlite:
@@ -542,6 +740,12 @@ async function openNewQuery(
           language={uuid}
           makeConn={makeConn}
           connectInfo={connInfo}
+          saveFavoriteSql={async (name, sql) => {
+            await FavoriteSql.save(
+              new FavoriteSql(name, uuid, kind, sql),
+              showNotification
+            );
+          }}
         ></SqlQuery>
       );
       break;
@@ -551,6 +755,12 @@ async function openNewQuery(
           language={uuid}
           makeConn={makeConn}
           connectInfo={connInfo}
+          saveFavoriteSql={async (name, sql) => {
+            await FavoriteSql.save(
+              new FavoriteSql(name, uuid, kind, sql),
+              showNotification
+            );
+          }}
         ></RedisQuery>
       );
 
@@ -599,7 +809,7 @@ function SchemaMenu(props: {
         {opened && (
           <MenuNewQuery
             handle={() => {
-              openNewQuery(setSelectTab, setTabs, uuid, kind);
+              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
             }}
           ></MenuNewQuery>
         )}

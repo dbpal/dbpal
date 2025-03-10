@@ -10,8 +10,9 @@ function RedisQuery(props: {
   makeConn: MakeIQueryConn;
   connectInfo;
   language;
+  saveFavoriteSql: (name, sql: string) => void;
 }) {
-  const { language, makeConn, connectInfo } = props;
+  const { language, makeConn, connectInfo, saveFavoriteSql } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -107,6 +108,7 @@ function RedisQuery(props: {
         language={language}
         connectInfo={connectInfo}
         makeConn={makeConn}
+        saveFavoriteSql={saveFavoriteSql}
       ></SqlQuery>
 
       <div

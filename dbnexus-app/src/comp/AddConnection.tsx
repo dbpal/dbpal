@@ -947,4 +947,4 @@ function LibSql(props: {
   );
 }
 
-export default { AddConfig };
+export { AddConfig };

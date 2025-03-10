@@ -353,7 +353,57 @@ enum AppStoreKey {
   UserSetttings = 'user_settings',
   ConnectionConfig = 'connection_config',
   ColumnWithd = 'column_widths',
-  LeftSize = 'left_size'
+  LeftSize = 'left_size',
+  FavoriteSql = "favorite_sql"
+}
+
+
+class FavoriteSql {
+  constructor(public name: string, public uuid: string, public kind: DataSourceKind, public sql: string, public createTime: Date = new Date()) { }
+  static key = AppStoreKey.FavoriteSql;
+  static async save(x: FavoriteSql, showNotification) {
+    try {
+      const store = await appStore();
+      let logs = await store.get<object>(FavoriteSql.key);
+      if (!logs) {
+        logs = {};
+      }
+      logs[FavoriteSql.formatKey(x.uuid, x.name)] = x;
+      await store.set(FavoriteSql.key, logs)
+    } catch (e) {
+      showNotification('error', "save favorite sql failed", e);
+      return
+    }
+    showNotification('success', "save sql Ok")
+  }
+  static formatKey(uuid: string, name: string) {
+    return uuid + '-' + name
+  }
+  static async delete(uuid: string, name: string, showNotification) {
+    try {
+      const store = await appStore();
+      let logs = await store.get<object>(FavoriteSql.key);
+      if (logs) {
+        logs = {};
+      }
+      delete logs[FavoriteSql.formatKey(uuid, name)];
+      await store.set(FavoriteSql.key, logs)
+    } catch (e) {
+      showNotification('error', "save favorite sql failed", e);
+      return
+    }
+    showNotification('success', "delete sql Ok")
+  }
+  static async clear(showNotification) {
+    try {
+      const store = await appStore();
+      await store.set(FavoriteSql.key, {});
+    } catch (e) {
+      showNotification('error', "save favorite sql failed", e);
+      return
+    }
+    showNotification('success', "clean OK");
+  }
 }
 
 class ColumnWidths {
@@ -471,5 +521,6 @@ export {
   datagridContainerHeight,
   uint8ArrayToUtf8,
   filterStyle,
-  VisiableContext
+  VisiableContext,
+  FavoriteSql
 };
