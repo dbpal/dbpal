@@ -360,7 +360,7 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
       case 'oracle':
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
       case 'cassandra':
-        return config.keyspace ? <SchemaTree /> : <DatabaseTree />;
+        return config.db ? <SchemaTree /> : <DatabaseTree />;
       case 'clickhouse':
         return config.db ? <SchemaTree /> : <DatabaseTree />;
 

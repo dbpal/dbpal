@@ -56,7 +56,7 @@ impl LexerCompletionTrait for CassandraDB {
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();
 
-        if let Some(key_space) = self.config.keyspace.as_ref() {
+        if let Some(key_space) = self.config.db.as_ref() {
             {
                 ret.extend(
                     self.list_aggregate_impl(&key_space)
@@ -168,7 +168,7 @@ impl AstCompletion {
         if let Some(key_space) = key_space {
             return anyhow::Ok(key_space.to_string());
         }
-        match &self.db.config.keyspace {
+        match &self.db.config.db {
             Some(x) => anyhow::Ok(x.clone()),
             None => Err(anyhow::Error::msg("need provide key space")),
         }

@@ -130,7 +130,7 @@ impl CassandraDB {
 
         let mut session_builder =
             TcpSessionBuilder::new(RoundRobinLoadBalancingStrategy::new(), cluster_config);
-        if let Some(keyspace) = config.keyspace.as_deref() {
+        if let Some(keyspace) = config.db.as_deref() {
             session_builder = session_builder.with_keyspace(keyspace.to_owned());
         }
 
@@ -1147,7 +1147,7 @@ impl CassandraDB {
                 values.insert(f.field.clone(), v.clone());
             });
             let sql = (self as &dyn SchemaTrait).insert_sql(
-                self.config.keyspace.as_deref(),
+                self.config.db.as_deref(),
                 table_name,
                 &fs,
                 &values,
@@ -1196,7 +1196,7 @@ impl SchemaTrait for CassandraDB {
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
         let sql = format!(
             "SELECT type_name FROM system_schema.types where  keyspace_name = '{}'",
-            self.config.keyspace_str()
+            self.config.key_space_str()
         );
         log::info!("sql:{}", sql);
         let rows = self
@@ -1242,7 +1242,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
-        self.list_materialized_view_impl(self.config.keyspace_str())
+        self.list_materialized_view_impl(self.config.key_space_str())
             .await
     }
 
@@ -1378,7 +1378,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_table_impl(self.config.keyspace_str()).await
+        self.list_table_impl(self.config.key_space_str()).await
     }
     // cassandra can use this function for materlized view too.
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -1386,7 +1386,7 @@ impl SchemaTrait for CassandraDB {
             r#" SELECT column_name, type, kind
         FROM system_schema.columns
         WHERE keyspace_name = '{}' AND table_name = '{}';"#,
-            self.config.keyspace_str(),
+            self.config.key_space_str(),
             table_name
         );
         log::info!("sql:{}", sql);
@@ -1464,7 +1464,7 @@ impl SchemaTrait for CassandraDB {
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!(
             "SELECT index_name from system_schema.indexes WHERE  table_name = '{table_name}' AND keyspace_name = '{}'",
-            self.config.keyspace_str()
+            self.config.key_space_str()
         );
         log::info!("sql:{}", sql);
         let rows = self
@@ -1510,7 +1510,7 @@ impl SchemaTrait for CassandraDB {
 
         let fs = self.show_table_columns(table_name).await?;
         let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
-            self.config.keyspace.as_ref().map(|x| x.as_str()),
+            self.config.db.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &values,
@@ -1539,7 +1539,7 @@ impl SchemaTrait for CassandraDB {
         let fs = self.show_table_columns(table_name).await?;
 
         let sql = (self as &dyn SchemaTrait).delete_sql(
-            self.config.keyspace.as_ref().map(|x| x.as_str()),
+            self.config.db.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &wheres,
@@ -1601,7 +1601,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_udf_impl(self.config.keyspace_str()).await
+        self.list_udf_impl(self.config.key_space_str()).await
     }
 
     async fn show_udf(
@@ -1758,7 +1758,7 @@ impl DBTrait for CassandraDB {
     }
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
-        config.keyspace = Some(name.to_string());
+        config.db = Some(name.to_string());
         let x = CassandraDB::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
@@ -1883,7 +1883,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         username: Some("cassandra".to_string()),
         password: Some("cassandra".to_string()),
         read_only: false,
-        keyspace: db,
+        db,
     })
     .await
     .unwrap();
@@ -1937,7 +1937,7 @@ impl CassandraDB {
         anyhow::Ok(ret)
     }
     pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_aggregate_impl(self.config.keyspace_str()).await
+        self.list_aggregate_impl(self.config.key_space_str()).await
     }
 
     pub async fn show_aggregate(

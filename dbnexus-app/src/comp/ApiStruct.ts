@@ -44,7 +44,7 @@ export namespace types {
         /**
          * milliseconds
          */
-        "connect_timeout": (types.U64 | null);
+        "call_timeout": (types.U64 | null);
         "db": (string | null);
         "read_only": boolean;
     };
@@ -71,7 +71,7 @@ export namespace types {
         "port": (types.U16 | null);
         "username": (string | null);
         "password": (string | null);
-        "keyspace": (string | null);
+        "db": (string | null);
         "read_only": boolean;
     };
     export type ClickHouseConfig = {

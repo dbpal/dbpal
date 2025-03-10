@@ -240,7 +240,7 @@ impl DBConnectionConfig {
             },
             DBConnectionConfig::Cassandra { conn, .. } => {
                 let db = crate::cassandra::CassandraDB::new(conn.clone()).await?;
-                let db = match &conn.keyspace {
+                let db = match &conn.db {
                     Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
                     None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
                 };

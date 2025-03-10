@@ -17,6 +17,7 @@ import {
   Radio,
   Checkbox,
   IconButton,
+  Chip,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
@@ -63,17 +64,16 @@ function SelectPath(props: { path; setPath }) {
   let { path, setPath } = props;
   return (
     <Stack direction="row" sx={{ alignItems: 'center' }}>
-      <IconButton
+      <Chip
+        style={{ fontSize: '1.1rem', fontWeight: 600 }}
+        label={`path:` + path}
         onClick={() => {
           selectOneFile().then((e) => {
             setPath(e);
           });
         }}
         color="primary"
-      >
-        <AttachFileIcon></AttachFileIcon>
-      </IconButton>
-      <Typography>path:{path}</Typography>
+      ></Chip>
     </Stack>
   );
 }
@@ -908,7 +908,6 @@ function LibSql(props: {
       {libSqlModel == 'local' && (
         <SelectPath path={path} setPath={setPath}></SelectPath>
       )}
-
       {libSqlModel == 'remote' && (
         <>
           <Stack direction="row" spacing={1}>

@@ -7,7 +7,7 @@ pub struct MongoDBConfig {
     pub username: Option<String>,
     pub password: Option<String>,
     /// milliseconds
-    pub connect_timeout: Option<u64>,
+    pub call_timeout: Option<u64>,
     pub db: Option<String>,
     pub read_only: bool,
 }
@@ -79,7 +79,7 @@ pub struct SqliteDBConfig {
 pub struct DuckDBConfig {
     pub path: String,
     pub read_only: bool,
-    pub database: Option<String>,
+    pub db: Option<String>,
     pub schema: Option<String>,
 }
 
@@ -90,7 +90,7 @@ impl DuckDBConfig {
     }
     #[allow(unused)]
     pub(crate) fn database_str(&self) -> &str {
-        self.database.as_ref().expect("must be some")
+        self.db.as_ref().expect("must be some")
     }
 }
 
@@ -261,12 +261,12 @@ pub struct CassandraDBConfig {
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub keyspace: Option<String>,
+    pub db: Option<String>,
     pub read_only: bool,
 }
 
 impl CassandraDBConfig {
-    pub(crate) fn keyspace_str(&self) -> &str {
-        self.keyspace.as_deref().unwrap()
+    pub(crate) fn key_space_str(&self) -> &str {
+        self.db.as_deref().unwrap()
     }
 }

@@ -42,7 +42,7 @@ impl MongoDB {
             host: ds.host.to_string(),
             port: Some(ds.port),
         }];
-        opts.connect_timeout = ds.connect_timeout.clone().map(Duration::from_millis);
+        opts.connect_timeout = ds.call_timeout.clone().map(Duration::from_millis);
 
         if let Some(user) = &ds.username {
             let b = mongodb::options::Credential::builder();
@@ -832,7 +832,7 @@ pub(crate) fn make_test_object() -> MongoDB {
         port: 27017,
         username: None,
         password: None,
-        connect_timeout: None,
+        call_timeout: None,
         db: Some("test".to_string()),
         read_only: false,
     });

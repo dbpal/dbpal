@@ -1,4 +1,4 @@
-import { Link, Stack, Typography } from '@mui/material';
+import { Chip, Stack, Typography } from '@mui/material';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 function WelCome() {
@@ -82,16 +82,16 @@ function WelCome() {
           </Stack>
         ))}
       </Stack>
-
-      <Link
-        style={{ cursor: 'pointer', fontSize: '1.5rem' }}
-        href="#"
-        onClick={() => {
-          openUrl('https://github.com/dbpal/docs/blob/main/README.md');
-        }}
-      >
-        more information
-      </Link>
+      <Stack direction="row">
+        <Chip
+          onClick={() => {
+            openUrl('https://github.com/dbpal/docs/blob/main/README.md');
+          }}
+          style={{ fontSize: '2rem', fontWeight: 'bold', padding: '4px' }}
+          label="more information"
+          color="info"
+        ></Chip>
+      </Stack>
     </Stack>
   );
 }
