@@ -16,7 +16,6 @@ import {
   RadioGroup,
   Radio,
   Checkbox,
-  IconButton,
   Chip,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
@@ -24,7 +23,7 @@ import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { appStore, AppStoreKey, msgTimeout } from './Common';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
+
 import { DataSourceKind } from './helper';
 
 async function selectOneFile() {
@@ -310,7 +309,7 @@ function AddConfig(props: { handleClose: () => void }) {
           port: portInt,
           username: user_null,
           password: pass_null,
-          keyspace: db_null,
+          db: db_null,
           read_only: readOnly,
           name: connectionName,
         };
@@ -377,7 +376,7 @@ function AddConfig(props: { handleClose: () => void }) {
           db: db_null,
           username: user_null,
           password: pass_null,
-          connect_timeout: null,
+          call_timeout: null,
         };
       case DataSourceKind.MsSql:
         return {

@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import { GrConnect } from 'react-icons/gr';
 import {
   progressBarSizeSmall,
   appStore,
@@ -81,11 +82,24 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
+import { listen } from '@tauri-apps/api/event';
+import { AddConfig } from './AddConnection.tsx';
 
 function Left_() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [showFavoriteSql, setShowFavoriteSql] = useState(false);
+  const [showAddConnection, setShowAddConnection] = useState(false);
+  useEffect(() => {
+    let unlisten = listen('add_config', () => {
+      setShowAddConnection(true);
+    });
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, []);
 
   const handleReload = async () => {
     (await appStore())
@@ -120,13 +134,23 @@ function Left_() {
         direction="row"
         style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}
       >
+        <Tooltip title="make a connection">
+          <IconButton
+            onClick={() => {
+              setShowAddConnection(true);
+            }}
+          >
+            <GrConnect style={{ fontSize: '2.2rem' }}> </GrConnect>
+          </IconButton>
+        </Tooltip>
+
         <Tooltip title="Favorite sql statement">
           <IconButton
             onClick={() => {
               setShowFavoriteSql(true);
             }}
           >
-            <PiFileSqlFill style={{ fontSize: '3rem' }}> </PiFileSqlFill>
+            <PiFileSqlFill style={{ fontSize: '2.8rem' }}> </PiFileSqlFill>
           </IconButton>
         </Tooltip>
       </Stack>
@@ -166,6 +190,26 @@ function Left_() {
                 setShowFavoriteSql(false);
               }}
             ></FavoriteSqlList>
+          </Box>
+        </Modal>
+      )}
+
+      {showAddConnection && (
+        <Modal
+          open={showAddConnection}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowAddConnection(false);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <AddConfig
+              handleClose={() => {
+                setShowAddConnection(false);
+              }}
+            ></AddConfig>
           </Box>
         </Modal>
       )}

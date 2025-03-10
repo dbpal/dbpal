@@ -47,6 +47,10 @@ function WelCome() {
       name: 'clickhouse',
       img: 'https://pic.rmb.bdstatic.com/bjh/6cd1c89eb632abaffcde8c19ebca83261118.png',
     },
+    {
+      name: 'libsql',
+      img: 'https://turso.tech/images/blog/the-libsql-glow-up/ugly-old-logo.png',
+    },
   ];
   return (
     <Stack spacing={1}>
