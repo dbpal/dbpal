@@ -1635,6 +1635,44 @@ mod tests {
             println!("name:{} , detail:{:?}", trigger.name, details);
         }
     }
+
+    #[tokio::test]
+    async fn test_index() {
+        let index_name = "name_index";
+
+        let db = make_test_object().await;
+        let table_name = "test_index";
+        let _ = db.drop_index(table_name, index_name).await;
+        let _err = db.drop_table(table_name, false).await;
+        if let Err(err) = _err {
+            println!("drop table failed,err:{}", err.to_string());
+        }
+        let mut conn = db.get_conn().await.unwrap();
+        sqlx::query(
+            r#"
+                CREATE TABLE test_index (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键，自动增长
+                    name TEXT NOT NULL,                    -- 名称，非j空
+                    age INTEGER,                           -- 年龄
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- 创建时间，默认为当前时间
+                ); "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+
+        db.create_index(table_name, index_name, IndexKind::Unique, &[
+            "name".to_string()
+        ])
+        .await
+        .unwrap();
+
+        let indexes = db.show_indexes(table_name).await.unwrap();
+        for index in indexes.iter() {
+            println!("index:{:?}", index);
+        }
+    }
+
     #[tokio::test]
     async fn test_export_table() {
         let db = make_test_object().await;

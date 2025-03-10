@@ -416,7 +416,6 @@ function SqlTableView(props: {
                         }
                         showNotification('success', 'set null OK');
                         handleReload(false);
-
                         return;
                       }
                     : undefined

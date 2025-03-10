@@ -46,6 +46,7 @@ function TriggersTree(props: { table: string }) {
     setLoading(true);
     invoke<types.NamedStaff[]>('list_trigger', { name: uuid, tableName: table })
       .then((ts) => {
+        console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!', ts);
         setTriggers(ts);
       })
       .catch((e) => {

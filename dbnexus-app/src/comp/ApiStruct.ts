@@ -83,6 +83,21 @@ export namespace types {
         "read_only": boolean;
         "https": boolean;
     };
+    export type LibSqlDBConfigSouce = (({
+        "source": "local";
+    } & {
+        "path": string;
+    }) | ({
+        "source": "remote";
+    } & {
+        "url": string;
+        "auth_token": string;
+        "path": string;
+    }));
+    export type LibSqlDBConfig = (types.LibSqlDBConfigSouce & {
+        "replica": boolean;
+        "read_only": boolean;
+    });
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -126,6 +141,10 @@ export namespace types {
     })) | ({
         "conn_type": "clickhouse";
     } & (types.ClickHouseConfig & {
+        "name": string;
+    })) | ({
+        "conn_type": "libsql";
+    } & (types.LibSqlDBConfig & {
         "name": string;
     })));
     export type ListTable = {
@@ -230,7 +249,7 @@ export namespace types {
         "kind": CompletionKind;
         "desc": (string | null);
     };
-    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule");
+    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster");
     export type DefAndMetas = {
         "def": string;
         "metas": (types.MetaValue)[];

@@ -783,6 +783,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       );
       break;
     case DataSourceKind.Sqlite:
+    case DataSourceKind.LibSql:
       initLanguageXXX(
         uuid,
         {

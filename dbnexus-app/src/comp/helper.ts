@@ -293,17 +293,18 @@ function errToString(message) {
 }
 
 enum DataSourceKind {
-  Mysql,
-  MariaDB,
-  TiDB,
-  Sqlite,
-  Postgres,
-  MsSql,
-  Redis,
-  Mongo,
-  Oracle,
-  Cassandra,
-  ClickHouse,
+  Mysql = "mysql",
+  MariaDB = "maraidb",
+  TiDB = "tidb",
+  Sqlite = "sqlite",
+  Postgres = "postgres",
+  MsSql = "mssql",
+  Redis = "redis",
+  Mongo = "mongo",
+  Oracle = "oracle",
+  Cassandra = "cassandra",
+  ClickHouse = "clickhouse",
+  LibSql = "libsql"
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
@@ -330,7 +331,8 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
       return DataSourceKind.Cassandra
     case 'clickhouse':
       return DataSourceKind.ClickHouse
-
+    case 'libsql':
+      return DataSourceKind.LibSql
     default:
       console.log("connection typt not handle:", name);
   }

@@ -489,7 +489,7 @@ function MongoTableListToolBar(props: {
         ></Chip>
       </Stack>
       <Stack direction="row">
-        <ButtonGroup aria-label="Basic button group">
+        <ButtonGroup>
           <IconButton
             disabled={viewModel == MongoDataViewModel.Object}
             onClick={() => {

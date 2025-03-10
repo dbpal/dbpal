@@ -13,6 +13,10 @@ import {
   Stack,
   Alert,
   Divider,
+  RadioGroup,
+  Radio,
+  Checkbox,
+  IconButton,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
@@ -55,19 +59,20 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
   );
 }
 
-function Sqlite(props: { path; setPath }) {
+function SelectPath(props: { path; setPath }) {
   let { path, setPath } = props;
   return (
-    <Stack direction="row" sx={{ alignItems: 'flex-end' }}>
-      <Button
+    <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <IconButton
         onClick={() => {
           selectOneFile().then((e) => {
             setPath(e);
           });
         }}
+        color="primary"
       >
         <AttachFileIcon></AttachFileIcon>
-      </Button>
+      </IconButton>
       <Typography>path:{path}</Typography>
     </Stack>
   );
@@ -219,7 +224,7 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
   );
 }
 
-export default function AddConfig(props: { handleClose: () => void }) {
+function AddConfig(props: { handleClose: () => void }) {
   let { handleClose } = props;
 
   const [connectionType, setConnectionType] = useState(DataSourceKind.Mysql);
@@ -245,6 +250,11 @@ export default function AddConfig(props: { handleClose: () => void }) {
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
   };
+  const [libSqlModel, setlibSqlModal] = useState<'remote' | 'local'>('remote');
+  const [url, setUrl] = useState('');
+  const [replica, setReplica] = useState(false);
+  const [authToken, setAuthToken] = useState('');
+
   const [schemaCandidates, setSchemesCandidats] = useState([]);
 
   const makeConfig = (): types.DBConnectionConfig | null => {
@@ -258,6 +268,18 @@ export default function AddConfig(props: { handleClose: () => void }) {
     let db_null = database ? database : null;
     let schema_null = schema ? schema : null;
     switch (connectionType) {
+      case DataSourceKind.LibSql:
+        return {
+          conn_type: 'libsql',
+          replica: replica,
+          source: libSqlModel,
+          path: path,
+          url: url,
+          auth_token: authToken,
+          read_only: readOnly,
+          name: connectionName,
+        };
+
       case DataSourceKind.ClickHouse:
         return {
           conn_type: 'clickhouse',
@@ -562,7 +584,8 @@ export default function AddConfig(props: { handleClose: () => void }) {
             Sql Server(microsoft)
           </MenuItem>
           <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
-          <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse </MenuItem>
+          <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
+          <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
         </Select>
       </FormControl>
 
@@ -590,6 +613,21 @@ export default function AddConfig(props: { handleClose: () => void }) {
             setDatabase={setDatabase}
           ></Database>
         </>
+      )}
+
+      {connectionType == DataSourceKind.LibSql && (
+        <LibSql
+          url={url}
+          setUrl={setUrl}
+          path={path}
+          setPath={setPath}
+          replica={replica}
+          setReplica={setReplica}
+          authToken={authToken}
+          setAuthToken={setAuthToken}
+          setlibSqlModal={setlibSqlModal}
+          libSqlModel={libSqlModel}
+        ></LibSql>
       )}
       {connectionType == DataSourceKind.Postgres && (
         <>
@@ -778,7 +816,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
         </>
       )}
       {connectionType == DataSourceKind.Sqlite && (
-        <Sqlite path={path} setPath={setPath}></Sqlite>
+        <SelectPath path={path} setPath={setPath}></SelectPath>
       )}
 
       <Stack direction="row" style={{ alignItems: 'center' }} spacing={2}>
@@ -820,10 +858,93 @@ export default function AddConfig(props: { handleClose: () => void }) {
           onClick={handleTestConnection}
           loading={testLoading}
         >
-          test connection
+          test
         </Button>
         {testOk && <Alert severity="success"> Test OK </Alert>}
       </Stack>
     </Stack>
   );
 }
+
+function LibSql(props: {
+  replica: boolean;
+  setReplica;
+  path: string;
+  setPath;
+  url: string;
+  setUrl;
+  authToken: string;
+  setAuthToken;
+  libSqlModel;
+  setlibSqlModal;
+}) {
+  const {
+    replica,
+    setReplica,
+    path,
+    setPath,
+    url,
+    setUrl,
+    authToken,
+    setAuthToken,
+    libSqlModel,
+    setlibSqlModal,
+  } = props;
+  let models = ['remote', 'local'];
+  return (
+    <>
+      <RadioGroup
+        row
+        onChange={(e) => {
+          setlibSqlModal(e.target.value);
+        }}
+        value={libSqlModel}
+      >
+        {models.map((e) => (
+          <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
+        ))}
+      </RadioGroup>
+
+      {libSqlModel == 'local' && (
+        <SelectPath path={path} setPath={setPath}></SelectPath>
+      )}
+
+      {libSqlModel == 'remote' && (
+        <>
+          <Stack direction="row" spacing={1}>
+            <TextField
+              value={url}
+              label="url"
+              onChange={(e) => {
+                setUrl(e.target.value);
+              }}
+              fullWidth
+              size="small"
+            ></TextField>
+            <TextField
+              fullWidth
+              value={authToken}
+              size="small"
+              label="auth token "
+              onChange={(e) => {
+                setAuthToken(e.target.value);
+              }}
+            ></TextField>
+          </Stack>
+          <Stack direction="row" style={{ alignItems: 'center' }}>
+            <Checkbox
+              value={replica}
+              onChange={(e) => {
+                setReplica(e.target.checked);
+              }}
+            ></Checkbox>
+            replica
+            {replica && <SelectPath path={path} setPath={setPath}></SelectPath>}
+          </Stack>
+        </>
+      )}
+    </>
+  );
+}
+
+export default { AddConfig };

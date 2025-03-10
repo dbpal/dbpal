@@ -234,7 +234,7 @@ function MultiQueryResp_(props: { data: any[] }) {
   return (
     <div>
       <div>
-        <Tabs value={value} onChange={handleChange} aria-label="query results.">
+        <Tabs value={value} onChange={handleChange}>
           {data.map((_, index) => (
             <Tab
               label={`Result ${index + 1}`}

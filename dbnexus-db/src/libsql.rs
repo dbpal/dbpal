@@ -14,7 +14,7 @@ use crate::{
         IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
         ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
     },
-    helper::{SqlKind, SqlWithKind, create_csv, sql_to_sql_seq},
+    helper::{create_csv, is_dangerous_sql_by_parser},
     meta_value::MetaValue,
     query_log::QueryLog,
     sqlite::{
@@ -46,20 +46,14 @@ fn get_row_types(r: &Row) -> Vec<Field> {
     }
     ret
 }
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
-    // TODO use oracle later when sqlparser supported
-    let dialect = sqlparser::dialect::GenericDialect {};
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
-    )
-}
 
 #[async_trait::async_trait]
 
 impl QuerySql for LibSqlDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
+    }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -86,51 +80,74 @@ impl QuerySql for LibSqlDB {
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut query_log = QueryLog::get_guard(query_id, sql);
 
-        let sqls = get_sql_seq(sql)
-            .map_err(|x| log::error!("get_sql_seq error:{},sqsl:{}", x, sql))
-            .unwrap_or(vec![SqlWithKind {
-                sql: sql.to_string(),
-                kind: SqlKind::Query,
-            }]);
+        // let sqls = get_sql_seq(sql)
+        //     .map_err(|x| log::error!("get_sql_seq error:{},sqsl:{}", x, sql))
+        //     .unwrap_or(vec![SqlWithKind {
+        //         sql: sql.to_string(),
+        //         kind: SqlKind::Query,
+        //     }]);
+
+        // let conn = self.query_connections.get(&query_id);
+        // let conn = match &conn {
+        //     Some(x) => x.deref(),
+        //     None => anyhow::bail!("collection closed????"),
+        // };
+        // let mut ret = Vec::with_capacity(sqls.len());
+        // for s in sqls.iter() {
+        //     log::info!("kind:{:?} sql:{}", s.kind, s.sql);
+        //     match s.kind {
+        //         SqlKind::Query => {
+        //             let mut query_rows = conn.query(&s.sql, params!()).await?;
+        //             let mut rows = Vec::new();
+        //             while let Some(row) = query_rows.next().await? {
+        //                 rows.push(row);
+        //             }
+        //             if rows.len() > 0 {
+        //                 let data = encode_rows(&rows)?;
+        //                 let fields = get_row_types(rows.get(0).unwrap());
+        //                 ret.push(Ok(QueryResp { data, fields }));
+        //             }
+        //         }
+        //         _ => {
+        //             let result = conn.execute(&s.sql, params!()).await;
+        //             match result {
+        //                 Ok(x) => {
+        //                     if x > 0 {
+        //                         ret.push(Ok(QueryResp::row_affected(x)));
+        //                     }
+        //                 }
+        //                 Err(err) => {
+        //                     ret.push(Err(err.to_string()));
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+
+        // anyhow::Ok(ret)
 
         let conn = self.query_connections.get(&query_id);
         let conn = match &conn {
             Some(x) => x.deref(),
             None => anyhow::bail!("collection closed????"),
         };
-        let mut ret = Vec::with_capacity(sqls.len());
-        for s in sqls.iter() {
-            match s.kind {
-                SqlKind::Query => {
-                    let mut query_rows = conn.query(&s.sql, params!()).await?;
 
-                    let mut rows = Vec::new();
-                    while let Some(row) = query_rows.next().await? {
-                        rows.push(row);
-                    }
-                    if rows.len() > 0 {
-                        let data = encode_rows(&rows)?;
-                        let fields = get_row_types(rows.get(0).unwrap());
-                        ret.push(Ok(QueryResp { data, fields }));
-                    }
-                }
+        let mut batch_rows = conn.execute_batch(sql).await?;
+        let mut ret = Vec::new();
 
-                _ => {
-                    let result = conn.execute(&s.sql, params!()).await;
-                    match result {
-                        Ok(x) => {
-                            if x > 0 {
-                                ret.push(Ok(QueryResp::row_affected(x)));
-                            }
-                        }
-                        Err(err) => {
-                            ret.push(Err(err.to_string()));
-                        }
-                    }
-                }
+        while let Some(mut rows_) = batch_rows.next_stmt_row().flatten() {
+            let mut rows = Vec::new();
+            while let Some(row) = rows_.next().await? {
+                rows.push(row);
+            }
+            if rows.len() > 0 {
+                let fields = get_row_types(rows.get(0).unwrap());
+                let data = encode_rows(&rows)?;
+                ret.push(Ok(QueryResp { fields, data }));
             }
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
+
         anyhow::Ok(ret)
     }
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
@@ -205,11 +222,11 @@ impl bb8::ManageConnection for PoolManager {
             let conn = match &self.config.source {
                 LibSqlDBConfigSouce::Local { path } => {
                     let b = if replica {
-                        libsql::Builder::new_local(path)
+                        libsql::Builder::new_local_replica(path).build().await?
                     } else {
-                        libsql::Builder::new_local(path)
+                        libsql::Builder::new_local(path).build().await?
                     };
-                    let conn = b.build().await?.connect()?;
+                    let conn = b.connect()?;
                     conn
                 }
                 LibSqlDBConfigSouce::Remote {
@@ -243,7 +260,6 @@ impl bb8::ManageConnection for PoolManager {
             Ok(())
         }
     }
-
     fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
         false
     }
@@ -1039,7 +1055,6 @@ pub(crate) async fn make_test_object() -> LibSqlDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[tokio::test]
 
     async fn check_conn() {
@@ -1132,6 +1147,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_triggers() {
+        // enable_test_log();
         let db = make_test_object().await;
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
@@ -1183,6 +1199,41 @@ mod tests {
                 .await
                 .unwrap();
             println!("name:{} , detail:{:?}", trigger.name, details);
+        }
+    }
+    #[tokio::test]
+    async fn test_index() {
+        let db = make_test_object().await;
+        let table_name = "test_index";
+        let index_name = "name_index";
+        let _ = db.drop_index(table_name, index_name).await;
+        let _err = db.drop_table(table_name, false).await;
+        if let Err(err) = _err {
+            println!("drop table failed,err:{}", err.to_string());
+        }
+        let conn = db.get_conn().await.unwrap();
+        conn.execute(
+            r#"
+                CREATE TABLE test_index (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键，自动增长
+                    name TEXT NOT NULL,                    -- 名称，非j空
+                    age INTEGER,                           -- 年龄
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- 创建时间，默认为当前时间
+                ); "#,
+            params!(),
+        )
+        .await
+        .unwrap();
+
+        db.create_index(table_name, index_name, IndexKind::Unique, &[
+            "name".to_string()
+        ])
+        .await
+        .unwrap();
+
+        let indexes = db.show_indexes(table_name).await.unwrap();
+        for index in indexes.iter() {
+            println!("index:{:?}", index);
         }
     }
 

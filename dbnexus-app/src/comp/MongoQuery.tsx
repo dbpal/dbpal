@@ -135,7 +135,6 @@ function MongoQuery(props: { uuid: string }) {
               handleExecute();
             }}
             color="primary"
-            aria-label="execute"
           >
             <PlayArrowIcon />
           </IconButton>

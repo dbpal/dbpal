@@ -142,6 +142,7 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
           <DatabaseTree></DatabaseTree>
         );
       case 'sqlite':
+      case 'libsql':
         return <SchemaTree></SchemaTree>;
       case 'redis':
         return config.db ? (
@@ -166,6 +167,7 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
         return config.keyspace ? <SchemaTree /> : <DatabaseTree />;
       case 'clickhouse':
         return config.db ? <SchemaTree /> : <DatabaseTree />;
+
       default:
         console.log('impl database kind:', config);
         throw `impl this kind`;
@@ -238,6 +240,12 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
       </Stack>
     >
       {opened && kind == DataSourceKind.Sqlite && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.LibSql && (
         <>
           <TablesTree typ={TablesType.Normal} />
           <ViewsTree viewkind={ViewKind.Normal} />
@@ -528,6 +536,7 @@ async function openNewQuery(
     case DataSourceKind.TiDB:
     case DataSourceKind.Cassandra:
     case DataSourceKind.ClickHouse:
+    case DataSourceKind.LibSql:
       content = (
         <SqlQuery
           language={uuid}

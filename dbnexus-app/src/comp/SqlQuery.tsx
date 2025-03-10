@@ -317,7 +317,6 @@ function SqlQuery(props: {
                 handleQuery(editor.current.getValue());
               }}
               color="primary"
-              aria-label="execute"
             >
               <PlayArrowIcon />
             </IconButton>
@@ -333,7 +332,6 @@ function SqlQuery(props: {
                 );
               }}
               color="primary"
-              aria-label="execute"
             >
               <PlayCircleIcon />
             </IconButton>
@@ -352,7 +350,6 @@ function SqlQuery(props: {
                 handleReconnect();
               }}
               color="primary"
-              aria-label="execute"
             >
               <RefreshIcon color={showSuggestReconn ? 'error' : 'inherit'} />
             </IconButton>
@@ -373,7 +370,6 @@ function SqlQuery(props: {
                 setShowExport(true);
               }}
               color="primary"
-              aria-label="execute"
             >
               <ArrowCircleDownRoundedIcon />
             </IconButton>

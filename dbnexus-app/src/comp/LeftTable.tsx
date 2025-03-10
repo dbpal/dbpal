@@ -1,10 +1,19 @@
-import { ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   modalStyle,
   progressBarSizeSmall,
   tabsHasId,
   DocsAndCount,
   treeItemCommonStyle,
+  SettingContext,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -42,7 +51,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-
+import TableChartIcon from '@mui/icons-material/TableChart';
 import { TabContent } from './Tabs';
 import { SqlTableView, SqlTableViewAdd } from './SqlTableView';
 import { TriggersTree } from './LeftTriggers';
@@ -64,15 +73,23 @@ import { MongoTable, MongoTableAdd } from './MongoDB';
 import { BSON, EJSON } from 'bson';
 import {
   calMenuStyle,
+  columnWidths,
   ConnTypeContext,
   ContextMenuContext,
+  datagridContainerHeight,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
   TabsSetContext,
   UuidContext,
+  VisiableContext,
 } from './helper';
-import { MenuRefresh } from './CommonComp';
+import { MenuRefresh, MenuResetColumnWidths } from './CommonComp';
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponentsProps,
+} from '@mui/x-data-grid';
 
 enum TablesType {
   Normal,
@@ -181,7 +198,8 @@ function TableTree(props: {
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Sqlite ||
     kind == DataSourceKind.Postgres ||
-    kind == DataSourceKind.Oracle;
+    kind == DataSourceKind.Oracle ||
+    kind == DataSourceKind.LibSql;
   let support_index =
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.MsSql ||
@@ -189,7 +207,8 @@ function TableTree(props: {
     kind == DataSourceKind.Sqlite ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.Oracle ||
-    kind == DataSourceKind.Cassandra;
+    kind == DataSourceKind.Cassandra ||
+    kind == DataSourceKind.LibSql;
 
   return (
     <TreeItem
@@ -221,7 +240,6 @@ function TableTree(props: {
         </Stack>
       }
     >
-      <TableColumnsTree table={table}></TableColumnsTree>
       {support_trigger && <TriggersTree table={table}></TriggersTree>}
       {support_index && <LeftIndexes table={table}></LeftIndexes>}
     </TreeItem>
@@ -388,63 +406,6 @@ function ModifyTableColumn(props: {
   );
 }
 
-function TableColumnsMenu(props: {
-  reload;
-  table;
-  uuid;
-  fields;
-  kind: DataSourceKind;
-  supportModifyColumn;
-}) {
-  let { reload, table, uuid, fields, kind, supportModifyColumn } = props;
-
-  const [showAdd, setShowAdd] = useState(false);
-
-  return (
-    <Paper>
-      <MenuList>
-        <MenuRefresh reload={reload}></MenuRefresh>
-        {supportModifyColumn && (
-          <MenuItem
-            onClick={() => {
-              setShowAdd(true);
-            }}
-          >
-            <ListItemIcon>
-              <AddIcon></AddIcon>
-            </ListItemIcon>
-            <ListItemText> Add Column </ListItemText>
-          </MenuItem>
-        )}
-      </MenuList>
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={(_, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-            setShowAdd(false);
-          }}
-        >
-          <Box sx={modalStyle} width="900px">
-            <TableAddColumn
-              table={table}
-              uuid={uuid}
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              kind={kind}
-              reload={reload}
-              fields={fields}
-            ></TableAddColumn>
-          </Box>
-        </Modal>
-      )}
-    </Paper>
-  );
-}
-
 function ColumnParentThesesHint() {
   return <span> some type require specify a size like `varchar(128)`</span>;
 }
@@ -572,7 +533,9 @@ function TableAddColumn(props: {
           >
             <MenuItem value="">none</MenuItem>
             {fields.map((e) => (
-              <MenuItem value={e.field}> {e.field} </MenuItem>
+              <MenuItem key={e.field} value={e.field}>
+                {e.field}
+              </MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -609,112 +572,6 @@ function ColumnNullness({ nullness, handleNullness }) {
         <MenuItem value="not null">not null</MenuItem>
       </Select>
     </FormControl>
-  );
-}
-
-function TableColumnsTree(props: { table: string }) {
-  let { table } = props;
-  let { setUpMenu } = useContext(ContextMenuContext);
-  const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
-  const [loading, setLoading] = useState(false);
-
-  const reload = () => {
-    setLoading(true);
-    invoke<types.Field[]>('show_table_columns', {
-      name: uuid,
-      tableName: table,
-    })
-      .then((fs) => {
-        setFields(fs);
-      })
-      .catch((e) => {
-        showNotification('error', 'list column failed', e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
-
-  const supportModifyColumn =
-    kind == DataSourceKind.MariaDB ||
-    kind == DataSourceKind.MsSql ||
-    kind == DataSourceKind.Mysql ||
-    kind == DataSourceKind.Postgres ||
-    kind == DataSourceKind.Oracle ||
-    kind == DataSourceKind.TiDB ||
-    kind == DataSourceKind.Cassandra ||
-    kind == DataSourceKind.ClickHouse;
-
-  useEffect(() => {
-    reload();
-  }, []);
-
-  let idPrefix = uuid + '-table-' + table + 'columns';
-  return (
-    <TreeItem
-      itemId={uuid + '-table-' + table + 'columns'}
-      label=<Stack
-        spacing={1}
-        style={{ ...treeItemCommonStyle }}
-        direction="row"
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <TableColumnsMenu
-                table={table}
-                uuid={uuid}
-                reload={reload}
-                kind={kind}
-                fields={fields}
-                supportModifyColumn={supportModifyColumn}
-              ></TableColumnsMenu>
-            ),
-            style: calMenuStyle(e, 200),
-          });
-        }}
-      >
-        <span> columns</span>
-        {loading && (
-          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-        )}
-      </Stack>
-    >
-      {fields.map((f) => (
-        <TreeItem
-          key={f.field}
-          onContextMenu={
-            supportModifyColumn
-              ? (e) => {
-                  setUpMenu({
-                    content: (
-                      <TableColumnMenu
-                        table={table}
-                        uuid={uuid}
-                        col={f.field}
-                        reload={reload}
-                        typ={f.typ}
-                        kind={kind}
-                      ></TableColumnMenu>
-                    ),
-                    style: calMenuStyle(e, 70),
-                  });
-                }
-              : undefined
-          }
-          itemId={idPrefix + '-' + f.field}
-          label=<Stack
-            direction="row"
-            spacing={1}
-            style={{ ...treeItemCommonStyle }}
-          >
-            {f.field} <em>({f.typ}) </em>
-          </Stack>
-        ></TreeItem>
-      ))}
-    </TreeItem>
   );
 }
 
@@ -810,6 +667,7 @@ async function makeViewTable(
     case DataSourceKind.TiDB:
     case DataSourceKind.Cassandra:
     case DataSourceKind.ClickHouse:
+    case DataSourceKind.LibSql:
       tableList = (
         <SqlTableView
           tableName={table}
@@ -1119,6 +977,7 @@ async function makeAddTable(
     case DataSourceKind.TiDB:
     case DataSourceKind.Cassandra:
     case DataSourceKind.ClickHouse:
+    case DataSourceKind.LibSql:
       tableList = (
         <SqlTableViewAdd
           addOP={async (values) => {
@@ -1235,6 +1094,260 @@ async function makeAddTable(
   return tableList;
 }
 
+function ColumnsTabContent(props: {
+  uuid: string;
+  kind: DataSourceKind;
+  table: string;
+}) {
+  const { uuid, kind, table } = props;
+  const setting = useContext(SettingContext);
+  const [loading, setLoading] = useState(false);
+  const [fields, setFields] = useState<types.Field[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const [row, setRow] = useState<types.Field>(null);
+  const supportModifyColumn =
+    kind == DataSourceKind.MariaDB ||
+    kind == DataSourceKind.MsSql ||
+    kind == DataSourceKind.Mysql ||
+    kind == DataSourceKind.Postgres ||
+    kind == DataSourceKind.Oracle ||
+    kind == DataSourceKind.TiDB ||
+    kind == DataSourceKind.Cassandra ||
+    kind == DataSourceKind.ClickHouse;
+
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    columnWidths.saveColumnWidths(colDef.field, width);
+  }, []);
+
+  const handleDrop = async (col: string) => {
+    const confirm = await secondConfirm({
+      title: `Drop Column '${col}'`,
+      content: '',
+      confirmText: 'DROP COLUMN',
+    });
+    if (!confirm) {
+      return;
+    }
+    invoke('drop_table_column', {
+      name: uuid,
+      tableName: table,
+      columnName: col,
+    })
+      .then(() => {
+        showNotification('success', 'Drop column OK');
+        handleReload();
+      })
+      .catch((e) => {
+        showNotification('error', 'Drop column OK', e);
+      });
+  };
+
+  const [showAdd, setShowAdd] = useState(false);
+  const handleReload = () => {
+    setLoading(true);
+    invoke<types.Field[]>('show_table_columns', {
+      name: uuid,
+      tableName: table,
+    })
+      .then((fs) => {
+        setFields(fs);
+      })
+      .catch((e) => {
+        showNotification('error', 'list column failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+  let cols = [
+    { field: 'field' },
+    { field: 'typ' },
+    { field: 'nullable' },
+    {
+      field: 'is_primary',
+      renderHeader: () => {
+        return 'Primary';
+      },
+    },
+    {
+      field: 'is_auto_increment',
+      renderHeader: () => {
+        return 'auto increment';
+      },
+    },
+    { field: 'sortable' },
+  ] as GridColDef[];
+  cols.forEach((e) => {
+    const width = columnWidths.getWidth(e.field);
+    if (width) {
+      e.width = width;
+    }
+  });
+
+  const vis = useContext(VisiableContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
+
+  function Menu(props: { col: string }) {
+    const { col } = props;
+
+    return (
+      <Paper>
+        <MenuList>
+          <MenuItem
+            onClick={() => {
+              let r = fields.find((e) => e.field == col);
+              setRow(r);
+            }}
+          >
+            <ListItemIcon>
+              <EditIcon></EditIcon>
+            </ListItemIcon>
+            <ListItemText> modify </ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              handleDrop(col);
+            }}
+          >
+            <ListItemIcon>
+              <DeleteForeverIcon></DeleteForeverIcon>
+            </ListItemIcon>
+            <ListItemText> drop </ListItemText>
+          </MenuItem>
+
+          <MenuResetColumnWidths></MenuResetColumnWidths>
+        </MenuList>
+      </Paper>
+    );
+  }
+
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { currentTarget, target } = e;
+          {
+            const field = (target as HTMLDivElement).getAttribute('data-field');
+            if (!field) {
+              return;
+            }
+          }
+          const col = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          setUpMenu({
+            content: <Menu col={col}></Menu>,
+            style: calMenuStyle(e, 100),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, []);
+
+  const getRowId = useCallback((e) => {
+    return e['field'];
+  }, []);
+
+  const onRowDoubleClick = useCallback((row) => {
+    setRow(row.row);
+  }, []);
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1}>
+        <Button loading={loading} onClick={handleReload} variant="contained">
+          reload
+        </Button>
+
+        {supportModifyColumn && (
+          <Button
+            onClick={() => {
+              setShowAdd(true);
+            }}
+            variant="contained"
+          >
+            <AddIcon></AddIcon>
+          </Button>
+        )}
+      </Stack>
+
+      {vis && (
+        <div
+          style={{
+            display: 'grid',
+            height: datagridContainerHeight(fields.length),
+          }}
+        >
+          <DataGrid
+            getRowId={getRowId}
+            slotProps={slotProps}
+            onColumnResize={onColumnResize}
+            showCellVerticalBorder
+            showColumnVerticalBorder
+            rowHeight={setting.datagridRowHeight}
+            columnHeaderHeight={setting.datagridHeaderHeight}
+            columns={cols}
+            rows={fields}
+            onRowDoubleClick={onRowDoubleClick}
+          ></DataGrid>
+        </div>
+      )}
+
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowAdd(false);
+          }}
+        >
+          <Box sx={modalStyle} width="800px">
+            <TableAddColumn
+              table={table}
+              uuid={uuid}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+              reload={handleReload}
+              kind={kind}
+              fields={fields}
+            ></TableAddColumn>
+          </Box>
+        </Modal>
+      )}
+
+      {supportModifyColumn && row && (
+        <Modal
+          open={!!row}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setRow(null);
+          }}
+        >
+          <Box sx={modalStyle} width="800px">
+            <ModifyTableColumn
+              table={table}
+              uuid={uuid}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+              col={row.field}
+              typ={row.typ}
+              reload={handleReload}
+              kind={kind}
+            ></ModifyTableColumn>
+          </Box>
+        </Modal>
+      )}
+    </Stack>
+  );
+}
+
 function TableMenu(props: {
   table: string;
   uuid: string;
@@ -1302,6 +1415,31 @@ function TableMenu(props: {
       return [...e, new TabContent(id, `${table}*`, tableList)];
     });
   };
+  const handleViewColumns = () => {
+    let id = uuid + '-table-' + table + '-columns';
+    let index = tabsHasId(tabs, id);
+    if (typeof index == 'number') {
+      setSelectTab(index);
+    } else {
+      setTabs((e) => {
+        setSelectTab(tabs.length);
+        return [
+          ...e,
+          new TabContent(
+            id,
+            `${table}-cols`,
+            (
+              <ColumnsTabContent
+                kind={kind}
+                table={table}
+                uuid={uuid}
+              ></ColumnsTabContent>
+            )
+          ),
+        ];
+      });
+    }
+  };
 
   const getExportKind = () => {
     switch (kind) {
@@ -1325,7 +1463,6 @@ function TableMenu(props: {
           </ListItemIcon>
           <ListItemText> View Data</ListItemText>
         </MenuItem>
-
         {kind != DataSourceKind.Redis && (
           <MenuItem
             onClick={() => {
@@ -1338,7 +1475,6 @@ function TableMenu(props: {
             <ListItemText> Add Data </ListItemText>
           </MenuItem>
         )}
-
         {kind == DataSourceKind.Redis &&
           redisTableType != RedisTableType.String && (
             <MenuItem
@@ -1352,7 +1488,12 @@ function TableMenu(props: {
               <ListItemText> Add Data</ListItemText>
             </MenuItem>
           )}
-
+        <MenuItem onClick={handleViewColumns}>
+          <ListItemIcon>
+            <TableChartIcon></TableChartIcon>
+          </ListItemIcon>
+          <ListItemText> View Columns </ListItemText>
+        </MenuItem>
         <MenuItem
           onClick={() => {
             setshowDup(true);
@@ -1363,7 +1504,6 @@ function TableMenu(props: {
           </ListItemIcon>
           <ListItemText> Duplicate </ListItemText>
         </MenuItem>
-
         <MenuItem
           onClick={() => {
             setShowExport(true);
@@ -1374,7 +1514,6 @@ function TableMenu(props: {
           </ListItemIcon>
           <ListItemText> Export </ListItemText>
         </MenuItem>
-
         <MenuItem
           onClick={() => {
             setShowRename(true);
@@ -1496,94 +1635,6 @@ function TableMenu(props: {
               }}
               kind={kind}
             ></DropTable>
-          </Box>
-        </Modal>
-      )}
-    </Paper>
-  );
-}
-
-function TableColumnMenu(props: {
-  uuid: string;
-  table: string;
-  col: string;
-  reload;
-  typ: string;
-  kind: DataSourceKind;
-}) {
-  const { table, col, reload, uuid, typ, kind } = props;
-  const { showNotification } = useContext(NotificationContext);
-  const [showModify, setShowModify] = useState(false);
-  const handleDrop = async () => {
-    const confirm = await secondConfirm({
-      title: `Drop Column '${col}'`,
-      content: '',
-      confirmText: 'DROP COLUMN',
-    });
-    if (!confirm) {
-      return;
-    }
-    invoke('drop_table_column', {
-      name: uuid,
-      tableName: table,
-      columnName: col,
-    })
-      .then(() => {
-        showNotification('success', 'Drop column OK');
-        reload();
-      })
-      .catch((e) => {
-        showNotification('error', 'Drop column OK', e);
-      });
-  };
-
-  return (
-    <Paper>
-      <MenuList>
-        <MenuItem
-          sx={{ color: 'error.main' }}
-          onClick={() => {
-            setShowModify(true);
-          }}
-        >
-          <ListItemIcon>
-            <EditIcon> </EditIcon>
-          </ListItemIcon>
-          <ListItemText> Modify </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            handleDrop();
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon color="error"> </DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText color="error"> Drop </ListItemText>
-        </MenuItem>
-      </MenuList>
-      {showModify && (
-        <Modal
-          open={showModify}
-          onClose={(_, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-            setShowModify(false);
-          }}
-        >
-          <Box sx={modalStyle} width="800px">
-            <ModifyTableColumn
-              table={table}
-              uuid={uuid}
-              col={col}
-              handleClose={() => {
-                setShowModify(false);
-              }}
-              kind={kind}
-              typ={typ}
-              reload={reload}
-            ></ModifyTableColumn>
           </Box>
         </Modal>
       )}

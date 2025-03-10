@@ -23,9 +23,9 @@ pub struct MysqlDBConfig {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
-
 pub struct LibSqlDBConfig {
     pub replica: bool,
+    #[serde(flatten)]
     pub source: LibSqlDBConfigSouce,
     pub read_only: bool,
 }
