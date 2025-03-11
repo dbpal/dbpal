@@ -1227,6 +1227,7 @@ function ColumnsTabContent(props: {
             </ListItemIcon>
             <ListItemText> modify </ListItemText>
           </MenuItem>
+          <Divider></Divider>
           <MenuItem
             onClick={() => {
               handleDrop(col);
@@ -1237,7 +1238,7 @@ function ColumnsTabContent(props: {
             </ListItemIcon>
             <ListItemText> drop </ListItemText>
           </MenuItem>
-
+          <Divider></Divider>
           <MenuResetColumnWidths></MenuResetColumnWidths>
         </MenuList>
       </Paper>
@@ -1509,12 +1510,15 @@ function TableMenu(props: {
               <ListItemText> Add Data</ListItemText>
             </MenuItem>
           )}
+
         <MenuItem onClick={handleViewColumns}>
           <ListItemIcon>
             <TableChartIcon></TableChartIcon>
           </ListItemIcon>
           <ListItemText> View Columns </ListItemText>
         </MenuItem>
+        <Divider></Divider>
+
         <MenuItem
           onClick={() => {
             setshowDup(true);
@@ -1545,6 +1549,7 @@ function TableMenu(props: {
           </ListItemIcon>
           <ListItemText> Rename </ListItemText>
         </MenuItem>
+        <Divider></Divider>
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {

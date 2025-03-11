@@ -57,12 +57,12 @@ import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
 
 const confrimAboutPrimary = async (
   notWarnPri,
-  resp: types.MuiDataTableListResp
+  fields: types.Field[]
 ): Promise<boolean> => {
   if (notWarnPri) {
     return true;
   }
-  const hasPri = !!resp.data.fields.find((x) => x.is_primary);
+  const hasPri = !!fields.find((x) => x.is_primary);
   if (hasPri) {
     return true;
   }
@@ -252,7 +252,7 @@ function SqlTableView(props: {
   };
 
   const handleProcessRowUpdate = useCallback(
-    async (newRow: Map<string, string>, oldRow: Map<string, string>) => {
+    async (newRow: object, oldRow: object) => {
       if (!updateOP) {
         return newRow;
       }
@@ -271,7 +271,7 @@ function SqlTableView(props: {
       if (updateRow.size == 0) {
         return newRow;
       }
-      if (!(await confrimAboutPrimary(notWarnPri, resp))) {
+      if (!(await confrimAboutPrimary(notWarnPri, resp.data.fields))) {
         return oldRow;
       }
       try {
@@ -290,7 +290,7 @@ function SqlTableView(props: {
   );
 
   const handleDetele = async (id) => {
-    if (!(await confrimAboutPrimary(notWarnPri, resp))) {
+    if (!(await confrimAboutPrimary(notWarnPri, resp.data.fields))) {
       return;
     }
     let old;
@@ -737,6 +737,7 @@ function Menu(props: {
           </ListItemIcon>
           <ListItemText> Copy Field </ListItemText>
         </MenuItem>
+        <Divider></Divider>
         <MenuItem
           onClick={() => {
             setSort(`${field} ASC`);
@@ -757,18 +758,21 @@ function Menu(props: {
           </ListItemIcon>
           <ListItemText> {field} DESC </ListItemText>
         </MenuItem>
-
+        <Divider></Divider>
         {content && (
-          <MenuItem
-            onClick={() => {
-              setShowFilter(true);
-            }}
-          >
-            <ListItemIcon>
-              <FilterAltIcon></FilterAltIcon>
-            </ListItemIcon>
-            <ListItemText> Quick Filter </ListItemText>
-          </MenuItem>
+          <>
+            <MenuItem
+              onClick={() => {
+                setShowFilter(true);
+              }}
+            >
+              <ListItemIcon>
+                <FilterAltIcon></FilterAltIcon>
+              </ListItemIcon>
+              <ListItemText> Quick Filter </ListItemText>
+            </MenuItem>
+            <Divider></Divider>
+          </>
         )}
 
         {content && nullable && setNull && (

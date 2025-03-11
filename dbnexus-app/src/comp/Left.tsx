@@ -126,7 +126,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
   };
 
   return (
-    <Stack>
+    <Stack spacing={1}>
       <Stack>
         {show ? (
           <IconButton onClick={toggerShow}>
@@ -1039,7 +1039,12 @@ function DatabaseMenu(props: {
           </MenuItem>
         )}
 
-        {!database && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
+        {!database && (
+          <>
+            <Divider></Divider>
+            <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
+          </>
+        )}
       </MenuList>
 
       {showCreateSchema && (
@@ -1122,7 +1127,7 @@ function CatalogMenu(props: {
             handleClose={handleCloseConn}
           ></MenuCloseConn>
         )}
-
+        <Divider></Divider>
         <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
       </MenuList>
       {showCreateDB && (
@@ -1298,7 +1303,12 @@ function SchemaMenu(props: {
             <ListItemText color="error"> drop </ListItemText>
           </MenuItem>
         )}
-        {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
+        {!schema && (
+          <>
+            <Divider></Divider>
+            <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
+          </>
+        )}
       </MenuList>
     </Paper>
   );

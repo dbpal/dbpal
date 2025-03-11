@@ -22,6 +22,7 @@ import {
   Box,
   Button,
   CircularProgress,
+  Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -239,6 +240,7 @@ function ColumnsTabContent(props: {
               <ListItemText> Copy </ListItemText>
             </MenuItem>
           )}
+          <Divider></Divider>
           <MenuResetColumnWidths></MenuResetColumnWidths>
         </MenuList>
       </Paper>
@@ -551,6 +553,7 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText> View Columns </ListItemText>
         </MenuItem>
+        <Divider></Divider>
         <MenuItem
           onClick={() => {
             setShowExport(true);
@@ -561,7 +564,7 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText> Export </ListItemText>
         </MenuItem>
-
+        <Divider></Divider>
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {

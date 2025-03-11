@@ -1,6 +1,7 @@
 import { types } from './ApiStruct.ts';
 import {
   Alert,
+  Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -69,7 +70,7 @@ function RespContextMenu(props: { content; field; setSort }) {
           </ListItemIcon>
           <ListItemText> Copy field </ListItemText>
         </MenuItem>
-
+        <Divider></Divider>
         <MenuItem
           onClick={() => {
             setSort([{ field, sort: 'asc' }] as GridSortModel);

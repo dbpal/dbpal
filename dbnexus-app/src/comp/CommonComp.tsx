@@ -12,6 +12,7 @@ import {
   MenuList,
   Stack,
   Button,
+  Divider,
 } from '@mui/material';
 import {
   ReactNode,
@@ -364,7 +365,7 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
             </ListItemIcon>
             <ListItemText> Copy </ListItemText>
           </MenuItem>
-
+          <Divider></Divider>
           <MenuItem
             onClick={() => {
               setSort([{ field, sort: 'asc' }] as GridSortModel);

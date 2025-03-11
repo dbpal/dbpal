@@ -487,12 +487,12 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       connections = [];
     }
     if (connectionName.includes('/')) {
-      showNotification('error', "connection name can't contains /");
+      showNotification('error', "connection name can't contains '/'");
       connectionNameDom.current.focus();
       return;
     }
     if (connections.find((e) => e.name == connectionName)) {
-      showNotification('error', 'name aleary been taken');
+      showNotification('error', 'name already been taken');
       connectionNameDom.current.focus();
       return;
     }

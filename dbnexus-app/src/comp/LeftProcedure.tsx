@@ -1,4 +1,5 @@
 import {
+  Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -196,7 +197,7 @@ function ProcedureMenu(props: {
           </ListItemIcon>
           <ListItemText> Detail </ListItemText>
         </MenuItem>
-
+        <Divider></Divider>
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {
