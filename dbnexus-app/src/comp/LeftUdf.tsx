@@ -24,6 +24,7 @@ import {
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
+  MatchPatternContext,
   secondConfirm,
   TabsSetContext,
   UuidContext,
@@ -67,7 +68,7 @@ function UdfsTree() {
   };
 
   let { setUpMenu } = useContext(ContextMenuContext);
-
+  const matchPattern = useContext(MatchPatternContext);
   return (
     <TreeItem
       itemId={idPrefix}
@@ -92,44 +93,46 @@ function UdfsTree() {
         <span> udfs </span>
       </Stack>
     >
-      {udfs.map((p) => (
-        <TreeItem
-          key={
-            p.name +
-            '-' +
-            p.parameters +
-            (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
-          }
-          itemId={getItemId(p)}
-          label=<Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: 'center', ...treeItemCommonStyle }}
-            onContextMenu={(e) => {
-              setUpMenu({
-                content: (
-                  <UdfMenu
-                    reload={reload}
-                    uuid={uuid}
-                    kind={kind}
-                    udf={p.name}
-                    parameters={p.parameters}
-                    cassandraParameters={p.cassandra_parameters}
-                  ></UdfMenu>
-                ),
-                style: calMenuStyle(e, 100),
-              });
-            }}
-          >
-            <TbMathFunction></TbMathFunction>
-            <span>{p.name}</span>
-            {kind == DataSourceKind.Postgres && <em> ({p.parameters}) </em>}
-            {kind == DataSourceKind.Cassandra && (
-              <em> ({p.cassandra_parameters.join(',')}) </em>
-            )}
-          </Stack>
-        ></TreeItem>
-      ))}
+      {udfs
+        .filter((e) => matchPattern(e.name))
+        .map((p) => (
+          <TreeItem
+            key={
+              p.name +
+              '-' +
+              p.parameters +
+              (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
+            }
+            itemId={getItemId(p)}
+            label=<Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <UdfMenu
+                      reload={reload}
+                      uuid={uuid}
+                      kind={kind}
+                      udf={p.name}
+                      parameters={p.parameters}
+                      cassandraParameters={p.cassandra_parameters}
+                    ></UdfMenu>
+                  ),
+                  style: calMenuStyle(e, 100),
+                });
+              }}
+            >
+              <TbMathFunction></TbMathFunction>
+              <span>{p.name}</span>
+              {kind == DataSourceKind.Postgres && <em> ({p.parameters}) </em>}
+              {kind == DataSourceKind.Cassandra && (
+                <em> ({p.cassandra_parameters.join(',')}) </em>
+              )}
+            </Stack>
+          ></TreeItem>
+        ))}
     </TreeItem>
   );
 }
@@ -360,6 +363,7 @@ function CassaandraAggregatesTree() {
     );
   };
   let { setUpMenu } = useContext(ContextMenuContext);
+  const matchPattern = useContext(MatchPatternContext);
   return (
     <TreeItem
       itemId={idPrefix}
@@ -384,39 +388,41 @@ function CassaandraAggregatesTree() {
         <span> aggregates </span>
       </Stack>
     >
-      {aggs.map((p) => (
-        <TreeItem
-          key={
-            p.name +
-            '-' +
-            p.parameters +
-            (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
-          }
-          itemId={getItemId(p)}
-          label=<Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: 'center', ...treeItemCommonStyle }}
-            onContextMenu={(e) => {
-              setUpMenu({
-                content: (
-                  <CassandraAggregateMenu
-                    reload={reload}
-                    uuid={uuid}
-                    agg={p.name}
-                    parameters={p.cassandra_parameters}
-                  ></CassandraAggregateMenu>
-                ),
-                style: calMenuStyle(e, 100),
-              });
-            }}
-          >
-            <MdFunctions></MdFunctions>
-            <span>{p.name}</span>
-            <em> ({p.cassandra_parameters.join(',')}) </em>
-          </Stack>
-        ></TreeItem>
-      ))}
+      {aggs
+        .filter((e) => matchPattern(e.name))
+        .map((p) => (
+          <TreeItem
+            key={
+              p.name +
+              '-' +
+              p.parameters +
+              (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
+            }
+            itemId={getItemId(p)}
+            label=<Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <CassandraAggregateMenu
+                      reload={reload}
+                      uuid={uuid}
+                      agg={p.name}
+                      parameters={p.cassandra_parameters}
+                    ></CassandraAggregateMenu>
+                  ),
+                  style: calMenuStyle(e, 100),
+                });
+              }}
+            >
+              <MdFunctions></MdFunctions>
+              <span>{p.name}</span>
+              <em> ({p.cassandra_parameters.join(',')}) </em>
+            </Stack>
+          ></TreeItem>
+        ))}
     </TreeItem>
   );
 }

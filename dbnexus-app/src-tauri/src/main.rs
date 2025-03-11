@@ -35,7 +35,7 @@ use handlers::{
     redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
     redis_zset_replace, redis_zset_show_table, rename_index, rename_table, save_password,
     semantic_tokens, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
-    show_trigger, show_udf, show_view, show_view_coumns, test_connection, truncate_table, update,
+    show_trigger, show_udf, show_view, show_view_columns, test_connection, truncate_table, update,
 };
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -240,7 +240,7 @@ fn main_() {
             config_list_database_or_schema,
             list_schema,
             drop_table_column,
-            show_view_coumns,
+            show_view_columns,
             list_data_types,
             modify_table_column,
             drop_trigger,

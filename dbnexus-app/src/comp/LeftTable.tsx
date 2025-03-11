@@ -81,6 +81,7 @@ import {
   generateRandomString,
   handleCopyToClipboard,
   secondConfirm,
+  MatchPatternContext,
   TabsSetContext,
   UuidContext,
   VisiableContext,
@@ -143,6 +144,7 @@ function TablesTree(props: { typ: TablesType }) {
       tablesText = 'time serial';
       break;
   }
+  const matchPattern = useContext(MatchPatternContext);
   return (
     <TreeItem
       itemId={uuid + '-tables-' + typ + '-'}
@@ -170,16 +172,18 @@ function TablesTree(props: { typ: TablesType }) {
         )}
       </Stack>
     >
-      {tables.map((e) => {
-        return (
-          <TableTree
-            key={e.name}
-            size={e.size}
-            reloadTables={handleReload}
-            table={e.name}
-          ></TableTree>
-        );
-      })}
+      {tables
+        .filter((e) => matchPattern(e.name))
+        .map((e) => {
+          return (
+            <TableTree
+              key={e.name}
+              size={e.size}
+              reloadTables={handleReload}
+              table={e.name}
+            ></TableTree>
+          );
+        })}
     </TreeItem>
   );
 }
@@ -1152,6 +1156,7 @@ function ColumnsTabContent(props: {
     })
       .then((fs) => {
         setFields(fs);
+        showNotification('success', 'load columns ok');
       })
       .catch((e) => {
         showNotification('error', 'list column failed', e);

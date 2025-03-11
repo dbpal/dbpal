@@ -613,7 +613,7 @@ pub async fn show_view(
     .map(MuiDataTableListResp::from)
 }
 #[tauri::command]
-pub async fn show_view_coumns(
+pub async fn show_view_columns(
     name: String, view_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Field>, ErrorFrontend> {
     random_sleep().await;

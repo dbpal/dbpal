@@ -119,7 +119,7 @@ export namespace types {
     } & (types.PGDBConfig & {
         "name": string;
     })) | ({
-        "conn_type": "sqlserver";
+        "conn_type": "mssql";
     } & (types.SqlServerDBConfig & {
         "name": string;
     })) | ({

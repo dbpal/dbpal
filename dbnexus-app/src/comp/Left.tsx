@@ -11,6 +11,7 @@ import {
   Modal,
   Paper,
   Stack,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -41,6 +42,7 @@ import {
   treeItemCommonStyle,
   SettingContext,
 } from './Common';
+import { FaCopyright } from 'react-icons/fa';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
 import { PiFileSqlFill } from 'react-icons/pi';
@@ -52,6 +54,8 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { debug } from './debug';
 import { TabContent } from './Tabs';
+import wcmatch from 'wildcard-match';
+
 import {
   calMenuStyle,
   columnWidths,
@@ -64,6 +68,8 @@ import {
   FavoriteSql,
   generateRandomString,
   handleCopyToClipboard,
+  MatchPatternContext,
+  secondConfirm,
   TabsSetContext,
   UuidContext,
 } from './helper';
@@ -82,6 +88,8 @@ import {
   MenuOpenConn,
   MenuRefresh,
 } from './CommonComp.tsx';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import { RedisTables, TablesTree, TablesType } from './LeftTable.tsx';
 import { ViewKind, ViewsTree } from './LeftView.tsx';
 import { CassaandraAggregatesTree, UdfsTree } from './LeftUdf.tsx';
@@ -93,14 +101,15 @@ import {
   GridSortModel,
 } from '@mui/x-data-grid';
 import { listen } from '@tauri-apps/api/event';
-import { AddConfig } from './AddConnection.tsx';
+import { AddConnection } from './AddConnection.tsx';
 
-function Left_() {
-  const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+function LeftTop(props: { matchPattern: string; setMatchPattern }) {
+  const { matchPattern, setMatchPattern } = props;
   const [showFavoriteSql, setShowFavoriteSql] = useState(false);
   const [showAddConnection, setShowAddConnection] = useState(false);
-
+  const [copyConn, setCopyConn] = useState<types.DBConnectionConfig>(null);
+  const [showCopyConn, setShowCopyConn] = useState(false);
+  const [show, setShow] = useState(false);
   useEffect(() => {
     let unlisten = listen('add_config', () => {
       setShowAddConnection(true);
@@ -112,77 +121,71 @@ function Left_() {
     };
   }, []);
 
-  const handleReload = async () => {
-    (await appStore())
-      .get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig)
-      .then((e) => {
-        if (!e) {
-          e = [];
-        }
-        setConfigs(e);
-      })
-      .catch((e) => {
-        showNotification('error', 'list all config failure', e);
-      });
+  const toggerShow = () => {
+    setShow((e) => !e);
   };
-  useEffect(() => {
-    handleReload();
-  }, []);
-  appStore().then((appstore) => {
-    appstore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
-      handleReload();
-    });
-  });
 
   return (
-    <Stack
-      style={{
-        overflow: 'auto',
-      }}
-    >
-      <Stack
-        direction="row"
-        style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}
-      >
-        <Tooltip title="make a connection">
-          <IconButton
-            onClick={() => {
-              setShowAddConnection(true);
-            }}
-          >
-            <GrConnect style={{ fontSize: '2.1rem' }}> </GrConnect>
-          </IconButton>
-        </Tooltip>
-
-        <Tooltip title="Favorite sql statement">
-          <IconButton
-            onClick={() => {
-              setShowFavoriteSql(true);
-            }}
-          >
-            <PiFileSqlFill style={{ fontSize: '2.8rem' }}> </PiFileSqlFill>
-          </IconButton>
-        </Tooltip>
-      </Stack>
-      <Divider></Divider>
+    <Stack>
       <Stack>
-        {configs.map((e) => {
-          return (
-            <ConnTypeContext.Provider
-              value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
-              key={e.name}
-            >
-              <UuidContext.Provider
-                value={{
-                  uuid: e.name,
-                }}
-              >
-                <OneConfig key={e.name} config={e}></OneConfig>
-              </UuidContext.Provider>
-            </ConnTypeContext.Provider>
-          );
-        })}
+        {show ? (
+          <IconButton onClick={toggerShow}>
+            <KeyboardArrowDownIcon></KeyboardArrowDownIcon>
+          </IconButton>
+        ) : (
+          <IconButton onClick={toggerShow}>
+            <KeyboardArrowRightIcon></KeyboardArrowRightIcon>
+          </IconButton>
+        )}
       </Stack>
+
+      {show && (
+        <Stack
+          direction="row"
+          style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}
+        >
+          <Tooltip title="make a connection">
+            <IconButton
+              onClick={() => {
+                setShowAddConnection(true);
+              }}
+            >
+              <GrConnect style={{ fontSize: '2.1rem' }}> </GrConnect>
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Favorite sql statement">
+            <IconButton
+              onClick={() => {
+                setShowFavoriteSql(true);
+              }}
+            >
+              <PiFileSqlFill style={{ fontSize: '2.8rem' }}> </PiFileSqlFill>
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="copy a connection">
+            <IconButton
+              onClick={() => {
+                setShowCopyConn(true);
+              }}
+            >
+              <FaCopyright style={{ fontSize: '2.6rem' }}> </FaCopyright>
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      )}
+      {show && (
+        <TextField
+          fullWidth
+          value={matchPattern}
+          size="small"
+          label="match key for table view udf procedure ..."
+          onChange={(e) => {
+            setMatchPattern(e.target.value.trim());
+          }}
+        ></TextField>
+      )}
 
       {showFavoriteSql && (
         <Modal
@@ -215,18 +218,280 @@ function Left_() {
           }}
         >
           <Box sx={modalStyle} width="950px">
-            <AddConfig
+            <AddConnection
               handleClose={() => {
                 setShowAddConnection(false);
               }}
-            ></AddConfig>
+            ></AddConnection>
           </Box>
         </Modal>
       )}
+      {copyConn && (
+        <Modal
+          open={!!copyConn}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setCopyConn(null);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <AddConnection
+              handleClose={() => {
+                setCopyConn(null);
+              }}
+              config={copyConn}
+            ></AddConnection>
+          </Box>
+        </Modal>
+      )}
+
+      {showCopyConn && (
+        <Modal
+          open={showCopyConn}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowCopyConn(false);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <CopyConnection
+              handleClose={() => {
+                setShowCopyConn(false);
+              }}
+              setCopyConn={(conn) => {
+                setCopyConn(conn);
+              }}
+            ></CopyConnection>
+          </Box>
+        </Modal>
+      )}
+    </Stack>
+  );
+}
+
+function CopyConnection(props: { handleClose; setCopyConn }) {
+  const { handleClose, setCopyConn } = props;
+  const [conns, setConns] = useState<types.DBConnectionConfig[]>([]);
+  const [sortModel, setSortModel] = useState<GridSortModel>([]);
+  const getRowId = useCallback((e) => {
+    return e.name;
+  }, []);
+  const onSortModelChange = useCallback((e) => {
+    setSortModel(e);
+  }, []);
+
+  const { showNotification } = useContext(NotificationContext);
+  const setting = useContext(SettingContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
+
+  function Menu(props: { content: string }) {
+    const { content } = props;
+    return (
+      <Paper>
+        <MenuList>
+          {content && (
+            <MenuItem
+              onClick={() => {
+                handleCopyToClipboard(content, showNotification);
+              }}
+            >
+              <ListItemIcon>
+                <ContentCopyIcon></ContentCopyIcon>
+              </ListItemIcon>
+              <ListItemText> Copy </ListItemText>
+            </MenuItem>
+          )}
+        </MenuList>
+      </Paper>
+    );
+  }
+
+  const useRow = (conn) => {
+    setCopyConn(conn);
+    handleClose();
+  };
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { target } = e;
+          let content = (target as HTMLDivElement).innerHTML;
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
+          setUpMenu({
+            content: <Menu content={content}></Menu>,
+            style: calMenuStyle(e, 200),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, []);
+
+  let cols = useMemo(() => {
+    const cols = [
+      { field: 'name' },
+      { field: 'conn_type' },
+      { field: 'host' },
+      { field: 'path' },
+      { field: 'port' },
+      {
+        field: 'db',
+        renderHeader: () => {
+          return 'database';
+        },
+      },
+    ] as GridColDef[];
+    cols.forEach((e) => {
+      const width = columnWidths.getWidth(e.field);
+      if (width) {
+        e.width = width;
+      }
+    });
+    return cols;
+  }, []);
+
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    columnWidths.saveColumnWidths(colDef.field, width);
+  }, []);
+
+  const onRowDoubleClick = useCallback((row) => {
+    useRow(row.row);
+  }, []);
+
+  const handleReload = async () => {
+    try {
+      let conns = await (
+        await appStore()
+      ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
+      setConns(conns);
+    } catch (e) {
+      showNotification('error', 'get connections failed', e);
+    }
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row">
+        {conns.length == 0 && (
+          <Button
+            onClick={() => {
+              handleReload();
+            }}
+          >
+            reload
+          </Button>
+        )}
+
+        <Typography color="info">
+          double click a row to copy a connection.
+        </Typography>
+      </Stack>
+
+      <div
+        style={{
+          display: 'grid',
+          height: datagridContainerHeight(conns.length),
+        }}
+      >
+        <DataGrid
+          getRowId={getRowId}
+          sortModel={sortModel}
+          onSortModelChange={onSortModelChange}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          slotProps={slotProps}
+          rowHeight={setting.datagridRowHeight}
+          columnHeaderHeight={setting.datagridHeaderHeight}
+          columns={cols}
+          rows={conns}
+          onColumnResize={onColumnResize}
+          onRowDoubleClick={onRowDoubleClick}
+        ></DataGrid>
+      </div>
+    </Stack>
+  );
+}
+
+function Left_() {
+  const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const [matchPattern, setMatchPattern] = useState('');
+  const handleReload = async () => {
+    (await appStore())
+      .get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig)
+      .then((e) => {
+        if (!e) {
+          e = [];
+        }
+        setConfigs(e);
+      })
+      .catch((e) => {
+        showNotification('error', 'list all config failure', e);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+  appStore().then((appstore) => {
+    appstore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
+      handleReload();
+    });
+  });
+  return (
+    <Stack
+      style={{
+        overflow: 'auto',
+      }}
+    >
+      <LeftTop
+        matchPattern={matchPattern}
+        setMatchPattern={setMatchPattern}
+      ></LeftTop>
+      <Divider></Divider>
+      <Stack>
+        {configs.map((e) => {
+          return (
+            <MatchPatternContext.Provider
+              value={
+                matchPattern
+                  ? wcmatch(matchPattern, { flags: 'i' })
+                  : () => {
+                      return true;
+                    }
+              }
+              key={e.name}
+            >
+              <ConnTypeContext.Provider
+                value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
+              >
+                <UuidContext.Provider
+                  value={{
+                    uuid: e.name,
+                  }}
+                >
+                  <OneConfig key={e.name} config={e}></OneConfig>
+                </UuidContext.Provider>
+              </ConnTypeContext.Provider>
+            </MatchPatternContext.Provider>
+          );
+        })}
+      </Stack>
+
       <div style={{ minHeight: '300px' }}></div>
     </Stack>
   );
 }
+
 const makeConn = async (uuid: string, kind: DataSourceKind) => {
   const queryId = await invoke<string>('query_sql_open_connection', {
     name: uuid,
@@ -235,7 +500,6 @@ const makeConn = async (uuid: string, kind: DataSourceKind) => {
   return new QueryConn(uuid, queryId, kind == DataSourceKind.Oracle);
 };
 function FavoriteSqlList(props: { handleClose }) {
-  //@ts-ignore
   const { handleClose } = props;
   const { showNotification } = useContext(NotificationContext);
   const [sqls, setSqls] = useState<FavoriteSql[]>([]);
@@ -349,8 +613,8 @@ function FavoriteSqlList(props: { handleClose }) {
   }, []);
 
   const { setUpMenu } = useContext(ContextMenuContext);
-  function Menu(props: { content: string }) {
-    const { content } = props;
+  function Menu(props: { content: string; id: string }) {
+    const { content, id } = props;
     return (
       <Paper>
         <MenuList>
@@ -366,6 +630,18 @@ function FavoriteSqlList(props: { handleClose }) {
               <ListItemText> Copy </ListItemText>
             </MenuItem>
           )}
+
+          <MenuItem
+            onClick={async () => {
+              await FavoriteSql.delete(id, showNotification);
+              handleReload(false);
+            }}
+          >
+            <ListItemIcon>
+              <DeleteForeverIcon></DeleteForeverIcon>
+            </ListItemIcon>
+            <ListItemText> delete </ListItemText>
+          </MenuItem>
         </MenuList>
       </Paper>
     );
@@ -374,14 +650,15 @@ function FavoriteSqlList(props: { handleClose }) {
     return {
       row: {
         onContextMenu: (e) => {
-          const { target } = e;
+          const { target, currentTarget } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let field = (target as HTMLDivElement).getAttribute('data-field');
           if (!field) {
             return;
           }
+          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           setUpMenu({
-            content: <Menu content={content}></Menu>,
+            content: <Menu content={content} id={id}></Menu>,
             style: calMenuStyle(e, 200),
           });
         },
@@ -424,22 +701,44 @@ function FavoriteSqlList(props: { handleClose }) {
     useRow(row.row);
   }, []);
 
+  const handleclean = async () => {
+    let confirm = await secondConfirm({
+      title: 'clean all favorite sql???',
+      confirmText: 'clean',
+    });
+    if (!confirm) {
+      return;
+    }
+    FavoriteSql.clear(showNotification);
+    handleClose();
+  };
+
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1}>
-        {sqls.length == 0 && (
-          <Button
-            variant="contained"
-            onClick={() => {
-              handleReload(true);
-            }}
-          >
-            reload
-          </Button>
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Button
+          variant="contained"
+          onClick={() => {
+            handleReload(true);
+          }}
+        >
+          reload
+        </Button>
+        {sqls.length > 0 && (
+          <Tooltip title="delete all sql">
+            <IconButton
+              onClick={() => {
+                handleclean();
+              }}
+            >
+              <DeleteForeverIcon color="error"></DeleteForeverIcon>
+            </IconButton>
+          </Tooltip>
         )}
-        <Typography color="info"> double click a row to use sql. </Typography>
+        {sqls.length > 0 && (
+          <Typography color="info"> double click a row to use sql. </Typography>
+        )}
       </Stack>
-
       <div
         style={{
           display: 'grid',
@@ -499,7 +798,7 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
         ) : (
           <DatabaseTree></DatabaseTree>
         );
-      case 'sqlserver':
+      case 'mssql':
         if (!config.db) {
           return <CatalogTree />;
         }

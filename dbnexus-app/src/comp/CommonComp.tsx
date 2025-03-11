@@ -46,6 +46,7 @@ import {
   datagridContainerHeight,
   DataSourceKind,
   errToString,
+  FavoriteSql,
   handleCopyToClipboard,
   secondConfirm,
 } from './helper';
@@ -313,11 +314,11 @@ function MenuDeleteConfig({ name }) {
       let newdata = old.filter((e) => e.name != name);
       await (await appStore()).set(AppStoreKey.ConnectionConfig, newdata);
       await invoke('close_conn', { name });
+      await FavoriteSql.deleteByUuid(name);
     } catch (e) {
       showNotification('error', 'drop connection failed', e);
     }
   };
-
   return (
     <MenuItem
       onClick={() => {

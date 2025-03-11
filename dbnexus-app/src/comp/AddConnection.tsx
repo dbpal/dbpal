@@ -223,45 +223,53 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
   );
 }
 
-function AddConfig(props: { handleClose: () => void }) {
-  let { handleClose } = props;
-
-  const [connectionType, setConnectionType] = useState(DataSourceKind.Mysql);
-  const [connectionName, setConnectionName] = useState('');
+function AddConnection(props: { handleClose: () => void; config?: object }) {
+  let { handleClose, config } = props;
+  if (!config) {
+    config = {};
+  }
+  const getConfig = (key: string, defaultValue: any = '') => {
+    let v = config[key];
+    if (!v) {
+      v = defaultValue;
+    }
+    return v;
+  };
+  const [connectionType, setConnectionType] = useState(
+    getConfig('conn_type', 'mysql')
+  );
+  const [connectionName, setConnectionName] = useState(getConfig('name'));
   const connectionNameDom = useRef(null);
-  const [host, setHost] = useState('localhost');
-  const [port, setPort] = useState('3306');
-  const [user, setUser] = useState('');
+  const [host, setHost] = useState(getConfig('host'));
+  const [port, setPort] = useState('' + getConfig('port', 0));
+  const [user, setUser] = useState(getConfig('username'));
   const [password, setPassword] = useState('');
-  const [database, setDatabase] = useState('');
-  const [readOnly, setReadOnly] = useState(false);
+  const [database, setDatabase] = useState(getConfig('db'));
+  const [readOnly, setReadOnly] = useState(getConfig('read_only', false));
   //@ts-ignore
   const [useSSL, setUseSSL] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [triggerReLoad, setTriggerReload] = useState(false);
-  const [path, setPath] = useState('');
+  const [path, setPath] = useState(getConfig('path'));
   const { showNotification } = useContext(NotificationContext);
   const [testOk, setTestOk] = useState(false);
-  const [trustCert, setTrustCert] = useState(false);
+  const [trustCert, setTrustCert] = useState(getConfig('trust_cert', false));
   const [databaseCandidates, setDatabaseCandidates] = useState([]);
-  const [schema, setSchema] = useState('');
-  const [https, setHttps] = useState(false);
+  const [schema, setSchema] = useState(getConfig('schema'));
+  const [https, setHttps] = useState(getConfig('https', false));
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
   };
-  const [libSqlModel, setlibSqlModal] = useState<'remote' | 'local'>('remote');
-  const [url, setUrl] = useState('');
-  const [replica, setReplica] = useState(false);
-  const [authToken, setAuthToken] = useState('');
-
+  const [libSqlModel, setlibSqlModal] = useState<'remote' | 'local'>(
+    //@ts-ignore
+    getConfig('source') // backend has name this to source
+  );
+  const [url, setUrl] = useState(getConfig('url'));
+  const [replica, setReplica] = useState(getConfig('replica', false));
+  const [authToken, setAuthToken] = useState(getConfig('auth_token'));
   const [schemaCandidates, setSchemesCandidats] = useState([]);
-
   const makeConfig = (): types.DBConnectionConfig | null => {
     let portInt = parseInt(port);
-    if (isNaN(portInt)) {
-      showNotification('error', 'port is not a number');
-      return null;
-    }
     let user_null = user ? user : null;
     let pass_null = password ? password : null;
     let db_null = database ? database : null;
@@ -380,7 +388,7 @@ function AddConfig(props: { handleClose: () => void }) {
         };
       case DataSourceKind.MsSql:
         return {
-          conn_type: 'sqlserver',
+          conn_type: 'mssql',
           read_only: readOnly,
           name: connectionName,
           host: host,
@@ -459,13 +467,6 @@ function AddConfig(props: { handleClose: () => void }) {
         setPort('8123');
         break;
     }
-    setUser('');
-    setPassword('');
-    setDatabase('');
-    setPassword('');
-    setDatabaseCandidates([]);
-    setSchemesCandidats([]);
-    setSchema('');
   }, [connectionType]);
   const handleSaveConnection = async () => {
     if (!connectionName) {
@@ -509,9 +510,7 @@ function AddConfig(props: { handleClose: () => void }) {
       //@ts-ignore
       config.password = '';
     }
-
     connections = [config, ...connections];
-
     (await appStore())
       .set(AppStoreKey.ConnectionConfig, connections)
       .then((_) => {
@@ -945,4 +944,4 @@ function LibSql(props: {
   );
 }
 
-export { AddConfig };
+export { AddConnection };

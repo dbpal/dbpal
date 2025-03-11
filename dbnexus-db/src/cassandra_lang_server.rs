@@ -79,6 +79,7 @@ impl LexerCompletionTrait for CassandraDB {
                 }));
             }
         }
+
         ret.extend(BUILD_IN_FN.iter().map(|x| CompletionItem {
             item: (*x).into(),
             kind: CompletionKind::Function,
@@ -229,17 +230,20 @@ impl AstCompletion {
                 log::error!("need key space:{}", x);
             })
             .unwrap_or_default();
-        let mut result: Vec<CompletionItem> = self
-            .db
-            .list_materialized_view_impl(&key_space)
-            .await?
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.name.into(),
-                desc: None,
-                kind: CompletionKind::View,
-            })
-            .collect();
+        let mut result: Vec<CompletionItem> = if key_space.is_empty() {
+            vec![]
+        } else {
+            self.db
+                .list_materialized_view_impl(&key_space)
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.name.into(),
+                    desc: None,
+                    kind: CompletionKind::View,
+                })
+                .collect()
+        };
         if name.keyspace.is_none() {
             result.extend(self.table_view_key_spaces().await?.into_iter());
         }
@@ -263,34 +267,36 @@ impl AstCompletion {
             .map_err(|e| log::error!("{}", e))
             .unwrap_or_default();
 
-        let mut result: Vec<_> = self
-            .db
-            .list_table_impl(key_space.as_str())
-            .await?
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.name.into(),
-                desc: None,
-                kind: CompletionKind::Table,
-            })
-            .collect();
-
-        result.extend(
+        let mut result: Vec<_> = if key_space.is_empty() {
+            vec![]
+        } else {
             self.db
-                .list_materialized_view_impl(&key_space)
+                .list_table_impl(key_space.as_str())
                 .await?
                 .into_iter()
                 .map(|x| CompletionItem {
                     item: x.name.into(),
                     desc: None,
-                    kind: CompletionKind::View,
-                }),
-        );
-
+                    kind: CompletionKind::Table,
+                })
+                .collect()
+        };
+        if !key_space.is_empty() {
+            result.extend(
+                self.db
+                    .list_materialized_view_impl(&key_space)
+                    .await?
+                    .into_iter()
+                    .map(|x| CompletionItem {
+                        item: x.name.into(),
+                        desc: None,
+                        kind: CompletionKind::View,
+                    }),
+            );
+        }
         if table.keyspace.is_none() {
             result.extend(self.table_view_key_spaces().await?.into_iter());
         }
-
         self.result = Some(result);
         anyhow::Ok(())
     }
@@ -1389,8 +1395,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object(Some("test".to_string())).await;
         test_file_auto_completion(
-            r#"TRUNCATE test.employees;
-14 test "#,
+            r#"SELECT * from sys
+18 system"#,
             &db,
             uuid::Uuid::new_v4(),
             false,

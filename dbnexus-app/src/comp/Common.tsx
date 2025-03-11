@@ -928,7 +928,7 @@ async function makeQueryConnInfo(uuid: string) {
     case 'mysql':
     case 'mariadb':
     case 'postgres':
-    case 'sqlserver':
+    case 'mssql':
     case 'cassandra':
     case 'tidb':
     case 'clickhouse':

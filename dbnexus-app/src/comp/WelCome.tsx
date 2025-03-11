@@ -1,6 +1,6 @@
 import { Chip, Stack, Typography } from '@mui/material';
 import { openUrl } from '@tauri-apps/plugin-opener';
-
+import InfoIcon from '@mui/icons-material/Info';
 function WelCome() {
   const databases = [
     {
@@ -71,7 +71,6 @@ function WelCome() {
             spacing={3}
             style={{
               alignItems: 'center',
-              borderRadius: '4px',
               padding: '4px',
             }}
             key={e.name}
@@ -88,10 +87,11 @@ function WelCome() {
       </Stack>
       <Stack direction="row">
         <Chip
+          icon={<InfoIcon></InfoIcon>}
           onClick={() => {
             openUrl('https://github.com/dbpal/docs/blob/main/README.md');
           }}
-          style={{ fontSize: '2rem', fontWeight: 'bold', padding: '4px' }}
+          style={{ fontSize: '1.2rem', fontWeight: 'bold', padding: '4px' }}
           label="more information"
           color="info"
         ></Chip>

@@ -1,16 +1,26 @@
-import { ReactNode, useContext, useEffect, useState } from 'react';
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   progressBarSizeSmall,
   tabsHasId,
   modalStyle,
   DocsAndCount,
   treeItemCommonStyle,
+  SettingContext,
 } from './Common';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
-
+import TableChartIcon from '@mui/icons-material/TableChart';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Box,
+  Button,
   CircularProgress,
   ListItemIcon,
   ListItemText,
@@ -33,14 +43,19 @@ import { TabContent } from './Tabs';
 import { ExportTableOrView } from './Export';
 import {
   calMenuStyle,
+  columnWidths,
   ConnTypeContext,
   ContextMenuContext,
+  datagridContainerHeight,
   DataSourceKind,
+  handleCopyToClipboard,
+  MatchPatternContext,
   secondConfirm,
   TabsSetContext,
   UuidContext,
+  VisiableContext,
 } from './helper';
-import { MenuRefresh } from './CommonComp';
+import { MenuRefresh, MenuResetColumnWidths } from './CommonComp';
 import { MongoTable } from './MongoDB';
 import { BSON, EJSON } from 'bson';
 
@@ -49,6 +64,11 @@ enum ViewKind {
   Materrialized,
 }
 import CalendarViewWeekIcon from '@mui/icons-material/CalendarViewWeek';
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponentsProps,
+} from '@mui/x-data-grid';
 function ViewsTree(props: { viewkind: ViewKind }) {
   const { viewkind } = props;
 
@@ -109,7 +129,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
       break;
   }
-
+  const matchPattern = useContext(MatchPatternContext);
   return (
     <TreeItem
       itemId={itemId}
@@ -137,16 +157,149 @@ function ViewsTree(props: { viewkind: ViewKind }) {
         )}
       </Stack>
     >
-      {views.map((e) => (
-        <ViewTree
-          viewkind={viewkind}
-          key={e.name}
-          view={e.name}
-          reload={handleReload}
-          size={e.size}
-        ></ViewTree>
-      ))}
+      {views
+        .filter((e) => matchPattern(e.name))
+        .map((e) => (
+          <ViewTree
+            viewkind={viewkind}
+            key={e.name}
+            view={e.name}
+            reload={handleReload}
+            //@ts-ignore
+            size={e.size}
+          ></ViewTree>
+        ))}
     </TreeItem>
+  );
+}
+
+function ColumnsTabContent(props: {
+  uuid: string;
+
+  view: string;
+}) {
+  const { uuid, view } = props;
+  const setting = useContext(SettingContext);
+
+  const [fields, setFields] = useState<types.Field[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const [loading, setLoading] = useState(false);
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    columnWidths.saveColumnWidths(colDef.field, width);
+  }, []);
+
+  const handleReload = () => {
+    setLoading(true);
+    invoke<types.Field[]>('show_view_columns', {
+      name: uuid,
+      viewName: view,
+    })
+      .then((fs) => {
+        setFields(fs);
+        showNotification('success', 'load columns ok');
+      })
+      .catch((e) => {
+        showNotification('error', 'list column failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    handleReload();
+  }, []);
+  let cols = useMemo(() => {
+    return [{ field: 'field' }, { field: 'typ' }, ,] as GridColDef[];
+  }, []);
+  cols.forEach((e) => {
+    const width = columnWidths.getWidth(e.field);
+    if (width) {
+      e.width = width;
+    }
+  });
+  const vis = useContext(VisiableContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
+
+  function Menu(props: { content: string }) {
+    const { content } = props;
+
+    return (
+      <Paper>
+        <MenuList>
+          {content && (
+            <MenuItem
+              onClick={() => {
+                handleCopyToClipboard(content, showNotification);
+              }}
+            >
+              <ListItemIcon>
+                <ContentCopyIcon></ContentCopyIcon>
+              </ListItemIcon>
+              <ListItemText> Copy </ListItemText>
+            </MenuItem>
+          )}
+          <MenuResetColumnWidths></MenuResetColumnWidths>
+        </MenuList>
+      </Paper>
+    );
+  }
+
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { target } = e;
+          {
+            const field = (target as HTMLDivElement).getAttribute('data-field');
+            if (!field) {
+              return;
+            }
+          }
+          let content = (target as HTMLDivElement).innerHTML;
+          setUpMenu({
+            content: <Menu content={content}></Menu>,
+            style: calMenuStyle(e, 100),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, []);
+
+  const getRowId = useCallback((e) => {
+    return e['field'];
+  }, []);
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1}>
+        <Button loading={loading} onClick={handleReload} variant="contained">
+          reload
+        </Button>
+      </Stack>
+
+      {vis && (
+        <div
+          style={{
+            display: 'grid',
+            height: datagridContainerHeight(fields.length),
+          }}
+        >
+          <DataGrid
+            getRowId={getRowId}
+            slotProps={slotProps}
+            onColumnResize={onColumnResize}
+            showCellVerticalBorder
+            showColumnVerticalBorder
+            rowHeight={setting.datagridRowHeight}
+            columnHeaderHeight={setting.datagridHeaderHeight}
+            columns={cols}
+            rows={fields}
+          ></DataGrid>
+        </div>
+      )}
+    </Stack>
   );
 }
 
@@ -157,7 +310,6 @@ function ViewTree(props: {
   size?: string;
 }) {
   let { view, reload, viewkind, size } = props;
-
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(ContextMenuContext);
@@ -199,76 +351,7 @@ function ViewTree(props: {
           {viewkind == ViewKind.Materrialized && <span> {size} </span>}
         </Stack>
       }
-    >
-      <ViewColumnsTree view={view} viewkind={viewkind}></ViewColumnsTree>
-    </TreeItem>
-  );
-}
-
-function ViewColumnsTree(props: { view: string; viewkind: ViewKind }) {
-  const { view, viewkind } = props;
-  const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const { uuid } = useContext(UuidContext);
-  const [loading, setLoading] = useState(false);
-  const reload = () => {
-    setLoading(true);
-    invoke<types.Field[]>('show_view_coumns', { name: uuid, viewName: view })
-      .then((fs) => {
-        setFields(fs);
-      })
-      .catch((e) => {
-        showNotification('error', 'list column failed', e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
-  let { setUpMenu } = useContext(ContextMenuContext);
-  useEffect(() => {
-    reload();
-  }, []);
-  let idPrefix = uuid + '-views-' + view + viewkind + '-columns-';
-  return (
-    <TreeItem
-      itemId={idPrefix}
-      label=<Stack
-        spacing={1}
-        direction="row"
-        style={{ ...treeItemCommonStyle }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={reload}></MenuRefresh>
-                </MenuList>
-              </Paper>
-            ),
-            style: calMenuStyle(e, 200),
-          });
-        }}
-      >
-        <span> columns </span>
-        {loading && (
-          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-        )}
-      </Stack>
-    >
-      {fields.map((f) => (
-        <TreeItem
-          key={f.field}
-          itemId={idPrefix + '-' + f.field}
-          label=<Stack
-            direction="row"
-            spacing={1}
-            style={{ ...treeItemCommonStyle }}
-          >
-            {f.field} <em>({f.typ}) </em>
-          </Stack>
-        ></TreeItem>
-      ))}
-    </TreeItem>
+    ></TreeItem>
   );
 }
 
@@ -428,6 +511,26 @@ function ViewMenu(props: {
     }
   };
 
+  const handleViewColumns = () => {
+    let id = uuid + '-view-' + view + '-columns';
+    let index = tabsHasId(tabs, id);
+    if (typeof index == 'number') {
+      setSelectTab(index);
+    } else {
+      setTabs((e) => {
+        setSelectTab(tabs.length);
+        return [
+          ...e,
+          new TabContent(
+            id,
+            `${view}-cols`,
+            <ColumnsTabContent view={view} uuid={uuid}></ColumnsTabContent>
+          ),
+        ];
+      });
+    }
+  };
+
   return (
     <Paper>
       <MenuList>
@@ -442,6 +545,12 @@ function ViewMenu(props: {
           ></Typography>
         </MenuItem>
 
+        <MenuItem onClick={handleViewColumns}>
+          <ListItemIcon>
+            <TableChartIcon></TableChartIcon>
+          </ListItemIcon>
+          <ListItemText> View Columns </ListItemText>
+        </MenuItem>
         <MenuItem
           onClick={() => {
             setShowExport(true);

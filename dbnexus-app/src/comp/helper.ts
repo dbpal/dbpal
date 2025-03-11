@@ -9,7 +9,6 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
-
 interface ConfirmOptions {
   title: string;
   content?: string;
@@ -293,7 +292,7 @@ function errToString(message) {
 
 enum DataSourceKind {
   Mysql = "mysql",
-  MariaDB = "maraidb",
+  MariaDB = "mariadb",
   TiDB = "tidb",
   Sqlite = "sqlite",
   Postgres = "postgres",
@@ -378,20 +377,42 @@ class FavoriteSql {
   static formatKey(uuid: string, name: string) {
     return uuid + '-' + name
   }
-  static async delete(uuid: string, name: string, showNotification) {
+
+  static async delete(key: string, showNotification) {
     try {
       const store = await appStore();
       let logs = await store.get<object>(FavoriteSql.key);
       if (logs) {
         logs = {};
       }
-      delete logs[FavoriteSql.formatKey(uuid, name)];
+      delete logs[key];
       await store.set(FavoriteSql.key, logs)
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
     }
     showNotification('success', "delete sql Ok")
+  }
+
+  static async deleteByUuid(uuid: string) {
+    try {
+      const store = await appStore();
+      let logs = await store.get<object>(FavoriteSql.key);
+      if (logs) {
+        logs = {};
+      }
+
+      for (var key in logs) {
+        const log = logs[key] as FavoriteSql;
+        if (log.uuid == uuid) {
+          delete logs[key]
+        }
+      }
+      await store.set(FavoriteSql.key, logs)
+    } catch (e) {
+      console.log("delete all logs belong to a key failed", e);
+      return
+    }
   }
   static async clear(showNotification) {
     try {
@@ -473,6 +494,12 @@ const ConnTypeContext = createContext<{
   kind: DataSourceKind;
 }>(null);
 
+
+const MatchPatternContext = createContext<(x: string) => boolean>(() => {
+  return true
+});
+
+
 const UuidContext = createContext<{
   uuid: string;
 }>(null);
@@ -488,7 +515,6 @@ const filterStyle = {
     fontWeight: 'bold'
   } as CSSProperties,
 };
-
 
 export {
   TabsSetContext,
@@ -525,4 +551,5 @@ export {
   filterStyle,
   VisiableContext,
   FavoriteSql,
+  MatchPatternContext
 };
