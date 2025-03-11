@@ -211,7 +211,7 @@ const components: Components<
   MuiMenuList: {
     styleOverrides: {
       root: {
-        padding: '2px 0',
+        padding: '0px',
       },
     },
   },

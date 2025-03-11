@@ -774,7 +774,6 @@ function Menu(props: {
             <Divider></Divider>
           </>
         )}
-
         {content && nullable && setNull && (
           <MenuItem
             onClick={() => {
@@ -788,19 +787,22 @@ function Menu(props: {
           </MenuItem>
         )}
         {addOP && (
-          <MenuItem onClick={handleClone}>
-            <ListItemIcon>
-              <FileCopyIcon></FileCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Clone Row </ListItemText>
-          </MenuItem>
+          <>
+            <Divider></Divider>
+            <MenuItem onClick={handleClone}>
+              <ListItemIcon>
+                <FileCopyIcon></FileCopyIcon>
+              </ListItemIcon>
+              <ListItemText> Clone Row </ListItemText>
+            </MenuItem>
+            <MenuItem onClick={handleDelete}>
+              <ListItemIcon>
+                <DeleteForeverIcon></DeleteForeverIcon>
+              </ListItemIcon>
+              <ListItemText> Delete Row</ListItemText>
+            </MenuItem>
+          </>
         )}
-        <MenuItem onClick={handleDelete}>
-          <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText> Delete Row</ListItemText>
-        </MenuItem>
         <MenuResetColumnWidths></MenuResetColumnWidths>
       </MenuList>
 

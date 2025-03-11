@@ -184,6 +184,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           onChange={(e) => {
             setMatchPattern(e.target.value.trim());
           }}
+          helperText="name* etc"
         ></TextField>
       )}
 
