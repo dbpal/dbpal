@@ -882,6 +882,13 @@ pub async fn config_list_database_or_schema(
         Open::Schema(_) => Ok(vec![]),
     }
 }
+#[tauri::command]
+pub async fn conn_opend(name: String, app: tauri::State<'_, App>) -> Result<bool, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let opend = app.get_opened(name.as_str()).await.is_ok();
+    Ok(opend)
+}
 
 #[tauri::command]
 pub async fn list_database(

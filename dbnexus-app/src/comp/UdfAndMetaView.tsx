@@ -9,10 +9,10 @@ import { MetaValuesView } from './CommonComp';
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
-  language: string;
+  uuid: string;
   titleVariant?: Variant;
 }) {
-  let { reloadOP, language, titleVariant } = props;
+  let { reloadOP, uuid: language, titleVariant } = props;
   if (!titleVariant) {
     titleVariant = 'h4';
   }
@@ -56,7 +56,7 @@ function DefAndMetasView(props: {
           <Typography variant={titleVariant}> Statement </Typography>
           <SimpleResizeEditor
             style={{ minHeight: '200px' }}
-            language={language}
+            uuid={language}
             value={detail.def}
             onMount={(_editor, monaco) => {
               if (theme == 'dark') {

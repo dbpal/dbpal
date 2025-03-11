@@ -2,6 +2,7 @@ import {
   Box,
   Button,
   CircularProgress,
+  Divider,
   IconButton,
   ListItemIcon,
   ListItemText,
@@ -11,8 +12,16 @@ import {
   Paper,
   Stack,
   Tooltip,
+  Typography,
 } from '@mui/material';
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { GrConnect } from 'react-icons/gr';
 import {
@@ -51,6 +60,7 @@ import {
   ContextMenuContext,
   datagridContainerHeight,
   DataSourceKind,
+  extractConfigNameFromUuid,
   FavoriteSql,
   generateRandomString,
   handleCopyToClipboard,
@@ -90,6 +100,7 @@ function Left_() {
   const { showNotification } = useContext(NotificationContext);
   const [showFavoriteSql, setShowFavoriteSql] = useState(false);
   const [showAddConnection, setShowAddConnection] = useState(false);
+
   useEffect(() => {
     let unlisten = listen('add_config', () => {
       setShowAddConnection(true);
@@ -114,7 +125,6 @@ function Left_() {
         showNotification('error', 'list all config failure', e);
       });
   };
-
   useEffect(() => {
     handleReload();
   }, []);
@@ -140,7 +150,7 @@ function Left_() {
               setShowAddConnection(true);
             }}
           >
-            <GrConnect style={{ fontSize: '2.2rem' }}> </GrConnect>
+            <GrConnect style={{ fontSize: '2.1rem' }}> </GrConnect>
           </IconButton>
         </Tooltip>
 
@@ -154,7 +164,7 @@ function Left_() {
           </IconButton>
         </Tooltip>
       </Stack>
-
+      <Divider></Divider>
       <Stack>
         {configs.map((e) => {
           return (
@@ -217,19 +227,25 @@ function Left_() {
     </Stack>
   );
 }
-
+const makeConn = async (uuid: string, kind: DataSourceKind) => {
+  const queryId = await invoke<string>('query_sql_open_connection', {
+    name: uuid,
+  });
+  console.log('open connection:', queryId);
+  return new QueryConn(uuid, queryId, kind == DataSourceKind.Oracle);
+};
 function FavoriteSqlList(props: { handleClose }) {
+  //@ts-ignore
   const { handleClose } = props;
   const { showNotification } = useContext(NotificationContext);
   const [sqls, setSqls] = useState<FavoriteSql[]>([]);
   const [sortModel, setSortModel] = useState<GridSortModel>([
-    { field: 'createTime', sort: 'desc' },
+    { field: 'lastModified', sort: 'desc' },
   ]);
   const handleReload = async (showOK) => {
     try {
       const store = await appStore();
       let obj = await store.get<object>(FavoriteSql.key);
-
       if (!obj) {
         obj = {};
       }
@@ -246,7 +262,84 @@ function FavoriteSqlList(props: { handleClose }) {
       showNotification('success', 'fetch favorite sql ok');
     }
   };
+  const { setTabs, setSelectTab } = useContext(TabsSetContext);
+  const useRow = async (row: FavoriteSql) => {
+    initMonacoLanague(row.uuid, row.kind);
+    try {
+      let connOpend = await invoke<boolean>('conn_opend', { name: row.uuid });
+      if (!connOpend) {
+        showNotification(
+          'error',
+          `connection ${extractConfigNameFromUuid(row.uuid)} not opened????`
+        );
+        return;
+      }
 
+      setTabs((tabs) => {
+        let content;
+        switch (row.kind) {
+          case DataSourceKind.Mongo:
+            content = (
+              <MongoQuery
+                favoriteName={row.name}
+                value={row.sql}
+                uuid={row.uuid}
+                saveFavoriteSql={(_name, sql) => {
+                  FavoriteSql.save(
+                    new FavoriteSql(row.uuid, row.name, row.kind, sql),
+                    showNotification
+                  );
+                }}
+              ></MongoQuery>
+            );
+            break;
+          case DataSourceKind.Redis:
+            content = (
+              <RedisQuery
+                language={row.uuid}
+                makeConn={async () => {
+                  return makeConn(row.uuid, row.kind);
+                }}
+                saveFavoriteSql={(_name, sql) => {
+                  FavoriteSql.save(
+                    new FavoriteSql(row.uuid, row.name, row.kind, sql),
+                    showNotification
+                  );
+                }}
+                value={row.sql}
+                favoriteName={row.name}
+              ></RedisQuery>
+            );
+            break;
+          default:
+            content = (
+              <SqlQuery
+                language={row.uuid}
+                makeConn={async () => {
+                  return makeConn(row.uuid, row.kind);
+                }}
+                value={row.sql}
+                saveFavoriteSql={(_name, sql) => {
+                  FavoriteSql.save(
+                    new FavoriteSql(row.uuid, row.name, row.kind, sql),
+                    showNotification
+                  );
+                }}
+                favoriteName={row.name}
+              ></SqlQuery>
+            );
+        }
+        handleClose();
+        setSelectTab(tabs.length);
+        return [
+          ...tabs,
+          new TabContent(generateRandomString(10), `q@${row.uuid}`, content),
+        ];
+      });
+    } catch (e) {
+      showNotification('error', 'use sql failure', e);
+    }
+  };
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
@@ -254,6 +347,7 @@ function FavoriteSqlList(props: { handleClose }) {
   useEffect(() => {
     handleReload(false);
   }, []);
+
   const { setUpMenu } = useContext(ContextMenuContext);
   function Menu(props: { content: string }) {
     const { content } = props;
@@ -308,7 +402,7 @@ function FavoriteSqlList(props: { handleClose }) {
       { field: 'name' },
       { field: 'kind' },
       { field: 'sql' },
-      { field: 'createTime' },
+      { field: 'lastModified' },
     ] as GridColDef[];
     cols.forEach((e) => {
       let width = columnWidths.getWidth(e.field);
@@ -326,17 +420,24 @@ function FavoriteSqlList(props: { handleClose }) {
     columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
 
+  const onRowDoubleClick = useCallback((row) => {
+    useRow(row.row);
+  }, []);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
-        <Button
-          variant="contained"
-          onClick={() => {
-            handleReload(true);
-          }}
-        >
-          reload
-        </Button>
+        {sqls.length == 0 && (
+          <Button
+            variant="contained"
+            onClick={() => {
+              handleReload(true);
+            }}
+          >
+            reload
+          </Button>
+        )}
+        <Typography color="info"> double click a row to use sql. </Typography>
       </Stack>
 
       <div
@@ -357,13 +458,15 @@ function FavoriteSqlList(props: { handleClose }) {
           columns={columns}
           rows={sqls}
           onColumnResize={onColumnResize}
+          onRowDoubleClick={onRowDoubleClick}
         ></DataGrid>
       </div>
     </Stack>
   );
 }
 
-function OneConfig(props: { config: types.DBConnectionConfig }) {
+const OneConfig = memo(OneConfig_);
+function OneConfig_(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
   const [opened, setOpened] = useState(false || debug);
   const makeTree = () => {
@@ -760,13 +863,6 @@ async function openNewQuery(
   let id = uuid + '-query-' + generateRandomString();
   let content;
   let connInfo = await makeQueryConnInfo(uuid);
-  const makeConn = async () => {
-    const queryId = await invoke<string>('query_sql_open_connection', {
-      name: uuid,
-    });
-    console.log('open connection:', queryId);
-    return new QueryConn(uuid, queryId, kind == DataSourceKind.Oracle);
-  };
 
   switch (kind) {
     case DataSourceKind.MsSql:
@@ -782,11 +878,13 @@ async function openNewQuery(
       content = (
         <SqlQuery
           language={uuid}
-          makeConn={makeConn}
+          makeConn={async () => {
+            return makeConn(uuid, kind);
+          }}
           connectInfo={connInfo}
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
-              new FavoriteSql(name, uuid, kind, sql),
+              new FavoriteSql(uuid, name, kind, sql),
               showNotification
             );
           }}
@@ -797,11 +895,13 @@ async function openNewQuery(
       content = (
         <RedisQuery
           language={uuid}
-          makeConn={makeConn}
+          makeConn={async () => {
+            return makeConn(uuid, kind);
+          }}
           connectInfo={connInfo}
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
-              new FavoriteSql(name, uuid, kind, sql),
+              new FavoriteSql(uuid, name, kind, sql),
               showNotification
             );
           }}
@@ -811,7 +911,17 @@ async function openNewQuery(
       break;
 
     case DataSourceKind.Mongo:
-      content = <MongoQuery uuid={uuid}></MongoQuery>;
+      content = (
+        <MongoQuery
+          uuid={uuid}
+          saveFavoriteSql={async (name, sql) => {
+            await FavoriteSql.save(
+              new FavoriteSql(uuid, name, kind, sql),
+              showNotification
+            );
+          }}
+        ></MongoQuery>
+      );
       break;
     default:
       throw `impl this ${kind}`;

@@ -6,14 +6,19 @@ import {
   IconButton,
   Modal,
   Stack,
+  TextField,
   Tooltip,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position, Range } from 'monaco-editor';
-
+import FavoriteIcon from '@mui/icons-material/Favorite';
 import * as loglevel from 'loglevel';
 import { useContext, useEffect, useRef, useState } from 'react';
-import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
+import {
+  initMongoQueryGlobals,
+  MongoDBQuery,
+  BsonExtraDataType,
+} from './MongoQueryBackend';
 import { generateRandomString } from './helper';
 import {
   EditorBar,
@@ -49,8 +54,15 @@ function makeLog(level, ...msg: any[]): string {
 
 const fileFilter = { filters: [{ name: 'js', extensions: ['js'] }] };
 
-function MongoQuery(props: { uuid: string }) {
-  const { uuid } = props;
+function MongoQuery(props: {
+  uuid: string;
+  favoriteName?: string;
+  saveFavoriteSql: (name: string, sql: string) => void;
+  value?: string;
+}) {
+  const { uuid, favoriteName: oldFavoriteName, saveFavoriteSql, value } = props;
+  const [showSetFavoriteName, setShowFavoriteName] = useState(false);
+  const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
 
   const [err, setErr] = useState(null);
   const [loggerEditor, setLoggerEditor] = useState(null);
@@ -64,6 +76,9 @@ function MongoQuery(props: { uuid: string }) {
   const [loggerlevel, setLoggerlevel] = useState('trace');
   const [showLoggerLevel, setShowLoggerLevel] = useState(false);
   const [db, _] = useState(new MongoDBQuery(uuid));
+  const [bsonExtraDataType, _setbsonExtraDataTypes] = useState(
+    new BsonExtraDataType()
+  );
 
   useEffect(() => {
     logger.setLevel(loggerlevel as loglevel.LogLevelDesc);
@@ -128,7 +143,7 @@ function MongoQuery(props: { uuid: string }) {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" sx={{ alignItems: 'flex-end' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Tooltip title="execute">
           <IconButton
             onClick={() => {
@@ -150,6 +165,33 @@ function MongoQuery(props: { uuid: string }) {
             }}
           />
         </Tooltip>
+
+        <Tooltip
+          title={
+            !favoriteName
+              ? 'save sql to favorite.'
+              : `save favorite sql as named '${favoriteName}'`
+          }
+        >
+          <IconButton
+            onClick={() => {
+              const value = editor.current.getValue();
+              if (!value) {
+                showNotification('error', "can't save empty statement.");
+                return;
+              }
+              if (favoriteName) {
+                saveFavoriteSql(favoriteName, value);
+              } else {
+                setShowFavoriteName(true);
+              }
+            }}
+            color="primary"
+          >
+            <FavoriteIcon />
+          </IconButton>
+        </Tooltip>
+
         <LoadStoreFileForQuery
           openOpt={{ ...fileFilter }}
           saveOpt={{ canCreateDirectories: true, ...fileFilter }}
@@ -182,6 +224,7 @@ function MongoQuery(props: { uuid: string }) {
             options={{
               fontSize: setting.editorFontSize,
             }}
+            value={value}
             theme={theme}
           ></Editor>
         </div>
@@ -247,8 +290,51 @@ function MongoQuery(props: { uuid: string }) {
           </Box>
         </Modal>
       )}
+
+      {showSetFavoriteName && (
+        <Modal
+          open={showSetFavoriteName}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowFavoriteName(false);
+          }}
+        >
+          <Box sx={modalStyle} width="600px">
+            <Stack spacing={1}>
+              <TextField
+                fullWidth
+                label="name"
+                value={favoriteName}
+                onChange={(e) => {
+                  setFavoriteName(e.target.value);
+                }}
+                size="small"
+                required
+              ></TextField>
+              <Stack direction="row">
+                <IconButton
+                  color="primary"
+                  onClick={() => {
+                    if (!favoriteName) {
+                      showNotification('error', "name can't be empty");
+                      return;
+                    }
+                    saveFavoriteSql(favoriteName, editor.current.getValue());
+                    setShowFavoriteName(false);
+                  }}
+                >
+                  <FavoriteIcon> </FavoriteIcon>
+                </IconButton>
+              </Stack>
+            </Stack>
+          </Box>
+        </Modal>
+      )}
       {/* // we must be db */}
       {db && <div></div>}
+      {bsonExtraDataType && <div></div>}
     </Stack>
   );
 }

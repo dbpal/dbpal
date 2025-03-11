@@ -13,6 +13,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import {
   languages,
@@ -405,7 +406,7 @@ function editorInitHeight(
 }
 
 function SimpleResizeEditor(props: {
-  language: string;
+  uuid: string;
   value: string;
   onMount?: OnMount;
   options?: editor.IStandaloneEditorConstructionOptions;
@@ -413,7 +414,15 @@ function SimpleResizeEditor(props: {
   barLeft?: ReactNode;
   style?: CSSProperties;
 }) {
-  let { language, value, onMount, options, minHeigth, barLeft, style } = props;
+  let {
+    uuid: language,
+    value,
+    onMount,
+    options,
+    minHeigth,
+    barLeft,
+    style,
+  } = props;
   const [pos, setPos] = useState<Position>(null);
   let height = editorInitHeight(
     value,
@@ -663,7 +672,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
     }
   };
   function initLanguageXXX(
-    language: string,
+    uuid: string,
     Ilanguage: languages.IMonarchLanguage,
     autoCompletion: (
       text: string,
@@ -675,10 +684,10 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
     ) => Promise<string>
   ) {
     loader.init().then((monaco) => {
-      monaco.languages.register({ id: language });
-      monaco.languages.setMonarchTokensProvider(language, Ilanguage);
+      monaco.languages.register({ id: uuid });
+      monaco.languages.setMonarchTokensProvider(uuid, Ilanguage);
       if (format) {
-        monaco.languages.registerDocumentFormattingEditProvider(language, {
+        monaco.languages.registerDocumentFormattingEditProvider(uuid, {
           provideDocumentFormattingEdits(model, options, _token) {
             return format(model.getValue(), options).then((text) => [
               { range: model.getFullModelRange(), text },
@@ -687,7 +696,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
         });
       }
 
-      monaco.languages.registerCompletionItemProvider(language, {
+      monaco.languages.registerCompletionItemProvider(uuid, {
         provideCompletionItems: (
           model: editor.ITextModel,
           position: Position,
@@ -1126,12 +1135,16 @@ function LoadStoreFileForQuery(props: {
   return (
     <>
       {file && (
-        <>
-          <Button onClick={handleClose}>close file</Button>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           <Tooltip title={file}>
             <Typography>{extractBaseName(file)}</Typography>
           </Tooltip>
-        </>
+          <Tooltip title="close file">
+            <IconButton onClick={handleClose}>
+              <CloseIcon></CloseIcon>
+            </IconButton>
+          </Tooltip>
+        </Stack>
       )}
       <Tooltip title="attach file">
         <IconButton onClick={loadFile} color="primary">
@@ -1146,7 +1159,6 @@ function LoadStoreFileForQuery(props: {
     </>
   );
 }
-
 type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
 const treeItemCommonStyle = { fontWeight: '600' } as CSSProperties;

@@ -31,11 +31,9 @@ async function secondConfirm({
   });
 }
 
-function datagridContainerHeight(length) {
-  return length < 20 ? undefined : '78vh';
-
+function datagridContainerHeight(length, height = '78vh') {
+  return length < 20 ? undefined : height;
 }
-
 
 async function randomTestThrowFunction() {
   await delayedReturn(undefined, Math.random() * 900);
@@ -44,6 +42,7 @@ async function randomTestThrowFunction() {
     throw new Error(`this is random error of ${v}`);
   }
 }
+
 
 async function voidTestFunction() {
   try {
@@ -359,7 +358,7 @@ enum AppStoreKey {
 
 
 class FavoriteSql {
-  constructor(public name: string, public uuid: string, public kind: DataSourceKind, public sql: string, public createTime: Date = new Date()) { }
+  constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public lastModified: Date = new Date()) { }
   static key = AppStoreKey.FavoriteSql;
   static async save(x: FavoriteSql, showNotification) {
     try {
@@ -455,8 +454,10 @@ const handleCopyToClipboard = (text, showNotification) => {
     });
 };
 
+
 class TabContent {
   constructor(
+
     public id: string,
     public header: ReactNode,
     public content: ReactNode
@@ -487,6 +488,7 @@ const filterStyle = {
     fontWeight: 'bold'
   } as CSSProperties,
 };
+
 
 export {
   TabsSetContext,
@@ -522,5 +524,5 @@ export {
   uint8ArrayToUtf8,
   filterStyle,
   VisiableContext,
-  FavoriteSql
+  FavoriteSql,
 };

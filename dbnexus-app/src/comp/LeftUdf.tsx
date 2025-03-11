@@ -181,7 +181,7 @@ function UdfMenu(props: {
                     arg,
                   });
                 }}
-                language={uuid}
+                uuid={uuid}
               ></DefAndMetasView>
             )
           ),
@@ -275,7 +275,7 @@ function CassandraAggregateMenu(props: {
                     }
                   );
                 }}
-                language={uuid}
+                uuid={uuid}
               ></DefAndMetasView>
             )
           ),

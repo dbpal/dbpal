@@ -109,6 +109,7 @@ function SqlQuery(props: {
   makeConn: MakeIQueryConn;
   value?: string;
   saveFavoriteSql: (name: string, sql: string) => void;
+  favoriteName?: string;
 }) {
   let {
     handelTextAndPositionChange,
@@ -117,10 +118,11 @@ function SqlQuery(props: {
     makeConn,
     value,
     saveFavoriteSql,
+    favoriteName: oldFavoriteName,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
-  const [favoriteName, setFavoriteName] = useState('');
+  const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
 
   let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
@@ -317,7 +319,7 @@ function SqlQuery(props: {
                 <CloseIcon></CloseIcon>
               </Button>
             </Stack>
-            <QueryLog language={language} logs={queryLogs}></QueryLog>
+            <QueryLog uuid={language} logs={queryLogs}></QueryLog>
           </Paper>
         )}
         {connectInfo}
@@ -395,7 +397,6 @@ function SqlQuery(props: {
             }
           >
             <IconButton
-              disabled={loading || conn == null}
               onClick={() => {
                 const value = editor.current.getValue();
                 if (!value) {

@@ -202,7 +202,7 @@ function TriggerMenu(props: {
                     trigger,
                   });
                 }}
-                language={uuid}
+                uuid={uuid}
               ></TriggerDetail>
             )
           ),
