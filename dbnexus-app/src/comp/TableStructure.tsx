@@ -1496,6 +1496,7 @@ function TableStructure(props: {
     DataSourceKind.Sqlite,
     DataSourceKind.Oracle,
     DataSourceKind.Postgres,
+    DataSourceKind.Mongo,
   ].includes(kind);
 
   if (supportIndex) {

@@ -579,7 +579,12 @@ impl MongoDB {
             return anyhow::Ok(vec![]);
         }
         let value = value.unwrap();
-        let cols = infer_multi_value_column_names(&vec![value][..])?;
+        let mut cols = infer_multi_value_column_names(&vec![value][..])?;
+        cols.iter_mut().for_each(|x| {
+            if x.field.as_str() == "_id" {
+                x.is_primary = true;
+            }
+        });
         anyhow::Ok(cols)
     }
 }
@@ -736,16 +741,20 @@ impl SchemaTrait for MongoDB {
                 .flatten();
 
             ret.push(Index::new(
-                name,
-                if index_model
-                    .options
-                    .as_ref()
-                    .map(|x| x.unique.unwrap_or_default())
-                    .unwrap_or_default()
-                {
-                    IndexKind::Unique
+                name.clone(),
+                if name.as_ref().map(|x| x.as_str()).unwrap_or_default() == "_id" {
+                    IndexKind::Primary
                 } else {
-                    IndexKind::Index
+                    if index_model
+                        .options
+                        .as_ref()
+                        .map(|x| x.unique.unwrap_or_default())
+                        .unwrap_or_default()
+                    {
+                        IndexKind::Unique
+                    } else {
+                        IndexKind::Index
+                    }
                 },
                 vec![serde_json::to_string(&index_model.keys)?],
             ))
