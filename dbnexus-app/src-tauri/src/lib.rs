@@ -5,6 +5,7 @@ mod tests {
     use dbnexus_db::{
         cassandra::CassandraDB,
         datasource_config::{CassandraDBConfig, LibSqlDBConfigSouce},
+        db::CreateTableAndIndexSql,
     };
 
     #[test]
@@ -65,6 +66,7 @@ mod tests {
                 &SemanticToken::INFO,
                 &CassandraDBConfig::INFO,
                 &LibSqlDBConfigSouce::INFO,
+                &CreateTableAndIndexSql::INFO,
             ];
 
             let mut buf = Vec::new();

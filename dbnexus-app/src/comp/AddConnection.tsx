@@ -64,7 +64,6 @@ function SelectPath(props: { path; setPath }) {
   return (
     <Stack direction="row" sx={{ alignItems: 'center' }}>
       <Chip
-        style={{ fontSize: '1.1rem', fontWeight: 600 }}
         label={`path:` + path}
         onClick={() => {
           selectOneFile().then((e) => {

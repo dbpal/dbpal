@@ -926,7 +926,7 @@ impl SchemaTrait for MsSqlServerDB {
                     let col: Option<&str> = r.try_get(2)?;
                     let col = col.unwrap().to_string();
                     if let Some(x) = ret.get_mut(&name) {
-                        x.on.push(col);
+                        x.columns.push(col);
                     } else {
                         ret.insert(name.clone(), Index {
                             name: Some(name),
@@ -935,7 +935,7 @@ impl SchemaTrait for MsSqlServerDB {
                             } else {
                                 IndexKind::Index
                             },
-                            on: vec![col],
+                            columns: vec![col],
                         });
                     }
                 }

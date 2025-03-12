@@ -14,20 +14,15 @@ import {
   Button,
   Divider,
 } from '@mui/material';
-import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { types } from './ApiStruct';
 import {
   DataGrid,
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
 import { v4 as uuidv4 } from 'uuid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -53,8 +48,6 @@ import {
 } from './helper';
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
-
-import CloseIcon from '@mui/icons-material/Close';
 import { SettingContext } from './Common';
 
 const LogLevelSelection = ({ handleChange, level }) => {
@@ -95,16 +88,6 @@ const LogLevelSelection = ({ handleChange, level }) => {
     </Stack>
   );
 };
-
-function StickyNav(props: { children: ReactNode[] | ReactNode }) {
-  const { children } = props;
-
-  return (
-    <div style={{ position: 'sticky', top: 0, border: '1px blue solid' }}>
-      {children}
-    </div>
-  );
-}
 
 function MenuNewQuery({ handle }) {
   return (
@@ -461,9 +444,12 @@ function MenuResetColumnWidths() {
   );
 }
 
+function TrueOrFalse(b: boolean) {
+  return b ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
+}
+
 export {
   LogLevelSelection,
-  StickyNav,
   MetaValuesView,
   MenuNewQuery,
   MenuCreateDatabase,
@@ -476,4 +462,5 @@ export {
   pageSizeOptions,
   MenuDeleteConfig,
   MenuResetColumnWidths,
+  TrueOrFalse,
 };

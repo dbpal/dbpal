@@ -7,7 +7,12 @@ import {
   useState,
 } from 'react';
 import types from './ApiStruct';
-import { initMonacoLanague, modalStyle, SettingContext } from './Common';
+import {
+  initMonacoLanague,
+  modalStyle,
+  SettingContext,
+  SimpleResizeEditor,
+} from './Common';
 import {
   calMenuStyle,
   columnWidths,
@@ -60,6 +65,7 @@ import { BSON } from 'bson';
 import { MongoBsonEditor } from './MongoDB';
 
 import { TriggerDetail } from './TriggerDetail';
+import { TrueOrFalse } from './CommonComp';
 
 function ColumnsStructure(props: {
   uuid: string;
@@ -133,11 +139,19 @@ function ColumnsStructure(props: {
     return [
       { field: 'field' },
       { field: 'typ' },
-      { field: 'nullable' },
+      {
+        field: 'nullable',
+        renderCell: (row) => {
+          return TrueOrFalse(row.row['nullable']);
+        },
+      },
       {
         field: 'is_primary',
         renderHeader: () => {
           return 'Primary';
+        },
+        renderCell: (row) => {
+          return TrueOrFalse(row.row['is_primary']);
         },
       },
       {
@@ -145,8 +159,16 @@ function ColumnsStructure(props: {
         renderHeader: () => {
           return 'auto increment';
         },
+        renderCell: (row) => {
+          return TrueOrFalse(row.row['is_auto_increment']);
+        },
       },
-      { field: 'sortable' },
+      {
+        field: 'sortable',
+        renderCell: (row) => {
+          return TrueOrFalse(row.row['sortable']);
+        },
+      },
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
@@ -454,7 +476,7 @@ function IndexesStructure(props: {
     return [
       { field: 'name' },
       { field: 'kind' },
-      { field: 'on' },
+      { field: 'columns' },
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
@@ -1393,8 +1415,9 @@ function TriggersStructure(props: {
         <Button loading={loading} onClick={handleReload} variant="contained">
           reload
         </Button>
-
-        <Typography color="info"> double click a row to see detail </Typography>
+        {triggers.length > 0 && (
+          <Typography color="info">double click a row to see detail</Typography>
+        )}
       </Stack>
 
       {vis && (
@@ -1450,11 +1473,20 @@ function TableStructure(props: {
 }) {
   const { table, uuid, kind } = props;
   const [structure, setStructure] = useState('columns');
-  const structures = [
-    { name: 'statement', color: 'secondary' },
-    { name: 'columns', color: 'info' },
-  ];
+  const structures = [{ name: 'columns', color: 'secondary' }, ,];
 
+  const support_statement = [
+    DataSourceKind.Cassandra,
+    DataSourceKind.ClickHouse,
+    DataSourceKind.LibSql,
+    DataSourceKind.Sqlite,
+    DataSourceKind.Mysql,
+    DataSourceKind.TiDB,
+    DataSourceKind.MariaDB,
+  ].includes(kind);
+  if (support_statement) {
+    structures.push({ name: 'statement', color: 'primary' });
+  }
   const supportIndex = [
     DataSourceKind.MariaDB,
     DataSourceKind.TiDB,
@@ -1468,7 +1500,6 @@ function TableStructure(props: {
   if (supportIndex) {
     structures.push({ name: 'indexes', color: 'success' });
   }
-
   const supportTrigger = [
     DataSourceKind.MariaDB,
     DataSourceKind.Mysql,
@@ -1479,7 +1510,7 @@ function TableStructure(props: {
     DataSourceKind.LibSql,
   ].includes(kind);
   if (supportTrigger) {
-    structures.push({ name: 'triggers', color: 'primary' });
+    structures.push({ name: 'triggers', color: 'info' });
   }
 
   return (
@@ -1491,7 +1522,6 @@ function TableStructure(props: {
               setStructure(e.name);
             }}
             disabled={structure == e.name}
-            style={{ fontSize: '1.1rem', fontWeight: '600' }}
             key={e.name}
             //@ts-ignore
             color={e.color}
@@ -1499,6 +1529,7 @@ function TableStructure(props: {
           ></Chip>
         ))}
       </Stack>
+
       {structure == 'columns' && (
         <ColumnsStructure
           table={table}
@@ -1519,6 +1550,82 @@ function TableStructure(props: {
           kind={kind}
           uuid={uuid}
         ></TriggersStructure>
+      )}
+      {structure == 'statement' && (
+        <StatementStructure
+          table={table}
+          kind={kind}
+          uuid={uuid}
+        ></StatementStructure>
+      )}
+    </Stack>
+  );
+}
+
+function StatementStructure(props: {
+  uuid: string;
+  kind: DataSourceKind;
+  table: string;
+}) {
+  const { uuid, kind, table } = props;
+  const [sql, setSql] = useState<types.CreateTableAndIndexSql>(null);
+  const [loading, setLoading] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  const handleReload = () => {
+    setLoading(true);
+    invoke<types.CreateTableAndIndexSql>('create_table_and_index_sql', {
+      name: uuid,
+      tableName: table,
+    })
+      .then((e) => {
+        setSql(e);
+      })
+      .catch((e) => {
+        showNotification('error', 'fetch create sql failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+
+  const getValue = () => {
+    function newLine(ret: string): string {
+      if (!ret.endsWith(';')) {
+        ret += ';\n';
+      }
+      if (!ret.endsWith('\n')) {
+        ret += '\n';
+      }
+      return ret;
+    }
+
+    let ret = newLine(sql.create_table);
+    const indexes = sql.indexes.map((x) => newLine(x));
+    ret += indexes.join('');
+    return ret;
+  };
+  initMonacoLanague(uuid, kind);
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row">
+        <Button
+          loading={loading}
+          variant="contained"
+          onClick={() => {
+            handleReload();
+          }}
+        >
+          reload
+        </Button>
+      </Stack>
+      {sql && (
+        <SimpleResizeEditor
+          language={uuid}
+          value={getValue()}
+        ></SimpleResizeEditor>
       )}
     </Stack>
   );

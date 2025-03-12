@@ -13,7 +13,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position, Range } from 'monaco-editor';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import * as loglevel from 'loglevel';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   initMongoQueryGlobals,
   MongoDBQuery,
@@ -139,7 +139,13 @@ function MongoQuery(props: {
     }
     showNotification('success', 'execute ok');
   };
-  let theme = setting.theme == 'dark' ? 'vs-dark' : 'light';
+
+  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+    return {
+      fontSize: setting.editorFontSize,
+      ...setting.editorOption,
+    };
+  }, [setting]);
 
   return (
     <Stack spacing={1}>
@@ -158,7 +164,6 @@ function MongoQuery(props: {
         <Tooltip title="logger level">
           <Chip
             label={loggerlevel}
-            style={{ fontWeight: '700' }}
             color="primary"
             onClick={() => {
               setShowLoggerLevel(true);
@@ -221,11 +226,9 @@ function MongoQuery(props: {
             width="99.5%"
             onMount={jsCodeMount}
             language="javascript"
-            options={{
-              fontSize: setting.editorFontSize,
-            }}
+            options={options}
             value={value}
-            theme={theme}
+            theme={setting.editorTheme()}
           ></Editor>
         </div>
 
@@ -258,12 +261,10 @@ function MongoQuery(props: {
       >
         <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
-            options={{
-              fontSize: setting.editorFontSize,
-            }}
+            options={options}
             width="99.5%"
             language="log"
-            theme={theme}
+            theme={setting.editorTheme()}
             onMount={logEditorOnmount}
           ></Editor>
         </div>

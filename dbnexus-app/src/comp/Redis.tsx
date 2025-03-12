@@ -621,7 +621,7 @@ function RedisValueEditor(props: {
 
       {editModel == RedisEditorMode.Json && (
         <SimpleResizeEditor
-          uuid="json"
+          language="json"
           // in some times newvalue is not change as a string
           value={typeof newValue == 'object' ? '' : newValue}
           onMount={(editor) => {

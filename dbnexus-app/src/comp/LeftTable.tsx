@@ -66,6 +66,7 @@ import {
   MatchPatternContext,
   TabsSetContext,
   UuidContext,
+  handleCopyToClipboard,
 } from './helper';
 import { MenuRefresh } from './CommonComp';
 
@@ -877,6 +878,18 @@ function TableMenu(props: {
           </ListItemIcon>
           <ListItemText> Structure </ListItemText>
         </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(table, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy name </ListItemText>
+        </MenuItem>
+
         <Divider></Divider>
 
         <MenuItem

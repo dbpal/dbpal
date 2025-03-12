@@ -32,6 +32,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -406,23 +407,14 @@ function editorInitHeight(
 }
 
 function SimpleResizeEditor(props: {
-  uuid: string;
-  value: string;
+  language: string;
+  value?: string;
   onMount?: OnMount;
-  options?: editor.IStandaloneEditorConstructionOptions;
   minHeigth?: number;
   barLeft?: ReactNode;
   style?: CSSProperties;
 }) {
-  let {
-    uuid: language,
-    value,
-    onMount,
-    options,
-    minHeigth,
-    barLeft,
-    style,
-  } = props;
+  let { language, value, onMount, minHeigth, barLeft, style } = props;
   const [pos, setPos] = useState<Position>(null);
   let height = editorInitHeight(
     value,
@@ -440,10 +432,16 @@ function SimpleResizeEditor(props: {
         onMount(editor, monaco);
       }
     },
-    []
+    [onMount]
   );
+  const setting = useContext(SettingContext);
+  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+    return {
+      fontSize: setting.editorFontSize,
+      ...setting.editorOption,
+    };
+  }, [setting]);
 
-  const { theme } = useContext(SettingContext);
   return (
     <div
       style={{
@@ -467,12 +465,8 @@ function SimpleResizeEditor(props: {
           onMount={handleDidMount}
           language={language}
           value={value}
-          theme={theme == 'dark' ? 'vs-dark' : 'light'}
-          options={{
-            fontSize: useContext(SettingContext).editorFontSize,
-            wordWrap: 'on',
-            ...options,
-          }}
+          theme={setting.editorTheme()}
+          options={options}
         ></Editor>
       </div>
       <EditorBar left={barLeft} pos={pos}></EditorBar>
@@ -538,13 +532,19 @@ class UserSettings {
   rootFontSize: number = 15;
   datagridRowHeight: number = 24;
   datagridHeaderHeight: number = 30;
+  editorOption: editor.IStandaloneEditorConstructionOptions = {};
+
+  editorTheme(): string {
+    return this.theme == 'dark' ? 'vs-dark' : 'light';
+  }
   constructor(
     theme?,
     pageSize?,
     editorFontSize?,
     rootFontSize?,
     datagridRowHeight?,
-    datagridHeaderHeight?
+    datagridHeaderHeight?,
+    editorOption?
   ) {
     if (theme) {
       this.theme = theme;
@@ -563,6 +563,9 @@ class UserSettings {
     }
     if (datagridRowHeight) {
       this.datagridRowHeight = datagridRowHeight;
+    }
+    if (editorOption) {
+      this.editorOption = editorOption;
     }
   }
 }

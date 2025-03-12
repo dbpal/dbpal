@@ -5,8 +5,8 @@ use libsql::params;
 use crate::{
     db::SchemaTrait,
     language_server::{
-        AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-        try_completion_on_syntax,
+        AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+        LexerCompletionTrait, try_completion_on_syntax,
     },
     libsql::LibSqlDB,
     sqlite_lang_server::{SQLITE_FN_AND_DESC, SQLITE_KEY_WORDS, SQLITE_TYPES, sqlite_pragma},
@@ -82,6 +82,9 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
 }
+
+#[async_trait::async_trait]
+impl LangServerCommon for LibSqlDB {}
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for LibSqlDB {

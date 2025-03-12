@@ -7,8 +7,8 @@ use sqlx::Row;
 use crate::db::{BackendName, DBTrait, FormatSqlOpts, not_support_features};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mysql::MysqlDB;
 
@@ -128,6 +128,17 @@ impl MysqlDB {
             Some(x) => return anyhow::Ok(x),
             None => anyhow::bail!("empty schema"),
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl LangServerCommon for MysqlDB {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
     }
 }
 
@@ -272,14 +283,6 @@ impl AstCompletionHelper for MysqlDB {
             ret.push(name);
         }
         anyhow::Ok(ret)
-    }
-
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
     }
 
     async fn list_partition(

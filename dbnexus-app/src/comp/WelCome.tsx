@@ -91,7 +91,6 @@ function WelCome() {
           onClick={() => {
             openUrl('https://github.com/dbpal/docs/blob/main/README.md');
           }}
-          style={{ fontSize: '1.2rem', fontWeight: 'bold', padding: '4px' }}
           label="more information"
           color="info"
         ></Chip>

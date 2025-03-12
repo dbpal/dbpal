@@ -54,7 +54,7 @@ use crate::{
         SqlExecuteRet, TableListResp, UdfOrProcedureExtraParameter,
     },
     helper::create_csv,
-    language_server::LexerCompletionTrait,
+    language_server::{LangServerCommon, LexerCompletionTrait},
     meta_value::MetaValue,
     query_log::QueryLog,
 };
@@ -798,7 +798,7 @@ impl QuerySql for CassandraDB {
                     let body = x.response_body()?;
                     let meta = body.as_rows_metadata().map(|x| x.clone());
                     let rows = body.into_rows().unwrap_or_default();
-                    if rows.len() > 0 && meta.is_some() {
+                    if meta.is_some() {
                         let meta = meta.unwrap();
                         let fields = infer_fields(&meta);
                         let data = encode_rows(&meta, &rows)?;
@@ -1481,7 +1481,7 @@ impl SchemaTrait for CassandraDB {
             ret.push(Index {
                 name,
                 kind: IndexKind::Index,
-                on: vec![],
+                columns: vec![],
             });
         }
         anyhow::Ok(ret)
@@ -1739,6 +1739,14 @@ fn extract_parameter_for_function(sql: &str) -> anyhow::Result<Vec<ColumnDefinit
         }
     }
 }
+
+#[async_trait::async_trait]
+impl LangServerCommon for CassandraDB {
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for CassandraDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
@@ -1747,9 +1755,7 @@ impl DBTrait for CassandraDB {
             .query("DESCRIBE KEYSPACES")
             .await?
             .response_body()?;
-
         let mut ret = Vec::new();
-
         for row in body.into_rows().unwrap_or_default() {
             let name: Option<String> = row.get_by_index(0)?;
             ret.push(name.unwrap());
@@ -2004,7 +2010,7 @@ mod tests {
             )
             .await;
 
-        let schemas = db.list_schema().await.unwrap();
+        let schemas = DBTrait::list_schema(&db).await.unwrap();
         println!("list schema:{:?}", schemas)
     }
 

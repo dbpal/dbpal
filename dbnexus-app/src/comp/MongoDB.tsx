@@ -246,11 +246,11 @@ function MongoBsonEditor(props: {
   const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
   const [err, setErr] = useState<MongoBsonError>(null);
-  const { theme } = useContext(SettingContext);
+  const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
 
   const handleEditorDidMount = useCallback(
-    (ce: editor.IStandaloneCodeEditor, monaco) => {
+    (ce: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ce;
       ce.onDidChangeModelContent((_event) => {
         let text = ce.getValue();
@@ -264,9 +264,6 @@ function MongoBsonEditor(props: {
       ce.onDidChangeCursorPosition((event) => {
         setPos(event.position);
       });
-      if (theme == 'dark') {
-        monaco.editor.setTheme('vs-dark');
-      }
     },
     []
   );
@@ -282,8 +279,11 @@ function MongoBsonEditor(props: {
   );
 
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
-    return { fontSize: settings.editorFontSize };
-  }, []);
+    return {
+      fontSize: setting.editorFontSize,
+      ...setting.editorOption,
+    };
+  }, [setting]);
 
   return (
     <div
@@ -308,6 +308,7 @@ function MongoBsonEditor(props: {
           language="mongoBson"
           value={content.current}
           options={options}
+          theme={setting.editorTheme()}
         ></Editor>
       </div>
 

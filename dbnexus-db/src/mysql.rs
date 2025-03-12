@@ -1202,7 +1202,7 @@ impl SchemaTrait for MysqlDB {
             let name: String = r.get(2);
             let column_name = r.get(4);
             if let Some(x) = map.get_mut(&name) {
-                x.on.push(column_name);
+                x.columns.push(column_name);
             } else {
                 map.insert(
                     name.clone(),

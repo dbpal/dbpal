@@ -6,9 +6,10 @@ use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::db::{
-    ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreatedType, DefAndMetas, ExportKind,
-    Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
-    ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, UdfOrProcedureExtraParameter,
+    ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
+    DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+    UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
@@ -1151,6 +1152,42 @@ pub async fn rename_table(
     db.rename_table(&old, &new)
         .await
         .map_err(|e| ErrorFrontend::from(e))
+}
+
+#[tauri::command]
+pub async fn create_table_and_index_sql(
+    name: String, table_name: String, app: tauri::State<'_, App>,
+) -> Result<CreateTableAndIndexSql, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| ErrorFrontend::from(e))?;
+
+    let ret = db
+        .create_table_and_index_sql(&table_name)
+        .await
+        .map_err(|e| ErrorFrontend::from(e))?;
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn create_view_sql(
+    name: String, view_name: String, materialized: bool, app: tauri::State<'_, App>,
+) -> Result<String, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| ErrorFrontend::from(e))?;
+
+    let ret = db
+        .create_view_sql(&view_name, materialized)
+        .await
+        .map_err(|e| ErrorFrontend::from(e))?;
+    Ok(ret)
 }
 
 #[tauri::command]

@@ -172,7 +172,7 @@ export namespace types {
     export type Index = {
         "name": (string | null);
         "kind": types.IndexKind;
-        "on": (string)[];
+        "columns": (string)[];
     };
     export type I64 = number;
     export type SqlExecuteRet = {
@@ -296,5 +296,18 @@ export namespace types {
         "length": types.U32;
         "token_type": types.U32;
         "token_modifiers": (types.U32 | null);
+    };
+
+    /**
+     * create table and all index sql.
+     */
+    export type CreateTableAndIndexSql = {
+        "create_table": string;
+
+        /**
+         * some backend can query create table and index in one sql
+         * this can be empty
+         */
+        "indexes": (string)[];
     };
 }

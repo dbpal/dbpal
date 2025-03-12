@@ -7,13 +7,15 @@ use sqlx::Row;
 use crate::db::{FormatSqlOpts, SchemaTrait};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::sqlite::SqliteDB;
 
 #[async_trait::async_trait]
+impl LangServerCommon for SqliteDB {}
 
+#[async_trait::async_trait]
 impl crate::language_server::LexerCompletionTrait for SqliteDB {
     type Dialect = sqlparser::dialect::SQLiteDialect;
 

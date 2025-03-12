@@ -22,6 +22,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -137,7 +138,6 @@ function SqlQuery(props: {
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
-  const { theme } = useContext(SettingContext);
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ed;
@@ -281,6 +281,13 @@ function SqlQuery(props: {
       }
     };
   }, [conn]);
+  const setting = useContext(SettingContext);
+  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+    return {
+      fontSize: setting.editorFontSize,
+      ...setting.editorOption,
+    };
+  }, [setting]);
 
   return (
     //@ts-ignore
@@ -457,12 +464,8 @@ function SqlQuery(props: {
             onMount={handleEditorDidMount}
             width="99.5%"
             value={value}
-            options={{
-              fontSize: useContext(SettingContext).editorFontSize,
-              wordWrap: 'on',
-              automaticLayout: true,
-            }}
-            theme={theme == 'dark' ? 'vs-dark' : 'light'}
+            options={options}
+            theme={setting.editorTheme()}
           ></Editor>
         </div>
         <EditorBar

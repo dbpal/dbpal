@@ -8,8 +8,8 @@ use tiberius::QueryItem;
 use crate::db::{CatalogTrait, FormatSqlOpts, SchemaTrait};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mssql::MsSqlServerDB;
 
@@ -98,6 +98,16 @@ impl LanguageServer for MsSqlServerDB {
 }
 
 #[async_trait::async_trait]
+impl LangServerCommon for MsSqlServerDB {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        CatalogTrait::list_database(self).await
+    }
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![MsSqlServerDB::ONLY_SCHEMA.to_string()])
+    }
+}
+
+#[async_trait::async_trait]
 impl AstCompletionHelper for MsSqlServerDB {
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
         let sql = r#"
@@ -169,10 +179,6 @@ impl AstCompletionHelper for MsSqlServerDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        CatalogTrait::list_database(self).await
-    }
-
     async fn list_column(
         &self, db: Option<&str>, _schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -238,10 +244,6 @@ impl AstCompletionHelper for MsSqlServerDB {
 
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         unimplemented!()
-    }
-
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![MsSqlServerDB::ONLY_SCHEMA.to_string()])
     }
 }
 

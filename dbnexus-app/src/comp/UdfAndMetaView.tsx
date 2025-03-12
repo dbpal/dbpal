@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 
 import { NotificationContext } from './Notification';
 import { Button, Stack, Typography } from '@mui/material';
-import { DefAndMetas, SettingContext, SimpleResizeEditor } from './Common';
+import { DefAndMetas, SimpleResizeEditor } from './Common';
 
 import { Variant } from '@mui/material/styles/createTypography';
 import { MetaValuesView } from './CommonComp';
@@ -38,7 +38,6 @@ function DefAndMetasView(props: {
     handleReload();
   }, []);
 
-  const { theme } = useContext(SettingContext);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -56,13 +55,8 @@ function DefAndMetasView(props: {
           <Typography variant={titleVariant}> Statement </Typography>
           <SimpleResizeEditor
             style={{ minHeight: '200px' }}
-            uuid={language}
+            language={language}
             value={detail.def}
-            onMount={(_editor, monaco) => {
-              if (theme == 'dark') {
-                monaco.editor.setTheme('vs-dark');
-              }
-            }}
           ></SimpleResizeEditor>
           {detail.metas.length > 0 && (
             <>

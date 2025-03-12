@@ -1294,7 +1294,7 @@ impl SchemaTrait for OracleDB {
             let name: String = r.get(0)?;
             let col_name = r.get(1)?;
             if let Some(index) = ret.get_mut(&name) {
-                index.on.push(col_name);
+                index.columns.push(col_name);
             } else {
                 let primary = query_index_primary(&conn, &name, table_name).unwrap();
                 let unique = if primary {
@@ -1311,7 +1311,7 @@ impl SchemaTrait for OracleDB {
                     } else {
                         IndexKind::Index
                     },
-                    on: vec![col_name],
+                    columns: vec![col_name],
                 });
             }
         }

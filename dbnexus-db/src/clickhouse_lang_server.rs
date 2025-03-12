@@ -4,8 +4,8 @@ use crate::{
     clickhouse::{ClickHouseDB, JsonRespMeta},
     db::DBTrait,
     language_server::{
-        AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-        try_completion_on_syntax,
+        AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+        LexerCompletionTrait, try_completion_on_syntax,
     },
 };
 
@@ -66,6 +66,13 @@ impl ClickHouseDB {
         }
     }
 }
+#[async_trait::async_trait]
+
+impl LangServerCommon for ClickHouseDB {
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
+    }
+}
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for ClickHouseDB {
@@ -82,9 +89,6 @@ impl AstCompletionHelper for ClickHouseDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
     async fn list_table(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
@@ -161,7 +165,7 @@ impl LexerCompletionTrait for ClickHouseDB {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
 
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn get_key_words_from_query(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let sql = "select * from system.keywords";
         let conn = self.get_conn()?;
         let ret: Vec<String> = conn.query(sql).fetch_all().await?;
@@ -290,7 +294,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object();
 
-        let keywords = <ClickHouseDB as LexerCompletionTrait>::get_key_words_fn(&db)
+        let keywords = <ClickHouseDB as LexerCompletionTrait>::get_key_words_from_query(&db)
             .await
             .unwrap()
             .into_iter()

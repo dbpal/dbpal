@@ -390,7 +390,7 @@ pub trait CheckConn {
     async fn check_conn(&self) -> anyhow::Result<Duration>;
 }
 /// create table and all index sql.
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, TypeDef, serde::Deserialize)]
 pub struct CreateTableAndIndexSql {
     pub create_table: String,
 
@@ -833,13 +833,17 @@ impl From<u64> for SqlExecuteRet {
 pub struct Index {
     pub name: Option<String>,
     pub kind: IndexKind,
-    pub on: Vec<String>,
+    pub columns: Vec<String>,
 }
 
 impl Index {
-    pub fn new(name: impl Into<Option<String>>, kind: IndexKind, on: Vec<String>) -> Self {
+    pub fn new(name: impl Into<Option<String>>, kind: IndexKind, columns: Vec<String>) -> Self {
         let name = name.into();
-        Self { name, kind, on }
+        Self {
+            name,
+            kind,
+            columns,
+        }
     }
 }
 

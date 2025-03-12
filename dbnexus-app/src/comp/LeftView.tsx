@@ -13,6 +13,8 @@ import {
   DocsAndCount,
   treeItemCommonStyle,
   SettingContext,
+  initMonacoLanague,
+  SimpleResizeEditor,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -74,7 +76,6 @@ import {
 } from '@mui/x-data-grid';
 function ViewsTree(props: { viewkind: ViewKind }) {
   const { viewkind } = props;
-
   const { uuid } = useContext(UuidContext);
   const [views, setViews] = useState<types.NamedStaff[] | types.ListTable[]>(
     []
@@ -176,14 +177,80 @@ function ViewsTree(props: { viewkind: ViewKind }) {
   );
 }
 
-function ViewStructure(props: { uuid: string; view: string }) {
-  const { uuid, view } = props;
+function StatementStructure(props: {
+  uuid: string;
+  kind: DataSourceKind;
+  view: string;
+  viewKind: ViewKind;
+}) {
+  const { uuid, kind, view, viewKind } = props;
+  const [sql, setSql] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  const handleReload = () => {
+    setLoading(true);
+    invoke<string>('create_view_sql', {
+      name: uuid,
+      viewName: view,
+      materialized: viewKind == ViewKind.Materrialized,
+    })
+      .then((e) => {
+        setSql(e);
+      })
+      .catch((e) => {
+        showNotification('error', 'fetch create sql failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+
+  initMonacoLanague(uuid, kind);
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row">
+        <Button
+          loading={loading}
+          variant="contained"
+          onClick={() => {
+            handleReload();
+          }}
+        >
+          reload
+        </Button>
+      </Stack>
+      {sql && (
+        <SimpleResizeEditor language={uuid} value={sql}></SimpleResizeEditor>
+      )}
+    </Stack>
+  );
+}
+
+function ViewStructure(props: {
+  uuid: string;
+  view: string;
+  viewKind: ViewKind;
+  kind;
+}) {
+  const { uuid, view, viewKind, kind } = props;
 
   const [structure, setStructure] = useState('columns');
-  const structures = [
-    { name: 'columns', color: 'info' },
-    { name: 'statement', color: 'primay' },
-  ];
+  const structures = [{ name: 'columns', color: 'primary' }, ,];
+
+  const supportStatement = [
+    DataSourceKind.LibSql,
+    DataSourceKind.Oracle,
+    DataSourceKind.Mysql,
+    DataSourceKind.MariaDB,
+    DataSourceKind.TiDB,
+  ].includes(kind);
+
+  if (supportStatement) {
+    structures.push({ name: 'statement', color: 'secondary' });
+  }
 
   return (
     <Stack spacing={1}>
@@ -194,7 +261,6 @@ function ViewStructure(props: { uuid: string; view: string }) {
               setStructure(e.name);
             }}
             disabled={structure == e.name}
-            style={{ fontSize: '1.1rem', fontWeight: '600' }}
             key={e.name}
             //@ts-ignore
             color={e.color}
@@ -204,6 +270,14 @@ function ViewStructure(props: { uuid: string; view: string }) {
       </Stack>
       {structure == 'columns' && (
         <ColumnsTabContent uuid={uuid} view={view}></ColumnsTabContent>
+      )}
+      {structure == 'statement' && (
+        <StatementStructure
+          uuid={uuid}
+          kind={kind}
+          viewKind={viewKind}
+          view={view}
+        ></StatementStructure>
       )}
     </Stack>
   );
@@ -270,8 +344,6 @@ function ColumnsTabContent(props: { uuid: string; view: string }) {
               <ListItemText> Copy </ListItemText>
             </MenuItem>
           )}
-          <Divider></Divider>
-          <MenuResetColumnWidths></MenuResetColumnWidths>
         </MenuList>
       </Paper>
     );
@@ -556,7 +628,14 @@ function ViewMenu(props: {
           new TabContent(
             id,
             `${view}-struct`,
-            <ViewStructure view={view} uuid={uuid}></ViewStructure>
+            (
+              <ViewStructure
+                view={view}
+                uuid={uuid}
+                kind={kind}
+                viewKind={viewkind}
+              ></ViewStructure>
+            )
           ),
         ];
       });
@@ -585,6 +664,17 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText> Structure </ListItemText>
         </MenuItem>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(view, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy name </ListItemText>
+        </MenuItem>
+
         <Divider></Divider>
         <MenuItem
           onClick={() => {

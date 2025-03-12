@@ -4,8 +4,8 @@ use tokio::task::block_in_place;
 
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::oracle::OracleDB;
 
@@ -113,10 +113,6 @@ impl AstCompletionHelper for OracleDB {
         )
     }
 
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
-
     async fn list_function(
         &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -194,6 +190,13 @@ impl AstCompletionHelper for OracleDB {
             ret.push(name);
         }
         anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl LangServerCommon for OracleDB {
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
     }
 }
 

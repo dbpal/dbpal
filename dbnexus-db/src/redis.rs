@@ -15,9 +15,9 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, ListTable,
-    QueryResp, QuerySql, QuerySqlWithoutOpenConn, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, TableListResp,
+    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, ListTable, QueryResp,
+    QuerySql, QuerySqlWithoutOpenConn, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlExecuteRet, TableListResp,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;

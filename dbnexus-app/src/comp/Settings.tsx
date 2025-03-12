@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 
 import {
   Button,
+  Chip,
   Components,
   createTheme,
   CssBaseline,
@@ -15,11 +16,19 @@ import {
   TextField,
   Theme,
   ThemeProvider,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
-import { appStore, AppStoreKey, SettingContext, UserSettings } from './Common';
+import {
+  appStore,
+  AppStoreKey,
+  SettingContext,
+  SimpleResizeEditor,
+  UserSettings,
+} from './Common';
 import { SelectPageSize } from './CommonComp';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 function ModifySettings() {
   const { showNotification } = useContext(NotificationContext);
@@ -30,7 +39,7 @@ function ModifySettings() {
   const [rootFontSize, setRootFontSize] = useState('18');
   const [datagridRowHeight, setDatagridRowHeight] = useState('24');
   const [datagridHeaderHeight, setDatagridHeaderHeight] = useState('30');
-
+  const [editorOptions, setEditorOptions] = useState('{\n}');
   const reload = async () => {
     (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
@@ -41,6 +50,10 @@ function ModifySettings() {
         setRootFontSize(settings.rootFontSize + '');
         setDatagridRowHeight(settings.datagridRowHeight + '');
         setDatagridHeaderHeight(settings.datagridHeaderHeight + '');
+        const content = JSON.stringify(settings.editorOption, null, 2);
+        if (content) {
+          setEditorOptions(content);
+        }
       })
       .catch((e) => {
         showNotification('error', 'port is not a number', e);
@@ -51,6 +64,13 @@ function ModifySettings() {
   }, []);
 
   const handleSave = async () => {
+    let eo;
+    try {
+      eo = JSON.parse(editorOptions);
+    } catch (e) {
+      showNotification('error', 'not a valid json', e);
+      return;
+    }
     (await appStore())
       .set(
         AppStoreKey.UserSetttings,
@@ -60,7 +80,8 @@ function ModifySettings() {
           parseInt(editorFontSize),
           parseInt(rootFontSize),
           parseInt(datagridRowHeight),
-          parseInt(datagridHeaderHeight)
+          parseInt(datagridHeaderHeight),
+          eo
         )
       )
       .then(() => {
@@ -148,6 +169,37 @@ function ModifySettings() {
           error={isNaN(parseInt(datagridRowHeight))}
         ></TextField>
       </Stack>
+      <Stack
+        spacing={1}
+        sx={{ border: '2px solid gray', borderRadius: '12px', p: 1 }}
+      >
+        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+          <Tooltip title="dbpal use monaco editor as build in editor">
+            <Typography color="info">monaco editor options</Typography>
+          </Tooltip>
+
+          <Chip
+            color="info"
+            style={{ cursor: 'pointer' }}
+            label="options???"
+            onClick={() => {
+              openUrl(
+                'https://microsoft.github.io/monaco-editor/typedoc/variables/editor.EditorOptions.html'
+              );
+            }}
+          ></Chip>
+        </Stack>
+        <SimpleResizeEditor
+          language="json"
+          value={editorOptions}
+          onMount={(editor) => {
+            editor.onDidChangeModelContent(() => {
+              setEditorOptions(editor.getValue());
+            });
+          }}
+        ></SimpleResizeEditor>
+      </Stack>
+
       <Divider></Divider>
       <Stack direction="row">
         <Button
@@ -212,6 +264,14 @@ const components: Components<
     styleOverrides: {
       root: {
         padding: '0px',
+      },
+    },
+  },
+  MuiChip: {
+    styleOverrides: {
+      root: {
+        fontSize: '1.2rem',
+        fontWeight: '600',
       },
     },
   },
@@ -313,7 +373,8 @@ function SettingComp(props: { children }) {
             setting.editorFontSize,
             setting.rootFontSize,
             setting.datagridRowHeight,
-            setting.datagridHeaderHeight
+            setting.datagridHeaderHeight,
+            setting.editorOption
           )
         );
 
