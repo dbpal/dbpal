@@ -771,7 +771,6 @@ function Menu(props: {
               </ListItemIcon>
               <ListItemText> Quick Filter </ListItemText>
             </MenuItem>
-            <Divider></Divider>
           </>
         )}
         {content && nullable && setNull && (

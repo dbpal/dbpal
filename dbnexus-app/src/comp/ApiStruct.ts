@@ -243,6 +243,7 @@ export namespace types {
         "sql": string;
         "enable": (types.TriggerEnable | null);
         "metas": (types.MetaValue)[];
+        "name": string;
     };
     export type CompletionItem = {
         "item": string;

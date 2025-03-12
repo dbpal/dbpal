@@ -670,7 +670,7 @@ impl SchemaTrait for MongoDB {
 
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
         if index == "_id_" {
-            anyhow::bail!("can't rename this index");
+            anyhow::bail!("can't drop this index");
         }
         let db = self.get_db().await?;
         db.collection::<Document>(&table_name)

@@ -16,11 +16,13 @@ import {
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
-import TableChartIcon from '@mui/icons-material/TableChart';
+
 import { invoke } from '@tauri-apps/api/core';
+import { IoConstructOutline } from 'react-icons/io5';
 import {
   Box,
   Button,
+  Chip,
   CircularProgress,
   Divider,
   ListItemIcon,
@@ -174,11 +176,40 @@ function ViewsTree(props: { viewkind: ViewKind }) {
   );
 }
 
-function ColumnsTabContent(props: {
-  uuid: string;
+function ViewStructure(props: { uuid: string; view: string }) {
+  const { uuid, view } = props;
 
-  view: string;
-}) {
+  const [structure, setStructure] = useState('columns');
+  const structures = [
+    { name: 'columns', color: 'info' },
+    { name: 'statement', color: 'primay' },
+  ];
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1} style={{ justifyContent: 'center' }}>
+        {structures.map((e) => (
+          <Chip
+            onClick={() => {
+              setStructure(e.name);
+            }}
+            disabled={structure == e.name}
+            style={{ fontSize: '1.1rem', fontWeight: '600' }}
+            key={e.name}
+            //@ts-ignore
+            color={e.color}
+            label={e.name}
+          ></Chip>
+        ))}
+      </Stack>
+      {structure == 'columns' && (
+        <ColumnsTabContent uuid={uuid} view={view}></ColumnsTabContent>
+      )}
+    </Stack>
+  );
+}
+
+function ColumnsTabContent(props: { uuid: string; view: string }) {
   const { uuid, view } = props;
   const setting = useContext(SettingContext);
 
@@ -197,7 +228,6 @@ function ColumnsTabContent(props: {
     })
       .then((fs) => {
         setFields(fs);
-        showNotification('success', 'load columns ok');
       })
       .catch((e) => {
         showNotification('error', 'list column failed', e);
@@ -513,8 +543,8 @@ function ViewMenu(props: {
     }
   };
 
-  const handleViewColumns = () => {
-    let id = uuid + '-view-' + view + '-columns';
+  const handleSturcture = () => {
+    let id = uuid + '-view-' + view + '-structure';
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
@@ -525,8 +555,8 @@ function ViewMenu(props: {
           ...e,
           new TabContent(
             id,
-            `${view}-cols`,
-            <ColumnsTabContent view={view} uuid={uuid}></ColumnsTabContent>
+            `${view}-struct`,
+            <ViewStructure view={view} uuid={uuid}></ViewStructure>
           ),
         ];
       });
@@ -547,11 +577,13 @@ function ViewMenu(props: {
           ></Typography>
         </MenuItem>
 
-        <MenuItem onClick={handleViewColumns}>
+        <MenuItem onClick={handleSturcture}>
           <ListItemIcon>
-            <TableChartIcon></TableChartIcon>
+            <IoConstructOutline
+              style={{ fontSize: '1.2rem' }}
+            ></IoConstructOutline>
           </ListItemIcon>
-          <ListItemText> View Columns </ListItemText>
+          <ListItemText> Structure </ListItemText>
         </MenuItem>
         <Divider></Divider>
         <MenuItem

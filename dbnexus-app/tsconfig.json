@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "esnext",
     "useDefineForClassFields": true,
-    "lib": ["esnext", "DOM", "DOM.Iterable"],
+    "lib": [
+      "esnext",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "esnext",
     "skipLibCheck": true,
     /* Bundler mode */
@@ -18,7 +22,9 @@
     "noFallthroughCasesInSwitch": true,
     "noEmitOnError": false
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "exclude": [
     "src/comp/MongoDB_test.tsx",
     "src/comp/Redis_test.tsx",
@@ -29,7 +35,6 @@
     "src/comp/exampleTest.tsx",
     "src/comp/MongoQuery_test.tsx"
   ],
-
   "references": [
     {
       "path": "./tsconfig.node.json"

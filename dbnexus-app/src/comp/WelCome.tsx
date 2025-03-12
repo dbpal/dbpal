@@ -79,7 +79,7 @@ function WelCome() {
               style={{ backgroundColor: 'white', borderRadius: '8px' }}
               src={e.img}
               width="80px"
-              alt="image of database"
+              alt={e.name}
             />
             <span>{e.name}</span>
           </Stack>

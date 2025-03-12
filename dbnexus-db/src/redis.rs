@@ -896,10 +896,6 @@ impl SchemaTrait for RedisDB {
         }
     }
 
-    async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        anyhow::bail!("don't call redis show index method")
-    }
-
     async fn insert(
         &self, _table_name: &str, _values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {

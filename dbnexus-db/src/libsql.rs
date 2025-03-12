@@ -937,7 +937,7 @@ async fn query_trigger_detail(conn: &mut Connection, name: &str) -> anyhow::Resu
     let sql = format!("SELECT sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
     let row = conn.prepare(&sql).await?.query_row(params!()).await?;
     let sql: String = row.get(0)?;
-    extract_trigger_detail_from_sql(sql)
+    extract_trigger_detail_from_sql(name, sql)
 }
 
 fn encode_rows(rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {

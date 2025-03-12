@@ -1078,6 +1078,7 @@ pub struct TriggerDetail {
     pub sql: String,
     pub enable: Option<TriggerEnable>,
     pub metas: Vec<MetaValue>,
+    pub name: String,
 }
 
 impl PartialEq for TriggerDetail {
@@ -1110,7 +1111,7 @@ pub enum TriggerEnable {
 
 impl TriggerDetail {
     pub fn new(
-        timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: impl Into<String>,
+        name: &str, timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: impl Into<String>,
         enable: Option<TriggerEnable>,
     ) -> Self {
         Self {
@@ -1119,6 +1120,7 @@ impl TriggerDetail {
             sql: sql.into(),
             enable,
             metas: vec![],
+            name: name.to_owned(),
         }
     }
 

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+
 use std::time::Duration;
 
 use bson::{Document, doc};
@@ -1043,21 +1044,21 @@ pub async fn oracle_query_rollback(
     }
 }
 
-#[tauri::command]
-pub async fn list_trigger(
-    name: String, table_name: String, app: tauri::State<'_, App>,
-) -> Result<Vec<NamedStaff>, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app
-        .get_schema(name.as_str())
-        .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+// #[tauri::command]
+// pub async fn list_trigger(
+//     name: String, table_name: String, app: tauri::State<'_, App>,
+// ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+//     random_sleep().await;
+//     random_error()?;
+//     let db = app
+//         .get_schema(name.as_str())
+//         .await
+//         .map_err(|e| ErrorFrontend::from(e))?;
 
-    db.list_trigger(&table_name)
-        .await
-        .map_err(|e| ErrorFrontend::from(e))
-}
+//     db.list_trigger(&table_name)
+//         .await
+//         .map_err(|e| ErrorFrontend::from(e))
+// }
 
 #[tauri::command]
 pub async fn drop_trigger(
@@ -1108,8 +1109,8 @@ pub async fn disable_trigger(
 
 #[tauri::command]
 pub async fn show_trigger(
-    name: String, table_name: String, trigger: String, app: tauri::State<'_, App>,
-) -> Result<TriggerDetail, ErrorFrontend> {
+    name: String, table_name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<TriggerDetail>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -1117,9 +1118,23 @@ pub async fn show_trigger(
         .await
         .map_err(|e| ErrorFrontend::from(e))?;
 
-    db.show_trigger(&table_name, &trigger)
+    let x = db
+        .list_trigger(&table_name)
         .await
-        .map_err(|e| ErrorFrontend::from(e))
+        .map_err(|e| ErrorFrontend::from(e))?;
+
+    let mut ret = Vec::with_capacity(x.len());
+
+    for tri in x.iter() {
+        let d = db
+            .show_trigger(&table_name, &tri.name)
+            .await
+            .map_err(|e| ErrorFrontend::from(e))?;
+
+        ret.push(d);
+    }
+
+    Ok(ret)
 }
 
 #[tauri::command]

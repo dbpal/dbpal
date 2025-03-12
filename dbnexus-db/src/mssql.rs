@@ -647,6 +647,7 @@ impl SchemaTrait for MsSqlServerDB {
         };
         let event = extract_trigger_event_from_sql(&sql)?;
         anyhow::Ok(TriggerDetail::new(
+            name,
             if instead_of {
                 TriggerTiming::InsteadOf
             } else {

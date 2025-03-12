@@ -1494,6 +1494,7 @@ impl SchemaTrait for OracleDB {
         let ddl: String = row.get(3)?;
 
         anyhow::Ok(TriggerDetail {
+            name: name.to_owned(),
             timing: TriggerTiming::String(trigger_type),
             event: TriggerEvent::try_from(event.as_str())?,
             enable: Some(TriggerEnable::Bool {

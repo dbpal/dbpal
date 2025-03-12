@@ -317,6 +317,7 @@ function testTriggerDetail(): types.TriggerDetail {
     return a[index];
   }
   return {
+    name: 'xxxx',
     event: testEvent(),
     timing: testTiming(),
     enable: { kind: 'postgres', enable: 'o' },

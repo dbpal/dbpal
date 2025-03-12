@@ -839,6 +839,7 @@ impl SchemaTrait for PostGresDB {
 
         let (event, timing) = parse_trigger_type(tgtype)?;
         anyhow::Ok(TriggerDetail::new(
+            name,
             timing,
             event,
             definition,

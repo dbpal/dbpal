@@ -223,7 +223,7 @@ impl SqliteDB {
 }
 // TODO sqlparse don't support parse trigger statement
 // use lexer to solve this issue.
-fn extract_trigger_base_on_lexer(sql: String) -> anyhow::Result<TriggerDetail> {
+fn extract_trigger_base_on_lexer(name: &str, sql: String) -> anyhow::Result<TriggerDetail> {
     let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
         .tokenize()?;
     let mut event = None;
@@ -251,6 +251,7 @@ fn extract_trigger_base_on_lexer(sql: String) -> anyhow::Result<TriggerDetail> {
     let event = event.unwrap();
     let timing = timing.unwrap();
     anyhow::Ok(TriggerDetail::new(
+        name,
         match timing.as_str() {
             "AFTER" => TriggerTiming::After,
             "BEFORE" => TriggerTiming::Before,
@@ -268,59 +269,61 @@ fn test_extract_trigger_base_on_lexer() {
     {
         let sql = "after insert".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Insert, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Insert, sql, None)
         );
     }
     {
         let sql = "after update".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Update, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Update, sql, None)
         );
     }
     {
         let sql = "after delete".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Delete, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Delete, sql, None)
         );
     }
     {
         let sql = "before insert".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Insert, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Insert, sql, None)
         );
     }
     {
         let sql = "before update".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Update, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Update, sql, None)
         );
     }
     {
         let sql = "before delete".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Delete, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Delete, sql, None)
         );
     }
 
     // error cases
     {
         let sql = "before xxx".to_string();
-        assert!(extract_trigger_base_on_lexer(sql.clone()).is_err());
+        assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
     }
     {
         let sql = "insert xxx".to_string();
-        assert!(extract_trigger_base_on_lexer(sql.clone()).is_err());
+        assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
     }
 }
 
-pub(crate) fn extract_trigger_detail_from_sql(sql: String) -> anyhow::Result<TriggerDetail> {
-    extract_trigger_base_on_lexer(sql)
+pub(crate) fn extract_trigger_detail_from_sql(
+    name: &str, sql: String,
+) -> anyhow::Result<TriggerDetail> {
+    extract_trigger_base_on_lexer(name, sql)
 }
 
 #[cfg(test)]
@@ -328,6 +331,7 @@ pub(crate) fn extract_trigger_detail_from_sql(sql: String) -> anyhow::Result<Tri
 fn test_extract_trigger_detail_from_sql() {
     {
         let x = extract_trigger_detail_from_sql(
+            "after_insert_test_create_trigger",
             r#"
             CREATE TRIGGER after_insert_test_create_trigger
             AFTER INSERT ON test_create_trigger
@@ -350,7 +354,7 @@ async fn query_trigger_detail(
     let s = format!("SELECT sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
     let row = sqlx::query(&s).fetch_one(conn).await?;
     let sql: String = row.get(0);
-    extract_trigger_detail_from_sql(sql)
+    extract_trigger_detail_from_sql(name, sql)
 }
 
 #[async_trait::async_trait]

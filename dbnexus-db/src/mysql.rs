@@ -847,7 +847,7 @@ impl SchemaTrait for MysqlDB {
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
         let (event, timing, sql, metas) = query_trigger_detail(&mut conn, name).await?;
-        let mut d = TriggerDetail::new(timing, event, sql, None);
+        let mut d = TriggerDetail::new(name, timing, event, sql, None);
         d.with_metas(metas);
         anyhow::Ok(d)
     }
