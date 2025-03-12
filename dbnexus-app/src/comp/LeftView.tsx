@@ -516,6 +516,7 @@ function ViewMenu(props: {
         case DataSourceKind.TiDB:
         case DataSourceKind.Cassandra:
         case DataSourceKind.ClickHouse:
+        case DataSourceKind.LibSql:
           list = (
             <SqlTableView
               tableName={view}
