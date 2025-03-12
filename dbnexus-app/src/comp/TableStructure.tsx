@@ -1490,6 +1490,7 @@ function TableStructure(props: {
   const supportIndex = [
     DataSourceKind.MariaDB,
     DataSourceKind.TiDB,
+    DataSourceKind.Mysql,
     DataSourceKind.MsSql,
     DataSourceKind.LibSql,
     DataSourceKind.Sqlite,
