@@ -19,6 +19,7 @@ use crate::{
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
+    query_log::QueryLog,
 };
 
 impl BackendName for ClickHouseDB {
@@ -811,16 +812,28 @@ impl QuerySql for ClickHouseDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
     }
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let conn = self.get_conn()?;
+        let ret = match conn.query(&sql).execute().await {
+            Ok(_) => Ok(QueryResp::execute_ok()),
+            Err(err) => Err(err.to_string()),
+        };
+        query_log.set_success(ret.is_ok());
 
+        anyhow::Ok(ret)
+    }
     async fn query_sql(
-        &self, _query_id: uuid::Uuid, sql: &str,
+        &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let sqls = get_sql_seq(sql).unwrap_or(vec![SqlWithKind {
             sql: sql.to_string(),
             kind: SqlKind::Query,
         }]);
         let mut ret = Vec::new();
-
+        let mut query_log = QueryLog::get_guard(query_id, sql);
         for sql in sqls.iter() {
             log::info!("query sql kind:{:?} sql:{}", sql.kind, sql.sql);
             match sql.kind {
@@ -847,7 +860,7 @@ impl QuerySql for ClickHouseDB {
                 }
             }
         }
-
+        query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
 
@@ -1465,7 +1478,7 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
             CREATE TABLE test_types1
@@ -1483,7 +1496,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(_resp.iter().all(|x| x.is_ok()), "{:?}", _resp);
+        assert!(_resp.is_ok(), "{:?}", _resp);
         {
             let mut values = HashMap::new();
             values.insert("value_uint8".to_string(), Some(1.to_string()));

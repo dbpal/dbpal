@@ -1111,7 +1111,21 @@ impl QuerySql for RedisDB {
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
-
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let ret = QuerySql::query_sql(self, query_id, sql).await?;
+        match ret.len() {
+            1 => {
+                return anyhow::Ok(ret[0].clone());
+            }
+            0 => return anyhow::Ok(Err("empty statement???".into())),
+            _ => {
+                log::warn!("multi resp shoule be fine");
+                return anyhow::Ok(ret[0].clone());
+            }
+        }
+    }
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {

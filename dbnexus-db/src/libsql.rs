@@ -74,57 +74,29 @@ impl QuerySql for LibSqlDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+
+        let conn = self.query_connections.get(&query_id);
+        let conn = match &conn {
+            Some(x) => x.deref(),
+            None => anyhow::bail!("collection closed????"),
+        };
+
+        let ret = match conn.execute(sql, params!()).await {
+            Ok(x) => Ok(QueryResp::row_affected(x)),
+            Err(err) => Err(err.to_string()),
+        };
+        query_log.set_success(ret.is_ok());
+        anyhow::Ok(ret)
+    }
 
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut query_log = QueryLog::get_guard(query_id, sql);
-
-        // let sqls = get_sql_seq(sql)
-        //     .map_err(|x| log::error!("get_sql_seq error:{},sqsl:{}", x, sql))
-        //     .unwrap_or(vec![SqlWithKind {
-        //         sql: sql.to_string(),
-        //         kind: SqlKind::Query,
-        //     }]);
-
-        // let conn = self.query_connections.get(&query_id);
-        // let conn = match &conn {
-        //     Some(x) => x.deref(),
-        //     None => anyhow::bail!("collection closed????"),
-        // };
-        // let mut ret = Vec::with_capacity(sqls.len());
-        // for s in sqls.iter() {
-        //     log::info!("kind:{:?} sql:{}", s.kind, s.sql);
-        //     match s.kind {
-        //         SqlKind::Query => {
-        //             let mut query_rows = conn.query(&s.sql, params!()).await?;
-        //             let mut rows = Vec::new();
-        //             while let Some(row) = query_rows.next().await? {
-        //                 rows.push(row);
-        //             }
-        //             if rows.len() > 0 {
-        //                 let data = encode_rows(&rows)?;
-        //                 let fields = get_row_types(rows.get(0).unwrap());
-        //                 ret.push(Ok(QueryResp { data, fields }));
-        //             }
-        //         }
-        //         _ => {
-        //             let result = conn.execute(&s.sql, params!()).await;
-        //             match result {
-        //                 Ok(x) => {
-        //                     if x > 0 {
-        //                         ret.push(Ok(QueryResp::row_affected(x)));
-        //                     }
-        //                 }
-        //                 Err(err) => {
-        //                     ret.push(Err(err.to_string()));
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
-        // anyhow::Ok(ret)
 
         let conn = self.query_connections.get(&query_id);
         let conn = match &conn {
@@ -1126,7 +1098,7 @@ mod tests {
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
         let query_id = db.open_connection().await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE IF NOT EXISTS test_duplicate (
@@ -1135,7 +1107,9 @@ mod tests {
                 );"#,
         )
         .await
+        .unwrap()
         .unwrap();
+
         db.rename_table("test_duplicate", "test_duplicate2")
             .await
             .unwrap();

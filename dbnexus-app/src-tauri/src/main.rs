@@ -11,10 +11,10 @@ use handlers::{
     create_table_and_index_sql, create_view_sql, delete, delete_password, disable_trigger,
     drop_database, drop_index, drop_materialized_view, drop_procedure, drop_schema, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
-    export_query_result_to_file, export_table_or_view, format_sql, insert, is_dangerous_sql,
-    list_created_types, list_data_types, list_database, list_materialized_view, list_procedure,
-    list_schema, list_table, list_udf, list_view, modify_table_column, mongo_create_index,
-    mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
+    execute_sql, export_query_result_to_file, export_table_or_view, format_sql, insert,
+    is_dangerous_sql, list_created_types, list_data_types, list_database, list_materialized_view,
+    list_procedure, list_schema, list_table, list_udf, list_view, modify_table_column,
+    mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
     mongo_list_time_serial_collection, mongo_query_collection_count_docs,
     mongo_query_collection_create_index, mongo_query_collection_create_search_index,
     mongo_query_collection_delete_many, mongo_query_collection_delete_one,
@@ -305,7 +305,8 @@ fn main_() {
             cassandra_show_aggregate,
             list_created_types,
             conn_opend,
-            create_table_and_index_sql
+            create_table_and_index_sql,
+            execute_sql
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

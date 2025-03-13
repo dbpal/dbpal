@@ -483,6 +483,11 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
     async fn query_sql(
         &self, query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
+
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, _sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>>;
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
@@ -903,6 +908,20 @@ impl QueryResp {
             fields: vec![Field {
                 field: "row affected".to_string(),
                 typ: "int".to_string(),
+                nullable: false,
+                default_value: None,
+                is_primary: false,
+                is_auto_increment: false,
+                sortable: true,
+            }],
+        }
+    }
+    pub fn execute_ok() -> Self {
+        Self {
+            data: vec![vec![Some("OK".to_string())]],
+            fields: vec![Field {
+                field: "execute".to_string(),
+                typ: "".to_string(),
                 nullable: false,
                 default_value: None,
                 is_primary: false,

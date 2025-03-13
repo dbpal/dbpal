@@ -413,11 +413,11 @@ async fn query_trigger_detail(
     let sql = format!("SHOW TRIGGERS WHERE `Trigger`='{name}'");
     log::info!("sql:{}", sql);
     let row = sqlx::query(&sql).fetch_one(conn).await?;
-    let event: String = row.try_get(1)?;
-    let sql = row.try_get(3)?;
-    let timing: String = row.try_get(4)?;
+    let event: String = row.try_get_unchecked(1)?;
+    let sql = row.try_get_unchecked(3)?;
+    let timing: String = row.try_get_unchecked(4)?;
     let create_time: chrono::DateTime<Utc> = row.try_get(5)?;
-    let sql_mode: String = row.try_get(6)?;
+    let sql_mode: String = row.try_get_unchecked(6)?;
     let create_time = create_time.naive_utc();
     let timing = if timing == "BEFORE" {
         TriggerTiming::Before
@@ -1473,15 +1473,35 @@ impl QuerySql for MysqlDB {
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }
-
-    async fn query_sql(
-        &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(id, sql);
-        let conn = self.query_connection.get(&id);
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
-            None => anyhow::bail!("id '{}' have no connection", id),
+            None => anyhow::bail!("connection closed???"),
+        };
+
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
+        let ret = match conn.execute(sqlx::raw_sql(sql)).await {
+            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected())),
+            Err(err) => Err(err.to_string()),
+        };
+        query_log.set_success(ret.is_ok());
+
+        anyhow::Ok(ret)
+    }
+    async fn query_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let conn = self.query_connection.get(&query_id);
+        let conn = match conn {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
         };
 
         let mut conn = conn.lock().await;
@@ -1562,20 +1582,18 @@ pub(crate) mod test_fns {
             )
             .await;
 
-        let resp = db
-            .query_sql(
-                query_id,
-                r#" 
+        db.execute_sql(
+            query_id,
+            r#" 
            CREATE PROCEDURE test_procedure()
             BEGIN
                 -- 这个存储过程什么都不做
             END;
         "#,
-            )
-            .await
-            .unwrap();
-
-        resp.iter().for_each(|x| assert!(x.is_ok(), "{:?}", x));
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let udfs = db.list_procedure().await.unwrap();
         for udf in udfs.iter() {
@@ -1590,10 +1608,9 @@ pub(crate) mod test_fns {
 
         let _ = db.drop_udf(f, None).await;
 
-        let resp = db
-            .query_sql(
-                query_id,
-                r#" 
+        db.execute_sql(
+            query_id,
+            r#" 
         CREATE FUNCTION test_function()
         RETURNS VARCHAR(255)
         DETERMINISTIC
@@ -1601,11 +1618,10 @@ pub(crate) mod test_fns {
             RETURN "hello world";
         END;
         "#,
-            )
-            .await
-            .unwrap();
-
-        resp.iter().for_each(|x| assert!(x.is_ok(), "{:?}", x));
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let udfs = db.list_udf().await.unwrap();
         for udf in udfs.iter() {
@@ -1738,7 +1754,7 @@ pub(crate) mod test_fns {
         }
 
         let query_id = db.open_connection().await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"CREATE TABLE test_create_trigger (
                 id INT AUTO_INCREMENT, 
@@ -1748,9 +1764,10 @@ pub(crate) mod test_fns {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE TABLE test_create_trigger_update (
@@ -1762,8 +1779,9 @@ pub(crate) mod test_fns {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
        CREATE TRIGGER after_insert_test_create_trigger
@@ -1776,8 +1794,9 @@ pub(crate) mod test_fns {
     "#,
         )
         .await
+        .unwrap()
         .unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
   CREATE TRIGGER after_insert_test_create_trigger2
@@ -1790,6 +1809,7 @@ pub(crate) mod test_fns {
 "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let table = "test_create_trigger";
@@ -1917,29 +1937,30 @@ pub(crate) mod test_fns {
         enable_test_log();
         let table_name = "test_index";
 
-        let mut conn = db.get_conn().await.unwrap();
-        let _ = sqlx::query(&format!("drop table {table_name}"))
-            .execute(conn.deref_mut())
-            .await;
+        let _ = db.drop_table(table_name, false).await;
 
-        sqlx::query(
+        let query_id = db.open_connection().await.unwrap();
+
+        db.execute_sql(
+            query_id,
             format!(
                 r#"
-                CREATE TABLE {table_name} (
-                    id INT PRIMARY KEY,
-                    name VARCHAR(255),
-                    age INT,
-                    email VARCHAR(255),
-                    INDEX idx_name (name),
-                    UNIQUE INDEX idx_email (email),
-                    FULLTEXT INDEX idx_fulltext (name, email)
-                );
-            "#
+            CREATE TABLE {} (
+                id INT PRIMARY KEY,
+                name VARCHAR(255),
+                age INT,
+                email VARCHAR(255),
+                INDEX idx_name (name),
+                UNIQUE INDEX idx_email (email),
+                FULLTEXT INDEX idx_fulltext (name, email)
+            );
+        "#,
+                table_name
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
+        .unwrap()
         .unwrap();
 
         let indexes = db.show_indexes(table_name).await.unwrap();

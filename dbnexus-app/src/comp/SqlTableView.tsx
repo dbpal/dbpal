@@ -144,7 +144,7 @@ function EditInModal(props: { content: string; handleModify }) {
   const { content, handleModify } = props;
   const languages = [
     { language: 'text', color: 'info' },
-    // { language: 'html', color: 'primary' },
+    { language: 'html', color: 'primary' },
     { language: 'json', color: 'secondary' },
   ] as {
     language: string;
@@ -452,7 +452,7 @@ function SqlTableView(props: {
             content: (
               <Menu
                 editInModal={() => {
-                  setEditInModal(new EditInModalData(row, field, content));
+                  setEditInModal(new EditInModalData(row, field, row[field]));
                 }}
                 nullable={nullable}
                 fields={resp.data.fields}
@@ -817,16 +817,18 @@ function Menu(props: {
   return (
     <Paper>
       <MenuList>
-        <MenuItem
-          onClick={() => {
-            editInModal();
-          }}
-        >
-          <ListItemIcon>
-            <EditIcon></EditIcon>
-          </ListItemIcon>
-          <ListItemText> Edit in Modal </ListItemText>
-        </MenuItem>
+        {addOP && (
+          <MenuItem
+            onClick={() => {
+              editInModal();
+            }}
+          >
+            <ListItemIcon>
+              <EditIcon></EditIcon>
+            </ListItemIcon>
+            <ListItemText> Edit in Modal </ListItemText>
+          </MenuItem>
+        )}
 
         {content && (
           <MenuItem

@@ -1184,7 +1184,28 @@ impl QuerySql for SqliteDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
 
+        let conn = self.query_connection.get(&query_id);
+        let conn = match conn {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
+        let ret = match conn.execute(sqlx::raw_sql(sql)).await {
+            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected())),
+            Err(err) => Err(err.to_string()),
+        };
+
+        query_log.set_success(ret.is_ok());
+        anyhow::Ok(ret)
+    }
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -1193,7 +1214,7 @@ impl QuerySql for SqliteDB {
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
-            None => anyhow::bail!("id '{}' have no connection", query_id),
+            None => anyhow::bail!("connection closed???"),
         };
 
         let mut conn = conn.lock().await;
@@ -1540,7 +1561,7 @@ mod tests {
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
         let query_id = db.open_connection().await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE IF NOT EXISTS test_rename (
@@ -1549,7 +1570,9 @@ mod tests {
                 );"#,
         )
         .await
+        .unwrap()
         .unwrap();
+
         db.rename_table("test_rename", "test_rename2")
             .await
             .unwrap();

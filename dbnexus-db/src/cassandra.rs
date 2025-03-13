@@ -786,6 +786,20 @@ impl QuerySql for CassandraDB {
         }
     }
 
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        self.invalid_page_caching(None);
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+
+        let ret = match self.session.query(sql).await {
+            Ok(_) => Ok(QueryResp::execute_ok()),
+            Err(err) => Err(err.to_string()),
+        };
+        query_log.set_success(ret.is_ok());
+        anyhow::Ok(ret)
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -2250,7 +2264,7 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
         let x = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE test_types1 (
@@ -2266,7 +2280,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        assert!(x.is_ok());
         /*
         INSERT INTO test_types1 (id, ascii_column, bigint_column, blob_column, boolean_column, decimal_column, double_column)
         VALUES (e6361ec1-b0a6-4eb6-b7bd-2db2d13329ab, 'example_ascii', 1234567890123456789, 0x48656c6c6f, true, 123.45, 3.14159);

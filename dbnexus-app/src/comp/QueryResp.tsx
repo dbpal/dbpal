@@ -234,8 +234,12 @@ function MultiQueryResp_(props: { data: any[] }) {
   const vis = useContext(VisiableContext);
   return (
     <div>
-      <div>
-        <Tabs value={value} onChange={handleChange}>
+      <div style={{ display: 'grid' }}>
+        <Tabs
+          value={value}
+          onChange={handleChange}
+          style={{ overflow: 'scorll' }}
+        >
           {data.map((_, index) => (
             <Tab
               label={`Result ${index + 1}`}

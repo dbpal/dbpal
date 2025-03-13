@@ -415,6 +415,7 @@ function SimpleResizeEditor(props: {
   style?: CSSProperties;
 }) {
   let { language, value, onMount, minHeigth, barLeft, style } = props;
+
   const [pos, setPos] = useState<Position>(null);
   let height = editorInitHeight(
     value,
@@ -973,6 +974,7 @@ async function makeQueryConnInfo(uuid: string) {
 
 interface IQueryConn {
   queryOP: (text: string) => Promise<any[]>;
+  executeOP: (text: string) => Promise<any>;
   loadQueryLog: () => Promise<types.QueryLogEvent[]>;
   reconnect: () => Promise<void>;
   exportQueryResult: (
@@ -1037,9 +1039,16 @@ class QueryConn implements IQueryConn {
       queryId: this.queryId,
     });
   }
-
   queryOP(sql: string): Promise<any[]> {
     let x = invoke<any[]>('query_sql', {
+      name: this.uuid,
+      queryId: this.queryId,
+      sql,
+    });
+    return x;
+  }
+  executeOP(sql: string): Promise<any> {
+    let x = invoke<any[]>('execute_sql', {
       name: this.uuid,
       queryId: this.queryId,
       sql,

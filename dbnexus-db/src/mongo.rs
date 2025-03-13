@@ -808,6 +808,11 @@ impl QuerySql for MongoDB {
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         not_support_features(self.backend_name())
     }
+    async fn execute_sql(
+        &self, _query_id: uuid::Uuid, _sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        not_support_features(self.backend_name())
+    }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         not_support_features(self.backend_name())

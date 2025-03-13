@@ -270,7 +270,7 @@ const components: Components<
   MuiChip: {
     styleOverrides: {
       root: {
-        fontSize: '1.2rem',
+        fontSize: '1rem',
         fontWeight: '600',
       },
     },

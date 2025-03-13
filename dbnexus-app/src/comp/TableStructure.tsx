@@ -209,17 +209,6 @@ function ColumnsStructure(props: {
                 </ListItemIcon>
                 <ListItemText> drop </ListItemText>
               </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  let r = fields.find((e) => e.field == col);
-                  setRow(r);
-                }}
-              >
-                <ListItemIcon>
-                  <EditIcon></EditIcon>
-                </ListItemIcon>
-                <ListItemText> modify </ListItemText>
-              </MenuItem>
             </>
           )}
         </MenuList>
@@ -1497,6 +1486,7 @@ function TableStructure(props: {
     DataSourceKind.Oracle,
     DataSourceKind.Postgres,
     DataSourceKind.Mongo,
+    DataSourceKind.Cassandra,
   ].includes(kind);
 
   if (supportIndex) {

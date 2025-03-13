@@ -723,6 +723,24 @@ pub async fn query_sql(
 }
 
 #[tauri::command]
+pub async fn execute_sql(
+    name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
+) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+
+    let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
+
+    let result = match db {
+        Open::DataBase(x) => x.execute_sql(query_id, &sql).await,
+        Open::Schema(x) => x.execute_sql(query_id, &sql).await,
+        Open::Catalog(x) => x.execute_sql(query_id, &sql).await,
+    }
+    .map_err(|e| ErrorFrontend::from(e))?;
+    Ok(result.map(|x| MuiDataGridData::from(x)))
+}
+
+#[tauri::command]
 pub async fn query_logs(
     name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<Vec<QueryLogEvent>, ErrorFrontend> {
@@ -2538,7 +2556,12 @@ impl From<TableListResp> for MuiDataTableListResp {
         }
     }
 }
-
+impl From<QueryResp> for MuiDataGridData {
+    fn from(value: QueryResp) -> Self {
+        let QueryResp { fields, data } = value;
+        MuiDataGridData::from((fields, data))
+    }
+}
 impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
     fn from(value: (Vec<Field>, Vec<Vec<Option<String>>>)) -> Self {
         let (fields, old_data) = value;

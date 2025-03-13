@@ -17,6 +17,7 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
+import { FaExclamation } from 'react-icons/fa';
 import {
   ReactNode,
   useCallback,
@@ -206,27 +207,65 @@ function SqlQuery(props: {
     }
   };
 
+  const warnDangerousSql = async (text): Promise<boolean> => {
+    if (await conn.isDangerSql(text)) {
+      return await secondConfirm({
+        confirmText: 'execute',
+        title: 'This is a dangerous sql',
+        content: `Are u sure going to execute '${text}'`,
+      });
+    } else {
+      return true;
+    }
+  };
+
+  const suggestReconnect = (start: Date) => {
+    //@ts-ignore
+    let queryTime = new Date() - start;
+    if (queryTime > 5_000) {
+      setShowSuggestReconn(queryTime as number);
+      setTimeout(() => {
+        setShowSuggestReconn(null);
+      }, msgTimeout);
+    }
+  };
+  const handleExecute = async () => {
+    const text = editor.current.getValue();
+    if (!text.trim()) {
+      showNotification('error', `can't execute empty statement.`);
+      return;
+    }
+    const confirm = await warnDangerousSql(text);
+    if (!confirm) {
+      return;
+    }
+    let now = new Date();
+    setLoading(true);
+    conn
+      .executeOP(text)
+      .then((e) => {
+        setResp([e]);
+        if (showQueryLog) {
+          handleLoadQueryLog();
+        }
+        suggestReconnect(now);
+      })
+      .catch((e) => {
+        setResp([]);
+        showNotification('error', 'query failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
   const handleQuery = async (text: string) => {
     if (!text.trim()) {
       showNotification('error', `can't execute empty statement.`);
       return;
     }
-    try {
-      if (await conn.isDangerSql(text)) {
-        const confirm = await secondConfirm({
-          confirmText: 'execute',
-          title: 'This is a dangerous sql',
-          content: `Are u sure going to execute '${text}'`,
-        });
-        if (!confirm) {
-          return;
-        }
-      }
-    } catch (e) {
-      console.log(
-        'isDangerSql has error ,maybe not a valid sql,should be fine to continue',
-        e
-      );
+    const confirm = await warnDangerousSql(text);
+    if (!confirm) {
+      return;
     }
     let now = new Date();
     setLoading(true);
@@ -238,17 +277,7 @@ function SqlQuery(props: {
         if (showQueryLog) {
           handleLoadQueryLog();
         }
-        //@ts-ignore
-        let queryTime = new Date() - now;
-        if (queryTime > 5_000) {
-          setShowSuggestReconn(queryTime as number);
-          setTimeout(() => {
-            setShowSuggestReconn(null);
-          }, msgTimeout);
-        }
-        if (showQueryLog) {
-          handleLoadQueryLog();
-        }
+        suggestReconnect(now);
         showNotification('success', 'Execute OK');
       })
       .catch((e) => {
@@ -330,7 +359,7 @@ function SqlQuery(props: {
           </Paper>
         )}
         {connectInfo}
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Tooltip title="execute">
             <IconButton
               loading={loading}
@@ -356,6 +385,16 @@ function SqlQuery(props: {
               color="primary"
             >
               <PlayCircleIcon />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="execute sql not expecting result">
+            <IconButton
+              disabled={loading || conn == null}
+              onClick={handleExecute}
+              color="primary"
+            >
+              <FaExclamation />
             </IconButton>
           </Tooltip>
 
