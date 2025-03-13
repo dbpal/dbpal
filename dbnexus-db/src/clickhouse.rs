@@ -17,8 +17,9 @@ use crate::{
         ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
         ty_is_float, ty_is_int,
     },
-    helper::{SqlKind, SqlWithKind, create_csv, sql_to_sql_seq},
+    helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
+    query_log::QueryLog,
 };
 
 impl BackendName for ClickHouseDB {
@@ -168,13 +169,27 @@ impl ClickHouseDB {
                 .collect(),
         )
     }
-}
 
-impl ClickHouseDB {
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!("show tables from {}", db);
         let conn = self.get_conn()?;
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
+        // delete materiazlied view
+
+        let mut ret = ret.into_iter().collect::<HashSet<_>>();
+
+        let m = self
+            .list_materialized_view_impl(db)
+            .await?
+            .into_iter()
+            .map(|x| x.name)
+            .collect::<Vec<_>>();
+
+        for name in m.iter() {
+            ret.remove(name);
+        }
+        let mut ret = ret.into_iter().collect::<Vec<_>>();
+        ret.sort();
         anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
     }
 }
@@ -706,8 +721,8 @@ impl ServerMetas for ClickHouseDB {
         anyhow::Ok(ret)
     }
 }
+
 fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
-    // TODO use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::ClickHouseDialect {};
     sql_to_sql_seq(
         sql,
@@ -794,16 +809,33 @@ impl QuerySql for ClickHouseDB {
     fn clone(&self) -> Box<dyn QuerySql> {
         Box::new(Clone::clone(self))
     }
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
+    }
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let conn = self.get_conn()?;
+        let ret = match conn.query(&sql).execute().await {
+            Ok(_) => Ok(QueryResp::execute_ok()),
+            Err(err) => Err(err.to_string()),
+        };
+        query_log.set_success(ret.is_ok());
+
+        anyhow::Ok(ret)
+    }
     async fn query_sql(
-        &self, _query_id: uuid::Uuid, sql: &str,
+        &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let sqls = get_sql_seq(sql).unwrap_or(vec![SqlWithKind {
             sql: sql.to_string(),
             kind: SqlKind::Query,
         }]);
         let mut ret = Vec::new();
-
+        let mut query_log = QueryLog::get_guard(query_id, sql);
         for sql in sqls.iter() {
+            log::info!("query sql kind:{:?} sql:{}", sql.kind, sql.sql);
             match sql.kind {
                 SqlKind::Query => {
                     let x = self.query_as_json(&sql.sql).await;
@@ -828,7 +860,7 @@ impl QuerySql for ClickHouseDB {
                 }
             }
         }
-
+        query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
 
@@ -1063,8 +1095,15 @@ impl ClickHouseDB {
             self.config.host,
             self.config.port
         );
-        let uri = format!("{}/?query={} format json", host, query);
-
+        let uri = format!(
+            "{}/?query={} format json{}",
+            host,
+            query,
+            match &self.config.db {
+                Some(x) => format!("&database={}", x),
+                None => "".to_string(),
+            }
+        );
         log::info!("url:{}", uri);
 
         let response = self
@@ -1074,7 +1113,7 @@ impl ClickHouseDB {
             .send()
             .await?;
         if !response.status().is_success() {
-            anyhow::bail!("response not ok:{:?}", response)
+            anyhow::bail!("response not ok:body:{}", response.text().await?)
         }
         let ret = response.json::<JsonResp>().await?;
         anyhow::Ok(ret)
@@ -1105,7 +1144,7 @@ fn parse_type(typ: &str) -> anyhow::Result<DataType> {
 
 #[cfg(test)]
 mod tests {
-    use super::{make_test_object, parse_type};
+    use super::{get_sql_seq, make_test_object, parse_type};
     use crate::{
         db::{ColumnType, DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas},
         enable_test_log,
@@ -1439,7 +1478,7 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
             CREATE TABLE test_types1
@@ -1457,7 +1496,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(_resp.iter().all(|x| x.is_ok()), "{:?}", _resp);
+        assert!(_resp.is_ok(), "{:?}", _resp);
         {
             let mut values = HashMap::new();
             values.insert("value_uint8".to_string(), Some(1.to_string()));
@@ -1585,6 +1624,31 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_get_sql_seq() {
+        let ss = get_sql_seq(
+            r#"CREATE TABLE test_types3
+            (
+                id UInt64,  
+                float32_field Float32,
+                float64_field Float64,
+                decimal32_field Decimal(10, 2), -- Decimal(精度, 小数点后位数)，这里使用 32 位存储
+                decimal64_field Decimal(18, 4), -- 64 位存储
+                decimal128_field Decimal(38, 8), -- 128 位存储
+                boolean_field UInt8 -- ClickHouse 中没有原生 Boolean 类型，通常用 UInt8 表示（0 表示 false，非 0 表示 true）
+            )
+            ENGINE = MergeTree()
+            ORDER BY id; -- 根据需要选择排序键
+        "#,
+        ) .unwrap();
+        if ss.len() != 1 {
+            for s in ss.iter() {
+                println!("{:?}", s);
+            }
+        }
+        assert!(ss.len() == 1);
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types3() {
         enable_test_log();
@@ -1668,7 +1732,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types4() {
-        // enable_test_log();
+        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
@@ -1760,7 +1824,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types5() {
-        // enable_test_log();
+        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
@@ -1779,7 +1843,7 @@ mod tests {
                 map_field Map(String, Int32)             -- Map 类型，键为字符串，值为 Int32
             )
             ENGINE = MergeTree()
-            ORDER BY date32_field; -- 根据 Date32 字段排序
+            ORDER BY date32_field;  
         "#,
             )
             .await
@@ -1927,6 +1991,28 @@ mod tests {
         }
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_error_query() {
+        // enable_test_log();
+        let db = make_test_object();
+        let query_id = db.open_connection().await.unwrap();
+
+        let x = db
+            .query_sql(query_id, "SELECT * fro test_types4")
+            .await
+            .unwrap();
+        assert!(x.iter().any(|x| x.is_err()));
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_query_empty() {
+        let db = make_test_object();
+        let query_id = db.open_connection().await.unwrap();
+        let x = db
+            .query_sql(query_id, " --   this is comment.")
+            .await
+            .unwrap();
+        assert!(x.iter().all(|x| x.is_ok()));
+    }
     #[test]
     fn test_parse_type() {
         let x = parse_type("Nullable(String) ").unwrap();

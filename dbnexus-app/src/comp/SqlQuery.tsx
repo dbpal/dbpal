@@ -10,17 +10,20 @@ import {
   Modal,
   Paper,
   Stack,
+  TextField,
   Tooltip,
 } from '@mui/material';
-
+import FavoriteIcon from '@mui/icons-material/Favorite';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
+import { FaExclamation } from 'react-icons/fa';
 import {
   ReactNode,
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -106,9 +109,23 @@ function SqlQuery(props: {
   handelTextAndPositionChange?: (text: string, pos: Position) => void;
   connectInfo?: ReactNode;
   makeConn: MakeIQueryConn;
+  value?: string;
+  saveFavoriteSql: (name: string, sql: string) => void;
+  favoriteName?: string;
 }) {
-  let { handelTextAndPositionChange, language, connectInfo, makeConn } = props;
+  let {
+    handelTextAndPositionChange,
+    language,
+    connectInfo,
+    makeConn,
+    value,
+    saveFavoriteSql,
+    favoriteName: oldFavoriteName,
+  } = props;
   const [resp, setResp] = useState([]);
+  const [showSetFavoriteName, setShowFavoriteName] = useState(false);
+  const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
+
   let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
@@ -118,10 +135,10 @@ function SqlQuery(props: {
   const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
     null
   );
+
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
-  const { theme } = useContext(SettingContext);
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ed;
@@ -174,7 +191,6 @@ function SqlQuery(props: {
         .then(() => {
           showNotification('success', 'Reconnect OK');
         })
-
         .catch((e) => {
           showNotification('error', 'Reconnect Failure', e);
         });
@@ -191,27 +207,65 @@ function SqlQuery(props: {
     }
   };
 
+  const warnDangerousSql = async (text): Promise<boolean> => {
+    if (await conn.isDangerSql(text)) {
+      return await secondConfirm({
+        confirmText: 'execute',
+        title: 'This is a dangerous sql',
+        content: `Are u sure going to execute '${text}'`,
+      });
+    } else {
+      return true;
+    }
+  };
+
+  const suggestReconnect = (start: Date) => {
+    //@ts-ignore
+    let queryTime = new Date() - start;
+    if (queryTime > 5_000) {
+      setShowSuggestReconn(queryTime as number);
+      setTimeout(() => {
+        setShowSuggestReconn(null);
+      }, msgTimeout);
+    }
+  };
+  const handleExecute = async () => {
+    const text = editor.current.getValue();
+    if (!text.trim()) {
+      showNotification('error', `can't execute empty statement.`);
+      return;
+    }
+    const confirm = await warnDangerousSql(text);
+    if (!confirm) {
+      return;
+    }
+    let now = new Date();
+    setLoading(true);
+    conn
+      .executeOP(text)
+      .then((e) => {
+        setResp([e]);
+        if (showQueryLog) {
+          handleLoadQueryLog();
+        }
+        suggestReconnect(now);
+      })
+      .catch((e) => {
+        setResp([]);
+        showNotification('error', 'query failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
   const handleQuery = async (text: string) => {
     if (!text.trim()) {
       showNotification('error', `can't execute empty statement.`);
       return;
     }
-    try {
-      if (await conn.isDangerSql(text)) {
-        const confirm = await secondConfirm({
-          confirmText: 'execute',
-          title: 'This is a dangerous sql',
-          content: `Are u sure going to execute '${text}'`,
-        });
-        if (!confirm) {
-          return;
-        }
-      }
-    } catch (e) {
-      console.log(
-        'isDangerSql has error ,maybe not a valid sql,should be fine to continue',
-        e
-      );
+    const confirm = await warnDangerousSql(text);
+    if (!confirm) {
+      return;
     }
     let now = new Date();
     setLoading(true);
@@ -223,17 +277,7 @@ function SqlQuery(props: {
         if (showQueryLog) {
           handleLoadQueryLog();
         }
-        //@ts-ignore
-        let queryTime = new Date() - now;
-        if (queryTime > 5_000) {
-          setShowSuggestReconn(queryTime as number);
-          setTimeout(() => {
-            setShowSuggestReconn(null);
-          }, msgTimeout);
-        }
-        if (showQueryLog) {
-          handleLoadQueryLog();
-        }
+        suggestReconnect(now);
         showNotification('success', 'Execute OK');
       })
       .catch((e) => {
@@ -266,6 +310,13 @@ function SqlQuery(props: {
       }
     };
   }, [conn]);
+  const setting = useContext(SettingContext);
+  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+    return {
+      fontSize: setting.editorFontSize,
+      ...setting.editorOption,
+    };
+  }, [setting]);
 
   return (
     //@ts-ignore
@@ -295,7 +346,7 @@ function SqlQuery(props: {
               width: '65%',
             }}
           >
-            <Stack direction="row" sx={{ justifyContent: 'flex-start' }}>
+            <Stack direction="row" sx={{ justifyContent: 'center' }}>
               <Button
                 onClick={() => {
                   setShowQueryLog(false);
@@ -304,11 +355,11 @@ function SqlQuery(props: {
                 <CloseIcon></CloseIcon>
               </Button>
             </Stack>
-            <QueryLog language={language} logs={queryLogs}></QueryLog>
+            <QueryLog uuid={language} logs={queryLogs}></QueryLog>
           </Paper>
         )}
         {connectInfo}
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Tooltip title="execute">
             <IconButton
               loading={loading}
@@ -317,7 +368,6 @@ function SqlQuery(props: {
                 handleQuery(editor.current.getValue());
               }}
               color="primary"
-              aria-label="execute"
             >
               <PlayArrowIcon />
             </IconButton>
@@ -333,9 +383,18 @@ function SqlQuery(props: {
                 );
               }}
               color="primary"
-              aria-label="execute"
             >
               <PlayCircleIcon />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="execute sql not expecting result">
+            <IconButton
+              disabled={loading || conn == null}
+              onClick={handleExecute}
+              color="primary"
+            >
+              <FaExclamation />
             </IconButton>
           </Tooltip>
 
@@ -352,7 +411,6 @@ function SqlQuery(props: {
                 handleReconnect();
               }}
               color="primary"
-              aria-label="execute"
             >
               <RefreshIcon color={showSuggestReconn ? 'error' : 'inherit'} />
             </IconButton>
@@ -373,9 +431,33 @@ function SqlQuery(props: {
                 setShowExport(true);
               }}
               color="primary"
-              aria-label="execute"
             >
               <ArrowCircleDownRoundedIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip
+            title={
+              !favoriteName
+                ? 'save sql to favorite.'
+                : `save favorite sql as named '${favoriteName}'`
+            }
+          >
+            <IconButton
+              onClick={() => {
+                const value = editor.current.getValue();
+                if (!value) {
+                  showNotification('error', "can't save empty statement.");
+                  return;
+                }
+                if (favoriteName) {
+                  saveFavoriteSql(favoriteName, value);
+                } else {
+                  setShowFavoriteName(true);
+                }
+              }}
+              color="primary"
+            >
+              <FavoriteIcon />
             </IconButton>
           </Tooltip>
 
@@ -420,13 +502,9 @@ function SqlQuery(props: {
             language={language}
             onMount={handleEditorDidMount}
             width="99.5%"
-            value=""
-            options={{
-              fontSize: useContext(SettingContext).editorFontSize,
-              wordWrap: 'on',
-              automaticLayout: true,
-            }}
-            theme={theme == 'dark' ? 'vs-dark' : 'light'}
+            value={value}
+            options={options}
+            theme={setting.editorTheme()}
           ></Editor>
         </div>
         <EditorBar
@@ -456,7 +534,6 @@ function SqlQuery(props: {
                   const sql = editor.current
                     .getModel()
                     .getValueInRange(editor.current.getSelection());
-
                   await conn.exportQueryResult(sql, kind, file);
                   showNotification('success', 'export OK');
                 } catch (e) {
@@ -465,6 +542,47 @@ function SqlQuery(props: {
               }}
               supportCsvHeader={true}
             ></ExportView>
+          </Box>
+        </Modal>
+      )}
+      {showSetFavoriteName && (
+        <Modal
+          open={showSetFavoriteName}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowFavoriteName(false);
+          }}
+        >
+          <Box sx={modalStyle} width="600px">
+            <Stack spacing={1}>
+              <TextField
+                fullWidth
+                label="name"
+                value={favoriteName}
+                onChange={(e) => {
+                  setFavoriteName(e.target.value);
+                }}
+                size="small"
+                required
+              ></TextField>
+              <Stack direction="row">
+                <IconButton
+                  color="primary"
+                  onClick={() => {
+                    if (!favoriteName) {
+                      showNotification('error', "name can't be empty");
+                      return;
+                    }
+                    saveFavoriteSql(favoriteName, editor.current.getValue());
+                    setShowFavoriteName(false);
+                  }}
+                >
+                  <FavoriteIcon> </FavoriteIcon>
+                </IconButton>
+              </Stack>
+            </Stack>
           </Box>
         </Modal>
       )}

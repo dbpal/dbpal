@@ -1,32 +1,25 @@
 import {
-  FormControl,
-  InputLabel,
-  Select,
   MenuItem,
   ListItemIcon,
   ListItemText,
   Tooltip,
   Typography,
-  Box,
   Paper,
   MenuList,
   Stack,
   Button,
+  Divider,
+  Chip,
 } from '@mui/material';
-import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { types } from './ApiStruct';
 import {
   DataGrid,
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
 import { v4 as uuidv4 } from 'uuid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -46,13 +39,12 @@ import {
   datagridContainerHeight,
   DataSourceKind,
   errToString,
+  FavoriteSql,
   handleCopyToClipboard,
   secondConfirm,
 } from './helper';
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
-
-import CloseIcon from '@mui/icons-material/Close';
 import { SettingContext } from './Common';
 
 const LogLevelSelection = ({ handleChange, level }) => {
@@ -93,16 +85,6 @@ const LogLevelSelection = ({ handleChange, level }) => {
     </Stack>
   );
 };
-
-function StickyNav(props: { children: ReactNode[] | ReactNode }) {
-  const { children } = props;
-
-  return (
-    <div style={{ position: 'sticky', top: 0, border: '1px blue solid' }}>
-      {children}
-    </div>
-  );
-}
 
 function MenuNewQuery({ handle }) {
   return (
@@ -255,39 +237,21 @@ function MenuOpenConn({ handleOpend, name }) {
 }
 const pageSizeOptions = [10, 20, 50, 100];
 
-function SelectPageSize({
-  width = '200px',
-  variant = 'outlined',
-  tital = 'select page size',
-  pageSize,
-  handleChange,
-  options = pageSizeOptions,
-}) {
+function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
   return (
-    <Box width={width}>
-      <FormControl
-        //@ts-ignore
-        variant={variant}
-        fullWidth
-      >
-        <InputLabel id="simple-select-label">{tital}</InputLabel>
-        <Select
-          labelId="simple-select-label"
-          id="simple-select"
-          value={pageSize}
-          onChange={(e) => {
-            handleChange(e.target.value);
+    <Stack direction="row" spacing={1}>
+      {options.map((e) => (
+        <Chip
+          label={e}
+          color="info"
+          onClick={() => {
+            handleChange(e);
           }}
-          label="select page size"
-        >
-          {options.map((e) => (
-            <MenuItem key={e} value={e}>
-              {e}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    </Box>
+          key={e}
+          disabled={e == pageSize}
+        ></Chip>
+      ))}
+    </Stack>
   );
 }
 
@@ -313,11 +277,11 @@ function MenuDeleteConfig({ name }) {
       let newdata = old.filter((e) => e.name != name);
       await (await appStore()).set(AppStoreKey.ConnectionConfig, newdata);
       await invoke('close_conn', { name });
+      await FavoriteSql.deleteByUuid(name);
     } catch (e) {
       showNotification('error', 'drop connection failed', e);
     }
   };
-
   return (
     <MenuItem
       onClick={() => {
@@ -363,7 +327,7 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
             </ListItemIcon>
             <ListItemText> Copy </ListItemText>
           </MenuItem>
-
+          <Divider></Divider>
           <MenuItem
             onClick={() => {
               setSort([{ field, sort: 'asc' }] as GridSortModel);
@@ -395,12 +359,16 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
         onContextMenu: (e) => {
           const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
-          let filed = (target as HTMLDivElement).getAttribute('data-field');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <Menu
                 content={content}
-                field={filed}
+                field={field}
                 setSort={setSortModel}
               ></Menu>
             ),
@@ -443,7 +411,7 @@ function MenuResetColumnWidths() {
   const { showNotification } = useContext(NotificationContext);
   const handleReset = async () => {
     columnWidths.reset();
-    showNotification('success', 'reset column width success');
+    showNotification('success', 'reset column width successfully');
   };
   return (
     <MenuItem onClick={handleReset}>
@@ -455,9 +423,12 @@ function MenuResetColumnWidths() {
   );
 }
 
+function TrueOrFalse(b: boolean) {
+  return b ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
+}
+
 export {
   LogLevelSelection,
-  StickyNav,
   MetaValuesView,
   MenuNewQuery,
   MenuCreateDatabase,
@@ -470,4 +441,5 @@ export {
   pageSizeOptions,
   MenuDeleteConfig,
   MenuResetColumnWidths,
+  TrueOrFalse,
 };

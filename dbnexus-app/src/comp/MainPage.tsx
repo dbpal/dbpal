@@ -2,7 +2,7 @@ import { NotificationProvider } from './Notification';
 
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
-import { Box, Modal } from '@mui/material';
+
 import {
   CSSProperties,
   ReactNode,
@@ -13,10 +13,10 @@ import {
 
 import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
-import { modalStyle, tabsHasId } from './Common.tsx';
+import { tabsHasId } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
-import AddConfig from './AddConnection.tsx';
+
 import { ModifySettings, SettingComp } from './Settings.tsx';
 import {
   appStore,
@@ -26,8 +26,6 @@ import {
 } from './helper.ts';
 
 export default function MainPage() {
-  const [showAddConnection, setShowAddConnection] = useState(false);
-
   let [tabs, setTabs] = useState([
     new TabContent('welcome', 'welcome', <WelCome></WelCome>),
   ]);
@@ -55,17 +53,6 @@ export default function MainPage() {
       });
     };
   }, [tabs]);
-
-  useEffect(() => {
-    let unlisten = listen('add_config', () => {
-      setShowAddConnection(true);
-    });
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
-  }, []);
 
   const [menu, setUpMenu] = useState<{
     content: ReactNode;
@@ -147,26 +134,6 @@ export default function MainPage() {
             <div id="menu-div" style={menu && menu.style}>
               {menu && menu.content}
             </div>
-
-            {showAddConnection && (
-              <Modal
-                open={showAddConnection}
-                onClose={(_, reason) => {
-                  if (reason === 'backdropClick') {
-                    return;
-                  }
-                  setShowAddConnection(false);
-                }}
-              >
-                <Box sx={modalStyle} width="950px">
-                  <AddConfig
-                    handleClose={() => {
-                      setShowAddConnection(false);
-                    }}
-                  ></AddConfig>
-                </Box>
-              </Modal>
-            )}
           </NotificationProvider>
         </TabsSetContext.Provider>
       </ContextMenuContext.Provider>

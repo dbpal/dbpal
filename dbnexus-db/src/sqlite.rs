@@ -23,7 +23,7 @@ use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 
-fn type_support_compare(_typ: &str) -> bool {
+pub(crate) fn type_support_compare(_typ: &str) -> bool {
     true
 }
 
@@ -223,7 +223,7 @@ impl SqliteDB {
 }
 // TODO sqlparse don't support parse trigger statement
 // use lexer to solve this issue.
-fn extract_trigger_base_on_lexer(sql: String) -> anyhow::Result<TriggerDetail> {
+fn extract_trigger_base_on_lexer(name: &str, sql: String) -> anyhow::Result<TriggerDetail> {
     let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
         .tokenize()?;
     let mut event = None;
@@ -251,6 +251,7 @@ fn extract_trigger_base_on_lexer(sql: String) -> anyhow::Result<TriggerDetail> {
     let event = event.unwrap();
     let timing = timing.unwrap();
     anyhow::Ok(TriggerDetail::new(
+        name,
         match timing.as_str() {
             "AFTER" => TriggerTiming::After,
             "BEFORE" => TriggerTiming::Before,
@@ -268,59 +269,61 @@ fn test_extract_trigger_base_on_lexer() {
     {
         let sql = "after insert".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Insert, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Insert, sql, None)
         );
     }
     {
         let sql = "after update".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Update, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Update, sql, None)
         );
     }
     {
         let sql = "after delete".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::After, TriggerEvent::Delete, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Delete, sql, None)
         );
     }
     {
         let sql = "before insert".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Insert, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Insert, sql, None)
         );
     }
     {
         let sql = "before update".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Update, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Update, sql, None)
         );
     }
     {
         let sql = "before delete".to_string();
         assert_eq!(
-            extract_trigger_base_on_lexer(sql.clone()).unwrap(),
-            TriggerDetail::new(TriggerTiming::Before, TriggerEvent::Delete, sql, None)
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Delete, sql, None)
         );
     }
 
     // error cases
     {
         let sql = "before xxx".to_string();
-        assert!(extract_trigger_base_on_lexer(sql.clone()).is_err());
+        assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
     }
     {
         let sql = "insert xxx".to_string();
-        assert!(extract_trigger_base_on_lexer(sql.clone()).is_err());
+        assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
     }
 }
 
-fn extract_trigger_detail_from_sql(sql: String) -> anyhow::Result<TriggerDetail> {
-    extract_trigger_base_on_lexer(sql)
+pub(crate) fn extract_trigger_detail_from_sql(
+    name: &str, sql: String,
+) -> anyhow::Result<TriggerDetail> {
+    extract_trigger_base_on_lexer(name, sql)
 }
 
 #[cfg(test)]
@@ -328,6 +331,7 @@ fn extract_trigger_detail_from_sql(sql: String) -> anyhow::Result<TriggerDetail>
 fn test_extract_trigger_detail_from_sql() {
     {
         let x = extract_trigger_detail_from_sql(
+            "after_insert_test_create_trigger",
             r#"
             CREATE TRIGGER after_insert_test_create_trigger
             AFTER INSERT ON test_create_trigger
@@ -350,7 +354,7 @@ async fn query_trigger_detail(
     let s = format!("SELECT sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
     let row = sqlx::query(&s).fetch_one(conn).await?;
     let sql: String = row.get(0);
-    extract_trigger_detail_from_sql(sql)
+    extract_trigger_detail_from_sql(name, sql)
 }
 
 #[async_trait::async_trait]
@@ -894,7 +898,7 @@ fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
     ret
 }
 
-fn encode_bytes(bs: &[u8]) -> String {
+pub(crate) fn encode_bytes(bs: &[u8]) -> String {
     format!("X'{}'", hex::encode_upper(bs))
 }
 
@@ -977,8 +981,7 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
     }
     anyhow::Ok(serde_json::Value::Object(values))
 }
-
-fn integer_like(typ: &str) -> bool {
+pub(crate) fn integer_like(typ: &str) -> bool {
     typ == "INT"
         || typ == "INTEGER"
         || typ == "TINYINT"
@@ -990,11 +993,11 @@ fn integer_like(typ: &str) -> bool {
         || typ == "INT8"
 }
 
-fn numreic_like(typ: &str) -> bool {
+pub(crate) fn numreic_like(typ: &str) -> bool {
     return typ == "NUMERIC" || typ.starts_with("DECIMAL");
 }
 
-fn text_like(typ: &str) -> bool {
+pub(crate) fn text_like(typ: &str) -> bool {
     return typ.starts_with("CHARACTER")
         || typ.starts_with("VARCHAR")
         || typ.starts_with("VARYING CHARACTER")
@@ -1005,7 +1008,7 @@ fn text_like(typ: &str) -> bool {
         || typ == "CLOB";
 }
 
-fn real_like(typ: &str) -> bool {
+pub(crate) fn real_like(typ: &str) -> bool {
     typ == "REAL" || typ == "DOUBLE" || typ == "DOUBLE PRECISION" || typ == "FLOAT"
 }
 
@@ -1127,7 +1130,7 @@ impl SqliteDB {
     }
 }
 
-fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
+pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<String>> {
     use sqlparser::dialect::SQLiteDialect;
     let ss = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, sql)?;
     if ss.len() != 1 {
@@ -1181,7 +1184,28 @@ impl QuerySql for SqliteDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
 
+        let conn = self.query_connection.get(&query_id);
+        let conn = match conn {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
+        let ret = match conn.execute(sqlx::raw_sql(sql)).await {
+            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected())),
+            Err(err) => Err(err.to_string()),
+        };
+
+        query_log.set_success(ret.is_ok());
+        anyhow::Ok(ret)
+    }
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -1190,7 +1214,7 @@ impl QuerySql for SqliteDB {
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
-            None => anyhow::bail!("id '{}' have no connection", query_id),
+            None => anyhow::bail!("connection closed???"),
         };
 
         let mut conn = conn.lock().await;
@@ -1422,7 +1446,7 @@ fn test_extract_index() {
     );
 }
 
-fn gen_show_sql(
+pub(crate) fn gen_show_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
@@ -1531,14 +1555,13 @@ mod tests {
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
     #[tokio::test]
-
     async fn test_rename() {
         let db = make_test_object().await;
 
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
         let query_id = db.open_connection().await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE IF NOT EXISTS test_rename (
@@ -1547,7 +1570,9 @@ mod tests {
                 );"#,
         )
         .await
+        .unwrap()
         .unwrap();
+
         db.rename_table("test_rename", "test_rename2")
             .await
             .unwrap();
@@ -1558,7 +1583,6 @@ mod tests {
     }
 
     #[tokio::test]
-
     async fn test_duplicate() {
         let db = make_test_object().await;
 
@@ -1584,13 +1608,12 @@ mod tests {
             .unwrap();
     }
     #[tokio::test]
-
     async fn test_triggers() {
         let db = make_test_object().await;
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
         let mut conn = db.get_conn().await.unwrap();
-        let schema_trait = &db as &dyn SchemaTrait;
+
         sqlx::query(
             r#"
             CREATE TABLE test_create_trigger (
@@ -1630,15 +1653,53 @@ mod tests {
         .unwrap();
         let table = "test_create_trigger";
 
-        let triggers = schema_trait.list_trigger(table).await.unwrap();
+        let triggers = db.list_trigger(table).await.unwrap();
         for trigger in triggers.iter() {
-            let details = schema_trait
+            let details = db
                 .show_trigger("test_create_trigger", trigger.name.as_str())
                 .await
                 .unwrap();
             println!("name:{} , detail:{:?}", trigger.name, details);
         }
     }
+
+    #[tokio::test]
+    async fn test_index() {
+        let index_name = "name_index";
+
+        let db = make_test_object().await;
+        let table_name = "test_index";
+        let _ = db.drop_index(table_name, index_name).await;
+        let _err = db.drop_table(table_name, false).await;
+        if let Err(err) = _err {
+            println!("drop table failed,err:{}", err.to_string());
+        }
+        let mut conn = db.get_conn().await.unwrap();
+        sqlx::query(
+            r#"
+                CREATE TABLE test_index (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键，自动增长
+                    name TEXT NOT NULL,                    -- 名称，非j空
+                    age INTEGER,                           -- 年龄
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- 创建时间，默认为当前时间
+                ); "#,
+        )
+        .execute(conn.deref_mut())
+        .await
+        .unwrap();
+
+        db.create_index(table_name, index_name, IndexKind::Unique, &[
+            "name".to_string()
+        ])
+        .await
+        .unwrap();
+
+        let indexes = db.show_indexes(table_name).await.unwrap();
+        for index in indexes.iter() {
+            println!("index:{:?}", index);
+        }
+    }
+
     #[tokio::test]
     async fn test_export_table() {
         let db = make_test_object().await;

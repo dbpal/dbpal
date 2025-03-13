@@ -1,46 +1,59 @@
 import { useContext, useEffect, useState } from 'react';
 
 import {
+  Box,
   Button,
+  Chip,
   Components,
   createTheme,
   CssBaseline,
   CssVarsTheme,
   Divider,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
+  Modal,
+  Slider,
   Stack,
-  TextField,
   Theme,
   ThemeProvider,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
-import { appStore, AppStoreKey, SettingContext, UserSettings } from './Common';
+import {
+  appStore,
+  AppStoreKey,
+  modalStyle,
+  SettingContext,
+  SimpleResizeEditor,
+  UserSettings,
+} from './Common';
 import { SelectPageSize } from './CommonComp';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 function ModifySettings() {
   const { showNotification } = useContext(NotificationContext);
 
   const [pageSize, setPageSize] = useState(0);
   const [theme, setTheme] = useState('');
-  const [editorFontSize, setEditorFontSize] = useState('18');
-  const [rootFontSize, setRootFontSize] = useState('18');
-  const [datagridRowHeight, setDatagridRowHeight] = useState('24');
-  const [datagridHeaderHeight, setDatagridHeaderHeight] = useState('30');
-
+  const [editorFontSize, setEditorFontSize] = useState(18);
+  const [rootFontSize, setRootFontSize] = useState(16);
+  const [datagridRowHeight, setDatagridRowHeight] = useState(24);
+  const [datagridHeaderHeight, setDatagridHeaderHeight] = useState(30);
+  const [editorOptions, setEditorOptions] = useState('{\n}');
+  const [showEditorOptions, setShowEditorOptions] = useState(false);
   const reload = async () => {
     (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((settings) => {
         setPageSize(settings.pageSize);
         setTheme(settings.theme);
-        setEditorFontSize(settings.editorFontSize + '');
-        setRootFontSize(settings.rootFontSize + '');
-        setDatagridRowHeight(settings.datagridRowHeight + '');
-        setDatagridHeaderHeight(settings.datagridHeaderHeight + '');
+        setEditorFontSize(settings.editorFontSize);
+        setRootFontSize(settings.rootFontSize);
+        setDatagridRowHeight(settings.datagridRowHeight);
+        setDatagridHeaderHeight(settings.datagridHeaderHeight);
+        const content = JSON.stringify(settings.editorOption, null, 2);
+        if (content) {
+          setEditorOptions(content);
+        }
       })
       .catch((e) => {
         showNotification('error', 'port is not a number', e);
@@ -51,16 +64,24 @@ function ModifySettings() {
   }, []);
 
   const handleSave = async () => {
+    let eo;
+    try {
+      eo = JSON.parse(editorOptions);
+    } catch (e) {
+      showNotification('error', 'not a valid json', e);
+      return;
+    }
     (await appStore())
       .set(
         AppStoreKey.UserSetttings,
         new UserSettings(
           theme,
           pageSize,
-          parseInt(editorFontSize),
-          parseInt(rootFontSize),
-          parseInt(datagridRowHeight),
-          parseInt(datagridHeaderHeight)
+          editorFontSize,
+          rootFontSize,
+          datagridRowHeight,
+          datagridHeaderHeight,
+          eo
         )
       )
       .then(() => {
@@ -71,11 +92,13 @@ function ModifySettings() {
       });
   };
 
-  const headerSize = '200px';
+  const headerSize = '15%';
   return (
     <Stack spacing={1}>
-      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
-        <Typography width={headerSize}> page size: </Typography>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          page size:
+        </Typography>
         <SelectPageSize
           pageSize={pageSize}
           handleChange={(size) => {
@@ -83,71 +106,111 @@ function ModifySettings() {
           }}
         ></SelectPageSize>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
-        <Typography width={headerSize}> theme: </Typography>
-        <FormControl style={{ width: '200px' }} variant="outlined">
-          <InputLabel id="dropdown-label">select a theme</InputLabel>
-          <Select
-            labelId="dropdown-label"
-            value={theme}
-            onChange={(e) => {
-              setTheme(e.target.value);
-            }}
-          >
-            <MenuItem value="dark">dark</MenuItem>
-            <MenuItem value="light">light</MenuItem>
-          </Select>
-        </FormControl>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          theme:
+        </Typography>
+        <Chip
+          label="light"
+          disabled={theme == 'light'}
+          onClick={() => {
+            setTheme('light');
+          }}
+          style={{ backgroundColor: 'white', color: 'black' }}
+        ></Chip>
+
+        <Chip
+          label="dark"
+          disabled={theme == 'dark'}
+          onClick={() => {
+            setTheme('dark');
+          }}
+          style={{ backgroundColor: 'black', color: 'white' }}
+        ></Chip>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
-        <Typography width={headerSize}> code editor font size: </Typography>
-        <TextField
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          code editor font size:
+        </Typography>
+        <Chip label={editorFontSize} />
+        <Slider
+          style={{ width: '30%' }}
           size="small"
           value={editorFontSize}
-          type="number"
-          onChange={(e) => {
-            setEditorFontSize(e.target.value);
+          onChange={(_, value) => {
+            setEditorFontSize(value as number);
           }}
-          error={isNaN(parseInt(editorFontSize))}
-        ></TextField>
+          min={12}
+          max={25}
+        ></Slider>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
-        <Typography width={headerSize}> font size: </Typography>
-        <TextField
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          font size:
+        </Typography>
+        <Chip label={rootFontSize} />
+        <Slider
+          style={{ width: '30%' }}
           size="small"
           value={rootFontSize}
-          onChange={(e) => {
-            setRootFontSize(e.target.value);
+          onChange={(_, value) => {
+            setRootFontSize(value as number);
           }}
-          type="number"
-          error={isNaN(parseInt(rootFontSize))}
-          helperText="overall font size"
-        ></TextField>
+          min={12}
+          max={25}
+        ></Slider>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
-        <Typography width={headerSize}> table header size: </Typography>
-        <TextField
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          table header size:
+        </Typography>
+        <Chip label={datagridHeaderHeight} />
+        <Slider
+          style={{ width: '30%' }}
           size="small"
           value={datagridHeaderHeight}
-          type="number"
-          onChange={(e) => {
-            setDatagridHeaderHeight(e.target.value);
+          onChange={(_, value) => {
+            setDatagridHeaderHeight(value as number);
           }}
-          error={isNaN(parseInt(datagridHeaderHeight))}
-        ></TextField>
+          min={20}
+          max={50}
+        ></Slider>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
-        <Typography width={headerSize}> table row size: </Typography>
-        <TextField
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          table row size:
+        </Typography>
+        <Chip label={datagridRowHeight} />
+        <Slider
+          style={{ width: '30%' }}
           size="small"
           value={datagridRowHeight}
-          onChange={(e) => {
-            setDatagridRowHeight(e.target.value);
+          onChange={(_, value) => {
+            setDatagridRowHeight(value as number);
           }}
-          type="number"
-          error={isNaN(parseInt(datagridRowHeight))}
-        ></TextField>
+          min={20}
+          max={50}
+        ></Slider>
       </Stack>
+      <Stack spacing={1}>
+        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+          <Tooltip title="dbpal use monaco editor as build in editor">
+            <Typography width={headerSize} textAlign="right">
+              editor options:
+            </Typography>
+          </Tooltip>
+          <Typography
+            color="info"
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              setShowEditorOptions(true);
+            }}
+          >
+            {editorOptions}
+          </Typography>
+        </Stack>
+      </Stack>
+
       <Divider></Divider>
       <Stack direction="row">
         <Button
@@ -157,6 +220,81 @@ function ModifySettings() {
           }}
         >
           save
+        </Button>
+      </Stack>
+
+      {showEditorOptions && (
+        <Modal
+          open={showEditorOptions}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setShowEditorOptions(false);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <EditorOptions
+              handleClose={() => {
+                setShowEditorOptions(false);
+              }}
+              editorOptions={editorOptions}
+              setEditorOptions={setEditorOptions}
+            ></EditorOptions>
+          </Box>
+        </Modal>
+      )}
+    </Stack>
+  );
+}
+
+function EditorOptions(props: {
+  editorOptions;
+  setEditorOptions;
+  handleClose;
+}) {
+  const { showNotification } = useContext(NotificationContext);
+  const { editorOptions, setEditorOptions, handleClose } = props;
+  const [value, setValue] = useState(editorOptions);
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1}>
+        <Chip
+          color="info"
+          style={{ cursor: 'pointer' }}
+          label="options???"
+          onClick={() => {
+            openUrl(
+              'https://microsoft.github.io/monaco-editor/typedoc/variables/editor.EditorOptions.html'
+            );
+          }}
+        ></Chip>
+      </Stack>
+      <SimpleResizeEditor
+        language="json"
+        value={value}
+        onMount={(editor) => {
+          editor.onDidChangeModelContent(() => {
+            setValue(editor.getValue());
+          });
+        }}
+      ></SimpleResizeEditor>
+      <Divider></Divider>
+      <Stack direction="row" spacing={1}>
+        <Button
+          variant="contained"
+          onClick={() => {
+            try {
+              JSON.parse(value);
+            } catch (e) {
+              showNotification('error', 'not a valid json', e);
+              return;
+            }
+            setEditorOptions(value);
+            handleClose();
+          }}
+        >
+          modify
         </Button>
       </Stack>
     </Stack>
@@ -211,7 +349,15 @@ const components: Components<
   MuiMenuList: {
     styleOverrides: {
       root: {
-        padding: '2px 0',
+        padding: '0px',
+      },
+    },
+  },
+  MuiChip: {
+    styleOverrides: {
+      root: {
+        fontSize: '1rem',
+        fontWeight: '600',
       },
     },
   },
@@ -265,13 +411,13 @@ const components: Components<
 
 const lightTheme = createTheme({ palette: { mode: 'light' }, components });
 const rowSelected = {
-  '&.Mui-selected': {
-    backgroundColor: '#1976d2', // 蓝色背景
-    color: '#ffffff', // 白色字体
-    '&:hover': {
-      backgroundColor: '#115293', // 悬停时的背景色
-    },
-  },
+  // '&.Mui-selected': {
+  //   backgroundColor: '#1976d2', // 蓝色背景
+  //   color: '#ffffff', // 白色字体
+  //   '&:hover': {
+  //     backgroundColor: '#115293', // 悬停时的背景色
+  //   },
+  // },
 };
 
 //@ts-ignore
@@ -313,7 +459,8 @@ function SettingComp(props: { children }) {
             setting.editorFontSize,
             setting.rootFontSize,
             setting.datagridRowHeight,
-            setting.datagridHeaderHeight
+            setting.datagridHeaderHeight,
+            setting.editorOption
           )
         );
 

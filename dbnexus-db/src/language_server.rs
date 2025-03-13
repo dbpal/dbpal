@@ -147,7 +147,7 @@ pub fn in_pos(
 }
 
 #[async_trait::async_trait]
-pub trait LexerCompletionTrait {
+pub trait LexerCompletionTrait: LangServerCommon {
     type Dialect: sqlparser::dialect::Dialect + Sync + Send + 'static;
     const KEY_WORDS: &'static [&'static str];
     const TYPES: &'static [&'static str];
@@ -158,7 +158,7 @@ pub trait LexerCompletionTrait {
     }
 
     // some backend can use a query to query this.
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn get_key_words_from_query(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
     }
 
@@ -215,7 +215,7 @@ pub trait LexerCompletionTrait {
                 })
                 .collect::<Vec<_>>(),
         );
-        ret.extend(self.get_key_words_fn().await?.into_iter());
+        ret.extend(self.get_key_words_from_query().await?.into_iter());
         ret.extend(
             Self::TYPES
                 .iter()
@@ -249,6 +249,26 @@ pub trait LexerCompletionTrait {
         );
         ret.extend(self.list_function().await?.into_iter());
 
+        ret.extend(
+            self.list_database()
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Database,
+                    desc: None,
+                }),
+        );
+        ret.extend(
+            self.list_schema(None)
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Schema,
+                    desc: None,
+                }),
+        );
         anyhow::Ok(ret)
     }
 
@@ -285,9 +305,19 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
     matched.sort_by(|a, b| b.score.cmp(&a.score));
     matched.into_iter().map(|x| x.item).collect()
 }
+#[async_trait::async_trait]
+
+pub trait LangServerCommon: BackendName {
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+}
 
 #[async_trait::async_trait]
-pub trait AstCompletionHelper: Send + Sync + 'static + BackendName {
+pub trait AstCompletionHelper: Send + Sync + 'static + BackendName + LangServerCommon {
     async fn list_table(
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>>;
@@ -323,9 +353,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName {
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
-    }
+
     async fn list_partition(
         &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -336,9 +364,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName {
     ) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
-    }
+
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }

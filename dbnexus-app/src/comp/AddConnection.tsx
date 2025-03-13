@@ -13,13 +13,17 @@ import {
   Stack,
   Alert,
   Divider,
+  RadioGroup,
+  Radio,
+  Checkbox,
+  Chip,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { appStore, AppStoreKey, msgTimeout } from './Common';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
+
 import { DataSourceKind } from './helper';
 
 async function selectOneFile() {
@@ -55,20 +59,19 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
   );
 }
 
-function Sqlite(props: { path; setPath }) {
+function SelectPath(props: { path; setPath }) {
   let { path, setPath } = props;
   return (
-    <Stack direction="row" sx={{ alignItems: 'flex-end' }}>
-      <Button
+    <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Chip
+        label={`path:` + path}
         onClick={() => {
           selectOneFile().then((e) => {
             setPath(e);
           });
         }}
-      >
-        <AttachFileIcon></AttachFileIcon>
-      </Button>
-      <Typography>path:{path}</Typography>
+        color="primary"
+      ></Chip>
     </Stack>
   );
 }
@@ -219,45 +222,70 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
   );
 }
 
-export default function AddConfig(props: { handleClose: () => void }) {
-  let { handleClose } = props;
-
-  const [connectionType, setConnectionType] = useState(DataSourceKind.Mysql);
-  const [connectionName, setConnectionName] = useState('');
+function AddConnection(props: { handleClose: () => void; config?: object }) {
+  let { handleClose, config } = props;
+  if (!config) {
+    config = {};
+  }
+  const getConfig = (key: string, defaultValue: any = '') => {
+    let v = config[key];
+    if (!v) {
+      v = defaultValue;
+    }
+    return v;
+  };
+  const [connectionType, setConnectionType] = useState(
+    getConfig('conn_type', 'mysql')
+  );
+  const [connectionName, setConnectionName] = useState(getConfig('name'));
   const connectionNameDom = useRef(null);
-  const [host, setHost] = useState('localhost');
-  const [port, setPort] = useState('3306');
-  const [user, setUser] = useState('');
+  const [host, setHost] = useState(getConfig('host'));
+  const [port, setPort] = useState('' + getConfig('port', 0));
+  const [user, setUser] = useState(getConfig('username'));
   const [password, setPassword] = useState('');
-  const [database, setDatabase] = useState('');
-  const [readOnly, setReadOnly] = useState(false);
+  const [database, setDatabase] = useState(getConfig('db'));
+  const [readOnly, setReadOnly] = useState(getConfig('read_only', false));
   //@ts-ignore
   const [useSSL, setUseSSL] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [triggerReLoad, setTriggerReload] = useState(false);
-  const [path, setPath] = useState('');
+  const [path, setPath] = useState(getConfig('path'));
   const { showNotification } = useContext(NotificationContext);
   const [testOk, setTestOk] = useState(false);
-  const [trustCert, setTrustCert] = useState(false);
+  const [trustCert, setTrustCert] = useState(getConfig('trust_cert', false));
   const [databaseCandidates, setDatabaseCandidates] = useState([]);
-  const [schema, setSchema] = useState('');
-  const [https, setHttps] = useState(false);
+  const [schema, setSchema] = useState(getConfig('schema'));
+  const [https, setHttps] = useState(getConfig('https', false));
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
   };
+  const [libSqlModel, setlibSqlModal] = useState<'remote' | 'local'>(
+    //@ts-ignore
+    getConfig('source') // backend has name this to source
+  );
+  const [url, setUrl] = useState(getConfig('url'));
+  const [replica, setReplica] = useState(getConfig('replica', false));
+  const [authToken, setAuthToken] = useState(getConfig('auth_token'));
   const [schemaCandidates, setSchemesCandidats] = useState([]);
-
   const makeConfig = (): types.DBConnectionConfig | null => {
     let portInt = parseInt(port);
-    if (isNaN(portInt)) {
-      showNotification('error', 'port is not a number');
-      return null;
-    }
     let user_null = user ? user : null;
     let pass_null = password ? password : null;
     let db_null = database ? database : null;
     let schema_null = schema ? schema : null;
     switch (connectionType) {
+      case DataSourceKind.LibSql:
+        return {
+          conn_type: 'libsql',
+          replica: replica,
+          source: libSqlModel,
+          path: path,
+          url: url,
+          auth_token: authToken,
+          read_only: readOnly,
+          name: connectionName,
+        };
+
       case DataSourceKind.ClickHouse:
         return {
           conn_type: 'clickhouse',
@@ -288,7 +316,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
           port: portInt,
           username: user_null,
           password: pass_null,
-          keyspace: db_null,
+          db: db_null,
           read_only: readOnly,
           name: connectionName,
         };
@@ -355,11 +383,11 @@ export default function AddConfig(props: { handleClose: () => void }) {
           db: db_null,
           username: user_null,
           password: pass_null,
-          connect_timeout: null,
+          call_timeout: null,
         };
       case DataSourceKind.MsSql:
         return {
-          conn_type: 'sqlserver',
+          conn_type: 'mssql',
           read_only: readOnly,
           name: connectionName,
           host: host,
@@ -438,13 +466,6 @@ export default function AddConfig(props: { handleClose: () => void }) {
         setPort('8123');
         break;
     }
-    setUser('');
-    setPassword('');
-    setDatabase('');
-    setPassword('');
-    setDatabaseCandidates([]);
-    setSchemesCandidats([]);
-    setSchema('');
   }, [connectionType]);
   const handleSaveConnection = async () => {
     if (!connectionName) {
@@ -465,12 +486,12 @@ export default function AddConfig(props: { handleClose: () => void }) {
       connections = [];
     }
     if (connectionName.includes('/')) {
-      showNotification('error', "connection name can't contains /");
+      showNotification('error', "connection name can't contains '/'");
       connectionNameDom.current.focus();
       return;
     }
     if (connections.find((e) => e.name == connectionName)) {
-      showNotification('error', 'name aleary been taken');
+      showNotification('error', 'name already been taken');
       connectionNameDom.current.focus();
       return;
     }
@@ -488,9 +509,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
       //@ts-ignore
       config.password = '';
     }
-
     connections = [config, ...connections];
-
     (await appStore())
       .set(AppStoreKey.ConnectionConfig, connections)
       .then((_) => {
@@ -562,7 +581,8 @@ export default function AddConfig(props: { handleClose: () => void }) {
             Sql Server(microsoft)
           </MenuItem>
           <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
-          <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse </MenuItem>
+          <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
+          <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
         </Select>
       </FormControl>
 
@@ -590,6 +610,21 @@ export default function AddConfig(props: { handleClose: () => void }) {
             setDatabase={setDatabase}
           ></Database>
         </>
+      )}
+
+      {connectionType == DataSourceKind.LibSql && (
+        <LibSql
+          url={url}
+          setUrl={setUrl}
+          path={path}
+          setPath={setPath}
+          replica={replica}
+          setReplica={setReplica}
+          authToken={authToken}
+          setAuthToken={setAuthToken}
+          setlibSqlModal={setlibSqlModal}
+          libSqlModel={libSqlModel}
+        ></LibSql>
       )}
       {connectionType == DataSourceKind.Postgres && (
         <>
@@ -778,7 +813,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
         </>
       )}
       {connectionType == DataSourceKind.Sqlite && (
-        <Sqlite path={path} setPath={setPath}></Sqlite>
+        <SelectPath path={path} setPath={setPath}></SelectPath>
       )}
 
       <Stack direction="row" style={{ alignItems: 'center' }} spacing={2}>
@@ -804,7 +839,7 @@ export default function AddConfig(props: { handleClose: () => void }) {
         />
       </Stack>
       <Divider></Divider>
-      <Stack direction="row" spacing={1} alignContent="flex-start">
+      <Stack direction="row" spacing={1} alignContent="center">
         <Button
           variant="contained"
           color="primary"
@@ -820,10 +855,92 @@ export default function AddConfig(props: { handleClose: () => void }) {
           onClick={handleTestConnection}
           loading={testLoading}
         >
-          test connection
+          test
         </Button>
         {testOk && <Alert severity="success"> Test OK </Alert>}
       </Stack>
     </Stack>
   );
 }
+
+function LibSql(props: {
+  replica: boolean;
+  setReplica;
+  path: string;
+  setPath;
+  url: string;
+  setUrl;
+  authToken: string;
+  setAuthToken;
+  libSqlModel;
+  setlibSqlModal;
+}) {
+  const {
+    replica,
+    setReplica,
+    path,
+    setPath,
+    url,
+    setUrl,
+    authToken,
+    setAuthToken,
+    libSqlModel,
+    setlibSqlModal,
+  } = props;
+  let models = ['remote', 'local'];
+  return (
+    <>
+      <RadioGroup
+        row
+        onChange={(e) => {
+          setlibSqlModal(e.target.value);
+        }}
+        value={libSqlModel}
+      >
+        {models.map((e) => (
+          <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
+        ))}
+      </RadioGroup>
+
+      {libSqlModel == 'local' && (
+        <SelectPath path={path} setPath={setPath}></SelectPath>
+      )}
+      {libSqlModel == 'remote' && (
+        <>
+          <Stack direction="row" spacing={1}>
+            <TextField
+              value={url}
+              label="url"
+              onChange={(e) => {
+                setUrl(e.target.value);
+              }}
+              fullWidth
+              size="small"
+            ></TextField>
+            <TextField
+              fullWidth
+              value={authToken}
+              size="small"
+              label="auth token "
+              onChange={(e) => {
+                setAuthToken(e.target.value);
+              }}
+            ></TextField>
+          </Stack>
+          <Stack direction="row" style={{ alignItems: 'center' }}>
+            <Checkbox
+              value={replica}
+              onChange={(e) => {
+                setReplica(e.target.checked);
+              }}
+            ></Checkbox>
+            replica
+            {replica && <SelectPath path={path} setPath={setPath}></SelectPath>}
+          </Stack>
+        </>
+      )}
+    </>
+  );
+}
+
+export { AddConnection };

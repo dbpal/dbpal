@@ -1,17 +1,17 @@
 use std::borrow::Cow;
 
-use serde::ser::SerializeStruct;
 use serde::Serializer;
+use serde::ser::SerializeStruct;
 /// meta value can used in various place.
 #[derive()]
 pub struct MetaValue {
     pub name: Cow<'static, str>,
-    pub value: Option<Box<dyn ToString + Send + 'static>>,
+    pub value: Option<Box<dyn ToString + Send + Sync + 'static>>,
     pub desc: Option<Cow<'static, str>>,
 }
 
 impl MetaValue {
-    pub(crate) fn new<T: ToString + Send + 'static>(
+    pub(crate) fn new<T: ToString + Sync + Send + 'static>(
         name: impl Into<Cow<'static, str>>, value: T,
     ) -> Self {
         Self {
@@ -20,12 +20,13 @@ impl MetaValue {
             desc: None,
         }
     }
-    pub(crate) fn new_opt<T: ToString + Send + 'static>(
+
+    pub(crate) fn new_opt<T: ToString + Sync + Send + 'static>(
         name: impl Into<Cow<'static, str>>, value: Option<T>,
     ) -> Self {
         Self {
             name: name.into(),
-            value: value.map(|x| Box::new(x) as Box<dyn ToString + Send + 'static>),
+            value: value.map(|x| Box::new(x) as Box<dyn ToString + Sync + Send + 'static>),
             desc: None,
         }
     }

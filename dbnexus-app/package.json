@@ -41,7 +41,8 @@
     "react-split-pane": "0.1.92",
     "resizable-panes-react": "^6.0.26",
     "styled-components": "^6.1.13",
-    "uuid": "^11.0.3"
+    "uuid": "^11.0.3",
+    "wildcard-match": "^5.1.4"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",

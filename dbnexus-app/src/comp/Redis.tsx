@@ -649,7 +649,7 @@ function RedisValueEditor(props: {
             style={{ width: '100%', height: '100%' }}
           ></HexEditor>
 
-          <Stack direction="row" spacing={1} alignItems="flex-start">
+          <Stack direction="row" spacing={1} alignItems="center">
             <TextField
               size="small"
               error={addLengthErr}
@@ -882,6 +882,10 @@ function RedisSetTable(props: {
           const { currentTarget, target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RedisSetTableContextMenu
@@ -901,7 +905,7 @@ function RedisSetTable(props: {
   const settings = useContext(SettingContext);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="flex-start">
+      <Stack direction="row" spacing={1} alignItems="center">
         <TextField
           size="small"
           label="key match could be *key,key*,*key*"
@@ -1172,6 +1176,10 @@ function RedisListTable(props: {
           const { currentTarget, target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RedisListTableContextMenu
@@ -1390,6 +1398,10 @@ function RedisZsetTable(props: {
           const { currentTarget, target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RedisZSetTableContextMenu
@@ -1409,7 +1421,7 @@ function RedisZsetTable(props: {
   const setting = useContext(SettingContext);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="flex-start">
+      <Stack direction="row" spacing={1} alignItems="center">
         <TextField
           size="small"
           label="key match could be *key,key*,*key*"
@@ -1630,6 +1642,10 @@ function RedisHashTable(props: {
           const { currentTarget, target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let field = (target as HTMLDivElement).getAttribute('data-field');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RedisHashTableContextMenu
@@ -1649,7 +1665,7 @@ function RedisHashTable(props: {
   const setting = useContext(SettingContext);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="flex-start">
+      <Stack direction="row" spacing={1} alignItems="center">
         <TextField
           size="small"
           label="key match could be *key,key*,*key*"

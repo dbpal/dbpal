@@ -647,6 +647,7 @@ impl SchemaTrait for MsSqlServerDB {
         };
         let event = extract_trigger_event_from_sql(&sql)?;
         anyhow::Ok(TriggerDetail::new(
+            name,
             if instead_of {
                 TriggerTiming::InsteadOf
             } else {
@@ -925,7 +926,7 @@ impl SchemaTrait for MsSqlServerDB {
                     let col: Option<&str> = r.try_get(2)?;
                     let col = col.unwrap().to_string();
                     if let Some(x) = ret.get_mut(&name) {
-                        x.on.push(col);
+                        x.columns.push(col);
                     } else {
                         ret.insert(name.clone(), Index {
                             name: Some(name),
@@ -934,7 +935,7 @@ impl SchemaTrait for MsSqlServerDB {
                             } else {
                                 IndexKind::Index
                             },
-                            on: vec![col],
+                            columns: vec![col],
                         });
                     }
                 }
@@ -1676,6 +1677,24 @@ impl QuerySql for MsSqlServerDB {
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
+        let ret = match conn.execute(sql, &[]).await {
+            Ok(x) => Ok(QueryResp::row_affected(x.total())),
+            Err(err) => Err(err.to_string()),
+        };
+        query_log.set_success(ret.is_ok());
+        anyhow::Ok(ret)
+    }
 
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
@@ -2036,7 +2055,7 @@ mod tests {
         let query_id = db.open_connection().await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE test_rename (
@@ -2047,6 +2066,7 @@ mod tests {
                 "#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.rename_table("test_rename", "test_rename2")
             .await

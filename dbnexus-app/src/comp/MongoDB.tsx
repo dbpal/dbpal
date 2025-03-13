@@ -5,6 +5,7 @@ import {
   Button,
   ButtonGroup,
   Chip,
+  Divider,
   IconButton,
   ListItemIcon,
   ListItemText,
@@ -245,11 +246,11 @@ function MongoBsonEditor(props: {
   const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
   const [err, setErr] = useState<MongoBsonError>(null);
-  const { theme } = useContext(SettingContext);
+  const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
 
   const handleEditorDidMount = useCallback(
-    (ce: editor.IStandaloneCodeEditor, monaco) => {
+    (ce: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ce;
       ce.onDidChangeModelContent((_event) => {
         let text = ce.getValue();
@@ -263,9 +264,6 @@ function MongoBsonEditor(props: {
       ce.onDidChangeCursorPosition((event) => {
         setPos(event.position);
       });
-      if (theme == 'dark') {
-        monaco.editor.setTheme('vs-dark');
-      }
     },
     []
   );
@@ -281,8 +279,11 @@ function MongoBsonEditor(props: {
   );
 
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
-    return { fontSize: settings.editorFontSize };
-  }, []);
+    return {
+      fontSize: setting.editorFontSize,
+      ...setting.editorOption,
+    };
+  }, [setting]);
 
   return (
     <div
@@ -307,11 +308,12 @@ function MongoBsonEditor(props: {
           language="mongoBson"
           value={content.current}
           options={options}
+          theme={setting.editorTheme()}
         ></Editor>
       </div>
 
       <Stack direction="row" justifyContent="space-between">
-        <Stack direction="row" alignContent="flex-start" spacing={1}>
+        <Stack direction="row" alignContent="center" spacing={1}>
           {buttons.map((button) => {
             return (
               //@ts-ignore
@@ -347,12 +349,7 @@ function MongoBsonEditor(props: {
           {err == null && <Alert severity="success">Valid Document</Alert>}
           {!!err && <Alert severity="error">{err.msgWithLoc}</Alert>}
         </Stack>
-        <Stack
-          width="40%"
-          spacing={1}
-          direction="row"
-          alignContent="flex-start"
-        >
+        <Stack width="40%" spacing={1} direction="row" alignContent="center">
           {pos && (
             <>
               <span> Ln {pos.lineNumber} </span>
@@ -489,7 +486,7 @@ function MongoTableListToolBar(props: {
         ></Chip>
       </Stack>
       <Stack direction="row">
-        <ButtonGroup aria-label="Basic button group">
+        <ButtonGroup>
           <IconButton
             disabled={viewModel == MongoDataViewModel.Object}
             onClick={() => {
@@ -667,7 +664,7 @@ function MongoTableListContextMenu(props: {
           </ListItemIcon>
           <ListItemText> Copy Field </ListItemText>
         </MenuItem>
-
+        <Divider></Divider>
         <MenuItem
           onClick={() => {
             let doc = {};
@@ -692,7 +689,7 @@ function MongoTableListContextMenu(props: {
           </ListItemIcon>
           <ListItemText> {field} DESC </ListItemText>
         </MenuItem>
-
+        <Divider></Divider>
         <MenuItem
           onClick={() => {
             setShowFilter(true);
@@ -957,6 +954,9 @@ function MongoTableList(props: {
           let content = (target as HTMLDivElement).innerHTML;
           let field = (target as HTMLDivElement).getAttribute('data-field');
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <MongoTableListContextMenu
@@ -1145,7 +1145,7 @@ function MongoTableObject(props: {
             );
           })}
           {/* // here is pagination */}
-          <Stack direction="row" spacing={1} alignItems="flex-end">
+          <Stack direction="row" spacing={1} alignItems="center">
             <Pagination
               page={page}
               defaultPage={1}

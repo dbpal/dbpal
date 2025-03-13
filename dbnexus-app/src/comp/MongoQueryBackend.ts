@@ -4,6 +4,7 @@ import { loader } from '@monaco-editor/react';
 import { invoke } from '@tauri-apps/api/core';
 import { BSON } from 'bson';
 
+
 //@ts-ignore
 interface ILogger {
   trace: (...msg: any[]) => void;
@@ -287,6 +288,48 @@ class MongoDBQueryCollection implements IMongoCollection {
 }
 
 
+class BsonExtraDataType {
+  newLong(...args): BSON.Long {
+    //@ts-ignore
+    return new BSON.Long(...args)
+  }
+
+  newObjectID(inputId?: string | number | BSON.ObjectId | BSON.ObjectIdLike | Uint8Array): BSON.ObjectId {
+    return new BSON.ObjectId(inputId);
+  }
+  newInt32(...args): BSON.Int32 {
+    //@ts-ignore
+    return new BSON.Int32(...args);
+  }
+
+  newTimeStamp(...args): BSON.Timestamp {
+    //@ts-ignore
+    return new BSON.Timestamp(...args)
+  }
+  newDecimal128(bytes: Uint8Array | string): BSON.Decimal128 {
+    return new BSON.Decimal128(bytes);
+  }
+  newJavaScriptCode(code: string | Function, scope?: Document | null): BSON.Code {
+    return new BSON.Code(code, scope);
+  }
+  newBinary(...args): BSON.Binary {
+    //@ts-ignore
+    return new BSON.Binary(...args);
+  }
+  binaryCreateFromHexString(hex: string, subType?: number): BSON.Binary {
+    return BSON.Binary.createFromHexString(hex, subType);
+  }
+  binaryCreateFromBase64(base64: string, subType?: number): BSON.Binary {
+    return BSON.Binary.createFromBase64(base64, subType);
+  }
+  binaryFromInt8Array(array: Int8Array): BSON.Binary {
+    return BSON.Binary.fromInt8Array(array)
+  }
+  binaryFromFloat32Array(array: Float32Array): BSON.Binary {
+    return BSON.Binary.fromFloat32Array(array)
+  }
+}
+
 function initMongoQueryGlobals() {
   loader.init().then((monaco) => {
     monaco.languages.typescript.javascriptDefaults.addExtraLib(`
@@ -364,9 +407,52 @@ interface IFind extends IFindCommon {
   limit: (x: number) => IFind;
   find: () => Promise<BSON.Document[]>;
 }
-  
+
+
+class BsonExtraDataType {
+  newLong(...args): BSON.Long {
+    //@ts-ignore
+    return new BSON.Long(...args)
+  }
+
+  newObjectID(inputId?: string | number | BSON.ObjectId | BSON.ObjectIdLike | Uint8Array): BSON.ObjectId {
+    return new BSON.ObjectId(inputId);
+  }
+  newInt32(...args): BSON.Int32 {
+    //@ts-ignore
+    return new BSON.Int32(...args);
+  }
+
+  newTimeStamp(...args): BSON.Timestamp {
+    //@ts-ignore
+    return new BSON.Timestamp(...args)
+  }
+  newDecimal128(bytes: Uint8Array | string): BSON.Decimal128 {
+    return new BSON.Decimal128(bytes);
+  }
+  newJavaScriptCode(code: string | Function, scope?: Document | null): BSON.Code {
+    return new BSON.Code(code, scope);
+  }
+  newBinary(...args): BSON.Binary {
+    //@ts-ignore
+    return new BSON.Binary(...args);
+  }
+  binaryCreateFromHexString(hex: string, subType?: number): BSON.Binary {
+    return BSON.Binary.createFromHexString(hex, subType);
+  }
+  binaryCreateFromBase64(base64: string, subType?: number): BSON.Binary {
+    return BSON.Binary.createFromBase64(base64, subType);
+  }
+  binaryFromInt8Array(array: Int8Array): BSON.Binary {
+    return BSON.Binary.fromInt8Array(array)
+  }
+  binaryFromFloat32Array(array: Float32Array): BSON.Binary {
+    return BSON.Binary.fromFloat32Array(array)
+  }
+}
     var db : IMongoDB;
     var logger : ILogger;
+    var bsonExtraDataType : BsonExtraDataType
   
   
         `);
@@ -374,4 +460,4 @@ interface IFind extends IFindCommon {
 }
 
 
-export { initMongoQueryGlobals, MongoDBQuery };
+export { initMongoQueryGlobals, MongoDBQuery, BsonExtraDataType };

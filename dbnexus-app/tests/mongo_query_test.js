@@ -16,7 +16,21 @@ async function testCol() {
         //
         const collection = db.collection('yyy');
     }
-    const isnertRet = await collection.insertOne({ a: 100, y: 10000, c: 'ssss' });
+    const isnertRet = await collection.insertOne({
+        a: 100,
+        y: 10000,
+        c: 'ssss',
+        intValue: bsonExtraDataType.newInt32(123),
+        longValue: bsonExtraDataType.newLong(123),
+        idValue: bsonExtraDataType.newObjectID(),
+        tsValue: bsonExtraDataType.newTimeStamp(bsonExtraDataType.newLong(1234)),
+        codeValue: bsonExtraDataType.newJavaScriptCode('alert(1)'),
+        bValue1: bsonExtraDataType.newBinary([1, 2, 3], 10),
+        bValue2: bsonExtraDataType.binaryCreateFromHexString('aa'),
+        bValue3: bsonExtraDataType.binaryCreateFromBase64('SGVsbG8='),
+        bValue4: bsonExtraDataType.binaryFromInt8Array(new Int8Array([1, 2, 3, 4])),
+        bValue5: bsonExtraDataType.binaryFromFloat32Array(new Float32Array([1, 2, 3, 4]))
+    });
     logger.info('insert ret is:', isnertRet);
     const count = await collection.cuntDocuments();
     logger.info('count document is :', count);

@@ -1,4 +1,5 @@
 import {
+  Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -23,6 +24,7 @@ import {
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
+  MatchPatternContext,
   secondConfirm,
   TabsSetContext,
   UuidContext,
@@ -57,6 +59,7 @@ function ProceduresTree() {
   useEffect(() => {
     reload();
   }, []);
+  const matchPattern = useContext(MatchPatternContext);
   return (
     <TreeItem
       itemId={idPrefix}
@@ -81,36 +84,38 @@ function ProceduresTree() {
         <span> procedures </span>
       </Stack>
     >
-      {ps.map((p) => (
-        <TreeItem
-          key={p.name + '-' + p.parameters}
-          itemId={getItemId(p)}
-          sx={{ alignItems: 'flex-end' }}
-          label=<Stack
-            spacing={1}
-            direction="row"
-            onContextMenu={(e) => {
-              setUpMenu({
-                content: (
-                  <ProcedureMenu
-                    reload={reload}
-                    uuid={uuid}
-                    kind={kind}
-                    procedure={p.name}
-                    parameters={p.parameters}
-                  ></ProcedureMenu>
-                ),
-                style: calMenuStyle(e, 100),
-              });
-            }}
-            sx={{ alignItems: 'center', ...treeItemCommonStyle }}
-          >
-            <SiProcessingfoundation></SiProcessingfoundation>
-            <span>{p.name}</span>
-            {kind == DataSourceKind.Postgres && <em> ( {p.parameters} ) </em>}
-          </Stack>
-        ></TreeItem>
-      ))}
+      {ps
+        .filter((e) => matchPattern(e.name))
+        .map((p) => (
+          <TreeItem
+            key={p.name + '-' + p.parameters}
+            itemId={getItemId(p)}
+            sx={{ alignItems: 'center' }}
+            label=<Stack
+              spacing={1}
+              direction="row"
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <ProcedureMenu
+                      reload={reload}
+                      uuid={uuid}
+                      kind={kind}
+                      procedure={p.name}
+                      parameters={p.parameters}
+                    ></ProcedureMenu>
+                  ),
+                  style: calMenuStyle(e, 100),
+                });
+              }}
+              sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+            >
+              <SiProcessingfoundation></SiProcessingfoundation>
+              <span>{p.name}</span>
+              {kind == DataSourceKind.Postgres && <em> ( {p.parameters} ) </em>}
+            </Stack>
+          ></TreeItem>
+        ))}
     </TreeItem>
   );
 }
@@ -152,7 +157,7 @@ function ProcedureMenu(props: {
                     arg,
                   });
                 }}
-                language={uuid}
+                uuid={uuid}
               ></DefAndMetasView>
             )
           ),
@@ -192,7 +197,7 @@ function ProcedureMenu(props: {
           </ListItemIcon>
           <ListItemText> Detail </ListItemText>
         </MenuItem>
-
+        <Divider></Divider>
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {

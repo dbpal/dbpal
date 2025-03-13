@@ -839,6 +839,7 @@ impl SchemaTrait for PostGresDB {
 
         let (event, timing) = parse_trigger_type(tgtype)?;
         anyhow::Ok(TriggerDetail::new(
+            name,
             timing,
             event,
             definition,
@@ -1529,15 +1530,33 @@ impl QuerySql for PostGresDB {
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }
-
-    async fn query_sql(
-        &self, id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(id, sql);
-        let conn = self.query_connection.get(&id);
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
-            None => anyhow::bail!("id '{}' have no connection", id),
+            None => anyhow::bail!("connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
+        let ret = match conn.execute(sqlx::raw_sql(sql)).await {
+            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected())),
+            Err(err) => Err(err.to_string()),
+        };
+        query_log.set_success(ret.is_ok());
+        anyhow::Ok(ret)
+    }
+    async fn query_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let conn = self.query_connection.get(&query_id);
+        let conn = match conn {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();

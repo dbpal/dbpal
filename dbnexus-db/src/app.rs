@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::datasource_config::ClickHouseConfig;
 #[allow(unused_imports)]
 use crate::datasource_config::{
     CassandraDBConfig, DuckDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
+use crate::datasource_config::{ClickHouseConfig, LibSqlDBConfig};
 use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, ShowExtraArgs,
     SqlExecuteRet, TableListResp,
@@ -29,12 +29,13 @@ impl DBConnectionConfig {
             | DBConnectionConfig::MariaDB { name, .. }
             | DBConnectionConfig::Tidb { name, .. }
             | DBConnectionConfig::Postgres { name, .. }
-            | DBConnectionConfig::SqlServer { name, .. }
+            | DBConnectionConfig::MsSql { name, .. }
             | DBConnectionConfig::Mongo { name, .. }
             | DBConnectionConfig::Redis { name, .. }
             | DBConnectionConfig::Oracle { name, .. }
             | DBConnectionConfig::Cassandra { name, .. }
-            | DBConnectionConfig::ClickHouse { name, .. } => name.as_str(),
+            | DBConnectionConfig::ClickHouse { name, .. }
+            | DBConnectionConfig::LibSql { name, .. } => name.as_str(),
             #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
         }
@@ -69,7 +70,7 @@ pub enum DBConnectionConfig {
         conn: PGDBConfig,
         name: String,
     },
-    SqlServer {
+    MsSql {
         #[serde(flatten)]
         conn: SqlServerDBConfig,
         name: String,
@@ -99,6 +100,11 @@ pub enum DBConnectionConfig {
         conn: ClickHouseConfig,
         name: String,
     },
+    LibSql {
+        #[serde(flatten)]
+        conn: LibSqlDBConfig,
+        name: String,
+    },
 
     #[cfg(feature = "duckdb")]
     DuckDB {
@@ -124,7 +130,7 @@ impl DBConnectionConfig {
             DBConnectionConfig::Postgres { conn, .. } => {
                 conn.password = Some(pass);
             }
-            DBConnectionConfig::SqlServer { conn, .. } => {
+            DBConnectionConfig::MsSql { conn, .. } => {
                 conn.password = Some(pass);
             }
             DBConnectionConfig::Mongo { conn, .. } => {
@@ -140,6 +146,7 @@ impl DBConnectionConfig {
             #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { .. } => {}
             DBConnectionConfig::ClickHouse { conn, .. } => conn.password = Some(pass),
+            DBConnectionConfig::LibSql { .. } => {}
         }
     }
 }
@@ -191,7 +198,7 @@ impl DBConnectionConfig {
                     Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
-            DBConnectionConfig::SqlServer { conn, name: _ } => {
+            DBConnectionConfig::MsSql { conn, name: _ } => {
                 let o = Arc::new(crate::mssql::MsSqlServerDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
@@ -233,7 +240,7 @@ impl DBConnectionConfig {
             },
             DBConnectionConfig::Cassandra { conn, .. } => {
                 let db = crate::cassandra::CassandraDB::new(conn.clone()).await?;
-                let db = match &conn.keyspace {
+                let db = match &conn.db {
                     Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
                     None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
                 };
@@ -257,6 +264,10 @@ impl DBConnectionConfig {
                     None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
                 };
                 anyhow::Ok(db)
+            }
+            DBConnectionConfig::LibSql { conn, .. } => {
+                let db = crate::libsql::LibSqlDB::new(conn.clone()).await?;
+                return anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>));
             }
         }
     }

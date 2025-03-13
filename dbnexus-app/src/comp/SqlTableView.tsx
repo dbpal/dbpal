@@ -26,10 +26,17 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
 import { NotificationContext } from './Notification';
 import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
-import { keyNotInTable, modalStyle, reloadOK, SettingContext } from './Common';
+import {
+  keyNotInTable,
+  modalStyle,
+  reloadOK,
+  SettingContext,
+  SimpleResizeEditor,
+} from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import KeyIcon from '@mui/icons-material/Key';
@@ -57,12 +64,12 @@ import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
 
 const confrimAboutPrimary = async (
   notWarnPri,
-  resp: types.MuiDataTableListResp
+  fields: types.Field[]
 ): Promise<boolean> => {
   if (notWarnPri) {
     return true;
   }
-  const hasPri = !!resp.data.fields.find((x) => x.is_primary);
+  const hasPri = !!fields.find((x) => x.is_primary);
   if (hasPri) {
     return true;
   }
@@ -133,6 +140,68 @@ function WhereSort(props: {
   );
 }
 
+function EditInModal(props: { content: string; handleModify }) {
+  const { content, handleModify } = props;
+  const languages = [
+    { language: 'text', color: 'info' },
+    { language: 'html', color: 'primary' },
+    { language: 'json', color: 'secondary' },
+  ] as {
+    language: string;
+    color: string;
+  }[];
+  const [language, setLanguage] = useState(languages[0].language);
+  const [value, setValue] = useState(content);
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1}>
+        {languages.map((e) => (
+          <Chip
+            key={e.language}
+            label={e.language}
+            //@ts-ignore
+            color={e.color}
+            disabled={language == e.language}
+            onClick={() => {
+              setLanguage(e.language);
+            }}
+          ></Chip>
+        ))}
+      </Stack>
+      <Divider></Divider>
+      <SimpleResizeEditor
+        value={content}
+        language={language}
+        onMount={(editor, _) => {
+          editor.onDidChangeModelContent(() => {
+            setValue(editor.getValue());
+          });
+        }}
+      ></SimpleResizeEditor>
+
+      <Divider></Divider>
+      <Stack spacing={1} direction="row">
+        <Button
+          onClick={() => {
+            handleModify(value);
+          }}
+          variant="contained"
+        >
+          modify
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+class EditInModalData {
+  constructor(
+    public row: object,
+    public field: string,
+    public content: string
+  ) {}
+}
+
 function SqlTableView(props: {
   reloadOP: (
     where: string,
@@ -172,6 +241,7 @@ function SqlTableView(props: {
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
   const visiable = useContext(VisiableContext);
   const [allowFiltering, setAllowFiltering] = useState(false);
+  const [editInModal, setEditInModal] = useState<EditInModalData>(null);
 
   const handleResp = (resp: types.MuiDataTableListResp) => {
     resp.data.data.forEach((data) => {
@@ -252,7 +322,7 @@ function SqlTableView(props: {
   };
 
   const handleProcessRowUpdate = useCallback(
-    async (newRow: Map<string, string>, oldRow: Map<string, string>) => {
+    async (newRow: object, oldRow: object) => {
       if (!updateOP) {
         return newRow;
       }
@@ -271,7 +341,7 @@ function SqlTableView(props: {
       if (updateRow.size == 0) {
         return newRow;
       }
-      if (!(await confrimAboutPrimary(notWarnPri, resp))) {
+      if (!(await confrimAboutPrimary(notWarnPri, resp.data.fields))) {
         return oldRow;
       }
       try {
@@ -290,7 +360,7 @@ function SqlTableView(props: {
   );
 
   const handleDetele = async (id) => {
-    if (!(await confrimAboutPrimary(notWarnPri, resp))) {
+    if (!(await confrimAboutPrimary(notWarnPri, resp.data.fields))) {
       return;
     }
     let old;
@@ -381,6 +451,9 @@ function SqlTableView(props: {
           setUpMenu({
             content: (
               <Menu
+                editInModal={() => {
+                  setEditInModal(new EditInModalData(row, field, row[field]));
+                }}
                 nullable={nullable}
                 fields={resp.data.fields}
                 field={field}
@@ -416,7 +489,6 @@ function SqlTableView(props: {
                         }
                         showNotification('success', 'set null OK');
                         handleReload(false);
-
                         return;
                       }
                     : undefined
@@ -486,9 +558,9 @@ function SqlTableView(props: {
           <Stack
             direction="row"
             spacing={1}
-            sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
+            sx={{ alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               {resp && (
                 <Typography
                   sx={{
@@ -545,6 +617,34 @@ function SqlTableView(props: {
           )}
         </>
       )}
+
+      {editInModal && (
+        <Modal
+          open={!!editInModal}
+          onClose={(_, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            setEditInModal(null);
+          }}
+        >
+          <Box sx={modalStyle} width="950px">
+            <EditInModal
+              content={editInModal.content}
+              handleModify={async (value) => {
+                // clone
+                let newRow = { ...editInModal.row };
+                // modify
+                newRow[editInModal.field] = value;
+                await handleProcessRowUpdate(newRow, editInModal.row);
+                handleReload(false);
+                setEditInModal(null);
+              }}
+            ></EditInModal>
+          </Box>
+        </Modal>
+      )}
+
       {showSetWhere && (
         <WhereSort
           open={showSetWhere}
@@ -630,7 +730,7 @@ function SqlTableViewAdd(props: {
             key={f.field}
             direction="row"
             spacing={1}
-            sx={{ alignContent: 'flex-end', justifyContent: 'flex-end' }}
+            sx={{ alignContent: 'center', justifyContent: 'center' }}
           >
             <TextField
               inputRef={(x) => {
@@ -678,6 +778,7 @@ function Menu(props: {
   row: object;
   fields;
   nullable: boolean;
+  editInModal;
 }) {
   const {
     field,
@@ -692,6 +793,7 @@ function Menu(props: {
     row,
     fields,
     nullable,
+    editInModal,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
@@ -715,6 +817,19 @@ function Menu(props: {
   return (
     <Paper>
       <MenuList>
+        {addOP && (
+          <MenuItem
+            onClick={() => {
+              editInModal();
+            }}
+          >
+            <ListItemIcon>
+              <EditIcon></EditIcon>
+            </ListItemIcon>
+            <ListItemText> Edit in Modal </ListItemText>
+          </MenuItem>
+        )}
+
         {content && (
           <MenuItem
             onClick={() => {
@@ -738,6 +853,7 @@ function Menu(props: {
           </ListItemIcon>
           <ListItemText> Copy Field </ListItemText>
         </MenuItem>
+        <Divider></Divider>
         <MenuItem
           onClick={() => {
             setSort(`${field} ASC`);
@@ -760,17 +876,20 @@ function Menu(props: {
         </MenuItem>
 
         {content && (
-          <MenuItem
-            onClick={() => {
-              setShowFilter(true);
-            }}
-          >
-            <ListItemIcon>
-              <FilterAltIcon></FilterAltIcon>
-            </ListItemIcon>
-            <ListItemText> Quick Filter </ListItemText>
-          </MenuItem>
+          <>
+            <MenuItem
+              onClick={() => {
+                setShowFilter(true);
+              }}
+            >
+              <ListItemIcon>
+                <FilterAltIcon></FilterAltIcon>
+              </ListItemIcon>
+              <ListItemText> Quick Filter </ListItemText>
+            </MenuItem>
+          </>
         )}
+        <Divider></Divider>
 
         {content && nullable && setNull && (
           <MenuItem
@@ -785,19 +904,21 @@ function Menu(props: {
           </MenuItem>
         )}
         {addOP && (
-          <MenuItem onClick={handleClone}>
-            <ListItemIcon>
-              <FileCopyIcon></FileCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Clone Row </ListItemText>
-          </MenuItem>
+          <>
+            <MenuItem onClick={handleClone}>
+              <ListItemIcon>
+                <FileCopyIcon></FileCopyIcon>
+              </ListItemIcon>
+              <ListItemText> Clone Row </ListItemText>
+            </MenuItem>
+            <MenuItem onClick={handleDelete}>
+              <ListItemIcon>
+                <DeleteForeverIcon></DeleteForeverIcon>
+              </ListItemIcon>
+              <ListItemText> Delete Row</ListItemText>
+            </MenuItem>
+          </>
         )}
-        <MenuItem onClick={handleDelete}>
-          <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText> Delete Row</ListItemText>
-        </MenuItem>
         <MenuResetColumnWidths></MenuResetColumnWidths>
       </MenuList>
 

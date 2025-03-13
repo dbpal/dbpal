@@ -13,8 +13,8 @@ import { VisiableContext } from './helper.ts';
 const initialState: GridInitialStateCommunity = {
   sorting: { sortModel: [{ field: 'time', sort: 'desc' }] },
 };
-function QueryLog(props: { logs: types.QueryLogEvent[]; language: string }) {
-  let { logs, language } = props;
+function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
+  let { logs, uuid: language } = props;
   let columns = [
     {
       field: 'time',

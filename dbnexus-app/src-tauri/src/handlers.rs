@@ -1,13 +1,15 @@
 use std::collections::HashMap;
+
 use std::time::Duration;
 
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::db::{
-    ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreatedType, DefAndMetas, ExportKind,
-    Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp,
-    ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, UdfOrProcedureExtraParameter,
+    ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
+    DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+    UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::meta_value::MetaValue;
@@ -613,7 +615,7 @@ pub async fn show_view(
     .map(MuiDataTableListResp::from)
 }
 #[tauri::command]
-pub async fn show_view_coumns(
+pub async fn show_view_columns(
     name: String, view_name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Field>, ErrorFrontend> {
     random_sleep().await;
@@ -718,6 +720,24 @@ pub async fn query_sql(
             })
             .collect::<Vec<_>>()
     })
+}
+
+#[tauri::command]
+pub async fn execute_sql(
+    name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
+) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+
+    let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
+
+    let result = match db {
+        Open::DataBase(x) => x.execute_sql(query_id, &sql).await,
+        Open::Schema(x) => x.execute_sql(query_id, &sql).await,
+        Open::Catalog(x) => x.execute_sql(query_id, &sql).await,
+    }
+    .map_err(|e| ErrorFrontend::from(e))?;
+    Ok(result.map(|x| MuiDataGridData::from(x)))
 }
 
 #[tauri::command]
@@ -882,6 +902,13 @@ pub async fn config_list_database_or_schema(
         Open::Schema(_) => Ok(vec![]),
     }
 }
+#[tauri::command]
+pub async fn conn_opend(name: String, app: tauri::State<'_, App>) -> Result<bool, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let opend = app.get_opened(name.as_str()).await.is_ok();
+    Ok(opend)
+}
 
 #[tauri::command]
 pub async fn list_database(
@@ -1036,21 +1063,21 @@ pub async fn oracle_query_rollback(
     }
 }
 
-#[tauri::command]
-pub async fn list_trigger(
-    name: String, table_name: String, app: tauri::State<'_, App>,
-) -> Result<Vec<NamedStaff>, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app
-        .get_schema(name.as_str())
-        .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+// #[tauri::command]
+// pub async fn list_trigger(
+//     name: String, table_name: String, app: tauri::State<'_, App>,
+// ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+//     random_sleep().await;
+//     random_error()?;
+//     let db = app
+//         .get_schema(name.as_str())
+//         .await
+//         .map_err(|e| ErrorFrontend::from(e))?;
 
-    db.list_trigger(&table_name)
-        .await
-        .map_err(|e| ErrorFrontend::from(e))
-}
+//     db.list_trigger(&table_name)
+//         .await
+//         .map_err(|e| ErrorFrontend::from(e))
+// }
 
 #[tauri::command]
 pub async fn drop_trigger(
@@ -1101,8 +1128,8 @@ pub async fn disable_trigger(
 
 #[tauri::command]
 pub async fn show_trigger(
-    name: String, table_name: String, trigger: String, app: tauri::State<'_, App>,
-) -> Result<TriggerDetail, ErrorFrontend> {
+    name: String, table_name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<TriggerDetail>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -1110,9 +1137,23 @@ pub async fn show_trigger(
         .await
         .map_err(|e| ErrorFrontend::from(e))?;
 
-    db.show_trigger(&table_name, &trigger)
+    let x = db
+        .list_trigger(&table_name)
         .await
-        .map_err(|e| ErrorFrontend::from(e))
+        .map_err(|e| ErrorFrontend::from(e))?;
+
+    let mut ret = Vec::with_capacity(x.len());
+
+    for tri in x.iter() {
+        let d = db
+            .show_trigger(&table_name, &tri.name)
+            .await
+            .map_err(|e| ErrorFrontend::from(e))?;
+
+        ret.push(d);
+    }
+
+    Ok(ret)
 }
 
 #[tauri::command]
@@ -1129,6 +1170,42 @@ pub async fn rename_table(
     db.rename_table(&old, &new)
         .await
         .map_err(|e| ErrorFrontend::from(e))
+}
+
+#[tauri::command]
+pub async fn create_table_and_index_sql(
+    name: String, table_name: String, app: tauri::State<'_, App>,
+) -> Result<CreateTableAndIndexSql, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| ErrorFrontend::from(e))?;
+
+    let ret = db
+        .create_table_and_index_sql(&table_name)
+        .await
+        .map_err(|e| ErrorFrontend::from(e))?;
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn create_view_sql(
+    name: String, view_name: String, materialized: bool, app: tauri::State<'_, App>,
+) -> Result<String, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(|e| ErrorFrontend::from(e))?;
+
+    let ret = db
+        .create_view_sql(&view_name, materialized)
+        .await
+        .map_err(|e| ErrorFrontend::from(e))?;
+    Ok(ret)
 }
 
 #[tauri::command]
@@ -2479,7 +2556,12 @@ impl From<TableListResp> for MuiDataTableListResp {
         }
     }
 }
-
+impl From<QueryResp> for MuiDataGridData {
+    fn from(value: QueryResp) -> Self {
+        let QueryResp { fields, data } = value;
+        MuiDataGridData::from((fields, data))
+    }
+}
 impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
     fn from(value: (Vec<Field>, Vec<Vec<Option<String>>>)) -> Self {
         let (fields, old_data) = value;

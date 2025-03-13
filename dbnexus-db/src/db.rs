@@ -390,7 +390,7 @@ pub trait CheckConn {
     async fn check_conn(&self) -> anyhow::Result<Duration>;
 }
 /// create table and all index sql.
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, TypeDef, serde::Deserialize)]
 pub struct CreateTableAndIndexSql {
     pub create_table: String,
 
@@ -483,6 +483,11 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
     async fn query_sql(
         &self, query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
+
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, _sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>>;
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
@@ -496,6 +501,7 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
+
     async fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         let logs = QueryLog::get_instance()
             .get(&id)
@@ -832,13 +838,17 @@ impl From<u64> for SqlExecuteRet {
 pub struct Index {
     pub name: Option<String>,
     pub kind: IndexKind,
-    pub on: Vec<String>,
+    pub columns: Vec<String>,
 }
 
 impl Index {
-    pub fn new(name: impl Into<Option<String>>, kind: IndexKind, on: Vec<String>) -> Self {
+    pub fn new(name: impl Into<Option<String>>, kind: IndexKind, columns: Vec<String>) -> Self {
         let name = name.into();
-        Self { name, kind, on }
+        Self {
+            name,
+            kind,
+            columns,
+        }
     }
 }
 
@@ -898,6 +908,20 @@ impl QueryResp {
             fields: vec![Field {
                 field: "row affected".to_string(),
                 typ: "int".to_string(),
+                nullable: false,
+                default_value: None,
+                is_primary: false,
+                is_auto_increment: false,
+                sortable: true,
+            }],
+        }
+    }
+    pub fn execute_ok() -> Self {
+        Self {
+            data: vec![vec![Some("OK".to_string())]],
+            fields: vec![Field {
+                field: "execute".to_string(),
+                typ: "".to_string(),
                 nullable: false,
                 default_value: None,
                 is_primary: false,
@@ -1077,6 +1101,7 @@ pub struct TriggerDetail {
     pub sql: String,
     pub enable: Option<TriggerEnable>,
     pub metas: Vec<MetaValue>,
+    pub name: String,
 }
 
 impl PartialEq for TriggerDetail {
@@ -1109,7 +1134,7 @@ pub enum TriggerEnable {
 
 impl TriggerDetail {
     pub fn new(
-        timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: impl Into<String>,
+        name: &str, timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: impl Into<String>,
         enable: Option<TriggerEnable>,
     ) -> Self {
         Self {
@@ -1118,6 +1143,7 @@ impl TriggerDetail {
             sql: sql.into(),
             enable,
             metas: vec![],
+            name: name.to_owned(),
         }
     }
 

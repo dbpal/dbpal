@@ -6,8 +6,8 @@ use sqlx::Row;
 use crate::db::{CatalogTrait, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::pg::PostGresDB;
 
@@ -295,35 +295,6 @@ impl AstCompletionHelper for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        CatalogTrait::list_database(self).await
-    }
-
-    async fn list_schema(&self, db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
-        let db = self.db_merge_config(db);
-        if db.is_none() {
-            log::error!("list_schema using a empty db:{:?}", db);
-        }
-        let sql = format!(
-            r#"
-        SELECT schema_name 
-            FROM information_schema.schemata
-            WHERE schema_name NOT IN ('information_schema', 'pg_catalog' , 'pg_toast') and 
-            schemata.catalog_name ='{}'
-    "#,
-            db.unwrap_or_default(),
-        );
-        log::info!("sql:{}", sql);
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name)
-        }
-        anyhow::Ok(ret)
-    }
-
     async fn postgres_table_policy(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -481,6 +452,38 @@ impl AstCompletionHelper for PostGresDB {
         };
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name)
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+
+impl LangServerCommon for PostGresDB {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        CatalogTrait::list_database(self).await
+    }
+    async fn list_schema(&self, db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let mut conn = self.get_conn().await?;
+        let db = self.db_merge_config(db);
+        if db.is_none() {
+            log::error!("list_schema using a empty db:{:?}", db);
+        }
+        let sql = format!(
+            r#"
+        SELECT schema_name 
+            FROM information_schema.schemata
+            WHERE schema_name NOT IN ('information_schema', 'pg_catalog' , 'pg_toast') and 
+            schemata.catalog_name ='{}'
+    "#,
+            db.unwrap_or_default(),
+        );
+        log::info!("sql:{}", sql);
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {

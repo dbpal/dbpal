@@ -8,10 +8,20 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { MakeIQueryConn } from './Common.tsx';
 function RedisQuery(props: {
   makeConn: MakeIQueryConn;
-  connectInfo;
+  connectInfo?;
   language;
+  saveFavoriteSql: (name, sql: string) => void;
+  favoriteName?: string;
+  value?: string;
 }) {
-  const { language, makeConn, connectInfo } = props;
+  const {
+    language,
+    makeConn,
+    connectInfo,
+    saveFavoriteSql,
+    favoriteName,
+    value,
+  } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -107,6 +117,9 @@ function RedisQuery(props: {
         language={language}
         connectInfo={connectInfo}
         makeConn={makeConn}
+        favoriteName={favoriteName}
+        saveFavoriteSql={saveFavoriteSql}
+        value={value}
       ></SqlQuery>
 
       <div

@@ -1,6 +1,6 @@
-import { Link, Stack, Typography } from '@mui/material';
+import { Chip, Stack, Typography } from '@mui/material';
 import { openUrl } from '@tauri-apps/plugin-opener';
-
+import InfoIcon from '@mui/icons-material/Info';
 function WelCome() {
   const databases = [
     {
@@ -47,6 +47,10 @@ function WelCome() {
       name: 'clickhouse',
       img: 'https://pic.rmb.bdstatic.com/bjh/6cd1c89eb632abaffcde8c19ebca83261118.png',
     },
+    {
+      name: 'libsql',
+      img: 'https://turso.tech/images/blog/the-libsql-glow-up/ugly-old-logo.png',
+    },
   ];
   return (
     <Stack spacing={1}>
@@ -67,7 +71,6 @@ function WelCome() {
             spacing={3}
             style={{
               alignItems: 'center',
-              borderRadius: '4px',
               padding: '4px',
             }}
             key={e.name}
@@ -76,22 +79,22 @@ function WelCome() {
               style={{ backgroundColor: 'white', borderRadius: '8px' }}
               src={e.img}
               width="80px"
-              alt="image of database"
+              alt={e.name}
             />
             <span>{e.name}</span>
           </Stack>
         ))}
       </Stack>
-
-      <Link
-        style={{ cursor: 'pointer', fontSize: '1.5rem' }}
-        href="#"
-        onClick={() => {
-          openUrl('https://github.com/dbpal/docs/blob/main/README.md');
-        }}
-      >
-        more information
-      </Link>
+      <Stack direction="row">
+        <Chip
+          icon={<InfoIcon></InfoIcon>}
+          onClick={() => {
+            openUrl('https://github.com/dbpal/docs/blob/main/README.md');
+          }}
+          label="more information"
+          color="info"
+        ></Chip>
+      </Stack>
     </Stack>
   );
 }

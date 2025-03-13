@@ -54,7 +54,7 @@ use crate::{
         SqlExecuteRet, TableListResp, UdfOrProcedureExtraParameter,
     },
     helper::create_csv,
-    language_server::LexerCompletionTrait,
+    language_server::{LangServerCommon, LexerCompletionTrait},
     meta_value::MetaValue,
     query_log::QueryLog,
 };
@@ -130,7 +130,7 @@ impl CassandraDB {
 
         let mut session_builder =
             TcpSessionBuilder::new(RoundRobinLoadBalancingStrategy::new(), cluster_config);
-        if let Some(keyspace) = config.keyspace.as_deref() {
+        if let Some(keyspace) = config.db.as_deref() {
             session_builder = session_builder.with_keyspace(keyspace.to_owned());
         }
 
@@ -786,6 +786,20 @@ impl QuerySql for CassandraDB {
         }
     }
 
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        self.invalid_page_caching(None);
+        let mut query_log = QueryLog::get_guard(query_id, sql);
+
+        let ret = match self.session.query(sql).await {
+            Ok(_) => Ok(QueryResp::execute_ok()),
+            Err(err) => Err(err.to_string()),
+        };
+        query_log.set_success(ret.is_ok());
+        anyhow::Ok(ret)
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -798,7 +812,7 @@ impl QuerySql for CassandraDB {
                     let body = x.response_body()?;
                     let meta = body.as_rows_metadata().map(|x| x.clone());
                     let rows = body.into_rows().unwrap_or_default();
-                    if rows.len() > 0 && meta.is_some() {
+                    if meta.is_some() {
                         let meta = meta.unwrap();
                         let fields = infer_fields(&meta);
                         let data = encode_rows(&meta, &rows)?;
@@ -1147,7 +1161,7 @@ impl CassandraDB {
                 values.insert(f.field.clone(), v.clone());
             });
             let sql = (self as &dyn SchemaTrait).insert_sql(
-                self.config.keyspace.as_deref(),
+                self.config.db.as_deref(),
                 table_name,
                 &fs,
                 &values,
@@ -1196,7 +1210,7 @@ impl SchemaTrait for CassandraDB {
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
         let sql = format!(
             "SELECT type_name FROM system_schema.types where  keyspace_name = '{}'",
-            self.config.keyspace_str()
+            self.config.key_space_str()
         );
         log::info!("sql:{}", sql);
         let rows = self
@@ -1242,7 +1256,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
-        self.list_materialized_view_impl(self.config.keyspace_str())
+        self.list_materialized_view_impl(self.config.key_space_str())
             .await
     }
 
@@ -1378,7 +1392,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_table_impl(self.config.keyspace_str()).await
+        self.list_table_impl(self.config.key_space_str()).await
     }
     // cassandra can use this function for materlized view too.
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -1386,7 +1400,7 @@ impl SchemaTrait for CassandraDB {
             r#" SELECT column_name, type, kind
         FROM system_schema.columns
         WHERE keyspace_name = '{}' AND table_name = '{}';"#,
-            self.config.keyspace_str(),
+            self.config.key_space_str(),
             table_name
         );
         log::info!("sql:{}", sql);
@@ -1464,7 +1478,7 @@ impl SchemaTrait for CassandraDB {
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!(
             "SELECT index_name from system_schema.indexes WHERE  table_name = '{table_name}' AND keyspace_name = '{}'",
-            self.config.keyspace_str()
+            self.config.key_space_str()
         );
         log::info!("sql:{}", sql);
         let rows = self
@@ -1481,7 +1495,7 @@ impl SchemaTrait for CassandraDB {
             ret.push(Index {
                 name,
                 kind: IndexKind::Index,
-                on: vec![],
+                columns: vec![],
             });
         }
         anyhow::Ok(ret)
@@ -1510,7 +1524,7 @@ impl SchemaTrait for CassandraDB {
 
         let fs = self.show_table_columns(table_name).await?;
         let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
-            self.config.keyspace.as_ref().map(|x| x.as_str()),
+            self.config.db.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &values,
@@ -1539,7 +1553,7 @@ impl SchemaTrait for CassandraDB {
         let fs = self.show_table_columns(table_name).await?;
 
         let sql = (self as &dyn SchemaTrait).delete_sql(
-            self.config.keyspace.as_ref().map(|x| x.as_str()),
+            self.config.db.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &wheres,
@@ -1601,7 +1615,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_udf_impl(self.config.keyspace_str()).await
+        self.list_udf_impl(self.config.key_space_str()).await
     }
 
     async fn show_udf(
@@ -1739,6 +1753,14 @@ fn extract_parameter_for_function(sql: &str) -> anyhow::Result<Vec<ColumnDefinit
         }
     }
 }
+
+#[async_trait::async_trait]
+impl LangServerCommon for CassandraDB {
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for CassandraDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
@@ -1747,9 +1769,7 @@ impl DBTrait for CassandraDB {
             .query("DESCRIBE KEYSPACES")
             .await?
             .response_body()?;
-
         let mut ret = Vec::new();
-
         for row in body.into_rows().unwrap_or_default() {
             let name: Option<String> = row.get_by_index(0)?;
             ret.push(name.unwrap());
@@ -1758,7 +1778,7 @@ impl DBTrait for CassandraDB {
     }
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
-        config.keyspace = Some(name.to_string());
+        config.db = Some(name.to_string());
         let x = CassandraDB::new(config).await?;
         anyhow::Ok(Arc::new(x))
     }
@@ -1883,7 +1903,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         username: Some("cassandra".to_string()),
         password: Some("cassandra".to_string()),
         read_only: false,
-        keyspace: db,
+        db,
     })
     .await
     .unwrap();
@@ -1937,7 +1957,7 @@ impl CassandraDB {
         anyhow::Ok(ret)
     }
     pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_aggregate_impl(self.config.keyspace_str()).await
+        self.list_aggregate_impl(self.config.key_space_str()).await
     }
 
     pub async fn show_aggregate(
@@ -2004,7 +2024,7 @@ mod tests {
             )
             .await;
 
-        let schemas = db.list_schema().await.unwrap();
+        let schemas = DBTrait::list_schema(&db).await.unwrap();
         println!("list schema:{:?}", schemas)
     }
 
@@ -2244,7 +2264,7 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
         let x = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE test_types1 (
@@ -2260,7 +2280,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        assert!(x.is_ok());
         /*
         INSERT INTO test_types1 (id, ascii_column, bigint_column, blob_column, boolean_column, decimal_column, double_column)
         VALUES (e6361ec1-b0a6-4eb6-b7bd-2db2d13329ab, 'example_ascii', 1234567890123456789, 0x48656c6c6f, true, 123.45, 3.14159);

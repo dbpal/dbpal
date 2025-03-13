@@ -1,6 +1,7 @@
 import { types } from './ApiStruct.ts';
 import {
   Alert,
+  Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -69,7 +70,7 @@ function RespContextMenu(props: { content; field; setSort }) {
           </ListItemIcon>
           <ListItemText> Copy field </ListItemText>
         </MenuItem>
-
+        <Divider></Divider>
         <MenuItem
           onClick={() => {
             setSort([{ field, sort: 'asc' }] as GridSortModel);
@@ -131,7 +132,9 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
           const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
           let field = (target as HTMLDivElement).getAttribute('data-field');
-
+          if (!field) {
+            return;
+          }
           setUpMenu({
             content: (
               <RespContextMenu
@@ -223,14 +226,20 @@ function MultiQueryResp_(props: { data: any[] }) {
     setValue(newValue);
   };
   useEffect(() => {
-    setValue(0);
+    if (value >= data.length) {
+      setValue(0);
+    }
   }, [data]);
   let idPrefix = generateRandomString(10);
   const vis = useContext(VisiableContext);
   return (
     <div>
-      <div>
-        <Tabs value={value} onChange={handleChange} aria-label="query results.">
+      <div style={{ display: 'grid' }}>
+        <Tabs
+          value={value}
+          onChange={handleChange}
+          style={{ overflow: 'scorll' }}
+        >
           {data.map((_, index) => (
             <Tab
               label={`Result ${index + 1}`}

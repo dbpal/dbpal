@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, LanguageServer, LexerCompletionTrait,
+    AstCompletionHelper, CompletionItem, LangServerCommon, LanguageServer, LexerCompletionTrait,
     try_completion_on_syntax,
 };
 use crate::mysql::MysqlDB;
@@ -85,14 +85,6 @@ impl AstCompletionHelper for TiDB {
         AstCompletionHelper::list_variable(self.db.as_ref()).await
     }
 
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
-
     async fn list_partition(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -112,6 +104,17 @@ impl AstCompletionHelper for TiDB {
     }
 }
 
+#[async_trait::async_trait]
+
+impl LangServerCommon for TiDB {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
+    }
+}
 #[async_trait::async_trait]
 impl LexerCompletionTrait for TiDB {
     type Dialect = sqlparser::dialect::MySqlDialect;

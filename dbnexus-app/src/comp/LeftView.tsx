@@ -1,17 +1,32 @@
-import { ReactNode, useContext, useEffect, useState } from 'react';
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   progressBarSizeSmall,
   tabsHasId,
   modalStyle,
   DocsAndCount,
   treeItemCommonStyle,
+  SettingContext,
+  initMonacoLanague,
+  SimpleResizeEditor,
 } from './Common';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
 
 import { invoke } from '@tauri-apps/api/core';
+import { IoConstructOutline } from 'react-icons/io5';
 import {
   Box,
+  Button,
+  Chip,
   CircularProgress,
+  Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -33,12 +48,17 @@ import { TabContent } from './Tabs';
 import { ExportTableOrView } from './Export';
 import {
   calMenuStyle,
+  columnWidths,
   ConnTypeContext,
   ContextMenuContext,
+  datagridContainerHeight,
   DataSourceKind,
+  handleCopyToClipboard,
+  MatchPatternContext,
   secondConfirm,
   TabsSetContext,
   UuidContext,
+  VisiableContext,
 } from './helper';
 import { MenuRefresh } from './CommonComp';
 import { MongoTable } from './MongoDB';
@@ -49,9 +69,13 @@ enum ViewKind {
   Materrialized,
 }
 import CalendarViewWeekIcon from '@mui/icons-material/CalendarViewWeek';
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponentsProps,
+} from '@mui/x-data-grid';
 function ViewsTree(props: { viewkind: ViewKind }) {
   const { viewkind } = props;
-
   const { uuid } = useContext(UuidContext);
   const [views, setViews] = useState<types.NamedStaff[] | types.ListTable[]>(
     []
@@ -109,7 +133,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
       break;
   }
-
+  const matchPattern = useContext(MatchPatternContext);
   return (
     <TreeItem
       itemId={itemId}
@@ -137,16 +161,249 @@ function ViewsTree(props: { viewkind: ViewKind }) {
         )}
       </Stack>
     >
-      {views.map((e) => (
-        <ViewTree
-          viewkind={viewkind}
-          key={e.name}
-          view={e.name}
-          reload={handleReload}
-          size={e.size}
-        ></ViewTree>
-      ))}
+      {views
+        .filter((e) => matchPattern(e.name))
+        .map((e) => (
+          <ViewTree
+            viewkind={viewkind}
+            key={e.name}
+            view={e.name}
+            reload={handleReload}
+            //@ts-ignore
+            size={e.size}
+          ></ViewTree>
+        ))}
     </TreeItem>
+  );
+}
+
+function StatementStructure(props: {
+  uuid: string;
+  kind: DataSourceKind;
+  view: string;
+  viewKind: ViewKind;
+}) {
+  const { uuid, kind, view, viewKind } = props;
+  const [sql, setSql] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  const handleReload = () => {
+    setLoading(true);
+    invoke<string>('create_view_sql', {
+      name: uuid,
+      viewName: view,
+      materialized: viewKind == ViewKind.Materrialized,
+    })
+      .then((e) => {
+        setSql(e);
+      })
+      .catch((e) => {
+        showNotification('error', 'fetch create sql failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+  useEffect(() => {
+    handleReload();
+  }, []);
+
+  initMonacoLanague(uuid, kind);
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row">
+        <Button
+          loading={loading}
+          variant="contained"
+          onClick={() => {
+            handleReload();
+          }}
+        >
+          reload
+        </Button>
+      </Stack>
+      {sql && (
+        <SimpleResizeEditor language={uuid} value={sql}></SimpleResizeEditor>
+      )}
+    </Stack>
+  );
+}
+
+function ViewStructure(props: {
+  uuid: string;
+  view: string;
+  viewKind: ViewKind;
+  kind;
+}) {
+  const { uuid, view, viewKind, kind } = props;
+
+  const [structure, setStructure] = useState('columns');
+  const structures = [{ name: 'columns', color: 'primary' }, ,];
+
+  const supportStatement = [
+    DataSourceKind.LibSql,
+    DataSourceKind.Oracle,
+    DataSourceKind.Mysql,
+    DataSourceKind.MariaDB,
+    DataSourceKind.TiDB,
+  ].includes(kind);
+
+  if (supportStatement) {
+    structures.push({ name: 'statement', color: 'secondary' });
+  }
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1} style={{ justifyContent: 'center' }}>
+        {structures.map((e) => (
+          <Chip
+            onClick={() => {
+              setStructure(e.name);
+            }}
+            disabled={structure == e.name}
+            key={e.name}
+            //@ts-ignore
+            color={e.color}
+            label={e.name}
+          ></Chip>
+        ))}
+      </Stack>
+      {structure == 'columns' && (
+        <ColumnsTabContent uuid={uuid} view={view}></ColumnsTabContent>
+      )}
+      {structure == 'statement' && (
+        <StatementStructure
+          uuid={uuid}
+          kind={kind}
+          viewKind={viewKind}
+          view={view}
+        ></StatementStructure>
+      )}
+    </Stack>
+  );
+}
+
+function ColumnsTabContent(props: { uuid: string; view: string }) {
+  const { uuid, view } = props;
+  const setting = useContext(SettingContext);
+
+  const [fields, setFields] = useState<types.Field[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  const [loading, setLoading] = useState(false);
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    columnWidths.saveColumnWidths(colDef.field, width);
+  }, []);
+
+  const handleReload = () => {
+    setLoading(true);
+    invoke<types.Field[]>('show_view_columns', {
+      name: uuid,
+      viewName: view,
+    })
+      .then((fs) => {
+        setFields(fs);
+      })
+      .catch((e) => {
+        showNotification('error', 'list column failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    handleReload();
+  }, []);
+  let cols = useMemo(() => {
+    return [{ field: 'field' }, { field: 'typ' }, ,] as GridColDef[];
+  }, []);
+  cols.forEach((e) => {
+    const width = columnWidths.getWidth(e.field);
+    if (width) {
+      e.width = width;
+    }
+  });
+  const vis = useContext(VisiableContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
+
+  function Menu(props: { content: string }) {
+    const { content } = props;
+
+    return (
+      <Paper>
+        <MenuList>
+          {content && (
+            <MenuItem
+              onClick={() => {
+                handleCopyToClipboard(content, showNotification);
+              }}
+            >
+              <ListItemIcon>
+                <ContentCopyIcon></ContentCopyIcon>
+              </ListItemIcon>
+              <ListItemText> Copy </ListItemText>
+            </MenuItem>
+          )}
+        </MenuList>
+      </Paper>
+    );
+  }
+
+  const slotProps = useMemo(() => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { target } = e;
+          {
+            const field = (target as HTMLDivElement).getAttribute('data-field');
+            if (!field) {
+              return;
+            }
+          }
+          let content = (target as HTMLDivElement).innerHTML;
+          setUpMenu({
+            content: <Menu content={content}></Menu>,
+            style: calMenuStyle(e, 100),
+          });
+        },
+        style: { cursor: 'context-menu' },
+      },
+    } as GridSlotsComponentsProps;
+  }, []);
+
+  const getRowId = useCallback((e) => {
+    return e['field'];
+  }, []);
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1}>
+        <Button loading={loading} onClick={handleReload} variant="contained">
+          reload
+        </Button>
+      </Stack>
+
+      {vis && (
+        <div
+          style={{
+            display: 'grid',
+            height: datagridContainerHeight(fields.length),
+          }}
+        >
+          <DataGrid
+            getRowId={getRowId}
+            slotProps={slotProps}
+            onColumnResize={onColumnResize}
+            showCellVerticalBorder
+            showColumnVerticalBorder
+            rowHeight={setting.datagridRowHeight}
+            columnHeaderHeight={setting.datagridHeaderHeight}
+            columns={cols}
+            rows={fields}
+          ></DataGrid>
+        </div>
+      )}
+    </Stack>
   );
 }
 
@@ -157,7 +414,6 @@ function ViewTree(props: {
   size?: string;
 }) {
   let { view, reload, viewkind, size } = props;
-
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(ContextMenuContext);
@@ -199,76 +455,7 @@ function ViewTree(props: {
           {viewkind == ViewKind.Materrialized && <span> {size} </span>}
         </Stack>
       }
-    >
-      <ViewColumnsTree view={view} viewkind={viewkind}></ViewColumnsTree>
-    </TreeItem>
-  );
-}
-
-function ViewColumnsTree(props: { view: string; viewkind: ViewKind }) {
-  const { view, viewkind } = props;
-  const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const { uuid } = useContext(UuidContext);
-  const [loading, setLoading] = useState(false);
-  const reload = () => {
-    setLoading(true);
-    invoke<types.Field[]>('show_view_coumns', { name: uuid, viewName: view })
-      .then((fs) => {
-        setFields(fs);
-      })
-      .catch((e) => {
-        showNotification('error', 'list column failed', e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
-  let { setUpMenu } = useContext(ContextMenuContext);
-  useEffect(() => {
-    reload();
-  }, []);
-  let idPrefix = uuid + '-views-' + view + viewkind + '-columns-';
-  return (
-    <TreeItem
-      itemId={idPrefix}
-      label=<Stack
-        spacing={1}
-        direction="row"
-        style={{ ...treeItemCommonStyle }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={reload}></MenuRefresh>
-                </MenuList>
-              </Paper>
-            ),
-            style: calMenuStyle(e, 200),
-          });
-        }}
-      >
-        <span> columns </span>
-        {loading && (
-          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-        )}
-      </Stack>
-    >
-      {fields.map((f) => (
-        <TreeItem
-          key={f.field}
-          itemId={idPrefix + '-' + f.field}
-          label=<Stack
-            direction="row"
-            spacing={1}
-            style={{ ...treeItemCommonStyle }}
-          >
-            {f.field} <em>({f.typ}) </em>
-          </Stack>
-        ></TreeItem>
-      ))}
-    </TreeItem>
+    ></TreeItem>
   );
 }
 
@@ -329,6 +516,7 @@ function ViewMenu(props: {
         case DataSourceKind.TiDB:
         case DataSourceKind.Cassandra:
         case DataSourceKind.ClickHouse:
+        case DataSourceKind.LibSql:
           list = (
             <SqlTableView
               tableName={view}
@@ -428,6 +616,33 @@ function ViewMenu(props: {
     }
   };
 
+  const handleSturcture = () => {
+    let id = uuid + '-view-' + view + '-structure';
+    let index = tabsHasId(tabs, id);
+    if (typeof index == 'number') {
+      setSelectTab(index);
+    } else {
+      setTabs((e) => {
+        setSelectTab(tabs.length);
+        return [
+          ...e,
+          new TabContent(
+            id,
+            `${view}-struct`,
+            (
+              <ViewStructure
+                view={view}
+                uuid={uuid}
+                kind={kind}
+                viewKind={viewkind}
+              ></ViewStructure>
+            )
+          ),
+        ];
+      });
+    }
+  };
+
   return (
     <Paper>
       <MenuList>
@@ -442,6 +657,26 @@ function ViewMenu(props: {
           ></Typography>
         </MenuItem>
 
+        <MenuItem onClick={handleSturcture}>
+          <ListItemIcon>
+            <IoConstructOutline
+              style={{ fontSize: '1.2rem' }}
+            ></IoConstructOutline>
+          </ListItemIcon>
+          <ListItemText> Structure </ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(view, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> copy name </ListItemText>
+        </MenuItem>
+
+        <Divider></Divider>
         <MenuItem
           onClick={() => {
             setShowExport(true);
@@ -452,7 +687,7 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText> Export </ListItemText>
         </MenuItem>
-
+        <Divider></Divider>
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {

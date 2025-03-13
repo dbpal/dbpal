@@ -31,13 +31,13 @@ function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
 
 function TriggerDetail(props: {
   reloadOP: () => Promise<types.TriggerDetail>;
-  language: string;
+  uuid: string;
 }) {
-  const { reloadOP, language } = props;
+  const { reloadOP, uuid: language } = props;
 
   return (
     <DefAndMetasView
-      language={language}
+      uuid={language}
       reloadOP={async () => {
         return reloadOP().then((detail) => {
           return {

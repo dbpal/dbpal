@@ -42,7 +42,7 @@ impl MongoDB {
             host: ds.host.to_string(),
             port: Some(ds.port),
         }];
-        opts.connect_timeout = ds.connect_timeout.clone().map(Duration::from_millis);
+        opts.connect_timeout = ds.call_timeout.clone().map(Duration::from_millis);
 
         if let Some(user) = &ds.username {
             let b = mongodb::options::Credential::builder();
@@ -579,7 +579,12 @@ impl MongoDB {
             return anyhow::Ok(vec![]);
         }
         let value = value.unwrap();
-        let cols = infer_multi_value_column_names(&vec![value][..])?;
+        let mut cols = infer_multi_value_column_names(&vec![value][..])?;
+        cols.iter_mut().for_each(|x| {
+            if x.field.as_str() == "_id" {
+                x.is_primary = true;
+            }
+        });
         anyhow::Ok(cols)
     }
 }
@@ -670,7 +675,7 @@ impl SchemaTrait for MongoDB {
 
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
         if index == "_id_" {
-            anyhow::bail!("can't rename this index");
+            anyhow::bail!("can't drop this index");
         }
         let db = self.get_db().await?;
         db.collection::<Document>(&table_name)
@@ -736,16 +741,20 @@ impl SchemaTrait for MongoDB {
                 .flatten();
 
             ret.push(Index::new(
-                name,
-                if index_model
-                    .options
-                    .as_ref()
-                    .map(|x| x.unique.unwrap_or_default())
-                    .unwrap_or_default()
-                {
-                    IndexKind::Unique
+                name.clone(),
+                if name.as_ref().map(|x| x.as_str()).unwrap_or_default() == "_id" {
+                    IndexKind::Primary
                 } else {
-                    IndexKind::Index
+                    if index_model
+                        .options
+                        .as_ref()
+                        .map(|x| x.unique.unwrap_or_default())
+                        .unwrap_or_default()
+                    {
+                        IndexKind::Unique
+                    } else {
+                        IndexKind::Index
+                    }
                 },
                 vec![serde_json::to_string(&index_model.keys)?],
             ))
@@ -799,6 +808,11 @@ impl QuerySql for MongoDB {
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         not_support_features(self.backend_name())
     }
+    async fn execute_sql(
+        &self, _query_id: uuid::Uuid, _sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        not_support_features(self.backend_name())
+    }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         not_support_features(self.backend_name())
@@ -832,7 +846,7 @@ pub(crate) fn make_test_object() -> MongoDB {
         port: 27017,
         username: None,
         password: None,
-        connect_timeout: None,
+        call_timeout: None,
         db: Some("test".to_string()),
         read_only: false,
     });

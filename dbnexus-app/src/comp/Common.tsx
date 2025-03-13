@@ -13,6 +13,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import {
   languages,
@@ -31,6 +32,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -406,14 +408,14 @@ function editorInitHeight(
 
 function SimpleResizeEditor(props: {
   language: string;
-  value: string;
+  value?: string;
   onMount?: OnMount;
-  options?: editor.IStandaloneEditorConstructionOptions;
   minHeigth?: number;
   barLeft?: ReactNode;
   style?: CSSProperties;
 }) {
-  let { language, value, onMount, options, minHeigth, barLeft, style } = props;
+  let { language, value, onMount, minHeigth, barLeft, style } = props;
+
   const [pos, setPos] = useState<Position>(null);
   let height = editorInitHeight(
     value,
@@ -431,10 +433,16 @@ function SimpleResizeEditor(props: {
         onMount(editor, monaco);
       }
     },
-    []
+    [onMount]
   );
+  const setting = useContext(SettingContext);
+  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+    return {
+      fontSize: setting.editorFontSize,
+      ...setting.editorOption,
+    };
+  }, [setting]);
 
-  const { theme } = useContext(SettingContext);
   return (
     <div
       style={{
@@ -458,12 +466,8 @@ function SimpleResizeEditor(props: {
           onMount={handleDidMount}
           language={language}
           value={value}
-          theme={theme == 'dark' ? 'vs-dark' : 'light'}
-          options={{
-            fontSize: useContext(SettingContext).editorFontSize,
-            wordWrap: 'on',
-            ...options,
-          }}
+          theme={setting.editorTheme()}
+          options={options}
         ></Editor>
       </div>
       <EditorBar left={barLeft} pos={pos}></EditorBar>
@@ -529,13 +533,19 @@ class UserSettings {
   rootFontSize: number = 15;
   datagridRowHeight: number = 24;
   datagridHeaderHeight: number = 30;
+  editorOption: editor.IStandaloneEditorConstructionOptions = {};
+
+  editorTheme(): string {
+    return this.theme == 'dark' ? 'vs-dark' : 'light';
+  }
   constructor(
     theme?,
     pageSize?,
     editorFontSize?,
     rootFontSize?,
     datagridRowHeight?,
-    datagridHeaderHeight?
+    datagridHeaderHeight?,
+    editorOption?
   ) {
     if (theme) {
       this.theme = theme;
@@ -554,6 +564,9 @@ class UserSettings {
     }
     if (datagridRowHeight) {
       this.datagridRowHeight = datagridRowHeight;
+    }
+    if (editorOption) {
+      this.editorOption = editorOption;
     }
   }
 }
@@ -620,7 +633,7 @@ function ConnConfigInfo(props: { uuid }) {
   );
 }
 function reloadOK(showNotification) {
-  showNotification('success', 'reload OK');
+  showNotification('success', 'data loaded.');
 }
 const registeredLanguage = new Set<string>();
 
@@ -663,7 +676,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
     }
   };
   function initLanguageXXX(
-    language: string,
+    uuid: string,
     Ilanguage: languages.IMonarchLanguage,
     autoCompletion: (
       text: string,
@@ -675,10 +688,10 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
     ) => Promise<string>
   ) {
     loader.init().then((monaco) => {
-      monaco.languages.register({ id: language });
-      monaco.languages.setMonarchTokensProvider(language, Ilanguage);
+      monaco.languages.register({ id: uuid });
+      monaco.languages.setMonarchTokensProvider(uuid, Ilanguage);
       if (format) {
-        monaco.languages.registerDocumentFormattingEditProvider(language, {
+        monaco.languages.registerDocumentFormattingEditProvider(uuid, {
           provideDocumentFormattingEdits(model, options, _token) {
             return format(model.getValue(), options).then((text) => [
               { range: model.getFullModelRange(), text },
@@ -687,7 +700,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
         });
       }
 
-      monaco.languages.registerCompletionItemProvider(language, {
+      monaco.languages.registerCompletionItemProvider(uuid, {
         provideCompletionItems: (
           model: editor.ITextModel,
           position: Position,
@@ -783,6 +796,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       );
       break;
     case DataSourceKind.Sqlite:
+    case DataSourceKind.LibSql:
       initLanguageXXX(
         uuid,
         {
@@ -918,7 +932,7 @@ async function makeQueryConnInfo(uuid: string) {
     case 'mysql':
     case 'mariadb':
     case 'postgres':
-    case 'sqlserver':
+    case 'mssql':
     case 'cassandra':
     case 'tidb':
     case 'clickhouse':
@@ -960,6 +974,7 @@ async function makeQueryConnInfo(uuid: string) {
 
 interface IQueryConn {
   queryOP: (text: string) => Promise<any[]>;
+  executeOP: (text: string) => Promise<any>;
   loadQueryLog: () => Promise<types.QueryLogEvent[]>;
   reconnect: () => Promise<void>;
   exportQueryResult: (
@@ -1024,9 +1039,16 @@ class QueryConn implements IQueryConn {
       queryId: this.queryId,
     });
   }
-
   queryOP(sql: string): Promise<any[]> {
     let x = invoke<any[]>('query_sql', {
+      name: this.uuid,
+      queryId: this.queryId,
+      sql,
+    });
+    return x;
+  }
+  executeOP(sql: string): Promise<any> {
+    let x = invoke<any[]>('execute_sql', {
       name: this.uuid,
       queryId: this.queryId,
       sql,
@@ -1125,12 +1147,16 @@ function LoadStoreFileForQuery(props: {
   return (
     <>
       {file && (
-        <>
-          <Button onClick={handleClose}>close file</Button>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           <Tooltip title={file}>
             <Typography>{extractBaseName(file)}</Typography>
           </Tooltip>
-        </>
+          <Tooltip title="close file">
+            <IconButton onClick={handleClose}>
+              <CloseIcon></CloseIcon>
+            </IconButton>
+          </Tooltip>
+        </Stack>
       )}
       <Tooltip title="attach file">
         <IconButton onClick={loadFile} color="primary">
@@ -1145,7 +1171,6 @@ function LoadStoreFileForQuery(props: {
     </>
   );
 }
-
 type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
 const treeItemCommonStyle = { fontWeight: '600' } as CSSProperties;

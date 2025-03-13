@@ -7,13 +7,15 @@ use sqlx::Row;
 use crate::db::{FormatSqlOpts, SchemaTrait};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::sqlite::SqliteDB;
 
 #[async_trait::async_trait]
+impl LangServerCommon for SqliteDB {}
 
+#[async_trait::async_trait]
 impl crate::language_server::LexerCompletionTrait for SqliteDB {
     type Dialect = sqlparser::dialect::SQLiteDialect;
 
@@ -87,7 +89,7 @@ impl LanguageServer for SqliteDB {
 }
 
 impl SqliteDB {
-    async fn list_index_name_impl(&self) -> anyhow::Result<Vec<String>> {
+    pub(crate) async fn list_index_name_impl(&self) -> anyhow::Result<Vec<String>> {
         let sql = r#"
         SELECT name
             FROM sqlite_master
@@ -161,10 +163,15 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     fn sqlite_pragma(&self) -> Vec<CompletionItem> {
-        static SS: &[[&'static str; 2]] = &[
-            [
-                "analysis_limit",
-                r#"PRAGMA analysis_limit;
+        sqlite_pragma()
+    }
+}
+
+pub(crate) fn sqlite_pragma() -> Vec<CompletionItem> {
+    static SS: &[[&'static str; 2]] = &[
+        [
+            "analysis_limit",
+            r#"PRAGMA analysis_limit;
 PRAGMA analysis_limit = N;
 
 Query or change a limit on the approximate ANALYZE setting. This is the approximate number of rows examined in each index by the ANALYZE command. If the argument N is omitted, then the analysis limit is unchanged. If the limit is zero, then the analysis limit is disabled and the ANALYZE command will examine all rows of each index. If N is greater than zero, then the analysis limit is set to N and subsequent ANALYZE commands will stop analyzing each index after it has examined approximately N rows. If N is a negative number or something other than an integer value, then the pragma behaves as if the N argument was omitted. In all cases, the value returned is the new analysis limit used for subsequent ANALYZE commands.
@@ -174,19 +181,19 @@ This pragma can be used to help the ANALYZE command run faster on large database
 This pragma was added in SQLite version 3.32.0 (2020-05-22). The current implementation only uses the lower 31 bits of the N value - higher order bits are silently ignored. Future versions of SQLite might begin using higher order bits.
 
 Beginning with SQLite version 3.46.0 (2024-05-23), the recommended way of running ANALYZE is with the PRAGMA optimize command. The PRAGMA optimize will automatically set a reasonable, temporary analysis limit that ensures that the PRAGMA optimize command will finish quickly even on enormous databases. Applications that use the PRAGMA optimize instead of running ANALYZE directly do not need to set an analysis limit. "#,
-            ],
-            [
-                "application_id",
-                r#"PRAGMA schema.application_id;
+        ],
+        [
+            "application_id",
+            r#"PRAGMA schema.application_id;
 PRAGMA schema.application_id = integer ;
 
 The application_id PRAGMA is used to query or set the 32-bit signed big-endian "Application ID" integer located at offset 68 into the database header. Applications that use SQLite as their application file-format should set the Application ID integer to a unique integer so that utilities such as file(1) can determine the specific file type rather than just reporting "SQLite3 Database". A list of assigned application IDs can be seen by consulting the magic.txt file in the SQLite source repository.
 
 See also the user_version pragma. "#,
-            ],
-            [
-                "auto_vacuum",
-                r#"PRAGMA schema.auto_vacuum;
+        ],
+        [
+            "auto_vacuum",
+            r#"PRAGMA schema.auto_vacuum;
 PRAGMA schema.auto_vacuum = 0 | NONE | 1 | FULL | 2 | INCREMENTAL;
 
 Query or set the auto-vacuum status in the database.
@@ -202,28 +209,28 @@ When the value of auto-vacuum is 2 or "incremental" then the additional informat
 The database connection can be changed between full and incremental autovacuum mode at any time. However, changing from "none" to "full" or "incremental" can only occur when the database is new (no tables have yet been created) or by running the VACUUM command. To change auto-vacuum modes, first use the auto_vacuum pragma to set the new desired mode, then invoke the VACUUM command to reorganize the entire database file. To change from "full" or "incremental" back to "none" always requires running VACUUM even on an empty database.
 
 When the auto_vacuum pragma is invoked with no arguments, it returns the current auto_vacuum mode."#,
-            ],
-            [
-                "automatic_index",
-                r#"PRAGMA automatic_index;
+        ],
+        [
+            "automatic_index",
+            r#"PRAGMA automatic_index;
 PRAGMA automatic_index = boolean;
 
 Query, set, or clear the automatic indexing capability.
 
 Automatic indexing is enabled by default as of version 3.7.17 (2013-05-20), but this might change in future releases of SQLite. "#,
-            ],
-            [
-                "busy_timeout",
-                r#"PRAGMA busy_timeout;
+        ],
+        [
+            "busy_timeout",
+            r#"PRAGMA busy_timeout;
 PRAGMA busy_timeout = milliseconds;
 
 Query or change the setting of the busy timeout. This pragma is an alternative to the sqlite3_busy_timeout() C-language interface which is made available as a pragma for use with language bindings that do not provide direct access to sqlite3_busy_timeout().
 
 Each database connection can only have a single busy handler. This PRAGMA sets the busy handler for the process, possibly overwriting any previously set busy handler. "#,
-            ],
-            [
-                "cache_size",
-                r#"PRAGMA schema.cache_size;
+        ],
+        [
+            "cache_size",
+            r#"PRAGMA schema.cache_size;
 PRAGMA schema.cache_size = pages;
 PRAGMA schema.cache_size = -kibibytes;
 
@@ -236,10 +243,10 @@ Backwards compatibility note: The behavior of cache_size with a negative N was d
 When you change the cache size using the cache_size pragma, the change only endures for the current session. The cache size reverts to the default value when the database is closed and reopened.
 
 The default page cache implemention does not allocate the full amount of cache memory all at once. Cache memory is allocated in smaller chunks on an as-needed basis. The page_cache setting is a (suggested) upper bound on the amount of memory that the cache can use, not the amount of memory it will use all of the time. This is the behavior of the default page cache implementation, but an application defined page cache is free to behave differently if it wants. "#,
-            ],
-            [
-                "cache_spill]",
-                r#"PRAGMA cache_spill;
+        ],
+        [
+            "cache_spill]",
+            r#"PRAGMA cache_spill;
 PRAGMA cache_spill=boolean;
 PRAGMA schema.cache_spill=N;
 
@@ -248,10 +255,10 @@ The cache_spill pragma enables or disables the ability of the pager to spill dir
 The "PRAGMA cache_spill=N" form of this pragma sets a minimum cache size threshold required for spilling to occur. The number of pages in cache must exceed both the cache_spill threshold and the maximum cache size set by the PRAGMA cache_size statement in order for spilling to occur.
 
 The "PRAGMA cache_spill=boolean" form of this pragma applies across all databases attached to the database connection. But the "PRAGMA cache_spill=N" form of this statement only applies to the "main" schema or whatever other schema is specified as part of the statement. "#,
-            ],
-            [
-                "case_sensitive_like",
-                r#"PRAGMA case_sensitive_like = boolean;
+        ],
+        [
+            "case_sensitive_like",
+            r#"PRAGMA case_sensitive_like = boolean;
 
 The default behavior of the LIKE operator is to ignore case for ASCII characters. Hence, by default 'a' LIKE 'A' is true. The case_sensitive_like pragma installs a new application-defined LIKE function that is either case sensitive or insensitive depending on the value of the case_sensitive_like pragma. When case_sensitive_like is disabled, the default LIKE behavior is expressed. When case_sensitive_like is enabled, case becomes significant. So, for example, 'a' LIKE 'A' is false but 'a' LIKE 'a' is still true.
 
@@ -260,40 +267,40 @@ This pragma uses sqlite3_create_function() to overload the LIKE and GLOB functio
 WARNING: If a database uses the LIKE operator anywhere in the schema, such as in a CHECK constraint or in an expression index or in the WHERE clause of a partial index, then changing the definition of the LIKE operator using this PRAGMA can cause the database to appear to be corrupt. PRAGMA integrity_check will report errors. The database is not really corrupt in that changing the behavior of LIKE back to the way it was when the schema was defined and the database was populated will clear the problem. If the use of LIKE occurs only in indexes, then the problem can be cleared by running REINDEX. Nevertheless, the use of the case_sensitive_like pragma is discouraged.
 
 This pragma is deprecated and exists for backwards compatibility only. New applications should avoid using this pragma. Older applications should discontinue use of this pragma at the earliest opportunity. This pragma may be omitted from the build when SQLite is compiled using SQLITE_OMIT_DEPRECATED. "#,
-            ],
-            [
-                "cell_size_check",
-                r#"PRAGMA cell_size_check
+        ],
+        [
+            "cell_size_check",
+            r#"PRAGMA cell_size_check
 PRAGMA cell_size_check = boolean;
 
 The cell_size_check pragma enables or disables additional sanity checking on database b-tree pages as they are initially read from disk. With cell size checking enabled, database corruption is detected earlier and is less likely to "spread". However, there is a small performance hit for doing the extra checks and so cell size checking is turned off by default. "#,
-            ],
-            [
-                "checkpoint_fullfsync",
-                r#"PRAGMA checkpoint_fullfsync
+        ],
+        [
+            "checkpoint_fullfsync",
+            r#"PRAGMA checkpoint_fullfsync
 PRAGMA checkpoint_fullfsync = boolean;
 
 Query or change the fullfsync flag for checkpoint operations. If this flag is set, then the F_FULLFSYNC syncing method is used during checkpoint operations on systems that support F_FULLFSYNC. The default value of the checkpoint_fullfsync flag is off. Only Mac OS-X supports F_FULLFSYNC.
 
 If the fullfsync flag is set, then the F_FULLFSYNC syncing method is used for all sync operations and the checkpoint_fullfsync setting is irrelevant."#,
-            ],
-            [
-                "collation_list",
-                r#"PRAGMA collation_list;
+        ],
+        [
+            "collation_list",
+            r#"PRAGMA collation_list;
 
 Return a list of the collating sequences defined for the current database connection."#,
-            ],
-            [
-                "compile_options",
-                r#"
+        ],
+        [
+            "compile_options",
+            r#"
 
 PRAGMA compile_options;
 
 This pragma returns the names of compile-time options used when building SQLite, one option per row. The "SQLITE_" prefix is omitted from the returned option names. See also the sqlite3_compileoption_get() C/C++ interface and the sqlite_compileoption_get() SQL functions."#,
-            ],
-            [
-                "count_changes",
-                r#"PRAGMA count_changes;
+        ],
+        [
+            "count_changes",
+            r#"PRAGMA count_changes;
 PRAGMA count_changes = boolean;
 
 Query or change the count-changes flag. Normally, when the count-changes flag is not set, INSERT, UPDATE and DELETE statements return no data. When count-changes is set, each of these commands returns a single row of data consisting of one integer value - the number of rows inserted, modified or deleted by the command. The returned change count does not include any insertions, modifications or deletions performed by triggers, any changes made automatically by foreign key actions, or updates caused by an upsert.
@@ -301,10 +308,10 @@ Query or change the count-changes flag. Normally, when the count-changes flag is
 Another way to get the row change counts is to use the sqlite3_changes() or sqlite3_total_changes() interfaces. There is a subtle different, though. When an INSERT, UPDATE, or DELETE is run against a view using an INSTEAD OF trigger, the count_changes pragma reports the number of rows in the view that fired the trigger, whereas sqlite3_changes() and sqlite3_total_changes() do not.
 
 This pragma is deprecated and exists for backwards compatibility only. New applications should avoid using this pragma. Older applications should discontinue use of this pragma at the earliest opportunity. This pragma may be omitted from the build when SQLite is compiled using SQLITE_OMIT_DEPRECATED. "#,
-            ],
-            [
-                "data_store_directory",
-                r#"PRAGMA data_store_directory;
+        ],
+        [
+            "data_store_directory",
+            r#"PRAGMA data_store_directory;
 PRAGMA data_store_directory = 'directory-name';
 
 Query or change the value of the sqlite3_data_directory global variable, which windows operating-system interface backends use to determine where to store database files specified using a relative pathname.
@@ -314,46 +321,46 @@ Changing the data_store_directory setting is not threadsafe. Never change the da
 This facility is provided for WinRT which does not have an OS mechanism for reading or changing the current working directory. The use of this pragma in any other context is discouraged and may be disallowed in future releases.
 
 This pragma is deprecated and exists for backwards compatibility only. New applications should avoid using this pragma. Older applications should discontinue use of this pragma at the earliest opportunity. This pragma may be omitted from the build when SQLite is compiled using SQLITE_OMIT_DEPRECATED. "#,
-            ],
-            [
-                "data_version",
-                r#"PRAGMA schema.data_version;
+        ],
+        [
+            "data_version",
+            r#"PRAGMA schema.data_version;
 
 The "PRAGMA data_version" command provides an indication that the database file has been modified. Interactive programs that hold database content in memory or that display database content on-screen can use the PRAGMA data_version command to determine if they need to flush and reload their memory or update the screen display.
 
 The integer values returned by two invocations of "PRAGMA data_version" from the same connection will be different if changes were committed to the database by any other connection in the interim. The "PRAGMA data_version" value is unchanged for commits made on the same database connection. The behavior of "PRAGMA data_version" is the same for all database connections, including database connections in separate processes and shared cache database connections.
 
 The "PRAGMA data_version" value is a local property of each database connection and so values returned by two concurrent invocations of "PRAGMA data_version" on separate database connections are often different even though the underlying database is identical. It is only meaningful to compare the "PRAGMA data_version" values returned by the same database connection at two different points in time. "#,
-            ],
-            [
-                "database_list",
-                r#"
+        ],
+        [
+            "database_list",
+            r#"
 
 PRAGMA database_list;
 
 This pragma works like a query to return one row for each database attached to the current database connection. The second column is "main" for the main database file, "temp" for the database file used to store TEMP objects, or the name of the ATTACHed database for other database files. The third column is the name of the database file itself, or an empty string if the database is not associated with a file."#,
-            ],
-            [
-                "default_cache_size",
-                r#"PRAGMA schema.default_cache_size;
+        ],
+        [
+            "default_cache_size",
+            r#"PRAGMA schema.default_cache_size;
 PRAGMA schema.default_cache_size = Number-of-pages;
 
 This pragma queries or sets the suggested maximum number of pages of disk cache that will be allocated per open database file. The difference between this pragma and cache_size is that the value set here persists across database connections. The value of the default cache size is stored in the 4-byte big-endian integer located at offset 48 in the header of the database file.
 
 This pragma is deprecated and exists for backwards compatibility only. New applications should avoid using this pragma. Older applications should discontinue use of this pragma at the earliest opportunity. This pragma may be omitted from the build when SQLite is compiled using SQLITE_OMIT_DEPRECATED. "#,
-            ],
-            [
-                "defer_foreign_keys",
-                r#"PRAGMA defer_foreign_keys
+        ],
+        [
+            "defer_foreign_keys",
+            r#"PRAGMA defer_foreign_keys
 PRAGMA defer_foreign_keys = boolean;
 
 When the defer_foreign_keys PRAGMA is on, enforcement of all foreign key constraints is delayed until the outermost transaction is committed. The defer_foreign_keys pragma defaults to OFF so that foreign key constraints are only deferred if they are created as "DEFERRABLE INITIALLY DEFERRED". The defer_foreign_keys pragma is automatically switched off at each COMMIT or ROLLBACK. Hence, the defer_foreign_keys pragma must be separately enabled for each transaction. This pragma is only meaningful if foreign key constraints are enabled, of course.
 
 The sqlite3_db_status(db,SQLITE_DBSTATUS_DEFERRED_FKS,...) C-language interface can be used during a transaction to determine if there are deferred and unresolved foreign key constraints."#,
-            ],
-            [
-                "empty_result_callbacks",
-                r#"
+        ],
+        [
+            "empty_result_callbacks",
+            r#"
 
 PRAGMA empty_result_callbacks;
 PRAGMA empty_result_callbacks = boolean;
@@ -363,10 +370,10 @@ Query or change the empty-result-callbacks flag.
 The empty-result-callbacks flag affects the sqlite3_exec() API only. Normally, when the empty-result-callbacks flag is cleared, the callback function supplied to the sqlite3_exec() is not invoked for commands that return zero rows of data. When empty-result-callbacks is set in this situation, the callback function is invoked exactly once, with the third parameter set to 0 (NULL). This is to enable programs that use the sqlite3_exec() API to retrieve column-names even when a query returns no data.
 
 This pragma is deprecated and exists for backwards compatibility only. New applications should avoid using this pragma. Older applications should discontinue use of this pragma at the earliest opportunity. This pragma may be omitted from the build when SQLite is compiled using SQLITE_OMIT_DEPRECATED. "#,
-            ],
-            [
-                "encoding",
-                r#"PRAGMA encoding;
+        ],
+        [
+            "encoding",
+            r#"PRAGMA encoding;
 PRAGMA encoding = 'UTF-8';
 PRAGMA encoding = 'UTF-16';
 PRAGMA encoding = 'UTF-16le';
@@ -381,25 +388,25 @@ If no encoding is first set with this pragma, then the encoding with which the m
 Once an encoding has been set for a database, it cannot be changed.
 
 Databases created by the ATTACH command always use the same encoding as the main database. An attempt to ATTACH a database with a different text encoding from the "main" database will fail."#,
-            ],
-            [
-                "foreign_key_check",
-                r#"PRAGMA schema.foreign_key_check;
+        ],
+        [
+            "foreign_key_check",
+            r#"PRAGMA schema.foreign_key_check;
 PRAGMA schema.foreign_key_check(table-name);
 
 The foreign_key_check pragma checks the database, or the table called "table-name", for foreign key constraints that are violated. The foreign_key_check pragma returns one row output for each foreign key violation. There are four columns in each result row. The first column is the name of the table that contains the REFERENCES clause. The second column is the rowid of the row that contains the invalid REFERENCES clause, or NULL if the child table is a WITHOUT ROWID table. The third column is the name of the table that is referred to. The fourth column is the index of the specific foreign key constraint that failed. The fourth column in the output of the foreign_key_check pragma is the same integer as the first column in the output of the foreign_key_list pragma. When a "table-name" is specified, the only foreign key constraints checked are those created by REFERENCES clauses in the CREATE TABLE statement for table-name."#,
-            ],
-            [
-                "foreign_key_list",
-                r#"
+        ],
+        [
+            "foreign_key_list",
+            r#"
 
 PRAGMA foreign_key_list(table-name);
 
 This pragma returns one row for each foreign key constraint created by a REFERENCES clause in the CREATE TABLE statement of table "table-name". "#,
-            ],
-            [
-                "foreign_keys",
-                r#"PRAGMA foreign_keys;
+        ],
+        [
+            "foreign_keys",
+            r#"PRAGMA foreign_keys;
 PRAGMA foreign_keys = boolean;
 
 Query, set, or clear the enforcement of foreign key constraints.
@@ -409,50 +416,50 @@ This pragma is a no-op within a transaction; foreign key constraint enforcement 
 Changing the foreign_keys setting affects the execution of all statements prepared using the database connection, including those prepared before the setting was changed. Any existing statements prepared using the legacy sqlite3_prepare() interface may fail with an SQLITE_SCHEMA error after the foreign_keys setting is changed.
 
 As of SQLite version 3.6.19, the default setting for foreign key enforcement is OFF. However, that might change in a future release of SQLite. The default setting for foreign key enforcement can be specified at compile-time using the SQLITE_DEFAULT_FOREIGN_KEYS preprocessor macro. To minimize future problems, applications should set the foreign key enforcement flag as required by the application and not depend on the default setting. "#,
-            ],
-            [
-                "freelist_count",
-                r#"PRAGMA schema.freelist_count;
+        ],
+        [
+            "freelist_count",
+            r#"PRAGMA schema.freelist_count;
 
 Return the number of unused pages in the database file."#,
-            ],
-            [
-                "full_column_names",
-                r#"PRAGMA full_column_names;
+        ],
+        [
+            "full_column_names",
+            r#"PRAGMA full_column_names;
 PRAGMA full_column_names = boolean;
 
 Query or change the full_column_names flag. This flag together with the short_column_names flag determine the way SQLite assigns names to result columns of SELECT statements. Result columns are named by applying the following rules in order:
 
-    If there is an AS clause on the result, then the name of the column is the right-hand side of the AS clause.
+If there is an AS clause on the result, then the name of the column is the right-hand side of the AS clause.
 
-    If the result is a general expression, not a just the name of a source table column, then the name of the result is a copy of the expression text.
+If the result is a general expression, not a just the name of a source table column, then the name of the result is a copy of the expression text.
 
-    If the short_column_names pragma is ON, then the name of the result is the name of the source table column without the source table name prefix: COLUMN.
+If the short_column_names pragma is ON, then the name of the result is the name of the source table column without the source table name prefix: COLUMN.
 
-    If both pragmas short_column_names and full_column_names are OFF then case (2) applies.
+If both pragmas short_column_names and full_column_names are OFF then case (2) applies.
 
-    The name of the result column is a combination of the source table and source column name: TABLE.COLUMN
+The name of the result column is a combination of the source table and source column name: TABLE.COLUMN
 
 This pragma is deprecated and exists for backwards compatibility only. New applications should avoid using this pragma. Older applications should discontinue use of this pragma at the earliest opportunity. This pragma may be omitted from the build when SQLite is compiled using SQLITE_OMIT_DEPRECATED. "#,
-            ],
-            [
-                "fullfsync",
-                r#"PRAGMA fullfsync
+        ],
+        [
+            "fullfsync",
+            r#"PRAGMA fullfsync
 PRAGMA fullfsync = boolean;
 
 Query or change the fullfsync flag. This flag determines whether or not the F_FULLFSYNC syncing method is used on systems that support it. The default value of the fullfsync flag is off. Only Mac OS X supports F_FULLFSYNC.
 
 See also checkpoint_fullfsync."#,
-            ],
-            [
-                "function_list",
-                r#"PRAGMA function_list;
+        ],
+        [
+            "function_list",
+            r#"PRAGMA function_list;
 
 This pragma returns a list of SQL functions known to the database connection. Each row of the result describes a single calling signature for a single SQL function. Some SQL functions will have multiple rows in the result set if they can (for example) be invoked with a varying number of arguments or can accept text in various encodings. "#,
-            ],
-            [
-                "hard_heap_limit",
-                r#"PRAGMA hard_heap_limit
+        ],
+        [
+            "hard_heap_limit",
+            r#"PRAGMA hard_heap_limit
 PRAGMA hard_heap_limit=N
 
 This pragma invokes the sqlite3_hard_heap_limit64() interface with the argument N, if N is specified and N is a positive integer that is less than the current hard heap limit. The hard_heap_limit pragma always returns the same integer that would be returned by the sqlite3_hard_heap_limit64(-1) C-language function. That is to say, it always returns the value of the hard heap limit that is set after any changes imposed by this PRAGMA.
@@ -460,37 +467,37 @@ This pragma invokes the sqlite3_hard_heap_limit64() interface with the argument 
 This pragma can only lower the heap limit, never raise it. The C-language interface sqlite3_hard_heap_limit64() must be used to raise the heap limit.
 
 See also the soft_heap_limit pragma. "#,
-            ],
-            [
-                "ignore_check_constraints",
-                r#"PRAGMA ignore_check_constraints = boolean;
+        ],
+        [
+            "ignore_check_constraints",
+            r#"PRAGMA ignore_check_constraints = boolean;
 
 This pragma enables or disables the enforcement of CHECK constraints. The default setting is off, meaning that CHECK constraints are enforced by default."#,
-            ],
-            [
-                "incremental_vacuum",
-                r#"PRAGMA schema.incremental_vacuum(N);
+        ],
+        [
+            "incremental_vacuum",
+            r#"PRAGMA schema.incremental_vacuum(N);
 PRAGMA schema.incremental_vacuum;
 
 The incremental_vacuum pragma causes up to N pages to be removed from the freelist. The database file is truncated by the same amount. The incremental_vacuum pragma has no effect if the database is not in auto_vacuum=incremental mode or if there are no pages on the freelist. If there are fewer than N pages on the freelist, or if N is less than 1, or if the "(N)" argument is omitted, then the entire freelist is cleared."#,
-            ],
-            [
-                "index_info",
-                r#"PRAGMA schema.index_info(index-name);
+        ],
+        [
+            "index_info",
+            r#"PRAGMA schema.index_info(index-name);
 
 This pragma returns one row for each key column in the named index. A key column is a column that is actually named in the CREATE INDEX index statement or UNIQUE constraint or PRIMARY KEY constraint that created the index. Index entries also usually contain auxiliary columns that point back to the table row being indexed. The auxiliary index-columns are not shown by the index_info pragma, but they are listed by the index_xinfo pragma.
 
 Output columns from the index_info pragma are as follows:
 
-    The rank of the column within the index. (0 means left-most.)
-    The rank of the column within the table being indexed. A value of -1 means rowid and a value of -2 means that an expression is being used.
-    The name of the column being indexed. This columns is NULL if the column is the rowid or an expression. 
+The rank of the column within the index. (0 means left-most.)
+The rank of the column within the table being indexed. A value of -1 means rowid and a value of -2 means that an expression is being used.
+The name of the column being indexed. This columns is NULL if the column is the rowid or an expression. 
 
 If there is no index named index-name but there is a WITHOUT ROWID table with that name, then (as of SQLite version 3.30.0 on 2019-10-04) this pragma returns the PRIMARY KEY columns of the WITHOUT ROWID table as they are used in the records of the underlying b-tree, which is to say with duplicate columns removed. "#,
-            ],
-            [
-                "index_list",
-                r#"
+        ],
+        [
+            "index_list",
+            r#"
 
 PRAGMA schema.index_list(table-name);
 
@@ -498,32 +505,32 @@ This pragma returns one row for each index associated with the given table.
 
 Output columns from the index_list pragma are as follows:
 
-    A sequence number assigned to each index for internal tracking purposes.
-    The name of the index.
-    "1" if the index is UNIQUE and "0" if not.
-    "c" if the index was created by a CREATE INDEX statement, "u" if the index was created by a UNIQUE constraint, or "pk" if the index was created by a PRIMARY KEY constraint.
-    "1" if the index is a partial index and "0" if not. "#,
-            ],
-            [
-                "index_xinfo",
-                r#"PRAGMA schema.index_xinfo(index-name);
+A sequence number assigned to each index for internal tracking purposes.
+The name of the index.
+"1" if the index is UNIQUE and "0" if not.
+"c" if the index was created by a CREATE INDEX statement, "u" if the index was created by a UNIQUE constraint, or "pk" if the index was created by a PRIMARY KEY constraint.
+"1" if the index is a partial index and "0" if not. "#,
+        ],
+        [
+            "index_xinfo",
+            r#"PRAGMA schema.index_xinfo(index-name);
 
 This pragma returns information about every column in an index. Unlike this index_info pragma, this pragma returns information about every column in the index, not just the key columns. (A key column is a column that is actually named in the CREATE INDEX index statement or UNIQUE constraint or PRIMARY KEY constraint that created the index. Auxiliary columns are additional columns needed to locate the table entry that corresponds to each index entry.)
 
 Output columns from the index_xinfo pragma are as follows:
 
-    The rank of the column within the index. (0 means left-most. Key columns come before auxiliary columns.)
-    The rank of the column within the table being indexed, or -1 if the index-column is the rowid of the table being indexed and -2 if the index is on an expression.
-    The name of the column being indexed, or NULL if the index-column is the rowid of the table being indexed or an expression.
-    1 if the index-column is sorted in reverse (DESC) order by the index and 0 otherwise.
-    The name for the collating sequence used to compare values in the index-column.
-    1 if the index-column is a key column and 0 if the index-column is an auxiliary column. 
+The rank of the column within the index. (0 means left-most. Key columns come before auxiliary columns.)
+The rank of the column within the table being indexed, or -1 if the index-column is the rowid of the table being indexed and -2 if the index is on an expression.
+The name of the column being indexed, or NULL if the index-column is the rowid of the table being indexed or an expression.
+1 if the index-column is sorted in reverse (DESC) order by the index and 0 otherwise.
+The name for the collating sequence used to compare values in the index-column.
+1 if the index-column is a key column and 0 if the index-column is an auxiliary column. 
 
 If there is no index named index-name but there is a WITHOUT ROWID table with that name, then (as of SQLite version 3.30.0 on 2019-10-04) this pragma returns the columns of the WITHOUT ROWID table as they are used in the records of the underlying b-tree, which is to say with de-duplicated PRIMARY KEY columns first followed by data columns. "#,
-            ],
-            [
-                "integrity_check",
-                r#"
+        ],
+        [
+            "integrity_check",
+            r#"
 
 PRAGMA schema.integrity_check;
 PRAGMA schema.integrity_check(N)
@@ -531,13 +538,13 @@ PRAGMA schema.integrity_check(TABLENAME)
 
 This pragma does a low-level formatting and consistency check of the database. The integrity_check pragma look for:
 
-    Table or index entries that are out of sequence
-    Misformatted records
-    Missing pages
-    Missing or surplus index entries
-    UNIQUE, CHECK, and NOT NULL constraint errors
-    Integrity of the freelist
-    Sections of the database that are used more than once, or not at all 
+Table or index entries that are out of sequence
+Misformatted records
+Missing pages
+Missing or surplus index entries
+UNIQUE, CHECK, and NOT NULL constraint errors
+Integrity of the freelist
+Sections of the database that are used more than once, or not at all 
 
 If the integrity_check pragma finds problems, strings are returned (as multiple rows with a single column per row) which describe the problems. Pragma integrity_check will return at most N errors before the analysis quits, with N defaulting to 100. If pragma integrity_check finds no errors, a single row with the value 'ok' is returned.
 
@@ -546,10 +553,10 @@ The usual case is that the entire database file is checked. However, if the argu
 PRAGMA integrity_check does not find FOREIGN KEY errors. Use the PRAGMA foreign_key_check command to find errors in FOREIGN KEY constraints.
 
 See also the PRAGMA quick_check command which does most of the checking of PRAGMA integrity_check but runs much faster."#,
-            ],
-            [
-                "journal_mode",
-                r#"PRAGMA schema.journal_mode;
+        ],
+        [
+            "journal_mode",
+            r#"PRAGMA schema.journal_mode;
 PRAGMA schema.journal_mode = DELETE | TRUNCATE | PERSIST | MEMORY | WAL | OFF
 
 This pragma queries or sets the journal mode for databases associated with the current database connection.
@@ -571,10 +578,10 @@ The WAL journaling mode uses a write-ahead log instead of a rollback journal to 
 The OFF journaling mode disables the rollback journal completely. No rollback journal is ever created and hence there is never a rollback journal to delete. The OFF journaling mode disables the atomic commit and rollback capabilities of SQLite. The ROLLBACK command no longer works; it behaves in an undefined way. Applications must avoid using the ROLLBACK command when the journal mode is OFF. If the application crashes in the middle of a transaction when the OFF journaling mode is set, then the database file will very likely go corrupt. Without a journal, there is no way for a statement to unwind partially completed operations following a constraint error. This might also leave the database in a corrupted state. For example, if a duplicate entry causes a CREATE UNIQUE INDEX statement to fail half-way through, it will leave behind a partially created, and hence corrupt, index. Because OFF journaling mode allows the database file to be corrupted using ordinary SQL, it is disabled when SQLITE_DBCONFIG_DEFENSIVE is enabled.
 
 Note that the journal_mode for an in-memory database is either MEMORY or OFF and can not be changed to a different value. An attempt to change the journal_mode of an in-memory database to any setting other than MEMORY or OFF is ignored. Note also that the journal_mode cannot be changed while a transaction is active."#,
-            ],
-            [
-                "journal_size_limit",
-                r#" PRAGMA schema.journal_size_limit
+        ],
+        [
+            "journal_size_limit",
+            r#" PRAGMA schema.journal_size_limit
 PRAGMA schema.journal_size_limit = N ;
 
 If a database connection is operating in exclusive locking mode or in persistent journal mode (PRAGMA journal_mode=persist) then after committing a transaction the rollback journal file may remain in the file-system. This increases performance for subsequent transactions since overwriting an existing file is faster than append to a file, but it also consumes file-system space. After a large transaction (e.g. a VACUUM), the rollback journal file may consume a very large amount of space.
@@ -586,17 +593,17 @@ The journal_size_limit pragma may be used to limit the size of rollback-journal 
 The second form of the pragma listed above is used to set a new limit in bytes for the specified database. A negative number implies no limit. To always truncate rollback journals and WAL files to their minimum size, set the journal_size_limit to zero. Both the first and second forms of the pragma listed above return a single result row containing a single integer column - the value of the journal size limit in bytes. The default journal size limit is -1 (no limit). The SQLITE_DEFAULT_JOURNAL_SIZE_LIMIT preprocessor macro can be used to change the default journal size limit at compile-time.
 
 This pragma only operates on the single database specified prior to the pragma name (or on the "main" database if no database is specified.) There is no way to change the journal size limit on all attached databases using a single PRAGMA statement. The size limit must be set separately for each attached database. "#,
-            ],
-            [
-                "legacy_alter_table",
-                r#"PRAGMA legacy_alter_table;
+        ],
+        [
+            "legacy_alter_table",
+            r#"PRAGMA legacy_alter_table;
 PRAGMA legacy_alter_table = boolean
 
 This pragma sets or queries the value of the legacy_alter_table flag. When this flag is on, the ALTER TABLE RENAME command (for changing the name of a table) works as it did in SQLite 3.24.0 (2018-06-04) and earlier. More specifically, when this flag is on the ALTER TABLE RENAME command only rewrites the initial occurrence of the table name in its CREATE TABLE statement and in any associated CREATE INDEX and CREATE TRIGGER statements. Other references to the table are unmodified, including:
 
-    References to the table within the bodies of triggers and views.
-    References to the table within CHECK constraints in the original CREATE TABLE statement.
-    References to the table within the WHERE clauses of partial indexes. 
+References to the table within the bodies of triggers and views.
+References to the table within CHECK constraints in the original CREATE TABLE statement.
+References to the table within the WHERE clauses of partial indexes. 
 
 The default setting for this pragma is OFF, which means that all references to the table anywhere in the schema are converted to the new name.
 
@@ -607,18 +614,18 @@ For compatibility with older virtual table implementations, this flag is turned 
 The legacy alter table behavior can also be toggled on and off using the SQLITE_DBCONFIG_LEGACY_ALTER_TABLE option to the sqlite3_db_config() interface.
 
 The legacy alter table behavior is a per-connection setting. Turning this features on or off affects all attached database files within the database connection. The setting does not persist. Changing this setting in one connection does not affect any other connections. "#,
-            ],
-            [
-                "legacy_file_format",
-                r#"
+        ],
+        [
+            "legacy_file_format",
+            r#"
 
 PRAGMA legacy_file_format;
 
 This pragma no longer functions. It has become a no-op. The capabilities formerly provided by PRAGMA legacy_file_format are now available using the SQLITE_DBCONFIG_LEGACY_FILE_FORMAT option to the sqlite3_db_config() C-language interface. "#,
-            ],
-            [
-                "locking_mode",
-                r#"PRAGMA schema.locking_mode;
+        ],
+        [
+            "locking_mode",
+            r#"PRAGMA schema.locking_mode;
 PRAGMA schema.locking_mode = NORMAL | EXCLUSIVE
 
 This pragma sets or queries the database connection locking-mode. The locking-mode is either NORMAL or EXCLUSIVE.
@@ -629,30 +636,30 @@ Database locks obtained by a connection in EXCLUSIVE mode may be released either
 
 There are three reasons to set the locking-mode to EXCLUSIVE.
 
-    The application wants to prevent other processes from accessing the database file.
-    The number of system calls for filesystem operations is reduced, possibly resulting in a small performance increase.
-    WAL databases can be accessed in EXCLUSIVE mode without the use of shared memory. (Additional information) 
+The application wants to prevent other processes from accessing the database file.
+The number of system calls for filesystem operations is reduced, possibly resulting in a small performance increase.
+WAL databases can be accessed in EXCLUSIVE mode without the use of shared memory. (Additional information) 
 
 When the locking_mode pragma specifies a particular database, for example:
 
-    PRAGMA main.locking_mode=EXCLUSIVE; 
+PRAGMA main.locking_mode=EXCLUSIVE; 
 
 then the locking mode applies only to the named database. If no database name qualifier precedes the "locking_mode" keyword then the locking mode is applied to all databases, including any new databases added by subsequent ATTACH commands.
 
 The "temp" database (in which TEMP tables and indices are stored) and in-memory databases always uses exclusive locking mode. The locking mode of temp and in-memory databases cannot be changed. All other databases use the normal locking mode by default and are affected by this pragma.
 
 If the locking mode is EXCLUSIVE when first entering WAL journal mode, then the locking mode cannot be changed to NORMAL until after exiting WAL journal mode. If the locking mode is NORMAL when first entering WAL journal mode, then the locking mode can be changed between NORMAL and EXCLUSIVE and back again at any time and without needing to exit WAL journal mode."#,
-            ],
-            [
-                "max_page_count",
-                r#"PRAGMA schema.max_page_count;
+        ],
+        [
+            "max_page_count",
+            r#"PRAGMA schema.max_page_count;
 PRAGMA schema.max_page_count = N;
 
 Query or set the maximum number of pages in the database file. Both forms of the pragma return the maximum page count. The second form attempts to modify the maximum page count. The maximum page count cannot be reduced below the current database size. "#,
-            ],
-            [
-                "mmap_size",
-                r#"
+        ],
+        [
+            "mmap_size",
+            r#"
 PRAGMA schema.mmap_size;
 PRAGMA schema.mmap_size=N
 
@@ -663,16 +670,16 @@ The argument N is the maximum number of bytes of the database file that will be 
 The PRAGMA mmap_size statement will never increase the amount of address space used for memory-mapped I/O above the hard limit set by the SQLITE_MAX_MMAP_SIZE compile-time option, nor the hard limit set at startup-time by the second argument to sqlite3_config(SQLITE_CONFIG_MMAP_SIZE)
 
 The size of the memory-mapped I/O region cannot be changed while the memory-mapped I/O region is in active use, to avoid unmapping memory out from under running SQL statements. For this reason, the mmap_size pragma may be a no-op if the prior mmap_size is non-zero and there are other SQL statements running concurrently on the same database connection."#,
-            ],
-            [
-                "module_list",
-                r#"PRAGMA module_list;
+        ],
+        [
+            "module_list",
+            r#"PRAGMA module_list;
 
 This pragma returns a list of virtual table modules registered with the database connection. "#,
-            ],
-            [
-                "optimize",
-                r#"PRAGMA optimize;
+        ],
+        [
+            "optimize",
+            r#"PRAGMA optimize;
 PRAGMA optimize(MASK);
 PRAGMA schema.optimize;
 PRAGMA schema.optimize(MASK);
@@ -681,11 +688,11 @@ Attempt to optimize the database. All schemas are optimized in the first two for
 
 In most applications, using PRAGMA optimize as follows will help SQLite to achieve the best possible query performance:
 
-    Applications with short-lived database connections should run "PRAGMA optimize;" once, just prior to closing each database connection.
+Applications with short-lived database connections should run "PRAGMA optimize;" once, just prior to closing each database connection.
 
-    Applications that use long-lived database connections should run "PRAGMA optimize=0x10002;" when the connection is first opened, and then also run "PRAGMA optimize;" periodically, perhaps once per day or once per hour.
+Applications that use long-lived database connections should run "PRAGMA optimize=0x10002;" when the connection is first opened, and then also run "PRAGMA optimize;" periodically, perhaps once per day or once per hour.
 
-    All applications should run "PRAGMA optimize;" after a schema change, especially after one or more CREATE INDEX statements. 
+All applications should run "PRAGMA optimize;" after a schema change, especially after one or more CREATE INDEX statements. 
 
 This pragma is usually a no-op or nearly so and is very fast. On the occasions where it does need to run ANALYZE on one or more tables, it sets a temporary analysis limit, valid for the duration of this pragma only, that prevents the ANALYZE invocations from running for too long.
 
@@ -707,72 +714,72 @@ Determination Of When To Run Analyze
 
 In the current implementation, a table is analyzed if and only if all of the following are true:
 
-    MASK bit 0x02 is set.
-    The table is an ordinary table, not a view or virtual table.
-    The table name does not begin with "sqlite_".
-    One or more of the following are true:
-        The 0x10000 bit of MASK is set
-        One or more indexes on the table lack entries in the sqlite_stat1 table.
-        The query planner used sqlite_stat1 statistics for one or more indexes of this table at some point during the lifetime of the current database connection. 
-    One or more of the following are true:
-        One or more indexes on the table lack entries in the sqlite_stat1 table.
-        The number of rows in the table has increased or decreased by 10-fold since the last time ANALYZE was run on the table. 
+MASK bit 0x02 is set.
+The table is an ordinary table, not a view or virtual table.
+The table name does not begin with "sqlite_".
+One or more of the following are true:
+    The 0x10000 bit of MASK is set
+    One or more indexes on the table lack entries in the sqlite_stat1 table.
+    The query planner used sqlite_stat1 statistics for one or more indexes of this table at some point during the lifetime of the current database connection. 
+One or more of the following are true:
+    One or more indexes on the table lack entries in the sqlite_stat1 table.
+    The number of rows in the table has increased or decreased by 10-fold since the last time ANALYZE was run on the table. 
 
 The rules for when tables are analyzed are likely to change in future releases. New MASK values may be added in the future. Future versions of this pragma might accept a string literal argument instead of a bit mask, though the bit mask argument will continue to be supported for backwards compatibility. "#,
-            ],
-            [
-                "page_count",
-                r#"PRAGMA schema.page_count;
+        ],
+        [
+            "page_count",
+            r#"PRAGMA schema.page_count;
 
 Return the total number of pages in the database file."#,
-            ],
-            [
-                "page_size",
-                r#"PRAGMA schema.page_count;
+        ],
+        [
+            "page_size",
+            r#"PRAGMA schema.page_count;
 
 Return the total number of pages in the database file."#,
-            ],
-            [
-                "parser_trace",
-                r#"PRAGMA parser_trace = boolean;
+        ],
+        [
+            "parser_trace",
+            r#"PRAGMA parser_trace = boolean;
 
 If SQLite has been compiled with the SQLITE_DEBUG compile-time option, then the parser_trace pragma can be used to turn on tracing for the SQL parser used internally by SQLite. This feature is used for debugging SQLite itself.
 
 This pragma is intended for use when debugging SQLite itself. It is only available when the SQLITE_DEBUG compile-time option is used."#,
-            ],
-            [
-                "pragma_list",
-                r#"PRAGMA pragma_list;
+        ],
+        [
+            "pragma_list",
+            r#"PRAGMA pragma_list;
 
 This pragma returns a list of PRAGMA commands known to the database connection. "#,
-            ],
-            [
-                "query_only",
-                r#"PRAGMA query_only;
+        ],
+        [
+            "query_only",
+            r#"PRAGMA query_only;
 PRAGMA query_only = boolean;
 
 The query_only pragma prevents data changes on database files when enabled. When this pragma is enabled, any attempt to CREATE, DELETE, DROP, INSERT, or UPDATE will result in an SQLITE_READONLY error. However, the database is not truly read-only. You can still run a checkpoint or a COMMIT and the return value of the sqlite3_db_readonly() routine is not affected. "#,
-            ],
-            [
-                "quick_check",
-                r#"PRAGMA schema.quick_check;
+        ],
+        [
+            "quick_check",
+            r#"PRAGMA schema.quick_check;
 PRAGMA schema.quick_check(N)
 PRAGMA schema.quick_check(TABLENAME)
 
 The pragma is like integrity_check except that it does not verify UNIQUE constraints and does not verify that index content matches table content. By skipping UNIQUE and index consistency checks, quick_check is able to run faster. PRAGMA quick_check runs in O(N) time whereas PRAGMA integrity_check requires O(NlogN) time where N is the total number of rows in the database. Otherwise the two pragmas are the same. "#,
-            ],
-            [
-                "read_uncommitted",
-                r#"PRAGMA read_uncommitted;
+        ],
+        [
+            "read_uncommitted",
+            r#"PRAGMA read_uncommitted;
 PRAGMA read_uncommitted = boolean;
 
 Query, set, or clear READ UNCOMMITTED isolation. The default isolation level for SQLite is SERIALIZABLE. Any process or thread can select READ UNCOMMITTED isolation, but SERIALIZABLE will still be used except between connections that share a common page and schema cache. Cache sharing is enabled using the sqlite3_enable_shared_cache() API. Cache sharing is disabled by default.
 
 See SQLite Shared-Cache Mode for additional information."#,
-            ],
-            [
-                "recursive_triggers",
-                r#"PRAGMA recursive_triggers;
+        ],
+        [
+            "recursive_triggers",
+            r#"PRAGMA recursive_triggers;
 PRAGMA recursive_triggers = boolean;
 
 Query, set, or clear the recursive trigger capability.
@@ -782,10 +789,10 @@ Changing the recursive_triggers setting affects the execution of all statements 
 Prior to SQLite version 3.6.18 (2009-09-11), recursive triggers were not supported. The behavior of SQLite was always as if this pragma was set to OFF. Support for recursive triggers was added in version 3.6.18 but was initially turned OFF by default, for compatibility. Recursive triggers may be turned on by default in future versions of SQLite.
 
 The depth of recursion for triggers has a hard upper limit set by the SQLITE_MAX_TRIGGER_DEPTH compile-time option and a run-time limit set by sqlite3_limit(db,SQLITE_LIMIT_TRIGGER_DEPTH,...)."#,
-            ],
-            [
-                "reverse_unordered_selects",
-                r#"
+        ],
+        [
+            "reverse_unordered_selects",
+            r#"
 
 PRAGMA reverse_unordered_selects;
 PRAGMA reverse_unordered_selects = boolean;
@@ -793,10 +800,10 @@ PRAGMA reverse_unordered_selects = boolean;
 When enabled, this PRAGMA causes many SELECT statements without an ORDER BY clause to emit their results in the reverse order from what they normally would. This can help debug applications that are making invalid assumptions about the result order. The reverse_unordered_selects pragma works for most SELECT statements, however the query planner may sometimes choose an algorithm that is not easily reversed, in which case the output will appear in the same order regardless of the reverse_unordered_selects setting.
 
 SQLite makes no guarantees about the order of results if a SELECT omits the ORDER BY clause. Even so, the order of results does not change from one run to the next, and so many applications mistakenly come to depend on the arbitrary output order whatever that order happens to be. However, sometimes new versions of SQLite will contain optimizer enhancements that will cause the output order of queries without ORDER BY clauses to shift. When that happens, applications that depend on a certain output order might malfunction. By running the application multiple times with this pragma both disabled and enabled, cases where the application makes faulty assumptions about output order can be identified and fixed early, reducing problems that might be caused by linking against a different version of SQLite. "#,
-            ],
-            [
-                "schema_version",
-                r#"PRAGMA schema.schema_version;
+        ],
+        [
+            "schema_version",
+            r#"PRAGMA schema.schema_version;
 PRAGMA schema.schema_version = integer ;
 
 The schema_version pragma will get or set the value of the schema-version integer at offset 40 in the database header.
@@ -808,10 +815,10 @@ Warning: Misuse of this pragma can result in database corruption.
 For the purposes of this pragma, the VACUUM command is considered a schema change, since VACUUM will usually alter the "rootpage" values for entries in the sqlite_schema table.
 
 See also the application_id pragma and user_version pragma. "#,
-            ],
-            [
-                "secure_delete",
-                r#"PRAGMA schema.secure_delete;
+        ],
+        [
+            "secure_delete",
+            r#"PRAGMA schema.secure_delete;
 PRAGMA schema.secure_delete = boolean|FAST
 
 Query or change the secure-delete setting. When secure_delete is on, SQLite overwrites deleted content with zeros. The default setting for secure_delete is determined by the SQLITE_SECURE_DELETE compile-time option and is normally off. The off setting for secure_delete improves performance by reducing the number of CPU cycles and the amount of disk I/O. Applications that wish to avoid leaving forensic traces after content is deleted or updated should enable the secure_delete pragma prior to performing the delete or update, or else run VACUUM after the delete or update.
@@ -823,25 +830,25 @@ When there are attached databases and no database is specified in the pragma, al
 When multiple database connections share the same cache, changing the secure-delete flag on one database connection changes it for them all.
 
 Limitation: The secure_delete pragma only causes deleted content to be scrubbed from ordinary tables. If virtual tables store content in shadow tables, then deleting content from the virtual table does not necessarily remove forensic traces from the shadow tables. In particular, the FTS3 and FTS5 virtual tables that come bundled with SQLite might leave forensic traces in their shadow tables even if the secure_delete pragma is enabled. "#,
-            ],
-            [
-                "short_column_names",
-                r#"PRAGMA short_column_names;
+        ],
+        [
+            "short_column_names",
+            r#"PRAGMA short_column_names;
 PRAGMA short_column_names = boolean;
 
 Query or change the short-column-names flag. This flag affects the way SQLite names columns of data returned by SELECT statements. See the full_column_names pragma for full details.
 
 This pragma is deprecated and exists for backwards compatibility only. New applications should avoid using this pragma. Older applications should discontinue use of this pragma at the earliest opportunity. This pragma may be omitted from the build when SQLite is compiled using SQLITE_OMIT_DEPRECATED. "#,
-            ],
-            [
-                "shrink_memory",
-                r#"PRAGMA shrink_memory
+        ],
+        [
+            "shrink_memory",
+            r#"PRAGMA shrink_memory
 
 This pragma causes the database connection on which it is invoked to free up as much memory as it can, by calling sqlite3_db_release_memory(). "#,
-            ],
-            [
-                "soft_heap_limit",
-                r#"
+        ],
+        [
+            "soft_heap_limit",
+            r#"
 
 PRAGMA soft_heap_limit
 PRAGMA soft_heap_limit=N
@@ -849,40 +856,40 @@ PRAGMA soft_heap_limit=N
 This pragma invokes the sqlite3_soft_heap_limit64() interface with the argument N, if N is specified and is a non-negative integer. The soft_heap_limit pragma always returns the same integer that would be returned by the sqlite3_soft_heap_limit64(-1) C-language function.
 
 See also the hard_heap_limit pragma. "#,
-            ],
-            [
-                "stats",
-                r#"PRAGMA stats;
+        ],
+        [
+            "stats",
+            r#"PRAGMA stats;
 
 This pragma returns auxiliary information about tables and indices. The returned information is used during testing to help verify that the query planner is operating correctly. The format and meaning of this pragma will likely change from one release to the next. Because of its volatility, the behavior and output format of this pragma are deliberately undocumented.
 
 The intended use of this pragma is only for testing and validation of SQLite. This pragma is subject to change without notice and is not recommended for use by application programs."#,
-            ],
-            [
-                "synchronous",
-                r#"PRAGMA schema.synchronous;
+        ],
+        [
+            "synchronous",
+            r#"PRAGMA schema.synchronous;
 PRAGMA schema.synchronous = 0 | OFF | 1 | NORMAL | 2 | FULL | 3 | EXTRA;
 
 Query or change the setting of the "synchronous" flag. The first (query) form will return the synchronous setting as an integer. The second form changes the synchronous setting. The meanings of the various synchronous settings are as follows:
 
 EXTRA (3)
-    EXTRA synchronous is like FULL with the addition that the directory containing a rollback journal is synced after that journal is unlinked to commit a transaction in DELETE mode. EXTRA provides additional durability if the commit is followed closely by a power loss.
+EXTRA synchronous is like FULL with the addition that the directory containing a rollback journal is synced after that journal is unlinked to commit a transaction in DELETE mode. EXTRA provides additional durability if the commit is followed closely by a power loss.
 FULL (2)
-    When synchronous is FULL (2), the SQLite database engine will use the xSync method of the VFS to ensure that all content is safely written to the disk surface prior to continuing. This ensures that an operating system crash or power failure will not corrupt the database. FULL synchronous is very safe, but it is also slower. FULL is the most commonly used synchronous setting when not in WAL mode.
+When synchronous is FULL (2), the SQLite database engine will use the xSync method of the VFS to ensure that all content is safely written to the disk surface prior to continuing. This ensures that an operating system crash or power failure will not corrupt the database. FULL synchronous is very safe, but it is also slower. FULL is the most commonly used synchronous setting when not in WAL mode.
 NORMAL (1)
-    When synchronous is NORMAL (1), the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode. There is a very small (though non-zero) chance that a power failure at just the wrong time could corrupt the database in journal_mode=DELETE on an older filesystem. WAL mode is safe from corruption with synchronous=NORMAL, and probably DELETE mode is safe too on modern filesystems. WAL mode is always consistent with synchronous=NORMAL, but WAL mode does lose durability. A transaction committed in WAL mode with synchronous=NORMAL might roll back following a power loss or system crash. Transactions are durable across application crashes regardless of the synchronous setting or journal mode. The synchronous=NORMAL setting is a good choice for most applications running in WAL mode.
+When synchronous is NORMAL (1), the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode. There is a very small (though non-zero) chance that a power failure at just the wrong time could corrupt the database in journal_mode=DELETE on an older filesystem. WAL mode is safe from corruption with synchronous=NORMAL, and probably DELETE mode is safe too on modern filesystems. WAL mode is always consistent with synchronous=NORMAL, but WAL mode does lose durability. A transaction committed in WAL mode with synchronous=NORMAL might roll back following a power loss or system crash. Transactions are durable across application crashes regardless of the synchronous setting or journal mode. The synchronous=NORMAL setting is a good choice for most applications running in WAL mode.
 OFF (0)
-    With synchronous OFF (0), SQLite continues without syncing as soon as it has handed data off to the operating system. If the application running SQLite crashes, the data will be safe, but the database might become corrupted if the operating system crashes or the computer loses power before that data has been written to the disk surface. On the other hand, commits can be orders of magnitude faster with synchronous OFF. 
+With synchronous OFF (0), SQLite continues without syncing as soon as it has handed data off to the operating system. If the application running SQLite crashes, the data will be safe, but the database might become corrupted if the operating system crashes or the computer loses power before that data has been written to the disk surface. On the other hand, commits can be orders of magnitude faster with synchronous OFF. 
 
 In WAL mode when synchronous is NORMAL (1), the WAL file is synchronized before each checkpoint and the database file is synchronized after each completed checkpoint and the WAL file header is synchronized when a WAL file begins to be reused after a checkpoint, but no sync operations occur during most transactions. With synchronous=FULL in WAL mode, an additional sync operation of the WAL file happens after each transaction commit. The extra WAL sync following each transaction helps ensure that transactions are durable across a power loss. Transactions are consistent with or without the extra syncs provided by synchronous=FULL. If durability is not a concern, then synchronous=NORMAL is normally all one needs in WAL mode.
 
 The TEMP schema always has synchronous=OFF since the content of of TEMP is ephemeral and is not expected to survive a power outage. Attempts to change the synchronous setting for TEMP are silently ignored.
 
 See also the fullfsync and checkpoint_fullfsync pragmas."#,
-            ],
-            [
-                "table_info",
-                r#"PRAGMA schema.table_info(table-name);
+        ],
+        [
+            "table_info",
+            r#"PRAGMA schema.table_info(table-name);
 
 This pragma returns one row for each normal column in the named table. Columns in the result set include: "name" (its name); "type" (data type if given, else ''); "notnull" (whether or not the column can be NULL); "dflt_value" (the default value for the column); and "pk" (either zero for columns that are not part of the primary key, or the 1-based index of the column within the primary key).
 
@@ -891,44 +898,44 @@ The "cid" column should not be taken to mean more than "rank within the current 
 The table named in the table_info pragma can also be a view.
 
 This pragma does not show information about generated columns or hidden columns. Use PRAGMA table_xinfo to get a more complete list of columns that includes generated and hidden columns. "#,
-            ],
-            [
-                "table_list",
-                r#" PRAGMA table_list;
+        ],
+        [
+            "table_list",
+            r#" PRAGMA table_list;
 PRAGMA schema.table_list;
 PRAGMA table_list(table-name);
 
 This pragma returns information about the tables and views in the schema, one table per row of output. The table_list pragma first appeared in SQLite version 3.37.0 (2021-11-27). As of its initial release the columns returned by the table_list pragma include those listed below. Future versions of SQLite will probably add additional columns of output.
 
-    schema: the schema in which the table or view appears (for example "main" or "temp").
-    name: the name of the table or view.
-    type: the type of object - one of "table", "view", "shadow" (for shadow tables), or "virtual" for virtual tables.
-    ncol: the number of columns in the table, including generated columns and hidden columns.
-    wr: 1 if the table is a WITHOUT ROWID table or 0 if is not.
-    strict: 1 if the table is a STRICT table or 0 if it is not.
-    Additional columns will likely be added in future releases. 
+schema: the schema in which the table or view appears (for example "main" or "temp").
+name: the name of the table or view.
+type: the type of object - one of "table", "view", "shadow" (for shadow tables), or "virtual" for virtual tables.
+ncol: the number of columns in the table, including generated columns and hidden columns.
+wr: 1 if the table is a WITHOUT ROWID table or 0 if is not.
+strict: 1 if the table is a STRICT table or 0 if it is not.
+Additional columns will likely be added in future releases. 
 
 The default behavior is to show all tables in all schemas. If the schema. name appears before the pragma, then only tables in that one schema are shown. If a table-name argument is supplied, then only information about that one table is returned. "#,
-            ],
-            [
-                "table_xinfo",
-                r#"PRAGMA schema.table_xinfo(table-name);
+        ],
+        [
+            "table_xinfo",
+            r#"PRAGMA schema.table_xinfo(table-name);
 
 This pragma returns one row for each column in the named table, including generated columns and hidden columns. The output has the same columns as for PRAGMA table_info plus a column, "hidden", whose value signifies a normal column (0), a dynamic or stored generated column (2 or 3), or a hidden column in a virtual table (1). The rows for which this field is non-zero are those omitted for PRAGMA table_info.
 "#,
-            ],
-            [
-                "temp_store",
-                r#"PRAGMA temp_store;
+        ],
+        [
+            "temp_store",
+            r#"PRAGMA temp_store;
 PRAGMA temp_store = 0 | DEFAULT | 1 | FILE | 2 | MEMORY;
 
 Query or change the setting of the "temp_store" parameter. When temp_store is DEFAULT (0), the compile-time C preprocessor macro SQLITE_TEMP_STORE is used to determine where temporary tables and indices are stored. When temp_store is MEMORY (2) temporary tables and indices are kept as if they were in pure in-memory databases. When temp_store is FILE (1) temporary tables and indices are stored in a file. The temp_store_directory pragma can be used to specify the directory containing temporary files when FILE is specified. When the temp_store setting is changed, all existing temporary tables, indices, triggers, and views are immediately deleted.
 
 It is possible for the library compile-time C preprocessor symbol SQLITE_TEMP_STORE to override this pragma setting. The following table summarizes the interaction of the SQLITE_TEMP_STORE preprocessor macro and the temp_store pragma:"#,
-            ],
-            [
-                "temp_store_directory",
-                r#"
+        ],
+        [
+            "temp_store_directory",
+            r#"
 
 PRAGMA temp_store_directory;
 PRAGMA temp_store_directory = 'directory-name';
@@ -944,19 +951,19 @@ The value directory-name should be enclosed in single quotes. To revert the dire
 The default directory for temporary files depends on the OS. Some OS interfaces may choose to ignore this variable and place temporary files in some other directory different from the directory specified here. In that sense, this pragma is only advisory.
 
 This pragma is deprecated and exists for backwards compatibility only. New applications should avoid using this pragma. Older applications should discontinue use of this pragma at the earliest opportunity. This pragma may be omitted from the build when SQLite is compiled using SQLITE_OMIT_DEPRECATED. "#,
-            ],
-            [
-                "threads",
-                r#"PRAGMA threads;
+        ],
+        [
+            "threads",
+            r#"PRAGMA threads;
 PRAGMA threads = N;
 
 Query or change the value of the sqlite3_limit(db,SQLITE_LIMIT_WORKER_THREADS,...) limit for the current database connection. This limit sets an upper bound on the number of auxiliary threads that a prepared statement is allowed to launch to assist with a query. The default limit is 0 unless it is changed using the SQLITE_DEFAULT_WORKER_THREADS compile-time option. When the limit is zero, that means no auxiliary threads will be launched.
 
 This pragma is a thin wrapper around the sqlite3_limit(db,SQLITE_LIMIT_WORKER_THREADS,...) interface. "#,
-            ],
-            [
-                "trusted_schema",
-                r#"
+        ],
+        [
+            "trusted_schema",
+            r#"
 
 PRAGMA trusted_schema;
 PRAGMA trusted_schema = boolean;
@@ -966,51 +973,51 @@ The trusted_schema setting is a per-connection boolean that determines whether o
 In order to maintain backwards compatibility, this setting is ON by default. There are advantages to turning it off, and most applications will be unaffected if it is turned off. For that reason, all applications are encouraged to switch this setting off on every database connection as soon as that connection is opened.
 
 The -DSQLITE_TRUSTED_SCHEMA=0 compile-time option will cause this setting to default to OFF. "#,
-            ],
-            [
-                "user_version",
-                r#"PRAGMA schema.user_version;
+        ],
+        [
+            "user_version",
+            r#"PRAGMA schema.user_version;
 PRAGMA schema.user_version = integer ;
 
 The user_version pragma will get or set the value of the user-version integer at offset 60 in the database header. The user-version is an integer that is available to applications to use however they want. SQLite makes no use of the user-version itself.
 
 See also the application_id pragma and schema_version pragma. "#,
-            ],
-            [
-                "vdbe_addoptrace",
-                r#"PRAGMA vdbe_addoptrace = boolean;
+        ],
+        [
+            "vdbe_addoptrace",
+            r#"PRAGMA vdbe_addoptrace = boolean;
 
 If SQLite has been compiled with the SQLITE_DEBUG compile-time option, then the vdbe_addoptrace pragma can be used to cause a complete VDBE opcodes to be displayed as they are created during code generation. This feature is used for debugging SQLite itself. See the VDBE documentation for more information.
 
 This pragma is intended for use when debugging SQLite itself. It is only available when the SQLITE_DEBUG compile-time option is used."#,
-            ],
-            [
-                "vdbe_debug",
-                r#"PRAGMA vdbe_debug = boolean;
+        ],
+        [
+            "vdbe_debug",
+            r#"PRAGMA vdbe_debug = boolean;
 
 If SQLite has been compiled with the SQLITE_DEBUG compile-time option, then the vdbe_debug pragma is a shorthand for three other debug-only pragmas: vdbe_addoptrace, vdbe_listing, and vdbe_trace. This feature is used for debugging SQLite itself. See the VDBE documentation for more information.
 
 This pragma is intended for use when debugging SQLite itself. It is only available when the SQLITE_DEBUG compile-time option is used."#,
-            ],
-            [
-                "vdbe_listing",
-                r#"PRAGMA vdbe_listing = boolean;
+        ],
+        [
+            "vdbe_listing",
+            r#"PRAGMA vdbe_listing = boolean;
 
 If SQLite has been compiled with the SQLITE_DEBUG compile-time option, then the vdbe_listing pragma can be used to cause a complete listing of the virtual machine opcodes to appear on standard output as each statement is evaluated. With listing is on, the entire content of a program is printed just prior to beginning execution. The statement executes normally after the listing is printed. This feature is used for debugging SQLite itself. See the VDBE documentation for more information.
 
 This pragma is intended for use when debugging SQLite itself. It is only available when the SQLITE_DEBUG compile-time option is used."#,
-            ],
-            [
-                "vdbe_trace",
-                r#"PRAGMA vdbe_trace = boolean;
+        ],
+        [
+            "vdbe_trace",
+            r#"PRAGMA vdbe_trace = boolean;
 
 If SQLite has been compiled with the SQLITE_DEBUG compile-time option, then the vdbe_trace pragma can be used to cause virtual machine opcodes to be printed on standard output as they are evaluated. This feature is used for debugging SQLite. See the VDBE documentation for more information.
 
 This pragma is intended for use when debugging SQLite itself. It is only available when the SQLITE_DEBUG compile-time option is used."#,
-            ],
-            [
-                "wal_autocheckpoint",
-                r#"PRAGMA wal_autocheckpoint;
+        ],
+        [
+            "wal_autocheckpoint",
+            r#"PRAGMA wal_autocheckpoint;
 PRAGMA wal_autocheckpoint=N;
 
 This pragma queries or sets the write-ahead log auto-checkpoint interval. When the write-ahead log is enabled (via the journal_mode pragma) a checkpoint will be run automatically whenever the write-ahead log equals or exceeds N pages in length. Setting the auto-checkpoint size to zero or a negative value turns auto-checkpointing off.
@@ -1018,10 +1025,10 @@ This pragma queries or sets the write-ahead log auto-checkpoint interval. When t
 This pragma is a wrapper around the sqlite3_wal_autocheckpoint() C interface. All automatic checkpoints are PASSIVE.
 
 Autocheckpointing is enabled by default with an interval of 1000 or SQLITE_DEFAULT_WAL_AUTOCHECKPOINT."#,
-            ],
-            [
-                "wal_checkpoint",
-                r#"PRAGMA schema.wal_checkpoint;
+        ],
+        [
+            "wal_checkpoint",
+            r#"PRAGMA schema.wal_checkpoint;
 PRAGMA schema.wal_checkpoint(PASSIVE);
 PRAGMA schema.wal_checkpoint(FULL);
 PRAGMA schema.wal_checkpoint(RESTART);
@@ -1033,33 +1040,32 @@ Invoking this pragma without an argument is equivalent to calling the sqlite3_wa
 Invoking this pragma with an argument is equivalent to calling the sqlite3_wal_checkpoint_v2() C interface with a 3rd parameter corresponding to the argument:
 
 PASSIVE
-    Checkpoint as many frames as possible without waiting for any database readers or writers to finish. Sync the db file if all frames in the log are checkpointed. This mode is the same as calling the sqlite3_wal_checkpoint() C interface. The busy-handler callback is never invoked in this mode. 
+Checkpoint as many frames as possible without waiting for any database readers or writers to finish. Sync the db file if all frames in the log are checkpointed. This mode is the same as calling the sqlite3_wal_checkpoint() C interface. The busy-handler callback is never invoked in this mode. 
 FULL
-    This mode blocks (invokes the busy-handler callback) until there is no database writer and all readers are reading from the most recent database snapshot. It then checkpoints all frames in the log file and syncs the database file. FULL blocks concurrent writers while it is running, but readers can proceed. 
+This mode blocks (invokes the busy-handler callback) until there is no database writer and all readers are reading from the most recent database snapshot. It then checkpoints all frames in the log file and syncs the database file. FULL blocks concurrent writers while it is running, but readers can proceed. 
 RESTART
-    This mode works the same way as FULL with the addition that after checkpointing the log file it blocks (calls the busy-handler callback) until all readers are finished with the log file. This ensures that the next client to write to the database file restarts the log file from the beginning. RESTART blocks concurrent writers while it is running, but allowed readers to proceed. 
+This mode works the same way as FULL with the addition that after checkpointing the log file it blocks (calls the busy-handler callback) until all readers are finished with the log file. This ensures that the next client to write to the database file restarts the log file from the beginning. RESTART blocks concurrent writers while it is running, but allowed readers to proceed. 
 TRUNCATE
-    This mode works the same way as RESTART with the addition that the WAL file is truncated to zero bytes upon successful completion. 
+This mode works the same way as RESTART with the addition that the WAL file is truncated to zero bytes upon successful completion. 
 
 The wal_checkpoint pragma returns a single row with three integer columns. The first column is usually 0 but will be 1 if a RESTART or FULL or TRUNCATE checkpoint was blocked from completing, for example because another thread or process was actively using the database. In other words, the first column is 0 if the equivalent call to sqlite3_wal_checkpoint_v2() would have returned SQLITE_OK or 1 if the equivalent call would have returned SQLITE_BUSY. The second column is the number of modified pages that have been written to the write-ahead log file. The third column is the number of pages in the write-ahead log file that have been successfully moved back into the database file at the conclusion of the checkpoint. The second and third column are -1 if there is no write-ahead log, for example if this pragma is invoked on a database connection that is not in WAL mode."#,
-            ],
-            [
-                "writable_schema",
-                r#"PRAGMA writable_schema = boolean;
+        ],
+        [
+            "writable_schema",
+            r#"PRAGMA writable_schema = boolean;
 PRAGMA writable_schema = RESET
 
 When this pragma is on, and the SQLITE_DBCONFIG_DEFENSIVE flag is off, then the sqlite_schema table can be changed using ordinary UPDATE, INSERT, and DELETE statements. If the argument is "RESET" then schema writing is disabled (as with "PRAGMA writable_schema=OFF") and, in addition, the schema is reloaded. Warning: misuse of this pragma can easily result in a corrupt database file. "#,
-            ],
-        ];
-        lazy_static::lazy_static! {
-            static ref CS : Vec<CompletionItem> = SS.iter().map(|x| CompletionItem {
-                item : Cow::Borrowed(x[0].into()),
-                kind : CompletionKind::Pragma,
-                desc: Some( x[1].into()),
-            }).collect();
-        }
-        return CS.clone();
+        ],
+    ];
+    lazy_static::lazy_static! {
+        static ref CS : Vec<CompletionItem> = SS.iter().map(|x| CompletionItem {
+            item : Cow::Borrowed(x[0].into()),
+            kind : CompletionKind::Pragma,
+            desc: Some( x[1].into()),
+        }).collect();
     }
+    return CS.clone();
 }
 
 #[cfg(test)]
@@ -1136,7 +1142,7 @@ mod tests {
     }
 }
 
-const SQLITE_FN_AND_DESC: &'static [[&'static str; 2]] = &[
+pub(crate) const SQLITE_FN_AND_DESC: &'static [[&'static str; 2]] = &[
     [
         "abs",
         r#"The abs(X) function returns the absolute value of the numeric argument X. Abs(X) returns NULL if X is NULL. Abs(X) returns 0.0 if X is a string or blob that cannot be converted to a numeric value. If X is the integer -9223372036854775808 then abs(X) throws an integer overflow error since there is no equivalent positive 64-bit two complement value. "#,
@@ -1761,9 +1767,38 @@ Examples:
     ],
 ];
 
-const SQLITE_TYPES: &[&str] = &["NULL", "INTEGER", "REAL", "TEXT", "BLOB"];
+pub(crate) const SQLITE_TYPES: &[&str] = &[
+    "NULL",
+    "INTEGER",
+    "REAL",
+    "TEXT",
+    "BLOB",
+    "INT",
+    "TINYINT",
+    "SMALLINT",
+    "MEDIUMINT",
+    "BIGINT",
+    "UNSIGNED BIG INT",
+    "INT2",
+    "INT8",
+    "CHARACTER",
+    "VARCHAR",
+    "VARYING CHARACTER",
+    "NCHAR",
+    "NATIVE CHARACTER",
+    "NVARCHAR",
+    "CLOB",
+    "DOUBLE",
+    "DOUBLE PRECISION",
+    "FLOAT",
+    "NUMERIC",
+    "DECIMAL",
+    "BOOLEAN",
+    "DATE",
+    "DATETIME",
+];
 
-const SQLITE_KEY_WORDS: &[&str] = &[
+pub(crate) const SQLITE_KEY_WORDS: &[&str] = &[
     "ABORT",
     "ACTION",
     "ADD",

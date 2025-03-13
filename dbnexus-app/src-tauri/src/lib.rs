@@ -2,7 +2,11 @@ pub mod handlers;
 
 #[cfg(test)]
 mod tests {
-    use dbnexus_db::{cassandra::CassandraDB, datasource_config::CassandraDBConfig};
+    use dbnexus_db::{
+        cassandra::CassandraDB,
+        datasource_config::{CassandraDBConfig, LibSqlDBConfigSouce},
+        db::CreateTableAndIndexSql,
+    };
 
     #[test]
     fn generate_ts_def() {
@@ -61,6 +65,8 @@ mod tests {
                 &QueryLogEvent::INFO,
                 &SemanticToken::INFO,
                 &CassandraDBConfig::INFO,
+                &LibSqlDBConfigSouce::INFO,
+                &CreateTableAndIndexSql::INFO,
             ];
 
             let mut buf = Vec::new();

@@ -9,7 +9,6 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
-
 interface ConfirmOptions {
   title: string;
   content?: string;
@@ -31,11 +30,9 @@ async function secondConfirm({
   });
 }
 
-function datagridContainerHeight(length) {
-  return length < 20 ? undefined : '78vh';
-
+function datagridContainerHeight(length, height = '78vh') {
+  return length < 20 ? undefined : height;
 }
-
 
 async function randomTestThrowFunction() {
   await delayedReturn(undefined, Math.random() * 900);
@@ -44,6 +41,7 @@ async function randomTestThrowFunction() {
     throw new Error(`this is random error of ${v}`);
   }
 }
+
 
 async function voidTestFunction() {
   try {
@@ -293,17 +291,18 @@ function errToString(message) {
 }
 
 enum DataSourceKind {
-  Mysql,
-  MariaDB,
-  TiDB,
-  Sqlite,
-  Postgres,
-  MsSql,
-  Redis,
-  Mongo,
-  Oracle,
-  Cassandra,
-  ClickHouse,
+  Mysql = "mysql",
+  MariaDB = "mariadb",
+  TiDB = "tidb",
+  Sqlite = "sqlite",
+  Postgres = "postgres",
+  MsSql = "mssql",
+  Redis = "redis",
+  Mongo = "mongo",
+  Oracle = "oracle",
+  Cassandra = "cassandra",
+  ClickHouse = "clickhouse",
+  LibSql = "libsql"
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
@@ -330,7 +329,8 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
       return DataSourceKind.Cassandra
     case 'clickhouse':
       return DataSourceKind.ClickHouse
-
+    case 'libsql':
+      return DataSourceKind.LibSql
     default:
       console.log("connection typt not handle:", name);
   }
@@ -351,7 +351,79 @@ enum AppStoreKey {
   UserSetttings = 'user_settings',
   ConnectionConfig = 'connection_config',
   ColumnWithd = 'column_widths',
-  LeftSize = 'left_size'
+  LeftSize = 'left_size',
+  FavoriteSql = "favorite_sql"
+}
+
+
+class FavoriteSql {
+  constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public lastModified: Date = new Date()) { }
+  static key = AppStoreKey.FavoriteSql;
+  static async save(x: FavoriteSql, showNotification) {
+    try {
+      const store = await appStore();
+      let logs = await store.get<object>(FavoriteSql.key);
+      if (!logs) {
+        logs = {};
+      }
+      logs[FavoriteSql.formatKey(x.uuid, x.name)] = x;
+      await store.set(FavoriteSql.key, logs)
+    } catch (e) {
+      showNotification('error', "save favorite sql failed", e);
+      return
+    }
+    showNotification('success', "save sql Ok")
+  }
+  static formatKey(uuid: string, name: string) {
+    return uuid + '-' + name
+  }
+
+  static async delete(key: string, showNotification) {
+    try {
+      const store = await appStore();
+      let logs = await store.get<object>(FavoriteSql.key);
+      if (logs) {
+        logs = {};
+      }
+      delete logs[key];
+      await store.set(FavoriteSql.key, logs)
+    } catch (e) {
+      showNotification('error', "save favorite sql failed", e);
+      return
+    }
+    showNotification('success', "delete sql Ok")
+  }
+
+  static async deleteByUuid(uuid: string) {
+    try {
+      const store = await appStore();
+      let logs = await store.get<object>(FavoriteSql.key);
+      if (logs) {
+        logs = {};
+      }
+
+      for (var key in logs) {
+        const log = logs[key] as FavoriteSql;
+        if (log.uuid == uuid) {
+          delete logs[key]
+        }
+      }
+      await store.set(FavoriteSql.key, logs)
+    } catch (e) {
+      console.log("delete all logs belong to a key failed", e);
+      return
+    }
+  }
+  static async clear(showNotification) {
+    try {
+      const store = await appStore();
+      await store.set(FavoriteSql.key, {});
+    } catch (e) {
+      showNotification('error', "save favorite sql failed", e);
+      return
+    }
+    showNotification('success', "clean OK");
+  }
 }
 
 class ColumnWidths {
@@ -403,8 +475,10 @@ const handleCopyToClipboard = (text, showNotification) => {
     });
 };
 
+
 class TabContent {
   constructor(
+
     public id: string,
     public header: ReactNode,
     public content: ReactNode
@@ -419,6 +493,12 @@ const TabsSetContext = createContext<{
 const ConnTypeContext = createContext<{
   kind: DataSourceKind;
 }>(null);
+
+
+const MatchPatternContext = createContext<(x: string) => boolean>(() => {
+  return true
+});
+
 
 const UuidContext = createContext<{
   uuid: string;
@@ -469,5 +549,7 @@ export {
   datagridContainerHeight,
   uint8ArrayToUtf8,
   filterStyle,
-  VisiableContext
+  VisiableContext,
+  FavoriteSql,
+  MatchPatternContext
 };

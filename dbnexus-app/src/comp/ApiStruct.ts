@@ -44,7 +44,7 @@ export namespace types {
         /**
          * milliseconds
          */
-        "connect_timeout": (types.U64 | null);
+        "call_timeout": (types.U64 | null);
         "db": (string | null);
         "read_only": boolean;
     };
@@ -71,7 +71,7 @@ export namespace types {
         "port": (types.U16 | null);
         "username": (string | null);
         "password": (string | null);
-        "keyspace": (string | null);
+        "db": (string | null);
         "read_only": boolean;
     };
     export type ClickHouseConfig = {
@@ -83,6 +83,21 @@ export namespace types {
         "read_only": boolean;
         "https": boolean;
     };
+    export type LibSqlDBConfigSouce = (({
+        "source": "local";
+    } & {
+        "path": string;
+    }) | ({
+        "source": "remote";
+    } & {
+        "url": string;
+        "auth_token": string;
+        "path": string;
+    }));
+    export type LibSqlDBConfig = (types.LibSqlDBConfigSouce & {
+        "replica": boolean;
+        "read_only": boolean;
+    });
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -104,7 +119,7 @@ export namespace types {
     } & (types.PGDBConfig & {
         "name": string;
     })) | ({
-        "conn_type": "sqlserver";
+        "conn_type": "mssql";
     } & (types.SqlServerDBConfig & {
         "name": string;
     })) | ({
@@ -126,6 +141,10 @@ export namespace types {
     })) | ({
         "conn_type": "clickhouse";
     } & (types.ClickHouseConfig & {
+        "name": string;
+    })) | ({
+        "conn_type": "libsql";
+    } & (types.LibSqlDBConfig & {
         "name": string;
     })));
     export type ListTable = {
@@ -153,7 +172,7 @@ export namespace types {
     export type Index = {
         "name": (string | null);
         "kind": types.IndexKind;
-        "on": (string)[];
+        "columns": (string)[];
     };
     export type I64 = number;
     export type SqlExecuteRet = {
@@ -224,13 +243,14 @@ export namespace types {
         "sql": string;
         "enable": (types.TriggerEnable | null);
         "metas": (types.MetaValue)[];
+        "name": string;
     };
     export type CompletionItem = {
         "item": string;
         "kind": CompletionKind;
         "desc": (string | null);
     };
-    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule");
+    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster");
     export type DefAndMetas = {
         "def": string;
         "metas": (types.MetaValue)[];
@@ -276,5 +296,18 @@ export namespace types {
         "length": types.U32;
         "token_type": types.U32;
         "token_modifiers": (types.U32 | null);
+    };
+
+    /**
+     * create table and all index sql.
+     */
+    export type CreateTableAndIndexSql = {
+        "create_table": string;
+
+        /**
+         * some backend can query create table and index in one sql
+         * this can be empty
+         */
+        "indexes": (string)[];
     };
 }
