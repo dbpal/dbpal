@@ -164,6 +164,12 @@ function ColumnsStructure(props: {
         },
       },
       {
+        field: 'default_value',
+        renderHeader: () => {
+          return 'default value';
+        },
+      },
+      {
         field: 'sortable',
         renderCell: (row) => {
           return TrueOrFalse(row.row['sortable']);
