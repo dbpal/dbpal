@@ -7,6 +7,7 @@ import {
   MenuList,
   Divider,
   ButtonGroup,
+  IconButton,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import {
@@ -176,7 +177,6 @@ function TabsWithContent_(props: {
                       style: calMenuStyle(e, 100),
                     });
                   }}
-                  sx={{ fontSize: '0.85rem' }}
                   variant={index == selectIndex ? 'contained' : 'text'}
                   color={index == selectIndex ? 'primary' : 'inherit'}
                   onClick={() => {
@@ -185,14 +185,13 @@ function TabsWithContent_(props: {
                 >
                   {tab.header}
                 </Button>
-                <Button
+                <IconButton
                   onClick={() => {
                     handleClose(index);
                   }}
-                  variant="text"
                 >
                   <CloseIcon />
-                </Button>
+                </IconButton>
               </ButtonGroup>
             );
           })}

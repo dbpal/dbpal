@@ -72,6 +72,7 @@ function WelCome() {
             style={{
               alignItems: 'center',
               padding: '4px',
+              textShadow: '8px 8px 2px rgba(113, 113, 113, 0.5)',
             }}
             key={e.name}
           >
