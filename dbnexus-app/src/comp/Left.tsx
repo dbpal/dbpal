@@ -142,7 +142,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {show && (
         <Stack
           direction="row"
-          style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}
+          style={{ justifyContent: 'center', flexWrap: 'wrap' }}
         >
           <Tooltip title="make a connection">
             <IconButton

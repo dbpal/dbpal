@@ -633,7 +633,7 @@ function ConnConfigInfo(props: { uuid }) {
   );
 }
 function reloadOK(showNotification) {
-  showNotification('success', 'reload OK');
+  showNotification('success', 'data loaded.');
 }
 const registeredLanguage = new Set<string>();
 

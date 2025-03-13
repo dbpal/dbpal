@@ -1,18 +1,15 @@
 import {
-  FormControl,
-  InputLabel,
-  Select,
   MenuItem,
   ListItemIcon,
   ListItemText,
   Tooltip,
   Typography,
-  Box,
   Paper,
   MenuList,
   Stack,
   Button,
   Divider,
+  Chip,
 } from '@mui/material';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { types } from './ApiStruct';
@@ -240,39 +237,21 @@ function MenuOpenConn({ handleOpend, name }) {
 }
 const pageSizeOptions = [10, 20, 50, 100];
 
-function SelectPageSize({
-  width = '200px',
-  variant = 'outlined',
-  tital = 'select page size',
-  pageSize,
-  handleChange,
-  options = pageSizeOptions,
-}) {
+function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
   return (
-    <Box width={width}>
-      <FormControl
-        //@ts-ignore
-        variant={variant}
-        fullWidth
-      >
-        <InputLabel id="simple-select-label">{tital}</InputLabel>
-        <Select
-          labelId="simple-select-label"
-          id="simple-select"
-          value={pageSize}
-          onChange={(e) => {
-            handleChange(e.target.value);
+    <Stack direction="row" spacing={1}>
+      {options.map((e) => (
+        <Chip
+          label={e}
+          color="info"
+          onClick={() => {
+            handleChange(e);
           }}
-          label="select page size"
-        >
-          {options.map((e) => (
-            <MenuItem key={e} value={e}>
-              {e}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    </Box>
+          key={e}
+          disabled={e == pageSize}
+        ></Chip>
+      ))}
+    </Stack>
   );
 }
 
@@ -432,7 +411,7 @@ function MenuResetColumnWidths() {
   const { showNotification } = useContext(NotificationContext);
   const handleReset = async () => {
     columnWidths.reset();
-    showNotification('success', 'reset column width success');
+    showNotification('success', 'reset column width successfully');
   };
   return (
     <MenuItem onClick={handleReset}>

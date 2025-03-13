@@ -558,9 +558,9 @@ function SqlTableView(props: {
           <Stack
             direction="row"
             spacing={1}
-            sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
+            sx={{ alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               {resp && (
                 <Typography
                   sx={{
@@ -730,7 +730,7 @@ function SqlTableViewAdd(props: {
             key={f.field}
             direction="row"
             spacing={1}
-            sx={{ alignContent: 'flex-end', justifyContent: 'flex-end' }}
+            sx={{ alignContent: 'center', justifyContent: 'center' }}
           >
             <TextField
               inputRef={(x) => {
@@ -905,7 +905,6 @@ function Menu(props: {
         )}
         {addOP && (
           <>
-            <Divider></Divider>
             <MenuItem onClick={handleClone}>
               <ListItemIcon>
                 <FileCopyIcon></FileCopyIcon>

@@ -649,7 +649,7 @@ function RedisValueEditor(props: {
             style={{ width: '100%', height: '100%' }}
           ></HexEditor>
 
-          <Stack direction="row" spacing={1} alignItems="flex-start">
+          <Stack direction="row" spacing={1} alignItems="center">
             <TextField
               size="small"
               error={addLengthErr}
@@ -905,7 +905,7 @@ function RedisSetTable(props: {
   const settings = useContext(SettingContext);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="flex-start">
+      <Stack direction="row" spacing={1} alignItems="center">
         <TextField
           size="small"
           label="key match could be *key,key*,*key*"
@@ -1421,7 +1421,7 @@ function RedisZsetTable(props: {
   const setting = useContext(SettingContext);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="flex-start">
+      <Stack direction="row" spacing={1} alignItems="center">
         <TextField
           size="small"
           label="key match could be *key,key*,*key*"
@@ -1665,7 +1665,7 @@ function RedisHashTable(props: {
   const setting = useContext(SettingContext);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="flex-start">
+      <Stack direction="row" spacing={1} alignItems="center">
         <TextField
           size="small"
           label="key match could be *key,key*,*key*"

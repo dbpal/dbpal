@@ -839,7 +839,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         />
       </Stack>
       <Divider></Divider>
-      <Stack direction="row" spacing={1} alignContent="flex-start">
+      <Stack direction="row" spacing={1} alignContent="center">
         <Button
           variant="contained"
           color="primary"

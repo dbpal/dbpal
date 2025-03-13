@@ -1176,21 +1176,31 @@ function ColumnParentThesesHint() {
 }
 
 function ColumnNullness({ nullness, handleNullness }) {
+  const xxx = [
+    { name: 'none', value: '' },
+    { name: 'null', value: 'null' },
+    {
+      name: 'not null',
+      value: 'not null',
+    },
+  ];
   return (
-    <FormControl style={{ minWidth: '180px' }}>
-      <InputLabel id="dropdown-label">select nullness </InputLabel>
-      <Select
-        labelId="dropdown-label"
-        value={nullness}
-        onChange={(e) => {
-          handleNullness(e.target.value);
-        }}
-      >
-        <MenuItem value="">none</MenuItem>
-        <MenuItem value="null">null</MenuItem>
-        <MenuItem value="not null">not null</MenuItem>
-      </Select>
-    </FormControl>
+    <RadioGroup
+      row
+      onChange={(_, value) => {
+        handleNullness(value);
+      }}
+      value={nullness}
+    >
+      {xxx.map((e) => (
+        <FormControlLabel
+          key={e.name}
+          value={e.value}
+          control={<Radio />}
+          label={e.name}
+        />
+      ))}
+    </RadioGroup>
   );
 }
 

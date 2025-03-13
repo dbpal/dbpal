@@ -346,7 +346,7 @@ function SqlQuery(props: {
               width: '65%',
             }}
           >
-            <Stack direction="row" sx={{ justifyContent: 'flex-start' }}>
+            <Stack direction="row" sx={{ justifyContent: 'center' }}>
               <Button
                 onClick={() => {
                   setShowQueryLog(false);

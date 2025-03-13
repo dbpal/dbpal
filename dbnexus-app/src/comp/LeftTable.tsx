@@ -130,7 +130,7 @@ function TablesTree(props: { typ: TablesType }) {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'flex-start', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -1240,7 +1240,7 @@ function RedisTables(prpos: { schema?: string }) {
         label=<Stack
           spacing={1}
           direction="row"
-          sx={{ alignItems: 'flex-end', ...treeItemCommonStyle }}
+          sx={{ alignItems: 'center', ...treeItemCommonStyle }}
         >
           {/* <span>{icon} </span> */}
           <span>{name}</span>

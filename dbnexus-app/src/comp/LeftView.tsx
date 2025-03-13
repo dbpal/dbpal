@@ -60,7 +60,7 @@ import {
   UuidContext,
   VisiableContext,
 } from './helper';
-import { MenuRefresh, MenuResetColumnWidths } from './CommonComp';
+import { MenuRefresh } from './CommonComp';
 import { MongoTable } from './MongoDB';
 import { BSON, EJSON } from 'bson';
 

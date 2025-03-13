@@ -90,7 +90,7 @@ function ProceduresTree() {
           <TreeItem
             key={p.name + '-' + p.parameters}
             itemId={getItemId(p)}
-            sx={{ alignItems: 'flex-end' }}
+            sx={{ alignItems: 'center' }}
             label=<Stack
               spacing={1}
               direction="row"

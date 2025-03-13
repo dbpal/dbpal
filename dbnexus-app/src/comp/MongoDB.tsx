@@ -313,7 +313,7 @@ function MongoBsonEditor(props: {
       </div>
 
       <Stack direction="row" justifyContent="space-between">
-        <Stack direction="row" alignContent="flex-start" spacing={1}>
+        <Stack direction="row" alignContent="center" spacing={1}>
           {buttons.map((button) => {
             return (
               //@ts-ignore
@@ -349,12 +349,7 @@ function MongoBsonEditor(props: {
           {err == null && <Alert severity="success">Valid Document</Alert>}
           {!!err && <Alert severity="error">{err.msgWithLoc}</Alert>}
         </Stack>
-        <Stack
-          width="40%"
-          spacing={1}
-          direction="row"
-          alignContent="flex-start"
-        >
+        <Stack width="40%" spacing={1} direction="row" alignContent="center">
           {pos && (
             <>
               <span> Ln {pos.lineNumber} </span>
@@ -1150,7 +1145,7 @@ function MongoTableObject(props: {
             );
           })}
           {/* // here is pagination */}
-          <Stack direction="row" spacing={1} alignItems="flex-end">
+          <Stack direction="row" spacing={1} alignItems="center">
             <Pagination
               page={page}
               defaultPage={1}
