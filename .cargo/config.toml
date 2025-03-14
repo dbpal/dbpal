@@ -8,7 +8,7 @@ lto = true
 opt-level = "z"
 
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "link-arg=/STACK:8000000"]
+rustflags = ["-C", "link-arg=/STACK:8000000","-C", "link-arg=/FORCE:MULTIPLE"]
 
 # 64 bit Mingw
 [target.x86_64-pc-windows-gnu]
