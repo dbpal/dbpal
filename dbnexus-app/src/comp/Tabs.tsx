@@ -6,10 +6,9 @@ import {
   MenuItem,
   MenuList,
   Divider,
-  ButtonGroup,
-  IconButton,
+  Chip,
 } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
+
 import {
   calMenuStyle,
   ContextMenuContext,
@@ -125,9 +124,9 @@ function TabsWithContent_(props: {
   setTabs;
 }) {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
-
   const { setUpMenu } = useContext(ContextMenuContext);
   const [hideAll, setHideAll] = useState(false);
+  const colors = ['primary', 'secondary', 'info', 'success'];
   return (
     <Stack spacing={1}>
       {hideAll && (
@@ -153,46 +152,44 @@ function TabsWithContent_(props: {
         >
           {tabs.map((tab, index) => {
             return (
-              <ButtonGroup
-                key={tab.id}
-                style={{
-                  borderRadius: '8px',
-                  border: '1px solid skyblue',
+              <Chip
+                label={tab.header}
+                onDelete={() => {
+                  handleClose(index);
                 }}
-              >
-                <Button
-                  onContextMenu={(e) => {
-                    setUpMenu({
-                      content: (
-                        <TabsMenu
-                          index={index}
-                          handleClose={handleClose}
-                          setTabs={setTabs}
-                          tabsLength={tabs.length}
-                          changeTab={changeTab}
-                          selectIndex={selectIndex}
-                          setHideAll={setHideAll}
-                        ></TabsMenu>
-                      ),
-                      style: calMenuStyle(e, 100),
-                    });
-                  }}
-                  variant={index == selectIndex ? 'contained' : 'text'}
-                  color={index == selectIndex ? 'primary' : 'inherit'}
-                  onClick={() => {
-                    changeTab(index);
-                  }}
-                >
-                  {tab.header}
-                </Button>
-                <IconButton
-                  onClick={() => {
-                    handleClose(index);
-                  }}
-                >
-                  <CloseIcon />
-                </IconButton>
-              </ButtonGroup>
+                icon={tab.icon}
+                clickable
+                //@ts-ignore
+                color={index == selectIndex ? 'primary' : 'default'}
+                onContextMenu={(e) => {
+                  setUpMenu({
+                    content: (
+                      <TabsMenu
+                        index={index}
+                        handleClose={handleClose}
+                        setTabs={setTabs}
+                        tabsLength={tabs.length}
+                        changeTab={changeTab}
+                        selectIndex={selectIndex}
+                        setHideAll={setHideAll}
+                      ></TabsMenu>
+                    ),
+                    style: calMenuStyle(e, 100),
+                  });
+                }}
+                onClick={() => {
+                  changeTab(index);
+                }}
+                sx={{
+                  // opacity: index == selectIndex ? '0.5' : 1,
+                  '& .MuiChip-deleteIcon': {
+                    visibility: 'hidden', // 默认隐藏删除按钮
+                  },
+                  '&:hover .MuiChip-deleteIcon': {
+                    visibility: 'visible', // hover 时显示删除按钮
+                  },
+                }}
+              ></Chip>
             );
           })}
         </Stack>

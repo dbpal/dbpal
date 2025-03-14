@@ -779,7 +779,15 @@ function TableMenu(props: {
 
       setTabs((e) => {
         setSelectTab(tabs.length);
-        return [...e, new TabContent(id, table, tableList)];
+        return [
+          ...e,
+          new TabContent(
+            id,
+            table,
+            tableList,
+            <TableViewIcon> </TableViewIcon>
+          ),
+        ];
       });
     }
   };
@@ -793,7 +801,15 @@ function TableMenu(props: {
     );
     setTabs((e) => {
       setSelectTab(tabs.length);
-      return [...e, new TabContent(id, `${table}*`, tableList)];
+      return [
+        ...e,
+        new TabContent(
+          id,
+          `${table}*`,
+          tableList,
+          <TableViewIcon> </TableViewIcon>
+        ),
+      ];
     });
   };
   const handleStrucure = () => {
@@ -815,7 +831,8 @@ function TableMenu(props: {
                 table={table}
                 uuid={uuid}
               ></TableStructure>
-            )
+            ),
+            <IoConstructOutline> </IoConstructOutline>
           ),
         ];
       });

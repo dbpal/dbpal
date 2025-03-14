@@ -15,6 +15,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { MdQueryStats } from 'react-icons/md';
 import {
   memo,
   useCallback,
@@ -598,7 +599,12 @@ function FavoriteSqlList(props: { handleClose }) {
         setSelectTab(tabs.length);
         return [
           ...tabs,
-          new TabContent(generateRandomString(10), `q@${row.uuid}`, content),
+          new TabContent(
+            generateRandomString(10),
+            `q@${row.uuid}`,
+            content,
+            <MdQueryStats> </MdQueryStats>
+          ),
         ];
       });
     } catch (e) {
@@ -1234,7 +1240,10 @@ async function openNewQuery(
 
   setTabs((e: TabContent[]) => {
     setSelectTab(e.length);
-    return [...e, new TabContent(id, `q@${uuid}`, content)];
+    return [
+      ...e,
+      new TabContent(id, `q@${uuid}`, content, <MdQueryStats> </MdQueryStats>),
+    ];
   });
 }
 function SchemaMenu(props: {

@@ -10,7 +10,7 @@ import {
   useEffect,
   useState,
 } from 'react';
-
+import { SiWelcometothejungle } from 'react-icons/si';
 import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
 import { tabsHasId } from './Common.tsx';
@@ -24,10 +24,15 @@ import {
   ContextMenuContext,
   TabsSetContext,
 } from './helper.ts';
-
+import { IoMdSettings } from 'react-icons/io';
 export default function MainPage() {
   let [tabs, setTabs] = useState([
-    new TabContent('welcome', 'welcome', <WelCome></WelCome>),
+    new TabContent(
+      'welcome',
+      'welcome',
+      <WelCome></WelCome>,
+      <SiWelcometothejungle> </SiWelcometothejungle>
+    ),
   ]);
   const [selectIndex, setSelectTab] = useState(0);
 
@@ -42,7 +47,12 @@ export default function MainPage() {
           setSelectTab(e.length);
           return [
             ...e,
-            new TabContent(id, id, <ModifySettings></ModifySettings>),
+            new TabContent(
+              id,
+              id,
+              <ModifySettings></ModifySettings>,
+              <IoMdSettings> </IoMdSettings>
+            ),
           ];
         });
       }

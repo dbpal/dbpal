@@ -510,7 +510,8 @@ function MenuConnectionInfo({ uuid }) {
           new TabContent(
             id,
             uuid,
-            <ConnConfigInfo uuid={uuid}></ConnConfigInfo>
+            <ConnConfigInfo uuid={uuid}></ConnConfigInfo>,
+            <InfoIcon></InfoIcon>
           ),
         ];
       });

@@ -159,7 +159,8 @@ function ProcedureMenu(props: {
                 }}
                 uuid={uuid}
               ></DefAndMetasView>
-            )
+            ),
+            <SiProcessingfoundation></SiProcessingfoundation>
           ),
         ];
       });

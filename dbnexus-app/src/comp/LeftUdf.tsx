@@ -187,7 +187,8 @@ function UdfMenu(props: {
                 }}
                 uuid={uuid}
               ></DefAndMetasView>
-            )
+            ),
+            <TbMathFunction></TbMathFunction>
           ),
         ];
       });
@@ -281,7 +282,8 @@ function CassandraAggregateMenu(props: {
                 }}
                 uuid={uuid}
               ></DefAndMetasView>
-            )
+            ),
+            <MdFunctions></MdFunctions>
           ),
         ];
       });
