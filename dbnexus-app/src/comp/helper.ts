@@ -4,7 +4,7 @@
 
 import { languages } from "monaco-editor";
 import types from "./ApiStruct";
-import { createContext, CSSProperties, ReactNode } from "react";
+import { createContext, CSSProperties, ReactElement, ReactNode } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -478,10 +478,10 @@ const handleCopyToClipboard = (text, showNotification) => {
 
 class TabContent {
   constructor(
-
     public id: string,
     public header: ReactNode,
-    public content: ReactNode
+    public content: ReactNode,
+    public icon: ReactElement
   ) { }
 }
 const TabsSetContext = createContext<{

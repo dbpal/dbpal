@@ -28,6 +28,7 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { NotificationContext } from './Notification';
+import { IoIosAddCircle } from 'react-icons/io';
 import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -810,7 +811,12 @@ function Menu(props: {
       setSelectTab(tabs.length);
       return [
         ...tabs,
-        new TabContent(generateRandomString(20), `${tableName}*`, t),
+        new TabContent(
+          generateRandomString(20),
+          `${tableName}*`,
+          t,
+          <IoIosAddCircle> </IoIosAddCircle>
+        ),
       ];
     });
   };
