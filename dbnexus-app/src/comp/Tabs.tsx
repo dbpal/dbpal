@@ -160,7 +160,7 @@ function TabsWithContent_(props: {
                 icon={tab.icon}
                 clickable
                 //@ts-ignore
-                color={colors[index % colors.length] as 'primary'}
+                color={index == selectIndex ? 'primary' : 'default'}
                 onContextMenu={(e) => {
                   setUpMenu({
                     content: (
@@ -181,7 +181,7 @@ function TabsWithContent_(props: {
                   changeTab(index);
                 }}
                 sx={{
-                  opacity: index == selectIndex ? '0.5' : 1,
+                  // opacity: index == selectIndex ? '0.5' : 1,
                   '& .MuiChip-deleteIcon': {
                     visibility: 'hidden', // 默认隐藏删除按钮
                   },
