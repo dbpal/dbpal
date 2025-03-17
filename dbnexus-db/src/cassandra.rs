@@ -1333,13 +1333,6 @@ impl SchemaTrait for CassandraDB {
         }
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        // duplicate and drop old table.
-        self.duplicate_table(old, new).await?;
-        self.drop_table(old, false).await?;
-        anyhow::Ok(())
-    }
-
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = self.create_table_and_index_sql(table).await?.create_table;
         // replace table name.

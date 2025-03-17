@@ -40,7 +40,12 @@ pub trait SchemaTrait:
         ""
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+        self.duplicate_table(old, new).await?;
+        self.drop_table(old, false).await?;
+        anyhow::Ok(())
+    }
+
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;

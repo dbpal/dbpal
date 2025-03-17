@@ -33,6 +33,8 @@ pub mod clickhouse_lang_server;
 pub mod duckdb;
 #[cfg(feature = "duckdb")]
 pub mod duckdb_lang_server;
+pub mod firebird;
+pub mod firebird_lang_server;
 pub mod libsql;
 pub mod libsql_lang_server;
 pub mod mongo_lang_server;

@@ -229,7 +229,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   }
   const getConfig = (key: string, defaultValue: any = '') => {
     let v = config[key];
-    if (!v) {
+    if (!(key in config)) {
       v = defaultValue;
     }
     return v;
@@ -274,6 +274,17 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     let db_null = database ? database : null;
     let schema_null = schema ? schema : null;
     switch (connectionType) {
+      case DataSourceKind.FireBird:
+        return {
+          conn_type: 'firebird',
+          host: host,
+          port: portInt,
+          db: database,
+          username: user,
+          password: password,
+          read_only: readOnly,
+          name: connectionName,
+        };
       case DataSourceKind.LibSql:
         return {
           conn_type: 'libsql',
@@ -465,6 +476,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       case DataSourceKind.ClickHouse:
         setPort('8123');
         break;
+      case DataSourceKind.FireBird:
+        setPort('3050');
+        break;
     }
   }, [connectionType]);
   const handleSaveConnection = async () => {
@@ -583,6 +597,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
           <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
           <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
+          <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
         </Select>
       </FormControl>
 
@@ -625,6 +640,31 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           setlibSqlModal={setlibSqlModal}
           libSqlModel={libSqlModel}
         ></LibSql>
+      )}
+
+      {connectionType == DataSourceKind.FireBird && (
+        <>
+          <HostAndPort
+            host={host}
+            port={port}
+            setHost={setHost}
+            setPort={setPort}
+            onBlur={toggleTriggerReload}
+          ></HostAndPort>
+          <UserAndPassword
+            user={user}
+            password={password}
+            setUser={setUser}
+            onBlur={toggleTriggerReload}
+            setPassword={setPassword}
+          ></UserAndPassword>
+          <Database
+            candidates={[]}
+            database={database}
+            setDatabase={setDatabase}
+            onBlur={toggleTriggerReload}
+          ></Database>
+        </>
       )}
       {connectionType == DataSourceKind.Postgres && (
         <>

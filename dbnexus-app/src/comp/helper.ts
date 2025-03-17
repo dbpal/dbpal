@@ -302,38 +302,12 @@ enum DataSourceKind {
   Oracle = "oracle",
   Cassandra = "cassandra",
   ClickHouse = "clickhouse",
-  LibSql = "libsql"
+  LibSql = "libsql",
+  FireBird = "firebird"
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
-  switch (name) {
-    case 'mysql':
-      return DataSourceKind.Mysql;
-    case 'mariadb':
-      return DataSourceKind.MariaDB;
-    case "tidb":
-      return DataSourceKind.TiDB;
-    case 'redis':
-      return DataSourceKind.Redis;
-    case 'mongo':
-      return DataSourceKind.Mongo;
-    case 'sqlserver':
-      return DataSourceKind.MsSql;
-    case 'sqlite':
-      return DataSourceKind.Sqlite;
-    case 'postgres':
-      return DataSourceKind.Postgres;
-    case 'oracle':
-      return DataSourceKind.Oracle;
-    case 'cassandra':
-      return DataSourceKind.Cassandra
-    case 'clickhouse':
-      return DataSourceKind.ClickHouse
-    case 'libsql':
-      return DataSourceKind.LibSql
-    default:
-      console.log("connection typt not handle:", name);
-  }
+  return name as DataSourceKind
 }
 function isTypeLargeText(s: string): boolean {
   const toUpper = s.toUpperCase();

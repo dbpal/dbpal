@@ -83,6 +83,16 @@ pub struct DuckDBConfig {
     pub schema: Option<String>,
 }
 
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+pub struct FireBirdConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: String,
+    pub db: String,
+    pub read_only: bool,
+}
+
 impl DuckDBConfig {
     #[allow(unused)]
     pub(crate) fn schema_str(&self) -> &str {

@@ -126,7 +126,7 @@ function TabsWithContent_(props: {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
   const [hideAll, setHideAll] = useState(false);
-  const colors = ['primary', 'secondary', 'info', 'success'];
+
   return (
     <Stack spacing={1}>
       {hideAll && (
@@ -157,6 +157,8 @@ function TabsWithContent_(props: {
                 onDelete={() => {
                   handleClose(index);
                 }}
+                key={tab.id}
+                size="small"
                 icon={tab.icon}
                 clickable
                 //@ts-ignore
@@ -180,15 +182,18 @@ function TabsWithContent_(props: {
                 onClick={() => {
                   changeTab(index);
                 }}
-                sx={{
-                  // opacity: index == selectIndex ? '0.5' : 1,
-                  '& .MuiChip-deleteIcon': {
-                    visibility: 'hidden', // 默认隐藏删除按钮
-                  },
-                  '&:hover .MuiChip-deleteIcon': {
-                    visibility: 'visible', // hover 时显示删除按钮
-                  },
-                }}
+                sx={
+                  index != selectIndex
+                    ? {
+                        '& .MuiChip-deleteIcon': {
+                          visibility: 'hidden', // 默认隐藏删除按钮
+                        },
+                        '&:hover .MuiChip-deleteIcon': {
+                          visibility: 'visible', // hover 时显示删除按钮
+                        },
+                      }
+                    : {}
+                }
               ></Chip>
             );
           })}

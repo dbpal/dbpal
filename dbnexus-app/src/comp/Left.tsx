@@ -816,7 +816,8 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
         return config.db ? <SchemaTree /> : <DatabaseTree />;
       case 'clickhouse':
         return config.db ? <SchemaTree /> : <DatabaseTree />;
-
+      case 'firebird':
+        return <SchemaTree />;
       default:
         console.log('impl database kind:', config);
         throw `impl this kind`;
@@ -1186,6 +1187,7 @@ async function openNewQuery(
     case DataSourceKind.Cassandra:
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
+    case DataSourceKind.FireBird:
       content = (
         <SqlQuery
           language={uuid}

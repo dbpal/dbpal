@@ -98,6 +98,14 @@ export namespace types {
         "replica": boolean;
         "read_only": boolean;
     });
+    export type FireBirdConfig = {
+        "host": string;
+        "port": types.U16;
+        "username": string;
+        "password": string;
+        "db": string;
+        "read_only": boolean;
+    };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -145,6 +153,10 @@ export namespace types {
     })) | ({
         "conn_type": "libsql";
     } & (types.LibSqlDBConfig & {
+        "name": string;
+    })) | ({
+        "conn_type": "firebird";
+    } & (types.FireBirdConfig & {
         "name": string;
     })));
     export type ListTable = {
