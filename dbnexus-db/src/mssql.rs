@@ -491,7 +491,7 @@ impl SchemaTrait for MsSqlServerDB {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
+                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -966,8 +966,6 @@ impl SchemaTrait for MsSqlServerDB {
         anyhow::Ok(SqlExecuteRet {
             sql: s,
             changes: Some(1), // I know this
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 
@@ -994,7 +992,9 @@ impl SchemaTrait for MsSqlServerDB {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
         let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote = value
             .map(|x| format!("'{}'", x))
@@ -1053,8 +1053,6 @@ impl SchemaTrait for MsSqlServerDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(r.rows_affected().iter().sum()),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 

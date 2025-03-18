@@ -82,7 +82,9 @@ pub trait SchemaTrait:
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(
+        &self, _typ: &str, _: Option<i64>, _value: Option<&str>,
+    ) -> anyhow::Result<String> {
         not_support_features(self.backend_name())
     }
 
@@ -663,7 +665,11 @@ impl dyn SchemaTrait {
                     self.quote_style(),
                     k,
                     self.quote_style(),
-                    self.put_value_in_sql(&f.typ, v.as_ref().map(|x| x.as_str()))?
+                    self.put_value_in_sql(
+                        &f.typ,
+                        f.firebird_binary_sub_type,
+                        v.as_ref().map(|x| x.as_str())
+                    )?
                 )
                 .as_str(),
             );
@@ -734,7 +740,11 @@ impl dyn SchemaTrait {
                         self.quote_style(),
                         k,
                         self.quote_style(),
-                        self.put_value_in_sql(&f.unwrap().typ, v.as_ref().map(|x| x.as_str()))?
+                        self.put_value_in_sql(
+                            &f.unwrap().typ,
+                            f.unwrap().firebird_binary_sub_type,
+                            v.as_ref().map(|x| x.as_str())
+                        )?
                     )
                     .as_str(),
                 );
@@ -800,7 +810,11 @@ impl dyn SchemaTrait {
                     sql.push_str(",");
                 }
                 let value = values.get(&f.field).map(|x| x.clone()).flatten();
-                sql.push_str(&self.put_value_in_sql(&f.typ, value.as_deref())?);
+                sql.push_str(&self.put_value_in_sql(
+                    &f.typ,
+                    f.firebird_binary_sub_type,
+                    value.as_deref(),
+                )?);
                 first = false;
             }
             sql.push_str(")");
@@ -814,9 +828,6 @@ pub struct SqlExecuteRet {
     pub sql: String,
     // some backend can't get the changes result
     pub changes: Option<u64>,
-    pub last_insert_row_id: Option<i64>,
-    /// most of the database have id int but mongo have string
-    pub last_insert_id_string: Option<String>,
 }
 
 impl From<(String, u64)> for SqlExecuteRet {
@@ -824,8 +835,6 @@ impl From<(String, u64)> for SqlExecuteRet {
         Self {
             sql,
             changes: Some(changes),
-            last_insert_id_string: None,
-            last_insert_row_id: None,
         }
     }
 }
@@ -834,8 +843,6 @@ impl From<u64> for SqlExecuteRet {
         Self {
             sql: "".to_string(),
             changes: Some(changes),
-            last_insert_id_string: None,
-            last_insert_row_id: None,
         }
     }
 }
@@ -903,6 +910,7 @@ impl QueryResp {
                 is_primary: false,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: None,
             }],
         }
     }
@@ -918,6 +926,7 @@ impl QueryResp {
                 is_primary: false,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: None,
             }],
         }
     }
@@ -932,6 +941,7 @@ impl QueryResp {
                 is_primary: false,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: None,
             }],
         }
     }
@@ -1012,6 +1022,7 @@ impl TableListResp {
                 is_primary: false,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: None,
             }],
         }
     }
@@ -1028,8 +1039,9 @@ pub struct Field {
     pub is_primary: bool,
     //
     pub is_auto_increment: bool,
-
     pub sortable: bool,
+
+    pub firebird_binary_sub_type: Option<i64>,
 }
 
 impl Field {
@@ -1045,6 +1057,7 @@ impl Field {
             is_auto_increment: false,
             is_primary: false,
             sortable: true,
+            firebird_binary_sub_type: None,
         }
     }
 
@@ -1068,6 +1081,7 @@ impl Field {
             is_primary,
             is_auto_increment,
             sortable: true,
+            firebird_binary_sub_type: None,
         }
     }
 }

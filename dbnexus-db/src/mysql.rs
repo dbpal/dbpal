@@ -46,6 +46,7 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
             is_primary: false,
             is_auto_increment: false,
             sortable: true,
+            firebird_binary_sub_type: None,
         });
     }
     ret
@@ -679,7 +680,7 @@ impl SchemaTrait for MysqlDB {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
+                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -1013,8 +1014,6 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(r.rows_affected()),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 
@@ -1030,7 +1029,9 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(&self, f: &str, value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(
+        &self, f: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
         let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote_str = value
             .map(|x| format!("'{}'", x))
@@ -1086,8 +1087,6 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(SqlExecuteRet {
             sql: s,
             changes: Some(r.rows_affected()),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 
@@ -1111,8 +1110,6 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(SqlExecuteRet {
             sql: s,
             changes: Some(r.rows_affected()),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 

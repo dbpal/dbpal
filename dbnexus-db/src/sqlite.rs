@@ -462,7 +462,7 @@ impl SchemaTrait for SqliteDB {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
+                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -650,8 +650,6 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(r.rows_affected()),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 
@@ -668,7 +666,9 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
@@ -717,8 +717,6 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(r.rows_affected()),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 
@@ -734,9 +732,8 @@ impl SchemaTrait for SqliteDB {
         let r = sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
-            last_insert_row_id: Some(r.last_insert_rowid()),
+
             changes: Some(r.rows_affected()),
-            last_insert_id_string: None,
         })
     }
 
@@ -893,6 +890,7 @@ fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
             is_primary: false,
             is_auto_increment: false,
             sortable: true,
+            firebird_binary_sub_type: None,
         });
     }
     ret
@@ -1810,7 +1808,7 @@ mod tests {
         sqlx::query(
             r#"
             CREATE table test_table (
-                id INTEGER PRIMARY KEY autoincrement,
+                id INTEGER PRIMARY KEY,
                 null_col NULL,
                 text_col TEXT,
                 real_col REAL,
@@ -1831,6 +1829,7 @@ mod tests {
         let db = &db as &dyn crate::db::SchemaTrait;
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("text_col".to_string(), Some("Some text".to_string()));
+        values.insert("id".to_string(), Some("1".to_string()));
         values.insert("real_col".to_string(), Some("3.14".to_string()));
         values.insert(
             "blob_col".to_string(),
@@ -1845,12 +1844,9 @@ mod tests {
         values.insert("time_col".to_string(), Some("12:00:00".to_string()));
         values.insert("date_col".to_string(), Some("2024-01-01".to_string()));
 
-        let r = db.insert(table_name, values.clone()).await.unwrap();
+        db.insert(table_name, values.clone()).await.unwrap();
         let mut wheres = HashMap::new();
-        wheres.insert(
-            "id".to_string(),
-            Some(r.last_insert_row_id.unwrap().to_string()),
-        );
+        wheres.insert("id".to_string(), Some(1.to_string()));
 
         let r = db.update(table_name, values.clone(), wheres).await.unwrap();
         println!("{:?}", r);

@@ -303,6 +303,7 @@ async function makeViewTable(
     case DataSourceKind.Cassandra:
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
+    case DataSourceKind.FireBird:
       tableList = (
         <SqlTableView
           tableName={table}

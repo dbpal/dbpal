@@ -895,6 +895,14 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           <ViewsTree viewkind={ViewKind.Normal} />
         </>
       )}
+
+      {opened && kind == DataSourceKind.FireBird && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
+
       {opened && kind == DataSourceKind.LibSql && (
         <>
           <TablesTree typ={TablesType.Normal} />

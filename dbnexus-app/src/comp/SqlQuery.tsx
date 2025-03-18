@@ -263,7 +263,13 @@ function SqlQuery(props: {
       showNotification('error', `can't execute empty statement.`);
       return;
     }
-    const confirm = await warnDangerousSql(text);
+    let confirm;
+    try {
+      confirm = await warnDangerousSql(text);
+    } catch (e) {
+      console.log('warnDangerousSql failed : err:', e);
+      confirm = true;
+    }
     if (!confirm) {
       return;
     }

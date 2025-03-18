@@ -1,10 +1,10 @@
 /*
 docker run -d   --name some-firebird  -e FIREBIRD_DATABASE=test.fdb   -e FIREBIRD_ROOT_PASSWORD=root  -e FIREBIRD_USER=alice -e         FIREBIRD_PASSWORD=root  -e   -e   -p 3050:3050    firebirdsql/firebird
 */
-#![allow(unused)]
+
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
-    fs,
     ops::DerefMut,
     sync::Arc,
     time::Duration,
@@ -13,10 +13,11 @@ use std::{
 use crate::{
     datasource_config::FireBirdConfig,
     db::{
-        BackendName, CheckConn, Field, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait,
-        SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
+        BackendName, CheckConn, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
+        QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
+        TableListResp, not_support_features,
     },
-    helper::{SqlKind, SqlWithKind, is_dangerous_sql_by_parser, sql_to_sql_seq},
+    helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
     query_log::QueryLog,
 };
@@ -25,7 +26,7 @@ use dashmap::DashMap;
 use r2d2::PooledConnection;
 use rsfbclient::{Execute, Queryable, Row, builder_pure_rust};
 use rsfbclient::{FbError, SqlType};
-use sqlx::any;
+
 use tokio::{sync::Mutex, task::block_in_place};
 pub struct PoolManager {
     config: FireBirdConfig,
@@ -86,7 +87,7 @@ fn infer_fields(row: &Row) -> Vec<Field> {
                 SqlType::Integer(_) => "INTEGER",
                 SqlType::Floating(_) => "FLOAT",
                 SqlType::Timestamp(_) => "TIMESTAMP",
-                SqlType::Binary(items) => "BLOB",
+                SqlType::Binary(_) => "BLOB",
                 SqlType::Boolean(_) => "BOOLEAN",
                 SqlType::Null => "NULL",
             })
@@ -94,7 +95,9 @@ fn infer_fields(row: &Row) -> Vec<Field> {
         .collect()
 }
 
-fn encode_rows(rows: &Vec<Row>) -> Vec<Vec<Option<String>>> {
+fn encode_rows(
+    rows: &Vec<Row>, try_blob_2_str: bool, get_sub_type: impl Fn(&str) -> Option<i64>,
+) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = Vec::with_capacity(rows.len());
     for row in rows.iter() {
         let mut data = Vec::with_capacity(row.cols.len());
@@ -104,7 +107,22 @@ fn encode_rows(rows: &Vec<Row>) -> Vec<Vec<Option<String>>> {
                 SqlType::Integer(x) => Some(x.to_string()),
                 SqlType::Floating(x) => Some(x.to_string()),
                 SqlType::Timestamp(naive_date_time) => Some(naive_date_time.to_string()),
-                SqlType::Binary(items) => todo!(),
+                SqlType::Binary(items) => {
+                    let sub_type = get_sub_type(&v.name);
+                    match sub_type {
+                        _ if sub_type_is_text(sub_type) => Some(String::from_utf8(items.clone())?),
+                        _ => {
+                            if try_blob_2_str {
+                                match String::from_utf8(items.clone()) {
+                                    Ok(x) => Some(x),
+                                    Err(_) => Some(hex::encode(items.as_slice())),
+                                }
+                            } else {
+                                Some(hex::encode(items.as_slice()))
+                            }
+                        }
+                    }
+                }
                 SqlType::Boolean(x) => Some(x.to_string()),
                 SqlType::Null => None,
             };
@@ -113,12 +131,134 @@ fn encode_rows(rows: &Vec<Row>) -> Vec<Vec<Option<String>>> {
 
         ret.push(data);
     }
+    anyhow::Ok(ret)
+}
 
-    ret
+impl FireBirdDB {
+    async fn export_query_result_as_csv(
+        &self, sql: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn()?;
+        let stream: Vec<Row> = block_in_place(|| conn.query(sql, ()))?;
+        let mut first = true;
+        for row in stream {
+            if first && include_header {
+                let fs = row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
+                sender
+                    .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                    .await?;
+
+                first = false;
+            }
+            let data = encode_rows(&vec![row], true, |_| None)?;
+
+            sender
+                .send(Cow::Owned(create_csv(&data, delimiter)))
+                .await?;
+        }
+        anyhow::Ok(())
+    }
+    async fn export_query_result_as_json(
+        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn()?;
+
+        sender.send("[".into()).await?;
+        let rows: Vec<Row> = block_in_place(|| conn.query(sql, ()))?;
+        let mut first = true;
+        for row in rows {
+            let value = encode_row_as_json(&row)?;
+            if !first {
+                sender.send(",".into()).await?;
+            }
+            if pretty {
+                sender.send("\n".into()).await?;
+            }
+
+            sender
+                .send(Cow::Owned(if pretty {
+                    serde_json::to_string_pretty(&value)?
+                } else {
+                    serde_json::to_string(&value)?
+                }))
+                .await?;
+
+            first = false;
+        }
+
+        if pretty {
+            sender.send("\n".into()).await?;
+        }
+        sender.send("]".into()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn export_query_result_as_json_line(
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn()?;
+
+        let stream: Vec<Row> = block_in_place(|| conn.query(sql, ()))?;
+        for row in stream {
+            let value = encode_row_as_json(&row)?;
+            sender
+                .send(Cow::Owned(serde_json::to_string(&value)?))
+                .await?;
+            sender.send("\n".into()).await?;
+        }
+        anyhow::Ok(())
+    }
+}
+
+fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
+    let mut m = serde_json::Map::new();
+    for col in row.cols.iter() {
+        let value = match &col.value {
+            SqlType::Text(x) => Some(serde_json::Value::from(x.clone())),
+            SqlType::Integer(x) => Some(serde_json::Value::from(x.clone())),
+            SqlType::Floating(x) => Some(serde_json::Value::from(x.clone())),
+            SqlType::Timestamp(naive_date_time) => {
+                Some(serde_json::Value::from(naive_date_time.to_string()))
+            }
+            SqlType::Binary(items) => {
+                let items = items
+                    .iter()
+                    .map(|x| serde_json::Value::from(*x))
+                    .collect::<Vec<_>>();
+                Some(serde_json::Value::Array(items))
+            }
+            SqlType::Boolean(x) => Some(serde_json::Value::from(x.clone())),
+            SqlType::Null => None,
+        };
+        m.insert(col.name.clone(), value.unwrap_or(serde_json::Value::Null));
+    }
+    anyhow::Ok(serde_json::Value::Object(m))
 }
 
 #[async_trait::async_trait]
 impl QuerySql for FireBirdDB {
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -149,7 +289,7 @@ impl QuerySql for FireBirdDB {
                         Ok(rows) => {
                             if rows.len() > 0 {
                                 let fields = infer_fields(rows.get(0).unwrap());
-                                let data = encode_rows(&rows);
+                                let data = encode_rows(&rows, true, |_| None)?;
                                 ret.push(Ok(QueryResp { fields, data }));
                             }
                         }
@@ -219,7 +359,6 @@ impl QuerySql for FireBirdDB {
 }
 
 #[derive(Clone)]
-
 pub struct FireBirdDB {
     config: FireBirdConfig,
     pool: r2d2::Pool<PoolManager>,
@@ -239,8 +378,105 @@ impl ServerMetas for FireBirdDB {
     }
 }
 
+impl FireBirdDB {
+    async fn export_table_as_csv(
+        &self, table_name: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
+            .await
+    }
+    async fn export_table_as_json(
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_json(sql.as_str(), pretty, sender)
+            .await
+    }
+    async fn export_table_as_json_line(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_json_line(&sql, sender).await
+    }
+
+    async fn export_table_as_sql(
+        &self, table_name: &str, include_table_schema: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        if include_table_schema {
+            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+            sender.send(Cow::Owned(ss.create_table.clone())).await?;
+            sender.send("\n".into()).await?;
+            for index in ss.indexes.into_iter() {
+                sender.send(Cow::Owned(index)).await?;
+                sender.send("\n".into()).await?;
+            }
+        }
+
+        let mut conn = self.get_conn()?;
+        let cols = SchemaTrait::show_table_columns(self, table_name).await?;
+        let mut cols_map = HashMap::new();
+        cols.iter().for_each(|f| {
+            cols_map.insert(f.field.as_str(), f);
+        });
+
+        let sql = format!("SELECT * from {}", table_name);
+        log::info!("sql:{}", sql);
+        let rows: Vec<Row> = block_in_place(|| conn.query(&sql, ()))?;
+
+        for row in rows {
+            let data = encode_rows(&vec![row], true, |name| {
+                cols_map
+                    .get(&name)
+                    .map(|x| x.firebird_binary_sub_type)
+                    .flatten()
+            })?;
+
+            for d in data.into_iter() {
+                let mut m = HashMap::new();
+                for (d, f) in d.into_iter().zip(cols.iter()) {
+                    m.insert(f.field.clone(), d);
+                }
+                let insert_sql =
+                    (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
+                sender.send(Cow::Owned(insert_sql)).await?;
+                sender.send("\n".into()).await?;
+            }
+        }
+
+        anyhow::Ok(())
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for FireBirdDB {
+    async fn export_table_or_view(
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_table_as_csv(name, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
+            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
+            ExportKind::Sql {
+                include_table_schema,
+            } => {
+                self.export_table_as_sql(name, include_table_schema, sender)
+                    .await
+            }
+        }
+    }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -249,19 +485,40 @@ impl SchemaTrait for FireBirdDB {
         "\""
     }
 
-    async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
-        unimplemented!()
+    async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
     }
+
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        unimplemented!()
+        let sql = format!(
+            "
+        
+            SELECT 
+                RDB$RELATION_NAME AS TABLE_NAME
+            FROM 
+                RDB$RELATIONS
+            WHERE 
+                RDB$VIEW_BLR IS NULL  -- 排除视图
+                AND RDB$SYSTEM_FLAG = 0  -- 排除系统表
+            ORDER BY 
+                RDB$RELATION_NAME
+        "
+        );
+        let mut conn = self.get_conn()?;
+        let rows: Vec<(String,)> = block_in_place(|| conn.query(&sql, ()))?;
+        anyhow::Ok(
+            rows.into_iter()
+                .map(|x| ListTable::from(x.0.trim().to_owned()))
+                .collect(),
+        )
     }
+
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let mut conn = self.get_conn()?;
 
         let pri_keys = {
             let sql = format!(
                 r#"
-            
                 SELECT 
                     s.RDB$FIELD_NAME AS COLUMN_NAME
                 FROM 
@@ -276,7 +533,9 @@ impl SchemaTrait for FireBirdDB {
             "#
             );
             let x: Vec<(String,)> = block_in_place(|| conn.query(&sql, ()))?;
-            x.into_iter().map(|x| x.0).collect::<HashSet<_>>()
+            x.into_iter()
+                .map(|x| x.0.trim().to_owned())
+                .collect::<HashSet<_>>()
         };
 
         let sql = format!(
@@ -284,6 +543,7 @@ impl SchemaTrait for FireBirdDB {
             SELECT 
             rf.RDB$FIELD_NAME AS COLUMN_NAME, 
             t.RDB$TYPE_NAME AS DATA_TYPE,
+            f.RDB$FIELD_SUB_TYPE AS SUB_TYPE,
             CASE WHEN f.RDB$NULL_FLAG = 1 THEN 'NO' ELSE 'YES' END AS IS_NULLABLE,
             f.RDB$DEFAULT_SOURCE AS DEFAULT_VALUE
         FROM 
@@ -300,41 +560,67 @@ impl SchemaTrait for FireBirdDB {
             table_name
         );
 
-        let rows: Vec<(String, String, String, Option<String>)> =
+        let rows: Vec<(String, String, Option<i64>, String, Option<String>)> =
             block_in_place(|| conn.query(&sql, ()))?;
         let mut ret = Vec::new();
-        for (name, typ, nullable, default_value) in rows {
+        for (name, typ, sub_type, nullable, default_value) in rows {
+            let name = name.trim().to_owned();
+            let typ = typ.trim().to_owned();
             let is_primary = pri_keys.contains(&name);
             ret.push(Field {
-                field: name.trim().to_owned(),
+                field: name,
                 typ,
                 nullable: nullable == "YES",
                 default_value,
                 is_primary,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: sub_type,
             });
         }
 
         anyhow::Ok(ret)
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        put_value_in_sql(typ, value)
+    fn put_value_in_sql(
+        &self, typ: &str, firebird_blob_sub_type: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        put_value_in_sql(typ, firebird_blob_sub_type, value)
     }
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
+        let fs = self.show_table_columns(table_name).await?;
+        let mut fields_map = HashMap::new();
+        fs.iter().for_each(|x| {
+            fields_map.insert(&x.field, x);
+        });
 
-        let fields = self.show_table_columns(table_name).await?;
         let mut conn = self.get_conn()?;
         let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
 
-        let data = encode_rows(&rows);
+        let mut fields = if rows.len() > 0 {
+            infer_fields(rows.get(0).unwrap())
+        } else {
+            vec![]
+        };
+
+        fields.iter_mut().for_each(|x| {
+            if let Some(f) = fields_map.get(&x.field) {
+                *x = (*f).clone();
+            }
+        });
+
+        let data = encode_rows(&rows, false, |name| {
+            fields_map
+                .get(&name.to_string())
+                .map(|x| x.firebird_binary_sub_type)
+                .flatten()
+        })?;
         let total = self.query_count(table_name, where_str)?;
 
         anyhow::Ok(TableListResp {
@@ -358,8 +644,6 @@ impl SchemaTrait for FireBirdDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(changes as u64),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 
@@ -367,24 +651,71 @@ impl SchemaTrait for FireBirdDB {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        unimplemented!()
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = (self as &dyn SchemaTrait).update_sql(
+            None,
+            table_name,
+            &fs,
+            &values,
+            &wheres,
+            type_support_compare,
+        )?;
+        let mut conn = self.get_conn()?;
+        let changes = block_in_place(|| conn.execute(&sql, ()))?;
+        anyhow::Ok(SqlExecuteRet {
+            changes: Some(changes as u64),
+            sql,
+        })
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
-        unimplemented!()
+        // firebird have no truncate statement.
+        let sql = format!(r#"DELETE FROM "{}""#, table_name);
+        let mut conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, ()))?;
+        anyhow::Ok(())
     }
 
     async fn delete(
-        &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
+        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        unimplemented!()
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = (self as &dyn SchemaTrait).delete_sql(
+            None,
+            table_name,
+            &fs,
+            &wheres,
+            type_support_compare,
+        )?;
+
+        let mut conn = self.get_conn()?;
+        let changes = block_in_place(|| conn.execute(&sql, ()))?;
+        anyhow::Ok(SqlExecuteRet {
+            sql,
+            changes: Some(changes as u64),
+        })
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        unimplemented!()
+        let sql = r#"
+            SELECT RDB$RELATION_NAME
+            FROM RDB$RELATIONS
+            WHERE RDB$VIEW_BLR IS NOT NULL;
+        "#;
+        let mut conn = self.get_conn()?;
+        let rows: Vec<(String,)> = block_in_place(|| conn.query(sql, ()))?;
+        anyhow::Ok(
+            rows.into_iter()
+                .map(|x| NamedStaff::from(x.0.trim().to_owned()))
+                .collect(),
+        )
     }
-    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
-        unimplemented!()
+
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DROP VIEW "{}""#, view_name);
+        let mut conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, ()))?;
+        anyhow::Ok(())
     }
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TABLE "{}""#, table);
@@ -396,6 +727,100 @@ impl SchemaTrait for FireBirdDB {
     fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
+
+    async fn create_index(
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "CREATE {} INDEX {} ON {table}({})",
+            match kind {
+                IndexKind::Index => "",
+                IndexKind::Primary => anyhow::bail!("can't create primary index"),
+                IndexKind::Unique => "Unique",
+            },
+            name,
+            fields.join(",")
+        );
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, ()))?;
+        anyhow::Ok(())
+    }
+
+    async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
+        let sql = format!(
+            r#"
+        SELECT 
+            i.RDB$INDEX_NAME AS INDEX_NAME, 
+            i.RDB$UNIQUE_FLAG AS IS_UNIQUE, 
+            s.RDB$FIELD_NAME AS FIELD_NAME
+        FROM 
+            RDB$INDICES i
+        LEFT JOIN 
+            RDB$INDEX_SEGMENTS s ON s.RDB$INDEX_NAME = i.RDB$INDEX_NAME
+        WHERE 
+            i.RDB$SYSTEM_FLAG = 0 
+            AND i.RDB$RELATION_NAME = '{}'  -- 替换为你的表名
+        ORDER BY 
+            i.RDB$INDEX_NAME, s.RDB$FIELD_POSITION 
+
+        "#,
+            table_name
+        );
+        let mut conn = self.get_conn()?;
+        let rows: Vec<(String, i64, String)> = block_in_place(|| conn.query(&sql, ()))?;
+        let mut m: HashMap<String, Index> = HashMap::new();
+        for (name, unique, col) in rows.into_iter() {
+            let name = name.trim().to_owned();
+            let col = col.trim().to_owned();
+            let x = m.get_mut(&name);
+            match x {
+                Some(x) => {
+                    x.columns.push(col);
+                }
+                None => {
+                    m.insert(name.clone(), Index {
+                        name: Some(name),
+                        kind: if unique == 1 {
+                            IndexKind::Unique
+                        } else {
+                            IndexKind::Index
+                        },
+                        columns: vec![col],
+                    });
+                }
+            };
+        }
+        anyhow::Ok(m.values().map(|x| x.clone()).collect())
+    }
+
+    async fn show_view(
+        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
+    ) -> anyhow::Result<TableListResp> {
+        let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn()?;
+        let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
+        let data = encode_rows(&rows, true, |_| None)?;
+        let total = self.query_count(view_name, where_str)?;
+        let fields = match rows.get(0) {
+            Some(x) => infer_fields(x),
+            None => {
+                vec![]
+            }
+        };
+        anyhow::Ok(TableListResp {
+            fields,
+            total,
+            data,
+            sql: Some(sql),
+        })
+    }
+}
+
+fn type_support_compare(_typ: &str) -> bool {
+    true
 }
 
 impl FireBirdDB {
@@ -410,10 +835,35 @@ impl FireBirdDB {
     }
 }
 
-fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+fn sub_type_is_text(sub_type: Option<i64>) -> bool {
+    sub_type.map(|x| x == 1).unwrap_or_default()
+}
+
+fn put_value_in_sql(
+    typ: &str, sub_type: Option<i64>, value: Option<&str>,
+) -> anyhow::Result<String> {
     let typ = typ.to_lowercase();
     log::trace!("encode value '{:?}' on type '{}'", value, typ);
-    match typ {
+    match typ.as_str() {
+        "text" | "varying" | "date" | "time" | "timestamp" => anyhow::Ok(
+            value
+                .map(|x| format!("'{}'", x))
+                .unwrap_or("null".to_string()),
+        ),
+        // binary is blob
+        "blob" if sub_type_is_text(sub_type) => anyhow::Ok(
+            value
+                .map(|x| format!("'{}'", x))
+                .unwrap_or("null".to_string()),
+        ),
+        "blob" => match sub_type {
+            Some(sub_type) => anyhow::Ok(
+                value
+                    .map(|x| format!("CAST(HEX_DECODE('{}') AS BLOB SUB_TYPE {})", x, sub_type))
+                    .unwrap_or("null".to_string()),
+            ),
+            None => anyhow::bail!("sub type shoule some."),
+        },
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
 }
@@ -480,12 +930,11 @@ fn make_test_object() -> FireBirdDB {
 #[cfg(test)]
 
 mod tests {
-    use std::hash::Hash;
 
-    use crate::enable_test_log;
+    use crate::{db::IndexKind, enable_test_log};
 
     use super::*;
-    use Queryable;
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_check_conn() {
         let db = make_test_object();
@@ -493,23 +942,172 @@ mod tests {
         println!("ping time:{:?}", d);
     }
 
-    #[test]
+    fn test_lock() -> &'static Mutex<()> {
+        static MUTEX: Mutex<()> = Mutex::const_new(());
+        &MUTEX
+    }
 
-    fn xxx() {
-        let mut conn = builder_pure_rust()
-            .host("localhost")
-            .user("SYSDBA")
-            .pass("root")
-            .db_name("/var/lib/firebird/data/test.fdb")
-            .connect()
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_view() {
+        let _gurad = test_lock().lock().await;
+
+        enable_test_log();
+
+        let db = make_test_object();
+        let table_name = "TEST_VIEW_TABLE";
+        let view_name = "TEST_VIEW";
+        let _ = db.drop_view(view_name).await;
+
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = db.open_connection().await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE TEST_VIEW_TABLE (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR(50),
+                age INTEGER,
+                salary DECIMAL(10, 2)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO TEST_VIEW_TABLE (id, name, age, salary) VALUES (1, 'Alice', 30, 50000.00);
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE VIEW TEST_VIEW AS
+        SELECT id, name, age, salary
+        FROM TEST_VIEW_TABLE;
+    "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let resp = db
+            .show_view(view_name, None, None, 1, 100, None)
+            .await
             .unwrap();
-        let ret = conn
-            .query_iter::<'_, _, Row>("SELECT 1 FROM RDB$DATABASE", ())
-            .unwrap();
+        println!("{:?}", resp);
+
+        let views = db.list_view().await.unwrap();
+        for view in views.iter() {
+            println!("view:{:?}", view);
+        }
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_index() {
+        let _gurad = test_lock().lock().await;
+        enable_test_log();
+        let table_name = "TEST_INDEX";
+        let db = make_test_object();
+        let _err = db.drop_table(table_name, false).await;
+        if let Err(err) = _err {
+            println!("drop table err:{}", err.to_string());
+        }
+        let query_id = db.open_connection().await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE TEST_INDEX (
+                ID INTEGER NOT NULL PRIMARY KEY,
+                NAME VARCHAR(100),
+                CREATED_DATE TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                STATUS CHAR(1) CHECK (STATUS IN ('A', 'I'))  -- 'A' for Active, 'I' for Inactive
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.create_index(table_name, "name_index", IndexKind::Unique, &[
+            "NAME".to_string(),
+            "STATUS".to_string(),
+        ])
+        .await
+        .unwrap();
+        let indexes = db.show_indexes(table_name).await.unwrap();
+
+        for index in indexes.iter() {
+            println!("index:{:?}", index);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_list_table() {
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object();
+        let tables = db.list_table().await.unwrap();
+        for table in tables {
+            println!("table:{:?}", table);
+        }
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_truncate() {
+        let _gurad = test_lock().lock().await;
+        let table_name = "TEST_TRUNCATE";
+        let db = make_test_object();
+        let _err = db.drop_table(table_name, false).await;
+        if let Err(err) = _err {
+            println!("drop table err:{}", err.to_string());
+        }
+
+        let query_id = db.open_connection().await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE test_truncate (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR(50),
+                age INTEGER,
+                salary DECIMAL(10, 2)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_truncate (id, name, age, salary) VALUES (1, 'Alice', 30, 50000.00)
+            
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.truncate_table(table_name).await.unwrap();
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 0
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_table() {
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_TABLE";
         let db = make_test_object();
@@ -534,16 +1132,14 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let mut values = HashMap::new();
         values.insert("ID".to_string(), Some("1".to_string()));
         values.insert("COL_INTEGER".to_string(), Some("123".to_string()));
         values.insert("COL_SMALLINT".to_string(), Some("45".to_string()));
-
         values.insert("COL_BIGINT".to_string(), Some("9876543210".to_string()));
-
         values.insert("COL_FLOAT".to_string(), Some("3.14".to_string()));
-
         values.insert(
             "COL_DOUBLE_PRECISION".to_string(),
             Some("2.718281828459045".to_string()),
@@ -560,10 +1156,36 @@ mod tests {
                 .unwrap();
             println!("resp:{:?}", resp);
         }
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_table2() {
+        let _gurad = test_lock().lock().await;
+
+        enable_test_log();
         let table_name = "TEST_TABLE2";
         let db = make_test_object();
         let _err = db.drop_table(table_name, false).await;
@@ -575,38 +1197,74 @@ mod tests {
             query_id,
             r#"
             CREATE TABLE TEST_TABLE2 (
-                id  INTEGER primary key,
-                col_char CHAR(10),
-                col_varchar VARCHAR(50),
-                col_blob_text BLOB SUB_TYPE TEXT CHARACTER SET UTF8,
-                col_blob_binary BLOB SUB_TYPE BINARY,
-                col_date DATE,
-                col_time TIME,
-                col_timestamp TIMESTAMP,
-                col_boolean BOOLEAN
+                ID INTEGER PRIMARY KEY,
+                COL_CHAR CHAR(10),
+                COL_VARCHAR VARCHAR(50),
+                COL_BLOB_TEXT BLOB SUB_TYPE TEXT CHARACTER SET UTF8,
+                COL_BLOB_BINARY BLOB SUB_TYPE BINARY,
+                COL_DATE DATE,
+                COL_TIME TIME,
+                COL_TIMESTAMP TIMESTAMP,
+                COL_BOOLEAN BOOLEAN
             );
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let mut values = HashMap::new();
-        values.insert("id".to_string(), Some("1".to_string()));
-        values.insert("col_char".to_string(), Some("FixedText".to_string()));
+        values.insert("ID".to_string(), Some("1".to_string()));
+        values.insert("COL_CHAR".to_string(), Some("FixedText".to_string()));
         values.insert(
-            "col_varchar".to_string(),
+            "COL_VARCHAR".to_string(),
             Some("Variable Length Text".to_string()),
         );
         values.insert(
-            "col_blob_text".to_string(),
+            "COL_BLOB_TEXT".to_string(),
             Some("This is a text BLOB".to_string()),
         );
-        values.insert("col_date".to_string(), Some("2025-03-17".to_string()));
-        values.insert("col_time".to_string(), Some("14:30:00".to_string()));
         values.insert(
-            "col_timestamp".to_string(),
+            "COL_BLOB_BINARY".to_string(),
+            Some("48656C6C6F".to_string()),
+        );
+        values.insert("COL_DATE".to_string(), Some("2025-03-17".to_string()));
+        values.insert("COL_TIME".to_string(), Some("14:30:00".to_string()));
+        values.insert(
+            "COL_TIMESTAMP".to_string(),
             Some("2025-03-17 14:30:00".to_string()),
         );
-        values.insert("col_boolean".to_string(), Some("TRUE".to_string()));
+        values.insert("COL_BOOLEAN".to_string(), Some("TRUE".to_string()));
         db.insert(table_name, values).await.unwrap();
+
+        {
+            let resp = db
+                .show_table(table_name, Some("1 =1 "), Some("ID asc "), 1, 100, None)
+                .await
+                .unwrap();
+            println!("resp:{:?}", resp);
+        }
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+        }
     }
 }

@@ -2304,7 +2304,7 @@ pub async fn put_value_in_sql(
         .map_err(ErrorFrontend::from)?;
 
     schema
-        .put_value_in_sql(&typ, value.as_ref().map(|x| x.as_str()))
+        .put_value_in_sql(&typ, None, value.as_ref().map(|x| x.as_str()))
         .map_err(|x| ErrorFrontend::from(x))
 }
 
