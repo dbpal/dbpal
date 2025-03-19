@@ -220,6 +220,7 @@ function backendCompletionItemToEditor(
         insertText: e.item,
         range: undefined,
         detail: e.desc,
+        documentation: e.desc
       };
     }),
   };

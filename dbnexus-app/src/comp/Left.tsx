@@ -1275,7 +1275,6 @@ function SchemaMenu(props: {
     kind,
   } = props;
   const { showNotification } = useContext(NotificationContext);
-
   const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>

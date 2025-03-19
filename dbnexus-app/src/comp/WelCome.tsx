@@ -82,7 +82,7 @@ function WelCome() {
               borderRadius: '12px',
               border: '1px solid gray',
               width: '200px',
-              height: '120px',
+              height: '130px',
             }}
             key={e.name}
           >
