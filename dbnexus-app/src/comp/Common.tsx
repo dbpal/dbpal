@@ -656,6 +656,8 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
   if (registeredLanguage.has(uuid)) {
     return;
   }
+  registeredLanguage.add(uuid);
+
   const autoCompletion = async (
     sql: string,
     pos: Position
@@ -949,7 +951,6 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
     default:
       throw `impl this ${kind}`;
   }
-  registeredLanguage.add(uuid);
 }
 
 async function makeQueryConnInfo(uuid: string) {

@@ -235,7 +235,14 @@ function SqlQuery(props: {
       showNotification('error', `can't execute empty statement.`);
       return;
     }
-    const confirm = await warnDangerousSql(text);
+
+    let confirm;
+    try {
+      confirm = await warnDangerousSql(text);
+    } catch (_e) {
+      console.log('warn about dangerous sql error', _e);
+      confirm = true;
+    }
     if (!confirm) {
       return;
     }
