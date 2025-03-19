@@ -265,9 +265,8 @@ mod tests {
             .await
             .unwrap();
 
-        let manifest_dir =
-            std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("clickhouse_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();

@@ -597,10 +597,19 @@ function ConnConfigInfo(props: { uuid }) {
         case 'cassandra':
         case 'oracle':
         case 'clickhouse':
+        case 'firebird':
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,
             { name: 'user', value: config.username } as types.MetaValue,
+          ];
+          break;
+        case 'libsql':
+          configMetas = [
+            { name: 'host', value: config['host'] } as types.MetaValue,
+            { name: 'port', value: config['port'] + '' } as types.MetaValue,
+            { name: 'user', value: config['username'] } as types.MetaValue,
+            { name: 'path', value: config['path'] } as types.MetaValue,
           ];
           break;
         case 'sqlite':

@@ -11,8 +11,8 @@ const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 export default defineConfig(async ({ command }) => {
   {
     const debugFile = __dirname + '/src/comp/debug.ts';
-    const content = `const debug = ${command == 'serve'};
-export { debug }`;
+    const content = `const debugBuild = ${command == 'serve'};
+export { debugBuild }`;
     fs.writeFileSync(debugFile, content);
   }
   return {
@@ -39,10 +39,10 @@ export { debug }`;
       host: mobile ? '0.0.0.0' : false,
       hmr: mobile
         ? {
-            protocol: 'ws',
-            host: await internalIpV4(),
-            port: 1421,
-          }
+          protocol: 'ws',
+          host: await internalIpV4(),
+          port: 1421,
+        }
         : undefined,
       watch: {
         // 3. tell vite to ignore watching `src-tauri`

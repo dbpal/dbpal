@@ -374,7 +374,14 @@ impl std::fmt::Debug for FireBirdDB {
 #[async_trait::async_trait]
 impl ServerMetas for FireBirdDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
-        unimplemented!()
+        let sql = "SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') FROM RDB$DATABASE";
+        let mut conn = self.get_conn()?;
+        let version: Option<(String,)> = conn.query_first(sql, ())?;
+        let mut ret = Vec::new();
+        if let Some(version) = version {
+            ret.push(MetaValue::new("version", version.0));
+        }
+        anyhow::Ok(ret)
     }
 }
 
@@ -513,6 +520,10 @@ impl SchemaTrait for FireBirdDB {
         )
     }
 
+    async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
+        self.show_table_columns(view_name).await
+    }
+
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let mut conn = self.get_conn()?;
 
@@ -603,12 +614,16 @@ impl SchemaTrait for FireBirdDB {
         let mut conn = self.get_conn()?;
         let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
 
-        let mut fields = if rows.len() > 0 {
-            infer_fields(rows.get(0).unwrap())
-        } else {
-            vec![]
-        };
+        if rows.len() == 0 {
+            return anyhow::Ok(TableListResp {
+                fields: fs,
+                total: 0,
+                data: vec![],
+                sql: Some(sql),
+            });
+        }
 
+        let mut fields = infer_fields(&rows[0]);
         fields.iter_mut().for_each(|x| {
             if let Some(f) = fields_map.get(&x.field) {
                 *x = (*f).clone();
@@ -802,6 +817,18 @@ impl SchemaTrait for FireBirdDB {
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn()?;
         let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
+
+        if rows.len() == 0 {
+            let fields = self.show_view_columns(view_name).await?;
+
+            return anyhow::Ok(TableListResp {
+                fields,
+                total: 0,
+                data: vec![],
+                sql: Some(sql),
+            });
+        }
+
         let data = encode_rows(&rows, true, |_| None)?;
         let total = self.query_count(view_name, where_str)?;
         let fields = match rows.get(0) {
@@ -915,7 +942,7 @@ pub(crate) fn gen_show_sql(
 }
 
 #[cfg(test)]
-fn make_test_object() -> FireBirdDB {
+pub(crate) fn make_test_object() -> FireBirdDB {
     FireBirdDB::new(FireBirdConfig {
         host: "localhost".to_string(),
         port: 3050,
@@ -1003,6 +1030,12 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", resp);
+
+        let columns = db.show_view_columns(view_name).await.unwrap();
+
+        for col in columns.iter() {
+            println!("col:{:?}", col);
+        }
 
         let views = db.list_view().await.unwrap();
         for view in views.iter() {

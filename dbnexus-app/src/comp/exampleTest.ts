@@ -246,7 +246,8 @@ function testExampleField(): types.Field {
     is_auto_increment: Math.random() > 0.8,
     nullable: Math.random() > 0.8,
     default_value: Math.random() > 0.5 ? generateRandomString() : null,
-    sortable: true
+    sortable: true,
+    firebird_binary_sub_type: null
   };
 }
 

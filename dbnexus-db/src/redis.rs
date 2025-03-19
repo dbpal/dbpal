@@ -1501,9 +1501,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[ignore = "should run by hand."]
     async fn test_auto_completion() {
         enable_test_log();
-        let manifest_dir =
-            std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("redis_auto_completion_test.txt");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
