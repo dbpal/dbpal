@@ -181,6 +181,7 @@ function Database(props: {
 
       <Stack direction="row">
         <TextField
+          fullWidth
           size="small"
           label={lable}
           value={database}

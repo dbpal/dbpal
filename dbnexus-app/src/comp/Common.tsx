@@ -605,12 +605,16 @@ function ConnConfigInfo(props: { uuid }) {
           ];
           break;
         case 'libsql':
-          configMetas = [
-            { name: 'host', value: config['host'] } as types.MetaValue,
-            { name: 'port', value: config['port'] + '' } as types.MetaValue,
-            { name: 'user', value: config['username'] } as types.MetaValue,
-            { name: 'path', value: config['path'] } as types.MetaValue,
-          ];
+          if (config.source == 'local') {
+            configMetas = [
+              { name: 'host', value: config.path } as types.MetaValue,
+            ];
+          } else if (config.source == 'remote') {
+            configMetas = [
+              { name: 'url', value: config.url } as types.MetaValue,
+              { name: 'path', value: config.path } as types.MetaValue,
+            ];
+          }
           break;
         case 'sqlite':
           configMetas = [
