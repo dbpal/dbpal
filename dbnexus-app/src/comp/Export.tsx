@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  Chip,
   Divider,
   FormControlLabel,
   Stack,
@@ -78,16 +79,15 @@ function ExportView(props: {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
         {support_kind.map((e) => (
-          <Button
+          <Chip
             disabled={kind == e}
             onClick={() => {
               setKind(e);
             }}
             key={e}
-            variant="contained"
-          >
-            {e}
-          </Button>
+            label={e}
+            color="info"
+          ></Chip>
         ))}
       </Stack>
       {kind == 'csv' && (

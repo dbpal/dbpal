@@ -339,12 +339,11 @@ function SqlQuery(props: {
           width: '100%',
         }}
       >
-        {/* // here is query log use positive to locate. */}
+        {/* // here is query log use absolute position to locate. */}
         {showQueryLog && (
           <Paper
             style={{
               position: 'absolute',
-              opacity: 1,
               right: 0,
               top: 0,
               display: showQueryLog ? 'block' : 'none',
@@ -352,7 +351,7 @@ function SqlQuery(props: {
               width: '65%',
             }}
           >
-            <Stack direction="row" sx={{ justifyContent: 'center' }}>
+            <Stack direction="row" sx={{ justifyContent: 'felx-start' }}>
               <Button
                 onClick={() => {
                   setShowQueryLog(false);
@@ -485,14 +484,10 @@ function SqlQuery(props: {
               onClick={() => {
                 setShowQueryLog((prev) => !prev);
               }}
-              color={showQueryLog ? 'error' : 'info'}
+              color="primary"
               disabled={conn == null}
             >
-              {showQueryLog ? (
-                <CloseIcon></CloseIcon>
-              ) : (
-                <EventNoteIcon></EventNoteIcon>
-              )}
+              <EventNoteIcon></EventNoteIcon>
             </IconButton>
           </Tooltip>
         </Stack>

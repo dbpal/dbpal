@@ -135,7 +135,6 @@ function TabsWithContent_(props: {
             onClick={() => {
               setHideAll(false);
             }}
-            style={{ padding: 0, margin: 0 }}
           >
             all tabs
           </Button>
@@ -148,7 +147,6 @@ function TabsWithContent_(props: {
           style={{
             flexWrap: 'wrap',
           }}
-          spacing={1}
         >
           {tabs.map((tab, index) => {
             return (
@@ -161,7 +159,6 @@ function TabsWithContent_(props: {
                 size="small"
                 icon={tab.icon}
                 clickable
-                //@ts-ignore
                 color={index == selectIndex ? 'primary' : 'default'}
                 onContextMenu={(e) => {
                   setUpMenu({
@@ -185,6 +182,7 @@ function TabsWithContent_(props: {
                 sx={
                   index != selectIndex
                     ? {
+                        margin: '2px',
                         '& .MuiChip-deleteIcon': {
                           visibility: 'hidden', // 默认隐藏删除按钮
                         },
@@ -192,7 +190,7 @@ function TabsWithContent_(props: {
                           visibility: 'visible', // hover 时显示删除按钮
                         },
                       }
-                    : {}
+                    : { margin: '2px' }
                 }
               ></Chip>
             );

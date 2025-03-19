@@ -68,7 +68,7 @@ function RespContextMenu(props: { content; field; setSort }) {
           <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> Copy field </ListItemText>
+          <ListItemText> Copy Field </ListItemText>
         </MenuItem>
         <Divider></Divider>
         <MenuItem

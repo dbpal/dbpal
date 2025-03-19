@@ -55,10 +55,12 @@ impl AstCompletionHelper for FireBirdDB {
         &self, _db: Option<&str>, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
         let sql = r#"
-         SELECT 
+            SELECT 
                 RDB$RELATION_NAME AS TABLE_NAME
             FROM 
                 RDB$RELATIONS
+            WHERE 
+                RDB$VIEW_BLR IS NULL  -- 排除视图
        "#;
         let mut conn = self.get_conn()?;
         let rows: Vec<(String,)> = conn.query(sql, ())?;
@@ -68,8 +70,14 @@ impl AstCompletionHelper for FireBirdDB {
     async fn list_view(
         &self, _db: Option<&str>, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        //  view include in AstCompletionHelper::list_table
-        anyhow::Ok(vec![])
+        let sql = r#"
+          SELECT RDB$RELATION_NAME
+            FROM RDB$RELATIONS
+            WHERE RDB$VIEW_BLR IS NOT NULL;
+   "#;
+        let mut conn = self.get_conn()?;
+        let rows: Vec<(String,)> = conn.query(sql, ())?;
+        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
     }
     async fn list_column(
         &self, _db: Option<&str>, _schema: Option<&str>, name: &str,

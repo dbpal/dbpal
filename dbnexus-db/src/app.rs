@@ -524,7 +524,7 @@ impl App {
 
         match self.get_opened(name).await? {
             Open::Schema(x) => anyhow::Ok(x.clone()),
-            _ => anyhow::bail!(format!("this '{}' a multi", name)),
+            _ => anyhow::bail!(format!("'{}' a schema trait", name)),
         }
     }
 
@@ -532,7 +532,7 @@ impl App {
         let db = self.opens.lock().await.get(name).map(|x| x.clone());
         let x = match db {
             Some(x) => x,
-            None => anyhow::bail!("db '{}' not found,the database maybe closed??", name),
+            None => anyhow::bail!("'{}' not found,the connection maybe closed???", name),
         };
         anyhow::Ok(x)
     }

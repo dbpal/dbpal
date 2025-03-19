@@ -219,7 +219,7 @@ function backendCompletionItemToEditor(
         kind: getKind(e.kind),
         insertText: e.item,
         range: undefined,
-        documentation: e.desc,
+        detail: e.desc,
       };
     }),
   };

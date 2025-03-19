@@ -809,6 +809,13 @@ impl SchemaTrait for FireBirdDB {
         anyhow::Ok(m.values().map(|x| x.clone()).collect())
     }
 
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DROP INDEX "{}";"#, index);
+        let mut conn = self.get_conn()?;
+        conn.execute(&sql, ())?;
+        anyhow::Ok(())
+    }
+
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
@@ -1047,7 +1054,12 @@ mod tests {
         let _gurad = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_INDEX";
+        let index_name = "TEST_INDEX_NAME_INDEX";
         let db = make_test_object();
+        let _err = db.drop_index(table_name, index_name).await;
+        if let Err(err) = _err {
+            println!("drop index err:{}", err.to_string());
+        }
         let _err = db.drop_table(table_name, false).await;
         if let Err(err) = _err {
             println!("drop table err:{}", err.to_string());
@@ -1068,7 +1080,7 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        db.create_index(table_name, "name_index", IndexKind::Unique, &[
+        db.create_index(table_name, index_name, IndexKind::Unique, &[
             "NAME".to_string(),
             "STATUS".to_string(),
         ])
@@ -1211,6 +1223,14 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
         }
     }
 
@@ -1298,6 +1318,14 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: false,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
         }
     }
 }
