@@ -139,74 +139,90 @@ impl FireBirdDB {
         &self, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn()?;
-        let stream: Vec<Row> = block_in_place(|| conn.query(sql, ()))?;
-        let mut first = true;
-        for row in stream {
-            if first && include_header {
-                let fs = row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
-                sender
-                    .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
-                    .await?;
+        let firebird = Clone::clone(self);
+        let sql = sql.to_owned();
 
-                first = false;
+        tokio::task::spawn_blocking(move || {
+            let mut conn = firebird.get_conn()?;
+            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
+                conn.query_iter(&sql, ())?;
+            let mut first = true;
+            for row in stream {
+                let row = row?;
+                if first && include_header {
+                    let fs = row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
+                    sender.blocking_send(Cow::Owned(create_csv(&vec![fs], delimiter)))?;
+
+                    first = false;
+                }
+                let data = encode_rows(&vec![row], true, |_| None)?;
+                sender.blocking_send(Cow::Owned(create_csv(&data, delimiter)))?;
             }
-            let data = encode_rows(&vec![row], true, |_| None)?;
+            anyhow::Ok(())
+        })
+        .await??;
 
-            sender
-                .send(Cow::Owned(create_csv(&data, delimiter)))
-                .await?;
-        }
         anyhow::Ok(())
     }
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn()?;
+        let firebird = Clone::clone(self);
+        let sql = sql.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let mut conn = firebird.get_conn()?;
 
-        sender.send("[".into()).await?;
-        let rows: Vec<Row> = block_in_place(|| conn.query(sql, ()))?;
-        let mut first = true;
-        for row in rows {
-            let value = encode_row_as_json(&row)?;
-            if !first {
-                sender.send(",".into()).await?;
-            }
-            if pretty {
-                sender.send("\n".into()).await?;
-            }
+            sender.blocking_send("[".into())?;
+            let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
+            let mut first = true;
+            for row in rows {
+                let row = row?;
+                let value = encode_row_as_json(&row)?;
+                if !first {
+                    sender.blocking_send(",".into())?;
+                }
+                if pretty {
+                    sender.blocking_send("\n".into())?;
+                }
 
-            sender
-                .send(Cow::Owned(if pretty {
+                sender.blocking_send(Cow::Owned(if pretty {
                     serde_json::to_string_pretty(&value)?
                 } else {
                     serde_json::to_string(&value)?
-                }))
-                .await?;
+                }))?;
 
-            first = false;
-        }
+                first = false;
+            }
 
-        if pretty {
-            sender.send("\n".into()).await?;
-        }
-        sender.send("]".into()).await?;
+            if pretty {
+                sender.blocking_send("\n".into())?;
+            }
+            sender.blocking_send("]".into())?;
+            anyhow::Ok(())
+        })
+        .await??;
+
         anyhow::Ok(())
     }
 
     async fn export_query_result_as_json_line(
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn()?;
-
-        let stream: Vec<Row> = block_in_place(|| conn.query(sql, ()))?;
-        for row in stream {
-            let value = encode_row_as_json(&row)?;
-            sender
-                .send(Cow::Owned(serde_json::to_string(&value)?))
-                .await?;
-            sender.send("\n".into()).await?;
-        }
+        let firebird = Clone::clone(self);
+        let sql = sql.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let mut conn = firebird.get_conn()?;
+            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
+                conn.query_iter(&sql, ())?;
+            for row in stream {
+                let row = row?;
+                let value = encode_row_as_json(&row)?;
+                sender.blocking_send(Cow::Owned(serde_json::to_string(&value)?))?;
+                sender.blocking_send("\n".into())?;
+            }
+            anyhow::Ok(())
+        })
+        .await??;
         anyhow::Ok(())
     }
 }
@@ -415,46 +431,44 @@ impl FireBirdDB {
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        if include_table_schema {
-            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
-            sender.send(Cow::Owned(ss.create_table.clone())).await?;
-            sender.send("\n".into()).await?;
-            for index in ss.indexes.into_iter() {
-                sender.send(Cow::Owned(index)).await?;
-                sender.send("\n".into()).await?;
+        let table_name = table_name.to_owned();
+        let firebird = Clone::clone(self);
+        let cols = SchemaTrait::show_table_columns(self, &table_name).await?;
+
+        tokio::task::spawn_blocking(move || {
+            if include_table_schema {
+                anyhow::bail!("include schema not support by firebird");
             }
-        }
-
-        let mut conn = self.get_conn()?;
-        let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let mut cols_map = HashMap::new();
-        cols.iter().for_each(|f| {
-            cols_map.insert(f.field.as_str(), f);
-        });
-
-        let sql = format!("SELECT * from {}", table_name);
-        log::info!("sql:{}", sql);
-        let rows: Vec<Row> = block_in_place(|| conn.query(&sql, ()))?;
-
-        for row in rows {
-            let data = encode_rows(&vec![row], true, |name| {
-                cols_map
-                    .get(&name)
-                    .map(|x| x.firebird_binary_sub_type)
-                    .flatten()
-            })?;
-
-            for d in data.into_iter() {
-                let mut m = HashMap::new();
-                for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.field.clone(), d);
+            let mut cols_map = HashMap::new();
+            cols.iter().for_each(|f| {
+                cols_map.insert(f.field.as_str(), f);
+            });
+            let mut conn = firebird.get_conn()?;
+            let sql = format!("SELECT * from {}", table_name);
+            log::info!("sql:{}", sql);
+            let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
+            for row in rows {
+                let row = row?;
+                let data = encode_rows(&vec![row], true, |name| {
+                    cols_map
+                        .get(&name)
+                        .map(|x| x.firebird_binary_sub_type)
+                        .flatten()
+                })?;
+                for d in data.into_iter() {
+                    let mut m = HashMap::new();
+                    for (d, f) in d.into_iter().zip(cols.iter()) {
+                        m.insert(f.field.clone(), d);
+                    }
+                    let insert_sql =
+                        (&firebird as &dyn SchemaTrait).insert_sql(None, &table_name, &cols, &m)?;
+                    sender.blocking_send(Cow::Owned(insert_sql))?;
+                    sender.blocking_send("\n".into())?;
                 }
-                let insert_sql =
-                    (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
-                sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send("\n".into()).await?;
             }
-        }
+            anyhow::Ok(())
+        })
+        .await??;
 
         anyhow::Ok(())
     }
@@ -1153,7 +1167,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_table() {
         let _gurad = test_lock().lock().await;
-        enable_test_log();
+        // enable_test_log();
         let table_name = "TEST_TABLE";
         let db = make_test_object();
         let _err = db.drop_table(table_name, false).await;

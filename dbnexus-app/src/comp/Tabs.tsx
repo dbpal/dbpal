@@ -197,8 +197,7 @@ function TabsWithContent_(props: {
           })}
         </Stack>
       )}
-      <Divider style={{ borderWidth: '2px' }}></Divider>
-
+      {tabs.length > 0 && <Divider style={{ borderWidth: '2px' }}></Divider>}
       <div style={{ paddingRight: '18px' }}>
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
