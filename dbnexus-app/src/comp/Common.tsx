@@ -59,6 +59,7 @@ const modalStyle: SxProps = {
 
 import {
   cassandraKeywords,
+  firebirdKeywords,
   mssqlKeywords,
   mysqlKeywords,
   oracleKeywords,
@@ -841,7 +842,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [sqliteKeywords, 'keyword'],
+              [firebirdKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
