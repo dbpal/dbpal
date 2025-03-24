@@ -172,7 +172,7 @@ function ModifySettings() {
           onChange={(_, value) => {
             setDatagridHeaderHeight(value as number);
           }}
-          min={20}
+          min={15}
           max={50}
         ></Slider>
       </Stack>
@@ -188,7 +188,7 @@ function ModifySettings() {
           onChange={(_, value) => {
             setDatagridRowHeight(value as number);
           }}
-          min={20}
+          min={15}
           max={50}
         ></Slider>
       </Stack>

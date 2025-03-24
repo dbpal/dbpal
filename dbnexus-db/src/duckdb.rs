@@ -1,19 +1,21 @@
 #![allow(unused)]
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::DashMap;
 use duckdb::Connection;
 use r2d2::PooledConnection;
+use sqlparser::ast::{ColumnOption, Statement};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, CreateDatabaseExtra, CreateSchemaExtra, DBTrait, Field,
-    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
+    BackendName, CatalogTrait, CheckConn, CreateDatabaseExtra, CreateSchemaExtra,
+    CreateTableAndIndexSql, DBTrait, Field, ListTable, NamedStaff, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
+    not_support_features,
 };
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
@@ -169,8 +171,48 @@ impl ReadOnlyTrait for DuckDB {
 }
 
 #[async_trait::async_trait]
-
 impl SchemaTrait for DuckDB {
+    async fn create_table_and_index_sql(
+        &self, table_name: &str,
+    ) -> anyhow::Result<CreateTableAndIndexSql> {
+        let sql = format!(
+            r#"
+            SELECT sql
+            FROM sqlite_master
+            WHERE type = 'table' AND name = '{table_name}';
+        "#
+        );
+        let mut conn = self.get_conn()?;
+        let mut ret = block_in_place(|| {
+            conn.query_row(&sql, [], |x| {
+                let sql: String = x.get(0)?;
+                Ok(CreateTableAndIndexSql {
+                    create_table: sql,
+                    indexes: vec![],
+                })
+            })
+        })?;
+        ret.indexes = {
+            let sql = format!(
+                r#"
+                SELECT sql
+                FROM sqlite_master
+                WHERE type = 'index' AND tbl_name = '{table_name}';
+            "#
+            );
+
+            let mut stmt = conn.prepare(&sql)?;
+            let mut indexes = vec![];
+            let mut rows = block_in_place(|| stmt.query([]))?;
+            while let Some(row) = rows.next()? {
+                let s: String = row.get(0)?;
+                indexes.push(s);
+            }
+            indexes
+        };
+        anyhow::Ok(ret)
+    }
+
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         unimplemented!()
     }
@@ -184,7 +226,67 @@ impl SchemaTrait for DuckDB {
         unimplemented!()
     }
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        unimplemented!()
+        let mut conn = self.get_conn()?;
+
+        let primary_keys = {
+            let sql = format!(
+                "
+                SELECT c.column_name
+                    FROM information_schema.table_constraints tc
+                    JOIN information_schema.constraint_column_usage c
+                    ON tc.constraint_name = c.constraint_name
+                    WHERE tc.table_name = '{}'
+                    AND tc.table_schema = '{}'  -- 指定 schema 名称
+                    AND tc.constraint_type = 'PRIMARY KEY';
+           ",
+                table_name,
+                self.config.schema_str()
+            );
+            let mut primary_keys = HashSet::new();
+            let mut stmt = conn.prepare(&sql)?;
+            let mut rows = stmt.query([])?;
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                primary_keys.insert(name);
+            }
+
+            primary_keys
+        };
+
+        let sql = format!(
+            r#"
+            SELECT column_name, data_type, is_nullable , column_default
+                FROM information_schema.columns
+                WHERE table_name = '{}'
+                AND table_schema = '{}';  -- 指定 schema 名称
+        "#,
+            table_name,
+            self.config.schema_str()
+        );
+
+        let mut stmt = conn.prepare(&sql)?;
+
+        let mut rows = block_in_place(|| stmt.query([]))?;
+        let mut ret = Vec::new();
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(0)?;
+            let data_type: String = row.get(1)?;
+            let is_nullable: String = row.get(2)?;
+            let column_default: Option<String> = row.get(3)?;
+            let is_primary = primary_keys.contains(&name);
+
+            ret.push(Field {
+                field: name,
+                typ: data_type,
+                nullable: is_nullable.eq_ignore_ascii_case("yes"),
+                default_value: column_default,
+                is_primary,
+                is_auto_increment: false,
+                sortable: true,
+                firebird_binary_sub_type: None,
+            });
+        }
+        anyhow::Ok(ret)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -192,15 +294,30 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        unimplemented!()
+        let sql = format!(r#"ALTER TABLE "{old}"  RENAME TO "{new}";"#);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
-        unimplemented!()
+        let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}";"#);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        unimplemented!()
+        let sql = "SHOW TABLES";
+        let conn = self.get_conn()?;
+        let mut stmt = conn.prepare(sql)?;
+        let mut rows = stmt.query([])?;
+        let mut ret = Vec::new();
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
     }
 
     async fn show_view_columns(&self, name: &str) -> anyhow::Result<Vec<Field>> {
@@ -217,33 +334,88 @@ impl SchemaTrait for DuckDB {
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        unimplemented!()
+        let fs = self.show_table_columns(table_name).await?;
+
+        let sql = (self as &dyn SchemaTrait).insert_sql(
+            self.config.schema.as_ref().map(|x| x.as_str()),
+            table_name,
+            &fs,
+            &values,
+        )?;
+
+        let mut conn = self.get_conn()?;
+        let changes = block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(SqlExecuteRet {
+            sql,
+            changes: Some(changes as u64),
+        })
     }
 
     async fn update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        unimplemented!()
-    }
+        let fs = self.show_table_columns(table_name).await?;
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
-        unimplemented!()
+        let sql = (self as &dyn SchemaTrait).update_sql(
+            self.config.schema.as_ref().map(|x| x.as_str()),
+            table_name,
+            &fs,
+            &values,
+            &wheres,
+            type_support_compare,
+        )?;
+
+        let mut conn = self.get_conn()?;
+        let changes = block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(SqlExecuteRet {
+            sql,
+            changes: Some(changes as u64),
+        })
     }
 
     async fn delete(
-        &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
+        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        unimplemented!()
+        let fs = self.show_table_columns(table_name).await?;
+
+        let sql = (self as &dyn SchemaTrait).delete_sql(
+            self.config.schema.as_ref().map(|x| x.as_str()),
+            table_name,
+            &fs,
+            &wheres,
+            type_support_compare,
+        )?;
+
+        let mut conn = self.get_conn()?;
+        let changes = block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(SqlExecuteRet {
+            sql,
+            changes: Some(changes as u64),
+        })
+    }
+
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DELETE FROM "{}";"#, table_name);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
     }
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
-        unimplemented!()
+        let sql = format!(r#"DROP TABLE "{}";"#, table);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        unimplemented!()
+        Box::new(Clone::clone(self))
     }
+}
+
+fn type_support_compare(typ: &str) -> bool {
+    true
 }
 
 #[async_trait::async_trait]
@@ -299,11 +471,9 @@ impl CatalogTrait for DuckDB {
         let sql = "SELECT database_name FROM duckdb_databases();";
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
-
         let mut p = conn.prepare(&sql)?;
         let mut rows = p.query([])?;
         let mut ret = Vec::new();
-
         while let Some(row) = rows.next()? {
             let name: String = row.get(0)?;
             ret.push(name);
@@ -319,7 +489,6 @@ impl CatalogTrait for DuckDB {
         &self, name: &str, extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
-
         let path = match &extra {
             Some(x) => match &x {
                 CreateDatabaseExtra::DuckDB { path } => path,
@@ -407,6 +576,22 @@ mod tests {
 
         let x = db.list_schema().await.unwrap();
         println!("schemas:{:?}", x);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_list_table() {
+        let db = make_test_object(None);
+        let x = db.list_table().await.unwrap();
+        println!("tables:{:?}", x);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_show_table_columns() {
+        let db = make_test_object(Some("main".to_string()));
+        let x = db.show_table_columns("employees").await.unwrap();
+        for f in x.iter() {
+            println!("coldef:{:?}", f);
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
