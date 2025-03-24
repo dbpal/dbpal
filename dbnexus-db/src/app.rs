@@ -255,7 +255,7 @@ impl DBConnectionConfig {
             #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { conn, .. } => {
                 let db = crate::duckdb::DuckDB::new(conn.clone())?;
-                match &conn.database {
+                match &conn.db {
                     Some(_) => match &conn.schema {
                         Some(_) => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>)),
                         None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn DBTrait>)),

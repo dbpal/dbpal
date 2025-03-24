@@ -3,19 +3,30 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use dashmap::DashMap;
+use duckdb::Connection;
 use r2d2::PooledConnection;
+use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateDatabaseExtra, CreateSchemaExtra, DBTrait, Field,
-    ListTable, NamedStaff, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp, not_support_features,
+    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::meta_value::MetaValue;
-
+use crate::query_log::QueryLog;
+use std::ops::DerefMut;
 pub struct PoolManage {
     path: String,
+}
+
+fn make_conn(path: &str) -> duckdb::Result<Connection> {
+    let mut config = duckdb::Config::default();
+    config = config.access_mode(duckdb::AccessMode::ReadWrite)?;
+    let conn = duckdb::Connection::open_with_flags(path, config)?;
+    Ok(conn)
 }
 
 impl r2d2::ManageConnection for PoolManage {
@@ -23,12 +34,7 @@ impl r2d2::ManageConnection for PoolManage {
     type Error = duckdb::Error;
 
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let mut config = duckdb::Config::default();
-
-        config = config.access_mode(duckdb::AccessMode::ReadWrite)?;
-
-        let conn = duckdb::Connection::open_with_flags(&self.path, config)?;
-        Ok(conn)
+        make_conn(&self.path)
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
@@ -38,7 +44,7 @@ impl r2d2::ManageConnection for PoolManage {
     }
 
     fn has_broken(&self, conn: &mut Self::Connection) -> bool {
-        self.is_valid(conn).is_ok()
+        self.is_valid(conn).is_err()
     }
 }
 
@@ -46,6 +52,7 @@ impl r2d2::ManageConnection for PoolManage {
 pub struct DuckDB {
     config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
+    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<duckdb::Connection>>>>,
 }
 
 #[async_trait::async_trait]
@@ -61,13 +68,17 @@ impl DuckDB {
         let pool = r2d2::Builder::<PoolManage>::new().build(PoolManage {
             path: config.path.clone(),
         })?;
-        anyhow::Ok(Self { config, pool })
+        anyhow::Ok(Self {
+            config,
+            pool,
+            query_connections: Default::default(),
+        })
     }
 
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManage>> {
         let conn = block_in_place(|| self.pool.get())?;
 
-        if let Some(d) = self.config.database.as_ref() {
+        if let Some(d) = self.config.db.as_ref() {
             conn.execute(&format!("use {}", d), [])?;
         }
         if let Some(s) = self.config.schema.as_ref() {
@@ -108,16 +119,52 @@ impl QuerySql for DuckDB {
         unimplemented!()
     }
 
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut _log_gurad = QueryLog::get_guard(query_id, sql);
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let resp = match conn.execute(sql, []) {
+            Ok(changes) => Ok(QueryResp::row_affected(changes as u64)),
+            Err(err) => Err(err.to_string()),
+        };
+        _log_gurad.set_success(resp.is_ok());
+        anyhow::Ok(resp)
+    }
+
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        unimplemented!()
+        let uuid = uuid::Uuid::new_v4();
+        let conn = make_conn(&self.config.path)?;
+        self.query_connections
+            .insert(uuid, Arc::new(Mutex::new(conn)));
+        anyhow::Ok(uuid)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        unimplemented!()
+        let conn = make_conn(&self.config.path)?;
+        self.query_connections
+            .insert(id, Arc::new(Mutex::new(conn)));
+        anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        unimplemented!()
+        self.query_connections.remove(&id);
+        anyhow::Ok(())
+    }
+}
+
+impl ReadOnlyTrait for DuckDB {
+    fn read_only(&self) -> bool {
+        self.config.read_only
     }
 }
 
@@ -149,10 +196,6 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
-        unimplemented!()
-    }
-
-    fn read_only(&self) -> bool {
         unimplemented!()
     }
 
@@ -208,7 +251,7 @@ impl SchemaTrait for DuckDB {
 impl DBTrait for DuckDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let sql = format!(
-            "SELECT schema_name  FROM information_schema.schemata  where catalog_name = '{}' ;",
+            "SELECT schema_name FROM information_schema.schemata  where catalog_name = '{}' ;",
             self.config.database_str()
         );
         log::info!("sql:{}", sql);
@@ -269,7 +312,7 @@ impl CatalogTrait for DuckDB {
     }
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut x = Clone::clone(self);
-        x.config.database = Some(name.to_owned());
+        x.config.db = Some(name.to_owned());
         anyhow::Ok(Arc::new(x))
     }
     async fn create_database(
@@ -294,7 +337,7 @@ impl CatalogTrait for DuckDB {
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
         if self
             .config
-            .database
+            .db
             .as_ref()
             .map(|x| x.as_str().eq_ignore_ascii_case(&name))
             .unwrap_or_default()
@@ -318,7 +361,7 @@ fn make_test_object(schema: Option<String>) -> DuckDB {
     DuckDB::new(DuckDBConfig {
         path,
         read_only: false,
-        database: Some("test".to_string()),
+        db: Some("test".to_string()),
         schema,
     })
     .unwrap()
@@ -326,10 +369,8 @@ fn make_test_object(schema: Option<String>) -> DuckDB {
 
 #[cfg(test)]
 mod tests {
-    use crate::enable_test_log;
-
     use super::*;
-
+    use crate::enable_test_log;
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_database() {
         enable_test_log();
