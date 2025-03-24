@@ -91,6 +91,7 @@ mod tests {
         use std::path::Path;
 
         use dbnexus_db::db::monaco_editor_keyword_regexp;
+        use dbnexus_db::firebird::FireBirdDB;
         use dbnexus_db::language_server::LexerCompletionTrait;
         use dbnexus_db::mssql::MsSqlServerDB;
         use dbnexus_db::mysql::MysqlDB;
@@ -174,17 +175,23 @@ mod tests {
             file.write("\n".as_bytes()).unwrap();
         }
 
-        //
+        // cassandra
         {
             let content = CassandraDB::monaco_editor_keyword_regexp();
             file.write(compose("cassandraKeywords", &content).as_bytes())
                 .unwrap();
             file.write("\n".as_bytes()).unwrap();
         }
+        {
+            let content = FireBirdDB::monaco_editor_keyword_regexp();
+            file.write(compose("firebirdKeywords", &content).as_bytes())
+                .unwrap();
+            file.write("\n".as_bytes()).unwrap();
+        }
 
         // TODO add more
         file.write(
-        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords ,tidbKeywords , cassandraKeywords  }"#.as_bytes(),
+        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords ,tidbKeywords , cassandraKeywords  , firebirdKeywords }"#.as_bytes(),
     )
     .unwrap();
     }

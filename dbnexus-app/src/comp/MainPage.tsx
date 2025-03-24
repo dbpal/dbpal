@@ -80,19 +80,13 @@ export default function MainPage() {
     (index: number) => {
       let id = tabs[index].id;
       setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
-      if (selectIndex != index) {
-        // not close current
-        if (index < selectIndex) {
-          setSelectTab(selectIndex - 1);
-        }
-      } else {
-        if (selectIndex > 0) {
-          setSelectTab(selectIndex - 1);
-        }
+      if (selectIndex > 0 && selectIndex >= tabs.length - 1) {
+        setSelectTab(selectIndex - 1);
       }
     },
     [tabs]
   );
+
   const changeTab = useCallback((index) => {
     setSelectTab(index as number);
   }, []);

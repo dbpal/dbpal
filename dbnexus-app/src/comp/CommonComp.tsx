@@ -46,6 +46,7 @@ import {
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 import { SettingContext } from './Common';
+import { debugBuild } from './debug';
 
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
@@ -166,9 +167,12 @@ function ConnStatus({ uuid }) {
 
   useEffect(() => {
     reloadStatus();
-    let r = setInterval(() => {
-      reloadStatus();
-    }, 5000);
+    let r = setInterval(
+      () => {
+        reloadStatus();
+      },
+      debugBuild ? 500000 : 5000
+    );
     return () => {
       clearInterval(r);
     };

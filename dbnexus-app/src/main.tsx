@@ -2,7 +2,7 @@ import ReactDOM from 'react-dom/client';
 
 import './comp/MainPage';
 import MainPage from './comp/MainPage';
-import { debug } from './comp/debug';
+import { debugBuild } from './comp/debug';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
 import * as tauriwindow from '@tauri-apps/api/window';
@@ -19,7 +19,7 @@ if (['windows', 'linux'].includes(platform())) {
   });
 }
 
-if (!debug) {
+if (!debugBuild) {
   document.addEventListener('contextmenu', function (event) {
     event.preventDefault();
   });

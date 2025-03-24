@@ -24,7 +24,7 @@ function WelCome() {
       img: 'https://img1.baidu.com/it/u=2116707357,1993137839&fm=253&fmt=auto&app=138&f=PNG?w=500&h=272',
     },
     {
-      name: 'sql server(microsoft)',
+      name: 'sql server',
       img: 'https://www.techsoupvietnam.vn/sites/default/files/SQL-Server-2012_0.png',
     },
     {
@@ -51,6 +51,10 @@ function WelCome() {
       name: 'libsql',
       img: 'https://turso.tech/images/blog/the-libsql-glow-up/ugly-old-logo.png',
     },
+    {
+      name: 'firebird',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQG24A0f2jnl4T9rul7TPM1pELdOB82qJJMmA3le9C3xzfkdZVoQjm3GbGkW2XEfN4mDos&usqp=CAU',
+    },
   ];
   return (
     <Stack spacing={1}>
@@ -64,20 +68,30 @@ function WelCome() {
       <Typography variant="h6" style={{ fontWeight: '700' }}>
         right now we support:
       </Typography>
-      <Stack style={{ fontSize: '2rem', fontWeight: '700' }} spacing={1}>
+      <Stack
+        style={{ fontSize: '2rem', fontWeight: '700', flexWrap: 'wrap' }}
+        direction="row"
+      >
         {databases.map((e) => (
           <Stack
-            direction="row"
-            spacing={3}
             style={{
-              alignItems: 'center',
               padding: '4px',
-              textShadow: '8px 8px 2px rgba(113, 113, 113, 0.5)',
+              // textShadow: '8px 8px 2px rgba(130, 130, 130, 0.5)',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              borderRadius: '12px',
+              border: '1px solid gray',
+              width: '200px',
+              height: '130px',
             }}
             key={e.name}
           >
             <img
-              style={{ backgroundColor: 'white', borderRadius: '8px' }}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '4px',
+                display: 'block',
+              }}
               src={e.img}
               width="80px"
               alt={e.name}

@@ -951,16 +951,17 @@ function MongoTableList(props: {
       row: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
+          // let content = (target as HTMLDivElement).innerHTML;
           let field = (target as HTMLDivElement).getAttribute('data-field');
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           if (!field) {
             return;
           }
+          let row = { ...resp.data.data.find((e) => e[keyNotInTable] == id) };
           setUpMenu({
             content: (
               <MongoTableListContextMenu
-                content={content}
+                content={row[field]}
                 delOP={
                   handleDel
                     ? () => {

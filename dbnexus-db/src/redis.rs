@@ -1501,14 +1501,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[ignore = "should run by hand."]
     async fn test_auto_completion() {
         enable_test_log();
-        let manifest_dir =
-            std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("redis_auto_completion_test.txt");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         let db = make_test_object().await;
-        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+        test_file_auto_completion(&content, &db, false).await;
     }
 
     #[tokio::test]
@@ -1528,7 +1527,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let content = r#"SSCAN set
 1 SSCAN ; 10 set_value"#;
         let db = make_test_object().await;
-        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+        test_file_auto_completion(&content, &db, false).await;
     }
     #[tokio::test]
     async fn test_server_metas() {

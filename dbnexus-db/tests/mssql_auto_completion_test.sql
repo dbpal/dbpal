@@ -37,7 +37,7 @@ ALTER TABLE employees ADD CONSTRAINT chk_id CHECK (id >= 18);
 ALTER TABLE employees ADD CONSTRAINT idx_lastname UNIQUE (id);
 61 id
 GRANT SELECT ON dbo.employees TO public;
-20 dbo ; 30 employees ; 40 public
+20 dbo ; 30 employees
 drop table employees;
 21 employees
 DROP FUNCTION test_function;

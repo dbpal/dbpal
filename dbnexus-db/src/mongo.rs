@@ -71,7 +71,7 @@ impl BackendName for MongoDB {
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
     async fn auto_completion(
-        &self, _uuid: uuid::Uuid, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
+        &self, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         not_support_features(self.backend_name())
     }

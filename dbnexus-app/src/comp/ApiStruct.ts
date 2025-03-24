@@ -98,6 +98,14 @@ export namespace types {
         "replica": boolean;
         "read_only": boolean;
     });
+    export type FireBirdConfig = {
+        "host": string;
+        "port": types.U16;
+        "username": string;
+        "password": string;
+        "db": string;
+        "read_only": boolean;
+    };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -146,11 +154,16 @@ export namespace types {
         "conn_type": "libsql";
     } & (types.LibSqlDBConfig & {
         "name": string;
+    })) | ({
+        "conn_type": "firebird";
+    } & (types.FireBirdConfig & {
+        "name": string;
     })));
     export type ListTable = {
         "name": string;
         "size": (string | null);
     };
+    export type I64 = number;
     export type Field = {
         "field": string;
         "typ": string;
@@ -167,6 +180,7 @@ export namespace types {
         "is_primary": boolean;
         "is_auto_increment": boolean;
         "sortable": boolean;
+        "firebird_binary_sub_type": (types.I64 | null);
     };
     export type IndexKind = ("Index" | "Unique" | "Primary");
     export type Index = {
@@ -174,16 +188,9 @@ export namespace types {
         "kind": types.IndexKind;
         "columns": (string)[];
     };
-    export type I64 = number;
     export type SqlExecuteRet = {
         "sql": string;
         "changes": (types.U64 | null);
-        "last_insert_row_id": (types.I64 | null);
-
-        /**
-         * most of the database have id int but mongo have string
-         */
-        "last_insert_id_string": (string | null);
     };
     export type MetaValue = {
         "name": string;

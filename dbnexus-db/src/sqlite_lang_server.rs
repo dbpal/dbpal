@@ -49,11 +49,10 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
 #[async_trait::async_trait]
 impl LanguageServer for SqliteDB {
     async fn auto_completion(
-        &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
             &sql,
-            query_id,
             line,
             col,
             sqlparser::dialect::SQLiteDialect {},
@@ -1116,14 +1115,13 @@ mod tests {
             .await;
 
         enable_test_log();
-        let manifest_dir =
-            std::env::var("CARGO_MANIFEST_DIR").expect("无法获取 CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir.as_str()).to_path_buf();
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("sqlite_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
 
-        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+        test_file_auto_completion(&content, &db, false).await;
     }
 
     #[ignore = "xxx"]
@@ -1135,7 +1133,6 @@ mod tests {
             r#"PRAGMA user_version;
 12 user_version"#,
             &db,
-            uuid::Uuid::new_v4(),
             false,
         )
         .await;

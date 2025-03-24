@@ -40,7 +40,12 @@ pub trait SchemaTrait:
         ""
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()>;
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+        self.duplicate_table(old, new).await?;
+        self.drop_table(old, false).await?;
+        anyhow::Ok(())
+    }
+
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
@@ -77,7 +82,9 @@ pub trait SchemaTrait:
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(
+        &self, _typ: &str, _: Option<i64>, _value: Option<&str>,
+    ) -> anyhow::Result<String> {
         not_support_features(self.backend_name())
     }
 
@@ -658,7 +665,11 @@ impl dyn SchemaTrait {
                     self.quote_style(),
                     k,
                     self.quote_style(),
-                    self.put_value_in_sql(&f.typ, v.as_ref().map(|x| x.as_str()))?
+                    self.put_value_in_sql(
+                        &f.typ,
+                        f.firebird_binary_sub_type,
+                        v.as_ref().map(|x| x.as_str())
+                    )?
                 )
                 .as_str(),
             );
@@ -729,7 +740,11 @@ impl dyn SchemaTrait {
                         self.quote_style(),
                         k,
                         self.quote_style(),
-                        self.put_value_in_sql(&f.unwrap().typ, v.as_ref().map(|x| x.as_str()))?
+                        self.put_value_in_sql(
+                            &f.unwrap().typ,
+                            f.unwrap().firebird_binary_sub_type,
+                            v.as_ref().map(|x| x.as_str())
+                        )?
                     )
                     .as_str(),
                 );
@@ -795,7 +810,11 @@ impl dyn SchemaTrait {
                     sql.push_str(",");
                 }
                 let value = values.get(&f.field).map(|x| x.clone()).flatten();
-                sql.push_str(&self.put_value_in_sql(&f.typ, value.as_deref())?);
+                sql.push_str(&self.put_value_in_sql(
+                    &f.typ,
+                    f.firebird_binary_sub_type,
+                    value.as_deref(),
+                )?);
                 first = false;
             }
             sql.push_str(")");
@@ -809,9 +828,6 @@ pub struct SqlExecuteRet {
     pub sql: String,
     // some backend can't get the changes result
     pub changes: Option<u64>,
-    pub last_insert_row_id: Option<i64>,
-    /// most of the database have id int but mongo have string
-    pub last_insert_id_string: Option<String>,
 }
 
 impl From<(String, u64)> for SqlExecuteRet {
@@ -819,8 +835,6 @@ impl From<(String, u64)> for SqlExecuteRet {
         Self {
             sql,
             changes: Some(changes),
-            last_insert_id_string: None,
-            last_insert_row_id: None,
         }
     }
 }
@@ -829,8 +843,6 @@ impl From<u64> for SqlExecuteRet {
         Self {
             sql: "".to_string(),
             changes: Some(changes),
-            last_insert_id_string: None,
-            last_insert_row_id: None,
         }
     }
 }
@@ -898,6 +910,7 @@ impl QueryResp {
                 is_primary: false,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: None,
             }],
         }
     }
@@ -913,6 +926,7 @@ impl QueryResp {
                 is_primary: false,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: None,
             }],
         }
     }
@@ -927,6 +941,7 @@ impl QueryResp {
                 is_primary: false,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: None,
             }],
         }
     }
@@ -1007,6 +1022,7 @@ impl TableListResp {
                 is_primary: false,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: None,
             }],
         }
     }
@@ -1023,8 +1039,9 @@ pub struct Field {
     pub is_primary: bool,
     //
     pub is_auto_increment: bool,
-
     pub sortable: bool,
+
+    pub firebird_binary_sub_type: Option<i64>,
 }
 
 impl Field {
@@ -1040,6 +1057,7 @@ impl Field {
             is_auto_increment: false,
             is_primary: false,
             sortable: true,
+            firebird_binary_sub_type: None,
         }
     }
 
@@ -1063,6 +1081,7 @@ impl Field {
             is_primary,
             is_auto_increment,
             sortable: true,
+            firebird_binary_sub_type: None,
         }
     }
 }
@@ -1252,13 +1271,13 @@ pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
 
     match x {
         DataType::TinyInt(_)
-        | DataType::UnsignedTinyInt(_)
+        | DataType::TinyIntUnsigned(_)
         | DataType::Int2(_)
-        | DataType::UnsignedInt2(_)
+        | DataType::Int2Unsigned(_)
         | DataType::SmallInt(_)
-        | DataType::UnsignedSmallInt(_)
+        | DataType::SmallIntUnsigned(_)
         | DataType::MediumInt(_)
-        | DataType::UnsignedMediumInt(_)
+        | DataType::MediumIntUnsigned(_)
         | DataType::Int(_)
         | DataType::Int4(_)
         | DataType::Int8(_)
@@ -1268,9 +1287,9 @@ pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
         | DataType::Int128
         | DataType::Int256
         | DataType::Integer(_)
-        | DataType::UnsignedInt(_)
-        | DataType::UnsignedInt4(_)
-        | DataType::UnsignedInteger(_)
+        | DataType::IntUnsigned(_)
+        | DataType::Int4Unsigned(_)
+        | DataType::UnsignedInteger
         | DataType::UInt8
         | DataType::UInt16
         | DataType::UInt32
@@ -1278,8 +1297,8 @@ pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
         | DataType::UInt128
         | DataType::UInt256
         | DataType::BigInt(_)
-        | DataType::UnsignedBigInt(_)
-        | DataType::UnsignedInt8(_) => true,
+        | DataType::BigIntUnsigned(_)
+        | DataType::Int8Unsigned(_) => true,
 
         _ => false,
     }
@@ -1301,7 +1320,7 @@ pub(crate) fn ty_is_float(x: &sqlparser::ast::DataType) -> bool {
         | DataType::Float64
         | DataType::Real
         | DataType::Float8
-        | DataType::Double
+        | DataType::Double(_)
         | DataType::DoublePrecision => true,
 
         _ => false,

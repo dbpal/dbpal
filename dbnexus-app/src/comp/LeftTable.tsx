@@ -303,6 +303,7 @@ async function makeViewTable(
     case DataSourceKind.Cassandra:
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
+    case DataSourceKind.FireBird:
       tableList = (
         <SqlTableView
           tableName={table}
@@ -591,7 +592,6 @@ async function makeViewTable(
       );
       break;
   }
-
   return tableList;
 }
 
@@ -613,6 +613,7 @@ async function makeAddTable(
     case DataSourceKind.Cassandra:
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
+    case DataSourceKind.FireBird:
       tableList = (
         <SqlTableViewAdd
           addOP={async (values) => {

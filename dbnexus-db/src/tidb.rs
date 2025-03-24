@@ -143,8 +143,10 @@ impl SchemaTrait for TiDB {
         self.db.update(table_name, values, wheres).await
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        self.db.put_value_in_sql(typ, value)
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        self.db.put_value_in_sql(typ, None, value)
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {

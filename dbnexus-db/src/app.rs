@@ -6,7 +6,7 @@ use crate::datasource_config::{
     CassandraDBConfig, DuckDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
-use crate::datasource_config::{ClickHouseConfig, LibSqlDBConfig};
+use crate::datasource_config::{ClickHouseConfig, FireBirdConfig, LibSqlDBConfig};
 use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, ShowExtraArgs,
     SqlExecuteRet, TableListResp,
@@ -35,7 +35,8 @@ impl DBConnectionConfig {
             | DBConnectionConfig::Oracle { name, .. }
             | DBConnectionConfig::Cassandra { name, .. }
             | DBConnectionConfig::ClickHouse { name, .. }
-            | DBConnectionConfig::LibSql { name, .. } => name.as_str(),
+            | DBConnectionConfig::LibSql { name, .. }
+            | DBConnectionConfig::FireBird { name, .. } => name.as_str(),
             #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
         }
@@ -105,7 +106,11 @@ pub enum DBConnectionConfig {
         conn: LibSqlDBConfig,
         name: String,
     },
-
+    FireBird {
+        #[serde(flatten)]
+        conn: FireBirdConfig,
+        name: String,
+    },
     #[cfg(feature = "duckdb")]
     DuckDB {
         #[serde(flatten)]
@@ -142,6 +147,7 @@ impl DBConnectionConfig {
             DBConnectionConfig::Oracle { conn, .. } => {
                 conn.password = pass;
             }
+            DBConnectionConfig::FireBird { conn, .. } => conn.password = pass,
             DBConnectionConfig::Cassandra { conn, .. } => conn.password = Some(pass),
             #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { .. } => {}
@@ -268,6 +274,10 @@ impl DBConnectionConfig {
             DBConnectionConfig::LibSql { conn, .. } => {
                 let db = crate::libsql::LibSqlDB::new(conn.clone()).await?;
                 return anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>));
+            }
+            DBConnectionConfig::FireBird { conn, .. } => {
+                let db = crate::firebird::FireBirdDB::new(conn.clone())?;
+                anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>))
             }
         }
     }
@@ -514,7 +524,7 @@ impl App {
 
         match self.get_opened(name).await? {
             Open::Schema(x) => anyhow::Ok(x.clone()),
-            _ => anyhow::bail!(format!("this '{}' a multi", name)),
+            _ => anyhow::bail!(format!("'{}' a schema trait", name)),
         }
     }
 
@@ -522,7 +532,7 @@ impl App {
         let db = self.opens.lock().await.get(name).map(|x| x.clone());
         let x = match db {
             Some(x) => x,
-            None => anyhow::bail!("db '{}' not found,the database maybe closed??", name),
+            None => anyhow::bail!("'{}' not found,the connection maybe closed???", name),
         };
         anyhow::Ok(x)
     }

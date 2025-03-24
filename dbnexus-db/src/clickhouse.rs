@@ -275,12 +275,7 @@ impl SchemaTrait for ClickHouseDB {
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
 
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: None,
-            last_insert_id_string: None,
-            last_insert_row_id: None,
-        })
+        anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
@@ -419,6 +414,7 @@ impl SchemaTrait for ClickHouseDB {
                 is_primary,
                 is_auto_increment: false,
                 sortable: true,
+                firebird_binary_sub_type: None,
             });
         }
         anyhow::Ok(ret)
@@ -506,12 +502,7 @@ impl SchemaTrait for ClickHouseDB {
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: None,
-            last_insert_row_id: None,
-            last_insert_id_string: None,
-        })
+        anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
     async fn update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
@@ -532,12 +523,7 @@ impl SchemaTrait for ClickHouseDB {
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
 
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: None,
-            last_insert_row_id: None,
-            last_insert_id_string: None,
-        })
+        anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
@@ -549,7 +535,9 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
         anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
     }
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
@@ -596,7 +584,7 @@ impl SchemaTrait for ClickHouseDB {
                     ALTER TABLE {table}
                     MODIFY COLUMN {new_name} DEFAULT {}
                 "#,
-                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
+                    self.put_value_in_sql(&typ.typ, None, Some(dv.as_str()))?
                 );
                 log::info!("sql:{}", sql);
                 conn.query(&sql).execute().await?;
@@ -616,7 +604,7 @@ impl SchemaTrait for ClickHouseDB {
             sql.push_str(
                 format!(
                     "DEFAULT {} ",
-                    self.put_value_in_sql(&col.typ, Some(dv.as_str()))?
+                    self.put_value_in_sql(&col.typ, None, Some(dv.as_str()))?
                 )
                 .as_str(),
             );

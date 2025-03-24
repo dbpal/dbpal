@@ -1503,6 +1503,7 @@ function TableStructure(props: {
     DataSourceKind.Postgres,
     DataSourceKind.Mongo,
     DataSourceKind.Cassandra,
+    DataSourceKind.FireBird,
   ].includes(kind);
 
   if (supportIndex) {

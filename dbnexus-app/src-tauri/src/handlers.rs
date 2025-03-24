@@ -951,22 +951,13 @@ pub async fn auto_completion(
     random_error()?;
     // TODO front is very hard to pass this parameter to the server
     // because of manoca language is global registerd.
-    let query_id = uuid::Uuid::new_v4();
+
     let use_lexer = true;
     let db = app.get_opened(name.as_str()).await?;
     let ret = match db {
-        Open::Catalog(x) => {
-            x.auto_completion(query_id, &sql, line, col, use_lexer)
-                .await
-        }
-        Open::DataBase(x) => {
-            x.auto_completion(query_id, &sql, line, col, use_lexer)
-                .await
-        }
-        Open::Schema(x) => {
-            x.auto_completion(query_id, &sql, line, col, use_lexer)
-                .await
-        }
+        Open::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+        Open::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+        Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
     }
     .map_err(|x| ErrorFrontend::from(x))?;
     Ok(ret)
@@ -2304,7 +2295,7 @@ pub async fn put_value_in_sql(
         .map_err(ErrorFrontend::from)?;
 
     schema
-        .put_value_in_sql(&typ, value.as_ref().map(|x| x.as_str()))
+        .put_value_in_sql(&typ, None, value.as_ref().map(|x| x.as_str()))
         .map_err(|x| ErrorFrontend::from(x))
 }
 

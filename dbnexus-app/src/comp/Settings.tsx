@@ -370,18 +370,6 @@ const components: Components<
       },
     },
   },
-  MuiTextField: {
-    styleOverrides: {
-      root: {
-        '& .MuiInputBase-root': {
-          fontSize: '1rem',
-        },
-        '& .MuiInputLabel-root': {
-          fontSize: '1rem',
-        },
-      },
-    },
-  },
 
   MuiAlert: {
     styleOverrides: {

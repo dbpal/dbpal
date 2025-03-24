@@ -126,7 +126,7 @@ function TabsWithContent_(props: {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
   const [hideAll, setHideAll] = useState(false);
-  const colors = ['primary', 'secondary', 'info', 'success'];
+
   return (
     <Stack spacing={1}>
       {hideAll && (
@@ -135,7 +135,6 @@ function TabsWithContent_(props: {
             onClick={() => {
               setHideAll(false);
             }}
-            style={{ padding: 0, margin: 0 }}
           >
             all tabs
           </Button>
@@ -148,7 +147,6 @@ function TabsWithContent_(props: {
           style={{
             flexWrap: 'wrap',
           }}
-          spacing={1}
         >
           {tabs.map((tab, index) => {
             return (
@@ -157,9 +155,10 @@ function TabsWithContent_(props: {
                 onDelete={() => {
                   handleClose(index);
                 }}
+                key={tab.id}
+                size="small"
                 icon={tab.icon}
                 clickable
-                //@ts-ignore
                 color={index == selectIndex ? 'primary' : 'default'}
                 onContextMenu={(e) => {
                   setUpMenu({
@@ -180,22 +179,25 @@ function TabsWithContent_(props: {
                 onClick={() => {
                   changeTab(index);
                 }}
-                sx={{
-                  // opacity: index == selectIndex ? '0.5' : 1,
-                  '& .MuiChip-deleteIcon': {
-                    visibility: 'hidden', // 默认隐藏删除按钮
-                  },
-                  '&:hover .MuiChip-deleteIcon': {
-                    visibility: 'visible', // hover 时显示删除按钮
-                  },
-                }}
+                sx={
+                  index != selectIndex
+                    ? {
+                        margin: '2px',
+                        '& .MuiChip-deleteIcon': {
+                          visibility: 'hidden', // 默认隐藏删除按钮
+                        },
+                        '&:hover .MuiChip-deleteIcon': {
+                          visibility: 'visible', // hover 时显示删除按钮
+                        },
+                      }
+                    : { margin: '2px' }
+                }
               ></Chip>
             );
           })}
         </Stack>
       )}
-      <Divider style={{ borderWidth: '2px' }}></Divider>
-
+      {tabs.length > 0 && <Divider style={{ borderWidth: '2px' }}></Divider>}
       <div style={{ paddingRight: '18px' }}>
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>

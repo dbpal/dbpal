@@ -59,6 +59,7 @@ const modalStyle: SxProps = {
 
 import {
   cassandraKeywords,
+  firebirdKeywords,
   mssqlKeywords,
   mysqlKeywords,
   oracleKeywords,
@@ -597,11 +598,24 @@ function ConnConfigInfo(props: { uuid }) {
         case 'cassandra':
         case 'oracle':
         case 'clickhouse':
+        case 'firebird':
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,
             { name: 'user', value: config.username } as types.MetaValue,
           ];
+          break;
+        case 'libsql':
+          if (config.source == 'local') {
+            configMetas = [
+              { name: 'host', value: config.path } as types.MetaValue,
+            ];
+          } else if (config.source == 'remote') {
+            configMetas = [
+              { name: 'url', value: config.url } as types.MetaValue,
+              { name: 'path', value: config.path } as types.MetaValue,
+            ];
+          }
           break;
         case 'sqlite':
           configMetas = [
@@ -643,6 +657,8 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
   if (registeredLanguage.has(uuid)) {
     return;
   }
+  registeredLanguage.add(uuid);
+
   const autoCompletion = async (
     sql: string,
     pos: Position
@@ -818,6 +834,28 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
         format
       );
       break;
+    case DataSourceKind.FireBird:
+      // TODO keywords
+      initLanguageXXX(
+        uuid,
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [firebirdKeywords, 'keyword'],
+              [/[_a-z][_a-z0-9]*/i, 'identifier'],
+              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+              [/\'(?:\\.|[^\\\'])*\'/, 'string'],
+              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+            ],
+          },
+        } as languages.IMonarchLanguage,
+        autoCompletion,
+        format
+      );
+      break;
     case DataSourceKind.Postgres:
       initLanguageXXX(
         uuid,
@@ -914,7 +952,6 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
     default:
       throw `impl this ${kind}`;
   }
-  registeredLanguage.add(uuid);
 }
 
 async function makeQueryConnInfo(uuid: string) {

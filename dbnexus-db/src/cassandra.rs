@@ -1333,13 +1333,6 @@ impl SchemaTrait for CassandraDB {
         }
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        // duplicate and drop old table.
-        self.duplicate_table(old, new).await?;
-        self.drop_table(old, false).await?;
-        anyhow::Ok(())
-    }
-
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = self.create_table_and_index_sql(table).await?.create_table;
         // replace table name.
@@ -1430,6 +1423,7 @@ impl SchemaTrait for CassandraDB {
                 is_primary,
                 is_auto_increment: false,
                 sortable: kind == "clustering",
+                firebird_binary_sub_type: None,
             });
         }
 
@@ -1512,8 +1506,6 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(1),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
     async fn update(
@@ -1565,8 +1557,6 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(1),
-            last_insert_id_string: None,
-            last_insert_row_id: None,
         })
     }
 
@@ -1578,7 +1568,9 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
     async fn add_table_column(

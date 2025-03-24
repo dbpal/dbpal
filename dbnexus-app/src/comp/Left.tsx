@@ -53,7 +53,7 @@ import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import { debug } from './debug';
+import { debugBuild } from './debug';
 import { TabContent } from './Tabs';
 import wcmatch from 'wildcard-match';
 
@@ -774,7 +774,7 @@ function FavoriteSqlList(props: { handleClose }) {
 const OneConfig = memo(OneConfig_);
 function OneConfig_(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-  const [opened, setOpened] = useState(false || debug);
+  const [opened, setOpened] = useState(false || debugBuild);
   const makeTree = () => {
     switch (config.conn_type) {
       case 'postgres':
@@ -816,7 +816,8 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
         return config.db ? <SchemaTree /> : <DatabaseTree />;
       case 'clickhouse':
         return config.db ? <SchemaTree /> : <DatabaseTree />;
-
+      case 'firebird':
+        return <SchemaTree />;
       default:
         console.log('impl database kind:', config);
         throw `impl this kind`;
@@ -894,6 +895,14 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           <ViewsTree viewkind={ViewKind.Normal} />
         </>
       )}
+
+      {opened && kind == DataSourceKind.FireBird && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
+
       {opened && kind == DataSourceKind.LibSql && (
         <>
           <TablesTree typ={TablesType.Normal} />
@@ -1186,6 +1195,7 @@ async function openNewQuery(
     case DataSourceKind.Cassandra:
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
+    case DataSourceKind.FireBird:
       content = (
         <SqlQuery
           language={uuid}
@@ -1265,7 +1275,6 @@ function SchemaMenu(props: {
     kind,
   } = props;
   const { showNotification } = useContext(NotificationContext);
-
   const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>

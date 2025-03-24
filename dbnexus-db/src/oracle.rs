@@ -1242,7 +1242,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     "ALTER TABLE {table} MODIFY {new_name} DEFAULT {}",
-                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
+                    self.put_value_in_sql(&typ.typ, None, Some(dv.as_str()))?
                 );
                 log::info!("sql:{}", sql);
                 block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1265,7 +1265,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
+                    self.put_value_in_sql(&typ.typ, None, Some(dv.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -1349,12 +1349,9 @@ impl SchemaTrait for OracleDB {
 
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
         let changes = stmt.row_count()?;
-        let id = stmt.last_row_id()?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(changes),
-            last_insert_row_id: None,
-            last_insert_id_string: id,
         })
     }
 
@@ -1380,14 +1377,14 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(stmt.row_count()?),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
 
@@ -1420,8 +1417,6 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(row_count),
-            last_insert_row_id: None,
-            last_insert_id_string: None,
         })
     }
 
