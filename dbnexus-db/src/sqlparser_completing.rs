@@ -108,7 +108,7 @@ impl CompletionStament {
         if !object_name
             .0
             .last()
-            .map(|x| self.in_pos(&x.span))
+            .map(|x| self.in_pos_optinal(x.as_ident().map(|x| &x.span)))
             .unwrap_or(false)
         {
             return;
@@ -203,11 +203,17 @@ impl CompletionStament {
                 // 但是在这种情况下 ident肯定没这么长
                 // 所以加一个假的
                 let mut name = name.0.clone();
-                name.push(Ident::new("fake"));
+                name.push(ObjectNamePart::Identifier(Ident::new("fake")));
                 self.c_on_db_schema(&ObjectName(name)).await;
             }
             ObjectType::Role => match name.0.len() {
-                1 => self.c_on_role(name.0.first().unwrap()).await,
+                1 => {
+                    self.c_on_role(match name.0.first().unwrap() {
+                        ObjectNamePart::Identifier(ident) => ident,
+                    })
+                    .await
+                }
+
                 _ => {
                     log::error!("role name is too long:{:?}", name)
                 }
@@ -267,7 +273,7 @@ impl CompletionStament {
                 // 但是在这种情况下 ident肯定没这么长
                 // 所以加一个假的
                 let mut name = name.0.clone();
-                name.push(Ident::new("fake"));
+                name.push(ObjectNamePart::Identifier(Ident::new("fake")));
                 self.c_on_db_schema(&ObjectName(name)).await;
             }
             CommentObject::Role => {
@@ -276,8 +282,10 @@ impl CompletionStament {
             CommentObject::Column => {
                 if name.0.len() >= 2 {
                     let table = (&name.0[..name.0.len() - 1]).to_vec();
-                    self.c_on_column(&ObjectName(table), name.0.last().unwrap())
-                        .await;
+                    self.c_on_column(&ObjectName(table), match name.0.last().unwrap() {
+                        ObjectNamePart::Identifier(ident) => ident,
+                    })
+                    .await;
                 }
             }
             CommentObject::Extension => {
@@ -300,36 +308,6 @@ impl CompletionStament {
         }
     }
 
-    pub(crate) async fn c_on_prepare(&mut self, name: &ObjectName) {
-        match name.0.len() {
-            1 => {
-                self.result = Some(
-                    self.helper
-                        .list_prepare_name(self.query_id.clone())
-                        .await
-                        .map_err(|e| {
-                            log::error!("list_prepare_name failed,err:{:?}", e);
-                            self.set_has_err();
-                        })
-                        .ok()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            item: x.into(),
-                            kind: CompletionKind::PrepareStatement,
-                            desc: None,
-                        })
-                        .collect::<Vec<_>>(),
-                )
-            }
-
-            _ => {
-                //TODO https://learn.microsoft.com/en-us/sql/relational-databases/stored-procedures/execute-a-stored-procedure
-                // mssql 可以指定数据库
-                log::error!("handled name:{:?}", name);
-            }
-        }
-    }
     pub(crate) async fn c_on_partition_expr(&mut self, table_name: &ObjectName, p: &Expr) {
         match p {
             Expr::Identifier(x) => {
@@ -368,7 +346,9 @@ impl CompletionStament {
         let mut schema = None;
         match name.0.len() {
             2 => {
-                schema = Some(name.0[1].value.as_str());
+                schema = Some(match &name.0[1] {
+                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                });
             }
             1 => {}
             _ => {
@@ -403,17 +383,30 @@ impl CompletionStament {
         let mut table = "";
         match item_name.0.len() {
             1 => {
-                table = item_name.0[0].value.as_str();
+                table = match &item_name.0[0] {
+                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                };
             }
             2 => {
-                schema = Some(item_name.0[0].value.as_str());
-                table = item_name.0[1].value.as_str();
+                schema = Some(match &item_name.0[0] {
+                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                });
+                table = match &item_name.0[1] {
+                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                };
             }
             3 => {
-                db = Some(item_name.0[0].value.as_str());
-                schema = Some(item_name.0[1].value.as_str());
-                table = item_name.0[2].value.as_str();
+                db = Some(match &item_name.0[0] {
+                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                });
+                schema = Some(match &item_name.0[1] {
+                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                });
+                table = match &item_name.0[2] {
+                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                };
             }
+
             _ => {
                 self.set_has_err();
                 log::error!("empty ObjectName:{:?}", item_name);
@@ -625,7 +618,6 @@ impl CompletionStament {
                 AlterTableOperation::DropColumn { column_name, .. } => {
                     self.c_on_column(table_name, column_name).await;
                 }
-
                 AlterTableOperation::AttachPartition { .. } => {
                     // this is a ClickHouse-specific operation
                 }
@@ -680,7 +672,6 @@ impl CompletionStament {
                         }
                     }
                 }
-
                 AlterTableOperation::AddPartitions { new_partitions, .. } => {
                     let _guard = self.scopes.push(Scope::from_this_table(table_name.clone()));
                     for p in new_partitions.iter() {
@@ -708,7 +699,6 @@ impl CompletionStament {
                         }
                     }
                 }
-
                 AlterTableOperation::DropPartitions { partitions, .. } => {
                     for p in partitions.iter() {
                         self.c_on_partition_expr(table_name, p).await;
@@ -791,6 +781,8 @@ impl CompletionStament {
                 AlterTableOperation::DropClusteringKey => {}
                 AlterTableOperation::SuspendRecluster => {}
                 AlterTableOperation::ResumeRecluster => {}
+                AlterTableOperation::Algorithm { .. } => {}
+                AlterTableOperation::AutoIncrement { .. } => {}
             }
         }
     }
@@ -799,7 +791,12 @@ impl CompletionStament {
         if self.finished() {
             return;
         }
-        if !name.0.last().map(|x| self.in_pos(&x.span)).unwrap_or(false) {
+        if !name
+            .0
+            .last()
+            .map(|x| self.in_pos(&x.span()))
+            .unwrap_or(false)
+        {
             return;
         }
         // here match
@@ -835,8 +832,10 @@ impl CompletionStament {
                 let table = &idents[0];
                 if self.in_pos(&table.span) {
                     // handle name
-                    self.c_on_table_or_view(&ObjectName(vec![table.clone()]))
-                        .await;
+                    self.c_on_table_or_view(&ObjectName(vec![ObjectNamePart::Identifier(
+                        table.clone(),
+                    )]))
+                    .await;
                     return;
                 }
                 if let Some(table) = self.scopes.nearest_table_named(&table) {
@@ -850,12 +849,22 @@ impl CompletionStament {
                         }
                     }
                 } else {
-                    self.c_on_column(&ObjectName(vec![table.clone()]), &idents[1])
-                        .await;
+                    self.c_on_column(
+                        &ObjectName(vec![ObjectNamePart::Identifier(table.clone())]),
+                        &idents[1],
+                    )
+                    .await;
                 }
             }
             3 | 4 => {
-                let table: ObjectName = ObjectName(idents[0..idents.len() - 1].to_vec());
+                let table: ObjectName = ObjectName(
+                    idents[0..idents.len() - 1]
+                        .to_vec()
+                        .into_iter()
+                        .map(|x| ObjectNamePart::Identifier(x))
+                        .collect::<Vec<_>>(),
+                );
+
                 self.c_on_table(&table).await;
                 if self.finished() {
                     return;
@@ -986,6 +995,7 @@ impl CompletionStament {
             ColumnOption::OnConflict(_keyword) => {}
             ColumnOption::Policy(_column_policy) => {}
             ColumnOption::Tags(_tags_column_option) => {}
+            ColumnOption::Collation(..) => {}
         }
     }
 
@@ -993,19 +1003,11 @@ impl CompletionStament {
         log::trace!("completion on:{:?}", expr);
         match expr {
             Expr::Identifier(ident) => self.c_on_expr_ident(ident).await,
-
             Expr::CompoundIdentifier(vec) => {
                 self.c_on_expr_compund_identifier(&vec).await;
             }
             Expr::JsonAccess { .. } => {
                 // snowflake databricks not support
-            }
-            Expr::CompositeAccess { expr, .. } => {
-                // TODO
-                Box::pin(self.c_on_expr(&expr)).await;
-                if self.finished() {
-                    return;
-                }
             }
             Expr::IsFalse(expr) => {
                 Box::pin(self.c_on_expr(&expr)).await;
@@ -1262,18 +1264,11 @@ impl CompletionStament {
             Expr::TypedString { .. } => {
                 // literal value
             }
-            Expr::MapAccess { .. } => {
-                // clickhouse
-            }
             Expr::Function(function) => Box::pin(self.c_on_function_call(function)).await,
-
-            Expr::Method(_method) => {
-                // TODO
-            }
             Expr::Case {
                 operand,
                 conditions,
-                results,
+
                 else_result,
             } => {
                 if let Some(operand) = operand {
@@ -1283,17 +1278,16 @@ impl CompletionStament {
                     }
                 }
                 for c in conditions.iter() {
-                    Box::pin(self.c_on_expr(c)).await;
+                    Box::pin(self.c_on_expr(&c.condition)).await;
+                    if self.finished() {
+                        return;
+                    }
+                    Box::pin(self.c_on_expr(&c.result)).await;
                     if self.finished() {
                         return;
                     }
                 }
-                for r in results.iter() {
-                    Box::pin(self.c_on_expr(r)).await;
-                    if self.finished() {
-                        return;
-                    }
-                }
+
                 if let Some(e) = else_result {
                     Box::pin(self.c_on_expr(e)).await;
                 }
@@ -1360,41 +1354,6 @@ impl CompletionStament {
             Expr::Map(..) => {
                 // duckdb not support
             }
-            Expr::Subscript { expr, subscript } => {
-                Box::pin(self.c_on_expr(&expr)).await;
-                if self.finished() {
-                    return;
-                }
-                match subscript.as_ref() {
-                    Subscript::Index { index } => {
-                        Box::pin(self.c_on_expr(&index)).await;
-                    }
-                    Subscript::Slice {
-                        lower_bound,
-                        upper_bound,
-                        stride,
-                    } => {
-                        if let Some(lower_bound) = lower_bound {
-                            Box::pin(self.c_on_expr(&lower_bound)).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                        if let Some(upper_bound) = upper_bound {
-                            Box::pin(self.c_on_expr(&upper_bound)).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                        if let Some(stride) = stride {
-                            Box::pin(self.c_on_expr(&stride)).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
             Expr::Array(array) => {
                 for e in array.elem.iter() {
                     Box::pin(self.c_on_expr(e)).await;
@@ -1442,8 +1401,43 @@ impl CompletionStament {
             Expr::Lambda(..) => {
                 // databricks no support
             }
+            Expr::CompoundFieldAccess { root, access_chain } => {
+                Box::pin(self.c_on_expr(&root)).await;
+
+                for acc in access_chain.iter() {
+                    match acc {
+                        AccessExpr::Dot(expr) => {
+                            Box::pin(self.c_on_expr(&expr)).await;
+                        }
+                        AccessExpr::Subscript(subscript) => match subscript {
+                            Subscript::Index { index } => {
+                                Box::pin(self.c_on_expr(&index)).await;
+                            }
+                            Subscript::Slice {
+                                lower_bound,
+                                upper_bound,
+                                stride,
+                            } => {
+                                if let Some(lower_bound) = lower_bound {
+                                    Box::pin(self.c_on_expr(&lower_bound)).await;
+                                }
+                                if let Some(upper_bound) = upper_bound {
+                                    Box::pin(self.c_on_expr(&upper_bound)).await;
+                                }
+                                if let Some(stride) = stride {
+                                    Box::pin(self.c_on_expr(&stride)).await;
+                                }
+                            }
+                        },
+                    }
+                }
+            }
+            Expr::IsNormalized { expr, .. } => {
+                Box::pin(self.c_on_expr(&expr)).await;
+            }
         }
     }
+
     pub(crate) async fn c_on_order_by_expr(&mut self, orderby: &OrderByExpr) {
         self.c_on_expr(&orderby.expr).await;
         if self.finished() {
@@ -1519,7 +1513,7 @@ impl CompletionStament {
         match name.0.len() {
             2 => {
                 let schema = &name.0[0];
-                if self.in_pos(&schema.span) {
+                if self.in_pos(&schema.span()) {
                     self.result = Some(
                         self.helper
                             .list_schema(None)
@@ -1542,7 +1536,7 @@ impl CompletionStament {
             }
             3 => {
                 let db = &name.0[0];
-                if self.in_pos(&db.span) {
+                if self.in_pos(&db.span()) {
                     self.result = Some(
                         self.helper
                             .list_database()
@@ -1563,10 +1557,12 @@ impl CompletionStament {
                     );
                 }
                 let schema = &name.0[1];
-                if self.in_pos(&schema.span) {
+                if self.in_pos(&schema.span()) {
                     self.result = Some(
                         self.helper
-                            .list_schema(Some(&db.value))
+                            .list_schema(Some(match db {
+                                ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                            }))
                             .await
                             .map_err(|e| {
                                 log::error!("list schema error:{:?}", e);
@@ -1610,7 +1606,7 @@ impl CompletionStament {
         if !table_name
             .0
             .last()
-            .map(|x| self.in_pos(&x.span))
+            .map(|x| self.in_pos(&x.span()))
             .unwrap_or(false)
         {
             return;
@@ -1725,6 +1721,15 @@ impl CompletionStament {
                     // snowflake
                 }
                 JoinOperator::CrossJoin => {}
+                JoinOperator::Join(join_constraint) => {
+                    self.c_on_join_constraint(join_constraint).await
+                }
+                JoinOperator::Left(join_constraint) => {
+                    self.c_on_join_constraint(join_constraint).await
+                }
+                JoinOperator::Right(join_constraint) => {
+                    self.c_on_join_constraint(join_constraint).await
+                }
             }
         }
         return scope;
@@ -1737,7 +1742,7 @@ impl CompletionStament {
             }
             JoinConstraint::Using(vec) => {
                 // TODO need handle this.
-                let in_pos = vec.iter().any(|x| self.in_pos(&x.span));
+                let in_pos = vec.iter().any(|x| self.in_pos(&x.span()));
                 if in_pos {
                     let tables = self.scopes.nearest_from_tables();
                     let mut cs = vec![];
@@ -1865,58 +1870,78 @@ impl CompletionStament {
                         typ: None,
                     });
                 }
-                SelectItem::QualifiedWildcard(object_name, _wildcard_additional_options) => {
-                    self.c_on_table(object_name).await;
-                    if self.finished() {
-                        return anyhow::Ok(vec![]);
-                    }
-                    match object_name.0.len() {
-                        1 => {
-                            let name = self.scopes.nearest_table_named(&object_name.0[0]);
-                            match name {
-                                Some(x) => match x {
-                                    NearNestTableNamed::Alias { table } => {
-                                        let (db, schema, table) =
-                                            self.extract_db_schme_item(&table);
-                                        let f = self
-                                            .helper
-                                            .list_column(db, schema, table)
-                                            .await
-                                            .map_err(|e| {
-                                                log::error!("list_column failed,err:{:?}", e)
-                                            })
-                                            .ok()
-                                            .unwrap_or_default();
-                                        ret.extend(f.iter().map(TempTableColumn::from));
+                SelectItem::QualifiedWildcard(select, _wildcard_additional_options) => {
+                    match select {
+                        SelectItemQualifiedWildcardKind::ObjectName(object_name) => {
+                            self.c_on_table(object_name).await;
+                            if self.finished() {
+                                return anyhow::Ok(vec![]);
+                            }
+                            match object_name.0.len() {
+                                1 => {
+                                    let name =
+                                        self.scopes.nearest_table_named(match &object_name.0[0] {
+                                            ObjectNamePart::Identifier(ident) => ident,
+                                        });
+
+                                    match name {
+                                        Some(x) => match x {
+                                            NearNestTableNamed::Alias { table } => {
+                                                let (db, schema, table) =
+                                                    self.extract_db_schme_item(&table);
+                                                let f = self
+                                                    .helper
+                                                    .list_column(db, schema, table)
+                                                    .await
+                                                    .map_err(|e| {
+                                                        log::error!(
+                                                            "list_column failed,err:{:?}",
+                                                            e
+                                                        )
+                                                    })
+                                                    .ok()
+                                                    .unwrap_or_default();
+                                                ret.extend(f.iter().map(TempTableColumn::from));
+                                            }
+                                            NearNestTableNamed::Temp { table } => {
+                                                ret.extend(table.columns.iter().map(|x| {
+                                                    TempTableColumn {
+                                                        name: x.name.clone(),
+                                                        typ: None,
+                                                    }
+                                                }));
+                                            }
+                                        },
+                                        None => {
+                                            // can't find maybe a error by user
+                                        }
                                     }
-                                    NearNestTableNamed::Temp { table } => {
-                                        ret.extend(table.columns.iter().map(|x| TempTableColumn {
-                                            name: x.name.clone(),
-                                            typ: None,
-                                        }));
-                                    }
-                                },
-                                None => {
-                                    // can't find maybe a error by user
+                                }
+                                2 | 3 => {
+                                    let (db, schema, table) =
+                                        self.extract_db_schme_item(object_name);
+                                    let f = self
+                                        .helper
+                                        .list_column(db, schema, table)
+                                        .await
+                                        .map_err(|e| log::error!("list_column failed,err:{:?}", e))
+                                        .ok()
+                                        .unwrap_or_default();
+                                    ret.extend(f.iter().map(TempTableColumn::from));
+                                }
+                                _ => {
+                                    log::error!(
+                                        "SelectItem QualifiedWildcard object name too long,I can't handle:{:?}",
+                                        select
+                                    )
                                 }
                             }
                         }
-                        2 | 3 => {
-                            let (db, schema, table) = self.extract_db_schme_item(&object_name);
-                            let f = self
-                                .helper
-                                .list_column(db, schema, table)
-                                .await
-                                .map_err(|e| log::error!("list_column failed,err:{:?}", e))
-                                .ok()
-                                .unwrap_or_default();
-                            ret.extend(f.iter().map(TempTableColumn::from));
-                        }
-                        _ => {
-                            log::error!(
-                                "SelectItem QualifiedWildcard object name too long,I can't handle:{:?}",
-                                object_name
-                            )
+                        SelectItemQualifiedWildcardKind::Expr(expr) => {
+                            self.c_on_expr(expr).await;
+                            if self.finished() {
+                                return anyhow::Ok(vec![]);
+                            }
                         }
                     }
                 }
@@ -1971,13 +1996,23 @@ impl CompletionStament {
         }
         let s = Scope::from_temp_tables(with_temp_tables);
         let _with_temp_table_guard = self.scopes.push(s);
-        let ret = vec![];
 
         if let Some(orderby) = query.order_by.as_ref() {
-            for e in orderby.exprs.iter() {
-                self.c_on_order_by_expr(e).await;
-                if self.finished() {
-                    return anyhow::Ok(ret);
+            match &orderby.kind {
+                OrderByKind::All(..) => {}
+                OrderByKind::Expressions(order_by_exprs) => {
+                    for expr in order_by_exprs.iter() {
+                        self.c_on_order_by_expr(expr).await;
+                    }
+                }
+            }
+            if let Some(interpolate) = &orderby.interpolate {
+                if let Some(exprs) = &interpolate.exprs {
+                    for expr in exprs.iter() {
+                        if let Some(expr) = &expr.expr {
+                            self.c_on_expr(&expr).await;
+                        }
+                    }
                 }
             }
         }
@@ -2103,7 +2138,12 @@ impl CompletionStament {
                     //TODO alias have column definition.
                     s.enter_table(alias.name.clone(), name.clone());
                 } else {
-                    s.enter_table(name.0.last().unwrap().clone(), name.clone());
+                    s.enter_table(
+                        match name.0.last().unwrap() {
+                            ObjectNamePart::Identifier(ident) => ident.clone(),
+                        },
+                        name.clone(),
+                    );
                 }
                 for p in partitions.iter() {
                     self.c_on_partition_expr(name, &Expr::Identifier(p.clone()))
@@ -2224,7 +2264,10 @@ impl CompletionStament {
         );
     }
     pub(crate) fn last_name_in_pos(&mut self, name: &ObjectName) -> bool {
-        name.0.last().map(|x| self.in_pos(&x.span)).unwrap_or(false)
+        name.0
+            .last()
+            .map(|x| self.in_pos(&x.span()))
+            .unwrap_or(false)
     }
 
     // sqlite pragma

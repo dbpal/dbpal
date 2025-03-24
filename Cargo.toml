@@ -48,7 +48,7 @@ ipnetwork = "0.20"
 chrono = "0.4.34"
 bit-vec = "0.6.3"
 
-sqlparser = { version = "0.53.0", features = ["serde"] }
+sqlparser = { version = "0.55.0", features = ["serde"] }
 lazy_static = "1.5.0"
 line-index = "0.1.1"
 log = "0.4.22"

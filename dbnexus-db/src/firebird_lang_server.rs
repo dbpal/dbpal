@@ -14,11 +14,10 @@ use crate::{
 #[async_trait::async_trait]
 impl LanguageServer for FireBirdDB {
     async fn auto_completion(
-        &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
             &sql,
-            query_id,
             line,
             col,
             sqlparser::dialect::GenericDialect {},
@@ -191,7 +190,7 @@ mod tests {
         file_path.push("tests");
         file_path.push("firebird_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+        test_file_auto_completion(&content, &db, false).await;
     }
 }
 

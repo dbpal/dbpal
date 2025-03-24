@@ -41,7 +41,7 @@ impl std::fmt::Display for TokenModifier {
 #[async_trait::async_trait]
 pub trait LanguageServer: BackendName {
     async fn auto_completion(
-        &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn senmatic_tokens(&self, _sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
         // not used but still can be used in the future
@@ -392,8 +392,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName + LangServerC
 }
 
 pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Send + Sync>(
-    sql: &str, query_id: uuid::Uuid, line: u32, col: u32, dialet: T,
-    helper: Arc<dyn AstCompletionHelper>,
+    sql: &str, line: u32, col: u32, dialet: T, helper: Arc<dyn AstCompletionHelper>,
 ) -> anyhow::Result<Vec<CompletionItem>> {
     let loc = Location {
         line: line as u64,
@@ -425,7 +424,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
 
     for statement in statements {
         log::trace!("completion on ast:{:?}", statement);
-        let mut c = CompletionStament::new(loc, helper.clone(), query_id);
+        let mut c = CompletionStament::new(loc, helper.clone());
         c.completion_on_statement(&statement).await;
         if c.finished() {
             let m = c.result.unwrap_or_default();
@@ -533,14 +532,14 @@ select xxxx
     }
 
     pub(crate) async fn test_file_auto_completion(
-        content: &str, db: &dyn LanguageServer, id: uuid::Uuid, use_lexer: bool,
+        content: &str, db: &dyn LanguageServer, use_lexer: bool,
     ) {
         let items = parse_auto_completion_test_file(&content);
         for item in items.iter() {
             for i in item.tests.iter() {
                 log::trace!("on pos:{}", i.0);
                 let items = db
-                    .auto_completion(id, &item.sql, 1, i.0 as u32, use_lexer)
+                    .auto_completion(&item.sql, 1, i.0 as u32, use_lexer)
                     .await
                     .unwrap();
                 for should in i.1.iter() {

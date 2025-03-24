@@ -7,9 +7,10 @@ use std::{
 use sqlparser::{
     ast::{
         AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CopySource, CreateFunctionBody,
-        DataType, Declare, DeclareAssignment, GrantObjects, Ident, ObjectName, OneOrManyWithParens,
-        Privileges, SchemaName, SelectItem, SequenceOptions, Spanned, Statement, TableConstraint,
-        TableFactor, TriggerEvent, UserDefinedTypeRepresentation,
+        DataType, Declare, DeclareAssignment, GrantObjects, GranteeName, Ident, ObjectName,
+        ObjectNamePart, OneOrManyWithParens, Privileges, SchemaName, SelectItem, SequenceOptions,
+        Spanned, Statement, TableConstraint, TableFactor, TableObject, TriggerEvent,
+        UpdateTableFromKind, UserDefinedTypeRepresentation,
     },
     tokenizer::{Location, Span},
 };
@@ -23,7 +24,6 @@ pub struct CompletionStament {
     pub(crate) scopes: Scopes,
     pub(crate) on_def: bool,
     pub(crate) has_err: bool,
-    pub(crate) query_id: uuid::Uuid,
 }
 
 #[derive(Clone)]
@@ -308,9 +308,7 @@ impl CompletionStament {
     pub(crate) fn finished(&self) -> bool {
         self.result.is_some() || self.on_def || self.has_err
     }
-    pub(crate) fn new(
-        loc: Location, helper: Arc<dyn AstCompletionHelper>, query_id: uuid::Uuid,
-    ) -> Self {
+    pub(crate) fn new(loc: Location, helper: Arc<dyn AstCompletionHelper>) -> Self {
         Self {
             loc,
             helper,
@@ -318,13 +316,16 @@ impl CompletionStament {
             scopes: Scopes::new(),
             on_def: false,
             has_err: false,
-            query_id,
         }
     }
 
     pub(crate) fn in_pos(&self, span: &Span) -> bool {
         (self.loc.line >= span.start.line && self.loc.line <= span.end.line)
             && (self.loc.column >= span.start.column && self.loc.column <= span.end.column)
+    }
+
+    pub(crate) fn in_pos_optinal(&self, span: Option<&Span>) -> bool {
+        span.map(|span| self.in_pos(span)).unwrap_or_default()
     }
 
     pub(crate) async fn completion_on_statement(&mut self, statement: &Statement) {
@@ -380,23 +381,41 @@ impl CompletionStament {
                 let _ = self.c_on_query(&query).await;
             }
             Statement::Insert(insert) => {
-                self.c_on_table(&insert.table_name).await;
-                if self.finished() {
-                    return;
-                }
-                for c in insert.columns.iter() {
-                    self.c_on_column(&insert.table_name, c).await;
-                    if self.finished() {
-                        return;
+                match &insert.table {
+                    TableObject::TableName(object_name) => {
+                        self.c_on_table(object_name).await;
+                        if self.finished() {
+                            return;
+                        }
                     }
+                    TableObject::TableFunction(..) => {}
                 }
-                // I don't understand this,But we can still suggest table column
-                for c in insert.after_columns.iter() {
-                    self.c_on_column(&insert.table_name, c).await;
-                    if self.finished() {
-                        return;
+
+                match &insert.table {
+                    TableObject::TableName(object_name) => {
+                        for c in insert.columns.iter() {
+                            self.c_on_column(object_name, c).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
                     }
+                    TableObject::TableFunction(..) => {}
                 }
+                match &insert.table {
+                    TableObject::TableName(object_name) => {
+                        // I don't understand this,But we can still suggest table column
+                        for c in insert.after_columns.iter() {
+                            self.c_on_column(object_name, c).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                    }
+
+                    TableObject::TableFunction(..) => {}
+                }
+
                 //
                 if let Some(query) = &insert.source {
                     let _ = self.c_on_query(&query).await;
@@ -411,35 +430,65 @@ impl CompletionStament {
                         return;
                     }
                 }
-                {
-                    // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE 或 DELETE 语句后返回被操作的行的特定列。这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
-                    let _gurad = self
-                        .scopes
-                        .push(Scope::from_this_table(insert.table_name.clone()));
-                    if let Some(returning) = &insert.returning {
-                        for r in returning.iter() {
-                            match r {
-                                SelectItem::UnnamedExpr(expr) => {
-                                    self.c_on_expr(expr).await;
-                                }
-                                SelectItem::ExprWithAlias { expr, alias } => {
-                                    if self.in_pos(&alias.span) {
-                                        self.set_on_def();
-                                        return;
+                match &insert.table {
+                    TableObject::TableName(object_name) => {
+                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE 或 DELETE 语句后返回被操作的行的特定列。这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
+                        let _gurad = self
+                            .scopes
+                            .push(Scope::from_this_table(object_name.clone()));
+                        if let Some(returning) = &insert.returning {
+                            for r in returning.iter() {
+                                match r {
+                                    SelectItem::UnnamedExpr(expr) => {
+                                        self.c_on_expr(expr).await;
                                     }
-                                    self.c_on_expr(expr).await;
+                                    SelectItem::ExprWithAlias { expr, alias } => {
+                                        if self.in_pos(&alias.span) {
+                                            self.set_on_def();
+                                            return;
+                                        }
+                                        self.c_on_expr(expr).await;
+                                    }
+                                    SelectItem::QualifiedWildcard(..) => {
+                                        // nothing here
+                                    }
+                                    SelectItem::Wildcard(..) => {
+                                        // nothing here
+                                    }
                                 }
-                                SelectItem::QualifiedWildcard(..) => {
-                                    // nothing here
-                                }
-                                SelectItem::Wildcard(..) => {
-                                    // nothing here
+                            }
+                        }
+                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE 或 DELETE 语句后返回被操作的行的特定列。这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
+                        let _gurad = self
+                            .scopes
+                            .push(Scope::from_this_table(object_name.clone()));
+                        if let Some(returning) = &insert.returning {
+                            for r in returning.iter() {
+                                match r {
+                                    SelectItem::UnnamedExpr(expr) => {
+                                        self.c_on_expr(expr).await;
+                                    }
+                                    SelectItem::ExprWithAlias { expr, alias } => {
+                                        if self.in_pos(&alias.span) {
+                                            self.set_on_def();
+                                            return;
+                                        }
+                                        self.c_on_expr(expr).await;
+                                    }
+                                    SelectItem::QualifiedWildcard(..) => {
+                                        // nothing here
+                                    }
+                                    SelectItem::Wildcard(..) => {
+                                        // nothing here
+                                    }
                                 }
                             }
                         }
                     }
-                }
+                    TableObject::TableFunction(..) => {}
+                };
             }
+
             Statement::Install { .. } => {
                 // duckdb no support at all.
             }
@@ -474,7 +523,6 @@ impl CompletionStament {
                     }
                 };
             }
-
             Statement::CopyIntoSnowflake { .. } => {
                 // snow flake not support at all
             }
@@ -491,8 +539,15 @@ impl CompletionStament {
             } => {
                 let mut joins = vec![table.clone()];
                 if let Some(x) = from.as_ref() {
-                    joins.push(x.clone());
+                    joins.extend(
+                        match x {
+                            UpdateTableFromKind::BeforeSet(items) => items.clone(),
+                            UpdateTableFromKind::AfterSet(items) => items.clone(),
+                        }
+                        .into_iter(),
+                    );
                 }
+
                 let _guard = self.c_on_table_with_joins(&joins[..]).await;
                 let table = match &table.relation {
                     TableFactor::Table { name, .. } => Some(name.clone()),
@@ -517,9 +572,14 @@ impl CompletionStament {
                             AssignmentTarget::ColumnName(object_name) => {
                                 match object_name.0.len() {
                                     1 => {
-                                        Box::pin(
-                                            self.c_on_column(table, object_name.0.last().unwrap()),
-                                        )
+                                        Box::pin(self.c_on_column(
+                                            table,
+                                            match object_name.0.last().unwrap() {
+                                                sqlparser::ast::ObjectNamePart::Identifier(
+                                                    ident,
+                                                ) => ident,
+                                            },
+                                        ))
                                         .await;
                                     }
                                     2 | 3 | 4 => {}
@@ -785,7 +845,6 @@ impl CompletionStament {
                     return;
                 };
             }
-
             Statement::CreateIndex(create_index) => {
                 if let Some(name) = &create_index.name {
                     if self.in_pos(&name.span()) {
@@ -897,7 +956,6 @@ impl CompletionStament {
                     self.c_on_cluster(on_cluster).await;
                 }
             }
-
             Statement::AlterIndex { name, operation } => {
                 self.c_on_index(name).await;
                 if self.finished() {
@@ -975,7 +1033,6 @@ impl CompletionStament {
                     }
                 }
             }
-
             Statement::DropFunction { func_desc, .. } => {
                 for d in func_desc.iter() {
                     self.c_on_function_drop(&d.name).await;
@@ -1037,7 +1094,6 @@ impl CompletionStament {
                     self.scopes.enter_declare(Arc::new(d.clone()));
                 }
             }
-
             Statement::CreateExtension { .. } => {
                 // fallback to lexer
             }
@@ -1067,7 +1123,13 @@ impl CompletionStament {
 
                 for v in variables.iter() {
                     match v.0.len() {
-                        1 => self.c_on_variable(&v.0[0]).await,
+                        1 => {
+                            self.c_on_variable(match &v.0[0] {
+                                ObjectNamePart::Identifier(ident) => ident,
+                            })
+                            .await
+                        }
+
                         _ => {
                             log::error!("not handled variable name length:{:?}", v);
                         }
@@ -1107,7 +1169,6 @@ impl CompletionStament {
                 self.c_on_mysql_show_create(obj_type.clone(), obj_name)
                     .await;
             }
-            // a list of show command 应该主要是用在模式匹配的地方呢
             Statement::ShowColumns { .. } => {}
             Statement::ShowDatabases { .. } => {}
             Statement::ShowSchemas { .. } => {}
@@ -1264,22 +1325,26 @@ impl CompletionStament {
                 }
                 self.c_on_trigger_exec_body(exec_body).await;
             }
-
             Statement::DropTrigger {
                 trigger_name,
                 table_name,
                 ..
             } => {
-                self.c_on_table(table_name).await;
-                if self.finished() {
-                    return;
-                }
-                if trigger_name.0.len() > 1 {
-                    log::error!("multi part trigger name:{:?}", trigger_name);
-                }
-                self.c_on_table_trigger(table_name, &trigger_name.0[0])
+                if let Some(table_name) = table_name {
+                    if trigger_name.0.len() > 1 {
+                        log::error!("multi part trigger name:{:?}", trigger_name);
+                    }
+                    self.c_on_table(table_name).await;
+                    if self.finished() {
+                        return;
+                    }
+                    self.c_on_table_trigger(table_name, match &trigger_name.0[0] {
+                        ObjectNamePart::Identifier(ident) => ident,
+                    })
                     .await;
+                }
             }
+
             Statement::CreateProcedure {
                 name, params, body, ..
             } => {
@@ -1332,9 +1397,26 @@ impl CompletionStament {
                 ..
             } => {
                 for g in grantees.iter() {
-                    self.c_on_role(g).await;
-                    if self.finished() {
-                        return;
+                    if let Some(g) = &g.name {
+                        match g {
+                            GranteeName::ObjectName(object_name) => {
+                                if let Some(name) = object_name.0.first() {
+                                    self.c_on_role(match name {
+                                        ObjectNamePart::Identifier(ident) => ident,
+                                    })
+                                    .await;
+                                    if self.finished() {
+                                        return;
+                                    }
+                                }
+                            }
+                            GranteeName::UserHost { user, .. } => {
+                                self.c_on_role(user).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                        }
                     }
                 }
                 if let Some(granted_by) = granted_by {
@@ -1344,21 +1426,28 @@ impl CompletionStament {
                     }
                 }
                 let mut tables = None;
-                match objects {
-                    GrantObjects::AllSequencesInSchema { schemas: _schemas } => {}
-                    GrantObjects::AllTablesInSchema { schemas: _schemas } => {}
-                    GrantObjects::Schemas(_vec) => {}
-                    GrantObjects::Sequences(_vec) => {}
-                    GrantObjects::Tables(vec) => {
-                        for table in vec.iter() {
-                            self.c_on_table(table).await;
-                            if self.finished() {
-                                return;
+                if let Some(objects) = objects {
+                    match objects {
+                        GrantObjects::AllSequencesInSchema { schemas: _schemas } => {}
+                        GrantObjects::AllTablesInSchema { schemas: _schemas } => {}
+                        GrantObjects::Schemas(_vec) => {}
+                        GrantObjects::Sequences(_vec) => {}
+                        GrantObjects::Tables(vec) => {
+                            for table in vec.iter() {
+                                self.c_on_table(table).await;
+                                if self.finished() {
+                                    return;
+                                }
                             }
+                            tables = Some(vec);
                         }
-                        tables = Some(vec);
+                        GrantObjects::Databases(..) => {}
+                        GrantObjects::Views(..) => {}
+                        GrantObjects::Warehouses(..) => {}
+                        GrantObjects::Integrations(..) => {}
                     }
                 }
+
                 if let Some(tables) = tables {
                     match privileges {
                         Privileges::All { .. } => {
@@ -1376,20 +1465,10 @@ impl CompletionStament {
                 }
             }
 
-            Statement::Deallocate { name, .. } => {
-                self.c_on_prepare(&ObjectName(vec![name.clone()])).await;
-            }
+            Statement::Deallocate { .. } => {}
             Statement::Execute {
-                name,
-                parameters,
-                using,
-                ..
+                parameters, using, ..
             } => {
-                //
-                self.c_on_prepare(name).await;
-                if self.finished() {
-                    return;
-                }
                 for p in parameters.iter() {
                     self.c_on_expr(p).await;
                     if self.finished() {
@@ -1397,13 +1476,12 @@ impl CompletionStament {
                     }
                 }
                 for u in using.iter() {
-                    self.c_on_expr(u).await;
+                    self.c_on_expr(&u.expr).await;
                     if self.finished() {
                         return;
                     }
                 }
             }
-
             Statement::Prepare {
                 name, statement, ..
             } => {
@@ -1436,7 +1514,6 @@ impl CompletionStament {
             Statement::Cache { .. } => {
                 // Spark SQL
             }
-
             Statement::UNCache { .. } => {
                 // Spark SQL
             }
@@ -1506,7 +1583,10 @@ impl CompletionStament {
             }
             Statement::LockTables { tables } => {
                 for t in tables.iter() {
-                    self.c_on_table(&ObjectName(vec![t.table.clone()])).await;
+                    self.c_on_table(&ObjectName(vec![ObjectNamePart::Identifier(
+                        t.table.clone(),
+                    )]))
+                    .await;
                     if self.finished() {
                         return;
                     }
@@ -1525,11 +1605,42 @@ impl CompletionStament {
             Statement::OptimizeTable { .. } => {
                 // ClickHouse spec
             }
-
             Statement::LISTEN { .. } => {}
             Statement::UNLISTEN { .. } => {}
             Statement::NOTIFY { .. } => {}
             Statement::LoadData { .. } => {}
+            Statement::CreateConnector(..) => {}
+            Statement::AlterType(..) => {
+                // TODO list type for this.
+            }
+            Statement::AlterConnector { .. } => {}
+            Statement::AlterSession { .. } => {}
+            Statement::DropConnector { .. } => {}
+            Statement::DropExtension { .. } => {}
+            Statement::ShowObjects(..) => {}
+            Statement::RenameTable(rename_tables) => {
+                for rename in rename_tables.iter() {
+                    self.c_on_table(&rename.old_name).await;
+                    self.c_on_table(&rename.new_name).await;
+                }
+            }
+            Statement::List(..) => {}
+            Statement::Remove(..) => {}
+            Statement::SetSessionParam(..) => {}
+            Statement::RaisError {
+                message,
+                severity,
+                state,
+                arguments,
+                ..
+            } => {
+                self.c_on_expr(&message).await;
+                self.c_on_expr(&severity).await;
+                self.c_on_expr(&state).await;
+                for ar in arguments.iter() {
+                    self.c_on_expr(&ar).await;
+                }
+            }
         }
     }
 }

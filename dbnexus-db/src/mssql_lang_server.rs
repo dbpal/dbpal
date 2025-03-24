@@ -59,11 +59,10 @@ impl MsSqlServerDB {
 #[async_trait::async_trait]
 impl LanguageServer for MsSqlServerDB {
     async fn auto_completion(
-        &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
             &sql,
-            query_id,
             line,
             col,
             sqlparser::dialect::MsSqlDialect {},
@@ -243,7 +242,45 @@ impl AstCompletionHelper for MsSqlServerDB {
     }
 
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        unimplemented!()
+        let sql = r#"
+       SELECT 
+            i.name AS IndexName  FROM 
+            sys.indexes AS i
+        INNER JOIN 
+            sys.index_columns AS ic 
+            ON i.object_id = ic.object_id 
+            AND i.index_id = ic.index_id
+        INNER JOIN 
+            sys.columns AS c 
+            ON ic.object_id = c.object_id 
+            AND ic.column_id = c.column_id
+        INNER JOIN 
+            sys.tables AS t 
+            ON i.object_id = t.object_id
+        WHERE 
+            t.is_ms_shipped = 0 -- 过滤掉系统表
+        ORDER BY 
+            t.name, i.name, ic.key_ordinal;
+            "#;
+        let mut conn = self.get_conn().await?;
+
+        let mut ret = Vec::new();
+
+        let mut stream = conn.simple_query(sql).await?;
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(name.to_owned());
+                    }
+                }
+                QueryItem::Metadata(..) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
     }
 }
 
@@ -286,7 +323,7 @@ mod tests {
         file_path.push("tests");
         file_path.push("mssql_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+        test_file_auto_completion(&content, &db, false).await;
     }
     #[ignore = "xxx"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -294,10 +331,9 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"ALTER TABLE employees ADD CONSTRAINT idx_lastname UNIQUE (id);
-61 id"#,
+            r#"GRANT SELECT ON dbo.employees TO public;
+20 dbo ; 30 employees"#,
             &db,
-            uuid::Uuid::new_v4(),
             false,
         )
         .await;

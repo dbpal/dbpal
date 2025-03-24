@@ -13,11 +13,10 @@ use crate::{
 
 impl LanguageServer for ClickHouseDB {
     async fn auto_completion(
-        &self, query_id: uuid::Uuid, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
             &sql,
-            query_id,
             line,
             col,
             sqlparser::dialect::SQLiteDialect {},
@@ -270,7 +269,7 @@ mod tests {
         file_path.push("tests");
         file_path.push("clickhouse_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+        test_file_auto_completion(&content, &db, false).await;
     }
     #[ignore = "xxx"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -281,7 +280,7 @@ mod tests {
             r#"CREATE TABLE sales_data (  order_id UInt64,  product_id UInt32, quantity UInt16,  order_date Date ) ENGINE = MergeTree() PARTITION BY toYYYYMM(order_date) ORDER BY (order_date, order_id) PRIMARY KEY order_id
 176 order_id"#,
             &db,
-            uuid::Uuid::new_v4(),
+  
             false,
         )
         .await;

@@ -1271,13 +1271,13 @@ pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
 
     match x {
         DataType::TinyInt(_)
-        | DataType::UnsignedTinyInt(_)
+        | DataType::TinyIntUnsigned(_)
         | DataType::Int2(_)
-        | DataType::UnsignedInt2(_)
+        | DataType::Int2Unsigned(_)
         | DataType::SmallInt(_)
-        | DataType::UnsignedSmallInt(_)
+        | DataType::SmallIntUnsigned(_)
         | DataType::MediumInt(_)
-        | DataType::UnsignedMediumInt(_)
+        | DataType::MediumIntUnsigned(_)
         | DataType::Int(_)
         | DataType::Int4(_)
         | DataType::Int8(_)
@@ -1287,9 +1287,9 @@ pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
         | DataType::Int128
         | DataType::Int256
         | DataType::Integer(_)
-        | DataType::UnsignedInt(_)
-        | DataType::UnsignedInt4(_)
-        | DataType::UnsignedInteger(_)
+        | DataType::IntUnsigned(_)
+        | DataType::Int4Unsigned(_)
+        | DataType::UnsignedInteger
         | DataType::UInt8
         | DataType::UInt16
         | DataType::UInt32
@@ -1297,8 +1297,8 @@ pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
         | DataType::UInt128
         | DataType::UInt256
         | DataType::BigInt(_)
-        | DataType::UnsignedBigInt(_)
-        | DataType::UnsignedInt8(_) => true,
+        | DataType::BigIntUnsigned(_)
+        | DataType::Int8Unsigned(_) => true,
 
         _ => false,
     }
@@ -1320,7 +1320,7 @@ pub(crate) fn ty_is_float(x: &sqlparser::ast::DataType) -> bool {
         | DataType::Float64
         | DataType::Real
         | DataType::Float8
-        | DataType::Double
+        | DataType::Double(_)
         | DataType::DoublePrecision => true,
 
         _ => false,

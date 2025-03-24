@@ -1507,7 +1507,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         file_path.push("redis_auto_completion_test.txt");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         let db = make_test_object().await;
-        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+        test_file_auto_completion(&content, &db, false).await;
     }
 
     #[tokio::test]
@@ -1527,7 +1527,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let content = r#"SSCAN set
 1 SSCAN ; 10 set_value"#;
         let db = make_test_object().await;
-        test_file_auto_completion(&content, &db, uuid::Uuid::new_v4(), false).await;
+        test_file_auto_completion(&content, &db, false).await;
     }
     #[tokio::test]
     async fn test_server_metas() {
