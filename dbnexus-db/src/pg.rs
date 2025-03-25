@@ -106,7 +106,7 @@ impl PostGresDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            // let ss = DBTrait::create_table_and_index_sql(self,
+            // let ss = SchemaTrait::create_table_and_index_sql(self,
             // table_name).await?; sender.send(Cow::Owned(ss.
             // create_table.clone())).await?;
             // sender.send(";\n".into()).await?;
@@ -261,7 +261,7 @@ impl PostGresDB {
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
+        let sql = format!(r#"SELECT * from "{}"."{}""#, self.must_schema(), table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
             .await
@@ -272,7 +272,7 @@ fn gen_show_sql(
     schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("SELECT * from \"{schema}\".\"{table_name}\"");
+    let mut sql = format!(r#"SELECT * from "{schema}"."{table_name}""#);
     if let Some(where_str) = where_str {
         sql.push_str(format!(" where {where_str} ").as_str());
     }

@@ -1,19 +1,13 @@
-#![allow(unused)]
-use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
-use std::iter::Cloned;
-use std::sync::Arc;
-use std::time::Duration;
-
-use cdrs_tokio::types::rows;
 use chrono::NaiveDate;
 use dashmap::DashMap;
 use duckdb::Connection;
-use duckdb::arrow::compute::and;
-use duckdb::types::FromSqlError;
+use duckdb::arrow::datatypes::DataType;
+use duckdb::types::TimeUnit;
 use r2d2::PooledConnection;
-use sqlparser::ast::{ColumnOption, Statement};
-use sqlx::encode;
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
@@ -22,9 +16,8 @@ use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, ExportKind, Field, ListTable, NamedStaff, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
-    not_support_features,
 };
-use crate::helper::create_csv;
+use crate::helper::{SqlKind, SqlWithKind, create_csv, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use std::ops::DerefMut;
@@ -86,7 +79,14 @@ pub struct DuckDB {
 
 impl ServerMetas for DuckDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
-        unimplemented!()
+        let sql = "PRAGMA version;";
+        let conn = self.get_conn()?;
+
+        let version = conn.query_row(sql, [], |row| {
+            let version: String = row.get(0)?;
+            Ok(version)
+        })?;
+        anyhow::Ok(vec![MetaValue::new("version", version)])
     }
 }
 
@@ -143,67 +143,69 @@ impl DuckDB {
         &self, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let handle = Clone::clone(self);
+        let sql = sql.to_owned();
 
-        let mut stream = sqlx::query(sql).fetch(conn.deref_mut()).try_chunks(100);
-        let mut first = true;
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            if first && rows.len() > 0 && include_header {
-                let fs = rows
-                    .get(0)
-                    .unwrap()
-                    .columns()
-                    .iter()
-                    .map(|x| x.name().to_string())
-                    .map(Some)
-                    .collect();
+        tokio::task::spawn_blocking(move || {
+            let conn = handle.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            stmt.execute([])?;
 
-                sender
-                    .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
-                    .await?;
-                first = false;
+            let names = stmt.column_names();
+            let types = (0..names.len())
+                .map(|x| stmt.column_type(x))
+                .collect::<Vec<_>>();
+            if include_header {
+                let fs = names.iter().map(|x| x.clone()).map(Some).collect();
+                sender.blocking_send(Cow::Owned(create_csv(&vec![fs], delimiter)))?;
             }
-            let data = encode_rows(&rows)?;
-
-            sender
-                .send(Cow::Owned(create_csv(&data, delimiter)))
-                .await?;
-        }
+            let mut stream = stmt.query([])?;
+            while let Some(row) = stream.next()? {
+                let data = encode_row(&row, &types[..], None)?;
+                sender.blocking_send(Cow::Owned(create_csv(&vec![data], delimiter)))?;
+            }
+            anyhow::Ok(())
+        })
+        .await??;
         anyhow::Ok(())
     }
 
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
-
-        let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
-
+        let handle = Clone::clone(self);
+        let sql = sql.to_owned();
         sender.send("[".into()).await?;
-        let mut first = true;
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            let value = encode_row_as_json(&row)?;
-            if !first {
-                sender.send(",".into()).await?;
-            }
-            if pretty {
-                sender.send("\n".into()).await?;
-            }
-            sender
-                .send(Cow::Owned(if pretty {
+        tokio::task::spawn_blocking(move || {
+            let conn = handle.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            stmt.execute([])?;
+            let names = stmt.column_names();
+            let mut first = true;
+            let mut stream = stmt.query([])?;
+            while let Some(row) = stream.next()? {
+                let value = encode_row_as_json(&names, row)?;
+                if !first {
+                    sender.blocking_send(",".into())?;
+                }
+                if pretty {
+                    sender.blocking_send("\n".into())?;
+                }
+                sender.blocking_send(Cow::Owned(if pretty {
                     serde_json::to_string_pretty(&value)?
                 } else {
                     serde_json::to_string(&value)?
-                }))
-                .await?;
-            first = false;
-        }
-        if pretty {
-            sender.send("\n".into()).await?;
-        }
-        sender.send("]".into()).await?;
+                }))?;
+                first = false;
+            }
+            if pretty {
+                sender.blocking_send("\n".into())?;
+            }
+            sender.blocking_send("]".into())?;
+            anyhow::Ok(())
+        })
+        .await??;
+
         anyhow::Ok(())
     }
 
@@ -214,82 +216,197 @@ impl DuckDB {
         let sql = sql.to_owned();
 
         tokio::task::spawn_blocking(move || {
-            let mut conn = handle.get_conn()?;
+            let conn = handle.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
-            let names = stmt.column_names();
+            // after  `execute` can call column_names
+            stmt.execute([])?;
 
+            let names = stmt.column_names();
+            let mut rows = stmt.query([])?;
+            while let Some(row) = rows.next()? {
+                let serde_value = encode_row_as_json(&names, row)?;
+                let str = serde_json::to_string(&serde_value)?;
+                sender.blocking_send(Cow::Owned(str))?;
+            }
             anyhow::Ok(())
         })
-        .await;
-        let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            let value = encode_row_as_json(&row)?;
-
-            sender
-                .send(Cow::Owned(serde_json::to_string(&value)?))
-                .await?;
-
-            sender.send("\n".into()).await?;
-        }
+        .await??;
         anyhow::Ok(())
     }
 }
 
 fn encode_row_as_json<'stmt>(
-    names: &Vec<String>, row: duckdb::Row<'stmt>,
+    names: &Vec<String>, row: &duckdb::Row<'stmt>,
 ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
-    let ret = serde_json::Map::new();
+    let mut ret = serde_json::Map::new();
     for (index, name) in names.iter().enumerate() {
         let v: duckdb::types::Value = row.get(index)?;
+        ret.insert(name.clone(), value_2_json(&v)?);
     }
-
     return anyhow::Ok(ret);
-
-    fn value_2_json(value: &duckdb::types::Value) {
-        match value {
+    fn value_2_json(value: &duckdb::types::Value) -> anyhow::Result<serde_json::Value> {
+        let v = match value {
             duckdb::types::Value::Null => serde_json::Value::Null,
             duckdb::types::Value::Boolean(x) => serde_json::Value::from(*x),
             duckdb::types::Value::TinyInt(x) => serde_json::Value::from(*x),
             duckdb::types::Value::SmallInt(x) => serde_json::Value::from(*x),
             duckdb::types::Value::Int(x) => serde_json::Value::from(*x),
             duckdb::types::Value::BigInt(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::HugeInt(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::UTinyInt(_) => todo!(),
-            duckdb::types::Value::USmallInt(_) => todo!(),
-            duckdb::types::Value::UInt(_) => todo!(),
-            duckdb::types::Value::UBigInt(_) => todo!(),
-            duckdb::types::Value::Float(_) => todo!(),
-            duckdb::types::Value::Double(_) => todo!(),
-            duckdb::types::Value::Decimal(decimal) => todo!(),
-            duckdb::types::Value::Timestamp(time_unit, _) => todo!(),
-            duckdb::types::Value::Text(_) => todo!(),
-            duckdb::types::Value::Blob(items) => todo!(),
-            duckdb::types::Value::Date32(_) => todo!(),
-            duckdb::types::Value::Time64(time_unit, _) => todo!(),
+            duckdb::types::Value::HugeInt(x) => serde_json::Value::from(x.to_string()),
+            duckdb::types::Value::UTinyInt(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::USmallInt(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::UInt(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::UBigInt(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::Float(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::Double(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::Decimal(decimal) => serde_json::Value::from(decimal.to_string()),
+            duckdb::types::Value::Timestamp(time_unit, value) => {
+                let mut m = serde_json::Map::new();
+                m.insert(
+                    "timeUnit".to_string(),
+                    serde_json::Value::from(format!("{:?}", time_unit).to_lowercase()),
+                );
+                m.insert("value".to_string(), serde_json::Value::from(*value));
+                serde_json::Value::Object(m)
+            }
+            duckdb::types::Value::Text(x) => serde_json::Value::from(x.clone()),
+            duckdb::types::Value::Blob(items) => {
+                let items = items
+                    .iter()
+                    .map(|x| serde_json::Value::from(*x))
+                    .collect::<Vec<_>>();
+                serde_json::Value::Array(items)
+            }
+            duckdb::types::Value::Date32(days) => {
+                let d = format_date(*days)?;
+                serde_json::Value::from(d)
+            }
+            duckdb::types::Value::Time64(time_unit, value) => {
+                let mut m = serde_json::Map::new();
+                m.insert(
+                    "timeUnit".to_string(),
+                    serde_json::Value::from(format!("{:?}", time_unit).to_lowercase()),
+                );
+                m.insert("value".to_string(), serde_json::Value::from(*value));
+                serde_json::Value::Object(m)
+            }
             duckdb::types::Value::Interval {
                 months,
                 days,
                 nanos,
-            } => todo!(),
-            duckdb::types::Value::List(values) => todo!(),
-            duckdb::types::Value::Enum(_) => todo!(),
-            duckdb::types::Value::Struct(ordered_map) => todo!(),
-            duckdb::types::Value::Array(values) => todo!(),
-            duckdb::types::Value::Map(ordered_map) => todo!(),
-            duckdb::types::Value::Union(value) => todo!(),
+            } => {
+                let v = format_interval(*months, *days, *nanos);
+                serde_json::Value::from(v)
+            }
+            duckdb::types::Value::List(values) => {
+                let mut ret = Vec::with_capacity(values.len());
+                for value in values.iter() {
+                    ret.push(value_2_json(value)?);
+                }
+                serde_json::Value::Array(ret)
+            }
+            duckdb::types::Value::Enum(x) => serde_json::Value::from(x.clone()),
+            duckdb::types::Value::Struct(ordered_map) => {
+                let mut m = serde_json::Map::new();
+                for (k, v) in ordered_map.iter() {
+                    m.insert(k.clone(), value_2_json(v)?);
+                }
+                serde_json::Value::Object(m)
+            }
+            duckdb::types::Value::Array(values) => {
+                let mut ret = Vec::with_capacity(values.len());
+                for value in values.iter() {
+                    ret.push(value_2_json(value)?);
+                }
+                serde_json::Value::Array(ret)
+            }
+            duckdb::types::Value::Map(ordered_map) => {
+                let mut m = serde_json::Map::new();
+                for (k, v) in ordered_map.iter() {
+                    m.insert(serde_json::to_string(&value_2_json(k)?)?, value_2_json(v)?);
+                }
+                serde_json::Value::Object(m)
+            }
+            duckdb::types::Value::Union(value) => value_2_json(&value)?,
+        };
+
+        anyhow::Ok(v)
+    }
+}
+
+fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
+    let dialect = sqlparser::dialect::DuckDbDialect {};
+    sql_to_sql_seq(
+        sql,
+        &dialect,
+        |s| SqlKind::get_from_statement(s),
+        |x| SqlKind::get_from_sql(x),
+    )
+}
+
+impl DuckDB {
+    fn query_resp(conn: &Connection, sql: &str) -> anyhow::Result<QueryResp> {
+        let mut stmt = conn.prepare(sql)?;
+        stmt.execute([])?;
+        let types: Vec<_> = (0..stmt.column_count())
+            .map(|x| stmt.column_type(x))
+            .collect();
+        let names = stmt.column_names();
+        let mut rows = block_in_place(|| stmt.query([]))?;
+        let mut data = vec![];
+        while let Some(row) = block_in_place(|| rows.next())? {
+            let d = encode_row(row, &types[..], None)?;
+            data.push(d);
         }
+        anyhow::Ok(QueryResp {
+            fields: names
+                .iter()
+                .zip(types.iter())
+                .map(|(name, typ)| Field::from_name_type(name, typ.to_string()))
+                .collect::<Vec<_>>(),
+            data,
+        })
     }
 }
 
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
     async fn query_sql(
-        &self, query_id: uuid::Uuid, _sql: &str,
+        &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        unimplemented!()
-    }
+        let mut _log_gurad = QueryLog::get_guard(query_id, sql);
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
 
+        let ss = match get_sql_seq(sql) {
+            Ok(x) => x,
+            Err(_err) => {
+                vec![SqlWithKind {
+                    sql: sql.to_string(),
+                    kind: SqlKind::Query,
+                }]
+            }
+        };
+        let mut ret = Vec::new();
+        for s in ss.iter() {
+            match s.kind {
+                SqlKind::Query => match Self::query_resp(&conn, &s.sql) {
+                    Ok(x) => ret.push(Ok(x)),
+                    Err(err) => ret.push(Err(err.to_string())),
+                },
+                _ => match conn.execute(&s.sql, []) {
+                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64))),
+                    Err(err) => ret.push(Err(err.to_string())),
+                },
+            }
+        }
+        _log_gurad.set_success(ret.iter().all(|x| x.is_ok()));
+        anyhow::Ok(ret)
+    }
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -362,13 +479,12 @@ impl ReadOnlyTrait for DuckDB {
 
 impl DuckDB {
     fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
-        let mut conn = self.get_conn()?;
+        let conn = self.get_conn()?;
         let schema = self.config.schema_str();
         let mut sql = format!(r#"SELECT count(1) from "{schema}"."{name}" "#);
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
         }
-
         let r = block_in_place(|| {
             conn.query_row(&sql, [], |row| {
                 let r: i64 = row.get(0)?;
@@ -379,7 +495,36 @@ impl DuckDB {
     }
 }
 
-fn encode_value(value: &duckdb::types::Value) -> anyhow::Result<Option<String>> {
+fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::Result<String> {
+    use chrono::DateTime;
+    let d = match time_uint {
+        TimeUnit::Second => DateTime::from_timestamp(value, 0),
+        TimeUnit::Millisecond => DateTime::from_timestamp_millis(value),
+        TimeUnit::Microsecond => DateTime::from_timestamp_micros(value),
+        TimeUnit::Nanosecond => Some(DateTime::from_timestamp_nanos(value)),
+    };
+    let d = match d {
+        Some(x) => x,
+        None => anyhow::bail!("empty datetime"),
+    };
+    return anyhow::Ok(if is_time {
+        d.time().to_string()
+    } else {
+        d.naive_utc().to_string()
+    });
+}
+
+fn encode_value(
+    value: &duckdb::types::Value, ty: &DataType, prased_type: Option<&sqlparser::ast::DataType>,
+) -> anyhow::Result<Option<String>> {
+    log::trace!("value:{:?} ty:{:?} parse type:{:?}", value, ty, prased_type);
+    let is_time = matches!(ty, DataType::Time32(_)) || matches!(ty, DataType::Time64(_));
+    let is_bit = prased_type
+        .map(|x| match x {
+            sqlparser::ast::DataType::Bit(_) => true,
+            _ => false,
+        })
+        .unwrap_or(false);
     let r = match value {
         duckdb::types::Value::Null => None,
         duckdb::types::Value::Boolean(x) => Some(x.to_string()),
@@ -395,14 +540,35 @@ fn encode_value(value: &duckdb::types::Value) -> anyhow::Result<Option<String>> 
         duckdb::types::Value::Float(x) => Some(x.to_string()),
         duckdb::types::Value::Double(x) => Some(x.to_string()),
         duckdb::types::Value::Decimal(decimal) => Some(decimal.to_string()),
-        duckdb::types::Value::Timestamp(time_unit, _) => todo!(),
+        duckdb::types::Value::Timestamp(time_unit, value) => {
+            let v = format_timestamp(*time_unit, *value, is_time)?;
+            Some(v)
+        }
         duckdb::types::Value::Text(x) => Some(x.to_string()),
-        duckdb::types::Value::Blob(items) => Some(format!("x'{}'", hex::encode(items.as_slice()))),
+        duckdb::types::Value::Blob(items) => {
+            if is_bit {
+                let last = items.last();
+                let last = match last {
+                    Some(x) => x,
+                    None => anyhow::bail!("bit expect at least one byte"),
+                };
+                if (last & 1) != 0 {
+                    Some(1.to_string())
+                } else {
+                    Some(0.to_string())
+                }
+            } else {
+                Some(format!("x'{}'", hex::encode(items.as_slice())))
+            }
+        }
         duckdb::types::Value::Date32(x) => {
             let x = format_date(*x)?;
             Some(x)
         }
-        duckdb::types::Value::Time64(time_unit, _) => todo!(),
+        duckdb::types::Value::Time64(time_unit, value) => {
+            let v = format_timestamp(*time_unit, *value, is_time)?;
+            Some(v)
+        }
         duckdb::types::Value::Interval {
             months,
             days,
@@ -424,7 +590,6 @@ fn encode_value(value: &duckdb::types::Value) -> anyhow::Result<Option<String>> 
 
 fn format_interval(months: i32, days: i32, nanos: i64) -> String {
     let mut parts = Vec::new();
-
     if months != 0 {
         parts.push(format!("{} months", months));
     }
@@ -449,19 +614,136 @@ fn format_interval(months: i32, days: i32, nanos: i64) -> String {
 }
 
 fn encode_row<'stmt>(
-    rows: &&duckdb::Row<'stmt>, col_count: usize,
+    row: &duckdb::Row<'stmt>, types: &[DataType], parsed_types: Option<&[sqlparser::ast::DataType]>,
 ) -> anyhow::Result<Vec<Option<String>>> {
-    let mut values = Vec::with_capacity(col_count);
-
-    for index in 0..col_count {
+    let mut values = Vec::with_capacity(types.len());
+    for index in 0..types.len() {
+        let ty = &types[index];
+        let parsed_type = parsed_types.as_ref().map(|x| x.get(index)).flatten();
         let x: duckdb::types::Value = row.get(index)?;
-        values.push(encode_value(&x)?);
+        values.push(encode_value(&x, ty, parsed_type)?);
     }
     anyhow::Ok(values)
 }
 
+impl DuckDB {
+    async fn export_table_as_csv(
+        &self, table_name: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"SELECT * from "{}"."{}""#,
+            self.config.schema_str(),
+            table_name
+        );
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
+            .await
+    }
+
+    async fn export_table_as_json(
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"SELECT * from "{}"."{}""#,
+            self.config.schema_str(),
+            table_name
+        );
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_json(&sql, pretty, sender).await
+    }
+
+    async fn export_table_as_json_line(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"SELECT * from "{}"."{}""#,
+            self.config.schema_str(),
+            table_name
+        );
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_json_line(&sql, sender).await
+    }
+
+    async fn export_table_as_sql(
+        &self, table_name: &str, include_table_schema: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        if include_table_schema {
+            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+            sender.send(Cow::Owned(ss.create_table.clone())).await?;
+            sender.send(";\n".into()).await?;
+
+            for index in ss.indexes.into_iter() {
+                sender.send(Cow::Owned(index)).await?;
+                sender.send(";\n".into()).await?;
+            }
+        }
+        let handle = Clone::clone(self);
+        let table_name = table_name.to_owned();
+        let fs = self.show_table_columns(&table_name).await?;
+        let mut parsed_types = Vec::with_capacity(fs.len());
+        for f in fs.iter() {
+            parsed_types.push(parse_type(&f.typ)?);
+        }
+        tokio::task::spawn_blocking(move || {
+            let conn = handle.get_conn()?;
+
+            let sql = format!(
+                r#"SELECT * from "{}"."{}""#,
+                handle.config.schema_str(),
+                table_name
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            stmt.execute([])?;
+            let names = stmt.column_names();
+            let types: Vec<_> = (0..names.len()).map(|x| stmt.column_type(x)).collect();
+            let mut stream = stmt.query([])?;
+            while let Some(row) = stream.next()? {
+                let data = encode_row(row, &types[..], Some(&parsed_types[..]))?;
+                let mut values = HashMap::new();
+                for (name, value) in names.iter().zip(data.into_iter()) {
+                    values.insert(name.clone(), value);
+                }
+                let sql = (&handle as &dyn SchemaTrait).insert_sql(
+                    handle.config.schema.as_ref().map(|x| x.as_str()),
+                    &table_name,
+                    &fs,
+                    &values,
+                )?;
+                sender.blocking_send(Cow::Owned(sql))?;
+            }
+            anyhow::Ok(())
+        })
+        .await??;
+        anyhow::Ok(())
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
+    async fn export_table_or_view(
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_table_as_csv(name, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
+            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
+            ExportKind::Sql {
+                include_table_schema,
+            } => {
+                self.export_table_as_sql(name, include_table_schema, sender)
+                    .await
+            }
+        }
+    }
+
     async fn create_table_and_index_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
@@ -472,7 +754,7 @@ impl SchemaTrait for DuckDB {
             WHERE type = 'table' AND name = '{table_name}';
         "#
         );
-        let mut conn = self.get_conn()?;
+        let conn = self.get_conn()?;
         let mut ret = block_in_place(|| {
             conn.query_row(&sql, [], |x| {
                 let sql: String = x.get(0)?;
@@ -516,7 +798,7 @@ impl SchemaTrait for DuckDB {
         unimplemented!()
     }
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let mut conn = self.get_conn()?;
+        let conn = self.get_conn()?;
 
         let primary_keys = {
             let sql = format!(
@@ -619,7 +901,7 @@ impl SchemaTrait for DuckDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let total = self.query_count(table_name, where_str.clone())?;
         let sql = gen_show_sql(
@@ -632,12 +914,20 @@ impl SchemaTrait for DuckDB {
         );
         log::info!("sql:{}", sql);
         let fs = self.show_table_columns(table_name).await?;
-        let mut conn = self.get_conn()?;
+        let conn = self.get_conn()?;
         let mut stmt = conn.prepare(&sql)?;
+        stmt.execute([])?;
+        let types: Vec<_> = (0..stmt.column_count())
+            .map(|x| stmt.column_type(x))
+            .collect();
+        let mut parsed_type = Vec::with_capacity(fs.len());
+        for f in fs.iter() {
+            parsed_type.push(parse_type(&f.typ)?);
+        }
         let mut rows = stmt.query([])?;
         let mut data = Vec::new();
         while let Some(row) = rows.next()? {
-            data.push(encode_row(&row, fs.len())?);
+            data.push(encode_row(&row, &types[..], Some(&parsed_type[..]))?);
         }
         anyhow::Ok(TableListResp::new(fs, total, data, sql))
     }
@@ -661,7 +951,7 @@ impl SchemaTrait for DuckDB {
         )?;
         log::info!("sql:{}", sql);
 
-        let mut conn = self.get_conn()?;
+        let conn = self.get_conn()?;
         let changes = block_in_place(|| conn.execute(&sql, []))?;
         anyhow::Ok(SqlExecuteRet {
             sql,
@@ -684,7 +974,7 @@ impl SchemaTrait for DuckDB {
             type_support_compare,
         )?;
 
-        let mut conn = self.get_conn()?;
+        let conn = self.get_conn()?;
         let changes = block_in_place(|| conn.execute(&sql, []))?;
         anyhow::Ok(SqlExecuteRet {
             sql,
@@ -705,7 +995,7 @@ impl SchemaTrait for DuckDB {
             type_support_compare,
         )?;
 
-        let mut conn = self.get_conn()?;
+        let conn = self.get_conn()?;
         let changes = block_in_place(|| conn.execute(&sql, []))?;
         anyhow::Ok(SqlExecuteRet {
             sql,
@@ -737,9 +1027,14 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     log::trace!("encode type:{} value:{:?}", typ, value);
 
     match typ.as_str() {
-        "date" => anyhow::Ok(
+        "date" | "json" | "time" | "timestamp with time zone" | "timestamp" => anyhow::Ok(
             value
                 .map(|x| format!("'{}'", x))
+                .unwrap_or("null".to_string()),
+        ),
+        _ if typ.ends_with("[]") => anyhow::Ok(
+            value
+                .map(|x| format!("{}", x))
                 .unwrap_or("null".to_string()),
         ),
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
@@ -878,10 +1173,25 @@ fn make_test_object(schema: Option<String>) -> DuckDB {
     .unwrap()
 }
 
+fn parse_type(typ: &str) -> anyhow::Result<sqlparser::ast::DataType> {
+    let d = sqlparser::dialect::DuckDbDialect {};
+    let mut p = sqlparser::parser::Parser::new(&d);
+    p = p.try_with_sql(&typ)?;
+    let ret = p.parse_data_type()?;
+    anyhow::Ok(ret)
+}
+
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::enable_test_log;
+
+    #[test]
+    fn test_parse_type() {
+        let x = parse_type("BIT[]").unwrap();
+        println!("!!!!!:{:?}", x);
+    }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_database() {
         enable_test_log();
@@ -902,6 +1212,13 @@ mod tests {
         let x = db.list_database().await.unwrap();
         println!("database:{:?}", x);
         db.drop_database("abc").await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_server_metas() {
+        let db = make_test_object(None);
+        let metas = ServerMetas::show_metas(&db).await.unwrap();
+        println!("{:?}", metas);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -943,15 +1260,26 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_show_table_columns1111() {
+        let db = make_test_object(Some("main".to_string()));
+        let conn = db.get_conn().unwrap();
+        let mut stmt = conn.prepare("SELECT * from main.test_types1").unwrap();
+        let _xxxx = stmt.execute([]).unwrap();
+
+        println!("{:?}", stmt.column_names());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types1() {
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types1";
         let _ = db.truncate_table(table_name).await;
         let query_id = db.open_connection().await.unwrap();
-        db.execute_sql(
-            query_id,
-            r#"
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
             CREATE TABLE test_types1 (
                 bigint_column BIGINT,
                 bit_column BIT,
@@ -961,9 +1289,9 @@ mod tests {
                 decimal_column DECIMAL(10, 2) -- 假设精度为10，小数点后2位
             );
         "#,
-        )
-        .await
-        .unwrap();
+            )
+            .await
+            .unwrap();
         let mut values = HashMap::new();
         values.insert("bigint_column".to_string(), Some("123".to_string()));
         values.insert("bit_column".to_string(), Some("1".to_string()));
@@ -984,6 +1312,301 @@ mod tests {
             .await
             .unwrap();
         println!("resp:{:?}", resp);
+
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+            //export json
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_types1_array() {
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_types1_array";
+        let _ = db.truncate_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+             CREATE TABLE test_types1_array (
+                bigint_column BIGINT[],
+                bit_column BIT[],
+                blob_column BLOB[],
+                boolean_column BOOLEAN[],
+                date_column DATE[],
+                decimal_column DECIMAL(10, 2)[]
+            );
+        "#,
+            )
+            .await
+            .unwrap();
+        let mut values = HashMap::new();
+        values.insert(
+            "bigint_column".to_string(),
+            Some("[1234567890, 9876543210]".to_string()),
+        );
+        values.insert("bit_column".to_string(), Some("['1', '0']".to_string()));
+        values.insert(
+            "blob_column".to_string(),
+            Some("[X'12345678', X'87654321']".to_string()),
+        );
+        values.insert(
+            "boolean_column".to_string(),
+            Some("[TRUE, FALSE]".to_string()),
+        );
+        values.insert(
+            "date_column".to_string(),
+            Some("['2025-03-25', '2025-03-26']".to_string()),
+        );
+        values.insert(
+            "decimal_column".to_string(),
+            Some("[123.45, 678.90]".to_string()),
+        );
+        db.insert(table_name, values).await.unwrap();
+        let resp = db
+            .show_table(
+                table_name,
+                Some("1 = 1 "),
+                Some("decimal_column asc "),
+                1,
+                100,
+                None,
+            )
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+            //export json
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_types2() {
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_types2";
+        let _ = db.truncate_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_types2 (
+                col_double DOUBLE,
+                col_float FLOAT,
+                col_hugeint HUGEINT,
+                col_integer INTEGER,
+                col_interval INTERVAL,
+                col_json JSON
+            );
+
+        "#,
+            )
+            .await
+            .unwrap();
+        let mut values = HashMap::new();
+        values.insert("col_double".to_string(), Some("123.456".to_string()));
+        values.insert("col_float".to_string(), Some("78.9".to_string()));
+        values.insert(
+            "col_hugeint".to_string(),
+            Some("1234567890123456789".to_string()),
+        );
+        values.insert("col_integer".to_string(), Some("42".to_string()));
+        values.insert(
+            "col_interval".to_string(),
+            Some("INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6 seconds'".to_string()),
+        );
+        values.insert(
+            "col_json".to_string(),
+            Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
+        );
+        db.insert(table_name, values).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+            //export json
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_types3() {
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_types3";
+        let _ = db.truncate_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+           CREATE TABLE test_types3 (
+                col_smallint SMALLINT,
+                col_time TIME,
+                col_timestamptz TIMESTAMPTZ,
+                col_timestamp TIMESTAMP,
+                col_tinyint TINYINT,
+                col_ubigint UBIGINT
+            );
+        "#,
+            )
+            .await
+            .unwrap();
+        let mut values = HashMap::new();
+        values.insert("col_smallint".to_string(), Some("32767".to_string()));
+        values.insert("col_time".to_string(), Some("14:30:45".to_string()));
+        values.insert(
+            "col_timestamptz".to_string(),
+            Some("2025-03-25 14:30:45+08".to_string()),
+        );
+        values.insert(
+            "col_timestamp".to_string(),
+            Some("2025-03-25 14:30:45".to_string()),
+        );
+        values.insert("col_tinyint".to_string(), Some("127".to_string()));
+        values.insert(
+            "col_ubigint".to_string(),
+            Some("18446744073709551615".to_string()),
+        );
+        db.insert(table_name, values).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+            //export json
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
+        }
     }
 
     #[test]

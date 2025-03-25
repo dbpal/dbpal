@@ -1723,7 +1723,6 @@ impl OracleDB {
         if let Some(timeout) = self.config.call_timeout {
             conn.set_call_timeout(Some(Duration::from_millis(timeout)))?;
         }
-
         return anyhow::Ok(conn);
     }
 }
