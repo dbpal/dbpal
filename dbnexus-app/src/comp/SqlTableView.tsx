@@ -102,7 +102,7 @@ function WhereSort(props: {
         onClose();
       }}
     >
-      <Box sx={modalStyle} width="75%">
+      <Box sx={modalStyle} width="45%">
         <Stack spacing={1}>
           <TextField
             fullWidth
