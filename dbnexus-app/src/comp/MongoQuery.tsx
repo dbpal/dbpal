@@ -280,7 +280,7 @@ function MongoQuery(props: {
             setShowLoggerLevel(false);
           }}
         >
-          <Box sx={modalStyle} width="600px">
+          <Box sx={modalStyle} width="55%">
             <LogLevelSelection
               level={loggerlevel}
               handleChange={(level) => {
@@ -302,7 +302,7 @@ function MongoQuery(props: {
             setShowFavoriteName(false);
           }}
         >
-          <Box sx={modalStyle} width="600px">
+          <Box sx={modalStyle} width="55%">
             <Stack spacing={1}>
               <TextField
                 fullWidth

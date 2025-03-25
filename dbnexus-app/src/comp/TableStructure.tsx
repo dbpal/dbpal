@@ -304,7 +304,7 @@ function ColumnsStructure(props: {
             setShowAdd(false);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="75%">
             <TableAddColumn
               table={table}
               uuid={uuid}
@@ -328,7 +328,7 @@ function ColumnsStructure(props: {
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="75%">
             <ModifyTableColumn
               table={table}
               uuid={uuid}
@@ -632,7 +632,7 @@ function IndexesStructure(props: {
             setShowAdd(false);
           }}
         >
-          <Box sx={modalStyle} width="900px">
+          <Box sx={modalStyle} width="75%">
             {addIndex}
           </Box>
         </Modal>
@@ -647,7 +647,7 @@ function IndexesStructure(props: {
             setRenameIndexName('');
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="75%">
             <RenameIndex
               uuid={uuid}
               table={table}
@@ -1457,7 +1457,7 @@ function TriggersStructure(props: {
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <TriggerDetail
               reloadOP={async () => {
                 return Promise.resolve(row);

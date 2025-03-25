@@ -438,8 +438,8 @@ impl QuerySql for DuckDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let resp = match conn.execute(sql, []) {
-            Ok(changes) => Ok(QueryResp::row_affected(changes as u64)),
+        let resp = match conn.execute_batch(sql) {
+            Ok(_) => Ok(QueryResp::execute_ok()),
             Err(err) => Err(err.to_string()),
         };
         _log_gurad.set_success(resp.is_ok());

@@ -102,7 +102,7 @@ function WhereSort(props: {
         onClose();
       }}
     >
-      <Box sx={modalStyle} width="700px">
+      <Box sx={modalStyle} width="75%">
         <Stack spacing={1}>
           <TextField
             fullWidth
@@ -629,7 +629,7 @@ function SqlTableView(props: {
             setEditInModal(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="70%">
             <EditInModal
               content={editInModal.content}
               handleModify={async (value) => {
@@ -938,7 +938,7 @@ function Menu(props: {
             setShowFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="700px">
+          <Box sx={modalStyle} width="60%">
             <FilterOnValue
               content={content}
               setWhere={setWhere}

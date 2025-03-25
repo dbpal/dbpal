@@ -518,7 +518,7 @@ function MongoTableListToolBar(props: {
             setShowModifyFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <MongoDBModify
               buttonName="set"
               setOP={async (doc) => {
@@ -543,7 +543,7 @@ function MongoTableListToolBar(props: {
             setShowModifySort(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <MongoDBModify
               buttonName="set"
               setOP={async (doc) => {
@@ -724,7 +724,7 @@ function MongoTableListContextMenu(props: {
             setShowFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <MongoTableListMenuFilter
               loadValue={async () => {
                 return loadDoc().then((x) => x[field]);
@@ -1002,7 +1002,7 @@ function MongoTableList(props: {
             setSelectModifyDoc(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <MongoDBModify
               setOP={
                 modifyOP

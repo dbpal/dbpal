@@ -199,7 +199,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowFavoriteSql(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <FavoriteSqlList
               handleClose={() => {
                 setShowFavoriteSql(false);
@@ -219,7 +219,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowAddConnection(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <AddConnection
               handleClose={() => {
                 setShowAddConnection(false);
@@ -238,7 +238,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setCopyConn(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <AddConnection
               handleClose={() => {
                 setCopyConn(null);
@@ -259,7 +259,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowCopyConn(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <CopyConnection
               handleClose={() => {
                 setShowCopyConn(false);
@@ -1073,7 +1073,7 @@ function DatabaseMenu(props: {
             setShowCreateSchema(false);
           }}
         >
-          <Box sx={modalStyle} width="600px">
+          <Box sx={modalStyle} width="65%">
             <CreateSchema
               uuid={uuid}
               handleClose={() => {
@@ -1156,7 +1156,7 @@ function CatalogMenu(props: {
             setShowCreateDB(false);
           }}
         >
-          <Box sx={modalStyle} width="600px">
+          <Box sx={modalStyle} width="60%">
             <CreateDatabase
               uuid={uuid}
               handleClose={() => {

@@ -547,34 +547,3 @@ impl App {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::DBNexusConfigs;
-    use crate::app::DBConnectionConfig;
-    use crate::datasource_config::MysqlDBConfig;
-
-    #[test]
-    fn print_config() {
-        let s = DBNexusConfigs {
-            connection_configs: {
-                let mut m = Vec::new();
-
-                m.push(DBConnectionConfig::Mysql {
-                    conn: MysqlDBConfig {
-                        host: "127.0.0.1".to_string(),
-                        port: 33,
-                        username: "aaa".to_string(),
-                        password: Some("bbb".to_string()),
-                        db: None,
-                        read_only: false,
-                    },
-                    name: "haha".to_string(),
-                });
-                m
-            },
-        };
-        let s = serde_json::to_string_pretty(&s).unwrap();
-        println!("config:{}", s);
-    }
-}

@@ -162,7 +162,7 @@ function ModifySettings() {
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
-          table header size:
+          table header height:
         </Typography>
         <Chip label={datagridHeaderHeight} />
         <Slider
@@ -178,7 +178,7 @@ function ModifySettings() {
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
-          table row size:
+          table row height:
         </Typography>
         <Chip label={datagridRowHeight} />
         <Slider
@@ -233,7 +233,7 @@ function ModifySettings() {
             setShowEditorOptions(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <EditorOptions
               handleClose={() => {
                 setShowEditorOptions(false);
