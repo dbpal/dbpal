@@ -1,27 +1,52 @@
 #![allow(unused)]
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::iter::Cloned;
 use std::sync::Arc;
 use std::time::Duration;
 
+use cdrs_tokio::types::rows;
+use chrono::NaiveDate;
 use dashmap::DashMap;
 use duckdb::Connection;
+use duckdb::arrow::compute::and;
+use duckdb::types::FromSqlError;
 use r2d2::PooledConnection;
 use sqlparser::ast::{ColumnOption, Statement};
+use sqlx::encode;
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, Field, ListTable, NamedStaff, QueryResp, QuerySql,
+    CreateTableAndIndexSql, DBTrait, ExportKind, Field, ListTable, NamedStaff, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
     not_support_features,
 };
+use crate::helper::create_csv;
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
 use std::ops::DerefMut;
 pub struct PoolManage {
     path: String,
+}
+
+fn gen_show_sql(
+    schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    page_size: usize,
+) -> String {
+    let mut sql = format!("SELECT * from \"{schema}\".\"{table_name}\"");
+    if let Some(where_str) = where_str {
+        sql.push_str(format!(" where {where_str} ").as_str());
+    }
+    if let Some(order_by) = order_by {
+        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+    }
+    let offset = (page - 1) * page_size;
+    sql.push_str(format!(" OFFSET {} LIMIT {}", offset, page_size).as_str());
+
+    sql
 }
 
 fn make_conn(path: &str) -> duckdb::Result<Connection> {
@@ -113,12 +138,177 @@ impl BackendName for DuckDB {
     }
 }
 
+impl DuckDB {
+    async fn export_query_result_as_csv(
+        &self, sql: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+
+        let mut stream = sqlx::query(sql).fetch(conn.deref_mut()).try_chunks(100);
+        let mut first = true;
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            if first && rows.len() > 0 && include_header {
+                let fs = rows
+                    .get(0)
+                    .unwrap()
+                    .columns()
+                    .iter()
+                    .map(|x| x.name().to_string())
+                    .map(Some)
+                    .collect();
+
+                sender
+                    .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                    .await?;
+                first = false;
+            }
+            let data = encode_rows(&rows)?;
+
+            sender
+                .send(Cow::Owned(create_csv(&data, delimiter)))
+                .await?;
+        }
+        anyhow::Ok(())
+    }
+
+    async fn export_query_result_as_json(
+        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+
+        let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
+
+        sender.send("[".into()).await?;
+        let mut first = true;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let value = encode_row_as_json(&row)?;
+            if !first {
+                sender.send(",".into()).await?;
+            }
+            if pretty {
+                sender.send("\n".into()).await?;
+            }
+            sender
+                .send(Cow::Owned(if pretty {
+                    serde_json::to_string_pretty(&value)?
+                } else {
+                    serde_json::to_string(&value)?
+                }))
+                .await?;
+            first = false;
+        }
+        if pretty {
+            sender.send("\n".into()).await?;
+        }
+        sender.send("]".into()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn export_query_result_as_json_line(
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let handle = Clone::clone(self);
+        let sql = sql.to_owned();
+
+        tokio::task::spawn_blocking(move || {
+            let mut conn = handle.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            let names = stmt.column_names();
+
+            anyhow::Ok(())
+        })
+        .await;
+        let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let value = encode_row_as_json(&row)?;
+
+            sender
+                .send(Cow::Owned(serde_json::to_string(&value)?))
+                .await?;
+
+            sender.send("\n".into()).await?;
+        }
+        anyhow::Ok(())
+    }
+}
+
+fn encode_row_as_json<'stmt>(
+    names: &Vec<String>, row: duckdb::Row<'stmt>,
+) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
+    let ret = serde_json::Map::new();
+    for (index, name) in names.iter().enumerate() {
+        let v: duckdb::types::Value = row.get(index)?;
+    }
+
+    return anyhow::Ok(ret);
+
+    fn value_2_json(value: &duckdb::types::Value) {
+        match value {
+            duckdb::types::Value::Null => serde_json::Value::Null,
+            duckdb::types::Value::Boolean(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::TinyInt(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::SmallInt(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::Int(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::BigInt(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::HugeInt(x) => serde_json::Value::from(*x),
+            duckdb::types::Value::UTinyInt(_) => todo!(),
+            duckdb::types::Value::USmallInt(_) => todo!(),
+            duckdb::types::Value::UInt(_) => todo!(),
+            duckdb::types::Value::UBigInt(_) => todo!(),
+            duckdb::types::Value::Float(_) => todo!(),
+            duckdb::types::Value::Double(_) => todo!(),
+            duckdb::types::Value::Decimal(decimal) => todo!(),
+            duckdb::types::Value::Timestamp(time_unit, _) => todo!(),
+            duckdb::types::Value::Text(_) => todo!(),
+            duckdb::types::Value::Blob(items) => todo!(),
+            duckdb::types::Value::Date32(_) => todo!(),
+            duckdb::types::Value::Time64(time_unit, _) => todo!(),
+            duckdb::types::Value::Interval {
+                months,
+                days,
+                nanos,
+            } => todo!(),
+            duckdb::types::Value::List(values) => todo!(),
+            duckdb::types::Value::Enum(_) => todo!(),
+            duckdb::types::Value::Struct(ordered_map) => todo!(),
+            duckdb::types::Value::Array(values) => todo!(),
+            duckdb::types::Value::Map(ordered_map) => todo!(),
+            duckdb::types::Value::Union(value) => todo!(),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         unimplemented!()
+    }
+
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
     }
 
     async fn execute_sql(
@@ -168,6 +358,106 @@ impl ReadOnlyTrait for DuckDB {
     fn read_only(&self) -> bool {
         self.config.read_only
     }
+}
+
+impl DuckDB {
+    fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
+        let mut conn = self.get_conn()?;
+        let schema = self.config.schema_str();
+        let mut sql = format!(r#"SELECT count(1) from "{schema}"."{name}" "#);
+        if let Some(where_str) = where_str {
+            sql.push_str(format!(" where {where_str}").as_str());
+        }
+
+        let r = block_in_place(|| {
+            conn.query_row(&sql, [], |row| {
+                let r: i64 = row.get(0)?;
+                Ok(r)
+            })
+        })?;
+        anyhow::Ok(r as usize)
+    }
+}
+
+fn encode_value(value: &duckdb::types::Value) -> anyhow::Result<Option<String>> {
+    let r = match value {
+        duckdb::types::Value::Null => None,
+        duckdb::types::Value::Boolean(x) => Some(x.to_string()),
+        duckdb::types::Value::TinyInt(x) => Some(x.to_string()),
+        duckdb::types::Value::SmallInt(x) => Some(x.to_string()),
+        duckdb::types::Value::Int(x) => Some(x.to_string()),
+        duckdb::types::Value::BigInt(x) => Some(x.to_string()),
+        duckdb::types::Value::HugeInt(x) => Some(x.to_string()),
+        duckdb::types::Value::UTinyInt(x) => Some(x.to_string()),
+        duckdb::types::Value::USmallInt(x) => Some(x.to_string()),
+        duckdb::types::Value::UInt(x) => Some(x.to_string()),
+        duckdb::types::Value::UBigInt(x) => Some(x.to_string()),
+        duckdb::types::Value::Float(x) => Some(x.to_string()),
+        duckdb::types::Value::Double(x) => Some(x.to_string()),
+        duckdb::types::Value::Decimal(decimal) => Some(decimal.to_string()),
+        duckdb::types::Value::Timestamp(time_unit, _) => todo!(),
+        duckdb::types::Value::Text(x) => Some(x.to_string()),
+        duckdb::types::Value::Blob(items) => Some(format!("x'{}'", hex::encode(items.as_slice()))),
+        duckdb::types::Value::Date32(x) => {
+            let x = format_date(*x)?;
+            Some(x)
+        }
+        duckdb::types::Value::Time64(time_unit, _) => todo!(),
+        duckdb::types::Value::Interval {
+            months,
+            days,
+            nanos,
+        } => {
+            let x = format_interval(*months, *days, *nanos);
+            Some(x)
+        }
+        duckdb::types::Value::List(values) => todo!(),
+        duckdb::types::Value::Enum(_) => todo!(),
+        duckdb::types::Value::Struct(ordered_map) => todo!(),
+        duckdb::types::Value::Array(values) => todo!(),
+        duckdb::types::Value::Map(ordered_map) => todo!(),
+        duckdb::types::Value::Union(value) => todo!(),
+    };
+
+    anyhow::Ok(r)
+}
+
+fn format_interval(months: i32, days: i32, nanos: i64) -> String {
+    let mut parts = Vec::new();
+
+    if months != 0 {
+        parts.push(format!("{} months", months));
+    }
+    if days != 0 {
+        parts.push(format!("{} days", days));
+    }
+    if nanos != 0 {
+        let seconds = nanos / 1_000_000_000;
+        let remaining_nanos = nanos % 1_000_000_000;
+        let mut nanos_part = String::new();
+        if seconds != 0 {
+            nanos_part.push_str(&format!("{} seconds", seconds));
+        }
+        if remaining_nanos != 0 {
+            nanos_part.push_str(&format!("{} nanoseconds", remaining_nanos));
+        }
+        parts.push(nanos_part);
+    }
+    // Join all parts and trim any excess whitespace
+    let interval_string = parts.join(" ").trim().to_string();
+    format!("INTERVAL '{}'", interval_string)
+}
+
+fn encode_row<'stmt>(
+    rows: &&duckdb::Row<'stmt>, col_count: usize,
+) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values = Vec::with_capacity(col_count);
+
+    for index in 0..col_count {
+        let x: duckdb::types::Value = row.get(index)?;
+        values.push(encode_value(&x)?);
+    }
+    anyhow::Ok(values)
 }
 
 #[async_trait::async_trait]
@@ -242,6 +532,8 @@ impl SchemaTrait for DuckDB {
                 table_name,
                 self.config.schema_str()
             );
+
+            log::info!("sql:{}", sql);
             let mut primary_keys = HashSet::new();
             let mut stmt = conn.prepare(&sql)?;
             let mut rows = stmt.query([])?;
@@ -263,6 +555,7 @@ impl SchemaTrait for DuckDB {
             table_name,
             self.config.schema_str()
         );
+        log::info!("sql:{}", sql);
 
         let mut stmt = conn.prepare(&sql)?;
 
@@ -328,7 +621,31 @@ impl SchemaTrait for DuckDB {
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
-        unimplemented!()
+        let total = self.query_count(table_name, where_str.clone())?;
+        let sql = gen_show_sql(
+            self.config.schema_str(),
+            table_name,
+            where_str,
+            order_by,
+            page,
+            page_size,
+        );
+        log::info!("sql:{}", sql);
+        let fs = self.show_table_columns(table_name).await?;
+        let mut conn = self.get_conn()?;
+        let mut stmt = conn.prepare(&sql)?;
+        let mut rows = stmt.query([])?;
+        let mut data = Vec::new();
+        while let Some(row) = rows.next()? {
+            data.push(encode_row(&row, fs.len())?);
+        }
+        anyhow::Ok(TableListResp::new(fs, total, data, sql))
+    }
+
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        put_value_in_sql(typ, value)
     }
 
     async fn insert(
@@ -342,6 +659,7 @@ impl SchemaTrait for DuckDB {
             &fs,
             &values,
         )?;
+        log::info!("sql:{}", sql);
 
         let mut conn = self.get_conn()?;
         let changes = block_in_place(|| conn.execute(&sql, []))?;
@@ -411,6 +729,20 @@ impl SchemaTrait for DuckDB {
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
+    }
+}
+
+fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+    let typ = typ.to_lowercase();
+    log::trace!("encode type:{} value:{:?}", typ, value);
+
+    match typ.as_str() {
+        "date" => anyhow::Ok(
+            value
+                .map(|x| format!("'{}'", x))
+                .unwrap_or("null".to_string()),
+        ),
+        _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
 }
 
@@ -522,6 +854,16 @@ impl CatalogTrait for DuckDB {
     }
 }
 
+fn format_date(days_since_epoch: i32) -> anyhow::Result<String> {
+    let date = NaiveDate::from_ymd_opt(1970, 1, 1)
+        .unwrap()
+        .checked_add_days(chrono::Days::new(days_since_epoch as i64 as u64));
+    match date {
+        Some(x) => anyhow::Ok(x.to_string()),
+        None => anyhow::bail!("days is none"),
+    }
+}
+
 #[cfg(test)]
 fn make_test_object(schema: Option<String>) -> DuckDB {
     let dir = env!("CARGO_MANIFEST_DIR");
@@ -543,7 +885,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_database() {
         enable_test_log();
-
         let db = make_test_object(None);
         db.create_database(
             "abc",
@@ -599,6 +940,50 @@ mod tests {
         let db = make_test_object(None);
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time is:{:?}", d);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_types1() {
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_types1";
+        let _ = db.truncate_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE test_types1 (
+                bigint_column BIGINT,
+                bit_column BIT,
+                blob_column BLOB,
+                boolean_column BOOLEAN,
+                date_column DATE,
+                decimal_column DECIMAL(10, 2) -- 假设精度为10，小数点后2位
+            );
+        "#,
+        )
+        .await
+        .unwrap();
+        let mut values = HashMap::new();
+        values.insert("bigint_column".to_string(), Some("123".to_string()));
+        values.insert("bit_column".to_string(), Some("1".to_string()));
+        values.insert("blob_column".to_string(), Some("x'0102030405'".to_string()));
+        values.insert("boolean_column".to_string(), Some("TRUE".to_string()));
+        values.insert("date_column".to_string(), Some("2025-03-25".to_string()));
+        values.insert("decimal_column".to_string(), Some("12345.67".to_string()));
+        db.insert(table_name, values).await.unwrap();
+        let resp = db
+            .show_table(
+                table_name,
+                Some("1 = 1 "),
+                Some("decimal_column asc "),
+                1,
+                100,
+                None,
+            )
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
     }
 
     #[test]

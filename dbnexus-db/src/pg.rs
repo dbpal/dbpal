@@ -1342,7 +1342,7 @@ impl PostGresDB {
         let mut conn = self.get_conn().await?;
         let schema = self.must_schema();
 
-        let mut sql = format!("SELECT count(1) from {schema}.{name} ");
+        let mut sql = format!(r#"SELECT count(1) from "{schema}"."{name}" "#);
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
         }
