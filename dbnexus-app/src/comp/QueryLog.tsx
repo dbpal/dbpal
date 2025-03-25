@@ -92,7 +92,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
             setSelectSql('');
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="60%">
             <SimpleResizeEditor
               language={language}
               value={selectSql}

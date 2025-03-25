@@ -259,7 +259,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowCopyConn(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="65%">
             <CopyConnection
               handleClose={() => {
                 setShowCopyConn(false);

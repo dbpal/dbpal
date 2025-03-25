@@ -294,6 +294,7 @@ function ColumnsStructure(props: {
           ></DataGrid>
         </div>
       )}
+      0%
       {showAdd && (
         <Modal
           open={showAdd}
@@ -304,7 +305,7 @@ function ColumnsStructure(props: {
             setShowAdd(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="60%">
             <TableAddColumn
               table={table}
               uuid={uuid}
@@ -328,7 +329,7 @@ function ColumnsStructure(props: {
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="60%">
             <ModifyTableColumn
               table={table}
               uuid={uuid}
@@ -632,7 +633,7 @@ function IndexesStructure(props: {
             setShowAdd(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="60%">
             {addIndex}
           </Box>
         </Modal>
@@ -647,7 +648,7 @@ function IndexesStructure(props: {
             setRenameIndexName('');
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="60%">
             <RenameIndex
               uuid={uuid}
               table={table}
@@ -1457,7 +1458,7 @@ function TriggersStructure(props: {
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="60%">
             <TriggerDetail
               reloadOP={async () => {
                 return Promise.resolve(row);
