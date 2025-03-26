@@ -563,7 +563,7 @@ function SqlQuery(props: {
             setShowFavoriteName(false);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="40%">
             <Stack spacing={1}>
               <TextField
                 fullWidth

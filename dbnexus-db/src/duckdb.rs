@@ -516,6 +516,7 @@ fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::R
 
 fn encode_value(
     value: &duckdb::types::Value, ty: &DataType, prased_type: Option<&sqlparser::ast::DataType>,
+    nested: bool,
 ) -> anyhow::Result<Option<String>> {
     log::trace!("value:{:?} ty:{:?} parse type:{:?}", value, ty, prased_type);
     let is_time = matches!(ty, DataType::Time32(_)) || matches!(ty, DataType::Time64(_));
@@ -544,7 +545,13 @@ fn encode_value(
             let v = format_timestamp(*time_unit, *value, is_time)?;
             Some(v)
         }
-        duckdb::types::Value::Text(x) => Some(x.to_string()),
+        duckdb::types::Value::Text(x) => {
+            let mut x = Some(x.to_string());
+            if nested {
+                x = x.map(|x| format!("'{}'", x))
+            }
+            x
+        }
         duckdb::types::Value::Blob(items) => {
             if is_bit {
                 let last = items.last();
@@ -562,11 +569,17 @@ fn encode_value(
             }
         }
         duckdb::types::Value::Date32(x) => {
-            let x = format_date(*x)?;
+            let mut x = format_date(*x)?;
+            if nested {
+                x = format!("'{}'", x)
+            }
             Some(x)
         }
         duckdb::types::Value::Time64(time_unit, value) => {
-            let v = format_timestamp(*time_unit, *value, is_time)?;
+            let mut v = format_timestamp(*time_unit, *value, is_time)?;
+            if nested {
+                v = format!("'{}'", v)
+            }
             Some(v)
         }
         duckdb::types::Value::Interval {
@@ -577,12 +590,161 @@ fn encode_value(
             let x = format_interval(*months, *days, *nanos);
             Some(x)
         }
-        duckdb::types::Value::List(values) => todo!(),
-        duckdb::types::Value::Enum(_) => todo!(),
-        duckdb::types::Value::Struct(ordered_map) => todo!(),
-        duckdb::types::Value::Array(values) => todo!(),
-        duckdb::types::Value::Map(ordered_map) => todo!(),
-        duckdb::types::Value::Union(value) => todo!(),
+
+        duckdb::types::Value::List(values) | duckdb::types::Value::Array(values) => {
+            let ety = match ty {
+                DataType::List(x) => x.as_ref().data_type(),
+                DataType::FixedSizeList(x, _) => x.as_ref().data_type(),
+                _ => {
+                    anyhow::bail!("expect a list type but:{:?}", ty)
+                }
+            };
+            let parsed_type = match prased_type {
+                Some(x) => match x {
+                    sqlparser::ast::DataType::Array(x) => match x {
+                        sqlparser::ast::ArrayElemTypeDef::SquareBracket(data_type, _) => {
+                            Some(data_type.as_ref())
+                        }
+                        _ => {
+                            anyhow::bail!("not suitable type for duckdb :{:?}", x)
+                        }
+                    },
+                    _ => {
+                        anyhow::bail!("expect an array type but:{:?}", ty)
+                    }
+                },
+                None => None,
+            };
+
+            let mut eles = Vec::with_capacity(values.len());
+            for value in values.iter() {
+                let v = encode_value(value, ety, parsed_type, true)?;
+                eles.push(v);
+            }
+            let eles = eles
+                .into_iter()
+                .map(|x| x.unwrap_or("null".to_string()))
+                .collect::<Vec<_>>();
+            Some(format!("[{}]", eles.join(",")))
+        }
+        duckdb::types::Value::Enum(x) => Some(format!("'{}'", x)),
+        duckdb::types::Value::Struct(ordered_map) => {
+            let mut values = Vec::new();
+
+            for (k, v) in ordered_map.iter() {
+                let ty = match ty {
+                    DataType::Struct(x) => match x.find(&k) {
+                        Some(x) => x.1.data_type(),
+                        None => anyhow::bail!("field {} not found,this should not happen", k),
+                    },
+                    _ => {
+                        anyhow::bail!("expect struct type but {:?}", ty)
+                    }
+                };
+                let prased_type = match prased_type {
+                    Some(x) => match x {
+                        sqlparser::ast::DataType::Struct(x, _) => {
+                            let f = x.iter().find(|x| match &x.field_name {
+                                Some(x) => x.value.to_string().eq_ignore_ascii_case(k),
+                                None => false,
+                            });
+                            match f {
+                                Some(f) => Some(f.field_type.clone()),
+                                None => {
+                                    anyhow::bail!(
+                                        "field '{}' not found,availables are:{:?}",
+                                        k,
+                                        x.iter()
+                                            .map(|x| x.field_name.as_ref().map(|x| &x.value))
+                                            .flatten()
+                                            .collect::<Vec<_>>()
+                                    )
+                                }
+                            }
+                        }
+                        _ => {
+                            anyhow::bail!("expect a struct type but {:?}", x)
+                        }
+                    },
+                    None => None,
+                };
+                values.push(format!(
+                    "{}:{}",
+                    k,
+                    encode_value(v, ty, prased_type.as_ref(), true)?.unwrap_or("null".to_string())
+                ));
+            }
+
+            Some(format!("{}", values.join(",")))
+        }
+        duckdb::types::Value::Map(ordered_map) => {
+            let (kty, vty) = match ty {
+                DataType::Map(k, _) => match k.data_type() {
+                    DataType::Struct(fs) => {
+                        let kty = fs.find("key");
+                        let vty = fs.find("value");
+
+                        match (kty, vty) {
+                            (Some(k), Some(v)) => (k.1.data_type(), v.1.data_type()),
+                            _ => {
+                                anyhow::bail!("map must have key and value field")
+                            }
+                        }
+                    }
+                    _ => {
+                        anyhow::bail!("type here should a struct")
+                    }
+                },
+                _ => {
+                    anyhow::bail!("data should be a map but {:?}", ty)
+                }
+            };
+
+            let (pkty, pvty) = match prased_type {
+                None => (None, None),
+                Some(prased_type) => match prased_type {
+                    sqlparser::ast::DataType::Map(k, v) => {
+                        (Some(k.as_ref().clone()), Some(v.as_ref().clone()))
+                    }
+                    sqlparser::ast::DataType::Custom(x, subtypes) => {
+                        if x.to_string().to_uppercase() == "MAP" {
+                            if subtypes.len() != 2 {
+                                anyhow::bail!("sub type should have length 2 but {:?}", subtypes)
+                            }
+                            (
+                                Some(parse_type(&subtypes[0])?),
+                                Some(parse_type(&subtypes[1])?),
+                            )
+                        } else {
+                            anyhow::bail!("custon should be map but {:?}", x)
+                        }
+                    }
+                    _ => {
+                        anyhow::bail!("type must be map but {:?}", prased_type)
+                    }
+                },
+            };
+            let mut keys = Vec::new();
+            let mut values = Vec::new();
+            for (k, v) in ordered_map.iter() {
+                keys.push(encode_value(k, kty, pkty.as_ref(), nested)?);
+                values.push(encode_value(v, vty, pvty.as_ref(), nested)?);
+            }
+            let keys = keys
+                .into_iter()
+                .map(|x| x.unwrap_or("null".to_string()))
+                .collect::<Vec<_>>();
+            let values = values
+                .into_iter()
+                .map(|x| x.unwrap_or("null".to_string()))
+                .collect::<Vec<_>>();
+            Some(format!(
+                "map([{}] , [{}])",
+                keys.join(","),
+                values.join(",")
+            ))
+        }
+        duckdb::types::Value::Union(value) => encode_value(&value, ty, None, true)?,
     };
 
     anyhow::Ok(r)
@@ -621,7 +783,7 @@ fn encode_row<'stmt>(
         let ty = &types[index];
         let parsed_type = parsed_types.as_ref().map(|x| x.get(index)).flatten();
         let x: duckdb::types::Value = row.get(index)?;
-        values.push(encode_value(&x, ty, parsed_type)?);
+        values.push(encode_value(&x, ty, parsed_type, false)?);
     }
     anyhow::Ok(values)
 }
@@ -1010,7 +1172,7 @@ impl SchemaTrait for DuckDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TABLE "{}";"#, table);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, []))?;
@@ -1027,11 +1189,13 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     log::trace!("encode type:{} value:{:?}", typ, value);
 
     match typ.as_str() {
-        "date" | "json" | "time" | "timestamp with time zone" | "timestamp" => anyhow::Ok(
-            value
-                .map(|x| format!("'{}'", x))
-                .unwrap_or("null".to_string()),
-        ),
+        "date" | "json" | "time" | "timestamp with time zone" | "timestamp" | "varchar" => {
+            anyhow::Ok(
+                value
+                    .map(|x| format!("'{}'", x))
+                    .unwrap_or("null".to_string()),
+            )
+        }
         _ if typ.ends_with("[]") => anyhow::Ok(
             value
                 .map(|x| format!("{}", x))
@@ -1041,7 +1205,7 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     }
 }
 
-fn type_support_compare(typ: &str) -> bool {
+fn type_support_compare(_typ: &str) -> bool {
     true
 }
 
@@ -1189,8 +1353,15 @@ mod tests {
 
     #[test]
     fn test_parse_type() {
-        let x = parse_type("BIT[]").unwrap();
-        println!("!!!!!:{:?}", x);
+        {
+            let x = parse_type("BIT[]").unwrap();
+
+            println!("parsed type:{:?}", x);
+        }
+        {
+            let x = parse_type("STRUCT(name VARCHAR, age INTEGER)").unwrap();
+            println!("parsed type:{:?}", x);
+        }
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_database() {
@@ -1377,7 +1548,7 @@ mod tests {
             "bigint_column".to_string(),
             Some("[1234567890, 9876543210]".to_string()),
         );
-        values.insert("bit_column".to_string(), Some("['1', '0']".to_string()));
+        values.insert("bit_column".to_string(), Some("[1, 0]".to_string()));
         values.insert(
             "blob_column".to_string(),
             Some("[X'12345678', X'87654321']".to_string()),
@@ -1566,6 +1737,162 @@ mod tests {
             "col_ubigint".to_string(),
             Some("18446744073709551615".to_string()),
         );
+        db.insert(table_name, values).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+            //export json
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_types4() {
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_types4";
+        let _ = db.truncate_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+           CREATE TABLE test_types4 (
+                my_uhugeint UHUGEINT,
+                my_uinteger UINTEGER,
+                my_usmallint USMALLINT,
+                my_utinyint UTINYINT,
+                my_varchar VARCHAR
+            );
+        "#,
+            )
+            .await
+            .unwrap();
+        let mut values = HashMap::new();
+        values.insert(
+            "my_uhugeint".to_string(),
+            Some("12345678901234567890".to_string()),
+        );
+        values.insert("my_uinteger".to_string(), Some("3000000000".to_string()));
+        values.insert("my_usmallint".to_string(), Some("65000".to_string()));
+        values.insert("my_utinyint".to_string(), Some("123".to_string()));
+        values.insert("my_usmallint".to_string(), Some("127".to_string()));
+        values.insert("my_varchar".to_string(), Some("Example1".to_string()));
+        db.insert(table_name, values).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+            //export json
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_types5() {
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_types5";
+        let _ = db.truncate_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_types5 (
+                my_array INTEGER[3],
+                my_list VARCHAR[],
+                my_map MAP(VARCHAR, INTEGER),
+                my_struct STRUCT(name VARCHAR, age INTEGER),
+                my_union UNION(num INTEGER, text VARCHAR)
+            );
+        "#,
+            )
+            .await
+            .unwrap();
+        let mut values = HashMap::new();
+        values.insert("my_array".to_string(), Some("[1, 2, 3]".to_string()));
+        values.insert(
+            "my_list".to_string(),
+            Some("['apple', 'banana', 'cherry']".to_string()),
+        );
+        values.insert(
+            "my_map".to_string(),
+            Some("map(['key1', 'key2'] , [1,2])".to_string()),
+        );
+        values.insert(
+            "my_struct".to_string(),
+            Some("{'name' : 'xxx' , 'age' : 100}".to_string()),
+        );
+        values.insert("my_union".to_string(), Some("'hello'".to_string()));
+
         db.insert(table_name, values).await.unwrap();
         let resp = db
             .show_table(table_name, None, None, 1, 100, None)
