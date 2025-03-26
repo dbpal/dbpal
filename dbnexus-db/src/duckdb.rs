@@ -675,7 +675,7 @@ fn encode_value(
                 ));
             }
 
-            Some(format!("{}", values.join(",")))
+            Some(format!("{{{}}}", values.join(",")))
         }
         duckdb::types::Value::Map(ordered_map) => {
             let (kty, vty) = match ty {
@@ -1045,9 +1045,15 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let sql = "SHOW TABLES";
+        let sql = format!(
+            r#"SELECT  table_name
+            FROM information_schema.tables
+            WHERE table_schema = '{}' AND table_type = 'BASE TABLE';"#,
+            self.config.schema_str()
+        );
+
         let conn = self.get_conn()?;
-        let mut stmt = conn.prepare(sql)?;
+        let mut stmt = conn.prepare(&sql)?;
         let mut rows = stmt.query([])?;
         let mut ret = Vec::new();
         while let Some(row) = rows.next()? {
@@ -1409,7 +1415,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_list_table() {
-        let db = make_test_object(None);
+        let db = make_test_object(Some("main".to_string()));
         let x = db.list_table().await.unwrap();
         println!("tables:{:?}", x);
     }

@@ -1489,6 +1489,7 @@ function TableStructure(props: {
     DataSourceKind.Mysql,
     DataSourceKind.TiDB,
     DataSourceKind.MariaDB,
+    DataSourceKind.DuckDB,
   ].includes(kind);
   if (support_statement) {
     structures.push({ name: 'statement', color: 'primary' });
@@ -1505,6 +1506,7 @@ function TableStructure(props: {
     DataSourceKind.Mongo,
     DataSourceKind.Cassandra,
     DataSourceKind.FireBird,
+    DataSourceKind.DuckDB,
   ].includes(kind);
 
   if (supportIndex) {

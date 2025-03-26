@@ -304,6 +304,7 @@ async function makeViewTable(
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
+    case DataSourceKind.DuckDB:
       tableList = (
         <SqlTableView
           tableName={table}
@@ -614,6 +615,7 @@ async function makeAddTable(
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
+    case DataSourceKind.DuckDB:
       tableList = (
         <SqlTableViewAdd
           addOP={async (values) => {

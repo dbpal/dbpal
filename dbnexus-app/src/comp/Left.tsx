@@ -818,6 +818,11 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
         return config.db ? <SchemaTree /> : <DatabaseTree />;
       case 'firebird':
         return <SchemaTree />;
+      case 'duckdb':
+        if (!config.db) {
+          return <CatalogTree />;
+        }
+        return config.schema ? <SchemaTree /> : <DatabaseTree />;
       default:
         console.log('impl database kind:', config);
         throw `impl this kind`;
@@ -896,13 +901,18 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         </>
       )}
 
+      {opened && kind == DataSourceKind.DuckDB && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
       {opened && kind == DataSourceKind.FireBird && (
         <>
           <TablesTree typ={TablesType.Normal} />
           <ViewsTree viewkind={ViewKind.Normal} />
         </>
       )}
-
       {opened && kind == DataSourceKind.LibSql && (
         <>
           <TablesTree typ={TablesType.Normal} />
@@ -1196,6 +1206,7 @@ async function openNewQuery(
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
+    case DataSourceKind.DuckDB:
       content = (
         <SqlQuery
           language={uuid}

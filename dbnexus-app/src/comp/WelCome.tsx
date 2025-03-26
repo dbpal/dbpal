@@ -55,6 +55,10 @@ function WelCome() {
       name: 'firebird',
       img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQG24A0f2jnl4T9rul7TPM1pELdOB82qJJMmA3le9C3xzfkdZVoQjm3GbGkW2XEfN4mDos&usqp=CAU',
     },
+    {
+      name: 'duckdb',
+      img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/DuckDB_logo.svg/1200px-DuckDB_logo.svg.png',
+    },
   ];
   return (
     <Stack spacing={1}>
