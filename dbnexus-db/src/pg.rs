@@ -1871,7 +1871,6 @@ mod tests {
     }
 
     #[tokio::test]
-
     async fn test_duplicate() {
         let db = make_test_object().await;
 

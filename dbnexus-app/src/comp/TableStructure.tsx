@@ -1506,7 +1506,6 @@ function TableStructure(props: {
     DataSourceKind.Mongo,
     DataSourceKind.Cassandra,
     DataSourceKind.FireBird,
-    DataSourceKind.DuckDB,
   ].includes(kind);
 
   if (supportIndex) {

@@ -489,11 +489,11 @@ impl CompletionStament {
                 };
             }
 
-            Statement::Install { .. } => {
-                // duckdb no support at all.
+            Statement::Install { extension_name } => {
+                self.c_on_duck_extension(&extension_name, Some(false)).await;
             }
-            Statement::Load { .. } => {
-                // DuckDB no support at all.
+            Statement::Load { extension_name } => {
+                self.c_on_duck_extension(&extension_name, Some(true)).await;
             }
             Statement::Directory { .. } => {
                 // TODO maybe dump some data to a file.

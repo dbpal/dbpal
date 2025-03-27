@@ -14,13 +14,14 @@ use tokio::task::block_in_place;
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, ExportKind, Field, ListTable, NamedStaff, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
+    CreateTableAndIndexSql, DBTrait, ExportKind, Field, ListMaterializedView, ListTable,
+    NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlExecuteRet, TableListResp,
 };
-use crate::helper::{SqlKind, SqlWithKind, create_csv, sql_to_sql_seq};
+use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLog;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 pub struct PoolManage {
     path: String,
 }
@@ -70,7 +71,7 @@ impl r2d2::ManageConnection for PoolManage {
 
 #[derive(Clone)]
 pub struct DuckDB {
-    config: DuckDBConfig,
+    pub(crate) config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<duckdb::Connection>>>>,
 }
@@ -105,8 +106,8 @@ impl DuckDB {
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManage>> {
         let conn = block_in_place(|| self.pool.get())?;
 
-        if let Some(d) = self.config.db.as_ref() {
-            conn.execute(&format!("use {}", d), [])?;
+        if let Some(db) = self.config.db.as_ref() {
+            use_database(conn.deref(), db)?;
         }
         if let Some(s) = self.config.schema.as_ref() {
             conn.execute(&format!("SET SCHEMA '{s}';"), [])?;
@@ -114,6 +115,11 @@ impl DuckDB {
 
         anyhow::Ok(conn)
     }
+}
+
+pub(crate) fn use_database(conn: &Connection, db: &str) -> anyhow::Result<()> {
+    conn.execute(&format!("use {}", db), [])?;
+    anyhow::Ok(())
 }
 
 impl std::fmt::Debug for DuckDB {
@@ -371,6 +377,9 @@ impl DuckDB {
 
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::DuckDbDialect {})
+    }
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -882,8 +891,75 @@ impl DuckDB {
     }
 }
 
+impl DuckDB {
+    pub(crate) fn list_table_impl(&self, db: &str, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+        let sql = format!(
+            r#"SELECT  table_name
+            FROM information_schema.tables
+            WHERE table_schema = '{schema}' AND table_type = 'BASE TABLE'  and table_catalog='{db}';"#,
+        );
+
+        let conn = self.get_conn()?;
+        let mut stmt = block_in_place(|| conn.prepare(&sql))?;
+        let mut rows = stmt.query([])?;
+        let mut ret = Vec::new();
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+    }
+
+    pub(crate) fn list_view_impl(&self, db: &str, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"SELECT table_name 
+                FROM information_schema.views 
+                WHERE table_schema = '{schema}' and table_catalog = '{db}'"#,
+        );
+        let conn = self.get_conn()?;
+        let mut stmt = conn.prepare(&sql)?;
+        let mut rows = block_in_place(|| stmt.query([]))?;
+        let mut ret = Vec::new();
+        while let Some(row) = block_in_place(|| rows.next())? {
+            let name: String = row.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(
+            ret.into_iter()
+                .map(|x| NamedStaff::from(x))
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn list_materialized_table_impl(
+        &self, db: &str, schema: &str,
+    ) -> anyhow::Result<Vec<ListTable>> {
+        let sql = format!(
+            r#"SELECT  table_name
+            FROM information_schema.tables
+            WHERE table_schema = '{schema}' AND table_type = 'MATERIALIZED VIEW'  and table_catalog='{db}';"#,
+        );
+        log::info!("sql:{}", sql);
+        let conn = self.get_conn()?;
+        let mut stmt = conn.prepare(&sql)?;
+        let mut rows = stmt.query([])?;
+        let mut ret = Vec::new();
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+        block_in_place(|| {
+            self.list_materialized_table_impl(self.config.db_str(), self.config.schema_str())
+        })
+    }
+
     async fn export_table_or_view(
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -948,16 +1024,61 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        unimplemented!()
+        block_in_place(|| self.list_view_impl(self.config.db_str(), self.config.schema_str()))
     }
-    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
-        unimplemented!()
+
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DROP VIEW "{view_name}";"#);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
     }
     async fn show_view(
-        &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowExtraArgs>,
+        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+        page_size: usize, _duckdb_extracted_statementsextra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
-        unimplemented!()
+        let total = self.query_count(view_name, where_str.clone())?;
+        let sql = gen_show_sql(
+            self.config.schema_str(),
+            view_name,
+            where_str,
+            order_by,
+            page,
+            page_size,
+        );
+        log::info!("sql:{}", sql);
+        let fs = self.show_view_columns(view_name).await?;
+        let conn = self.get_conn()?;
+        let mut stmt = conn.prepare(&sql)?;
+        stmt.execute([])?;
+        let types: Vec<_> = (0..stmt.column_count())
+            .map(|x| stmt.column_type(x))
+            .collect();
+        let mut parsed_type = Vec::with_capacity(fs.len());
+        for f in fs.iter() {
+            parsed_type.push(parse_type(&f.typ));
+        }
+
+        let parsed_type = if parsed_type.iter().all(|x| x.is_ok()) {
+            Some(
+                parsed_type
+                    .into_iter()
+                    .map(|x| x.unwrap())
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            None
+        };
+        let mut rows = stmt.query([])?;
+        let mut data = Vec::new();
+        while let Some(row) = rows.next()? {
+            data.push(encode_row(
+                &row,
+                &types[..],
+                parsed_type.as_ref().map(|x| &x[..]),
+            )?);
+        }
+        anyhow::Ok(TableListResp::new(fs, total, data, sql))
     }
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let conn = self.get_conn()?;
@@ -971,9 +1092,11 @@ impl SchemaTrait for DuckDB {
                     ON tc.constraint_name = c.constraint_name
                     WHERE tc.table_name = '{}'
                     AND tc.table_schema = '{}'  -- 指定 schema 名称
+                    and tc.table_catalog = '{}'
                     AND tc.constraint_type = 'PRIMARY KEY';
            ",
                 table_name,
+                self.config.db_str(),
                 self.config.schema_str()
             );
 
@@ -994,10 +1117,12 @@ impl SchemaTrait for DuckDB {
             SELECT column_name, data_type, is_nullable , column_default
                 FROM information_schema.columns
                 WHERE table_name = '{}'
-                AND table_schema = '{}';  -- 指定 schema 名称
+                AND table_schema = '{}' 
+                AND table_catalog = '{}';  -- 指定 schema 名称
         "#,
             table_name,
-            self.config.schema_str()
+            self.config.schema_str(),
+            self.config.db_str(),
         );
         log::info!("sql:{}", sql);
 
@@ -1045,26 +1170,50 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
+        self.list_table_impl(self.config.db_str(), self.config.schema_str())
+    }
+
+    async fn show_view_columns(&self, name: &str) -> anyhow::Result<Vec<Field>> {
         let sql = format!(
-            r#"SELECT  table_name
-            FROM information_schema.tables
-            WHERE table_schema = '{}' AND table_type = 'BASE TABLE';"#,
+            "
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_name = '{name}'  and table_catalog = '{}' and table_schema='{}' ;
+",
+            self.config.db_str(),
             self.config.schema_str()
         );
 
         let conn = self.get_conn()?;
         let mut stmt = conn.prepare(&sql)?;
+        let mut fs = Vec::new();
         let mut rows = stmt.query([])?;
-        let mut ret = Vec::new();
         while let Some(row) = rows.next()? {
             let name: String = row.get(0)?;
-            ret.push(name);
+            let typ: String = row.get(1)?;
+            fs.push(Field::from_name_type(name, typ));
         }
-        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
-    }
 
-    async fn show_view_columns(&self, name: &str) -> anyhow::Result<Vec<Field>> {
-        unimplemented!()
+        if fs.len() > 0 {
+            return anyhow::Ok(fs);
+        }
+
+        let sql = format!(
+            r#"select * from "{}"."{}" limit 1"#,
+            self.config.schema_str(),
+            name
+        );
+        let mut stmt = conn.prepare(&sql)?;
+
+        stmt.execute([])?;
+
+        let fs = stmt
+            .column_names()
+            .into_iter()
+            .enumerate()
+            .map(|(index, name)| Field::from_name_type(name, stmt.column_type(index).to_string()))
+            .collect::<Vec<_>>();
+        anyhow::Ok(fs)
     }
 
     async fn show_table(
@@ -1207,6 +1356,17 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
                 .map(|x| format!("{}", x))
                 .unwrap_or("null".to_string()),
         ),
+        _ if typ.starts_with("time")
+            || typ.starts_with("date")
+            || typ.starts_with("utf8")
+            || typ.starts_with("largeutf8") =>
+        {
+            anyhow::Ok(
+                value
+                    .map(|x| format!("'{}'", x))
+                    .unwrap_or("null".to_string()),
+            )
+        }
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
 }
@@ -1215,13 +1375,10 @@ fn type_support_compare(_typ: &str) -> bool {
     true
 }
 
-#[async_trait::async_trait]
-
-impl DBTrait for DuckDB {
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+impl DuckDB {
+    pub(crate) fn list_schema_impl(&self, db: &str) -> anyhow::Result<Vec<String>> {
         let sql = format!(
-            "SELECT schema_name FROM information_schema.schemata  where catalog_name = '{}' ;",
-            self.config.database_str()
+            "SELECT schema_name FROM information_schema.schemata  where catalog_name = '{db}' ;",
         );
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
@@ -1233,6 +1390,14 @@ impl DBTrait for DuckDB {
             ret.push(name);
         }
         anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+
+impl DBTrait for DuckDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        self.list_schema_impl(self.config.db_str())
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
@@ -1273,6 +1438,9 @@ impl CatalogTrait for DuckDB {
         let mut ret = Vec::new();
         while let Some(row) = rows.next()? {
             let name: String = row.get(0)?;
+            if name.eq_ignore_ascii_case("system") || name.eq_ignore_ascii_case("temp") {
+                continue;
+            }
             ret.push(name);
         }
         anyhow::Ok(ret)
@@ -1330,7 +1498,7 @@ fn format_date(days_since_epoch: i32) -> anyhow::Result<String> {
 }
 
 #[cfg(test)]
-fn make_test_object(schema: Option<String>) -> DuckDB {
+pub(crate) fn make_test_object(schema: Option<String>) -> DuckDB {
     let dir = env!("CARGO_MANIFEST_DIR");
     let path = format!("{dir}/tests/test.duckdb");
 
@@ -1353,10 +1521,12 @@ fn parse_type(typ: &str) -> anyhow::Result<sqlparser::ast::DataType> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::enable_test_log;
-
+    fn test_lock() -> &'static Mutex<()> {
+        static MUTEX: Mutex<()> = Mutex::const_new(());
+        &MUTEX
+    }
     #[test]
     fn test_parse_type() {
         {
@@ -1369,8 +1539,148 @@ mod tests {
             println!("parsed type:{:?}", x);
         }
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_view() {
+        let _gurad = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let query_id = db.open_connection().await.unwrap();
+        // let _ = db.truncate_table("test_table_view").await;
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            CREATE TABLE IF NOT EXISTS test_table_view (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                age INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+        "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            INSERT INTO test_table_view (id, name, age)
+            VALUES 
+            (1, 'Alice', 30),
+            (2, 'Bob', 25),
+            (3, 'Charlie', 22),
+            (4, 'Diana', 28),
+            (5, 'Eve', 21);
+        "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            CREATE VIEW test_view AS
+            SELECT name, age
+            FROM test_table_view;
+
+        "#,
+            )
+            .await
+            .unwrap();
+        let view_name = "test_view";
+
+        {
+            let views = db.list_view().await.unwrap();
+            assert!(views.iter().any(|x| x.name.eq_ignore_ascii_case(view_name)));
+        }
+        {
+            let cols = db.show_view_columns(view_name).await.unwrap();
+            for col in cols.iter() {
+                println!("col:{:?}", col);
+            }
+        }
+        let resp = db
+            .show_view(view_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
+        println!("{:?}", resp);
+    }
+    #[ignore = "materizlized view not implemented https://github.com/duckdb/duckdb/discussions/3638"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_materializd_view() {
+        let _gurad = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let query_id = db.open_connection().await.unwrap();
+        // let _ = db.truncate_table("test_materialized_table_view").await;
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_materialized_table_view (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                age INTEGER,
+                created_at TIMESTAMP
+            );
+            
+        "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            INSERT INTO test_materialized_table_view (id, name, age, created_at)
+            VALUES
+            (1, 'Alice', 30, '2025-03-27 10:00:00'),
+            (2, 'Bob', 25, '2025-03-26 15:30:00'),
+            (3, 'Charlie', 35, '2025-03-25 09:45:00');
+        "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+           CREATE MATERIALIZED VIEW test_materialized_view AS
+            SELECT name, age
+            FROM test_materialized_table_view
+
+        "#,
+            )
+            .await
+            .unwrap();
+        let view_name = "test_materialized_view";
+
+        {
+            let views = db.list_materialized_view().await.unwrap();
+            assert!(views.iter().any(|x| x.name.eq_ignore_ascii_case(view_name)));
+        }
+        {
+            let cols = db.show_view_columns(view_name).await.unwrap();
+            for col in cols.iter() {
+                println!("col:{:?}", col);
+            }
+        }
+        let resp = db
+            .show_view(view_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
+        println!("{:?}", resp);
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_database() {
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(None);
         db.create_database(
@@ -1393,6 +1703,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_server_metas() {
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(None);
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
@@ -1400,6 +1711,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_schema() {
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(None);
         let schema_name = "abc";
         let _err = db.drop_schema(schema_name).await;
@@ -1415,6 +1727,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_list_table() {
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string()));
         let x = db.list_table().await.unwrap();
         println!("tables:{:?}", x);
@@ -1422,6 +1735,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_table_columns() {
+        let _gurad = test_lock().lock().await;
+
         let db = make_test_object(Some("main".to_string()));
         let x = db.show_table_columns("employees").await.unwrap();
         for f in x.iter() {
@@ -1431,6 +1746,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_check_conn() {
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(None);
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time is:{:?}", d);
@@ -1438,6 +1754,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_table_columns1111() {
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string()));
         let conn = db.get_conn().unwrap();
         let mut stmt = conn.prepare("SELECT * from main.test_types1").unwrap();
@@ -1448,6 +1765,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types1() {
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types1";
@@ -1528,6 +1846,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types1_array() {
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types1_array";
@@ -1623,6 +1942,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types2() {
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types2";
@@ -1705,7 +2025,92 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_types2_array() {
+        let _gurad = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_types2_array";
+        let _ = db.truncate_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_types2_array (
+                col_double DOUBLE[],
+                col_float FLOAT[],
+                col_hugeint HUGEINT[],
+                col_integer INTEGER[],
+                col_interval INTERVAL[],
+                col_json JSON
+            );
+
+        "#,
+            )
+            .await
+            .unwrap();
+        let mut values = HashMap::new();
+        values.insert("col_double".to_string(), Some("[123.456]".to_string()));
+        values.insert("col_float".to_string(), Some("[78.9]".to_string()));
+        values.insert(
+            "col_hugeint".to_string(),
+            Some("[1234567890123456789]".to_string()),
+        );
+        values.insert("col_integer".to_string(), Some("[42]".to_string()));
+        values.insert(
+            "col_interval".to_string(),
+            Some("[INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6 seconds']".to_string()),
+        );
+        values.insert(
+            "col_json".to_string(),
+            Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
+        );
+        db.insert(table_name, values).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+            //export json
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types3() {
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types3";
@@ -1787,7 +2192,92 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_types3_array() {
+        let _gurad = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_types3_array";
+        let _ = db.truncate_table(table_name).await;
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+           CREATE TABLE test_types3_array (
+                col_smallint SMALLINT[],
+                col_time TIME[],
+                col_timestamptz TIMESTAMPTZ[],
+                col_timestamp TIMESTAMP[],
+                col_tinyint TINYINT[],
+                col_ubigint UBIGINT[]
+            );
+        "#,
+            )
+            .await
+            .unwrap();
+        let mut values = HashMap::new();
+        values.insert("col_smallint".to_string(), Some("[32767]".to_string()));
+        values.insert("col_time".to_string(), Some("['14:30:45']".to_string()));
+        values.insert(
+            "col_timestamptz".to_string(),
+            Some("['2025-03-25 14:30:45+08']".to_string()),
+        );
+        values.insert(
+            "col_timestamp".to_string(),
+            Some("['2025-03-25 14:30:45']".to_string()),
+        );
+        values.insert("col_tinyint".to_string(), Some("[127]".to_string()));
+        values.insert(
+            "col_ubigint".to_string(),
+            Some("[18446744073709551615]".to_string()),
+        );
+        db.insert(table_name, values).await.unwrap();
+        let resp = db
+            .show_table(table_name, None, None, 1, 100, None)
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+
+        {
+            //export test
+            let db = &db as &dyn SchemaTrait;
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::CSV {
+                    include_header: true,
+                    delimiter: ',',
+                })
+                .await
+                .unwrap();
+            println!("csv:{}", ret);
+            //export json
+
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("json:{}", ret);
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+            println!("jsonline:{}", ret);
+
+            //export jsonline
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::Sql {
+                    include_table_schema: true,
+                })
+                .await
+                .unwrap();
+            println!("sql:{}", ret);
+        }
+    }
+
+    #[ignore = "https://github.com/duckdb/duckdb-rs/issues/478"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types4() {
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types4";
@@ -1816,7 +2306,6 @@ mod tests {
         values.insert("my_uinteger".to_string(), Some("3000000000".to_string()));
         values.insert("my_usmallint".to_string(), Some("65000".to_string()));
         values.insert("my_utinyint".to_string(), Some("123".to_string()));
-        values.insert("my_usmallint".to_string(), Some("127".to_string()));
         values.insert("my_varchar".to_string(), Some("Example1".to_string()));
         db.insert(table_name, values).await.unwrap();
         let resp = db
@@ -1863,6 +2352,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types5() {
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types5";
@@ -1941,7 +2431,4 @@ mod tests {
             println!("sql:{}", ret);
         }
     }
-
-    #[test]
-    fn test_xxx() {}
 }

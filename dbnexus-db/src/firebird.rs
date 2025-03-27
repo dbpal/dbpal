@@ -978,11 +978,8 @@ pub(crate) fn make_test_object() -> FireBirdDB {
 #[cfg(test)]
 
 mod tests {
-
-    use crate::{db::IndexKind, enable_test_log};
-
     use super::*;
-
+    use crate::{db::IndexKind, enable_test_log};
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_check_conn() {
         let db = make_test_object();

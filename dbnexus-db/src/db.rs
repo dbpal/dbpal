@@ -334,7 +334,8 @@ pub trait CatalogTrait:
     async fn drop_database(&self, name: &str) -> anyhow::Result<()>;
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
+#[serde(tag = "extra", rename_all = "lowercase")]
 pub enum CreateDatabaseExtra {
     DuckDB { path: String },
 }

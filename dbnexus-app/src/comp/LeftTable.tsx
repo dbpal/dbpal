@@ -1044,7 +1044,7 @@ function TableMenu(props: {
             setShowDrop(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <DropTable
               uuid={uuid}
               table={table}

@@ -1166,13 +1166,14 @@ function CatalogMenu(props: {
             setShowCreateDB(false);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="50%">
             <CreateDatabase
               uuid={uuid}
               handleClose={() => {
                 reload();
                 setShowCreateDB(false);
               }}
+              kind={kind}
             ></CreateDatabase>
           </Box>
         </Modal>
