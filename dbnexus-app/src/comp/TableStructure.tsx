@@ -59,11 +59,9 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-
 import AddIcon from '@mui/icons-material/Add';
 import { BSON } from 'bson';
 import { MongoBsonEditor } from './MongoDB';
-
 import { TriggerDetail } from './TriggerDetail';
 import { TrueOrFalse } from './CommonComp';
 
@@ -86,7 +84,8 @@ function ColumnsStructure(props: {
     kind == DataSourceKind.Oracle ||
     kind == DataSourceKind.TiDB ||
     kind == DataSourceKind.Cassandra ||
-    kind == DataSourceKind.ClickHouse;
+    kind == DataSourceKind.ClickHouse ||
+    kind == DataSourceKind.DuckDB;
 
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
@@ -1506,6 +1505,7 @@ function TableStructure(props: {
     DataSourceKind.Mongo,
     DataSourceKind.Cassandra,
     DataSourceKind.FireBird,
+    DataSourceKind.DuckDB,
   ].includes(kind);
 
   if (supportIndex) {

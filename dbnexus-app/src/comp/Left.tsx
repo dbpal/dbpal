@@ -1042,7 +1042,7 @@ function DatabaseMenu(props: {
             handleClose={handleCloseConn}
           ></MenuCloseConn>
         )}
-        {database && (
+        {database && kind != DataSourceKind.DuckDB && (
           <MenuItem
             onClick={() => {
               // we are in database context uuid contains the databse name
@@ -1083,7 +1083,7 @@ function DatabaseMenu(props: {
             setShowCreateSchema(false);
           }}
         >
-          <Box sx={modalStyle} width="65%">
+          <Box sx={modalStyle} width="50%">
             <CreateSchema
               uuid={uuid}
               handleClose={() => {
@@ -1122,7 +1122,7 @@ function CatalogMenu(props: {
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
         )}
 
-        {opened && (
+        {opened && kind != DataSourceKind.DuckDB && (
           <MenuCreateDatabase
             handleCreate={() => {
               setShowCreateDB(true);

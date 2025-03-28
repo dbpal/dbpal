@@ -4,6 +4,7 @@ use duckdb::Connection;
 use duckdb::arrow::datatypes::DataType;
 use duckdb::types::TimeUnit;
 use r2d2::PooledConnection;
+
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -13,10 +14,10 @@ use tokio::task::block_in_place;
 
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, ExportKind, Field, ListMaterializedView, ListTable,
-    NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp,
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind, ListMaterializedView,
+    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -683,7 +684,6 @@ fn encode_value(
                     encode_value(v, ty, prased_type.as_ref(), true)?.unwrap_or("null".to_string())
                 ));
             }
-
             Some(format!("{{{}}}", values.join(",")))
         }
         duckdb::types::Value::Map(ordered_map) => {
@@ -954,6 +954,166 @@ impl DuckDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
+    async fn rename_index(
+        &self, _table: &str, _old_name: &str, _new_name: &str,
+    ) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DROP INDEX "{index}";"#);
+        log::info!("sql:{}", sql);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
+    }
+    async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
+        let sql = format!(
+            "select index_name , is_unique , sql from duckdb_indexes() where database_name='{}' and schema_name='{}' and  table_name =  '{}'",
+            self.config.db_str(),
+            self.config.schema_str(),
+            table_name
+        );
+        let conn = self.get_conn()?;
+
+        let mut stmt = block_in_place(|| conn.prepare(&sql))?;
+
+        let mut rows = block_in_place(|| stmt.query([]))?;
+        let mut ret = Vec::new();
+        while let Some(row) = block_in_place(|| rows.next())? {
+            let name: String = row.get(0)?;
+            let is_unique: bool = row.get(1)?;
+            let sql: String = row.get(2)?;
+            let columns = extract_index_columns(&sql)?;
+            ret.push(Index {
+                name: Some(name),
+                kind: if is_unique {
+                    IndexKind::Unique
+                } else {
+                    IndexKind::Index
+                },
+                columns,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn create_index(
+        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "CREATE {} INDEX {} ON {table}({})",
+            match kind {
+                IndexKind::Index => "",
+                IndexKind::Primary => anyhow::bail!("can't create primary index"),
+                IndexKind::Unique => "Unique",
+            },
+            name,
+            fields.join(",")
+        );
+        log::info!("sql:{}", sql);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
+    }
+
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"
+             ALTER TABLE "{table}" DROP COLUMN "{col}";
+        "#
+        );
+
+        log::info!("sql:{}", sql);
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
+    }
+
+    async fn modify_table_column(
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn()?;
+        if old_name != new_name {
+            let sql = format!(
+                r#"
+            ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}";
+            "#
+            );
+            log::info!("sql:{}", sql);
+            block_in_place(|| conn.execute(&sql, []))?;
+        }
+        if let Some(typ) = typ.as_ref() {
+            let sql = format!(
+                r#"
+            ALTER TABLE {table} 
+                    ALTER COLUMN "{new_name}" SET DATA TYPE {};
+            "#,
+                typ.typ
+            );
+            log::info!("sql:{}", sql);
+
+            block_in_place(|| conn.execute(&sql, []))?;
+
+            if let Some(null) = typ.nullness.as_ref() {
+                let sql = if null.trim().to_lowercase() == "null" {
+                    format!(
+                        r#"
+                        ALTER TABLE {table} 
+                            ALTER COLUMN {new_name} DROP NOT NULL;
+                    "#
+                    )
+                } else {
+                    format!(
+                        r#"
+                        ALTER TABLE {table} 
+                            ALTER COLUMN {new_name} SET NOT NULL;
+                    "#
+                    )
+                };
+                log::info!("sql:{}", sql);
+                block_in_place(|| conn.execute(&sql, []))?;
+            }
+
+            if let Some(x) = typ.default_value.as_ref() {
+                let sql = format!(
+                    r#"
+                    ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {};
+                    "#,
+                    self.put_value_in_sql(&typ.typ, None, Some(x.as_str()))?
+                );
+
+                block_in_place(|| conn.execute(&sql, []))?;
+            }
+        }
+        anyhow::Ok(())
+    }
+
+    async fn add_table_column(
+        &self, table: &str, name: &str, col: ColumnType,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
+            col.typ,
+            if let Some(nullness) = col.nullness.as_ref() {
+                nullness.as_str()
+            } else {
+                ""
+            },
+            if let Some(d) = col.default_value.as_ref() {
+                format!(
+                    "DEFAULT {}",
+                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
+                )
+            } else {
+                "".to_owned()
+            }
+        );
+        let conn = self.get_conn()?;
+        block_in_place(|| conn.execute(&sql, []))?;
+        anyhow::Ok(())
+    }
+
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
         block_in_place(|| {
             self.list_materialized_table_impl(self.config.db_str(), self.config.schema_str())
@@ -1451,39 +1611,41 @@ impl CatalogTrait for DuckDB {
         anyhow::Ok(Arc::new(x))
     }
     async fn create_database(
-        &self, name: &str, extra: Option<CreateDatabaseExtra>,
+        &self, _name: &str, _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
-        let path = match &extra {
-            Some(x) => match &x {
-                CreateDatabaseExtra::DuckDB { path } => path,
-            },
-            None => anyhow::bail!("attach database need extra parameter."),
-        };
-        let sql = format!("ATTACH '{path}' AS {name}");
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        log::info!("attach sql:{} {} ", sql, conn.is_autocommit());
-        conn.execute(&sql, [])?;
-        anyhow::Ok(())
+        // self.can_write()?;
+        // let path = match &extra {
+        //     Some(x) => match &x {
+        //         CreateDatabaseExtra::DuckDB { path } => path,
+        //     },
+        //     None => anyhow::bail!("attach database need extra parameter."),
+        // };
+        // let sql = format!("ATTACH '{path}' AS {name}");
+        // log::info!("sql:{}", sql);
+        // let conn = self.get_conn()?;
+        // log::info!("attach sql:{} {} ", sql, conn.is_autocommit());
+        // conn.execute(&sql, [])?;
+        // anyhow::Ok(())
+        anyhow::bail!("duckdb can't create database")
     }
 
-    async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
-        if self
-            .config
-            .db
-            .as_ref()
-            .map(|x| x.as_str().eq_ignore_ascii_case(&name))
-            .unwrap_or_default()
-        {
-            anyhow::bail!("can't detach self.")
-        }
+    async fn drop_database(&self, _name: &str) -> anyhow::Result<()> {
+        // if self
+        //     .config
+        //     .db
+        //     .as_ref()
+        //     .map(|x| x.as_str().eq_ignore_ascii_case(&name))
+        //     .unwrap_or_default()
+        // {
+        //     anyhow::bail!("can't detach self.")
+        // }
 
-        let sql = format!("DETACH  {name}");
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
-        anyhow::Ok(())
+        // let sql = format!("DETACH  {name}");
+        // log::info!("sql:{}", sql);
+        // let conn = self.get_conn()?;
+        // block_in_place(|| conn.execute(&sql, []))?;
+        // anyhow::Ok(())
+        anyhow::bail!("duckdb can't drop database")
     }
 }
 
@@ -1519,6 +1681,35 @@ fn parse_type(typ: &str) -> anyhow::Result<sqlparser::ast::DataType> {
     anyhow::Ok(ret)
 }
 
+fn extract_index_columns(sql: &str) -> anyhow::Result<Vec<String>> {
+    // ;
+    use sqlparser::ast::{Expr, Statement};
+
+    let d = sqlparser::dialect::DuckDbDialect {};
+    let mut p = sqlparser::parser::Parser::new(&d);
+    p = p.try_with_sql(sql)?;
+    let s = p.parse_statement()?;
+    match &s {
+        Statement::CreateIndex(create_index) => {
+            let mut ret = Vec::new();
+            for col in create_index.columns.iter() {
+                match &col.expr {
+                    Expr::Identifier(x) => {
+                        ret.push(x.value.clone());
+                    }
+                    _ => {
+                        anyhow::bail!("should be a identifier")
+                    }
+                }
+            }
+            return anyhow::Ok(ret);
+        }
+        _ => {
+            anyhow::bail!("should be a create index statement but {:?}", s)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1527,6 +1718,15 @@ mod tests {
         static MUTEX: Mutex<()> = Mutex::const_new(());
         &MUTEX
     }
+
+    #[test]
+    fn test_extract_index_columns() {
+        let s =
+            extract_index_columns(r#"CREATE UNIQUE INDEX test_index_name ON test_index("name")"#)
+                .unwrap();
+        assert_eq!(s, vec!["name".to_string()])
+    }
+
     #[test]
     fn test_parse_type() {
         {
@@ -1761,6 +1961,104 @@ mod tests {
         let _xxxx = stmt.execute([]).unwrap();
 
         println!("{:?}", stmt.column_names());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_index() {
+        let _gurad = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_index";
+        let _ = db.drop_index(table_name, "test_index_name").await;
+
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_index (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR,
+                age INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        "#,
+            )
+            .await
+            .unwrap();
+
+        db.create_index(table_name, "test_index_name", IndexKind::Unique, &[
+            "name".to_string()
+        ])
+        .await
+        .unwrap();
+
+        let indexes = db.show_indexes(table_name).await.unwrap();
+        for index in indexes.iter() {
+            println!("index:{:?}", index);
+        }
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_column() {
+        let _gurad = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let table_name = "test_column";
+
+        let query_id = db.open_connection().await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_column (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR,
+                age INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ); 
+        "#,
+            )
+            .await
+            .unwrap();
+
+        db.add_table_column(table_name, "email", ColumnType {
+            typ: "BIGINT".to_string(),
+            nullness: Some("null".to_string()),
+            after: None,
+            default_value: Some(1.to_string()),
+        })
+        .await
+        .unwrap();
+
+        db.modify_table_column(
+            table_name,
+            "email",
+            "email2",
+            Some(ColumnType {
+                typ: "INT4".to_string(),
+                nullness: Some("not null".to_string()),
+                after: None,
+                default_value: Some(2.to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        db.modify_table_column(
+            table_name,
+            "email2",
+            "email2",
+            Some(ColumnType {
+                typ: "INT4".to_string(),
+                nullness: Some("null".to_string()),
+                after: None,
+                default_value: Some(2.to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        db.drop_table_column(table_name, "email2").await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
