@@ -266,9 +266,14 @@ impl DBConnectionConfig {
                 #[cfg(not(feature = "duckdb"))]
                 anyhow::bail!("need enable duckdb support")
             }
+            DBConnectionConfig::ClickHouse { conn, .. } => {
+                let db = crate::clickhouse::ClickHouseDB::new(conn.clone())?;
+                let db = match &conn.db {
+                    Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                    None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
+                };
 
-            DBConnectionConfig::ClickHouse { .. } => {
-                anyhow::bail!("need enable duckdb feature")
+                anyhow::Ok(db)
             }
             DBConnectionConfig::LibSql { conn, .. } => {
                 let db = crate::libsql::LibSqlDB::new(conn.clone()).await?;

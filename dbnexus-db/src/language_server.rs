@@ -517,24 +517,27 @@ select xxxx
 "#,
         );
 
-        assert_eq!(x, vec![
-            CompletionOneTest {
-                sql: "append str".to_string(),
-                tests: vec![
-                    (1, vec!["append".to_string()]),
-                    (11, vec!["str".to_string()])
-                ],
-                line: 2
-            },
-            CompletionOneTest {
-                sql: "select xxxx".to_string(),
-                tests: vec![
-                    (1, vec!["select".to_string()]),
-                    (4, vec!["xxxx".to_string()])
-                ],
-                line: 4
-            }
-        ]);
+        assert_eq!(
+            x,
+            vec![
+                CompletionOneTest {
+                    sql: "append str".to_string(),
+                    tests: vec![
+                        (1, vec!["append".to_string()]),
+                        (11, vec!["str".to_string()])
+                    ],
+                    line: 2
+                },
+                CompletionOneTest {
+                    sql: "select xxxx".to_string(),
+                    tests: vec![
+                        (1, vec!["select".to_string()]),
+                        (4, vec!["xxxx".to_string()])
+                    ],
+                    line: 4
+                }
+            ]
+        );
     }
 
     pub(crate) async fn test_file_auto_completion(

@@ -116,56 +116,79 @@ fn main_() {
             Ok(())
         })
         .menu(|handle| {
-            Menu::with_items(handle, &[
-                &Submenu::with_items(handle, "file", true, &[
-                    &MenuItem::with_id(
+            Menu::with_items(
+                handle,
+                &[
+                    &Submenu::with_items(
                         handle,
-                        "add_config",
-                        "Add Connection",
+                        "file",
                         true,
-                        None as Option<&'static str>,
+                        &[
+                            &MenuItem::with_id(
+                                handle,
+                                "add_config",
+                                "Add Connection",
+                                true,
+                                None as Option<&'static str>,
+                            )?,
+                            &MenuItem::with_id(
+                                handle,
+                                "show_settings",
+                                "settings",
+                                true,
+                                None as Option<&'static str>,
+                            )?,
+                            #[cfg(any(target_os = "windows", target_os = "macos"))]
+                            &PredefinedMenuItem::close_window(handle, None)?,
+                            #[cfg(any(target_os = "windows", target_os = "macos"))]
+                            &PredefinedMenuItem::quit(handle, None)?,
+                        ],
                     )?,
-                    &MenuItem::with_id(
+                    &Submenu::with_items(
                         handle,
-                        "show_settings",
-                        "settings",
+                        "Edit",
                         true,
-                        None as Option<&'static str>,
+                        &[
+                            &PredefinedMenuItem::copy(handle, None)?,
+                            &PredefinedMenuItem::paste(handle, None)?,
+                            &PredefinedMenuItem::cut(handle, None)?,
+                            &PredefinedMenuItem::select_all(handle, None)?,
+                            &PredefinedMenuItem::undo(handle, None)?,
+                            &PredefinedMenuItem::redo(handle, None)?,
+                        ],
                     )?,
                     #[cfg(any(target_os = "windows", target_os = "macos"))]
-                    &PredefinedMenuItem::close_window(handle, None)?,
-                    #[cfg(any(target_os = "windows", target_os = "macos"))]
-                    &PredefinedMenuItem::quit(handle, None)?,
-                ])?,
-                &Submenu::with_items(handle, "Edit", true, &[
-                    &PredefinedMenuItem::copy(handle, None)?,
-                    &PredefinedMenuItem::paste(handle, None)?,
-                    &PredefinedMenuItem::cut(handle, None)?,
-                    &PredefinedMenuItem::select_all(handle, None)?,
-                    &PredefinedMenuItem::undo(handle, None)?,
-                    &PredefinedMenuItem::redo(handle, None)?,
-                ])?,
-                #[cfg(any(target_os = "windows", target_os = "macos"))]
-                &Submenu::with_items(handle, "window", true, &[
-                    #[cfg(any(target_os = "windows", target_os = "macos"))]
-                    &PredefinedMenuItem::maximize(handle, None)?,
-                    #[cfg(any(target_os = "windows", target_os = "macos"))]
-                    &PredefinedMenuItem::minimize(handle, None)?,
-                    #[cfg(any(target_os = "macos"))]
-                    &PredefinedMenuItem::fullscreen(handle, None)?,
-                ])?,
-                &Submenu::with_items(handle, "about", true, &[
-                    &MenuItem::with_id(
+                    &Submenu::with_items(
                         handle,
-                        "open_dev_tools",
-                        "open dev tools",
+                        "window",
                         true,
-                        None as Option<&'static str>,
+                        &[
+                            #[cfg(any(target_os = "windows", target_os = "macos"))]
+                            &PredefinedMenuItem::maximize(handle, None)?,
+                            #[cfg(any(target_os = "windows", target_os = "macos"))]
+                            &PredefinedMenuItem::minimize(handle, None)?,
+                            #[cfg(any(target_os = "macos"))]
+                            &PredefinedMenuItem::fullscreen(handle, None)?,
+                        ],
                     )?,
-                    #[cfg(any(target_os = "macos"))]
-                    &PredefinedMenuItem::about(handle, None, None)?,
-                ])?,
-            ])
+                    &Submenu::with_items(
+                        handle,
+                        "about",
+                        true,
+                        &[
+                            &MenuItem::with_id(
+                                handle,
+                                "open_dev_tools",
+                                "open dev tools",
+                                true,
+                                None as Option<&'static str>,
+                            )?,
+                            #[cfg(any(target_os = "macos"))]
+                            &PredefinedMenuItem::about(handle, None, None)?,
+                        ],
+                    )?,
+                ],
+            )
         })
         .on_menu_event(|handle, event| {
             log::info!("on_menu_event:{:?}", event);

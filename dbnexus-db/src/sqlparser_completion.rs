@@ -1239,9 +1239,12 @@ impl CompletionStament {
                                 self.set_on_def();
                                 return;
                             }
-                            vars.insert(name.value.clone(), Var {
-                                datatype: a.data_type.clone(),
-                            });
+                            vars.insert(
+                                name.value.clone(),
+                                Var {
+                                    datatype: a.data_type.clone(),
+                                },
+                            );
                         }
 
                         if let Some(expr) = &a.default_expr {
@@ -1338,9 +1341,12 @@ impl CompletionStament {
                     if self.finished() {
                         return;
                     }
-                    self.c_on_table_trigger(table_name, match &trigger_name.0[0] {
-                        ObjectNamePart::Identifier(ident) => ident,
-                    })
+                    self.c_on_table_trigger(
+                        table_name,
+                        match &trigger_name.0[0] {
+                            ObjectNamePart::Identifier(ident) => ident,
+                        },
+                    )
                     .await;
                 }
             }

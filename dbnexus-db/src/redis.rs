@@ -1650,10 +1650,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: false,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1671,9 +1674,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1746,10 +1752,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: false,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1767,9 +1776,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1813,10 +1825,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: false,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1834,9 +1849,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1884,10 +1902,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: false,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1905,9 +1926,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1958,10 +1982,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // export
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: false,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1979,9 +2006,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .unwrap();
             println!("json_line:{}", s);
             let s = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);

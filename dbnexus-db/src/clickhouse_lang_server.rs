@@ -280,7 +280,6 @@ mod tests {
             r#"CREATE TABLE sales_data (  order_id UInt64,  product_id UInt32, quantity UInt16,  order_date Date ) ENGINE = MergeTree() PARTITION BY toYYYYMM(order_date) ORDER BY (order_date, order_id) PRIMARY KEY order_id
 176 order_id"#,
             &db,
-  
             false,
         )
         .await;

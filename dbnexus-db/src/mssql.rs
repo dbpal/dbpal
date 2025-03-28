@@ -928,15 +928,18 @@ impl SchemaTrait for MsSqlServerDB {
                     if let Some(x) = ret.get_mut(&name) {
                         x.columns.push(col);
                     } else {
-                        ret.insert(name.clone(), Index {
-                            name: Some(name),
-                            kind: if is_unique.unwrap_or_default() {
-                                IndexKind::Unique
-                            } else {
-                                IndexKind::Index
+                        ret.insert(
+                            name.clone(),
+                            Index {
+                                name: Some(name),
+                                kind: if is_unique.unwrap_or_default() {
+                                    IndexKind::Unique
+                                } else {
+                                    IndexKind::Index
+                                },
+                                columns: vec![col],
                             },
-                            columns: vec![col],
-                        });
+                        );
                     }
                 }
                 tiberius::QueryItem::Metadata(_) => {}
@@ -1257,10 +1260,13 @@ impl MsSqlServerDB {
     async fn query_count(
         conn: &mut Connection, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<i32> {
-        let sql = format!(r#"SELECT count(*) from "{name}" {}"#, match where_str {
-            Some(x) => format!("  where {} ", x),
-            None => "".to_string(),
-        });
+        let sql = format!(
+            r#"SELECT count(*) from "{name}" {}"#,
+            match where_str {
+                Some(x) => format!("  where {} ", x),
+                None => "".to_string(),
+            }
+        );
         log::info!("sql:{}", sql);
         let mut stream = conn
             .query(&sql, &[])
@@ -2039,9 +2045,10 @@ mod tests {
         let _ = db.create_database("abc", None).await;
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
-        assert_eq!(dbs, vec![
-            "abc", "master", "model", "msdb", "tempdb", "test"
-        ]);
+        assert_eq!(
+            dbs,
+            vec!["abc", "master", "model", "msdb", "tempdb", "test"]
+        );
         db.drop_database("abc").await.unwrap();
     }
 
@@ -2368,19 +2375,25 @@ mod tests {
         }
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
         }
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -2406,10 +2419,13 @@ mod tests {
         }
         {
             let s = db
-                .export_query_result_to_string(sql, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_query_result_to_string(
+                    sql,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -2447,17 +2463,21 @@ mod tests {
             .await
             .unwrap();
 
-        db.add_table_column(table_name, "name", ColumnType {
-            typ: "TINYINT".to_string(),
-            nullness: Some("null".to_string()),
-            after: None,
-            // must be none here
-            /*
-                            query failed
-            Token error: 'The object 'DF__test_colum__name__6C2EE8AB' is dependent on column 'name2'.' on server sqlpreview executing on line 1 (code: 5074, state: 1, class: 16)
-                */
-            default_value: None,
-        })
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "TINYINT".to_string(),
+                nullness: Some("null".to_string()),
+                after: None,
+                // must be none here
+                /*
+                                query failed
+                Token error: 'The object 'DF__test_colum__name__6C2EE8AB' is dependent on column 'name2'.' on server sqlpreview executing on line 1 (code: 5074, state: 1, class: 16)
+                    */
+                default_value: None,
+            },
+        )
         .await
         .unwrap();
 

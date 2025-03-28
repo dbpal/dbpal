@@ -350,12 +350,14 @@ mod tests {
     use super::*;
     #[test]
     fn test_off_iter() {
-        assert_eq!(OffsetLimitIter::new(9, 3).collect::<Vec<_>>(), vec![
-            0, 3, 6
-        ]);
-        assert_eq!(OffsetLimitIter::new(9, 4).collect::<Vec<_>>(), vec![
-            0, 4, 8
-        ]);
+        assert_eq!(
+            OffsetLimitIter::new(9, 3).collect::<Vec<_>>(),
+            vec![0, 3, 6]
+        );
+        assert_eq!(
+            OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
+            vec![0, 4, 8]
+        );
     }
 
     #[test]

@@ -294,9 +294,12 @@ impl CompletionStament {
             CommentObject::Column => {
                 if name.0.len() >= 2 {
                     let table = (&name.0[..name.0.len() - 1]).to_vec();
-                    self.c_on_column(&ObjectName(table), match name.0.last().unwrap() {
-                        ObjectNamePart::Identifier(ident) => ident,
-                    })
+                    self.c_on_column(
+                        &ObjectName(table),
+                        match name.0.last().unwrap() {
+                            ObjectNamePart::Identifier(ident) => ident,
+                        },
+                    )
                     .await;
                 }
             }
@@ -2006,9 +2009,12 @@ impl CompletionStament {
         if let Some(with) = query.with.as_ref() {
             for c in with.cte_tables.iter() {
                 let cols = Box::pin(self.c_on_query(&c.query)).await?;
-                with_temp_tables.insert(c.alias.name.clone(), TempTable {
-                    columns: Arc::new(cols),
-                });
+                with_temp_tables.insert(
+                    c.alias.name.clone(),
+                    TempTable {
+                        columns: Arc::new(cols),
+                    },
+                );
             }
         }
         let s = Scope::from_temp_tables(with_temp_tables);
@@ -2209,9 +2215,12 @@ impl CompletionStament {
                     .unwrap_or_default();
 
                 if let Some(alias) = alias {
-                    s.enter_temp_table(alias.name.clone(), TempTable {
-                        columns: Arc::new(cols.clone()),
-                    });
+                    s.enter_temp_table(
+                        alias.name.clone(),
+                        TempTable {
+                            columns: Arc::new(cols.clone()),
+                        },
+                    );
                     s.from_tables.push(FromTableOrTemp::Unnamed {
                         table: TempTable {
                             columns: Arc::new(cols),
@@ -2227,18 +2236,24 @@ impl CompletionStament {
             }
             TableFactor::TableFunction { expr, alias } => {
                 if let Some(alias) = alias {
-                    s.enter_temp_table(alias.name.clone(), TempTable {
-                        columns: Arc::new(vec![]),
-                    });
+                    s.enter_temp_table(
+                        alias.name.clone(),
+                        TempTable {
+                            columns: Arc::new(vec![]),
+                        },
+                    );
                 } else {
                     // TODO how to handle this case
                 }
             }
             TableFactor::Function { alias, .. } => {
                 if let Some(alias) = alias {
-                    s.enter_temp_table(alias.name.clone(), TempTable {
-                        columns: Arc::new(vec![]),
-                    });
+                    s.enter_temp_table(
+                        alias.name.clone(),
+                        TempTable {
+                            columns: Arc::new(vec![]),
+                        },
+                    );
                 } else {
                     // TODO how to handle this case
                 }

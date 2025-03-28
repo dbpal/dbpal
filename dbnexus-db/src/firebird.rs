@@ -82,15 +82,18 @@ fn infer_fields(row: &Row) -> Vec<Field> {
     row.cols
         .iter()
         .map(|x| {
-            Field::from_name_type(x.name.as_str(), match &x.value {
-                SqlType::Text(_) => "TEXT",
-                SqlType::Integer(_) => "INTEGER",
-                SqlType::Floating(_) => "FLOAT",
-                SqlType::Timestamp(_) => "TIMESTAMP",
-                SqlType::Binary(_) => "BLOB",
-                SqlType::Boolean(_) => "BOOLEAN",
-                SqlType::Null => "NULL",
-            })
+            Field::from_name_type(
+                x.name.as_str(),
+                match &x.value {
+                    SqlType::Text(_) => "TEXT",
+                    SqlType::Integer(_) => "INTEGER",
+                    SqlType::Floating(_) => "FLOAT",
+                    SqlType::Timestamp(_) => "TIMESTAMP",
+                    SqlType::Binary(_) => "BLOB",
+                    SqlType::Boolean(_) => "BOOLEAN",
+                    SqlType::Null => "NULL",
+                },
+            )
         })
         .collect()
 }
@@ -808,15 +811,18 @@ impl SchemaTrait for FireBirdDB {
                     x.columns.push(col);
                 }
                 None => {
-                    m.insert(name.clone(), Index {
-                        name: Some(name),
-                        kind: if unique == 1 {
-                            IndexKind::Unique
-                        } else {
-                            IndexKind::Index
+                    m.insert(
+                        name.clone(),
+                        Index {
+                            name: Some(name),
+                            kind: if unique == 1 {
+                                IndexKind::Unique
+                            } else {
+                                IndexKind::Index
+                            },
+                            columns: vec![col],
                         },
-                        columns: vec![col],
-                    });
+                    );
                 }
             };
         }
@@ -1091,10 +1097,12 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        db.create_index(table_name, index_name, IndexKind::Unique, &[
-            "NAME".to_string(),
-            "STATUS".to_string(),
-        ])
+        db.create_index(
+            table_name,
+            index_name,
+            IndexKind::Unique,
+            &["NAME".to_string(), "STATUS".to_string()],
+        )
         .await
         .unwrap();
         let indexes = db.show_indexes(table_name).await.unwrap();
@@ -1227,18 +1235,24 @@ mod tests {
                 .unwrap();
             println!("json:{}", ret);
             let ret = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", ret);
 
             let ret = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", ret);
@@ -1322,18 +1336,24 @@ mod tests {
                 .unwrap();
             println!("json:{}", ret);
             let ret = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", ret);
 
             let ret = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", ret);
