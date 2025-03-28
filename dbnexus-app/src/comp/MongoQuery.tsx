@@ -221,7 +221,7 @@ function MongoQuery(props: {
           width: '100%',
         }}
       >
-        <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
+        <div style={{ height: '100px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
             width="99.5%"
             onMount={jsCodeMount}
@@ -259,7 +259,7 @@ function MongoQuery(props: {
           overflow: 'hidden',
         }}
       >
-        <div style={{ height: '200px', flexGrow: 1, flexShrink: 1 }}>
+        <div style={{ height: '100px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
             options={options}
             width="99.5%"
@@ -333,7 +333,7 @@ function MongoQuery(props: {
           </Box>
         </Modal>
       )}
-      {/* // we must be db */}
+      {/* // we must use db etc ...  */}
       {db && <div></div>}
       {bsonExtraDataType && <div></div>}
     </Stack>

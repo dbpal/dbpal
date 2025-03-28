@@ -37,7 +37,6 @@ impl DBConnectionConfig {
             | DBConnectionConfig::ClickHouse { name, .. }
             | DBConnectionConfig::LibSql { name, .. }
             | DBConnectionConfig::FireBird { name, .. } => name.as_str(),
-            #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
         }
     }
@@ -111,7 +110,7 @@ pub enum DBConnectionConfig {
         conn: FireBirdConfig,
         name: String,
     },
-    #[cfg(feature = "duckdb")]
+
     DuckDB {
         #[serde(flatten)]
         conn: DuckDBConfig,
@@ -149,7 +148,6 @@ impl DBConnectionConfig {
             }
             DBConnectionConfig::FireBird { conn, .. } => conn.password = pass,
             DBConnectionConfig::Cassandra { conn, .. } => conn.password = Some(pass),
-            #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { .. } => {}
             DBConnectionConfig::ClickHouse { conn, .. } => conn.password = Some(pass),
             DBConnectionConfig::LibSql { .. } => {}
@@ -252,24 +250,25 @@ impl DBConnectionConfig {
                 };
                 anyhow::Ok(db)
             }
-            #[cfg(feature = "duckdb")]
-            DBConnectionConfig::DuckDB { conn, .. } => {
-                let db = crate::duckdb::DuckDB::new(conn.clone())?;
-                match &conn.db {
-                    Some(_) => match &conn.schema {
-                        Some(_) => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>)),
-                        None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn DBTrait>)),
-                    },
-                    None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn CatalogTrait>)),
+
+            DBConnectionConfig::DuckDB { conn: _conn, .. } => {
+                #[cfg(feature = "duckdb")]
+                {
+                    let db = crate::duckdb::DuckDB::new(_conn.clone())?;
+                    return match &_conn.db {
+                        Some(_) => match &_conn.schema {
+                            Some(_) => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>)),
+                            None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn DBTrait>)),
+                        },
+                        None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn CatalogTrait>)),
+                    };
                 }
+                #[cfg(not(feature = "duckdb"))]
+                anyhow::bail!("need enable duckdb support")
             }
-            DBConnectionConfig::ClickHouse { conn, .. } => {
-                let db = crate::clickhouse::ClickHouseDB::new(conn.clone())?;
-                let db = match &conn.db {
-                    Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
-                    None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
-                };
-                anyhow::Ok(db)
+
+            DBConnectionConfig::ClickHouse { .. } => {
+                anyhow::bail!("need enable duckdb feature")
             }
             DBConnectionConfig::LibSql { conn, .. } => {
                 let db = crate::libsql::LibSqlDB::new(conn.clone()).await?;

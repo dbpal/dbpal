@@ -7,7 +7,6 @@ use crate::language_server::{
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::task::block_in_place;
-
 #[async_trait::async_trait]
 impl LanguageServer for DuckDB {
     async fn auto_completion(
@@ -216,6 +215,7 @@ impl LexerCompletionTrait for DuckDB {
         let mut ret = Vec::new();
         while let Some(row) = block_in_place(|| rows.next())? {
             let name: String = row.get(0)?;
+            let name = name.to_uppercase();
             ret.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::KeyWord,
