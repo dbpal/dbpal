@@ -1686,9 +1686,12 @@ mod tests {
         .await
         .unwrap();
 
-        db.create_index(table_name, index_name, IndexKind::Unique, &[
-            "name".to_string()
-        ])
+        db.create_index(
+            table_name,
+            index_name,
+            IndexKind::Unique,
+            &["name".to_string()],
+        )
         .await
         .unwrap();
 
@@ -1725,9 +1728,12 @@ mod tests {
         let db = &db as &dyn SchemaTrait;
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1743,10 +1749,13 @@ mod tests {
         }
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
@@ -1762,9 +1771,10 @@ mod tests {
 
         {
             let s = db
-                .export_query_result_to_string("select * from persons", ExportKind::Json {
-                    pretty: true,
-                })
+                .export_query_result_to_string(
+                    "select * from persons",
+                    ExportKind::Json { pretty: true },
+                )
                 .await
                 .unwrap();
             println!("json:{}", s);
@@ -1772,10 +1782,13 @@ mod tests {
         }
         {
             let s = db
-                .export_query_result_to_string("select * from persons", ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_query_result_to_string(
+                    "select * from persons",
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);

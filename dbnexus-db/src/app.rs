@@ -37,7 +37,6 @@ impl DBConnectionConfig {
             | DBConnectionConfig::ClickHouse { name, .. }
             | DBConnectionConfig::LibSql { name, .. }
             | DBConnectionConfig::FireBird { name, .. } => name.as_str(),
-            #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
         }
     }
@@ -111,7 +110,7 @@ pub enum DBConnectionConfig {
         conn: FireBirdConfig,
         name: String,
     },
-    #[cfg(feature = "duckdb")]
+
     DuckDB {
         #[serde(flatten)]
         conn: DuckDBConfig,
@@ -149,7 +148,6 @@ impl DBConnectionConfig {
             }
             DBConnectionConfig::FireBird { conn, .. } => conn.password = pass,
             DBConnectionConfig::Cassandra { conn, .. } => conn.password = Some(pass),
-            #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { .. } => {}
             DBConnectionConfig::ClickHouse { conn, .. } => conn.password = Some(pass),
             DBConnectionConfig::LibSql { .. } => {}
@@ -252,16 +250,21 @@ impl DBConnectionConfig {
                 };
                 anyhow::Ok(db)
             }
-            #[cfg(feature = "duckdb")]
-            DBConnectionConfig::DuckDB { conn, .. } => {
-                let db = crate::duckdb::DuckDB::new(conn.clone())?;
-                match &conn.database {
-                    Some(_) => match &conn.schema {
-                        Some(_) => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>)),
-                        None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn DBTrait>)),
-                    },
-                    None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn CatalogTrait>)),
+
+            DBConnectionConfig::DuckDB { conn: _conn, .. } => {
+                #[cfg(feature = "duckdb")]
+                {
+                    let db = crate::duckdb::DuckDB::new(_conn.clone())?;
+                    return match &_conn.db {
+                        Some(_) => match &_conn.schema {
+                            Some(_) => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>)),
+                            None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn DBTrait>)),
+                        },
+                        None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn CatalogTrait>)),
+                    };
                 }
+                #[cfg(not(feature = "duckdb"))]
+                anyhow::bail!("need enable duckdb support")
             }
             DBConnectionConfig::ClickHouse { conn, .. } => {
                 let db = crate::clickhouse::ClickHouseDB::new(conn.clone())?;
@@ -269,6 +272,7 @@ impl DBConnectionConfig {
                     Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
                     None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
                 };
+
                 anyhow::Ok(db)
             }
             DBConnectionConfig::LibSql { conn, .. } => {
@@ -545,36 +549,5 @@ impl App {
             Some(x) => x.redis_list_table(filter, max).await,
             None => anyhow::bail!(format!("'{}' not a redis", name)),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::DBNexusConfigs;
-    use crate::app::DBConnectionConfig;
-    use crate::datasource_config::MysqlDBConfig;
-
-    #[test]
-    fn print_config() {
-        let s = DBNexusConfigs {
-            connection_configs: {
-                let mut m = Vec::new();
-
-                m.push(DBConnectionConfig::Mysql {
-                    conn: MysqlDBConfig {
-                        host: "127.0.0.1".to_string(),
-                        port: 33,
-                        username: "aaa".to_string(),
-                        password: Some("bbb".to_string()),
-                        db: None,
-                        read_only: false,
-                    },
-                    name: "haha".to_string(),
-                });
-                m
-            },
-        };
-        let s = serde_json::to_string_pretty(&s).unwrap();
-        println!("config:{}", s);
     }
 }

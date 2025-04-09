@@ -304,7 +304,8 @@ enum DataSourceKind {
   Cassandra = "cassandra",
   ClickHouse = "clickhouse",
   LibSql = "libsql",
-  FireBird = "firebird"
+  FireBird = "firebird",
+  DuckDB = "duckdb"
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {

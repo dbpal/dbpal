@@ -59,11 +59,9 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-
 import AddIcon from '@mui/icons-material/Add';
 import { BSON } from 'bson';
 import { MongoBsonEditor } from './MongoDB';
-
 import { TriggerDetail } from './TriggerDetail';
 import { TrueOrFalse } from './CommonComp';
 
@@ -86,7 +84,8 @@ function ColumnsStructure(props: {
     kind == DataSourceKind.Oracle ||
     kind == DataSourceKind.TiDB ||
     kind == DataSourceKind.Cassandra ||
-    kind == DataSourceKind.ClickHouse;
+    kind == DataSourceKind.ClickHouse ||
+    kind == DataSourceKind.DuckDB;
 
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
@@ -294,6 +293,7 @@ function ColumnsStructure(props: {
           ></DataGrid>
         </div>
       )}
+      0%
       {showAdd && (
         <Modal
           open={showAdd}
@@ -304,7 +304,7 @@ function ColumnsStructure(props: {
             setShowAdd(false);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="60%">
             <TableAddColumn
               table={table}
               uuid={uuid}
@@ -328,7 +328,7 @@ function ColumnsStructure(props: {
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="60%">
             <ModifyTableColumn
               table={table}
               uuid={uuid}
@@ -632,7 +632,7 @@ function IndexesStructure(props: {
             setShowAdd(false);
           }}
         >
-          <Box sx={modalStyle} width="900px">
+          <Box sx={modalStyle} width="60%">
             {addIndex}
           </Box>
         </Modal>
@@ -647,7 +647,7 @@ function IndexesStructure(props: {
             setRenameIndexName('');
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="60%">
             <RenameIndex
               uuid={uuid}
               table={table}
@@ -1457,7 +1457,7 @@ function TriggersStructure(props: {
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="60%">
             <TriggerDetail
               reloadOP={async () => {
                 return Promise.resolve(row);
@@ -1488,6 +1488,7 @@ function TableStructure(props: {
     DataSourceKind.Mysql,
     DataSourceKind.TiDB,
     DataSourceKind.MariaDB,
+    DataSourceKind.DuckDB,
   ].includes(kind);
   if (support_statement) {
     structures.push({ name: 'statement', color: 'primary' });
@@ -1504,6 +1505,7 @@ function TableStructure(props: {
     DataSourceKind.Mongo,
     DataSourceKind.Cassandra,
     DataSourceKind.FireBird,
+    DataSourceKind.DuckDB,
   ].includes(kind);
 
   if (supportIndex) {

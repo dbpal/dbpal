@@ -300,10 +300,13 @@ impl OracleDB {
     fn query_count(conn: &Connection, table: &str, where_str: Option<&str>) -> anyhow::Result<i64> {
         let row = block_in_place(|| {
             conn.query_row(
-                format!(r#"SELECT count(*) FROM "{table}" {}"#, match where_str {
-                    Some(x) => format!("  WHERE {} ", x),
-                    None => "".to_string(),
-                })
+                format!(
+                    r#"SELECT count(*) FROM "{table}" {}"#,
+                    match where_str {
+                        Some(x) => format!("  WHERE {} ", x),
+                        None => "".to_string(),
+                    }
+                )
                 .as_str(),
                 &[],
             )
@@ -1320,17 +1323,20 @@ impl SchemaTrait for OracleDB {
                 } else {
                     query_index_unique(&conn, &name, table_name)?
                 };
-                ret.insert(name.clone(), Index {
-                    name: Some(name),
-                    kind: if primary {
-                        IndexKind::Primary
-                    } else if unique {
-                        IndexKind::Unique
-                    } else {
-                        IndexKind::Index
+                ret.insert(
+                    name.clone(),
+                    Index {
+                        name: Some(name),
+                        kind: if primary {
+                            IndexKind::Primary
+                        } else if unique {
+                            IndexKind::Unique
+                        } else {
+                            IndexKind::Index
+                        },
+                        columns: vec![col_name],
                     },
-                    columns: vec![col_name],
-                });
+                );
             }
         }
         anyhow::Ok(ret.into_iter().map(|(_, v)| v).collect())
@@ -1723,7 +1729,6 @@ impl OracleDB {
         if let Some(timeout) = self.config.call_timeout {
             conn.set_call_timeout(Some(Duration::from_millis(timeout)))?;
         }
-
         return anyhow::Ok(conn);
     }
 }
@@ -2105,13 +2110,17 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
             .unwrap()
             .unwrap();
 
-        db.add_table_column(table_name, "name", ColumnType {
-            typ: "CHAR".to_string(),
-            nullness: Some("not null".to_string()),
-            after: None,
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "CHAR".to_string(),
+                nullness: Some("not null".to_string()),
+                after: None,
 
-            default_value: None,
-        })
+                default_value: None,
+            },
+        )
         .await
         .unwrap();
 
@@ -2247,18 +2256,24 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         println!("resp:{:?}", resp);
         {
             let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::CSV {
-                    include_header: false,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("export csv:{}", e);
             let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("export csv:{}", e);
@@ -2268,9 +2283,12 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
                 .unwrap();
             println!("export json:{}", e);
             let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
             println!("export sql:{}", e);
@@ -2322,18 +2340,24 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         println!("resp:{:?}", resp);
         {
             let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::CSV {
-                    include_header: false,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("export csv:{}", e);
             let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("export csv:{}", e);
@@ -2343,9 +2367,12 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
                 .unwrap();
             println!("export json:{}", e);
             let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
             println!("export sql:{}", e);
@@ -2398,18 +2425,24 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         println!("resp:{:?}", resp);
         {
             let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::CSV {
-                    include_header: false,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::CSV {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("export csv:{}", e);
             let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("export csv:{}", e);
@@ -2419,9 +2452,12 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
                 .unwrap();
             println!("export json:{}", e);
             let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
             println!("export sql:{}", e);

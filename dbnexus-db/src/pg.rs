@@ -106,7 +106,7 @@ impl PostGresDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            // let ss = DBTrait::create_table_and_index_sql(self,
+            // let ss = SchemaTrait::create_table_and_index_sql(self,
             // table_name).await?; sender.send(Cow::Owned(ss.
             // create_table.clone())).await?;
             // sender.send(";\n".into()).await?;
@@ -261,7 +261,7 @@ impl PostGresDB {
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
+        let sql = format!(r#"SELECT * from "{}"."{}""#, self.must_schema(), table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
             .await
@@ -272,7 +272,7 @@ fn gen_show_sql(
     schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("SELECT * from \"{schema}\".\"{table_name}\"");
+    let mut sql = format!(r#"SELECT * from "{schema}"."{table_name}""#);
     if let Some(where_str) = where_str {
         sql.push_str(format!(" where {where_str} ").as_str());
     }
@@ -723,10 +723,13 @@ impl SchemaTrait for PostGresDB {
         let result_type: Option<String> = row.try_get(0)?;
         let arguments: Option<String> = row.try_get(1)?;
         let function_definition: String = row.try_get(2)?;
-        anyhow::Ok(DefAndMetas::new(function_definition, vec![
-            MetaValue::new_opt("result_type", result_type),
-            MetaValue::new_opt("parameters", arguments),
-        ]))
+        anyhow::Ok(DefAndMetas::new(
+            function_definition,
+            vec![
+                MetaValue::new_opt("result_type", result_type),
+                MetaValue::new_opt("parameters", arguments),
+            ],
+        ))
     }
 
     async fn drop_udf(
@@ -1342,7 +1345,7 @@ impl PostGresDB {
         let mut conn = self.get_conn().await?;
         let schema = self.must_schema();
 
-        let mut sql = format!("SELECT count(1) from {schema}.{name} ");
+        let mut sql = format!(r#"SELECT count(1) from "{schema}"."{name}" "#);
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
         }
@@ -1871,7 +1874,6 @@ mod tests {
     }
 
     #[tokio::test]
-
     async fn test_duplicate() {
         let db = make_test_object().await;
 
@@ -1940,19 +1942,25 @@ mod tests {
         }
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
         }
         {
             let s = db
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -2156,19 +2164,25 @@ mod tests {
         let schema_trait = &db as &dyn SchemaTrait;
         {
             let e = schema_trait
-                .export_table_to_string(&table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    &table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", e);
         }
         {
             let e = schema_trait
-                .export_table_to_string(&table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    &table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", e);
@@ -2193,10 +2207,13 @@ mod tests {
 
         {
             let e = schema_trait
-                .export_query_result_to_string("select * from test_export_table", ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_query_result_to_string(
+                    "select * from test_export_table",
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", e);
@@ -2388,12 +2405,16 @@ mod tests {
             .await
             .unwrap();
 
-        db.add_table_column(table_name, "name", ColumnType {
-            typ: "INT2".to_string(),
-            nullness: Some("null".to_string()),
-            after: None,
-            default_value: Some("1".to_string()),
-        })
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "INT2".to_string(),
+                nullness: Some("null".to_string()),
+                after: None,
+                default_value: Some("1".to_string()),
+            },
+        )
         .await
         .unwrap();
 

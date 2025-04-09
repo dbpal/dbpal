@@ -223,7 +223,7 @@ impl SchemaTrait for TiDB {
         self.db.create_table_and_index_sql(table_name).await
     }
 
-    async fn create_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
+    async fn create_view_sql(&self, view_name: &str, _m: bool) -> anyhow::Result<String> {
         // mysql has no materlized view
         self.db.create_view_sql(view_name, false).await
     }

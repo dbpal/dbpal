@@ -199,7 +199,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowFavoriteSql(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <FavoriteSqlList
               handleClose={() => {
                 setShowFavoriteSql(false);
@@ -219,7 +219,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowAddConnection(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="55%">
             <AddConnection
               handleClose={() => {
                 setShowAddConnection(false);
@@ -238,7 +238,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setCopyConn(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="55%">
             <AddConnection
               handleClose={() => {
                 setCopyConn(null);
@@ -259,7 +259,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowCopyConn(false);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="65%">
             <CopyConnection
               handleClose={() => {
                 setShowCopyConn(false);
@@ -818,6 +818,11 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
         return config.db ? <SchemaTree /> : <DatabaseTree />;
       case 'firebird':
         return <SchemaTree />;
+      case 'duckdb':
+        if (!config.db) {
+          return <CatalogTree />;
+        }
+        return config.schema ? <SchemaTree /> : <DatabaseTree />;
       default:
         console.log('impl database kind:', config);
         throw `impl this kind`;
@@ -896,13 +901,18 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         </>
       )}
 
+      {opened && kind == DataSourceKind.DuckDB && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+        </>
+      )}
       {opened && kind == DataSourceKind.FireBird && (
         <>
           <TablesTree typ={TablesType.Normal} />
           <ViewsTree viewkind={ViewKind.Normal} />
         </>
       )}
-
       {opened && kind == DataSourceKind.LibSql && (
         <>
           <TablesTree typ={TablesType.Normal} />
@@ -1032,7 +1042,7 @@ function DatabaseMenu(props: {
             handleClose={handleCloseConn}
           ></MenuCloseConn>
         )}
-        {database && (
+        {database && kind != DataSourceKind.DuckDB && (
           <MenuItem
             onClick={() => {
               // we are in database context uuid contains the databse name
@@ -1073,7 +1083,7 @@ function DatabaseMenu(props: {
             setShowCreateSchema(false);
           }}
         >
-          <Box sx={modalStyle} width="600px">
+          <Box sx={modalStyle} width="50%">
             <CreateSchema
               uuid={uuid}
               handleClose={() => {
@@ -1112,7 +1122,7 @@ function CatalogMenu(props: {
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
         )}
 
-        {opened && (
+        {opened && kind != DataSourceKind.DuckDB && (
           <MenuCreateDatabase
             handleCreate={() => {
               setShowCreateDB(true);
@@ -1156,13 +1166,14 @@ function CatalogMenu(props: {
             setShowCreateDB(false);
           }}
         >
-          <Box sx={modalStyle} width="600px">
+          <Box sx={modalStyle} width="50%">
             <CreateDatabase
               uuid={uuid}
               handleClose={() => {
                 reload();
                 setShowCreateDB(false);
               }}
+              kind={kind}
             ></CreateDatabase>
           </Box>
         </Modal>
@@ -1196,6 +1207,7 @@ async function openNewQuery(
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
+    case DataSourceKind.DuckDB:
       content = (
         <SqlQuery
           language={uuid}

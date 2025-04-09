@@ -308,10 +308,10 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: BackendName {
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
 }
@@ -332,6 +332,12 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName + LangServerC
     ) -> anyhow::Result<Vec<CompletionItem>>;
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
+
+    async fn duckdb_extensions(
+        &self, _installed: Option<bool>,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(vec![])
+    }
 
     async fn list_procedure(
         &self, _db: Option<&str>, _schema: Option<&str>,
@@ -511,24 +517,27 @@ select xxxx
 "#,
         );
 
-        assert_eq!(x, vec![
-            CompletionOneTest {
-                sql: "append str".to_string(),
-                tests: vec![
-                    (1, vec!["append".to_string()]),
-                    (11, vec!["str".to_string()])
-                ],
-                line: 2
-            },
-            CompletionOneTest {
-                sql: "select xxxx".to_string(),
-                tests: vec![
-                    (1, vec!["select".to_string()]),
-                    (4, vec!["xxxx".to_string()])
-                ],
-                line: 4
-            }
-        ]);
+        assert_eq!(
+            x,
+            vec![
+                CompletionOneTest {
+                    sql: "append str".to_string(),
+                    tests: vec![
+                        (1, vec!["append".to_string()]),
+                        (11, vec!["str".to_string()])
+                    ],
+                    line: 2
+                },
+                CompletionOneTest {
+                    sql: "select xxxx".to_string(),
+                    tests: vec![
+                        (1, vec!["select".to_string()]),
+                        (4, vec!["xxxx".to_string()])
+                    ],
+                    line: 4
+                }
+            ]
+        );
     }
 
     pub(crate) async fn test_file_auto_completion(

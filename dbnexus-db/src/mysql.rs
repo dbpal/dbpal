@@ -426,10 +426,15 @@ async fn query_trigger_detail(
         TriggerTiming::After
     };
 
-    anyhow::Ok((TriggerEvent::try_from(event.as_str())?, timing, sql, vec![
-        MetaValue::new("created", create_time),
-        MetaValue::new("sql_mode", sql_mode),
-    ]))
+    anyhow::Ok((
+        TriggerEvent::try_from(event.as_str())?,
+        timing,
+        sql,
+        vec![
+            MetaValue::new("created", create_time),
+            MetaValue::new("sql_mode", sql_mode),
+        ],
+    ))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -492,10 +497,13 @@ impl FunctionOrProcedure {
         let create = create.naive_utc();
         let last_altered: chrono::DateTime<Utc> = row.try_get(1)?;
         let last_altered = last_altered.naive_utc();
-        anyhow::Ok((def, vec![
-            MetaValue::new("created", create),
-            MetaValue::new("last_altered", last_altered),
-        ]))
+        anyhow::Ok((
+            def,
+            vec![
+                MetaValue::new("created", create),
+                MetaValue::new("last_altered", last_altered),
+            ],
+        ))
     }
 
     fn sql_condtion_str(self) -> &'static str {
@@ -1670,12 +1678,16 @@ pub(crate) mod test_fns {
             .await
             .unwrap();
 
-        db.add_table_column(table_name, "name", ColumnType {
-            typ: "VARCHAR(255)".to_string(),
-            nullness: Some("null".to_string()),
-            after: Some("id".to_string()),
-            default_value: Some("abc".to_string()),
-        })
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "VARCHAR(255)".to_string(),
+                nullness: Some("null".to_string()),
+                after: Some("id".to_string()),
+                default_value: Some("abc".to_string()),
+            },
+        )
         .await
         .unwrap();
 
@@ -1855,19 +1867,25 @@ pub(crate) mod test_fns {
         }
         {
             let s = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
             println!("csv:{}", s);
         }
         {
             let s = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: false,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);
@@ -1876,9 +1894,12 @@ pub(crate) mod test_fns {
         let schema_trait = &db as &dyn SchemaTrait;
         {
             let s = schema_trait
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
             println!("sql:{}", s);

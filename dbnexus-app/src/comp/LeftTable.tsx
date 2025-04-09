@@ -304,6 +304,7 @@ async function makeViewTable(
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
+    case DataSourceKind.DuckDB:
       tableList = (
         <SqlTableView
           tableName={table}
@@ -614,6 +615,7 @@ async function makeAddTable(
     case DataSourceKind.ClickHouse:
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
+    case DataSourceKind.DuckDB:
       tableList = (
         <SqlTableViewAdd
           addOP={async (values) => {
@@ -974,7 +976,7 @@ function TableMenu(props: {
             setshowDup(false);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="75%">
             <DupTable
               table={table}
               uuid={uuid}
@@ -996,7 +998,7 @@ function TableMenu(props: {
             setShowRename(false);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="75%">
             <RenameTable
               uuid={uuid}
               table={table}
@@ -1018,7 +1020,7 @@ function TableMenu(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} width="700px">
+          <Box sx={modalStyle} width="75%">
             <ExportTableOrView
               uuid={uuid}
               name={table}
@@ -1042,7 +1044,7 @@ function TableMenu(props: {
             setShowDrop(false);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="45%">
             <DropTable
               uuid={uuid}
               table={table}
@@ -1379,7 +1381,7 @@ function RedisTables(prpos: { schema?: string }) {
             setShowEditFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="75%">
             <TextField
               size="small"
               value={filter}

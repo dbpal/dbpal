@@ -106,6 +106,12 @@ export namespace types {
         "db": string;
         "read_only": boolean;
     };
+    export type DuckDBConfig = {
+        "path": string;
+        "read_only": boolean;
+        "db": (string | null);
+        "schema": (string | null);
+    };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -157,6 +163,10 @@ export namespace types {
     })) | ({
         "conn_type": "firebird";
     } & (types.FireBirdConfig & {
+        "name": string;
+    })) | ({
+        "conn_type": "duckdb";
+    } & (types.DuckDBConfig & {
         "name": string;
     })));
     export type ListTable = {

@@ -198,6 +198,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   switch (kind) {
     case DataSourceKind.MsSql:
     case DataSourceKind.Postgres:
+    case DataSourceKind.DuckDB:
       name = 'Schema';
       break;
     case DataSourceKind.Cassandra:

@@ -518,6 +518,7 @@ function ViewMenu(props: {
         case DataSourceKind.ClickHouse:
         case DataSourceKind.LibSql:
         case DataSourceKind.FireBird:
+        case DataSourceKind.DuckDB:
           list = (
             <SqlTableView
               tableName={view}
@@ -607,7 +608,7 @@ function ViewMenu(props: {
           break;
 
         default:
-          showNotification('error', `datasouce ${kind} has no view`);
+          showNotification('error', `datasouce ${kind} need impl view`);
       }
 
       setTabs((e) => {
@@ -720,7 +721,7 @@ function ViewMenu(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} width="800px">
+          <Box sx={modalStyle} width="55%">
             <ExportTableOrView
               uuid={uuid}
               name={view}

@@ -374,6 +374,15 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
         };
+      case DataSourceKind.DuckDB:
+        return {
+          conn_type: 'duckdb',
+          path: path,
+          db: db_null,
+          schema: schema_null,
+          read_only: readOnly,
+          name: connectionName,
+        };
       case DataSourceKind.Redis:
         return {
           conn_type: 'redis',
@@ -599,6 +608,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
           <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
+          <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
         </Select>
       </FormControl>
 
@@ -855,6 +865,17 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       )}
       {connectionType == DataSourceKind.Sqlite && (
         <SelectPath path={path} setPath={setPath}></SelectPath>
+      )}
+      {connectionType == DataSourceKind.DuckDB && (
+        <>
+          <SelectPath path={path} setPath={setPath}></SelectPath>
+          <Database
+            database={database}
+            candidates={databaseCandidates}
+            onBlur={toggleTriggerReload}
+            setDatabase={setDatabase}
+          ></Database>
+        </>
       )}
 
       <Stack direction="row" style={{ alignItems: 'center' }} spacing={2}>

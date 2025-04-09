@@ -1,12 +1,10 @@
-use sqlparser::ast::ColumnOption;
-
-use sqlparser::ast::*;
-
 use crate::sqlparser_completion::{FromTableOrTemp, NearNestTableNamed, ThisTableEnum};
 use crate::{
     language_server::{CompletionItem, CompletionKind},
     sqlparser_completion::{CompletionStament, Scope, ScopesGuard, TempTable, TempTableColumn},
 };
+use sqlparser::ast::ColumnOption;
+use sqlparser::ast::*;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -55,6 +53,20 @@ impl Into<CompletionKind> for CommentObject {
 }
 
 impl CompletionStament {
+    pub(crate) async fn c_on_duck_extension(&mut self, name: &Ident, installed: Option<bool>) {
+        if !self.in_pos(&name.span) {
+            return;
+        }
+        self.result = Some(
+            self.helper
+                .duckdb_extensions(installed)
+                .await
+                .map_err(|err| {
+                    log::error!("duckdb_extensions failed:{}", err);
+                })
+                .unwrap_or_default(),
+        )
+    }
     pub(crate) async fn c_on_trigger_exec_body(&mut self, _body: &TriggerExecBody) {
         // sqlparser don't support parse trigger body??
     }
@@ -282,9 +294,12 @@ impl CompletionStament {
             CommentObject::Column => {
                 if name.0.len() >= 2 {
                     let table = (&name.0[..name.0.len() - 1]).to_vec();
-                    self.c_on_column(&ObjectName(table), match name.0.last().unwrap() {
-                        ObjectNamePart::Identifier(ident) => ident,
-                    })
+                    self.c_on_column(
+                        &ObjectName(table),
+                        match name.0.last().unwrap() {
+                            ObjectNamePart::Identifier(ident) => ident,
+                        },
+                    )
                     .await;
                 }
             }
@@ -1613,7 +1628,7 @@ impl CompletionStament {
         }
         // here match
         let (db, schema, _table_name) = self.extract_db_schme_item(table_name);
-        let mut tables = self
+        let mut items = self
             .helper
             .list_table(db, schema)
             .await
@@ -1623,7 +1638,7 @@ impl CompletionStament {
             })
             .ok()
             .unwrap_or_default();
-        tables.extend(
+        items.extend(
             self.helper
                 .list_view(db, schema)
                 .await
@@ -1634,12 +1649,11 @@ impl CompletionStament {
                 .ok()
                 .unwrap_or_default(),
         );
-        tables.extend(self.scopes.tables().into_iter());
+        items.extend(self.scopes.tables().into_iter());
         // here maybe we are suggrest database all schemas.
-        tables.extend(self.helper.list_database().await.unwrap_or_default());
-        tables.extend(self.helper.list_schema(None).await.unwrap_or_default());
-
-        let tables = tables
+        items.extend(self.helper.list_database().await.unwrap_or_default());
+        items.extend(self.helper.list_schema(None).await.unwrap_or_default());
+        let mut items = items
             .into_iter()
             .map(|x| CompletionItem {
                 item: x.into(),
@@ -1648,7 +1662,13 @@ impl CompletionStament {
             })
             .collect::<Vec<_>>();
 
-        self.result = Some(tables);
+        items.extend(
+            self.helper
+                .list_function(None, None, false)
+                .await
+                .unwrap_or_default(),
+        );
+        self.result = Some(items);
     }
     pub(crate) async fn c_from_table(&mut self, from_table: &FromTable) -> ScopesGuard {
         let tables = match from_table {
@@ -1989,9 +2009,12 @@ impl CompletionStament {
         if let Some(with) = query.with.as_ref() {
             for c in with.cte_tables.iter() {
                 let cols = Box::pin(self.c_on_query(&c.query)).await?;
-                with_temp_tables.insert(c.alias.name.clone(), TempTable {
-                    columns: Arc::new(cols),
-                });
+                with_temp_tables.insert(
+                    c.alias.name.clone(),
+                    TempTable {
+                        columns: Arc::new(cols),
+                    },
+                );
             }
         }
         let s = Scope::from_temp_tables(with_temp_tables);
@@ -2192,9 +2215,12 @@ impl CompletionStament {
                     .unwrap_or_default();
 
                 if let Some(alias) = alias {
-                    s.enter_temp_table(alias.name.clone(), TempTable {
-                        columns: Arc::new(cols.clone()),
-                    });
+                    s.enter_temp_table(
+                        alias.name.clone(),
+                        TempTable {
+                            columns: Arc::new(cols.clone()),
+                        },
+                    );
                     s.from_tables.push(FromTableOrTemp::Unnamed {
                         table: TempTable {
                             columns: Arc::new(cols),
@@ -2210,18 +2236,24 @@ impl CompletionStament {
             }
             TableFactor::TableFunction { expr, alias } => {
                 if let Some(alias) = alias {
-                    s.enter_temp_table(alias.name.clone(), TempTable {
-                        columns: Arc::new(vec![]),
-                    });
+                    s.enter_temp_table(
+                        alias.name.clone(),
+                        TempTable {
+                            columns: Arc::new(vec![]),
+                        },
+                    );
                 } else {
                     // TODO how to handle this case
                 }
             }
             TableFactor::Function { alias, .. } => {
                 if let Some(alias) = alias {
-                    s.enter_temp_table(alias.name.clone(), TempTable {
-                        columns: Arc::new(vec![]),
-                    });
+                    s.enter_temp_table(
+                        alias.name.clone(),
+                        TempTable {
+                            columns: Arc::new(vec![]),
+                        },
+                    );
                 } else {
                     // TODO how to handle this case
                 }

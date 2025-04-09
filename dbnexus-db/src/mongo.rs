@@ -1130,11 +1130,14 @@ mod tests {
         let _ = db.drop_table(&col, false).await;
 
         for _ in 0..1590 {
-            db.query_collection_insert_one(&col, doc! {
-                "a" : rand::random::<i32 >(),
-                "b" : rand::random::<i32 >(),
-                "c" : rand::random::<i32 >(),
-            })
+            db.query_collection_insert_one(
+                &col,
+                doc! {
+                    "a" : rand::random::<i32 >(),
+                    "b" : rand::random::<i32 >(),
+                    "c" : rand::random::<i32 >(),
+                },
+            )
             .await
             .unwrap();
         }

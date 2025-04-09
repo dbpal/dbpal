@@ -961,7 +961,7 @@ function RedisSetTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
                 try {
@@ -1035,7 +1035,7 @@ function RedisListTableContextMenu(props: {
             setShowDel(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <Stack spacing={1}>
               <TextField
                 size="small"
@@ -1251,7 +1251,7 @@ function RedisListTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <RedisEditList
               modifyOP={async (index, newValue) => {
                 try {
@@ -1511,7 +1511,7 @@ function RedisZsetTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
                 try {
@@ -1722,7 +1722,7 @@ function RedisHashTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="950px">
+          <Box sx={modalStyle} width="75%">
             <RedisEditHash
               modifyOP={async (req) => {
                 try {

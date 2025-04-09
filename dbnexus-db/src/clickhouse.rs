@@ -1004,10 +1004,15 @@ impl JsonResp {
                     DataType::Array(ty) => {
                         let mut xs = Vec::with_capacity(values.len());
                         for e in values.iter() {
-                            xs.push(encode_nested(e, match ty {
-                                ArrayElemTypeDef::Parenthesis(x) => x.as_ref(),
-                                _ => anyhow::bail!("clickhouse accpet Parenthesis type parameter."),
-                            })?);
+                            xs.push(encode_nested(
+                                e,
+                                match ty {
+                                    ArrayElemTypeDef::Parenthesis(x) => x.as_ref(),
+                                    _ => anyhow::bail!(
+                                        "clickhouse accpet Parenthesis type parameter."
+                                    ),
+                                },
+                            )?);
                         }
                         format!("[{}]", xs.join(","))
                     }
@@ -1168,12 +1173,16 @@ mod tests {
             .await
             .unwrap();
 
-        db.add_table_column(table_name, "name", ColumnType {
-            typ: "String".to_string(),
-            nullness: None,
-            after: None,
-            default_value: Some("abc".to_string()),
-        })
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "String".to_string(),
+                nullness: None,
+                after: None,
+                default_value: Some("abc".to_string()),
+            },
+        )
         .await
         .unwrap();
 
@@ -1504,18 +1513,24 @@ mod tests {
         }
         {
             let sql = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
 
             println!("sql:{}", sql);
             let csv = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
 
@@ -1581,18 +1596,24 @@ mod tests {
         }
         {
             let sql = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
 
             println!("sql:{}", sql);
             let csv = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
 
@@ -1687,18 +1708,24 @@ mod tests {
         }
         {
             let sql = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
 
             println!("sql:{}", sql);
             let csv = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
 
@@ -1779,18 +1806,24 @@ mod tests {
         }
         {
             let sql = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
 
             println!("sql:{}", sql);
             let csv = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
 
@@ -1874,18 +1907,24 @@ mod tests {
         }
         {
             let sql = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
 
             println!("sql:{}", sql);
             let csv = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
 
@@ -1948,18 +1987,24 @@ mod tests {
         }
         {
             let sql = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::Sql {
-                    include_table_schema: true,
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
                 .await
                 .unwrap();
 
             println!("sql:{}", sql);
             let csv = (&db as &dyn SchemaTrait)
-                .export_table_to_string(table_name, ExportKind::CSV {
-                    include_header: true,
-                    delimiter: ',',
-                })
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::CSV {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
                 .await
                 .unwrap();
 
