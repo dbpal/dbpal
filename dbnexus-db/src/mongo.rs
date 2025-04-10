@@ -849,6 +849,7 @@ pub(crate) fn make_test_object() -> MongoDB {
         call_timeout: None,
         db: Some("test".to_string()),
         read_only: false,
+        save_password: true,
     });
 
     x.unwrap()

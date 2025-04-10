@@ -1,3 +1,5 @@
+'use strict';
+
 import ReactDOM from 'react-dom/client';
 
 import './comp/MainPage';

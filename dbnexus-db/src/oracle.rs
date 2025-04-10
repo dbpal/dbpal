@@ -1749,6 +1749,7 @@ mod tests {
                 port: 1521,
                 call_timeout: None,
                 db: "XE".to_string(),
+                save_password: true,
             },
             Some(2),
         )

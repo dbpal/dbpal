@@ -12,6 +12,7 @@ mod tests {
             port: 3307,
             db: Some("test".to_string()),
             read_only: false,
+            save_password: true,
         }
     }
     #[tokio::test]

@@ -45,7 +45,7 @@ import {
 } from './helper';
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
-import { SettingContext } from './Common';
+import { getNamedConfig, SettingContext } from './Common';
 import { debugBuild } from './debug';
 
 const LogLevelSelection = ({ handleChange, level }) => {
@@ -223,7 +223,25 @@ function MenuOpenConn({ handleOpend, name }) {
   const { showNotification } = useContext(NotificationContext);
   return (
     <MenuItem
-      onClick={() => {
+      onClick={async () => {
+        // try promote use to enter a password.
+        let config = await getNamedConfig(name);
+        if (!config) {
+          return;
+        }
+        const has = await invoke('has_entered_password', { name: name });
+        if (!has) {
+          let key = 'save_password';
+          if (key in config && !config[key]) {
+            let pass = prompt('enter password');
+            try {
+              await invoke('save_entered_password', { name: name, pass: pass });
+            } catch (e) {
+              showNotification('error', 'password not corrent???', e);
+              return;
+            }
+          }
+        }
         invoke('open_conn', { name })
           .then(() => {
             handleOpend();

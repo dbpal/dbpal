@@ -393,7 +393,7 @@ function SqlTableView(props: {
   };
 
   useEffect(() => {
-    handleReload(true);
+    handleReload(false );
   }, [page, pageSize, where, sort, allowFiltering]);
 
   useEffect(() => {}, [sort]);

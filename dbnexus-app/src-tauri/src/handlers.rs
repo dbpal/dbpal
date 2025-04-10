@@ -17,8 +17,38 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
-
 pub const PASSWORD_KEY: &str = "dbpal";
+
+#[tauri::command]
+pub fn has_entered_password(
+    app: tauri::State<'_, App>, name: String,
+) -> Result<bool, ErrorFrontend> {
+    let has = app.saved_password.lock().unwrap().get(&name).is_some();
+    Ok(has)
+}
+
+#[tauri::command]
+pub async fn save_entered_password(
+    app: tauri::State<'_, App>, name: String, pass: String,
+) -> Result<(), ErrorFrontend> {
+    let mut conn = unsafe {
+        (App::get_config_ref())
+            .as_ref()
+            .map(|x| x(&name))
+            .unwrap()
+            .map_err(|x| ErrorFrontend::from(x))?
+    };
+    conn.set_password(pass.clone());
+    let o = conn.open().await.map_err(|x| ErrorFrontend::from(x))?;
+    match o {
+        Open::Catalog(x) => x.check_conn().await,
+        Open::DataBase(x) => x.check_conn().await,
+        Open::Schema(x) => x.check_conn().await,
+    }
+    .map_err(|x| ErrorFrontend::from(x))?;
+    app.saved_password.lock().unwrap().insert(name, pass);
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn delete_password(name: String) -> Result<(), ErrorFrontend> {

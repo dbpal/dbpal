@@ -1896,6 +1896,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
+        save_password: true,
     })
     .await
     .unwrap();

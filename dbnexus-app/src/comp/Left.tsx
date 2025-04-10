@@ -774,7 +774,8 @@ function FavoriteSqlList(props: { handleClose }) {
 const OneConfig = memo(OneConfig_);
 function OneConfig_(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-  const [opened, setOpened] = useState(false || debugBuild);
+  const [opened, setOpened] = useState();
+
   const makeTree = () => {
     switch (config.conn_type) {
       case 'postgres':

@@ -977,6 +977,7 @@ pub(crate) fn make_test_object() -> FireBirdDB {
         password: "root".to_string(),
         db: "/var/lib/firebird/data/test.fdb".to_string(),
         read_only: false,
+        save_password: true,
     })
     .unwrap()
 }

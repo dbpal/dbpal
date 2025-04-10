@@ -1714,6 +1714,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
         db: Some("test".into()),
         schema: Some("xxx".to_string()),
         read_only: false,
+        save_password: true,
     })
     .await
     .unwrap();

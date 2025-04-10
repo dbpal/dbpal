@@ -377,6 +377,7 @@ mod tests {
             port: 3307, // use mariadb to test mysql have bugs.
             db: Some("test".to_string()),
             read_only: false,
+            save_password: true,
         }
     }
 

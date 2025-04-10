@@ -82,8 +82,18 @@ function UserAndPassword(props: {
   setUser;
   setPassword;
   onBlur;
+  savePassword;
+  setSavePassword;
 }) {
-  let { user, password, setUser, setPassword, onBlur } = props;
+  let {
+    user,
+    password,
+    setUser,
+    setPassword,
+    onBlur,
+    savePassword,
+    setSavePassword,
+  } = props;
 
   return (
     <Stack direction="row">
@@ -105,6 +115,17 @@ function UserAndPassword(props: {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+
+      <div style={{ width: '30rem' }}>
+        <Checkbox
+          checked={savePassword}
+          onChange={(e) => {
+            setSavePassword(e.target.checked);
+          }}
+          name="save password"
+        />
+        save password
+      </div>
     </Stack>
   );
 }
@@ -240,6 +261,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   );
   const [connectionName, setConnectionName] = useState(getConfig('name'));
   const connectionNameDom = useRef(null);
+  const [savePassword, setSavePassword] = useState(true);
   const [host, setHost] = useState(getConfig('host'));
   const [port, setPort] = useState('' + getConfig('port', 0));
   const [user, setUser] = useState(getConfig('username'));
@@ -285,6 +307,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           password: password,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
         };
       case DataSourceKind.LibSql:
         return {
@@ -309,6 +332,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           https: https,
+          save_password: savePassword,
         };
       case DataSourceKind.Mysql:
         return {
@@ -320,6 +344,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
         };
       case DataSourceKind.Cassandra:
         return {
@@ -331,6 +356,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
         };
       case DataSourceKind.MariaDB:
         return {
@@ -342,6 +368,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
         };
       case DataSourceKind.TiDB:
         return {
@@ -353,6 +380,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
         };
       case DataSourceKind.Postgres:
         return {
@@ -365,6 +393,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           schema: schema_null,
+          save_password: savePassword,
         };
 
       case DataSourceKind.Sqlite:
@@ -393,6 +422,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           username: user_null,
           password: pass_null,
+          save_password: savePassword,
         };
       case DataSourceKind.Mongo:
         return {
@@ -405,6 +435,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           username: user_null,
           password: pass_null,
           call_timeout: null,
+          save_password: savePassword,
         };
       case DataSourceKind.MsSql:
         return {
@@ -418,6 +449,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           password: password,
           trust_cert: trustCert,
           schema: null,
+          save_password: savePassword,
         };
       case DataSourceKind.Oracle:
         return {
@@ -431,6 +463,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           schema: schema ? schema : null,
           call_timeout: null,
+          save_password: savePassword,
         };
     }
   };
@@ -519,8 +552,18 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       connectionNameDom.current.focus();
       return;
     }
-
-    if (password) {
+    if (password && !savePassword) {
+      try {
+        await invoke('save_entered_password', {
+          name: connectionName,
+          pass: password,
+        });
+      } catch (e) {
+        showNotification('error', 'save password failed', e);
+        return;
+      }
+    }
+    if (password && savePassword) {
       try {
         await invoke('save_password', {
           name: connectionName,
@@ -530,9 +573,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         showNotification('error', 'save password failed', e);
         return;
       }
-      //@ts-ignore
-      config.password = '';
     }
+    if (password) {
+      config['password'] = '';
+    }
+
     connections = [config, ...connections];
     (await appStore())
       .set(AppStoreKey.ConnectionConfig, connections)
@@ -629,6 +674,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             database={database}
@@ -668,6 +715,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setUser={setUser}
             onBlur={toggleTriggerReload}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={[]}
@@ -692,6 +741,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setUser={setUser}
             onBlur={toggleTriggerReload}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -723,6 +774,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setUser={setUser}
             onBlur={toggleTriggerReload}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -749,6 +802,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setUser={setUser}
             onBlur={toggleTriggerReload}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -774,6 +829,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -797,6 +854,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -820,6 +879,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             database={database}
@@ -848,6 +909,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             database={database}

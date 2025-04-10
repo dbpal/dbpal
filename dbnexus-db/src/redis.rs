@@ -1470,6 +1470,7 @@ mod tests {
             password: None,
             db: Some("db0".to_string()),
             read_only: false,
+            save_password: true,
         })
         .await
         .unwrap();

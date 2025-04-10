@@ -1,7 +1,3 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-#[allow(unused_imports)]
 use crate::datasource_config::{
     CassandraDBConfig, DuckDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
@@ -13,6 +9,8 @@ use crate::db::{
 };
 use crate::mongo::MongoDB;
 use crate::redis::{RedisDB, RedisListTable};
+use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -318,12 +316,14 @@ impl From<Arc<dyn crate::db::SchemaTrait>> for Open {
 #[derive(Clone)]
 pub struct App {
     pub opens: Arc<Mutex<HashMap<String, Open>>>,
+    pub saved_password: Arc<std::sync::Mutex<HashMap<String, String>>>,
 }
 
 impl App {
     pub fn new() -> Self {
         Self {
             opens: Default::default(),
+            saved_password: Default::default(),
         }
     }
 }

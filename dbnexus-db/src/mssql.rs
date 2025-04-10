@@ -1893,6 +1893,7 @@ pub(crate) async fn make_test_object() -> MsSqlServerDB {
         trust_cert: true,
         schema: Some(MsSqlServerDB::ONLY_SCHEMA.to_string()),
         read_only: false,
+        save_password: true,
     })
     .await
     .unwrap();

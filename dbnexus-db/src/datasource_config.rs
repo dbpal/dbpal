@@ -6,6 +6,7 @@ pub struct MongoDBConfig {
     pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
+    pub save_password: bool,
     /// milliseconds
     pub call_timeout: Option<u64>,
     pub db: Option<String>,
@@ -18,6 +19,7 @@ pub struct MysqlDBConfig {
     pub port: u16,
     pub username: String,
     pub password: Option<String>,
+    pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
 }
@@ -58,6 +60,7 @@ pub struct ClickHouseConfig {
     pub port: u16,
     pub username: String,
     pub password: Option<String>,
+    pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
     pub https: bool,
@@ -89,6 +92,7 @@ pub struct FireBirdConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
+    pub save_password: bool,
     pub db: String,
     pub read_only: bool,
 }
@@ -110,6 +114,7 @@ pub struct RedisDBConfig {
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
+    pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
 }
@@ -127,6 +132,7 @@ impl RedisDBConfig {
             password,
             db,
             read_only: false,
+            save_password: true,
         }
     }
 
@@ -218,6 +224,7 @@ pub struct PGDBConfig {
     pub port: u16,
     pub username: String,
     pub password: Option<String>,
+    pub save_password: bool,
     pub db: Option<String>,
     pub schema: Option<String>,
     pub read_only: bool,
@@ -236,6 +243,7 @@ pub struct SqlServerDBConfig {
     pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
+    pub save_password: bool,
     pub db: Option<String>,
     pub trust_cert: bool,
     pub schema: Option<String>,
@@ -256,6 +264,7 @@ impl SqlServerDBConfig {
 pub struct OracleDBConfig {
     pub username: String,
     pub password: String,
+    pub save_password: bool,
     pub host: String,
     pub port: u16,
     pub schema: Option<String>,
@@ -271,6 +280,7 @@ pub struct CassandraDBConfig {
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
+    pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
 }

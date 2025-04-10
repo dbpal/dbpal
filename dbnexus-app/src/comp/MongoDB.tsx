@@ -518,7 +518,7 @@ function MongoTableListToolBar(props: {
             setShowModifyFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="65%">
             <MongoDBModify
               buttonName="set"
               setOP={async (doc) => {
@@ -543,7 +543,7 @@ function MongoTableListToolBar(props: {
             setShowModifySort(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="65%">
             <MongoDBModify
               buttonName="set"
               setOP={async (doc) => {
@@ -883,7 +883,7 @@ function MongoTableList(props: {
   };
 
   useEffect(() => {
-    handleReload(true);
+    handleReload(false);
   }, [page, pageSize, filter, sort]);
 
   useEffect(() => {

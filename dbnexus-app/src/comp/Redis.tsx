@@ -1116,7 +1116,7 @@ function RedisListTable(props: {
   };
 
   useEffect(() => {
-    handleReload(true);
+    handleReload(false);
   }, []);
 
   const handleDel = async (id, deleteCount: number) => {
