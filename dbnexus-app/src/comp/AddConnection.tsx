@@ -261,7 +261,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   );
   const [connectionName, setConnectionName] = useState(getConfig('name'));
   const connectionNameDom = useRef(null);
-  const [savePassword, setSavePassword] = useState(true);
+  const [savePassword, setSavePassword] = useState(
+    getConfig('save_password', true)
+  );
   const [host, setHost] = useState(getConfig('host'));
   const [port, setPort] = useState('' + getConfig('port', 0));
   const [user, setUser] = useState(getConfig('username'));
