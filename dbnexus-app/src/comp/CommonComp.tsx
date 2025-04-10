@@ -240,7 +240,7 @@ function MenuOpenConn({ handleOpend, name }) {
             try {
               await invoke('save_entered_password', { name: name, pass: pass });
             } catch (e) {
-              showNotification('error', 'password not corrent???', e);
+              showNotification('error', 'password not correct???', e);
               return;
             }
           }

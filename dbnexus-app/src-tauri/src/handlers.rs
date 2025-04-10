@@ -1085,22 +1085,6 @@ pub async fn oracle_query_rollback(
     }
 }
 
-// #[tauri::command]
-// pub async fn list_trigger(
-//     name: String, table_name: String, app: tauri::State<'_, App>,
-// ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
-//     random_sleep().await;
-//     random_error()?;
-//     let db = app
-//         .get_schema(name.as_str())
-//         .await
-//         .map_err(|e| ErrorFrontend::from(e))?;
-
-//     db.list_trigger(&table_name)
-//         .await
-//         .map_err(|e| ErrorFrontend::from(e))
-// }
-
 #[tauri::command]
 pub async fn drop_trigger(
     name: String, table_name: String, trigger: String, app: tauri::State<'_, App>,

@@ -331,6 +331,19 @@ function SqlQuery(props: {
     };
   }, [setting]);
 
+  const editorDivDom = useRef(null);
+  useEffect(() => {
+    if (editorDivDom.current && conn) {
+      (editorDivDom.current as HTMLDivElement).addEventListener(
+        'keydown',
+        function (event) {
+          if (event.ctrlKey && event.key.toLowerCase() === 'e') {
+            handleQuery(editor.current.getValue());
+          }
+        }
+      );
+    }
+  }, [conn]);
   return (
     //@ts-ignore
     <SplitPane
@@ -505,6 +518,7 @@ function SqlQuery(props: {
             minHeight: 0,
             height: '400px',
           }}
+          ref={editorDivDom}
         >
           <Editor
             language={language}

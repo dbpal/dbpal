@@ -146,6 +146,19 @@ function MongoQuery(props: {
       ...setting.editorOption,
     };
   }, [setting]);
+  const editorDivDom = useRef(null);
+  useEffect(() => {
+    if (editorDivDom.current) {
+      (editorDivDom.current as HTMLDivElement).addEventListener(
+        'keydown',
+        function (event) {
+          if (event.ctrlKey && event.key.toLowerCase() === 'e') {
+            handleExecute();
+          }
+        }
+      );
+    }
+  }, []);
 
   return (
     <Stack spacing={1}>
@@ -220,6 +233,7 @@ function MongoQuery(props: {
           overflow: 'hidden',
           width: '100%',
         }}
+        ref={editorDivDom}
       >
         <div style={{ height: '100px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
