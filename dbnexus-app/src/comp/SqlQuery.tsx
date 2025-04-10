@@ -338,6 +338,7 @@ function SqlQuery(props: {
         'keydown',
         function (event) {
           if (event.ctrlKey && event.key.toLowerCase() === 'e') {
+            event.preventDefault();
             handleQuery(editor.current.getValue());
           }
         }
