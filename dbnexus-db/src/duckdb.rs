@@ -16,8 +16,8 @@ use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind, ListMaterializedView,
-    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
+    ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -376,6 +376,21 @@ impl DuckDB {
     }
 }
 
+impl QuoteStyle for DuckDB {
+    fn quote_style(&self) -> &'static str {
+        "\""
+    }
+}
+impl SqlBuilder for DuckDB {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        put_value_in_sql(typ, value)
+    }
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+}
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -876,7 +891,7 @@ impl DuckDB {
                 for (name, value) in names.iter().zip(data.into_iter()) {
                     values.insert(name.clone(), value);
                 }
-                let sql = (&handle as &dyn SchemaTrait).insert_sql(
+                let sql = handle.insert_sql(
                     handle.config.schema.as_ref().map(|x| x.as_str()),
                     &table_name,
                     &fs,
@@ -1409,18 +1424,12 @@ impl SchemaTrait for DuckDB {
         anyhow::Ok(TableListResp::new(fs, total, data, sql))
     }
 
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        put_value_in_sql(typ, value)
-    }
-
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self as &dyn SchemaTrait).insert_sql(
+        let sql = (self).insert_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -1442,13 +1451,12 @@ impl SchemaTrait for DuckDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self as &dyn SchemaTrait).update_sql(
+        let sql = (self).update_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &values,
             &wheres,
-            type_support_compare,
         )?;
 
         let conn = self.get_conn()?;
@@ -1464,12 +1472,11 @@ impl SchemaTrait for DuckDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self as &dyn SchemaTrait).delete_sql(
+        let sql = (self).delete_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &wheres,
-            type_support_compare,
         )?;
 
         let conn = self.get_conn()?;
@@ -1556,6 +1563,9 @@ impl DuckDB {
 #[async_trait::async_trait]
 
 impl DBTrait for DuckDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         self.list_schema_impl(self.config.db_str())
     }
@@ -2115,7 +2125,7 @@ mod tests {
 
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2217,7 +2227,7 @@ mod tests {
 
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2307,7 +2317,7 @@ mod tests {
 
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2397,7 +2407,7 @@ mod tests {
 
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2486,7 +2496,7 @@ mod tests {
 
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2575,7 +2585,7 @@ mod tests {
 
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2657,7 +2667,7 @@ mod tests {
 
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2745,7 +2755,7 @@ mod tests {
 
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(
                     table_name,

@@ -202,13 +202,6 @@ function CustomTabPanel(props: TabPanelProps) {
   );
 }
 
-function a11yProps(idPrefix: string, index: number) {
-  return {
-    id: `${idPrefix}-tab-${index}`,
-    'aria-controls': `${idPrefix}-tabpanel-${index}`,
-  };
-}
-
 function MultiQueryResp_(props: { data: any[] }) {
   let { data } = props;
   if (data.length == 0) {
@@ -238,14 +231,11 @@ function MultiQueryResp_(props: { data: any[] }) {
         <Tabs
           value={value}
           onChange={handleChange}
-          style={{ overflow: 'scorll' }}
+          variant="scrollable"
+          scrollButtons="auto"
         >
           {data.map((_, index) => (
-            <Tab
-              label={`Result ${index + 1}`}
-              key={index}
-              {...a11yProps(idPrefix, index)}
-            />
+            <Tab label={`Result ${index + 1}`} key={index} />
           ))}
         </Tabs>
       </div>

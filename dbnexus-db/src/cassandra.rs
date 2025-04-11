@@ -50,8 +50,8 @@ use crate::{
     db::{
         BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
         DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListMaterializedView, ListTable,
-        NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-        SqlExecuteRet, TableListResp, UdfOrProcedureExtraParameter,
+        NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+        ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, UdfOrProcedureExtraParameter,
     },
     helper::create_csv,
     language_server::{LangServerCommon, LexerCompletionTrait},
@@ -1160,12 +1160,7 @@ impl CassandraDB {
             fs.iter().zip(x.iter()).for_each(|(f, v)| {
                 values.insert(f.field.clone(), v.clone());
             });
-            let sql = (self as &dyn SchemaTrait).insert_sql(
-                self.config.db.as_deref(),
-                table_name,
-                &fs,
-                &values,
-            )?;
+            let sql = self.insert_sql(self.config.db.as_deref(), table_name, &fs, &values)?;
             log::info!("sql:{}", sql);
             sender.send(Cow::Owned(sql)).await?;
         }
@@ -1196,6 +1191,17 @@ impl CassandraDB {
             }
         }
         anyhow::Ok(ret)
+    }
+}
+
+impl SqlBuilder for CassandraDB {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        put_value_in_sql(typ, value)
+    }
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
     }
 }
 #[async_trait::async_trait]
@@ -1377,9 +1383,6 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(())
     }
 
-    fn quote_style(&self) -> &'static str {
-        "\""
-    }
     fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
@@ -1499,7 +1502,7 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_table_columns(&table_name).await?;
-        let sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &fs, &values)?;
+        let sql = self.insert_sql(None, table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         self.invalid_page_caching(Some(table_name));
@@ -1515,13 +1518,12 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
+        let sql = self.update_sql(
             self.config.db.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &values,
             &wheres,
-            type_support_compare,
         )?;
 
         log::info!("update sql:{}", sql);
@@ -1544,12 +1546,11 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self as &dyn SchemaTrait).delete_sql(
+        let sql = self.delete_sql(
             self.config.db.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &wheres,
-            type_support_compare,
         )?;
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
@@ -1568,11 +1569,6 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        put_value_in_sql(typ, value)
-    }
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
@@ -1755,6 +1751,9 @@ impl LangServerCommon for CassandraDB {
 
 #[async_trait::async_trait]
 impl DBTrait for CassandraDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let body = self
             .session
@@ -1996,6 +1995,12 @@ impl CassandraDB {
         log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
+    }
+}
+
+impl QuoteStyle for CassandraDB {
+    fn quote_style(&self) -> &'static str {
+        "\""
     }
 }
 
@@ -2304,7 +2309,7 @@ mod tests {
         }
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2397,7 +2402,7 @@ mod tests {
         }
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2492,7 +2497,7 @@ mod tests {
         }
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2590,7 +2595,7 @@ mod tests {
         }
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2689,7 +2694,7 @@ mod tests {
         }
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2791,7 +2796,7 @@ mod tests {
         }
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2874,7 +2879,7 @@ mod tests {
         }
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+
             let ret = db
                 .export_table_to_string(
                     table_name,

@@ -16,8 +16,9 @@ use sqlx::{Column, Executor, Row, SqliteConnection, TypeInfo};
 use crate::MemoryLimit;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, Index,
-    IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEvent, TriggerTiming,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -99,8 +100,7 @@ impl SqliteDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql =
-                    (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
+                let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }
@@ -415,12 +415,13 @@ impl BackendName for SqliteDB {
     }
 }
 
-#[async_trait::async_trait]
-impl SchemaTrait for SqliteDB {
+impl QuoteStyle for SqliteDB {
     fn quote_style(&self) -> &'static str {
         "\""
     }
-
+}
+#[async_trait::async_trait]
+impl SchemaTrait for SqliteDB {
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -637,13 +638,8 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
-            None,
-            table_name,
-            &fields,
-            &wheres,
-            type_support_compare,
-        )?;
+        let sql =
+            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -666,35 +662,6 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        let typ = typ.to_uppercase();
-
-        let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
-            _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) => {
-                value.unwrap_or("null").to_string()
-            }
-            "BLOB" => value.unwrap_or("null").to_string(),
-            _ => {
-                let e = format!("type '{}' not handled", typ);
-                log::error!("{}", e);
-                anyhow::bail!(e)
-            }
-        };
-
-        anyhow::Ok(v)
-    }
-
     async fn update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
@@ -703,14 +670,8 @@ impl SchemaTrait for SqliteDB {
         let fields = self.show_table_columns(table_name).await?;
 
         let mut conn = self.get_conn().await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
-            None,
-            table_name,
-            &fields,
-            &values,
-            &wheres,
-            type_support_compare,
-        )?;
+        let sql = (self as &dyn crate::db::SchemaTrait)
+            .update_sql(None, table_name, &fields, &values, &wheres)?;
         log::info!("sql:{}", sql);
 
         let r = sqlx::query(&sql).execute(conn.deref_mut()).await?;
@@ -894,6 +855,41 @@ fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
         });
     }
     ret
+}
+
+impl SqlBuilder for SqliteDB {
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        let typ = typ.to_uppercase();
+
+        let v = match typ.as_str() {
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
+            _ if text_like(typ.as_str()) => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
+            "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
+            _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) => {
+                value.unwrap_or("null").to_string()
+            }
+            "BLOB" => value.unwrap_or("null").to_string(),
+            _ => {
+                let e = format!("type '{}' not handled", typ);
+                log::error!("{}", e);
+                anyhow::bail!(e)
+            }
+        };
+
+        anyhow::Ok(v)
+    }
 }
 
 pub(crate) fn encode_bytes(bs: &[u8]) -> String {
@@ -1725,7 +1721,7 @@ mod tests {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        let db = &db as &dyn SchemaTrait;
+        let db = db;
         {
             let s = db
                 .export_table_to_string(

@@ -142,6 +142,10 @@ export namespace types {
     } & (types.PGDBConfig & {
         "name": string;
     })) | ({
+        "conn_type": "cockroach";
+    } & (types.PGDBConfig & {
+        "name": string;
+    })) | ({
         "conn_type": "mssql";
     } & (types.SqlServerDBConfig & {
         "name": string;

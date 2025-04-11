@@ -778,48 +778,49 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
 
   const makeTree = () => {
     switch (config.conn_type) {
-      case 'postgres':
+      case DataSourceKind.Postgres:
+      case DataSourceKind.Cockroach:
         if (!config.db) {
           return <CatalogTree />;
         }
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case 'mariadb':
-      case 'mysql':
-      case 'tidb':
+      case DataSourceKind.MariaDB:
+      case DataSourceKind.Mysql:
+      case DataSourceKind.TiDB:
         return config.db ? (
           <SchemaTree></SchemaTree>
         ) : (
           <DatabaseTree></DatabaseTree>
         );
-      case 'sqlite':
-      case 'libsql':
+      case DataSourceKind.Sqlite:
+      case DataSourceKind.LibSql:
         return <SchemaTree></SchemaTree>;
-      case 'redis':
+      case DataSourceKind.Redis:
         return config.db ? (
           <SchemaTree></SchemaTree>
         ) : (
           <DatabaseTree></DatabaseTree>
         );
-      case 'mongo':
+      case DataSourceKind.Mongo:
         return config.db ? (
           <SchemaTree></SchemaTree>
         ) : (
           <DatabaseTree></DatabaseTree>
         );
-      case 'mssql':
+      case DataSourceKind.MsSql:
         if (!config.db) {
           return <CatalogTree />;
         }
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case 'oracle':
+      case DataSourceKind.Oracle:
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case 'cassandra':
+      case DataSourceKind.Cassandra:
         return config.db ? <SchemaTree /> : <DatabaseTree />;
-      case 'clickhouse':
+      case DataSourceKind.ClickHouse:
         return config.db ? <SchemaTree /> : <DatabaseTree />;
-      case 'firebird':
+      case DataSourceKind.FireBird:
         return <SchemaTree />;
-      case 'duckdb':
+      case DataSourceKind.DuckDB:
         if (!config.db) {
           return <CatalogTree />;
         }
@@ -1209,6 +1210,7 @@ async function openNewQuery(
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
     case DataSourceKind.DuckDB:
+    case DataSourceKind.Cockroach:
       content = (
         <SqlQuery
           language={uuid}

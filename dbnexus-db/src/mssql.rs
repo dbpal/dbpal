@@ -10,9 +10,10 @@ use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, format_data_time_fix_offset, not_support_features,
+    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, format_data_time_fix_offset,
+    not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -439,12 +440,14 @@ fn type_support_compare(_tpe: &str) -> bool {
     true
 }
 
-#[async_trait::async_trait]
-impl SchemaTrait for MsSqlServerDB {
+impl QuoteStyle for MsSqlServerDB {
     fn quote_style(&self) -> &'static str {
         "\""
     }
+}
 
+#[async_trait::async_trait]
+impl SchemaTrait for MsSqlServerDB {
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -985,41 +988,11 @@ impl SchemaTrait for MsSqlServerDB {
             &fs,
             &values,
             &wheres,
-            type_support_compare,
         )?;
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let r = conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet::from((s, r.rows_affected().iter().sum())))
-    }
-
-    /// format a value make it suitable for insert into sql.
-    /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
-        let single_quote = value
-            .map(|x| format!("'{}'", x))
-            .unwrap_or("null".to_string());
-        let v = match typ.to_uppercase().as_str() {
-            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
-            | "INT1" | "INT8" | "FLOAT4" | "FLOAT8" | "INTN" | "DECIMALN" | "NUMERICN"
-            | "FLOATN" | "NUMERIC" | "DECIMAL" => default_value,
-            "BIT" | "BITN" | "BIGVARBIN" => default_value,
-            "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "BIGVARCHAR"
-            | "BIGCHAR" => single_quote,
-            "UNIQUEIDENTIFIER" => default_value,
-            "BINARY" | "VARBINARY" | "IMAGE" | "BIGBINARY" => default_value,
-            "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME" | "DATETIME4"
-            | "DATEN" | "DATETIMEN" | "DATETIMEOFFSET" | "TIMEN" | "DATETIMEOFFSETN" => {
-                single_quote
-            }
-            "NULL" => default_value,
-            _ => anyhow::bail!("type '{}' not support", typ),
-        };
-        log::trace!("type:{:?} encode '{:?}' as #{}#", typ, value, v);
-        anyhow::Ok(v)
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
@@ -1046,7 +1019,6 @@ impl SchemaTrait for MsSqlServerDB {
             table_name,
             &fields,
             &wheres,
-            type_support_compare,
         )?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1256,6 +1228,41 @@ impl SchemaTrait for MsSqlServerDB {
     }
 }
 
+impl SqlBuilder for MsSqlServerDB {
+    /// format a value make it suitable for insert into sql.
+    /// this method current use in `insert_sql` etc.
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
+        let single_quote = value
+            .map(|x| format!("'{}'", x))
+            .unwrap_or("null".to_string());
+        let v = match typ.to_uppercase().as_str() {
+            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
+            | "INT1" | "INT8" | "FLOAT4" | "FLOAT8" | "INTN" | "DECIMALN" | "NUMERICN"
+            | "FLOATN" | "NUMERIC" | "DECIMAL" => default_value,
+            "BIT" | "BITN" | "BIGVARBIN" => default_value,
+            "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "BIGVARCHAR"
+            | "BIGCHAR" => single_quote,
+            "UNIQUEIDENTIFIER" => default_value,
+            "BINARY" | "VARBINARY" | "IMAGE" | "BIGBINARY" => default_value,
+            "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME" | "DATETIME4"
+            | "DATEN" | "DATETIMEN" | "DATETIMEOFFSET" | "TIMEN" | "DATETIMEOFFSETN" => {
+                single_quote
+            }
+            "NULL" => default_value,
+            _ => anyhow::bail!("type '{}' not support", typ),
+        };
+        log::trace!("type:{:?} encode '{:?}' as #{}#", typ, value, v);
+        anyhow::Ok(v)
+    }
+
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+}
+
 impl MsSqlServerDB {
     async fn query_count(
         conn: &mut Connection, name: &str, where_str: Option<&str>,
@@ -1458,7 +1465,7 @@ impl MsSqlServerDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn SchemaTrait).insert_sql(
+                let insert_sql = (self).insert_sql(
                     self.config.schema.as_ref().map(|x| x.as_str()),
                     table_name,
                     &cols,
@@ -1806,6 +1813,10 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
 
 #[async_trait::async_trait]
 impl crate::db::DBTrait for MsSqlServerDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec!["dbo".to_string()])
     }
@@ -2357,7 +2368,6 @@ mod tests {
         for s in rs.iter() {
             conn.execute(*s, &[]).await.unwrap();
         }
-        let db = &db as &dyn SchemaTrait;
 
         {
             let s = db
@@ -2438,7 +2448,6 @@ mod tests {
         // list all table and query
         let pg = make_test_object().await;
 
-        let pg = &pg as &dyn SchemaTrait;
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
     }

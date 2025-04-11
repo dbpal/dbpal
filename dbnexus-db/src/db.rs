@@ -18,12 +18,11 @@ use crate::query_log::{QueryLog, QueryLogEvent};
 pub trait BackendName {
     fn backend_name(&self) -> &str;
 }
-
 pub trait ReadOnlyTrait {
     fn read_only(&self) -> bool;
     fn can_write(&self) -> anyhow::Result<()> {
         if self.read_only() {
-            return Err(anyhow::Error::msg("this connection is readonly"));
+            return Err(anyhow::Error::msg("this connection is read only"));
         }
         anyhow::Ok(())
     }
@@ -32,13 +31,17 @@ pub trait ReadOnlyTrait {
 /// A db representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait:
-    Sync + Send + QuerySql + CheckConn + std::fmt::Debug + ServerMetas + 'static + ReadOnlyTrait
+    Sync
+    + SqlBuilder
+    + Send
+    + QuerySql
+    + CheckConn
+    + std::fmt::Debug
+    + ServerMetas
+    + 'static
+    + ReadOnlyTrait
 {
     fn as_any(&self) -> &dyn std::any::Any;
-
-    fn quote_style(&self) -> &'static str {
-        ""
-    }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         self.duplicate_table(old, new).await?;
@@ -77,16 +80,6 @@ pub trait SchemaTrait:
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
 
     fn clone(&self) -> Box<dyn SchemaTrait>;
-
-    // impl on need
-
-    /// format a value make it suitable for insert into sql.
-    /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(
-        &self, _typ: &str, _: Option<i64>, _value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        not_support_features(self.backend_name())
-    }
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         not_support_features(self.backend_name())
@@ -257,6 +250,236 @@ pub trait SchemaTrait:
     async fn drop_created_type(&self, _typ: &str) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
+
+    async fn export_table_to_string(
+        &self, table_name: &str, kind: ExportKind,
+    ) -> anyhow::Result<String> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let h1 = {
+            let x = SchemaTrait::clone(self);
+            let table_name = table_name.to_string();
+            let h1 =
+                tokio::spawn(
+                    async move { x.export_table_or_view(&table_name, kind, sender).await },
+                );
+            h1
+        };
+        let h2 = {
+            tokio::spawn(async move {
+                let mut s = String::new();
+                while let Some(r) = receiver.recv().await {
+                    s.push_str(r.deref());
+                }
+                anyhow::Ok(s)
+            })
+        };
+        h1.await??;
+        h2.await?
+    }
+}
+
+pub trait QuoteStyle {
+    fn quote_style(&self) -> &'static str {
+        ""
+    }
+}
+
+pub trait SqlBuilder: BackendName + QuoteStyle {
+    fn type_support_compare(&self, _typ: &str) -> bool {
+        true
+    }
+
+    /// format a value make it suitable for insert into sql.
+    /// this method current use in `insert_sql` etc.
+    fn put_value_in_sql(
+        &self, _typ: &str, _: Option<i64>, _value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        not_support_features(self.backend_name())
+    }
+
+    fn make_where(
+        &self, fs: &Vec<Field>, wheres: &HashMap<String, Option<String>>,
+        field_by_name: &HashMap<&String, &Field>,
+    ) -> anyhow::Result<String> {
+        // if contains primary key should use primary key to delete
+        // otherwise should use all value
+        // to do operation.
+        let contains_pri = fs.iter().any(|x| x.is_primary);
+        let mut sql = String::new();
+
+        let mut first = true;
+        for (k, v) in wheres.iter() {
+            let f = field_by_name.get(k);
+            let f = f.map(|x| *x);
+
+            if f.is_none() {
+                continue;
+            }
+            let f = f.unwrap();
+            // some type can't compare
+            // so they can't appear in where condition
+            if !self.type_support_compare(f.typ.as_str()) {
+                continue;
+            }
+            if contains_pri && !f.is_primary {
+                continue;
+            }
+            sql.push_str(
+                format!(
+                    "{} {}{}{} = {}",
+                    if !first { " AND " } else { "" },
+                    self.quote_style(),
+                    k,
+                    self.quote_style(),
+                    self.put_value_in_sql(
+                        &f.typ,
+                        f.firebird_binary_sub_type,
+                        v.as_ref().map(|x| x.as_str())
+                    )?
+                )
+                .as_str(),
+            );
+            first = false;
+        }
+        anyhow::Ok(sql)
+    }
+
+    fn delete_sql(
+        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        wheres: &HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        let mut field_by_name = HashMap::new();
+        for f in fs.iter() {
+            field_by_name.insert(&f.field, f);
+        }
+
+        let mut sql = format!(
+            "DELETE FROM {}{} WHERE ",
+            if let Some(schema) = schema {
+                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
+            } else {
+                "".to_string()
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
+        );
+
+        sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
+        log::info!("delete sql:{}", sql);
+        anyhow::Ok(sql)
+    }
+
+    fn update_sql(
+        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        //
+
+        let mut field_by_name = HashMap::new();
+        for f in fs.iter() {
+            field_by_name.insert(&f.field, f);
+        }
+
+        let mut sql = format!(
+            "UPDATE {}{} SET ",
+            if let Some(schema) = schema {
+                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
+            } else {
+                "".to_string()
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
+        );
+        {
+            let last = values.len() - 1;
+            for (index, (k, v)) in values.iter().enumerate() {
+                let f = field_by_name.get(k);
+                if f.is_none() {
+                    anyhow::bail!("field '{}' not found", k);
+                }
+
+                sql.push_str(
+                    format!(
+                        "{}{}{} = {}",
+                        self.quote_style(),
+                        k,
+                        self.quote_style(),
+                        self.put_value_in_sql(
+                            &f.unwrap().typ,
+                            f.unwrap().firebird_binary_sub_type,
+                            v.as_ref().map(|x| x.as_str())
+                        )?
+                    )
+                    .as_str(),
+                );
+                if index != last {
+                    sql.push_str(",")
+                }
+            }
+        }
+        sql.push_str(" WHERE ");
+        sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
+        log::info!("update sql:{}", sql);
+        anyhow::Ok(sql)
+    }
+
+    fn insert_sql(
+        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        values: &HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        let mut sql = format!(
+            "INSERT INTO {}{}(",
+            if let Some(schema) = schema {
+                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
+            } else {
+                "".to_string()
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
+        );
+        // fields
+        {
+            let mut first = true;
+            for f in fs.iter() {
+                if f.is_auto_increment {
+                    continue;
+                }
+                if !first {
+                    sql.push_str(",");
+                }
+                sql.push_str(
+                    format!(
+                        "{}{}{}",
+                        self.quote_style(),
+                        f.field.as_str(),
+                        self.quote_style()
+                    )
+                    .as_str(),
+                );
+                first = false;
+            }
+            sql.push_str(")");
+        }
+        // values
+        sql.push_str(" VALUES (");
+        {
+            let mut first = true;
+            for f in fs.iter() {
+                if f.is_auto_increment {
+                    continue;
+                }
+                if !first {
+                    sql.push_str(",");
+                }
+                let value = values.get(&f.field).map(|x| x.clone()).flatten();
+                sql.push_str(&self.put_value_in_sql(
+                    &f.typ,
+                    f.firebird_binary_sub_type,
+                    value.as_deref(),
+                )?);
+                first = false;
+            }
+            sql.push_str(")");
+        }
+        anyhow::Ok(sql)
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -407,58 +630,6 @@ pub struct CreateTableAndIndexSql {
     pub indexes: Vec<String>,
 }
 
-#[allow(unused)]
-impl dyn SchemaTrait {
-    pub async fn export_table_to_string(
-        &self, table_name: &str, kind: ExportKind,
-    ) -> anyhow::Result<String> {
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-        let h1 = {
-            let x = SchemaTrait::clone(self);
-            let table_name = table_name.to_string();
-            let h1 =
-                tokio::spawn(
-                    async move { x.export_table_or_view(&table_name, kind, sender).await },
-                );
-            h1
-        };
-        let h2 = {
-            tokio::spawn(async move {
-                let mut s = String::new();
-                while let Some(r) = receiver.recv().await {
-                    s.push_str(r.deref());
-                }
-                anyhow::Ok(s)
-            })
-        };
-        h1.await??;
-        h2.await?
-    }
-
-    pub async fn export_query_result_to_string(
-        &self, sql: &str, kind: ExportKind,
-    ) -> anyhow::Result<String> {
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-        let h1 = {
-            let x = SchemaTrait::clone(self);
-            let sql = sql.to_string();
-            let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
-            h1
-        };
-        let h2 = {
-            tokio::spawn(async move {
-                let mut s = String::new();
-                while let Some(r) = receiver.recv().await {
-                    s.push_str(r.deref());
-                }
-                anyhow::Ok(s)
-            })
-        };
-        h1.await??;
-        h2.await?
-    }
-}
-
 #[async_trait::async_trait]
 pub trait DBTrait:
     Sync + Send + QuerySql + 'static + CheckConn + Debug + ServerMetas + ReadOnlyTrait
@@ -469,6 +640,7 @@ pub trait DBTrait:
         &self, name: &str, extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()>;
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()>;
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -543,13 +715,28 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
         j2.await??;
         anyhow::Ok(())
     }
-}
-
-/// api can be more easy used with frontend,reis backend may impl
-/// for more easy usage
-#[async_trait::async_trait]
-pub trait QuerySqlWithoutOpenConn {
-    async fn query_sql(&self, _sql: &str) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
+    async fn export_query_result_to_string(
+        &self, sql: &str, kind: ExportKind,
+    ) -> anyhow::Result<String> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let h1 = {
+            let x = QuerySql::clone(self);
+            let sql = sql.to_string();
+            let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
+            h1
+        };
+        let h2 = {
+            tokio::spawn(async move {
+                let mut s = String::new();
+                while let Some(r) = receiver.recv().await {
+                    s.push_str(r.deref());
+                }
+                anyhow::Ok(s)
+            })
+        };
+        h1.await??;
+        h2.await?
+    }
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
@@ -629,199 +816,6 @@ impl From<&str> for ListTable {
 #[async_trait::async_trait]
 pub trait ServerMetas {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
-}
-
-impl dyn SchemaTrait {
-    pub(crate) fn make_where(
-        &self, fs: &Vec<Field>, wheres: &HashMap<String, Option<String>>,
-        field_by_name: &HashMap<&String, &Field>, type_support_compare: impl Fn(&str) -> bool,
-    ) -> anyhow::Result<String> {
-        // if contains primary key should use primary key to delete
-        // otherwise should use all value
-        // to do operation.
-        let contains_pri = fs.iter().any(|x| x.is_primary);
-        let mut sql = String::new();
-
-        let mut first = true;
-        for (k, v) in wheres.iter() {
-            let f = field_by_name.get(k);
-            let f = f.map(|x| *x);
-
-            if f.is_none() {
-                continue;
-            }
-            let f = f.unwrap();
-            // some type can't compare
-            // so they can't appear in where condition
-            if !type_support_compare(f.typ.as_str()) {
-                continue;
-            }
-            if contains_pri && !f.is_primary {
-                continue;
-            }
-            sql.push_str(
-                format!(
-                    "{} {}{}{} = {}",
-                    if !first { " AND " } else { "" },
-                    self.quote_style(),
-                    k,
-                    self.quote_style(),
-                    self.put_value_in_sql(
-                        &f.typ,
-                        f.firebird_binary_sub_type,
-                        v.as_ref().map(|x| x.as_str())
-                    )?
-                )
-                .as_str(),
-            );
-            first = false;
-        }
-        anyhow::Ok(sql)
-    }
-
-    pub(crate) fn delete_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
-        wheres: &HashMap<String, Option<String>>, type_support_compare: impl Fn(&str) -> bool,
-    ) -> anyhow::Result<String> {
-        let mut field_by_name = HashMap::new();
-        for f in fs.iter() {
-            field_by_name.insert(&f.field, f);
-        }
-
-        let mut sql = format!(
-            "DELETE FROM {}{} WHERE ",
-            if let Some(schema) = schema {
-                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
-            } else {
-                "".to_string()
-            },
-            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
-        );
-
-        sql.push_str(
-            self.make_where(fs, wheres, &field_by_name, type_support_compare)?
-                .as_str(),
-        );
-        log::info!("delete sql:{}", sql);
-        anyhow::Ok(sql)
-    }
-
-    pub(crate) fn update_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
-        values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
-        type_support_compare: impl Fn(&str) -> bool,
-    ) -> anyhow::Result<String> {
-        //
-
-        let mut field_by_name = HashMap::new();
-        for f in fs.iter() {
-            field_by_name.insert(&f.field, f);
-        }
-
-        let mut sql = format!(
-            "UPDATE {}{} SET ",
-            if let Some(schema) = schema {
-                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
-            } else {
-                "".to_string()
-            },
-            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
-        );
-        {
-            let last = values.len() - 1;
-            for (index, (k, v)) in values.iter().enumerate() {
-                let f = field_by_name.get(k);
-                if f.is_none() {
-                    anyhow::bail!("field '{}' not found", k);
-                }
-
-                sql.push_str(
-                    format!(
-                        "{}{}{} = {}",
-                        self.quote_style(),
-                        k,
-                        self.quote_style(),
-                        self.put_value_in_sql(
-                            &f.unwrap().typ,
-                            f.unwrap().firebird_binary_sub_type,
-                            v.as_ref().map(|x| x.as_str())
-                        )?
-                    )
-                    .as_str(),
-                );
-                if index != last {
-                    sql.push_str(",")
-                }
-            }
-        }
-        sql.push_str(" WHERE ");
-        sql.push_str(
-            self.make_where(fs, wheres, &field_by_name, type_support_compare)?
-                .as_str(),
-        );
-        log::info!("update sql:{}", sql);
-        anyhow::Ok(sql)
-    }
-
-    pub(crate) fn insert_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
-        values: &HashMap<String, Option<String>>,
-    ) -> anyhow::Result<String> {
-        let mut sql = format!(
-            "INSERT INTO {}{}(",
-            if let Some(schema) = schema {
-                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
-            } else {
-                "".to_string()
-            },
-            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
-        );
-        // fields
-        {
-            let mut first = true;
-            for f in fs.iter() {
-                if f.is_auto_increment {
-                    continue;
-                }
-                if !first {
-                    sql.push_str(",");
-                }
-                sql.push_str(
-                    format!(
-                        "{}{}{}",
-                        self.quote_style(),
-                        f.field.as_str(),
-                        self.quote_style()
-                    )
-                    .as_str(),
-                );
-                first = false;
-            }
-            sql.push_str(")");
-        }
-        // values
-        sql.push_str(" VALUES (");
-        {
-            let mut first = true;
-            for f in fs.iter() {
-                if f.is_auto_increment {
-                    continue;
-                }
-                if !first {
-                    sql.push_str(",");
-                }
-                let value = values.get(&f.field).map(|x| x.clone()).flatten();
-                sql.push_str(&self.put_value_in_sql(
-                    &f.typ,
-                    f.firebird_binary_sub_type,
-                    value.as_deref(),
-                )?);
-                first = false;
-            }
-            sql.push_str(")");
-        }
-        anyhow::Ok(sql)
-    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
@@ -964,7 +958,7 @@ impl PartialEq for TableListResp {
 }
 
 impl TableListResp {
-    #[allow(dead_code)]
+    #[allow(unused)]
     fn check(&self) {
         for x in self.data.iter() {
             debug_assert_eq!(

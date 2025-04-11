@@ -970,7 +970,12 @@ pub async fn list_schema(
     app.enter_open_child(name.as_str(), &db).await?;
     match db {
         app::Open::DataBase(x) => x.list_schema().await,
-        _ => return Err(ErrorFrontend::from("not database trait")),
+        app::Open::Catalog(_) => {
+            return Err(ErrorFrontend::from("not database trait but a catalog"));
+        }
+        app::Open::Schema(_) => {
+            return Err(ErrorFrontend::from("not database trait but a schema"));
+        }
     }
     .map_err(ErrorFrontend::from)
 }

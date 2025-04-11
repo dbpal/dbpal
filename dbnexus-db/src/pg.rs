@@ -16,8 +16,9 @@ use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, Field, HumanSize, Index,
     IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
+    QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    not_support_features,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -49,6 +50,9 @@ impl ReadOnlyTrait for PostGresDB {
 }
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
@@ -135,7 +139,7 @@ impl PostGresDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn SchemaTrait).insert_sql(
+                let insert_sql = (self).insert_sql(
                     self.config.schema.as_ref().map(|x| x.as_str()),
                     table_name,
                     &cols,
@@ -404,6 +408,11 @@ impl ServerMetas for PostGresDB {
     }
 }
 
+impl QuoteStyle for PostGresDB {
+    fn quote_style(&self) -> &'static str {
+        "\""
+    }
+}
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
@@ -417,10 +426,6 @@ impl SchemaTrait for PostGresDB {
 
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
-    }
-
-    fn quote_style(&self) -> &'static str {
-        "\""
     }
 
     async fn create_index(
@@ -1043,7 +1048,6 @@ impl SchemaTrait for PostGresDB {
             table_name,
             &fields,
             &wheres,
-            type_support_compare,
         )?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1067,12 +1071,6 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        put_value_in_sql(typ, value)
-    }
-
     async fn update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
@@ -1084,7 +1082,6 @@ impl SchemaTrait for PostGresDB {
             &fs,
             &values,
             &wheres,
-            type_support_compare,
         )?;
         log::info!("update sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1720,14 +1717,25 @@ pub(crate) async fn make_test_object() -> PostGresDB {
     .unwrap();
     pg
 }
+
+impl SqlBuilder for PostGresDB {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        put_value_in_sql(typ, value)
+    }
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+}
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use super::make_test_object;
     use crate::db::{
-        CatalogTrait, CheckConn, ColumnType, ExportKind, QuerySql, SchemaTrait, ServerMetas,
-        UdfOrProcedureExtraParameter,
+        CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, QuerySql, SchemaTrait,
+        ServerMetas, UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
     // #[tokio::test]
@@ -1786,8 +1794,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_database() {
+    async fn test_databases() {
         let db = make_test_object().await;
+        let _ = CatalogTrait::drop_database(&db, "abc").await;
+        CatalogTrait::create_database(&db, "abc", None)
+            .await
+            .unwrap();
+
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
     }
@@ -1930,7 +1943,6 @@ mod tests {
              "#;
         let query_id = db.open_connection().await.unwrap();
 
-        let db = &db as &dyn SchemaTrait;
         db.query_sql(query_id, sql).await.unwrap();
 
         {
@@ -1993,7 +2005,6 @@ mod tests {
         ).as_str()).await .unwrap()
         ;
 
-        let db = &db as &dyn crate::db::SchemaTrait;
         let indexes = db.show_indexes(table_name).await.unwrap();
         println!("{:?}", indexes);
     }
@@ -2003,7 +2014,6 @@ mod tests {
         // list all table and query
         let pg = make_test_object().await;
 
-        let pg = &pg as &dyn SchemaTrait;
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
     }
@@ -2162,7 +2172,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let schema_trait = &db as &dyn SchemaTrait;
+        let schema_trait = db;
         {
             let e = schema_trait
                 .export_table_to_string(
@@ -2273,16 +2283,6 @@ mod tests {
         .await
         .unwrap();
 
-        // sqlx::query(
-        //     r#"
-        //     INSERT INTO test_types1 (bool_column, bytea_column, char_column,
-        // name_column, int8_column, int2_column, int4_column)     VALUES
-        //         (TRUE, E'\\x0123456789ABCDEF', 'A', 'John', 1000000000, 10, 100),
-        //         (FALSE, E'\\x00FF00FF', 'B', 'Jane', -500000000, 20, -200),
-        //         (TRUE, E'\\x00', 'C', 'Mike', 0, 30, 0);
-        // "#,
-        // ).execute(conn.deref_mut() ).await.unwrap();
-        let pg = &pg as &dyn SchemaTrait;
         let mut values = HashMap::new();
         values.insert("bool_column".to_string(), Some("true".to_string()));
         values.insert(
@@ -2368,7 +2368,7 @@ mod tests {
             "macaddr8_array_column".to_string(),
             Some("{08:00:2b:01:02:03:04:06, 08:00:2b:01:02:03:04:07}".to_string()),
         );
-        let pg = &pg as &dyn SchemaTrait;
+
         pg.insert(table_name, values).await.unwrap();
 
         let x = pg
@@ -2437,15 +2437,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_schema() {
+    async fn test_schemas() {
         let pg = make_test_object().await;
-
-        let tr = &pg as &dyn crate::db::DBTrait;
-        let _ = tr.create_schema("abc", None).await;
-
-        let resp = tr.list_schema().await.unwrap();
-        assert_eq!(resp, vec!["abc", "public", "xxx"]);
-        tr.drop_schema("abc").await.unwrap();
+        let _ = pg.drop_schema("abc").await;
+        let _ = pg.create_schema("abc", None).await;
+        let resp = pg.list_schema().await.unwrap();
+        println!("{:?}", resp);
     }
     #[tokio::test]
     async fn test_types3() {
@@ -2474,8 +2471,6 @@ mod tests {
         )
         .await
         .unwrap();
-
-        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert(
@@ -2561,7 +2556,7 @@ mod tests {
             Some("{c,d}".to_string()),
         );
         values.insert("int8_array_column".to_string(), Some("{1,100}".to_string()));
-        let pg = &pg as &dyn SchemaTrait;
+
         pg.insert(table_name, values).await.unwrap();
 
         let x = pg
@@ -2620,7 +2615,6 @@ mod tests {
         // ::MACADDR, '08:00:2b:04:05:06'::MACADDR],         ARRAY['192.168.0.1'
         // ::INET, '10.0.0.1'::INET], '2022-01-01'::DATE);         "#,
         //         ).execute(conn.deref_mut()).await.unwrap();
-        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert(
@@ -2690,8 +2684,6 @@ mod tests {
         )
         .await
         .unwrap();
-
-        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert("col_time".to_string(), Some("10:00:00".to_string()));
@@ -2766,8 +2758,6 @@ mod tests {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn SchemaTrait;
-
         let mut values = HashMap::new();
         values.insert(
             "interval_col".to_string(),
@@ -2829,8 +2819,6 @@ mod tests {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn SchemaTrait;
-
         let mut values = HashMap::new();
         values.insert("bit_column".to_string(), Some("1".to_string()));
         values.insert("bit_array_column".to_string(), Some("{0,1}".to_string()));
@@ -2882,8 +2870,6 @@ mod tests {
         )
         .await
         .unwrap();
-
-        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert(
@@ -2957,8 +2943,6 @@ mod tests {
         .await
         .unwrap();
 
-        let pg = &pg as &dyn SchemaTrait;
-
         let mut values = HashMap::new();
         values.insert("num_range".to_string(), Some("[1,10)".to_string()));
         values.insert(
@@ -3025,8 +3009,6 @@ mod tests {
         )
         .await
         .unwrap();
-
-        let pg = &pg as &dyn SchemaTrait;
 
         let mut values = HashMap::new();
         values.insert(

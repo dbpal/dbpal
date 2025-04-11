@@ -15,8 +15,8 @@ use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
+    ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -83,6 +83,9 @@ impl ReadOnlyTrait for MongoDB {
 }
 #[async_trait::async_trait]
 impl DBTrait for MongoDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let mut names = conn
@@ -570,6 +573,10 @@ impl MongoDB {
         self.drop_table(name, false).await
     }
 }
+
+impl QuoteStyle for MongoDB {}
+
+impl SqlBuilder for MongoDB {}
 
 impl MongoDB {
     pub async fn show_columns_impl(&self, name: &str) -> anyhow::Result<Vec<Field>> {
@@ -1061,7 +1068,7 @@ mod tests {
             .await
             .unwrap();
 
-        let schema_trait = &db as &dyn SchemaTrait;
+        let schema_trait = db;
         let json = schema_trait
             .export_table_to_string(&table, crate::db::ExportKind::Json { pretty: true })
             .await

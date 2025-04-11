@@ -17,8 +17,9 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -255,8 +256,7 @@ impl MysqlDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql =
-                    (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
+                let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }
@@ -640,13 +640,15 @@ impl std::fmt::Debug for MysqlDB {
     }
 }
 
-#[async_trait::async_trait]
-
-impl SchemaTrait for MysqlDB {
+impl QuoteStyle for MysqlDB {
     fn quote_style(&self) -> &'static str {
         "`"
     }
+}
 
+#[async_trait::async_trait]
+
+impl SchemaTrait for MysqlDB {
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -1009,13 +1011,8 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
-            None,
-            table_name,
-            &fields,
-            &wheres,
-            type_support_compare,
-        )?;
+        let sql =
+            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -1035,51 +1032,6 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
         sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
-    }
-
-    fn put_value_in_sql(
-        &self, f: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
-        let single_quote_str = value
-            .map(|x| format!("'{}'", x))
-            .unwrap_or("null".to_string());
-        let ty = f.to_uppercase();
-
-        let v = match ty.as_str() {
-            "TINYINT" => default_str,
-            _ if ty.starts_with("TINYINT") => default_str,
-            "BOOLEAN" | "BOOL" => default_str,
-            "SMALLINT" => default_str,
-            _ if ty.starts_with("SMALLINT") => default_str,
-            "INT" => default_str,
-            _ if ty.starts_with("INT") => default_str,
-            "BIGINT" => default_str,
-            _ if ty.starts_with("BIGINT") => default_str,
-            "TINYINT UNSIGNED" => default_str,
-            "SMALLINT UNSIGNED" => default_str,
-            "INT UNSIGNED" => default_str,
-            "BIGINT UNSIGNED" => default_str,
-            "FLOAT" => default_str,
-            "DOUBLE" => default_str,
-            "VARCHAR" | "CHAR" | "TEXT" => single_quote_str,
-            _ if ty.starts_with("VARCHAR") || ty.starts_with("CHAR") || ty.starts_with("TEXT") => {
-                single_quote_str
-            }
-            "DECIMAL" => default_str,
-            _ if ty.starts_with("DECIMAL") => default_str,
-            "VARBINARY" | "BINARY" | "BLOB" => default_str,
-            "TIMESTAMP" => single_quote_str,
-            "DATETIME" => single_quote_str,
-            "DATE" => single_quote_str,
-            "TIME" => single_quote_str,
-            _ => {
-                log::error!("mysql type '{}' not handled", ty);
-                default_str
-            }
-        };
-        log::trace!("type '{ty}' encode '{:?}' as #{v}#", value);
-        anyhow::Ok(v)
     }
 
     async fn insert(
@@ -1104,14 +1056,8 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
-        let s = (self as &dyn crate::db::SchemaTrait).update_sql(
-            None,
-            table_name,
-            &fs,
-            &values,
-            &wheres,
-            type_support_compare,
-        )?;
+        let s = (self as &dyn crate::db::SchemaTrait)
+            .update_sql(None, table_name, &fs, &values, &wheres)?;
         let mut conn = self.get_conn().await?;
 
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
@@ -1379,6 +1325,9 @@ impl MysqlDB {
 
 #[async_trait::async_trait]
 impl DBTrait for MysqlDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn: PoolConnection<sqlx::MySql> = self.get_conn().await?;
         let rows = sqlx::query("show databases")
@@ -1555,6 +1504,57 @@ impl QuerySql for MysqlDB {
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
+    }
+}
+
+impl SqlBuilder for MysqlDB {
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+
+    fn put_value_in_sql(
+        &self, f: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
+        let single_quote_str = value
+            .map(|x| format!("'{}'", x))
+            .unwrap_or("null".to_string());
+        let ty = f.to_uppercase();
+
+        let v = match ty.as_str() {
+            "TINYINT" => default_str,
+            _ if ty.starts_with("TINYINT") => default_str,
+            "BOOLEAN" | "BOOL" => default_str,
+            "SMALLINT" => default_str,
+            _ if ty.starts_with("SMALLINT") => default_str,
+            "INT" => default_str,
+            _ if ty.starts_with("INT") => default_str,
+            "BIGINT" => default_str,
+            _ if ty.starts_with("BIGINT") => default_str,
+            "TINYINT UNSIGNED" => default_str,
+            "SMALLINT UNSIGNED" => default_str,
+            "INT UNSIGNED" => default_str,
+            "BIGINT UNSIGNED" => default_str,
+            "FLOAT" => default_str,
+            "DOUBLE" => default_str,
+            "VARCHAR" | "CHAR" | "TEXT" => single_quote_str,
+            _ if ty.starts_with("VARCHAR") || ty.starts_with("CHAR") || ty.starts_with("TEXT") => {
+                single_quote_str
+            }
+            "DECIMAL" => default_str,
+            _ if ty.starts_with("DECIMAL") => default_str,
+            "VARBINARY" | "BINARY" | "BLOB" => default_str,
+            "TIMESTAMP" => single_quote_str,
+            "DATETIME" => single_quote_str,
+            "DATE" => single_quote_str,
+            "TIME" => single_quote_str,
+            _ => {
+                log::error!("mysql type '{}' not handled", ty);
+                default_str
+            }
+        };
+        log::trace!("type '{ty}' encode '{:?}' as #{v}#", value);
+        anyhow::Ok(v)
     }
 }
 
@@ -1858,7 +1858,7 @@ pub(crate) mod test_fns {
         }
 
         {
-            let s = (&db as &dyn SchemaTrait)
+            let s = (db)
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
@@ -1866,7 +1866,7 @@ pub(crate) mod test_fns {
             let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
         }
         {
-            let s = (&db as &dyn SchemaTrait)
+            let s = (db)
                 .export_table_to_string(
                     table_name,
                     ExportKind::CSV {
@@ -1879,7 +1879,7 @@ pub(crate) mod test_fns {
             println!("csv:{}", s);
         }
         {
-            let s = (&db as &dyn SchemaTrait)
+            let s = (db)
                 .export_table_to_string(
                     table_name,
                     ExportKind::Sql {
@@ -1891,7 +1891,7 @@ pub(crate) mod test_fns {
             println!("sql:{}", s);
         }
 
-        let schema_trait = &db as &dyn SchemaTrait;
+        let schema_trait = db;
         {
             let s = schema_trait
                 .export_table_to_string(

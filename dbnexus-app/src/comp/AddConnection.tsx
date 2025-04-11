@@ -301,7 +301,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     switch (connectionType) {
       case DataSourceKind.FireBird:
         return {
-          conn_type: 'firebird',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           db: database,
@@ -313,7 +313,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.LibSql:
         return {
-          conn_type: 'libsql',
+          conn_type: connectionType,
           replica: replica,
           source: libSqlModel,
           path: path,
@@ -325,7 +325,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
 
       case DataSourceKind.ClickHouse:
         return {
-          conn_type: 'clickhouse',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -338,7 +338,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.Mysql:
         return {
-          conn_type: 'mysql',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -350,7 +350,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.Cassandra:
         return {
-          conn_type: 'cassandra',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user_null,
@@ -362,7 +362,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.MariaDB:
         return {
-          conn_type: 'mariadb',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -374,7 +374,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.TiDB:
         return {
-          conn_type: 'tidb',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -386,7 +386,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.Postgres:
         return {
-          conn_type: 'postgres',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -397,17 +397,29 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           schema: schema_null,
           save_password: savePassword,
         };
-
+      case DataSourceKind.Cockroach:
+        return {
+          conn_type: connectionType,
+          host: host,
+          port: portInt,
+          username: user,
+          password: pass_null,
+          db: db_null,
+          read_only: readOnly,
+          name: connectionName,
+          schema: schema_null,
+          save_password: savePassword,
+        };
       case DataSourceKind.Sqlite:
         return {
-          conn_type: 'sqlite',
+          conn_type: connectionType,
           path: path,
           read_only: readOnly,
           name: connectionName,
         };
       case DataSourceKind.DuckDB:
         return {
-          conn_type: 'duckdb',
+          conn_type: connectionType,
           path: path,
           db: db_null,
           schema: schema_null,
@@ -416,7 +428,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.Redis:
         return {
-          conn_type: 'redis',
+          conn_type: connectionType,
           read_only: readOnly,
           name: connectionName,
           host: host,
@@ -428,7 +440,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.Mongo:
         return {
-          conn_type: 'mongo',
+          conn_type: connectionType,
           read_only: readOnly,
           name: connectionName,
           host: host,
@@ -441,7 +453,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.MsSql:
         return {
-          conn_type: 'mssql',
+          conn_type: connectionType,
           read_only: readOnly,
           name: connectionName,
           host: host,
@@ -456,7 +468,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       case DataSourceKind.Oracle:
         return {
           name: connectionName,
-          conn_type: 'oracle',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -523,6 +535,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         break;
       case DataSourceKind.FireBird:
         setPort('3050');
+        break;
+      case DataSourceKind.Cockroach:
+        setPort('26257');
         break;
     }
   }, [connectionType]);
@@ -594,7 +609,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
 
   useEffect(() => {
     let config = makeConfig();
-    if (connectionType == DataSourceKind.Oracle) {
+    if (connectionType === DataSourceKind.Oracle) {
       // TODO oracle have bug rigthnow
       return;
     }
@@ -613,8 +628,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   useEffect(() => {
     if (
       database &&
-      (connectionType == DataSourceKind.Postgres ||
-        connectionType == DataSourceKind.Oracle)
+      (connectionType === DataSourceKind.Postgres ||
+        connectionType === DataSourceKind.Oracle ||
+        connectionType === DataSourceKind.Cockroach)
     ) {
       let config = makeConfig();
       if (config) {
@@ -656,12 +672,13 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
           <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
+          <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
         </Select>
       </FormControl>
 
-      {(connectionType == DataSourceKind.Mysql ||
-        connectionType == DataSourceKind.MariaDB ||
-        connectionType == DataSourceKind.TiDB) && (
+      {(connectionType === DataSourceKind.Mysql ||
+        connectionType === DataSourceKind.MariaDB ||
+        connectionType === DataSourceKind.TiDB) && (
         <>
           <HostAndPort
             host={host}
@@ -687,7 +704,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         </>
       )}
 
-      {connectionType == DataSourceKind.LibSql && (
+      {connectionType === DataSourceKind.LibSql && (
         <LibSql
           url={url}
           setUrl={setUrl}
@@ -702,7 +719,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         ></LibSql>
       )}
 
-      {connectionType == DataSourceKind.FireBird && (
+      {connectionType === DataSourceKind.FireBird && (
         <>
           <HostAndPort
             host={host}
@@ -728,7 +745,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ></Database>
         </>
       )}
-      {connectionType == DataSourceKind.Postgres && (
+
+      {(connectionType === DataSourceKind.Postgres ||
+        connectionType === DataSourceKind.Cockroach) && (
         <>
           <HostAndPort
             host={host}
@@ -761,7 +780,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           )}
         </>
       )}
-      {connectionType == DataSourceKind.ClickHouse && (
+      {connectionType === DataSourceKind.ClickHouse && (
         <>
           <HostAndPort
             host={host}
@@ -789,7 +808,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         </>
       )}
 
-      {connectionType == DataSourceKind.Cassandra && (
+      {connectionType === DataSourceKind.Cassandra && (
         <>
           <HostAndPort
             host={host}
@@ -816,7 +835,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ></Database>
         </>
       )}
-      {connectionType == DataSourceKind.Redis && (
+      {connectionType === DataSourceKind.Redis && (
         <>
           <HostAndPort
             host={host}
@@ -841,7 +860,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ></Database>
         </>
       )}
-      {connectionType == DataSourceKind.Mongo && (
+      {connectionType === DataSourceKind.Mongo && (
         <>
           <HostAndPort
             onBlur={toggleTriggerReload}
@@ -866,7 +885,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ></Database>
         </>
       )}
-      {connectionType == DataSourceKind.MsSql && (
+      {connectionType === DataSourceKind.MsSql && (
         <>
           <HostAndPort
             onBlur={toggleTriggerReload}
@@ -896,7 +915,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         </>
       )}
 
-      {connectionType == DataSourceKind.Oracle && (
+      {connectionType === DataSourceKind.Oracle && (
         <>
           <HostAndPort
             onBlur={toggleTriggerReload}
@@ -928,10 +947,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           )}
         </>
       )}
-      {connectionType == DataSourceKind.Sqlite && (
+      {connectionType === DataSourceKind.Sqlite && (
         <SelectPath path={path} setPath={setPath}></SelectPath>
       )}
-      {connectionType == DataSourceKind.DuckDB && (
+      {connectionType === DataSourceKind.DuckDB && (
         <>
           <SelectPath path={path} setPath={setPath}></SelectPath>
           <Database
@@ -1029,10 +1048,10 @@ function LibSql(props: {
         ))}
       </RadioGroup>
 
-      {libSqlModel == 'local' && (
+      {libSqlModel === 'local' && (
         <SelectPath path={path} setPath={setPath}></SelectPath>
       )}
-      {libSqlModel == 'remote' && (
+      {libSqlModel === 'remote' && (
         <>
           <Stack direction="row" spacing={1}>
             <TextField

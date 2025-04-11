@@ -16,7 +16,7 @@ use typescript_type_def::TypeDef;
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, ListTable, QueryResp,
-    QuerySql, QuerySqlWithoutOpenConn, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
     SqlExecuteRet, TableListResp,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
@@ -670,6 +670,10 @@ impl RedisDB {
         ))
     }
 }
+
+impl QuoteStyle for RedisDB {}
+
+impl SqlBuilder for RedisDB {}
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -990,6 +994,9 @@ fn parse_db_number(db: &str) -> anyhow::Result<i32> {
 
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let r: String = redis::cmd("info")
@@ -1198,15 +1205,6 @@ impl FromStr for RedisType {
             "zset" => Ok(Self::Zset),
             _ => Err(anyhow::Error::msg(format!("redis type '{}' not handle", s))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl QuerySqlWithoutOpenConn for RedisDB {
-    async fn query_sql(&self, sql: &str) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = self.get_client().await?;
-        let mut conn = conn.get_multiplexed_async_connection().await?;
-        query_sql(&mut conn, sql).await
     }
 }
 

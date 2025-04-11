@@ -16,9 +16,9 @@ use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -762,7 +762,7 @@ impl OracleDB {
             for (d, f) in d.into_iter().zip(cols.iter()) {
                 m.insert(f.field.clone(), d);
             }
-            let insert_sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
+            let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
             sender.send(Cow::Owned(insert_sql)).await?;
             sender.send("\n".into()).await?;
         }
@@ -976,6 +976,7 @@ impl ReadOnlyTrait for OracleDB {
         self.config.read_only
     }
 }
+
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
@@ -1040,10 +1041,6 @@ impl SchemaTrait for OracleDB {
             ret.push(Field::from_name_type(name, ty));
         }
         anyhow::Ok(ret)
-    }
-
-    fn quote_style(&self) -> &'static str {
-        "\""
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -1350,7 +1347,7 @@ impl SchemaTrait for OracleDB {
         conn.set_autocommit(true);
 
         let fs = self.show_table_columns(&table_name).await?;
-        let sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &fs, &values)?;
+        let sql = (self).insert_sql(None, table_name, &fs, &values)?;
         log::info!("insert sql:{}", sql);
 
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1368,14 +1365,8 @@ impl SchemaTrait for OracleDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
-            None,
-            table_name,
-            &fs,
-            &values,
-            &wheres,
-            type_support_compare,
-        )?;
+        let sql = (self as &dyn crate::db::SchemaTrait)
+            .update_sql(None, table_name, &fs, &values, &wheres)?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
 
@@ -1384,14 +1375,6 @@ impl SchemaTrait for OracleDB {
             sql,
             changes: Some(stmt.row_count()?),
         })
-    }
-
-    /// format a value make it suitable for insert into sql.
-    /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        put_value_in_sql(typ, value)
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
@@ -1409,13 +1392,8 @@ impl SchemaTrait for OracleDB {
         self.can_write()?;
 
         let fields = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
-            None,
-            table_name,
-            &fields,
-            &wheres,
-            type_support_compare,
-        )?;
+        let sql =
+            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1648,6 +1626,24 @@ impl OracleDB {
     }
 }
 
+impl QuoteStyle for OracleDB {
+    fn quote_style(&self) -> &'static str {
+        "\""
+    }
+}
+impl SqlBuilder for OracleDB {
+    /// format a value make it suitable for insert into sql.
+    /// this method current use in `insert_sql` etc.
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        put_value_in_sql(typ, value)
+    }
+
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+}
 impl OracleDB {
     fn get_user_source(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(
@@ -1681,6 +1677,10 @@ impl BackendName for OracleDB {
 
 #[async_trait::async_trait]
 impl DBTrait for OracleDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(r#"SELECT USERNAME FROM DBA_USERS"#, &[]))?;
@@ -1979,7 +1979,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().unwrap();
-        let db = &db as &dyn SchemaTrait;
+        let db = db;
         let _ = db.drop_table("TEST_VIEW_TABLE", false).await;
         let _ = db.drop_view("TEST_VIEW").await;
 
@@ -2019,7 +2019,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().unwrap();
-        let db = &db as &dyn SchemaTrait;
+        let db = db;
         let _ = db.drop_table("TEST_MATERLIZED_VIEW_TABLE", false).await;
         let _ = db.drop_materialized_view("TEST_MATERLIZED_VIEW").await;
 
@@ -2065,7 +2065,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().unwrap();
-        let db = &db as &dyn SchemaTrait;
+        let db = db;
         let table_name = "TEST_INDEXES";
         let _ = db.drop_table(&table_name, false).await;
         conn.execute(
@@ -2156,7 +2156,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
     async fn test_show_tables() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("APPQOSSYS".to_string()));
-        let db = &db as &dyn SchemaTrait;
+        let db = db;
         let tables = db.list_table().await.unwrap();
         println!("tables : {:?}", tables);
         for t in tables.iter() {
@@ -2215,7 +2215,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         let db = make_test_object(Some("SYSTEM".to_string()));
         let mut conn = db.get_conn().unwrap();
         conn.set_autocommit(true);
-        let db = &db as &dyn SchemaTrait;
+        let db = db;
         let _ = db.drop_table(&table_name, false).await;
 
         conn.execute(
@@ -2304,7 +2304,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         let db = make_test_object(Some("SYSTEM".to_string()));
         let mut conn = db.get_conn().unwrap();
         conn.set_autocommit(true);
-        let db = &db as &dyn SchemaTrait;
+        let db = db;
         let _ = db.drop_table(&table_name, false).await;
 
         conn.execute(
@@ -2388,7 +2388,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         let db = make_test_object(Some("SYSTEM".to_string()));
         let mut conn = db.get_conn().unwrap();
         conn.set_autocommit(true);
-        let db = &db as &dyn SchemaTrait;
+        let db = db;
         let _ = db.drop_table(&table_name, false).await;
 
         conn.execute(

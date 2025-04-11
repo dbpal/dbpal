@@ -34,8 +34,9 @@ impl DBConnectionConfig {
             | DBConnectionConfig::Cassandra { name, .. }
             | DBConnectionConfig::ClickHouse { name, .. }
             | DBConnectionConfig::LibSql { name, .. }
-            | DBConnectionConfig::FireBird { name, .. } => name.as_str(),
-            DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
+            | DBConnectionConfig::FireBird { name, .. }
+            | DBConnectionConfig::DuckDB { name, .. }
+            | DBConnectionConfig::CockRoach { name, .. } => name.as_str(),
         }
     }
 }
@@ -64,6 +65,11 @@ pub enum DBConnectionConfig {
         name: String,
     },
     Postgres {
+        #[serde(flatten)]
+        conn: PGDBConfig,
+        name: String,
+    },
+    CockRoach {
         #[serde(flatten)]
         conn: PGDBConfig,
         name: String,
@@ -149,6 +155,9 @@ impl DBConnectionConfig {
             DBConnectionConfig::DuckDB { .. } => {}
             DBConnectionConfig::ClickHouse { conn, .. } => conn.password = Some(pass),
             DBConnectionConfig::LibSql { .. } => {}
+            DBConnectionConfig::CockRoach { conn, .. } => {
+                conn.password = Some(pass);
+            }
         }
     }
 }
@@ -195,6 +204,16 @@ impl DBConnectionConfig {
                     return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
                 }
 
+                match &conn.schema {
+                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                }
+            }
+            DBConnectionConfig::CockRoach { conn, .. } => {
+                let o = Arc::new(crate::cockroach::CockRoachDB::new(conn.clone()).await?);
+                if conn.db.is_none() {
+                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                }
                 match &conn.schema {
                     None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
                     Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
@@ -248,7 +267,6 @@ impl DBConnectionConfig {
                 };
                 anyhow::Ok(db)
             }
-
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
                 #[cfg(feature = "duckdb")]
                 {
