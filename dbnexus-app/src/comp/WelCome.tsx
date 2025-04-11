@@ -59,6 +59,10 @@ function WelCome() {
       name: 'duckdb',
       img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/DuckDB_logo.svg/1200px-DuckDB_logo.svg.png',
     },
+    {
+      name: 'cockroach',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHdzT2jM3iJSR0ku-DfJpUGwG4vA86B5pvLQ&s',
+    },
   ];
   return (
     <Stack spacing={1}>

@@ -9,11 +9,11 @@ use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, format_data_time_fix_offset,
-    not_support_features,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    format_data_time_fix_offset, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -957,7 +957,7 @@ impl SchemaTrait for MsSqlServerDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let s = (self as &dyn crate::db::SchemaTrait).insert_sql(
+        let s = self.insert_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -982,7 +982,7 @@ impl SchemaTrait for MsSqlServerDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let s = (self as &dyn crate::db::SchemaTrait).update_sql(
+        let s = self.update_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -1014,7 +1014,7 @@ impl SchemaTrait for MsSqlServerDB {
         self.can_write()?;
 
         let fields = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
+        let sql = self.delete_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fields,
@@ -1636,15 +1636,12 @@ impl MsSqlServerDB {
 }
 
 type Connection = Client<Compat<TcpStream>>;
+
 #[async_trait::async_trait]
-impl QuerySql for MsSqlServerDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
+impl ExportQueryResult for MsSqlServerDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
-    }
-
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1664,6 +1661,12 @@ impl QuerySql for MsSqlServerDB {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
+    }
+}
+#[async_trait::async_trait]
+impl QuerySql for MsSqlServerDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
@@ -2136,7 +2139,7 @@ mod tests {
     async fn test_triggers() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
@@ -2206,7 +2209,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let id = db.open_connection().await.unwrap();
 
         let ret = db
@@ -2265,7 +2268,7 @@ mod tests {
     async fn test_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let _ = db.drop_table("test_view_table", false).await;
         let _ = db.drop_view("test_view").await;
         let conn_id = db.open_connection().await.unwrap();
@@ -2339,7 +2342,6 @@ mod tests {
             .await
             .unwrap();
 
-        let db = &db as &dyn crate::db::SchemaTrait;
         std::thread::sleep(Duration::from_secs(1));
         let indexes = db.show_indexes("test_index_table").await.unwrap();
         println!("indexes:{:?}", indexes);
@@ -2536,7 +2538,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values = HashMap::new();
         values.insert("col_tinyint".to_string(), Some("1".to_string()));
         values.insert("col_smallint".to_string(), Some("100".to_string()));
@@ -2589,7 +2591,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values = HashMap::new();
         values.insert("bit_column".to_string(), Some("1".to_string()));
         values.insert("nvarchar_column".to_string(), Some("b".to_string()));
@@ -2643,7 +2645,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values = HashMap::new();
         values.insert("BinaryColumn".to_string(), Some("0x0123456789".to_string()));
         values.insert("VarBinaryColumn".to_string(), Some("0xABCDEF".to_string()));
@@ -2703,7 +2705,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values = HashMap::new();
         values.insert(
             "XmlData".to_string(),

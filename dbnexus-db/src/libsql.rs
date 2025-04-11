@@ -10,10 +10,10 @@ use libsql::{Connection, Row, ValueType, params};
 use crate::{
     datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce},
     db::{
-        BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, Index,
-        IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
-        SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp,
-        TriggerDetail,
+        BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
+        Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle,
+        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+        TableListResp, TriggerDetail,
     },
     helper::{create_csv, is_dangerous_sql_by_parser},
     meta_value::MetaValue,
@@ -49,12 +49,10 @@ fn get_row_types(r: &Row) -> Vec<Field> {
 }
 
 #[async_trait::async_trait]
-
-impl QuerySql for LibSqlDB {
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
+impl ExportQueryResult for LibSqlDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
     }
-
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -75,6 +73,14 @@ impl QuerySql for LibSqlDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+}
+#[async_trait::async_trait]
+
+impl QuerySql for LibSqlDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
+    }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -139,10 +145,6 @@ impl QuerySql for LibSqlDB {
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_connections.remove(&id);
         anyhow::Ok(())
-    }
-
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
     }
 }
 
@@ -512,8 +514,7 @@ impl SchemaTrait for LibSqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
+        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;
         let changes = conn.execute(&sql, params!()).await?;
@@ -545,8 +546,7 @@ impl SchemaTrait for LibSqlDB {
         let fields = self.show_table_columns(table_name).await?;
 
         let conn = self.get_conn().await?;
-        let sql = (self as &dyn crate::db::SchemaTrait)
-            .update_sql(None, table_name, &fields, &values, &wheres)?;
+        let sql = self.update_sql(None, table_name, &fields, &values, &wheres)?;
         log::info!("sql:{}", sql);
         let changes = conn.execute(&sql, params!()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -560,8 +560,7 @@ impl SchemaTrait for LibSqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).insert_sql(None, table_name, &fields, &values)?;
+        let sql = self.insert_sql(None, table_name, &fields, &values)?;
         log::trace!("insert sql:{}", sql);
         let conn = self.get_conn().await?;
         let changes = conn.execute(&sql, params!()).await?;
@@ -1343,7 +1342,6 @@ mod tests {
         .await
         .unwrap();
 
-        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values: HashMap<String, Option<String>> = HashMap::new();
 
         values.insert("id".to_string(), Some("1".to_string()));

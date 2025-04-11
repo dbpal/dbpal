@@ -13,9 +13,9 @@ use std::{
 use crate::{
     datasource_config::FireBirdConfig,
     db::{
-        BackendName, CheckConn, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
-        QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-        SqlBuilder, SqlExecuteRet, TableListResp, not_support_features,
+        BackendName, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
+        NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+        ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, not_support_features,
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
@@ -254,9 +254,11 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
     }
     anyhow::Ok(serde_json::Value::Object(m))
 }
-
 #[async_trait::async_trait]
-impl QuerySql for FireBirdDB {
+impl ExportQueryResult for FireBirdDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -277,7 +279,9 @@ impl QuerySql for FireBirdDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
-
+}
+#[async_trait::async_trait]
+impl QuerySql for FireBirdDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -366,10 +370,6 @@ impl QuerySql for FireBirdDB {
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_connections.remove(&id);
         anyhow::Ok(())
-    }
-
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

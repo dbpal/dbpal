@@ -15,9 +15,10 @@ use tokio::task::block_in_place;
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, ExportKind, Field, Index, IndexKind, ListMaterializedView,
-    ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, not_support_features,
+    CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp,
+    not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -391,6 +392,34 @@ impl SqlBuilder for DuckDB {
         type_support_compare(typ)
     }
 }
+
+#[async_trait::async_trait]
+
+impl ExportQueryResult for DuckDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
+    async fn export_query_result(
+        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        match kind {
+            ExportKind::CSV {
+                include_header,
+                delimiter,
+            } => {
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                    .await
+            }
+            ExportKind::Json { pretty } => {
+                self.export_query_result_as_json(sql, pretty, sender).await
+            }
+            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::Sql {
+                include_table_schema: _,
+            } => ExportKind::cannot_query_result_export_as_sql(),
+        }
+    }
+}
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -432,26 +461,6 @@ impl QuerySql for DuckDB {
         _log_gurad.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
-    async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::CSV {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-        }
-    }
 
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
@@ -469,10 +478,6 @@ impl QuerySql for DuckDB {
         };
         _log_gurad.set_success(resp.is_ok());
         anyhow::Ok(resp)
-    }
-
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {

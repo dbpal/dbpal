@@ -15,10 +15,10 @@ use sqlx::{Column, Executor, Row, SqliteConnection, TypeInfo};
 
 use crate::MemoryLimit;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, Index,
-    IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEvent, TriggerTiming,
+    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
+    Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp,
+    TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -638,8 +638,7 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
+        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -670,8 +669,7 @@ impl SchemaTrait for SqliteDB {
         let fields = self.show_table_columns(table_name).await?;
 
         let mut conn = self.get_conn().await?;
-        let sql = (self as &dyn crate::db::SchemaTrait)
-            .update_sql(None, table_name, &fields, &values, &wheres)?;
+        let sql = self.update_sql(None, table_name, &fields, &values, &wheres)?;
         log::info!("sql:{}", sql);
 
         let r = sqlx::query(&sql).execute(conn.deref_mut()).await?;
@@ -686,8 +684,7 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).insert_sql(None, table_name, &fields, &values)?;
+        let sql = self.insert_sql(None, table_name, &fields, &values)?;
         log::trace!("insert sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(&sql).execute(conn.deref_mut()).await?;
@@ -1152,10 +1149,9 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
     };
     anyhow::Ok(None)
 }
-
 #[async_trait::async_trait]
-impl QuerySql for SqliteDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
+impl ExportQueryResult for SqliteDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
     async fn export_query_result(
@@ -1178,6 +1174,10 @@ impl QuerySql for SqliteDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+}
+
+#[async_trait::async_trait]
+impl QuerySql for SqliteDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -1835,7 +1835,6 @@ mod tests {
         .await
         .unwrap();
 
-        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("text_col".to_string(), Some("Some text".to_string()));
         values.insert("id".to_string(), Some("1".to_string()));

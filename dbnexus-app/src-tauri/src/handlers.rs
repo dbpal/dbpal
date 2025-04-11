@@ -5,18 +5,27 @@ use std::time::Duration;
 use bson::{Document, doc};
 use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::cassandra::CassandraDB;
+use dbnexus_db::clickhouse::ClickHouseDB;
+use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
     DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
     ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
     UdfOrProcedureExtraParameter,
 };
+
+use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionItem, SemanticToken};
+use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::MongoDB;
+use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::oracle::OracleDB;
+use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
+use dbnexus_db::sqlite::SqliteDB;
+use dbnexus_db::tidb::TiDB;
 pub const PASSWORD_KEY: &str = "dbpal";
 
 #[tauri::command]
@@ -2309,14 +2318,70 @@ pub async fn redis_string_set(
 pub async fn put_value_in_sql(
     name: String, typ: String, value: Option<String>, app: tauri::State<'_, App>,
 ) -> Result<String, ErrorFrontend> {
+    use dbnexus_db::db::SqlBuilder;
+
     let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
+    let a = schema.as_any();
+    #[inline]
+    fn xxx<T: SqlBuilder + 'static>(
+        a: &dyn std::any::Any, typ: &String, value: Option<&str>,
+    ) -> Result<String, ErrorFrontend> {
+        if let Some(x) = a.downcast_ref::<T>() {
+            return x
+                .put_value_in_sql(typ, None, value)
+                .map_err(|x| ErrorFrontend::from(x));
+        }
+        Err(ErrorFrontend::from("type not match"))
+    }
+    let value = value.as_ref().map(|x| x.as_str());
 
-    schema
-        .put_value_in_sql(&typ, None, value.as_ref().map(|x| x.as_str()))
-        .map_err(|x| ErrorFrontend::from(x))
+    if let Ok(e) = xxx::<SqliteDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<LibSqlDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<MysqlDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<TiDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<PostGresDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<CockRoachDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<OracleDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<ClickHouseDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<CassandraDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<FireBirdDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    if let Ok(e) = xxx::<ClickHouseDB>(a, &typ, value) {
+        return Ok(e);
+    }
+    #[cfg(feature = "duckdb")]
+    {
+        use dbnexus_db::duckdb::DuckDB;
+        if let Ok(e) = xxx::<DuckDB>(a, &typ, value) {
+            return Ok(e);
+        }
+    }
+
+    Err(ErrorFrontend::from(
+        "not valid schema to put value in sql.maybe a internal error",
+    ))
 }
 
 #[tauri::command]

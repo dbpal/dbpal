@@ -4,13 +4,13 @@ use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
 use crate::{
     db::{
         BackendName, CatalogTrait, CreateDatabaseExtra, CreateSchemaExtra, DBTrait, ExportKind,
-        Field, ListTable, QueryResp, QuoteStyle, SchemaTrait, ServerMetas, ShowExtraArgs,
-        SqlBuilder, SqlExecuteRet, TableListResp,
+        ExportQueryResult, Field, ListTable, QueryResp, QuoteStyle, SchemaTrait, ServerMetas,
+        ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp,
     },
     helper::is_dangerous_sql_by_parser,
     meta_value::MetaValue,
 };
-use sqlx::{Postgres, pool::PoolConnection};
+use sqlx::{Postgres, pool::PoolConnection, types::BigDecimal};
 
 use crate::{
     datasource_config::PGDBConfig,
@@ -94,12 +94,17 @@ impl QuerySql for CockRoachDB {
         self.pg.close_connection(id).await
     }
 
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
-    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::PostgreSqlDialect {})
     }
+}
+#[async_trait::async_trait]
+
+impl ExportQueryResult for CockRoachDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -127,10 +132,23 @@ impl QuoteStyle for CockRoachDB {
     }
 }
 
-impl SqlBuilder for CockRoachDB {}
+impl SqlBuilder for CockRoachDB {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        self.pg.put_value_in_sql(typ, None, value)
+    }
+}
+
 #[async_trait::async_trait]
 
 impl SchemaTrait for CockRoachDB {
+    async fn export_table_or_view(
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        self.pg.export_table_or_view(name, kind, sender).await
+    }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -264,7 +282,7 @@ mod tests {
         println!("{:?}", resp);
     }
     #[tokio::test]
-    async fn test_xxxx() {
+    async fn test_list_table_columns() {
         let db: CockRoachDB = make_test_object().await;
 
         let x = db.show_table_columns("test_types1").await.unwrap();
@@ -272,14 +290,13 @@ mod tests {
             println!("{:?}", f);
         }
     }
+
     #[tokio::test]
     async fn test_types1() {
         enable_test_log();
         let table_name = "test_types1";
         let db = make_test_object().await;
-
         let _ = db.drop_table(&table_name, false).await;
-
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(
             query_id,
@@ -310,6 +327,7 @@ mod tests {
         values.insert("int8_column".to_string(), Some("1".to_string()));
         values.insert("int2_column".to_string(), Some("2".to_string()));
         values.insert("int4_column".to_string(), Some("100".to_string()));
+        values.insert("rowid".to_string(), Some("unique_rowid()".to_string()));
         db.insert(table_name, values.clone()).await.unwrap();
         let mut wheres = values.clone();
         wheres.insert("id".to_string(), Some("1".to_string()));

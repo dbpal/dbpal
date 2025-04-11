@@ -15,8 +15,8 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, ListTable, QueryResp,
-    QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
+    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
+    ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
     SqlExecuteRet, TableListResp,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
@@ -671,9 +671,10 @@ impl RedisDB {
     }
 }
 
-impl QuoteStyle for RedisDB {}
+#[async_trait::async_trait]
 
-impl SqlBuilder for RedisDB {}
+impl ExportQueryResult for RedisDB {}
+
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -1071,9 +1072,6 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
-    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
             x.first()
@@ -1548,7 +1546,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_rename() {
         enable_test_log();
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(
             query_id,
@@ -1629,7 +1627,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_hash_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "hash_value";
 
@@ -1707,7 +1705,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_query_sql() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let resp = db.query_sql(query_id, "keys *").await.unwrap();
         println!("key*:{:?}", resp);
@@ -1731,7 +1729,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_zset_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "zset_value";
 
@@ -1787,7 +1785,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
-        let resp = (db.as_any().downcast_ref::<RedisDB>())
+        let resp = (SchemaTrait::as_any(&db).downcast_ref::<RedisDB>())
             .unwrap()
             .zset_show_table(table_name, None, None, None)
             .await
@@ -1804,7 +1802,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_set_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "set_value";
 
@@ -1881,7 +1879,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_list_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "list_value";
 
@@ -1966,7 +1964,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_string_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "string_value";
 

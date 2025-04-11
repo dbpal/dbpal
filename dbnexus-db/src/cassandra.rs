@@ -49,9 +49,10 @@ use crate::{
     datasource_config::CassandraDBConfig,
     db::{
         BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
-        DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListMaterializedView, ListTable,
-        NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-        ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, UdfOrProcedureExtraParameter,
+        DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind,
+        ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle,
+        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+        TableListResp, UdfOrProcedureExtraParameter,
     },
     helper::create_csv,
     language_server::{LangServerCommon, LexerCompletionTrait},
@@ -760,11 +761,14 @@ fn sql_to_each(sql: &str) -> Vec<&str> {
         .map(|x| &sql[x.start_byte..x.end_byte])
         .collect()
 }
+
 #[async_trait::async_trait]
-impl QuerySql for CassandraDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
+
+impl ExportQueryResult for CassandraDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -785,7 +789,9 @@ impl QuerySql for CassandraDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
-
+}
+#[async_trait::async_trait]
+impl QuerySql for CassandraDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

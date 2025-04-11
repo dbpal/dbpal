@@ -53,7 +53,7 @@ import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import { debugBuild } from './debug';
+
 import { TabContent } from './Tabs';
 import wcmatch from 'wildcard-match';
 

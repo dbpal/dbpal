@@ -28,11 +28,10 @@ pub trait ReadOnlyTrait {
     }
 }
 
-/// A db representation of schema
+/// representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait:
     Sync
-    + SqlBuilder
     + Send
     + QuerySql
     + CheckConn
@@ -40,6 +39,7 @@ pub trait SchemaTrait:
     + ServerMetas
     + 'static
     + ReadOnlyTrait
+    + ExportQueryResult
 {
     fn as_any(&self) -> &dyn std::any::Any;
 
@@ -517,7 +517,7 @@ impl UdfOrProcedureExtraParameter {
 }
 
 pub(crate) fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
-    anyhow::bail!(format!("the backend '{}' don't support this feature", name))
+    anyhow::bail!(format!("'{}' don't support this feature", name))
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
@@ -547,7 +547,16 @@ impl DefAndMetas {
 
 #[async_trait::async_trait]
 pub trait CatalogTrait:
-    Send + Sync + 'static + QuerySql + CheckConn + LanguageServer + Debug + ServerMetas + ReadOnlyTrait
+    Send
+    + Sync
+    + 'static
+    + QuerySql
+    + CheckConn
+    + LanguageServer
+    + Debug
+    + ServerMetas
+    + ReadOnlyTrait
+    + ExportQueryResult
 {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
@@ -632,7 +641,15 @@ pub struct CreateTableAndIndexSql {
 
 #[async_trait::async_trait]
 pub trait DBTrait:
-    Sync + Send + QuerySql + 'static + CheckConn + Debug + ServerMetas + ReadOnlyTrait
+    Sync
+    + Send
+    + QuerySql
+    + 'static
+    + CheckConn
+    + Debug
+    + ServerMetas
+    + ReadOnlyTrait
+    + ExportQueryResult
 {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
@@ -659,38 +676,36 @@ pub enum CreateSchemaExtra {
 }
 
 #[async_trait::async_trait]
-pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
-    async fn query_sql(
-        &self, query_id: uuid::Uuid, _sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
-
-    async fn execute_sql(
-        &self, query_id: uuid::Uuid, _sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>>;
-
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
-
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
-
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
-
-    fn clone(&self) -> Box<dyn QuerySql>;
-
+pub trait ExportQueryResult: BackendName + Send + Sync + 'static {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        unreachable!("missing implementation")
+    }
     async fn export_query_result(
         &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
-
-    async fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        let logs = QueryLog::get_instance()
-            .get(&id)
-            .map(|x| x.lock().unwrap().clone().logs)
-            .unwrap_or(vec![]);
-        anyhow::Ok(logs)
-    }
-    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        not_support_features(self.backend_name())
+    async fn export_query_result_to_string(
+        &self, sql: &str, kind: ExportKind,
+    ) -> anyhow::Result<String> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let h1 = {
+            let x = ExportQueryResult::clone(self);
+            let sql = sql.to_string();
+            let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
+            h1
+        };
+        let h2 = {
+            tokio::spawn(async move {
+                let mut ret = String::new();
+                while let Some(r) = receiver.recv().await {
+                    ret.push_str(r.deref());
+                }
+                anyhow::Ok(ret)
+            })
+        };
+        h1.await??;
+        h2.await?
     }
     async fn export_query_result_to_file(
         &self, sql: &str, kind: ExportKind, file: &str,
@@ -715,27 +730,33 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
         j2.await??;
         anyhow::Ok(())
     }
-    async fn export_query_result_to_string(
-        &self, sql: &str, kind: ExportKind,
-    ) -> anyhow::Result<String> {
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-        let h1 = {
-            let x = QuerySql::clone(self);
-            let sql = sql.to_string();
-            let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
-            h1
-        };
-        let h2 = {
-            tokio::spawn(async move {
-                let mut s = String::new();
-                while let Some(r) = receiver.recv().await {
-                    s.push_str(r.deref());
-                }
-                anyhow::Ok(s)
-            })
-        };
-        h1.await??;
-        h2.await?
+}
+
+#[async_trait::async_trait]
+pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
+    async fn query_sql(
+        &self, query_id: uuid::Uuid, _sql: &str,
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
+
+    async fn execute_sql(
+        &self, query_id: uuid::Uuid, _sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>>;
+
+    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
+
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
+
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
+
+    async fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        let logs = QueryLog::get_instance()
+            .get(&id)
+            .map(|x| x.lock().unwrap().clone().logs)
+            .unwrap_or(vec![]);
+        anyhow::Ok(logs)
+    }
+    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
+        not_support_features(self.backend_name())
     }
 }
 

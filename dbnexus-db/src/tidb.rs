@@ -6,9 +6,10 @@ use std::time::Duration;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, UdfOrProcedureExtraParameter,
+    DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
+    UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
@@ -46,8 +47,9 @@ impl std::fmt::Debug for TiDB {
     }
 }
 #[async_trait::async_trait]
-impl QuerySql for TiDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
+
+impl ExportQueryResult for TiDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
     async fn export_query_result(
@@ -55,6 +57,10 @@ impl QuerySql for TiDB {
     ) -> anyhow::Result<()> {
         self.db.export_query_result(sql, kind, sender).await
     }
+}
+
+#[async_trait::async_trait]
+impl QuerySql for TiDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

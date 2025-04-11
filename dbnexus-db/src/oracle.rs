@@ -15,10 +15,11 @@ use tokio::task::block_in_place;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
+    DefAndMetas, ExportKind, ExportQueryResult, Field, HumanSize, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -139,10 +140,9 @@ impl OracleDB {
 }
 
 const QUERY_AUTO_COMMIT: bool = true;
-
 #[async_trait::async_trait]
-impl QuerySql for OracleDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
+impl ExportQueryResult for OracleDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
     async fn export_query_result(
@@ -165,7 +165,10 @@ impl QuerySql for OracleDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+}
 
+#[async_trait::async_trait]
+impl QuerySql for OracleDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -1365,8 +1368,7 @@ impl SchemaTrait for OracleDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait)
-            .update_sql(None, table_name, &fs, &values, &wheres)?;
+        let sql = self.update_sql(None, table_name, &fs, &values, &wheres)?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
 
@@ -1392,8 +1394,7 @@ impl SchemaTrait for OracleDB {
         self.can_write()?;
 
         let fields = self.show_table_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
+        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;

@@ -14,9 +14,9 @@ use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResu
 use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, not_support_features,
+    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
+    Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -81,6 +81,9 @@ impl ReadOnlyTrait for MongoDB {
         self.read_only
     }
 }
+
+#[async_trait::async_trait]
+impl ExportQueryResult for MongoDB {}
 #[async_trait::async_trait]
 impl DBTrait for MongoDB {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -574,10 +577,6 @@ impl MongoDB {
     }
 }
 
-impl QuoteStyle for MongoDB {}
-
-impl SqlBuilder for MongoDB {}
-
 impl MongoDB {
     pub async fn show_columns_impl(&self, name: &str) -> anyhow::Result<Vec<Field>> {
         let db = self.get_db().await?;
@@ -807,9 +806,6 @@ impl SchemaTrait for MongoDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
-    }
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {

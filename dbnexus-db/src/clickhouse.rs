@@ -13,9 +13,9 @@ use crate::{
     datasource_config::ClickHouseConfig,
     db::{
         BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-        ExportKind, Field, ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql,
-        QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
-        SqlExecuteRet, TableListResp, ty_is_float, ty_is_int,
+        ExportKind, ExportQueryResult, Field, ListMaterializedView, ListTable, NamedStaff,
+        QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+        SqlBuilder, SqlExecuteRet, TableListResp, ty_is_float, ty_is_int,
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
@@ -507,7 +507,7 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
+        let sql = self.update_sql(
             self.config.db.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -766,9 +766,11 @@ impl ClickHouseDB {
         anyhow::Ok(())
     }
 }
-
 #[async_trait::async_trait]
-impl QuerySql for ClickHouseDB {
+impl ExportQueryResult for ClickHouseDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -789,10 +791,10 @@ impl QuerySql for ClickHouseDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+}
 
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
-    }
+#[async_trait::async_trait]
+impl QuerySql for ClickHouseDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
     }

@@ -16,10 +16,10 @@ use tokio::sync::Mutex;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter,
+    DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -1011,8 +1011,7 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).delete_sql(None, table_name, &fields, &wheres)?;
+        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
@@ -1039,7 +1038,7 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
-        let s = (self as &dyn crate::db::SchemaTrait).insert_sql(None, table_name, &fs, &values)?;
+        let s = self.insert_sql(None, table_name, &fs, &values)?;
 
         let mut conn = self.get_conn().await?;
 
@@ -1056,8 +1055,7 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
-        let s = (self as &dyn crate::db::SchemaTrait)
-            .update_sql(None, table_name, &fs, &values, &wheres)?;
+        let s = self.update_sql(None, table_name, &fs, &values, &wheres)?;
         let mut conn = self.get_conn().await?;
 
         let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
@@ -1376,18 +1374,12 @@ impl DBTrait for MysqlDB {
         anyhow::Ok(())
     }
 }
-
 #[async_trait::async_trait]
-impl QuerySql for MysqlDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
+impl ExportQueryResult for MysqlDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        let id = uuid::Uuid::new_v4();
-        let conn = self.get_conn().await?;
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(id)
-    }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1407,6 +1399,16 @@ impl QuerySql for MysqlDB {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl QuerySql for MysqlDB {
+    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+        let id = uuid::Uuid::new_v4();
+        let conn = self.get_conn().await?;
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
+        anyhow::Ok(id)
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -2012,7 +2014,7 @@ pub(crate) mod test_fns {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("tinyint_col".to_string(), Some("1".to_string()));
         values.insert("boolean_col".to_string(), Some("false".to_string()));
@@ -2057,7 +2059,7 @@ pub(crate) mod test_fns {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("u8_col".to_string(), Some("1".to_string()));
         values.insert("u16_col".to_string(), Some("2".to_string()));
@@ -2103,7 +2105,7 @@ pub(crate) mod test_fns {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("varchar_col".to_string(), Some("x".to_string()));
         values.insert("char_col".to_string(), Some("y".to_string()));
@@ -2124,7 +2126,6 @@ pub(crate) mod test_fns {
     pub(crate) async fn test_types4(db: MysqlDB) {
         let table_name = "test_types4";
 
-        let db = &db as &dyn crate::db::SchemaTrait;
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(
@@ -2171,7 +2172,6 @@ pub(crate) mod test_fns {
     pub(crate) async fn test_query(db: MysqlDB) {
         enable_test_log();
 
-        let db = &db as &dyn crate::db::SchemaTrait;
         let id = db.open_connection().await.unwrap();
 
         let ret = db.query_sql(id.clone(), "begin").await.unwrap();
