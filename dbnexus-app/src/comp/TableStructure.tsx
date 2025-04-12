@@ -293,7 +293,6 @@ function ColumnsStructure(props: {
           ></DataGrid>
         </div>
       )}
-      0%
       {showAdd && (
         <Modal
           open={showAdd}
