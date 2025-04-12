@@ -225,8 +225,8 @@ impl DBConnectionConfig {
                     return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
                 }
                 match &conn.schema {
-                    Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                    None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
                 }
             }
             DBConnectionConfig::Mongo { conn, name: _ } => {
