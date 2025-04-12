@@ -546,7 +546,7 @@ function SqlQuery(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="45%">
             <ExportView
               handleClose={() => {
                 setShowExport(false);

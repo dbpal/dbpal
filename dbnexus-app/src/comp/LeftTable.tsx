@@ -1020,7 +1020,7 @@ function TableMenu(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <ExportTableOrView
               uuid={uuid}
               name={table}

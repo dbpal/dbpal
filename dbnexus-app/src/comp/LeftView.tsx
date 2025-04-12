@@ -721,7 +721,7 @@ function ViewMenu(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} width="55%">
+          <Box sx={modalStyle} width="45%">
             <ExportTableOrView
               uuid={uuid}
               name={view}
