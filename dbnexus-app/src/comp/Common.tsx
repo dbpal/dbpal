@@ -56,6 +56,8 @@ const modalStyle: SxProps = {
   margin: 0,
   borderRadius: '5px',
   p: 1,
+  maxHeight: '85vh',
+  overflowY: 'auto',
 };
 
 import {
