@@ -679,7 +679,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> copy name </ListItemText>
+          <ListItemText> Copy Name </ListItemText>
         </MenuItem>
 
         <Divider></Divider>
