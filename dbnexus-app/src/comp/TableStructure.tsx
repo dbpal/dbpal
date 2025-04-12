@@ -137,7 +137,12 @@ function ColumnsStructure(props: {
   let cols = useMemo(() => {
     return [
       { field: 'field' },
-      { field: 'typ' },
+      {
+        field: 'typ',
+        renderHeader: () => {
+          return 'type';
+        },
+      },
       {
         field: 'nullable',
         renderCell: (row) => {
@@ -147,7 +152,7 @@ function ColumnsStructure(props: {
       {
         field: 'is_primary',
         renderHeader: () => {
-          return 'Primary';
+          return 'primary';
         },
         renderCell: (row) => {
           return TrueOrFalse(row.row['is_primary']);
