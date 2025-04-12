@@ -80,7 +80,7 @@ import { RedisQuery } from './RedisQuery';
 import { MongoQuery } from './MongoQuery.tsx';
 import React from 'react';
 import {
-  ConnStatus,
+  ConnPingTime,
   MenuCloseConn,
   MenuCreateDatabase,
   MenuCreateSchema,
@@ -893,7 +893,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
-        {!schema && opened && <ConnStatus uuid={uuid}></ConnStatus>}
+        {!schema && opened && <ConnPingTime uuid={uuid}></ConnPingTime>}
       </Stack>
     >
       {opened && kind == DataSourceKind.Sqlite && (
@@ -1406,7 +1406,7 @@ function CatalogTree(_props: {}) {
       >
         <span>{name} </span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
-        {opened && <ConnStatus uuid={name}></ConnStatus>}
+        {opened && <ConnPingTime uuid={name}></ConnPingTime>}
       </Stack>
       key={name}
     >
@@ -1492,7 +1492,7 @@ function DatabaseTree(props: {
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
-        {!database && opened && <ConnStatus uuid={name}></ConnStatus>}
+        {!database && opened && <ConnPingTime uuid={name}></ConnPingTime>}
       </Stack>
       key={name + database}
     >

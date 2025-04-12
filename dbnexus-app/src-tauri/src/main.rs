@@ -46,6 +46,7 @@ use tauri_plugin_store::StoreExt;
 fn main() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
+        .worker_threads(32)
         .thread_stack_size(4 * 1024 * 1024)
         .build()
         .unwrap();

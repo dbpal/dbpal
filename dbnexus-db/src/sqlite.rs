@@ -360,8 +360,9 @@ async fn query_trigger_detail(
 #[async_trait::async_trait]
 impl CheckConn for SqliteDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
+        let mut conn = self.get_conn().await?;
         let ins = std::time::Instant::now();
-        self.list_table().await?;
+        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -744,7 +745,9 @@ impl SchemaTrait for SqliteDB {
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
+        log::trace!("begin to show table");
         let total = self.query_count(table_name, where_str.clone()).await?;
+        log::trace!("query count ok");
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -754,7 +757,10 @@ impl SchemaTrait for SqliteDB {
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
 
         let data = encode_rows(&row)?;
+
+        log::trace!("encode rows ok");
         let fields = self.show_table_columns(table_name).await?;
+        log::trace!("list columns ok");
         anyhow::Ok(TableListResp::new(fields, total, data, sql))
     }
 

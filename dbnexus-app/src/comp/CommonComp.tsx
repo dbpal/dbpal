@@ -152,7 +152,7 @@ function MenuCloseConn({ handleClose, name }) {
   );
 }
 
-function ConnStatus({ uuid }) {
+function ConnPingTime({ uuid }) {
   const [status, setStatus] = useState('');
   const [err, setErr] = useState('');
   const reloadStatus = () => {
@@ -167,14 +167,14 @@ function ConnStatus({ uuid }) {
 
   useEffect(() => {
     reloadStatus();
-    let r = setInterval(
+    let interval = setInterval(
       () => {
         reloadStatus();
       },
       debugBuild ? 500000 : 5000
     );
     return () => {
-      clearInterval(r);
+      clearInterval(interval);
     };
   }, []);
 
@@ -460,7 +460,7 @@ export {
   MenuNewQuery,
   MenuCreateDatabase,
   MenuRefresh,
-  ConnStatus,
+  ConnPingTime,
   MenuCloseConn,
   MenuCreateSchema,
   MenuOpenConn,

@@ -242,7 +242,7 @@ function MongoBsonEditor(props: {
   height?: string;
 }) {
   let { doc, buttons, height } = props;
-  let editor = useRef<editor.IStandaloneCodeEditor>();
+  let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
   const [err, setErr] = useState<MongoBsonError>(null);
