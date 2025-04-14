@@ -19,6 +19,7 @@ use dbnexus_db::language_server::{CompletionItem, SemanticToken};
 use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::MongoDB;
+use dbnexus_db::mssql::MsSqlServerDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
@@ -2371,6 +2372,9 @@ pub async fn put_value_in_sql(
     if let Ok(e) = xxx::<ClickHouseDB>(a, &typ, value) {
         return Ok(e);
     }
+    if let Ok(e) = xxx::<MsSqlServerDB>(a, &typ, value) {
+        return Ok(e);
+    }
     #[cfg(feature = "duckdb")]
     {
         use dbnexus_db::duckdb::DuckDB;
@@ -2378,7 +2382,6 @@ pub async fn put_value_in_sql(
             return Ok(e);
         }
     }
-
     Err(ErrorFrontend::from(
         "not valid schema to put value in sql.maybe a internal error",
     ))
