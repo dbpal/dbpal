@@ -167,12 +167,9 @@ function ConnPingTime({ uuid }) {
 
   useEffect(() => {
     reloadStatus();
-    let interval = setInterval(
-      () => {
-        reloadStatus();
-      },
-      debugBuild ? 500000 : 5000
-    );
+    let interval = setInterval(() => {
+      reloadStatus();
+    }, 5000);
     return () => {
       clearInterval(interval);
     };

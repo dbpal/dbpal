@@ -56,7 +56,7 @@ log = "0.4.22"
 
 futures-util = "*"
 futures-core = "*"
-mongodb = { version = "3.2", features = [] }
+mongodb = { version = "3.2.3", features = [] }
 tiberius = { version = "0.12.3", default-features = false, features = [
     "chrono",
     "rust_decimal",

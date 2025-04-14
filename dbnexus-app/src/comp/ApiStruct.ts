@@ -7,10 +7,10 @@ export namespace types {
         "read_only": boolean;
     };
     export type EnableSsl = {
-        "ssl_enable": boolean;
-        "ssl_ca": (string | null);
-        "ssl_cert": (string | null);
-        "ssl_key": (string | null);
+        "ssl_enable"?: boolean;
+        "ssl_ca"?: (string | null);
+        "ssl_cert"?: (string | null);
+        "ssl_key"?: (string | null);
     };
     export type U16 = number;
     export type MysqlDBConfig = (types.EnableSsl & {

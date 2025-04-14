@@ -311,7 +311,7 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         enable_test_log();
         let query_id = db.open_connection().await.unwrap();
-        let _ = db
+        let _err = db
             .execute_sql(
                 query_id,
                 r#"
@@ -324,12 +324,13 @@ mod tests {
                         salary DECIMAL(10, 2) NOT NULL  
                     );
                 r#"
-
                  "#,
             )
             .await
             .unwrap();
-
+        if let Err(err) = _err {
+            println!("create employees error failed:{:?}", err)
+        }
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");

@@ -101,6 +101,9 @@ class MongoBsonAs {
     if (ty === 'object' && v instanceof Array && this.extra.isInt8()) {
       return Binary.fromInt8Array(new Int8Array(v));
     }
+    if (ty === 'object' && v instanceof Array && subType == Binary.SUBTYPE_USER_DEFINED) {
+      return new Binary(new Uint8Array(v), parseInt(this.extra.extra[0].value))
+    }
     if (v instanceof Array) {
       return new Binary(new Uint8Array(v), subType)
     }
@@ -313,6 +316,8 @@ class MongoBsonBinaryAllSubType {
         return MongoBsonBinaryAllSubType.Sensitive;
       case Binary.SUBTYPE_USER_DEFINED:
         return MongoBsonBinaryAllSubType.UserDefine;
+      default:
+        return `${MongoBsonBinaryAllSubType.UserDefine} ${x}`;
     }
   }
 }
@@ -704,6 +709,18 @@ class Parser {
       if (t == MongoBsonBinaryAllSubType.Vector) {
         extra = this.parseBinaryTypeAnnotionVector();
       }
+      if (t == MongoBsonBinaryAllSubType.UserDefine) {
+        const token = this.peek();
+        if (token.type == 'Numeric') {
+          extra = [this.peek()];
+          this.next();
+        } else {
+          throw new MongoBsonError(
+            `shoud be a number after 'user_define' , but '${token.value}'`,
+            token.loc
+          );
+        }
+      }
       let r = new MongoBsonBinaryAllSubType(token, extra);
       return r;
     } else {
@@ -713,8 +730,8 @@ class Parser {
 
   parseBinaryTypeAnnotionVector(): Token[] {
     let token = this.peek();
-    let tolower = token.value.toLowerCase();
-    if (tolower == 'float32' || tolower == 'int8') {
+    let toLower = token.value.toLowerCase();
+    if (toLower == 'float32' || toLower == 'int8') {
       this.next();
       return [token];
     }
@@ -907,14 +924,6 @@ function toMongoBson(a: any): MongoBsonValue {
           value: a.toString(),
         });
       }
-
-      if (a instanceof Float32Array) {
-        return new MongoBsonValue(MongoBsonValueKind.Float32Array, a);
-      }
-      if (a instanceof Int8Array) {
-        return new MongoBsonValue(MongoBsonValueKind.Int8Array, a);
-      }
-
       if (a instanceof Code) {
         return new MongoBsonValue(MongoBsonValueKind.Code, {
           value: quoteString(a.code),
@@ -945,7 +954,20 @@ function toMongoBson(a: any): MongoBsonValue {
           value: a.toString(),
         });
       }
+
       if (a instanceof Binary) {
+        try {
+          let arr = a.toInt8Array();
+          return new MongoBsonValue(MongoBsonValueKind.Int8Array, arr);
+        } catch (_e) {
+
+        }
+        try {
+          let arr = a.toFloat32Array();
+          return new MongoBsonValue(MongoBsonValueKind.Float32Array, arr);
+        } catch (_e) {
+
+        }
         return new MongoBsonValue(MongoBsonValueKind.Binary, a as Binary);
       }
       if (a instanceof Array) {

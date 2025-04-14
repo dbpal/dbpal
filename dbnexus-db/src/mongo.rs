@@ -863,9 +863,11 @@ mod tests {
 
     use std::str::FromStr;
     use std::time::SystemTime;
+    use std::vec;
 
     use bson::oid::ObjectId;
-    use bson::{Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
+    use bson::spec::BinarySubtype;
+    use bson::{Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
     use mongodb::options::TimeseriesOptions;
 
     use super::make_test_object;
@@ -1218,17 +1220,20 @@ mod tests {
         let db = make_test_object();
         let table = "test_mongo";
         let _ = db.drop_table(&table, false).await;
-        db.insert(table, doc! {"name" : "xxx" , "age" : 22})
-            .await
-            .unwrap();
-        db.insert(table, doc! {"name" : "yyy" , "age" : 22})
-            .await
-            .unwrap();
 
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Time went backwards")
             .as_secs() as i64;
+        let binary_field = Bson::Binary(Binary::from(bson::binary::Vector::Int8(vec![1, 2])));
+        let binary_field2 = Bson::Binary(Binary::from(bson::binary::Vector::Float32(vec![
+            1f32, 2f32,
+        ])));
+        let input = base64::encode("hello");
+        let binary_field3 = Binary::from_base64(input.clone(), None).unwrap();
+        let binary_field4 =
+            Binary::from_base64(input.clone(), Some(BinarySubtype::Encrypted)).unwrap();
+        let binary_field5 = Binary::from_base64(input, Some(BinarySubtype::Reserved(10))).unwrap();
         let data = doc! {
             "_id": ObjectId::new(),
             "string_field": "Hello, world!",
@@ -1238,7 +1243,11 @@ mod tests {
             "date_field": DateTime::from_millis(now * 1_000), // MongoDB uses milliseconds since epoch
             "null_field": Bson::Null,
             "regex_field": Regex { pattern : "haha".to_string(),options :"i".to_string()} ,
-            "binary_field": vec![0x01, 0x02, 0x03],
+            "binary_field":binary_field,
+            "binary_field2": binary_field2,
+            "binary_field3": binary_field3,
+            "binary_field4": binary_field4,
+            "binary_field5": binary_field5,
             "uuid_field": Uuid::new(),
             "array_field": vec![
                 Bson::Int32(1),

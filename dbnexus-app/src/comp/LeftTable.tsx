@@ -1383,7 +1383,7 @@ function RedisTables(prpos: { schema?: string }) {
             setShowEditFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <TextField
               size="small"
               value={filter}

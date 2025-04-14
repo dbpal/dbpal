@@ -1258,7 +1258,7 @@ impl SchemaTrait for DuckDB {
                 parsed_type.as_ref().map(|x| &x[..]),
             )?);
         }
-        anyhow::Ok(TableListResp::new(fs, total, data, sql))
+        anyhow::Ok(TableListResp::new(fs, total, data, sql)?)
     }
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let conn = self.get_conn()?;
@@ -1426,7 +1426,7 @@ impl SchemaTrait for DuckDB {
         while let Some(row) = rows.next()? {
             data.push(encode_row(&row, &types[..], Some(&parsed_type[..]))?);
         }
-        anyhow::Ok(TableListResp::new(fs, total, data, sql))
+        anyhow::Ok(TableListResp::new(fs, total, data, sql)?)
     }
 
     async fn insert(
@@ -1628,38 +1628,9 @@ impl CatalogTrait for DuckDB {
     async fn create_database(
         &self, _name: &str, _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
-        // self.can_write()?;
-        // let path = match &extra {
-        //     Some(x) => match &x {
-        //         CreateDatabaseExtra::DuckDB { path } => path,
-        //     },
-        //     None => anyhow::bail!("attach database need extra parameter."),
-        // };
-        // let sql = format!("ATTACH '{path}' AS {name}");
-        // log::info!("sql:{}", sql);
-        // let conn = self.get_conn()?;
-        // log::info!("attach sql:{} {} ", sql, conn.is_autocommit());
-        // conn.execute(&sql, [])?;
-        // anyhow::Ok(())
         anyhow::bail!("duckdb can't create database")
     }
-
     async fn drop_database(&self, _name: &str) -> anyhow::Result<()> {
-        // if self
-        //     .config
-        //     .db
-        //     .as_ref()
-        //     .map(|x| x.as_str().eq_ignore_ascii_case(&name))
-        //     .unwrap_or_default()
-        // {
-        //     anyhow::bail!("can't detach self.")
-        // }
-
-        // let sql = format!("DETACH  {name}");
-        // log::info!("sql:{}", sql);
-        // let conn = self.get_conn()?;
-        // block_in_place(|| conn.execute(&sql, []))?;
-        // anyhow::Ok(())
         anyhow::bail!("duckdb can't drop database")
     }
 }
@@ -1898,22 +1869,8 @@ mod tests {
         let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(None);
-        db.create_database(
-            "abc",
-            Some(CreateDatabaseExtra::DuckDB {
-                path: {
-                    let dir = env!("CARGO_MANIFEST_DIR");
-                    let path = format!("{dir}/tests/abc.duckdb");
-                    path
-                },
-            }),
-        )
-        .await
-        .unwrap();
-
         let x = db.list_database().await.unwrap();
         println!("database:{:?}", x);
-        db.drop_database("abc").await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

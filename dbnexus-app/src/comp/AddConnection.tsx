@@ -195,7 +195,11 @@ function EnableSSlCert(props: {
   } = props;
 
   return (
-    <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+    <Stack
+      direction="row"
+      spacing={1}
+      style={{ alignItems: 'center', flexWrap: 'wrap' }}
+    >
       <>
         <Checkbox
           checked={enableSsl}
@@ -217,7 +221,9 @@ function EnableSSlCert(props: {
             }}
           >
             <Chip
-              label={'CA Cert:' + (sslCa ? extractBaseName(sslCa) : '')}
+              label={
+                'CA Cert(optional):' + (sslCa ? extractBaseName(sslCa) : '')
+              }
             ></Chip>
           </Tooltip>
           <Tooltip title={sslCert}>
@@ -228,10 +234,12 @@ function EnableSSlCert(props: {
                   setSslCert(file);
                 }
               }}
-              label={'Certificate:' + (sslCert ? extractBaseName(sslCert) : '')}
+              label={
+                'Certificate(optional):' +
+                (sslCert ? extractBaseName(sslCert) : '')
+              }
             ></Chip>
           </Tooltip>
-
           <Tooltip title={sslKey}>
             <Chip
               onClick={async () => {
@@ -240,7 +248,9 @@ function EnableSSlCert(props: {
                   setSslKey(file);
                 }
               }}
-              label={'Key File:' + (sslKey ? extractBaseName(sslKey) : '')}
+              label={
+                'Key File(optional):' + (sslKey ? extractBaseName(sslKey) : '')
+              }
             ></Chip>
           </Tooltip>
         </>
