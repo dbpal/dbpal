@@ -2369,9 +2369,7 @@ pub async fn put_value_in_sql(
     if let Ok(e) = xxx::<FireBirdDB>(a, &typ, value) {
         return Ok(e);
     }
-    if let Ok(e) = xxx::<ClickHouseDB>(a, &typ, value) {
-        return Ok(e);
-    }
+
     if let Ok(e) = xxx::<MsSqlServerDB>(a, &typ, value) {
         return Ok(e);
     }
