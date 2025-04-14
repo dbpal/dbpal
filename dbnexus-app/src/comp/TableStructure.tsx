@@ -208,18 +208,16 @@ function ColumnsStructure(props: {
             </MenuItem>
           )}
           {supportModifyColumn && (
-            <>
-              <MenuItem
-                onClick={() => {
-                  handleDrop(col);
-                }}
-              >
-                <ListItemIcon>
-                  <DeleteForeverIcon></DeleteForeverIcon>
-                </ListItemIcon>
-                <ListItemText> drop </ListItemText>
-              </MenuItem>
-            </>
+            <MenuItem
+              onClick={() => {
+                handleDrop(col);
+              }}
+            >
+              <ListItemIcon>
+                <DeleteForeverIcon></DeleteForeverIcon>
+              </ListItemIcon>
+              <ListItemText> drop </ListItemText>
+            </MenuItem>
           )}
         </MenuList>
       </Paper>

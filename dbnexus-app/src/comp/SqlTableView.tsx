@@ -883,18 +883,16 @@ function Menu(props: {
         </MenuItem>
 
         {content && (
-          <>
-            <MenuItem
-              onClick={() => {
-                setShowFilter(true);
-              }}
-            >
-              <ListItemIcon>
-                <FilterAltIcon></FilterAltIcon>
-              </ListItemIcon>
-              <ListItemText> Quick Filter </ListItemText>
-            </MenuItem>
-          </>
+          <MenuItem
+            onClick={() => {
+              setShowFilter(true);
+            }}
+          >
+            <ListItemIcon>
+              <FilterAltIcon></FilterAltIcon>
+            </ListItemIcon>
+            <ListItemText> Quick Filter </ListItemText>
+          </MenuItem>
         )}
         <Divider></Divider>
 
@@ -911,20 +909,20 @@ function Menu(props: {
           </MenuItem>
         )}
         {addOP && (
-          <>
-            <MenuItem onClick={handleClone}>
-              <ListItemIcon>
-                <FileCopyIcon></FileCopyIcon>
-              </ListItemIcon>
-              <ListItemText> Clone Row </ListItemText>
-            </MenuItem>
-            <MenuItem onClick={handleDelete}>
-              <ListItemIcon>
-                <DeleteForeverIcon></DeleteForeverIcon>
-              </ListItemIcon>
-              <ListItemText> Delete Row</ListItemText>
-            </MenuItem>
-          </>
+          <MenuItem onClick={handleClone}>
+            <ListItemIcon>
+              <FileCopyIcon></FileCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Clone Row </ListItemText>
+          </MenuItem>
+        )}
+        {addOP && (
+          <MenuItem onClick={handleDelete}>
+            <ListItemIcon>
+              <DeleteForeverIcon></DeleteForeverIcon>
+            </ListItemIcon>
+            <ListItemText> Delete Row</ListItemText>
+          </MenuItem>
         )}
         <MenuResetColumnWidths></MenuResetColumnWidths>
       </MenuList>
