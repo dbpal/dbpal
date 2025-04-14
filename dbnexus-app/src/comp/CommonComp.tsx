@@ -45,7 +45,7 @@ import {
 } from './helper';
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
-import { SettingContext } from './Common';
+import { getNamedConfig, SettingContext } from './Common';
 import { debugBuild } from './debug';
 
 const LogLevelSelection = ({ handleChange, level }) => {
@@ -152,7 +152,7 @@ function MenuCloseConn({ handleClose, name }) {
   );
 }
 
-function ConnStatus({ uuid }) {
+function ConnPingTime({ uuid }) {
   const [status, setStatus] = useState('');
   const [err, setErr] = useState('');
   const reloadStatus = () => {
@@ -167,14 +167,14 @@ function ConnStatus({ uuid }) {
 
   useEffect(() => {
     reloadStatus();
-    let r = setInterval(
+    let interval = setInterval(
       () => {
         reloadStatus();
       },
       debugBuild ? 500000 : 5000
     );
     return () => {
-      clearInterval(r);
+      clearInterval(interval);
     };
   }, []);
 
@@ -199,6 +199,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
     case DataSourceKind.MsSql:
     case DataSourceKind.Postgres:
     case DataSourceKind.DuckDB:
+    case DataSourceKind.Cockroach:
       name = 'Schema';
       break;
     case DataSourceKind.Cassandra:
@@ -223,7 +224,28 @@ function MenuOpenConn({ handleOpend, name }) {
   const { showNotification } = useContext(NotificationContext);
   return (
     <MenuItem
-      onClick={() => {
+      onClick={async () => {
+        // try promote use to enter a password.
+        let config = await getNamedConfig(name);
+        if (!config) {
+          return;
+        }
+        const has = await invoke('has_entered_password', { name: name });
+        if (!has) {
+          let key = 'save_password';
+          if (key in config && !config[key]) {
+            let pass = prompt('enter password');
+            if (pass == null) {
+              return;
+            }
+            try {
+              await invoke('save_entered_password', { name: name, pass: pass });
+            } catch (e) {
+              showNotification('error', 'password not correct???', e);
+              return;
+            }
+          }
+        }
         invoke('open_conn', { name })
           .then(() => {
             handleOpend();
@@ -438,7 +460,7 @@ export {
   MenuNewQuery,
   MenuCreateDatabase,
   MenuRefresh,
-  ConnStatus,
+  ConnPingTime,
   MenuCloseConn,
   MenuCreateSchema,
   MenuOpenConn,

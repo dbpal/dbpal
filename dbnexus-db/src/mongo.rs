@@ -14,9 +14,9 @@ use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResu
 use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
+    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
+    Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -81,8 +81,14 @@ impl ReadOnlyTrait for MongoDB {
         self.read_only
     }
 }
+
+#[async_trait::async_trait]
+impl ExportQueryResult for MongoDB {}
 #[async_trait::async_trait]
 impl DBTrait for MongoDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let mut names = conn
@@ -353,7 +359,7 @@ impl MongoDB {
         let cols = infer_multi_value_column_names(&docs[..])?;
         let data = collect_table_resp(&cols, docs.as_slice())?;
 
-        anyhow::Ok(TableListResp::new(cols, count as usize, data, None))
+        anyhow::Ok(TableListResp::new(cols, count as usize, data, None)?)
     }
 
     pub async fn show_collection_docs(
@@ -800,9 +806,6 @@ impl SchemaTrait for MongoDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
-    }
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -849,6 +852,7 @@ pub(crate) fn make_test_object() -> MongoDB {
         call_timeout: None,
         db: Some("test".to_string()),
         read_only: false,
+        save_password: true,
     });
 
     x.unwrap()
@@ -1060,7 +1064,7 @@ mod tests {
             .await
             .unwrap();
 
-        let schema_trait = &db as &dyn SchemaTrait;
+        let schema_trait = db;
         let json = schema_trait
             .export_table_to_string(&table, crate::db::ExportKind::Json { pretty: true })
             .await

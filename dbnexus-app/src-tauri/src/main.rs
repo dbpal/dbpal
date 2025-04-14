@@ -11,32 +11,33 @@ use handlers::{
     create_table_and_index_sql, create_view_sql, delete, delete_password, disable_trigger,
     drop_database, drop_index, drop_materialized_view, drop_procedure, drop_schema, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
-    execute_sql, export_query_result_to_file, export_table_or_view, format_sql, insert,
-    is_dangerous_sql, list_created_types, list_data_types, list_database, list_materialized_view,
-    list_procedure, list_schema, list_table, list_udf, list_view, modify_table_column,
-    mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
-    mongo_list_time_serial_collection, mongo_query_collection_count_docs,
-    mongo_query_collection_create_index, mongo_query_collection_create_search_index,
-    mongo_query_collection_delete_many, mongo_query_collection_delete_one,
-    mongo_query_collection_distinct, mongo_query_collection_drop,
-    mongo_query_collection_drop_index, mongo_query_collection_drop_indexes,
-    mongo_query_collection_drop_search_index, mongo_query_collection_find,
-    mongo_query_collection_find_one, mongo_query_collection_find_one_and_delete,
-    mongo_query_collection_find_one_and_replace, mongo_query_collection_insert_many,
-    mongo_query_collection_insert_one, mongo_query_collection_list_index_names,
-    mongo_query_collection_list_indexes, mongo_query_collection_list_search_indexes,
-    mongo_query_collection_replace_one, mongo_query_collection_update_many,
-    mongo_query_collection_update_one, mongo_query_db_drop, mongo_query_db_list_collection_names,
-    mongo_query_db_run_command, mongo_show_collection_docs, mongo_show_collection_table_list,
-    mongo_update_one, open_conn, oracle_query_autocommit, oracle_query_commit,
-    oracle_query_rollback, oracle_query_set_autocommit, page_init_callback, put_value_in_sql,
-    query_logs, query_sql, query_sql_close_connection, query_sql_open_connection,
+    execute_sql, export_query_result_to_file, export_table_or_view, format_sql,
+    has_entered_password, insert, is_dangerous_sql, list_created_types, list_data_types,
+    list_database, list_materialized_view, list_procedure, list_schema, list_table, list_udf,
+    list_view, modify_table_column, mongo_create_index, mongo_delete_ids,
+    mongo_get_one_document_by_id, mongo_insert, mongo_list_time_serial_collection,
+    mongo_query_collection_count_docs, mongo_query_collection_create_index,
+    mongo_query_collection_create_search_index, mongo_query_collection_delete_many,
+    mongo_query_collection_delete_one, mongo_query_collection_distinct,
+    mongo_query_collection_drop, mongo_query_collection_drop_index,
+    mongo_query_collection_drop_indexes, mongo_query_collection_drop_search_index,
+    mongo_query_collection_find, mongo_query_collection_find_one,
+    mongo_query_collection_find_one_and_delete, mongo_query_collection_find_one_and_replace,
+    mongo_query_collection_insert_many, mongo_query_collection_insert_one,
+    mongo_query_collection_list_index_names, mongo_query_collection_list_indexes,
+    mongo_query_collection_list_search_indexes, mongo_query_collection_replace_one,
+    mongo_query_collection_update_many, mongo_query_collection_update_one, mongo_query_db_drop,
+    mongo_query_db_list_collection_names, mongo_query_db_run_command, mongo_show_collection_docs,
+    mongo_show_collection_table_list, mongo_update_one, open_conn, oracle_query_autocommit,
+    oracle_query_commit, oracle_query_rollback, oracle_query_set_autocommit, page_init_callback,
+    put_value_in_sql, query_logs, query_sql, query_sql_close_connection, query_sql_open_connection,
     query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
     redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_set_add,
     redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
-    redis_zset_replace, redis_zset_show_table, rename_index, rename_table, save_password,
-    semantic_tokens, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
-    show_trigger, show_udf, show_view, show_view_columns, test_connection, truncate_table, update,
+    redis_zset_replace, redis_zset_show_table, rename_index, rename_table, save_entered_password,
+    save_password, semantic_tokens, server_metas, show_indexes, show_procedure, show_table,
+    show_table_columns, show_trigger, show_udf, show_view, show_view_columns, test_connection,
+    truncate_table, update,
 };
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -45,6 +46,7 @@ use tauri_plugin_store::StoreExt;
 fn main() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
+        .worker_threads(32)
         .thread_stack_size(4 * 1024 * 1024)
         .build()
         .unwrap();
@@ -65,6 +67,8 @@ fn main_() {
         builder.try_init().unwrap();
     }
     let app = App::new();
+    let saved_password = app.saved_password.clone();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
@@ -92,6 +96,15 @@ fn main_() {
                 };
                 let configs: Vec<DBConnectionConfig> = serde_json::from_str(&json_str)?;
                 for mut c in configs.into_iter() {
+                    if let Some(pass) = saved_password
+                        .lock()
+                        .unwrap()
+                        .get(&c.get_name().to_string())
+                    {
+                        c.set_password(pass.clone());
+                        return anyhow::Ok(c);
+                    }
+
                     if c.get_name() == name {
                         match keyring::Entry::new(PASSWORD_KEY, name) {
                             Ok(en) => match en.get_password() {
@@ -329,7 +342,9 @@ fn main_() {
             list_created_types,
             conn_opend,
             create_table_and_index_sql,
-            execute_sql
+            execute_sql,
+            save_entered_password,
+            has_entered_password,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

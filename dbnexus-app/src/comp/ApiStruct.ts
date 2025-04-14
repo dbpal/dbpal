@@ -6,29 +6,38 @@ export namespace types {
         "path": string;
         "read_only": boolean;
     };
+    export type EnableSsl = {
+        "ssl_enable": boolean;
+        "ssl_ca": (string | null);
+        "ssl_cert": (string | null);
+        "ssl_key": (string | null);
+    };
     export type U16 = number;
-    export type MysqlDBConfig = {
+    export type MysqlDBConfig = (types.EnableSsl & {
         "host": string;
         "port": types.U16;
         "username": string;
         "password": (string | null);
+        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
-    };
-    export type PGDBConfig = {
+    });
+    export type PGDBConfig = (types.EnableSsl & {
         "host": string;
         "port": types.U16;
         "username": string;
         "password": (string | null);
+        "save_password": boolean;
         "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
-    };
+    });
     export type SqlServerDBConfig = {
         "host": string;
         "port": types.U16;
         "username": (string | null);
         "password": (string | null);
+        "save_password": boolean;
         "db": (string | null);
         "trust_cert": boolean;
         "schema": (string | null);
@@ -40,6 +49,7 @@ export namespace types {
         "port": types.U16;
         "username": (string | null);
         "password": (string | null);
+        "save_password": boolean;
 
         /**
          * milliseconds
@@ -53,12 +63,14 @@ export namespace types {
         "port": (types.U16 | null);
         "username": (string | null);
         "password": (string | null);
+        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
     };
     export type OracleDBConfig = {
         "username": string;
         "password": string;
+        "save_password": boolean;
         "host": string;
         "port": types.U16;
         "schema": (string | null);
@@ -71,6 +83,7 @@ export namespace types {
         "port": (types.U16 | null);
         "username": (string | null);
         "password": (string | null);
+        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
     };
@@ -79,6 +92,7 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": (string | null);
+        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
         "https": boolean;
@@ -103,6 +117,7 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": string;
+        "save_password": boolean;
         "db": string;
         "read_only": boolean;
     };
@@ -130,6 +145,10 @@ export namespace types {
         "name": string;
     })) | ({
         "conn_type": "postgres";
+    } & (types.PGDBConfig & {
+        "name": string;
+    })) | ({
+        "conn_type": "cockroach";
     } & (types.PGDBConfig & {
         "name": string;
     })) | ({

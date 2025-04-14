@@ -54,6 +54,7 @@ function UdfsTree() {
   const getItemId = (named: types.NamedStaff) => {
     switch (kind) {
       case DataSourceKind.Postgres:
+      case DataSourceKind.Cockroach:
         return idPrefix + '-' + named.name + '-' + named.parameters;
       case DataSourceKind.Cassandra:
         return (
@@ -127,7 +128,10 @@ function UdfsTree() {
             >
               <TbMathFunction></TbMathFunction>
               <span>{p.name}</span>
-              {kind == DataSourceKind.Postgres && <em> ({p.parameters}) </em>}
+              {kind == DataSourceKind.Postgres ||
+                (kind == DataSourceKind.Cockroach && (
+                  <em> ({p.parameters}) </em>
+                ))}
               {kind == DataSourceKind.Cassandra && (
                 <em> ({p.cassandra_parameters.join(',')}) </em>
               )}
@@ -147,19 +151,17 @@ function UdfMenu(props: {
   kind: DataSourceKind;
 }) {
   const { uuid, udf, parameters, reload, kind, cassandraParameters } = props;
-
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   let arg = null;
   switch (kind) {
     case DataSourceKind.Postgres:
+    case DataSourceKind.Cockroach:
       arg = { extra: 'postgres', parameters };
       break;
-
     case DataSourceKind.Cassandra:
       arg = { extra: 'cassandra', parameters: cassandraParameters };
       break;
   }
-
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {

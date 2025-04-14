@@ -15,8 +15,8 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, Field, ListTable, QueryResp,
-    QuerySql, QuerySqlWithoutOpenConn, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
+    ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
     SqlExecuteRet, TableListResp,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
@@ -86,7 +86,7 @@ impl RedisDB {
                 .map(|(k, v)| vec![Some(hex::encode(k.as_slice())), Some(v.to_string())])
                 .collect(),
             None,
-        ))
+        )?)
     }
 }
 
@@ -667,9 +667,14 @@ impl RedisDB {
             total,
             data,
             None,
-        ))
+        )?)
     }
 }
+
+#[async_trait::async_trait]
+
+impl ExportQueryResult for RedisDB {}
+
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -834,7 +839,7 @@ impl SchemaTrait for RedisDB {
                         })
                         .collect(),
                     None,
-                ))
+                )?)
             }
 
             RedisType::Set => {
@@ -853,7 +858,7 @@ impl SchemaTrait for RedisDB {
                         .map(|x| vec![Some(hex::encode(x.as_slice()))])
                         .collect(),
                     format!("SSCAN {} 0 {}", key, where_str.unwrap_or("*")),
-                ))
+                )?)
             }
             RedisType::Hash => {
                 let total: usize = conn.hlen(key).await?;
@@ -887,7 +892,7 @@ impl SchemaTrait for RedisDB {
                         })
                         .collect(),
                     format!("HSCAN {} 0 {}", key, where_str.unwrap_or("*")),
-                ))
+                )?)
             }
 
             RedisType::Zset => {
@@ -990,6 +995,9 @@ fn parse_db_number(db: &str) -> anyhow::Result<i32> {
 
 #[async_trait::async_trait]
 impl DBTrait for RedisDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let r: String = redis::cmd("info")
@@ -1064,9 +1072,6 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
-    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
             x.first()
@@ -1198,15 +1203,6 @@ impl FromStr for RedisType {
             "zset" => Ok(Self::Zset),
             _ => Err(anyhow::Error::msg(format!("redis type '{}' not handle", s))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl QuerySqlWithoutOpenConn for RedisDB {
-    async fn query_sql(&self, sql: &str) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = self.get_client().await?;
-        let mut conn = conn.get_multiplexed_async_connection().await?;
-        query_sql(&mut conn, sql).await
     }
 }
 
@@ -1470,6 +1466,7 @@ mod tests {
             password: None,
             db: Some("db0".to_string()),
             read_only: false,
+            save_password: true,
         })
         .await
         .unwrap();
@@ -1549,7 +1546,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_rename() {
         enable_test_log();
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(
             query_id,
@@ -1630,7 +1627,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_hash_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "hash_value";
 
@@ -1708,7 +1705,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_query_sql() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let resp = db.query_sql(query_id, "keys *").await.unwrap();
         println!("key*:{:?}", resp);
@@ -1732,7 +1729,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_zset_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "zset_value";
 
@@ -1788,7 +1785,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
-        let resp = (db.as_any().downcast_ref::<RedisDB>())
+        let resp = (SchemaTrait::as_any(&db).downcast_ref::<RedisDB>())
             .unwrap()
             .zset_show_table(table_name, None, None, None)
             .await
@@ -1805,7 +1802,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_set_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "set_value";
 
@@ -1882,7 +1879,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_list_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "list_value";
 
@@ -1967,7 +1964,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_string_key() {
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let table_name = "string_value";
 

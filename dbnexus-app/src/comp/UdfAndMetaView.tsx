@@ -3,19 +3,14 @@ import { useContext, useEffect, useState } from 'react';
 import { NotificationContext } from './Notification';
 import { Button, Stack, Typography } from '@mui/material';
 import { DefAndMetas, SimpleResizeEditor } from './Common';
-
-import { Variant } from '@mui/material/styles/createTypography';
 import { MetaValuesView } from './CommonComp';
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
   uuid: string;
-  titleVariant?: Variant;
 }) {
-  let { reloadOP, uuid: language, titleVariant } = props;
-  if (!titleVariant) {
-    titleVariant = 'h4';
-  }
+  let { reloadOP, uuid: language } = props;
+  const titleVariant = 'h4';
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas | null>(null);
   const { showNotification } = useContext(NotificationContext);

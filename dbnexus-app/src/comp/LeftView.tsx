@@ -519,6 +519,7 @@ function ViewMenu(props: {
         case DataSourceKind.LibSql:
         case DataSourceKind.FireBird:
         case DataSourceKind.DuckDB:
+        case DataSourceKind.Cockroach:
           list = (
             <SqlTableView
               tableName={view}
@@ -679,7 +680,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> copy name </ListItemText>
+          <ListItemText> Copy Name </ListItemText>
         </MenuItem>
 
         <Divider></Divider>
@@ -721,7 +722,7 @@ function ViewMenu(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} width="55%">
+          <Box sx={modalStyle} width="45%">
             <ExportTableOrView
               uuid={uuid}
               name={view}

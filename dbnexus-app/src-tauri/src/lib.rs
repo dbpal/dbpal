@@ -4,15 +4,12 @@ pub mod handlers;
 mod tests {
     use dbnexus_db::{
         cassandra::CassandraDB,
-        datasource_config::{CassandraDBConfig, LibSqlDBConfigSouce},
+        datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce},
         db::CreateTableAndIndexSql,
     };
 
     #[test]
     fn generate_ts_def() {
-        use std::io::prelude::*;
-        use std::path::Path;
-
         use crate::handlers::{MuiDataGridData, MuiDataTableListResp};
         use dbnexus_db::app::{self};
         use dbnexus_db::datasource_config::{
@@ -26,6 +23,8 @@ mod tests {
         use dbnexus_db::language_server::{CompletionItem, CompletionKind, SemanticToken};
         use dbnexus_db::query_log::QueryLogEvent;
         use dbnexus_db::redis::RedisListTable;
+        use std::io::prelude::*;
+        use std::path::Path;
         use typescript_type_def::{
             DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos,
         };
@@ -67,6 +66,7 @@ mod tests {
                 &CassandraDBConfig::INFO,
                 &LibSqlDBConfigSouce::INFO,
                 &CreateTableAndIndexSql::INFO,
+                &EnableSsl::INFO,
             ];
 
             let mut buf = Vec::new();

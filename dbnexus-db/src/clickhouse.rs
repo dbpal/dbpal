@@ -13,9 +13,9 @@ use crate::{
     datasource_config::ClickHouseConfig,
     db::{
         BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-        ExportKind, Field, ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql,
-        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp,
-        ty_is_float, ty_is_int,
+        ExportKind, ExportQueryResult, Field, ListMaterializedView, ListTable, NamedStaff,
+        QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+        SqlBuilder, SqlExecuteRet, TableListResp, ty_is_float, ty_is_int,
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
@@ -101,7 +101,7 @@ impl ClickHouseDB {
                     });
                 m
             };
-            let s = (self as &dyn SchemaTrait).insert_sql(
+            let s = self.insert_sql(
                 self.config.db.as_ref().map(|x| x.as_str()),
                 table_name,
                 &fs,
@@ -253,9 +253,6 @@ impl SchemaTrait for ClickHouseDB {
     fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
     }
-    fn quote_style(&self) -> &'static str {
-        "\""
-    }
 
     async fn delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
@@ -263,12 +260,11 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
         let fs = self.show_table_columns(&table_name).await?;
 
-        let sql = (self as &dyn SchemaTrait).delete_sql(
+        let sql = (self).delete_sql(
             self.config.db.as_ref().map(|x| x.as_str()),
             &table_name,
             &fs,
             &wheres,
-            type_support_compare,
         )?;
         log::info!("sql:{}", sql);
 
@@ -453,13 +449,7 @@ impl SchemaTrait for ClickHouseDB {
             }
         });
         let data = result.encode_json_result()?;
-
-        anyhow::Ok(TableListResp {
-            fields: infered_fs,
-            total,
-            data,
-            sql: Some(sql),
-        })
+        anyhow::Ok(TableListResp::new(infered_fs, total, data, sql)?)
     }
 
     async fn show_view(
@@ -493,7 +483,7 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self as &dyn SchemaTrait).insert_sql(
+        let sql = (self).insert_sql(
             self.config.db.as_ref().map(|x| x.as_str()),
             &table_name,
             &fs,
@@ -511,13 +501,12 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
+        let sql = self.update_sql(
             self.config.db.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &values,
             &wheres,
-            type_support_compare,
         )?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
@@ -535,11 +524,6 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
-    }
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
@@ -612,6 +596,12 @@ impl SchemaTrait for ClickHouseDB {
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
         anyhow::Ok(())
+    }
+}
+
+impl QuoteStyle for ClickHouseDB {
+    fn quote_style(&self) -> &'static str {
+        "\""
     }
 }
 
@@ -770,9 +760,11 @@ impl ClickHouseDB {
         anyhow::Ok(())
     }
 }
-
 #[async_trait::async_trait]
-impl QuerySql for ClickHouseDB {
+impl ExportQueryResult for ClickHouseDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -793,10 +785,10 @@ impl QuerySql for ClickHouseDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+}
 
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
-    }
+#[async_trait::async_trait]
+impl QuerySql for ClickHouseDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
     }
@@ -924,6 +916,9 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl DBTrait for ClickHouseDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn()?;
         let databases: Vec<String> = conn.query("show databases").fetch_all().await.unwrap();
@@ -1123,6 +1118,7 @@ pub(crate) fn make_test_object() -> ClickHouseDB {
         username: "default".to_string(),
         password: Some("root".to_string()),
         https: false,
+        save_password: true,
     })
     .unwrap()
 }
@@ -1133,6 +1129,17 @@ fn parse_type(typ: &str) -> anyhow::Result<DataType> {
     p = p.try_with_sql(&typ)?;
     let ret = p.parse_data_type()?;
     anyhow::Ok(ret)
+}
+
+impl SqlBuilder for ClickHouseDB {
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
+    }
 }
 
 #[cfg(test)]
@@ -1512,7 +1519,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            let sql = (&db as &dyn SchemaTrait)
+            let sql = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::Sql {
@@ -1523,7 +1530,7 @@ mod tests {
                 .unwrap();
 
             println!("sql:{}", sql);
-            let csv = (&db as &dyn SchemaTrait)
+            let csv = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::CSV {
@@ -1535,13 +1542,13 @@ mod tests {
                 .unwrap();
 
             println!("csv:{}", csv);
-            let jsonline = (&db as &dyn SchemaTrait)
+            let jsonline = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
 
             println!("jsonline:{}", jsonline);
-            let json = (&db as &dyn SchemaTrait)
+            let json = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
@@ -1595,7 +1602,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            let sql = (&db as &dyn SchemaTrait)
+            let sql = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::Sql {
@@ -1606,7 +1613,7 @@ mod tests {
                 .unwrap();
 
             println!("sql:{}", sql);
-            let csv = (&db as &dyn SchemaTrait)
+            let csv = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::CSV {
@@ -1618,13 +1625,13 @@ mod tests {
                 .unwrap();
 
             println!("csv:{}", csv);
-            let jsonline = (&db as &dyn SchemaTrait)
+            let jsonline = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
 
             println!("jsonline:{}", jsonline);
-            let json = (&db as &dyn SchemaTrait)
+            let json = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
@@ -1707,7 +1714,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            let sql = (&db as &dyn SchemaTrait)
+            let sql = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::Sql {
@@ -1718,7 +1725,7 @@ mod tests {
                 .unwrap();
 
             println!("sql:{}", sql);
-            let csv = (&db as &dyn SchemaTrait)
+            let csv = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::CSV {
@@ -1730,13 +1737,13 @@ mod tests {
                 .unwrap();
 
             println!("csv:{}", csv);
-            let jsonline = (&db as &dyn SchemaTrait)
+            let jsonline = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
 
             println!("jsonline:{}", jsonline);
-            let json = (&db as &dyn SchemaTrait)
+            let json = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
@@ -1805,7 +1812,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            let sql = (&db as &dyn SchemaTrait)
+            let sql = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::Sql {
@@ -1816,7 +1823,7 @@ mod tests {
                 .unwrap();
 
             println!("sql:{}", sql);
-            let csv = (&db as &dyn SchemaTrait)
+            let csv = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::CSV {
@@ -1828,13 +1835,13 @@ mod tests {
                 .unwrap();
 
             println!("csv:{}", csv);
-            let jsonline = (&db as &dyn SchemaTrait)
+            let jsonline = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
 
             println!("jsonline:{}", jsonline);
-            let json = (&db as &dyn SchemaTrait)
+            let json = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
@@ -1906,7 +1913,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            let sql = (&db as &dyn SchemaTrait)
+            let sql = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::Sql {
@@ -1917,7 +1924,7 @@ mod tests {
                 .unwrap();
 
             println!("sql:{}", sql);
-            let csv = (&db as &dyn SchemaTrait)
+            let csv = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::CSV {
@@ -1929,13 +1936,13 @@ mod tests {
                 .unwrap();
 
             println!("csv:{}", csv);
-            let jsonline = (&db as &dyn SchemaTrait)
+            let jsonline = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
 
             println!("jsonline:{}", jsonline);
-            let json = (&db as &dyn SchemaTrait)
+            let json = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
@@ -1986,7 +1993,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            let sql = (&db as &dyn SchemaTrait)
+            let sql = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::Sql {
@@ -1997,7 +2004,7 @@ mod tests {
                 .unwrap();
 
             println!("sql:{}", sql);
-            let csv = (&db as &dyn SchemaTrait)
+            let csv = db
                 .export_table_to_string(
                     table_name,
                     ExportKind::CSV {
@@ -2009,13 +2016,13 @@ mod tests {
                 .unwrap();
 
             println!("csv:{}", csv);
-            let jsonline = (&db as &dyn SchemaTrait)
+            let jsonline = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
 
             println!("jsonline:{}", jsonline);
-            let json = (&db as &dyn SchemaTrait)
+            let json = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();

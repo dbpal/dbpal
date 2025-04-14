@@ -17,13 +17,13 @@ import {
   Radio,
   Checkbox,
   Chip,
+  Tooltip,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
-import { appStore, AppStoreKey, msgTimeout } from './Common';
-
+import { appStore, AppStoreKey, extractBaseName, msgTimeout } from './Common';
 import { DataSourceKind } from './helper';
 
 async function selectOneFile() {
@@ -82,8 +82,18 @@ function UserAndPassword(props: {
   setUser;
   setPassword;
   onBlur;
+  savePassword;
+  setSavePassword;
 }) {
-  let { user, password, setUser, setPassword, onBlur } = props;
+  let {
+    user,
+    password,
+    setUser,
+    setPassword,
+    onBlur,
+    savePassword,
+    setSavePassword,
+  } = props;
 
   return (
     <Stack direction="row">
@@ -105,6 +115,17 @@ function UserAndPassword(props: {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+
+      <div style={{ width: '30rem' }}>
+        <Checkbox
+          checked={savePassword}
+          onChange={(e) => {
+            setSavePassword(e.target.checked);
+          }}
+          name="save password"
+        />
+        save password
+      </div>
     </Stack>
   );
 }
@@ -149,6 +170,82 @@ function TrustCert(props: { trustCert; setTrustCert }) {
       }
       label="Trust Cert"
     />
+  );
+}
+
+function EnableSSlCert(props: {
+  sslCa;
+  setSslCa;
+  sslCert;
+  setSslCert;
+  enableSsl;
+  setEnableSsl;
+  sslKey;
+  setSslKey;
+}) {
+  const {
+    sslCa,
+    setSslCa,
+    sslCert,
+    setSslCert,
+    sslKey,
+    setSslKey,
+    enableSsl,
+    setEnableSsl,
+  } = props;
+
+  return (
+    <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+      <>
+        <Checkbox
+          checked={enableSsl}
+          onChange={(e) => {
+            setEnableSsl(e.target.checked);
+          }}
+        ></Checkbox>
+        enable ssl
+      </>
+      {enableSsl && (
+        <>
+          <Tooltip
+            title={sslCa}
+            onClick={async () => {
+              let file = await selectOneFile();
+              if (file) {
+                setSslCa(file);
+              }
+            }}
+          >
+            <Chip
+              label={'CA Cert:' + (sslCa ? extractBaseName(sslCa) : '')}
+            ></Chip>
+          </Tooltip>
+          <Tooltip title={sslCert}>
+            <Chip
+              onClick={async () => {
+                let file = await selectOneFile();
+                if (file) {
+                  setSslCert(file);
+                }
+              }}
+              label={'Certificate:' + (sslCert ? extractBaseName(sslCert) : '')}
+            ></Chip>
+          </Tooltip>
+
+          <Tooltip title={sslKey}>
+            <Chip
+              onClick={async () => {
+                let file = await selectOneFile();
+                if (file) {
+                  setSslKey(file);
+                }
+              }}
+              label={'Key File:' + (sslKey ? extractBaseName(sslKey) : '')}
+            ></Chip>
+          </Tooltip>
+        </>
+      )}
+    </Stack>
   );
 }
 
@@ -240,14 +337,16 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   );
   const [connectionName, setConnectionName] = useState(getConfig('name'));
   const connectionNameDom = useRef(null);
+  const [savePassword, setSavePassword] = useState(
+    getConfig('save_password', true)
+  );
   const [host, setHost] = useState(getConfig('host'));
   const [port, setPort] = useState('' + getConfig('port', 0));
   const [user, setUser] = useState(getConfig('username'));
   const [password, setPassword] = useState('');
   const [database, setDatabase] = useState(getConfig('db'));
   const [readOnly, setReadOnly] = useState(getConfig('read_only', false));
-  //@ts-ignore
-  const [useSSL, setUseSSL] = useState(false);
+
   const [testLoading, setTestLoading] = useState(false);
   const [triggerReLoad, setTriggerReload] = useState(false);
   const [path, setPath] = useState(getConfig('path'));
@@ -257,6 +356,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   const [databaseCandidates, setDatabaseCandidates] = useState([]);
   const [schema, setSchema] = useState(getConfig('schema'));
   const [https, setHttps] = useState(getConfig('https', false));
+  const [sslCa, setSslCa] = useState(getConfig('ssl_ca'));
+  const [sslCert, setSslCert] = useState(getConfig('ssl_cert'));
+  const [sslKey, setSslKey] = useState(getConfig('ssl_key'));
+  const [sslEnable, setSslEnable] = useState(false);
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
   };
@@ -277,7 +380,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     switch (connectionType) {
       case DataSourceKind.FireBird:
         return {
-          conn_type: 'firebird',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           db: database,
@@ -285,10 +388,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           password: password,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
         };
       case DataSourceKind.LibSql:
         return {
-          conn_type: 'libsql',
+          conn_type: connectionType,
           replica: replica,
           source: libSqlModel,
           path: path,
@@ -300,7 +404,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
 
       case DataSourceKind.ClickHouse:
         return {
-          conn_type: 'clickhouse',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -309,10 +413,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           https: https,
+          save_password: savePassword,
         };
       case DataSourceKind.Mysql:
         return {
-          conn_type: 'mysql',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -320,10 +425,15 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
+          ssl_enable: sslEnable,
+          ssl_ca: sslCa,
+          ssl_cert: sslCert,
+          ssl_key: sslKey,
         };
       case DataSourceKind.Cassandra:
         return {
-          conn_type: 'cassandra',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user_null,
@@ -331,10 +441,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
         };
       case DataSourceKind.MariaDB:
         return {
-          conn_type: 'mariadb',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -342,10 +453,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
         };
       case DataSourceKind.TiDB:
         return {
-          conn_type: 'tidb',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -353,10 +465,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           read_only: readOnly,
           name: connectionName,
+          save_password: savePassword,
         };
       case DataSourceKind.Postgres:
         return {
-          conn_type: 'postgres',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -365,18 +478,39 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           schema: schema_null,
+          save_password: savePassword,
+          ssl_enable: sslEnable,
+          ssl_ca: sslCa,
+          ssl_cert: sslCert,
+          ssl_key: sslKey,
         };
-
+      case DataSourceKind.Cockroach:
+        return {
+          conn_type: connectionType,
+          host: host,
+          port: portInt,
+          username: user,
+          password: pass_null,
+          db: db_null,
+          read_only: readOnly,
+          name: connectionName,
+          schema: schema_null,
+          save_password: savePassword,
+          ssl_enable: sslEnable,
+          ssl_ca: sslCa,
+          ssl_cert: sslCert,
+          ssl_key: sslKey,
+        };
       case DataSourceKind.Sqlite:
         return {
-          conn_type: 'sqlite',
+          conn_type: connectionType,
           path: path,
           read_only: readOnly,
           name: connectionName,
         };
       case DataSourceKind.DuckDB:
         return {
-          conn_type: 'duckdb',
+          conn_type: connectionType,
           path: path,
           db: db_null,
           schema: schema_null,
@@ -385,7 +519,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
       case DataSourceKind.Redis:
         return {
-          conn_type: 'redis',
+          conn_type: connectionType,
           read_only: readOnly,
           name: connectionName,
           host: host,
@@ -393,10 +527,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           username: user_null,
           password: pass_null,
+          save_password: savePassword,
         };
       case DataSourceKind.Mongo:
         return {
-          conn_type: 'mongo',
+          conn_type: connectionType,
           read_only: readOnly,
           name: connectionName,
           host: host,
@@ -405,10 +540,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           username: user_null,
           password: pass_null,
           call_timeout: null,
+          save_password: savePassword,
         };
       case DataSourceKind.MsSql:
         return {
-          conn_type: 'mssql',
+          conn_type: connectionType,
           read_only: readOnly,
           name: connectionName,
           host: host,
@@ -418,11 +554,12 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           password: password,
           trust_cert: trustCert,
           schema: null,
+          save_password: savePassword,
         };
       case DataSourceKind.Oracle:
         return {
           name: connectionName,
-          conn_type: 'oracle',
+          conn_type: connectionType,
           host: host,
           port: portInt,
           username: user,
@@ -431,6 +568,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           schema: schema ? schema : null,
           call_timeout: null,
+          save_password: savePassword,
         };
     }
   };
@@ -489,6 +627,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       case DataSourceKind.FireBird:
         setPort('3050');
         break;
+      case DataSourceKind.Cockroach:
+        setPort('26257');
+        break;
     }
   }, [connectionType]);
   const handleSaveConnection = async () => {
@@ -519,8 +660,18 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       connectionNameDom.current.focus();
       return;
     }
-
-    if (password) {
+    if (password && !savePassword) {
+      try {
+        await invoke('save_entered_password', {
+          name: connectionName,
+          pass: password,
+        });
+      } catch (e) {
+        showNotification('error', 'save password failed', e);
+        return;
+      }
+    }
+    if (password && savePassword) {
       try {
         await invoke('save_password', {
           name: connectionName,
@@ -530,9 +681,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         showNotification('error', 'save password failed', e);
         return;
       }
-      //@ts-ignore
-      config.password = '';
     }
+    if (password) {
+      config['password'] = '';
+    }
+
     connections = [config, ...connections];
     (await appStore())
       .set(AppStoreKey.ConnectionConfig, connections)
@@ -547,7 +700,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
 
   useEffect(() => {
     let config = makeConfig();
-    if (connectionType == DataSourceKind.Oracle) {
+    if (connectionType === DataSourceKind.Oracle) {
       // TODO oracle have bug rigthnow
       return;
     }
@@ -566,8 +719,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   useEffect(() => {
     if (
       database &&
-      (connectionType == DataSourceKind.Postgres ||
-        connectionType == DataSourceKind.Oracle)
+      (connectionType === DataSourceKind.Postgres ||
+        connectionType === DataSourceKind.Oracle ||
+        connectionType === DataSourceKind.Cockroach)
     ) {
       let config = makeConfig();
       if (config) {
@@ -609,12 +763,13 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
           <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
+          <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
         </Select>
       </FormControl>
 
-      {(connectionType == DataSourceKind.Mysql ||
-        connectionType == DataSourceKind.MariaDB ||
-        connectionType == DataSourceKind.TiDB) && (
+      {(connectionType === DataSourceKind.Mysql ||
+        connectionType === DataSourceKind.MariaDB ||
+        connectionType === DataSourceKind.TiDB) && (
         <>
           <HostAndPort
             host={host}
@@ -629,16 +784,28 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             database={database}
             candidates={databaseCandidates}
             setDatabase={setDatabase}
           ></Database>
+          <EnableSSlCert
+            enableSsl={sslEnable}
+            setEnableSsl={setSslEnable}
+            sslCa={sslCa}
+            setSslCa={setSslCa}
+            sslCert={sslCert}
+            setSslCert={setSslCert}
+            sslKey={sslKey}
+            setSslKey={setSslKey}
+          ></EnableSSlCert>
         </>
       )}
 
-      {connectionType == DataSourceKind.LibSql && (
+      {connectionType === DataSourceKind.LibSql && (
         <LibSql
           url={url}
           setUrl={setUrl}
@@ -653,7 +820,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         ></LibSql>
       )}
 
-      {connectionType == DataSourceKind.FireBird && (
+      {connectionType === DataSourceKind.FireBird && (
         <>
           <HostAndPort
             host={host}
@@ -668,6 +835,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setUser={setUser}
             onBlur={toggleTriggerReload}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={[]}
@@ -677,7 +846,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ></Database>
         </>
       )}
-      {connectionType == DataSourceKind.Postgres && (
+
+      {(connectionType === DataSourceKind.Postgres ||
+        connectionType === DataSourceKind.Cockroach) && (
         <>
           <HostAndPort
             host={host}
@@ -692,6 +863,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setUser={setUser}
             onBlur={toggleTriggerReload}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -699,6 +872,17 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setDatabase={setDatabase}
             onBlur={toggleTriggerReload}
           ></Database>
+          <EnableSSlCert
+            enableSsl={sslEnable}
+            setEnableSsl={setSslEnable}
+            sslCa={sslCa}
+            setSslCa={setSslCa}
+            sslCert={sslCert}
+            setSslCert={setSslCert}
+            sslKey={sslKey}
+            setSslKey={setSslKey}
+          ></EnableSSlCert>
+
           {database && (
             <Schema
               schema={schema}
@@ -708,7 +892,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           )}
         </>
       )}
-      {connectionType == DataSourceKind.ClickHouse && (
+      {connectionType === DataSourceKind.ClickHouse && (
         <>
           <HostAndPort
             host={host}
@@ -723,6 +907,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setUser={setUser}
             onBlur={toggleTriggerReload}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -734,7 +920,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         </>
       )}
 
-      {connectionType == DataSourceKind.Cassandra && (
+      {connectionType === DataSourceKind.Cassandra && (
         <>
           <HostAndPort
             host={host}
@@ -749,6 +935,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setUser={setUser}
             onBlur={toggleTriggerReload}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -759,7 +947,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ></Database>
         </>
       )}
-      {connectionType == DataSourceKind.Redis && (
+      {connectionType === DataSourceKind.Redis && (
         <>
           <HostAndPort
             host={host}
@@ -774,6 +962,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -782,7 +972,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ></Database>
         </>
       )}
-      {connectionType == DataSourceKind.Mongo && (
+      {connectionType === DataSourceKind.Mongo && (
         <>
           <HostAndPort
             onBlur={toggleTriggerReload}
@@ -797,6 +987,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             candidates={databaseCandidates}
@@ -805,7 +997,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ></Database>
         </>
       )}
-      {connectionType == DataSourceKind.MsSql && (
+      {connectionType === DataSourceKind.MsSql && (
         <>
           <HostAndPort
             onBlur={toggleTriggerReload}
@@ -820,6 +1012,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             database={database}
@@ -833,7 +1027,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         </>
       )}
 
-      {connectionType == DataSourceKind.Oracle && (
+      {connectionType === DataSourceKind.Oracle && (
         <>
           <HostAndPort
             onBlur={toggleTriggerReload}
@@ -848,6 +1042,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             password={password}
             setUser={setUser}
             setPassword={setPassword}
+            savePassword={savePassword}
+            setSavePassword={setSavePassword}
           ></UserAndPassword>
           <Database
             database={database}
@@ -863,10 +1059,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           )}
         </>
       )}
-      {connectionType == DataSourceKind.Sqlite && (
+      {connectionType === DataSourceKind.Sqlite && (
         <SelectPath path={path} setPath={setPath}></SelectPath>
       )}
-      {connectionType == DataSourceKind.DuckDB && (
+      {connectionType === DataSourceKind.DuckDB && (
         <>
           <SelectPath path={path} setPath={setPath}></SelectPath>
           <Database
@@ -964,10 +1160,10 @@ function LibSql(props: {
         ))}
       </RadioGroup>
 
-      {libSqlModel == 'local' && (
+      {libSqlModel === 'local' && (
         <SelectPath path={path} setPath={setPath}></SelectPath>
       )}
-      {libSqlModel == 'remote' && (
+      {libSqlModel === 'remote' && (
         <>
           <Stack direction="row" spacing={1}>
             <TextField

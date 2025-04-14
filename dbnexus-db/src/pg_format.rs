@@ -272,7 +272,7 @@ pub(crate) fn encode_row_as_json(
                 return err;
             }
             "FLOAT4[]" => {
-                let value: Option<Vec<i64>> = r.try_get(c)?;
+                let value: Option<Vec<f32>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
                         .map(|x| serde_json::Value::from(x))
@@ -282,7 +282,7 @@ pub(crate) fn encode_row_as_json(
                 value.map(|x| serde_json::Value::Array(x))
             }
             "FLOAT8[]" => {
-                let value: Option<Vec<i64>> = r.try_get(c)?;
+                let value: Option<Vec<f64>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
                         .map(|x| serde_json::Value::from(x))

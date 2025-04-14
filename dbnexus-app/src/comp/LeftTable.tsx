@@ -305,6 +305,7 @@ async function makeViewTable(
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
     case DataSourceKind.DuckDB:
+    case DataSourceKind.Cockroach:
       tableList = (
         <SqlTableView
           tableName={table}
@@ -616,6 +617,7 @@ async function makeAddTable(
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
     case DataSourceKind.DuckDB:
+    case DataSourceKind.Cockroach:
       tableList = (
         <SqlTableViewAdd
           addOP={async (values) => {
@@ -907,7 +909,7 @@ function TableMenu(props: {
           <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> copy name </ListItemText>
+          <ListItemText> Copy Name </ListItemText>
         </MenuItem>
 
         <Divider></Divider>
@@ -1020,7 +1022,7 @@ function TableMenu(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <ExportTableOrView
               uuid={uuid}
               name={table}

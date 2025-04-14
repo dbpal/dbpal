@@ -10,16 +10,17 @@ use libsql::{Connection, Row, ValueType, params};
 use crate::{
     datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce},
     db::{
-        BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, Field, Index,
-        IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-        ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+        BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
+        Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle,
+        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+        TableListResp, TriggerDetail,
     },
     helper::{create_csv, is_dangerous_sql_by_parser},
     meta_value::MetaValue,
     query_log::QueryLog,
     sqlite::{
         encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
-        integer_like, numreic_like, real_like, text_like, type_support_compare,
+        integer_like, numreic_like, real_like, text_like,
     },
 };
 use std::ops::DerefMut;
@@ -48,12 +49,10 @@ fn get_row_types(r: &Row) -> Vec<Field> {
 }
 
 #[async_trait::async_trait]
-
-impl QuerySql for LibSqlDB {
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
+impl ExportQueryResult for LibSqlDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
     }
-
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -74,6 +73,14 @@ impl QuerySql for LibSqlDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
+}
+#[async_trait::async_trait]
+
+impl QuerySql for LibSqlDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
+    }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -138,10 +145,6 @@ impl QuerySql for LibSqlDB {
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_connections.remove(&id);
         anyhow::Ok(())
-    }
-
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
     }
 }
 
@@ -289,12 +292,14 @@ impl ServerMetas for LibSqlDB {
     }
 }
 
-#[async_trait::async_trait]
-impl SchemaTrait for LibSqlDB {
+impl QuoteStyle for LibSqlDB {
     fn quote_style(&self) -> &'static str {
         "\""
     }
+}
 
+#[async_trait::async_trait]
+impl SchemaTrait for LibSqlDB {
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -509,13 +514,7 @@ impl SchemaTrait for LibSqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
-            None,
-            table_name,
-            &fields,
-            &wheres,
-            type_support_compare,
-        )?;
+        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;
         let changes = conn.execute(&sql, params!()).await?;
@@ -539,35 +538,6 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(())
     }
 
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        let typ = typ.to_uppercase();
-
-        let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
-            _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
-                value.unwrap_or("null").to_string()
-            }
-            "BLOB" => value.unwrap_or("null").to_string(),
-            _ => {
-                let e = format!("type '{}' not handled", typ);
-                log::error!("{}", e);
-                anyhow::bail!(e)
-            }
-        };
-
-        anyhow::Ok(v)
-    }
-
     async fn update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
@@ -576,14 +546,7 @@ impl SchemaTrait for LibSqlDB {
         let fields = self.show_table_columns(table_name).await?;
 
         let conn = self.get_conn().await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).update_sql(
-            None,
-            table_name,
-            &fields,
-            &values,
-            &wheres,
-            type_support_compare,
-        )?;
+        let sql = self.update_sql(None, table_name, &fields, &values, &wheres)?;
         log::info!("sql:{}", sql);
         let changes = conn.execute(&sql, params!()).await?;
         anyhow::Ok(SqlExecuteRet {
@@ -597,8 +560,7 @@ impl SchemaTrait for LibSqlDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql =
-            (self as &dyn crate::db::SchemaTrait).insert_sql(None, table_name, &fields, &values)?;
+        let sql = self.insert_sql(None, table_name, &fields, &values)?;
         log::trace!("insert sql:{}", sql);
         let conn = self.get_conn().await?;
         let changes = conn.execute(&sql, params!()).await?;
@@ -667,7 +629,7 @@ impl SchemaTrait for LibSqlDB {
         }
         let data = encode_rows(&rows)?;
         let fields = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(fields, total, data, sql))
+        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
     }
 
     async fn show_view(
@@ -685,14 +647,14 @@ impl SchemaTrait for LibSqlDB {
         }
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql));
+            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
         }
         let data = encode_rows(&rows)?;
         let fields = match rows.get(0) {
             Some(x) => get_row_types(x),
             None => vec![],
         };
-        anyhow::Ok(TableListResp::new(fields, total, data, sql))
+        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -729,7 +691,36 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(ret)
     }
 }
+impl SqlBuilder for LibSqlDB {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        let typ = typ.to_uppercase();
 
+        let v = match typ.as_str() {
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
+            _ if text_like(typ.as_str()) => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
+            "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
+            _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
+                value.unwrap_or("null").to_string()
+            }
+            "BLOB" => value.unwrap_or("null").to_string(),
+            _ => {
+                let e = format!("type '{}' not handled", typ);
+                log::error!("{}", e);
+                anyhow::bail!(e)
+            }
+        };
+
+        anyhow::Ok(v)
+    }
+}
 impl LibSqlDB {
     async fn create_table_or_view_sql(
         &self, table_name: &str, kind: &str,
@@ -787,8 +778,7 @@ impl LibSqlDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql =
-                    (self as &dyn SchemaTrait).insert_sql(None, table_name, &cols, &m)?;
+                let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send("\n".into()).await?;
             }
@@ -1236,7 +1226,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn SchemaTrait;
+        let db = db;
         {
             let s = db
                 .export_table_to_string(
@@ -1352,7 +1342,6 @@ mod tests {
         .await
         .unwrap();
 
-        let db = &db as &dyn crate::db::SchemaTrait;
         let mut values: HashMap<String, Option<String>> = HashMap::new();
 
         values.insert("id".to_string(), Some("1".to_string()));

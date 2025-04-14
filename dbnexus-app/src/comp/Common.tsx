@@ -56,6 +56,8 @@ const modalStyle: SxProps = {
   margin: 0,
   borderRadius: '5px',
   p: 1,
+  maxHeight: '85vh',
+  overflowY: 'auto',
 };
 
 import {
@@ -172,7 +174,7 @@ function CreateDatabase({ uuid, handleClose, kind }) {
 
   return (
     <Stack spacing={1}>
-      {kind == DataSourceKind.DuckDB && (
+      {kind === DataSourceKind.DuckDB && (
         <>
           <Chip
             color="info"
@@ -258,7 +260,7 @@ function CreateSchema(props: {
       });
   };
 
-  if (kind == DataSourceKind.Cassandra) {
+  if (kind === DataSourceKind.Cassandra) {
     //
     return (
       <Stack spacing={1}>
@@ -302,7 +304,7 @@ function CreateSchema(props: {
       </Stack>
     );
   }
-  if (kind == DataSourceKind.Redis) {
+  if (kind === DataSourceKind.Redis) {
     // redis have special create
     const range = [];
     for (let i = 0; i < 16; i++) {
@@ -521,7 +523,7 @@ const msgTimeout = 5000;
 function tabsHasId(tabs: TabContent[], id: string): number | null {
   for (let i = 0; i < tabs.length; i++) {
     let tab = tabs[i];
-    if (tab.id == id) {
+    if (tab.id === id) {
       return i;
     }
   }
@@ -541,7 +543,7 @@ function MenuConnectionInfo({ uuid }) {
   const handleInfo = async () => {
     let id = uuid + '-info';
     let index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+    if (typeof index === 'number') {
       setSelectTab(index);
     } else {
       setTabs((e) => {
@@ -576,9 +578,8 @@ class UserSettings {
   datagridRowHeight: number = 24;
   datagridHeaderHeight: number = 30;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
-
   editorTheme(): string {
-    return this.theme == 'dark' ? 'vs-dark' : 'light';
+    return this.theme === 'dark' ? 'vs-dark' : 'light';
   }
   constructor(
     theme?,
@@ -646,7 +647,7 @@ function ConnConfigInfo(props: { uuid }) {
           ];
           break;
         case 'libsql':
-          if (config.source == 'local') {
+          if (config.source === 'local') {
             configMetas = [
               { name: 'host', value: config.path } as types.MetaValue,
             ];
@@ -922,6 +923,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       break;
 
     case DataSourceKind.Postgres:
+    case DataSourceKind.Cockroach:
       initLanguageXXX(
         uuid,
         {
@@ -1306,6 +1308,7 @@ export {
   AppStoreKey,
   LoadStoreFileForQuery,
   keyNotInTable,
+  extractBaseName,
   treeItemCommonStyle,
 };
 

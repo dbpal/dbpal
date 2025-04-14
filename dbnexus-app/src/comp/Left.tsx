@@ -53,7 +53,7 @@ import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import { debugBuild } from './debug';
+
 import { TabContent } from './Tabs';
 import wcmatch from 'wildcard-match';
 
@@ -80,7 +80,7 @@ import { RedisQuery } from './RedisQuery';
 import { MongoQuery } from './MongoQuery.tsx';
 import React from 'react';
 import {
-  ConnStatus,
+  ConnPingTime,
   MenuCloseConn,
   MenuCreateDatabase,
   MenuCreateSchema,
@@ -774,51 +774,53 @@ function FavoriteSqlList(props: { handleClose }) {
 const OneConfig = memo(OneConfig_);
 function OneConfig_(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-  const [opened, setOpened] = useState(false || debugBuild);
+  const [opened, setOpened] = useState();
+
   const makeTree = () => {
     switch (config.conn_type) {
-      case 'postgres':
+      case DataSourceKind.Postgres:
+      case DataSourceKind.Cockroach:
         if (!config.db) {
           return <CatalogTree />;
         }
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case 'mariadb':
-      case 'mysql':
-      case 'tidb':
+      case DataSourceKind.MariaDB:
+      case DataSourceKind.Mysql:
+      case DataSourceKind.TiDB:
         return config.db ? (
           <SchemaTree></SchemaTree>
         ) : (
           <DatabaseTree></DatabaseTree>
         );
-      case 'sqlite':
-      case 'libsql':
+      case DataSourceKind.Sqlite:
+      case DataSourceKind.LibSql:
         return <SchemaTree></SchemaTree>;
-      case 'redis':
+      case DataSourceKind.Redis:
         return config.db ? (
           <SchemaTree></SchemaTree>
         ) : (
           <DatabaseTree></DatabaseTree>
         );
-      case 'mongo':
+      case DataSourceKind.Mongo:
         return config.db ? (
           <SchemaTree></SchemaTree>
         ) : (
           <DatabaseTree></DatabaseTree>
         );
-      case 'mssql':
+      case DataSourceKind.MsSql:
         if (!config.db) {
           return <CatalogTree />;
         }
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case 'oracle':
+      case DataSourceKind.Oracle:
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case 'cassandra':
+      case DataSourceKind.Cassandra:
         return config.db ? <SchemaTree /> : <DatabaseTree />;
-      case 'clickhouse':
+      case DataSourceKind.ClickHouse:
         return config.db ? <SchemaTree /> : <DatabaseTree />;
-      case 'firebird':
+      case DataSourceKind.FireBird:
         return <SchemaTree />;
-      case 'duckdb':
+      case DataSourceKind.DuckDB:
         if (!config.db) {
           return <CatalogTree />;
         }
@@ -849,15 +851,16 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.MsSql ||
-    kind == DataSourceKind.Oracle;
+    kind == DataSourceKind.Oracle ||
+    kind == DataSourceKind.Cockroach;
   let support_udf =
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Oracle ||
-    kind == DataSourceKind.Cassandra;
-
+    kind == DataSourceKind.Cassandra ||
+    kind == DataSourceKind.Cockroach;
   let { setUpMenu } = useContext(ContextMenuContext);
 
   return (
@@ -891,7 +894,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
-        {!schema && opened && <ConnStatus uuid={uuid}></ConnStatus>}
+        {!schema && opened && <ConnPingTime uuid={uuid}></ConnPingTime>}
       </Stack>
     >
       {opened && kind == DataSourceKind.Sqlite && (
@@ -948,6 +951,13 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         </>
       )}
       {opened && kind == DataSourceKind.Postgres && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewkind={ViewKind.Materrialized} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.Cockroach && (
         <>
           <TablesTree typ={TablesType.Normal} />
           <ViewsTree viewkind={ViewKind.Normal} />
@@ -1208,6 +1218,7 @@ async function openNewQuery(
     case DataSourceKind.LibSql:
     case DataSourceKind.FireBird:
     case DataSourceKind.DuckDB:
+    case DataSourceKind.Cockroach:
       content = (
         <SqlQuery
           language={uuid}
@@ -1403,7 +1414,7 @@ function CatalogTree(_props: {}) {
       >
         <span>{name} </span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
-        {opened && <ConnStatus uuid={name}></ConnStatus>}
+        {opened && <ConnPingTime uuid={name}></ConnPingTime>}
       </Stack>
       key={name}
     >
@@ -1489,7 +1500,7 @@ function DatabaseTree(props: {
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
-        {!database && opened && <ConnStatus uuid={name}></ConnStatus>}
+        {!database && opened && <ConnPingTime uuid={name}></ConnPingTime>}
       </Stack>
       key={name + database}
     >

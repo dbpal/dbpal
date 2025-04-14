@@ -305,8 +305,10 @@ enum DataSourceKind {
   ClickHouse = "clickhouse",
   LibSql = "libsql",
   FireBird = "firebird",
-  DuckDB = "duckdb"
+  DuckDB = "duckdb",
+  Cockroach = "cockroach"
 }
+
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
   return name as DataSourceKind

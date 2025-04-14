@@ -353,6 +353,7 @@ function SqlTableView(props: {
           `sql:${ret.sql} row affected:${ret.changes}`
         );
       } catch (e) {
+        showNotification('error', 'update failed', e);
         throw e;
       }
       return newRow;
@@ -393,7 +394,7 @@ function SqlTableView(props: {
   };
 
   useEffect(() => {
-    handleReload(true);
+    handleReload(false);
   }, [page, pageSize, where, sort, allowFiltering]);
 
   useEffect(() => {}, [sort]);

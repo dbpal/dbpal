@@ -13,9 +13,9 @@ use std::{
 use crate::{
     datasource_config::FireBirdConfig,
     db::{
-        BackendName, CheckConn, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
-        QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
-        TableListResp, not_support_features,
+        BackendName, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
+        NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+        ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, not_support_features,
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
@@ -254,9 +254,11 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
     }
     anyhow::Ok(serde_json::Value::Object(m))
 }
-
 #[async_trait::async_trait]
-impl QuerySql for FireBirdDB {
+impl ExportQueryResult for FireBirdDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -277,7 +279,9 @@ impl QuerySql for FireBirdDB {
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
     }
-
+}
+#[async_trait::async_trait]
+impl QuerySql for FireBirdDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -366,10 +370,6 @@ impl QuerySql for FireBirdDB {
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_connections.remove(&id);
         anyhow::Ok(())
-    }
-
-    fn clone(&self) -> Box<dyn QuerySql> {
-        Box::new(Clone::clone(self))
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -463,8 +463,7 @@ impl FireBirdDB {
                     for (d, f) in d.into_iter().zip(cols.iter()) {
                         m.insert(f.field.clone(), d);
                     }
-                    let insert_sql =
-                        (&firebird as &dyn SchemaTrait).insert_sql(None, &table_name, &cols, &m)?;
+                    let insert_sql = firebird.insert_sql(None, &table_name, &cols, &m)?;
                     sender.blocking_send(Cow::Owned(insert_sql))?;
                     sender.blocking_send("\n".into())?;
                 }
@@ -503,10 +502,6 @@ impl SchemaTrait for FireBirdDB {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
-    }
-
-    fn quote_style(&self) -> &'static str {
-        "\""
     }
 
     async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
@@ -610,12 +605,6 @@ impl SchemaTrait for FireBirdDB {
         anyhow::Ok(ret)
     }
 
-    fn put_value_in_sql(
-        &self, typ: &str, firebird_blob_sub_type: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        put_value_in_sql(typ, firebird_blob_sub_type, value)
-    }
-
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
@@ -668,7 +657,7 @@ impl SchemaTrait for FireBirdDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self as &dyn SchemaTrait).insert_sql(None, table_name, &fs, &values)?;
+        let sql = (self).insert_sql(None, table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn()?;
         let changes = conn.execute(&sql, ())?;
@@ -684,14 +673,7 @@ impl SchemaTrait for FireBirdDB {
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn SchemaTrait).update_sql(
-            None,
-            table_name,
-            &fs,
-            &values,
-            &wheres,
-            type_support_compare,
-        )?;
+        let sql = (self).update_sql(None, table_name, &fs, &values, &wheres)?;
         let mut conn = self.get_conn()?;
         let changes = block_in_place(|| conn.execute(&sql, ()))?;
         anyhow::Ok(SqlExecuteRet {
@@ -712,14 +694,7 @@ impl SchemaTrait for FireBirdDB {
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn SchemaTrait).delete_sql(
-            None,
-            table_name,
-            &fs,
-            &wheres,
-            type_support_compare,
-        )?;
-
+        let sql = (self).delete_sql(None, table_name, &fs, &wheres)?;
         let mut conn = self.get_conn()?;
         let changes = block_in_place(|| conn.execute(&sql, ()))?;
         anyhow::Ok(SqlExecuteRet {
@@ -873,6 +848,23 @@ impl SchemaTrait for FireBirdDB {
     }
 }
 
+impl QuoteStyle for FireBirdDB {
+    fn quote_style(&self) -> &'static str {
+        "\""
+    }
+}
+
+impl SqlBuilder for FireBirdDB {
+    fn put_value_in_sql(
+        &self, typ: &str, firebird_blob_sub_type: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        put_value_in_sql(typ, firebird_blob_sub_type, value)
+    }
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+}
+
 fn type_support_compare(_typ: &str) -> bool {
     true
 }
@@ -977,6 +969,7 @@ pub(crate) fn make_test_object() -> FireBirdDB {
         password: "root".to_string(),
         db: "/var/lib/firebird/data/test.fdb".to_string(),
         read_only: false,
+        save_password: true,
     })
     .unwrap()
 }
@@ -1222,7 +1215,7 @@ mod tests {
         }
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
@@ -1323,7 +1316,7 @@ mod tests {
         }
         {
             //export test
-            let db = &db as &dyn SchemaTrait;
+            let db = db;
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await

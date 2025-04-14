@@ -9,10 +9,11 @@ use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, format_data_time_fix_offset, not_support_features,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    format_data_time_fix_offset, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -266,7 +267,7 @@ fn make_table_list_from_meta_and_row(
     let fields = get_fields_from_meta(meta);
     let data = encode_rows(rows)?;
 
-    anyhow::Ok(TableListResp::new(fields, total, data, Some(sql.into())))
+    anyhow::Ok(TableListResp::new(fields, total, data, Some(sql.into()))?)
 }
 
 fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
@@ -439,12 +440,14 @@ fn type_support_compare(_tpe: &str) -> bool {
     true
 }
 
-#[async_trait::async_trait]
-impl SchemaTrait for MsSqlServerDB {
+impl QuoteStyle for MsSqlServerDB {
     fn quote_style(&self) -> &'static str {
         "\""
     }
+}
 
+#[async_trait::async_trait]
+impl SchemaTrait for MsSqlServerDB {
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -954,7 +957,7 @@ impl SchemaTrait for MsSqlServerDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let s = (self as &dyn crate::db::SchemaTrait).insert_sql(
+        let s = self.insert_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -979,47 +982,17 @@ impl SchemaTrait for MsSqlServerDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let s = (self as &dyn crate::db::SchemaTrait).update_sql(
+        let s = self.update_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
             &values,
             &wheres,
-            type_support_compare,
         )?;
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let r = conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet::from((s, r.rows_affected().iter().sum())))
-    }
-
-    /// format a value make it suitable for insert into sql.
-    /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
-        let single_quote = value
-            .map(|x| format!("'{}'", x))
-            .unwrap_or("null".to_string());
-        let v = match typ.to_uppercase().as_str() {
-            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
-            | "INT1" | "INT8" | "FLOAT4" | "FLOAT8" | "INTN" | "DECIMALN" | "NUMERICN"
-            | "FLOATN" | "NUMERIC" | "DECIMAL" => default_value,
-            "BIT" | "BITN" | "BIGVARBIN" => default_value,
-            "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "BIGVARCHAR"
-            | "BIGCHAR" => single_quote,
-            "UNIQUEIDENTIFIER" => default_value,
-            "BINARY" | "VARBINARY" | "IMAGE" | "BIGBINARY" => default_value,
-            "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME" | "DATETIME4"
-            | "DATEN" | "DATETIMEN" | "DATETIMEOFFSET" | "TIMEN" | "DATETIMEOFFSETN" => {
-                single_quote
-            }
-            "NULL" => default_value,
-            _ => anyhow::bail!("type '{}' not support", typ),
-        };
-        log::trace!("type:{:?} encode '{:?}' as #{}#", typ, value, v);
-        anyhow::Ok(v)
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
@@ -1041,12 +1014,11 @@ impl SchemaTrait for MsSqlServerDB {
         self.can_write()?;
 
         let fields = self.show_table_columns(table_name).await?;
-        let sql = (self as &dyn crate::db::SchemaTrait).delete_sql(
+        let sql = self.delete_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fields,
             &wheres,
-            type_support_compare,
         )?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1256,6 +1228,41 @@ impl SchemaTrait for MsSqlServerDB {
     }
 }
 
+impl SqlBuilder for MsSqlServerDB {
+    /// format a value make it suitable for insert into sql.
+    /// this method current use in `insert_sql` etc.
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
+        let single_quote = value
+            .map(|x| format!("'{}'", x))
+            .unwrap_or("null".to_string());
+        let v = match typ.to_uppercase().as_str() {
+            "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
+            | "INT1" | "INT8" | "FLOAT4" | "FLOAT8" | "INTN" | "DECIMALN" | "NUMERICN"
+            | "FLOATN" | "NUMERIC" | "DECIMAL" => default_value,
+            "BIT" | "BITN" | "BIGVARBIN" => default_value,
+            "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "BIGVARCHAR"
+            | "BIGCHAR" => single_quote,
+            "UNIQUEIDENTIFIER" => default_value,
+            "BINARY" | "VARBINARY" | "IMAGE" | "BIGBINARY" => default_value,
+            "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME" | "DATETIME4"
+            | "DATEN" | "DATETIMEN" | "DATETIMEOFFSET" | "TIMEN" | "DATETIMEOFFSETN" => {
+                single_quote
+            }
+            "NULL" => default_value,
+            _ => anyhow::bail!("type '{}' not support", typ),
+        };
+        log::trace!("type:{:?} encode '{:?}' as #{}#", typ, value, v);
+        anyhow::Ok(v)
+    }
+
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+}
+
 impl MsSqlServerDB {
     async fn query_count(
         conn: &mut Connection, name: &str, where_str: Option<&str>,
@@ -1458,7 +1465,7 @@ impl MsSqlServerDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = (self as &dyn SchemaTrait).insert_sql(
+                let insert_sql = (self).insert_sql(
                     self.config.schema.as_ref().map(|x| x.as_str()),
                     table_name,
                     &cols,
@@ -1629,15 +1636,12 @@ impl MsSqlServerDB {
 }
 
 type Connection = Client<Compat<TcpStream>>;
+
 #[async_trait::async_trait]
-impl QuerySql for MsSqlServerDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
+impl ExportQueryResult for MsSqlServerDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
-    }
-
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1657,6 +1661,12 @@ impl QuerySql for MsSqlServerDB {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
         }
+    }
+}
+#[async_trait::async_trait]
+impl QuerySql for MsSqlServerDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
@@ -1806,6 +1816,10 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
 
 #[async_trait::async_trait]
 impl crate::db::DBTrait for MsSqlServerDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec!["dbo".to_string()])
     }
@@ -1893,6 +1907,7 @@ pub(crate) async fn make_test_object() -> MsSqlServerDB {
         trust_cert: true,
         schema: Some(MsSqlServerDB::ONLY_SCHEMA.to_string()),
         read_only: false,
+        save_password: true,
     })
     .await
     .unwrap();
@@ -2124,7 +2139,7 @@ mod tests {
     async fn test_triggers() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let query_id = db.open_connection().await.unwrap();
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
@@ -2194,7 +2209,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let id = db.open_connection().await.unwrap();
 
         let ret = db
@@ -2253,7 +2268,7 @@ mod tests {
     async fn test_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let _ = db.drop_table("test_view_table", false).await;
         let _ = db.drop_view("test_view").await;
         let conn_id = db.open_connection().await.unwrap();
@@ -2327,7 +2342,6 @@ mod tests {
             .await
             .unwrap();
 
-        let db = &db as &dyn crate::db::SchemaTrait;
         std::thread::sleep(Duration::from_secs(1));
         let indexes = db.show_indexes("test_index_table").await.unwrap();
         println!("indexes:{:?}", indexes);
@@ -2356,7 +2370,6 @@ mod tests {
         for s in rs.iter() {
             conn.execute(*s, &[]).await.unwrap();
         }
-        let db = &db as &dyn SchemaTrait;
 
         {
             let s = db
@@ -2437,7 +2450,6 @@ mod tests {
         // list all table and query
         let pg = make_test_object().await;
 
-        let pg = &pg as &dyn SchemaTrait;
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
     }
@@ -2526,7 +2538,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values = HashMap::new();
         values.insert("col_tinyint".to_string(), Some("1".to_string()));
         values.insert("col_smallint".to_string(), Some("100".to_string()));
@@ -2579,7 +2591,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values = HashMap::new();
         values.insert("bit_column".to_string(), Some("1".to_string()));
         values.insert("nvarchar_column".to_string(), Some("b".to_string()));
@@ -2633,7 +2645,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values = HashMap::new();
         values.insert("BinaryColumn".to_string(), Some("0x0123456789".to_string()));
         values.insert("VarBinaryColumn".to_string(), Some("0xABCDEF".to_string()));
@@ -2693,7 +2705,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let db = &db as &dyn crate::db::SchemaTrait;
+
         let mut values = HashMap::new();
         values.insert(
             "XmlData".to_string(),

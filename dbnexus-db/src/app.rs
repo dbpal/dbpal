@@ -1,7 +1,3 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-#[allow(unused_imports)]
 use crate::datasource_config::{
     CassandraDBConfig, DuckDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
@@ -13,6 +9,8 @@ use crate::db::{
 };
 use crate::mongo::MongoDB;
 use crate::redis::{RedisDB, RedisListTable};
+use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -36,8 +34,9 @@ impl DBConnectionConfig {
             | DBConnectionConfig::Cassandra { name, .. }
             | DBConnectionConfig::ClickHouse { name, .. }
             | DBConnectionConfig::LibSql { name, .. }
-            | DBConnectionConfig::FireBird { name, .. } => name.as_str(),
-            DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
+            | DBConnectionConfig::FireBird { name, .. }
+            | DBConnectionConfig::DuckDB { name, .. }
+            | DBConnectionConfig::CockRoach { name, .. } => name.as_str(),
         }
     }
 }
@@ -66,6 +65,11 @@ pub enum DBConnectionConfig {
         name: String,
     },
     Postgres {
+        #[serde(flatten)]
+        conn: PGDBConfig,
+        name: String,
+    },
+    CockRoach {
         #[serde(flatten)]
         conn: PGDBConfig,
         name: String,
@@ -151,6 +155,9 @@ impl DBConnectionConfig {
             DBConnectionConfig::DuckDB { .. } => {}
             DBConnectionConfig::ClickHouse { conn, .. } => conn.password = Some(pass),
             DBConnectionConfig::LibSql { .. } => {}
+            DBConnectionConfig::CockRoach { conn, .. } => {
+                conn.password = Some(pass);
+            }
         }
     }
 }
@@ -202,14 +209,24 @@ impl DBConnectionConfig {
                     Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
+            DBConnectionConfig::CockRoach { conn, .. } => {
+                let o = Arc::new(crate::cockroach::CockRoachDB::new(conn.clone()).await?);
+                if conn.db.is_none() {
+                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                }
+                match &conn.schema {
+                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                }
+            }
             DBConnectionConfig::MsSql { conn, name: _ } => {
                 let o = Arc::new(crate::mssql::MsSqlServerDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
                 }
                 match &conn.schema {
-                    Some(_) => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                    None => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
                 }
             }
             DBConnectionConfig::Mongo { conn, name: _ } => {
@@ -250,7 +267,6 @@ impl DBConnectionConfig {
                 };
                 anyhow::Ok(db)
             }
-
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
                 #[cfg(feature = "duckdb")]
                 {
@@ -318,12 +334,14 @@ impl From<Arc<dyn crate::db::SchemaTrait>> for Open {
 #[derive(Clone)]
 pub struct App {
     pub opens: Arc<Mutex<HashMap<String, Open>>>,
+    pub saved_password: Arc<std::sync::Mutex<HashMap<String, String>>>,
 }
 
 impl App {
     pub fn new() -> Self {
         Self {
             opens: Default::default(),
+            saved_password: Default::default(),
         }
     }
 }

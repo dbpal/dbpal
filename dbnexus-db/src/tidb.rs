@@ -6,9 +6,10 @@ use std::time::Duration;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
-    TableListResp, TriggerDetail, UdfOrProcedureExtraParameter,
+    DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
+    UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
@@ -46,8 +47,9 @@ impl std::fmt::Debug for TiDB {
     }
 }
 #[async_trait::async_trait]
-impl QuerySql for TiDB {
-    fn clone(&self) -> Box<dyn QuerySql> {
+
+impl ExportQueryResult for TiDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
     async fn export_query_result(
@@ -55,6 +57,10 @@ impl QuerySql for TiDB {
     ) -> anyhow::Result<()> {
         self.db.export_query_result(sql, kind, sender).await
     }
+}
+
+#[async_trait::async_trait]
+impl QuerySql for TiDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -83,14 +89,16 @@ impl QuerySql for TiDB {
     }
 }
 
+impl QuoteStyle for TiDB {
+    fn quote_style(&self) -> &'static str {
+        self.db.quote_style()
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for TiDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
-    }
-
-    fn quote_style(&self) -> &'static str {
-        self.db.quote_style()
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -141,12 +149,6 @@ impl SchemaTrait for TiDB {
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.db.update(table_name, values, wheres).await
-    }
-
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        self.db.put_value_in_sql(typ, None, value)
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
@@ -289,6 +291,17 @@ impl SchemaTrait for TiDB {
     }
 }
 
+impl SqlBuilder for TiDB {
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        self.db.put_value_in_sql(typ, None, value)
+    }
+    fn type_support_compare(&self, typ: &str) -> bool {
+        self.db.type_support_compare(typ)
+    }
+}
+
 impl ReadOnlyTrait for TiDB {
     fn read_only(&self) -> bool {
         self.db.read_only()
@@ -296,6 +309,9 @@ impl ReadOnlyTrait for TiDB {
 }
 #[async_trait::async_trait]
 impl DBTrait for TiDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         self.db.list_schema().await
     }
@@ -339,6 +355,8 @@ mod tests {
             port: 4000,
             db: Some("test".to_string()),
             read_only: false,
+            save_password: true,
+            ssl: Default::default(),
         }
     }
 

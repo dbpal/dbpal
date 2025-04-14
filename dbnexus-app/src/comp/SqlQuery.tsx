@@ -16,7 +16,6 @@ import {
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import { FaExclamation } from 'react-icons/fa';
 import {
   ReactNode,
@@ -229,13 +228,28 @@ function SqlQuery(props: {
       }, msgTimeout);
     }
   };
+
+  const getText = () => {
+    const range = editor.current.getSelection();
+    let text: string;
+    if (range) {
+      text = editor.current.getModel().getValueInRange(range);
+    }
+    if (!text) {
+      text = editor.current.getValue();
+    }
+    text = text.trim();
+    if (!text) {
+      showNotification('error', 'empty statement');
+      return undefined;
+    }
+    return text;
+  };
   const handleExecute = async () => {
-    const text = editor.current.getValue();
-    if (!text.trim()) {
-      showNotification('error', `can't execute empty statement.`);
+    const text = getText();
+    if (!text) {
       return;
     }
-
     let confirm;
     try {
       confirm = await warnDangerousSql(text);
@@ -265,9 +279,9 @@ function SqlQuery(props: {
         setLoading(false);
       });
   };
-  const handleQuery = async (text: string) => {
-    if (!text.trim()) {
-      showNotification('error', `can't execute empty statement.`);
+  const handleQuery = async () => {
+    let text = getText();
+    if (!text) {
       return;
     }
     let confirm;
@@ -331,6 +345,20 @@ function SqlQuery(props: {
     };
   }, [setting]);
 
+  const editorDivDom = useRef(null);
+  useEffect(() => {
+    if (editorDivDom.current && conn) {
+      (editorDivDom.current as HTMLDivElement).addEventListener(
+        'keydown',
+        function (event) {
+          if (event.ctrlKey && event.key.toLowerCase() === 'e') {
+            event.preventDefault();
+            handleQuery();
+          }
+        }
+      );
+    }
+  }, [conn]);
   return (
     //@ts-ignore
     <SplitPane
@@ -377,26 +405,11 @@ function SqlQuery(props: {
               loading={loading}
               disabled={loading || conn == null}
               onClick={() => {
-                handleQuery(editor.current.getValue());
+                handleQuery();
               }}
               color="primary"
             >
               <PlayArrowIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="execute selected">
-            <IconButton
-              disabled={loading || conn == null}
-              onClick={() => {
-                handleQuery(
-                  editor.current
-                    .getModel()
-                    .getValueInRange(editor.current.getSelection())
-                );
-              }}
-              color="primary"
-            >
-              <PlayCircleIcon />
             </IconButton>
           </Tooltip>
 
@@ -432,12 +445,8 @@ function SqlQuery(props: {
             <IconButton
               disabled={loading || conn == null}
               onClick={() => {
-                const value = editor.current
-                  .getModel()
-                  .getValueInRange(editor.current.getSelection());
-
+                const value = getText();
                 if (!value) {
-                  showNotification('error', 'u need select a statement.');
                   return;
                 }
                 setShowExport(true);
@@ -505,6 +514,7 @@ function SqlQuery(props: {
             minHeight: 0,
             height: '400px',
           }}
+          ref={editorDivDom}
         >
           <Editor
             language={language}
@@ -531,7 +541,7 @@ function SqlQuery(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="45%">
             <ExportView
               handleClose={() => {
                 setShowExport(false);
@@ -539,9 +549,7 @@ function SqlQuery(props: {
               support_kind={['csv', 'json', 'jsonline']}
               exportOP={async (kind, file) => {
                 try {
-                  const sql = editor.current
-                    .getModel()
-                    .getValueInRange(editor.current.getSelection());
+                  const sql = getText();
                   await conn.exportQueryResult(sql, kind, file);
                   showNotification('success', 'export OK');
                 } catch (e) {
