@@ -1075,12 +1075,7 @@ function DatabaseMenu(props: {
           </MenuItem>
         )}
 
-        {!database && (
-          <>
-            <Divider></Divider>
-            <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
-          </>
-        )}
+        {!database && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
       </MenuList>
 
       {showCreateSchema && (
@@ -1345,12 +1340,7 @@ function SchemaMenu(props: {
             <ListItemText color="error"> drop </ListItemText>
           </MenuItem>
         )}
-        {!schema && (
-          <>
-            <Divider></Divider>
-            <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
-          </>
-        )}
+        {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
       </MenuList>
     </Paper>
   );
