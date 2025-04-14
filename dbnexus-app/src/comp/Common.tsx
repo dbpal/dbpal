@@ -630,23 +630,24 @@ function ConnConfigInfo(props: { uuid }) {
       let config = await getNamedConfig(uuid);
       let configMetas = [];
       switch (config.conn_type) {
-        case 'mysql':
-        case 'mariadb':
-        case 'postgres':
-        case 'redis':
-        case 'mongo':
-        case 'tidb':
-        case 'cassandra':
-        case 'oracle':
-        case 'clickhouse':
-        case 'firebird':
+        case DataSourceKind.Mysql:
+        case DataSourceKind.MariaDB:
+        case DataSourceKind.Postgres:
+        case DataSourceKind.Cockroach:
+        case DataSourceKind.Redis:
+        case DataSourceKind.Mongo:
+        case DataSourceKind.TiDB:
+        case DataSourceKind.Cassandra:
+        case DataSourceKind.Oracle:
+        case DataSourceKind.ClickHouse:
+        case DataSourceKind.FireBird:
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,
             { name: 'user', value: config.username } as types.MetaValue,
           ];
           break;
-        case 'libsql':
+        case DataSourceKind.LibSql:
           if (config.source === 'local') {
             configMetas = [
               { name: 'host', value: config.path } as types.MetaValue,
@@ -658,7 +659,7 @@ function ConnConfigInfo(props: { uuid }) {
             ];
           }
           break;
-        case 'sqlite':
+        case DataSourceKind.Sqlite:
           configMetas = [
             { name: 'path', value: config.path } as types.MetaValue,
           ];
