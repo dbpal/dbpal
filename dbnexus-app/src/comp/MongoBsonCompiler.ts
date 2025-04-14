@@ -180,15 +180,18 @@ class MongoBsonAs {
   }
   compileTimestamp(): Timestamp {
     let v = this.value.compile();
+    let inc = parseInt(this.extra[0].value);
+
     let ty = typeof v;
+
     if (ty === 'bigint') {
-      return new Timestamp(v);
+      return new Timestamp({ t: Number(v), i: inc });
     }
     if (ty === 'string') {
-      return new Timestamp(new Long(v));
+      return new Timestamp({ t: parseInt(v), i: inc });
     }
     if (ty === 'number') {
-      return new Timestamp(new Long(v));
+      return new Timestamp({ t: v, i: inc });
     }
     this.cannotConvert(ty, 'timestamp');
   }
@@ -470,7 +473,8 @@ class MongoBsonValue {
       case MongoBsonValueKind.Date:
         return `'${this.asToken().value}' as date`;
       case MongoBsonValueKind.Timestamp:
-        return `${this.asToken().value} as timestamp`;
+        //@ts-ignore 
+        return `${this.asToken().value} as timestamp ${this.asToken().increment}`;
       case MongoBsonValueKind.Code:
         return this.asToken().value + ' as code';
       case MongoBsonValueKind.Number:
@@ -692,6 +696,18 @@ class Parser {
       let extra = null;
       if (token.value.toLowerCase() == 'binary') {
         extra = this.parseBinaryTypeAnnotion();
+      }
+      if (token.value.toLowerCase() == 'timestamp') {
+        const token = this.peek();
+        if (token.type == 'Numeric') {
+          extra = [token];
+          this.next()
+        } else {
+          throw new MongoBsonError(
+            `shoud be a number after 'timestamp' , but '${token.value}'`,
+            token.loc
+          );
+        }
       }
       return new MongoBsonValue(
         MongoBsonValueKind.As,
@@ -916,8 +932,9 @@ function toMongoBson(a: any): MongoBsonValue {
       // Timestamp 必须在Long前面 可能timestamp继承到Long
       if (a instanceof Timestamp) {
         return new MongoBsonValue(MongoBsonValueKind.Timestamp, {
-          value: a.toString(),
-        });
+          value: a.t + '',
+          increment: a.i,
+        } as Token);
       }
       if (a instanceof Long) {
         return new MongoBsonValue(MongoBsonValueKind.Long, {

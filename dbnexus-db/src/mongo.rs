@@ -1202,9 +1202,7 @@ mod tests {
     #[tokio::test]
     async fn test_xxx() {
         let db = make_test_object();
-
         let view_name = "test_mongo";
-
         let docs = db
             .show_collection_docs(view_name, doc! {}, doc! {}, 1, 100)
             .await
@@ -1225,6 +1223,9 @@ mod tests {
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Time went backwards")
             .as_secs() as i64;
+
+        println!("now:{}", now);
+
         let binary_field = Bson::Binary(Binary::from(bson::binary::Vector::Int8(vec![1, 2])));
         let binary_field2 = Bson::Binary(Binary::from(bson::binary::Vector::Float32(vec![
             1f32, 2f32,
@@ -1256,7 +1257,7 @@ mod tests {
             ],
             "object_field": doc! {"nested_key": "nested_value"},
             "decimal_field": Decimal128::from_str("1").unwrap(),
-            "timestamp_field": Timestamp {time: now as u32, increment: 1},
+            "timestamp_field": Timestamp {time: now as u32, increment: 1 },
         };
 
         db.insert(&table, data).await.unwrap();
