@@ -6,8 +6,14 @@ export namespace types {
         "path": string;
         "read_only": boolean;
     };
+    export type EnableSsl = {
+        "ssl_enable": boolean;
+        "ssl_ca": (string | null);
+        "ssl_cert": (string | null);
+        "ssl_key": (string | null);
+    };
     export type U16 = number;
-    export type MysqlDBConfig = {
+    export type MysqlDBConfig = (types.EnableSsl & {
         "host": string;
         "port": types.U16;
         "username": string;
@@ -15,8 +21,8 @@ export namespace types {
         "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
-    };
-    export type PGDBConfig = {
+    });
+    export type PGDBConfig = (types.EnableSsl & {
         "host": string;
         "port": types.U16;
         "username": string;
@@ -25,7 +31,7 @@ export namespace types {
         "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
-    };
+    });
     export type SqlServerDBConfig = {
         "host": string;
         "port": types.U16;

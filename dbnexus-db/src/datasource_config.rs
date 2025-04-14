@@ -22,6 +22,8 @@ pub struct MysqlDBConfig {
     pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
+    #[serde(flatten)]
+    pub ssl: EnableSsl,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
@@ -228,6 +230,22 @@ pub struct PGDBConfig {
     pub db: Option<String>,
     pub schema: Option<String>,
     pub read_only: bool,
+    #[serde(flatten)]
+    pub ssl: EnableSsl,
+}
+
+#[derive(
+    Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef, Default,
+)]
+pub struct EnableSsl {
+    #[serde(default)]
+    pub ssl_enable: bool,
+    #[serde(default)]
+    pub ssl_ca: Option<String>,
+    #[serde(default)]
+    pub ssl_cert: Option<String>,
+    #[serde(default)]
+    pub ssl_key: Option<String>,
 }
 
 impl PGDBConfig {

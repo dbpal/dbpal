@@ -578,7 +578,6 @@ class UserSettings {
   datagridRowHeight: number = 24;
   datagridHeaderHeight: number = 30;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
-
   editorTheme(): string {
     return this.theme === 'dark' ? 'vs-dark' : 'light';
   }
@@ -1309,6 +1308,7 @@ export {
   AppStoreKey,
   LoadStoreFileForQuery,
   keyNotInTable,
+  extractBaseName,
   treeItemCommonStyle,
 };
 

@@ -17,13 +17,13 @@ import {
   Radio,
   Checkbox,
   Chip,
+  Tooltip,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
-import { appStore, AppStoreKey, msgTimeout } from './Common';
-
+import { appStore, AppStoreKey, extractBaseName, msgTimeout } from './Common';
 import { DataSourceKind } from './helper';
 
 async function selectOneFile() {
@@ -173,6 +173,82 @@ function TrustCert(props: { trustCert; setTrustCert }) {
   );
 }
 
+function EnableSSlCert(props: {
+  sslCa;
+  setSslCa;
+  sslCert;
+  setSslCert;
+  enableSsl;
+  setEnableSsl;
+  sslKey;
+  setSslKey;
+}) {
+  const {
+    sslCa,
+    setSslCa,
+    sslCert,
+    setSslCert,
+    sslKey,
+    setSslKey,
+    enableSsl,
+    setEnableSsl,
+  } = props;
+
+  return (
+    <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+      <>
+        <Checkbox
+          checked={enableSsl}
+          onChange={(e) => {
+            setEnableSsl(e.target.checked);
+          }}
+        ></Checkbox>
+        enable ssl
+      </>
+      {enableSsl && (
+        <>
+          <Tooltip
+            title={sslCa}
+            onClick={async () => {
+              let file = await selectOneFile();
+              if (file) {
+                setSslCa(file);
+              }
+            }}
+          >
+            <Chip
+              label={'CA Cert:' + (sslCa ? extractBaseName(sslCa) : '')}
+            ></Chip>
+          </Tooltip>
+          <Tooltip title={sslCert}>
+            <Chip
+              onClick={async () => {
+                let file = await selectOneFile();
+                if (file) {
+                  setSslCert(file);
+                }
+              }}
+              label={'Certificate:' + (sslCert ? extractBaseName(sslCert) : '')}
+            ></Chip>
+          </Tooltip>
+
+          <Tooltip title={sslKey}>
+            <Chip
+              onClick={async () => {
+                let file = await selectOneFile();
+                if (file) {
+                  setSslKey(file);
+                }
+              }}
+              label={'Key File:' + (sslKey ? extractBaseName(sslKey) : '')}
+            ></Chip>
+          </Tooltip>
+        </>
+      )}
+    </Stack>
+  );
+}
+
 function Database(props: {
   database;
   setDatabase;
@@ -270,8 +346,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   const [password, setPassword] = useState('');
   const [database, setDatabase] = useState(getConfig('db'));
   const [readOnly, setReadOnly] = useState(getConfig('read_only', false));
-  //@ts-ignore
-  const [useSSL, setUseSSL] = useState(false);
+
   const [testLoading, setTestLoading] = useState(false);
   const [triggerReLoad, setTriggerReload] = useState(false);
   const [path, setPath] = useState(getConfig('path'));
@@ -281,6 +356,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   const [databaseCandidates, setDatabaseCandidates] = useState([]);
   const [schema, setSchema] = useState(getConfig('schema'));
   const [https, setHttps] = useState(getConfig('https', false));
+  const [sslCa, setSslCa] = useState(getConfig('ssl_ca'));
+  const [sslCert, setSslCert] = useState(getConfig('ssl_cert'));
+  const [sslKey, setSslKey] = useState(getConfig('ssl_key'));
+  const [sslEnable, setSslEnable] = useState(false);
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
   };
@@ -347,6 +426,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           save_password: savePassword,
+          ssl_enable: sslEnable,
+          ssl_ca: sslCa,
+          ssl_cert: sslCert,
+          ssl_key: sslKey,
         };
       case DataSourceKind.Cassandra:
         return {
@@ -396,6 +479,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           name: connectionName,
           schema: schema_null,
           save_password: savePassword,
+          ssl_enable: sslEnable,
+          ssl_ca: sslCa,
+          ssl_cert: sslCert,
+          ssl_key: sslKey,
         };
       case DataSourceKind.Cockroach:
         return {
@@ -409,6 +496,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           name: connectionName,
           schema: schema_null,
           save_password: savePassword,
+          ssl_enable: sslEnable,
+          ssl_ca: sslCa,
+          ssl_cert: sslCert,
+          ssl_key: sslKey,
         };
       case DataSourceKind.Sqlite:
         return {
@@ -701,6 +792,16 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             candidates={databaseCandidates}
             setDatabase={setDatabase}
           ></Database>
+          <EnableSSlCert
+            enableSsl={sslEnable}
+            setEnableSsl={setSslEnable}
+            sslCa={sslCa}
+            setSslCa={setSslCa}
+            sslCert={sslCert}
+            setSslCert={setSslCert}
+            sslKey={sslKey}
+            setSslKey={setSslKey}
+          ></EnableSSlCert>
         </>
       )}
 
@@ -771,6 +872,17 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setDatabase={setDatabase}
             onBlur={toggleTriggerReload}
           ></Database>
+          <EnableSSlCert
+            enableSsl={sslEnable}
+            setEnableSsl={setSslEnable}
+            sslCa={sslCa}
+            setSslCa={setSslCa}
+            sslCert={sslCert}
+            setSslCert={setSslCert}
+            sslKey={sslKey}
+            setSslKey={setSslKey}
+          ></EnableSSlCert>
+
           {database && (
             <Schema
               schema={schema}

@@ -7,7 +7,7 @@ use std::time::Duration;
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
-use sqlx::mysql::MySqlRow;
+use sqlx::mysql::{MySqlRow, MySqlSslMode};
 use sqlx::pool::PoolConnection;
 use sqlx::types::BigDecimal;
 use sqlx::{Column, Executor, MySqlConnection, Row, TypeInfo};
@@ -1289,6 +1289,20 @@ impl MysqlDB {
             .host(&config.host)
             .port(config.port)
             .username(&config.username);
+        println!("ssl:{:?}", config.ssl);
+        if config.ssl.ssl_enable {
+            opts = opts.ssl_mode(MySqlSslMode::VerifyCa);
+            if let Some(ca) = config.ssl.ssl_ca.as_ref() {
+                opts = opts.ssl_ca(ca);
+            }
+            if let Some(cert) = config.ssl.ssl_cert.as_ref() {
+                opts = opts.ssl_client_cert(cert);
+            }
+            if let Some(key) = config.ssl.ssl_key.as_ref() {
+                opts = opts.ssl_client_key(key);
+            }
+        }
+
         if let Some(pass) = &config.password {
             opts = opts.password(&pass);
         }
@@ -2226,6 +2240,7 @@ mod tests {
             db: Some("test".to_string()),
             read_only: false,
             save_password: true,
+            ssl: Default::default(),
         }
     }
     #[tokio::test]

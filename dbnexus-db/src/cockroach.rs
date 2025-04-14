@@ -1,4 +1,3 @@
-#![allow(unused)]
 use std::{borrow::Cow, collections::HashMap, ops::DerefMut, sync::Arc, time::Duration};
 
 use crate::{
@@ -12,9 +11,9 @@ use crate::{
     meta_value::MetaValue,
     pg_format::encode_rows,
 };
-use chrono::naive;
+
 use sqlx::Row;
-use sqlx::{Postgres, pool::PoolConnection, types::BigDecimal};
+use sqlx::{Postgres, pool::PoolConnection};
 
 use crate::{
     datasource_config::PGDBConfig,
@@ -29,7 +28,7 @@ impl BackendName for CockRoachDB {
 }
 #[derive(Clone)]
 pub struct CockRoachDB {
-    pg: Arc<PostGresDB>,
+    pub(crate) pg: Arc<PostGresDB>,
 }
 
 impl CockRoachDB {
@@ -52,6 +51,7 @@ pub(crate) async fn make_test_object() -> CockRoachDB {
         schema: Some("xxx".to_string()),
         read_only: false,
         save_password: true,
+        ssl: Default::default(),
     })
     .await
     .unwrap();
@@ -191,7 +191,7 @@ impl SchemaTrait for CockRoachDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<TableListResp> {
         let fields = self.show_table_columns(table_name).await?;
         let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
@@ -225,7 +225,7 @@ impl SchemaTrait for CockRoachDB {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.pg.insert(table_name, values).await
+        self.pg.update(table_name, values, wheres).await
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {

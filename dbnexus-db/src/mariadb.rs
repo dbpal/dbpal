@@ -13,6 +13,7 @@ mod tests {
             db: Some("test".to_string()),
             read_only: false,
             save_password: true,
+            ssl: Default::default(),
         }
     }
     #[tokio::test]

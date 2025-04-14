@@ -7,7 +7,7 @@ use std::time::Duration;
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::PoolConnection;
-use sqlx::postgres::PgRow;
+use sqlx::postgres::{PgRow, PgSslMode};
 use sqlx::{Column, Executor, PgConnection, Postgres, Row};
 use tokio::sync::Mutex;
 
@@ -1364,23 +1364,36 @@ impl std::fmt::Debug for PostGresDB {
 }
 
 impl PostGresDB {
-    pub async fn new(conn: PGDBConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: PGDBConfig) -> anyhow::Result<Self> {
         let mut opts = sqlx::postgres::PgConnectOptions::new();
         opts = opts
-            .host(&conn.host)
-            .port(conn.port)
-            .username(&conn.username);
-        if let Some(pass) = &conn.password {
+            .host(&config.host)
+            .port(config.port)
+            .username(&config.username);
+        if let Some(pass) = &config.password {
             opts = opts.password(&pass);
         }
-        if let Some(db) = conn.db.as_ref() {
+        if let Some(db) = config.db.as_ref() {
             opts = opts.database(&db);
+        }
+        println!("ssl:{:?}", config.ssl);
+        if config.ssl.ssl_enable {
+            opts = opts.ssl_mode(PgSslMode::VerifyCa);
+            if let Some(ca) = config.ssl.ssl_ca.as_ref() {
+                opts = opts.ssl_root_cert(ca);
+            }
+            if let Some(cert) = config.ssl.ssl_cert.as_ref() {
+                opts = opts.ssl_client_cert(cert);
+            }
+            if let Some(key) = config.ssl.ssl_key.as_ref() {
+                opts = opts.ssl_client_key(key);
+            }
         }
 
         let pool = sqlx::postgres::PgPool::connect_with(opts).await?;
         anyhow::Ok(Self {
             pool,
-            config: conn,
+            config,
             query_connection: Default::default(),
         })
     }
@@ -1719,6 +1732,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
         schema: Some("xxx".to_string()),
         read_only: false,
         save_password: true,
+        ssl: Default::default(),
     })
     .await
     .unwrap();
