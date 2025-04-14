@@ -86,7 +86,7 @@ impl RedisDB {
                 .map(|(k, v)| vec![Some(hex::encode(k.as_slice())), Some(v.to_string())])
                 .collect(),
             None,
-        ))
+        )?)
     }
 }
 
@@ -667,7 +667,7 @@ impl RedisDB {
             total,
             data,
             None,
-        ))
+        )?)
     }
 }
 
@@ -839,7 +839,7 @@ impl SchemaTrait for RedisDB {
                         })
                         .collect(),
                     None,
-                ))
+                )?)
             }
 
             RedisType::Set => {
@@ -858,7 +858,7 @@ impl SchemaTrait for RedisDB {
                         .map(|x| vec![Some(hex::encode(x.as_slice()))])
                         .collect(),
                     format!("SSCAN {} 0 {}", key, where_str.unwrap_or("*")),
-                ))
+                )?)
             }
             RedisType::Hash => {
                 let total: usize = conn.hlen(key).await?;
@@ -892,7 +892,7 @@ impl SchemaTrait for RedisDB {
                         })
                         .collect(),
                     format!("HSCAN {} 0 {}", key, where_str.unwrap_or("*")),
-                ))
+                )?)
             }
 
             RedisType::Zset => {

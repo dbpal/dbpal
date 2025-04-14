@@ -267,7 +267,7 @@ fn make_table_list_from_meta_and_row(
     let fields = get_fields_from_meta(meta);
     let data = encode_rows(rows)?;
 
-    anyhow::Ok(TableListResp::new(fields, total, data, Some(sql.into())))
+    anyhow::Ok(TableListResp::new(fields, total, data, Some(sql.into()))?)
 }
 
 fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {

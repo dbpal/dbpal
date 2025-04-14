@@ -49,6 +49,7 @@ function ProceduresTree() {
   const getItemId = (x: types.NamedStaff) => {
     switch (kind) {
       case DataSourceKind.Postgres:
+      case DataSourceKind.Cockroach:
         let p = x.parameters;
         return idPrefix + '-' + x.name + '-' + p;
       default:
@@ -112,7 +113,10 @@ function ProceduresTree() {
             >
               <SiProcessingfoundation></SiProcessingfoundation>
               <span>{p.name}</span>
-              {kind == DataSourceKind.Postgres && <em> ( {p.parameters} ) </em>}
+              {kind == DataSourceKind.Postgres ||
+                (kind == DataSourceKind.Cockroach && (
+                  <em> ( {p.parameters} ) </em>
+                ))}
             </Stack>
           ></TreeItem>
         ))}
@@ -131,7 +135,9 @@ function ProcedureMenu(props: {
 
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   let arg =
-    kind == DataSourceKind.Postgres ? { extra: 'postgres', parameters } : null;
+    kind == DataSourceKind.Cockroach || kind == DataSourceKind.Postgres
+      ? { extra: 'postgres', parameters }
+      : null;
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {

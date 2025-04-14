@@ -1470,14 +1470,13 @@ impl SchemaTrait for CassandraDB {
         });
 
         let QueryResp { fields, data } = ret;
-        anyhow::Ok(TableListResp {
+        anyhow::Ok(TableListResp::new(
             fields,
+            self.page_caching_totoal(table_name),
             data,
-            total: self.page_caching_totoal(table_name),
-            sql: self.page_caching_sql(table_name),
-        })
+            self.page_caching_sql(table_name),
+        )?)
     }
-
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!(
             "SELECT index_name from system_schema.indexes WHERE  table_name = '{table_name}' AND keyspace_name = '{}'",

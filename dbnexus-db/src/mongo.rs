@@ -359,7 +359,7 @@ impl MongoDB {
         let cols = infer_multi_value_column_names(&docs[..])?;
         let data = collect_table_resp(&cols, docs.as_slice())?;
 
-        anyhow::Ok(TableListResp::new(cols, count as usize, data, None))
+        anyhow::Ok(TableListResp::new(cols, count as usize, data, None)?)
     }
 
     pub async fn show_collection_docs(

@@ -851,15 +851,16 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.MsSql ||
-    kind == DataSourceKind.Oracle;
+    kind == DataSourceKind.Oracle ||
+    kind == DataSourceKind.Cockroach;
   let support_udf =
     kind == DataSourceKind.MariaDB ||
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Oracle ||
-    kind == DataSourceKind.Cassandra;
-
+    kind == DataSourceKind.Cassandra ||
+    kind == DataSourceKind.Cockroach;
   let { setUpMenu } = useContext(ContextMenuContext);
 
   return (
@@ -950,6 +951,13 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         </>
       )}
       {opened && kind == DataSourceKind.Postgres && (
+        <>
+          <TablesTree typ={TablesType.Normal} />
+          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewkind={ViewKind.Materrialized} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.Cockroach && (
         <>
           <TablesTree typ={TablesType.Normal} />
           <ViewsTree viewkind={ViewKind.Normal} />

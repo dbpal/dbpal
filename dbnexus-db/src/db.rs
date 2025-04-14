@@ -979,17 +979,17 @@ impl PartialEq for TableListResp {
 }
 
 impl TableListResp {
-    #[allow(unused)]
-    fn check(&self) {
+    fn check(&self) -> anyhow::Result<()> {
         for x in self.data.iter() {
-            debug_assert_eq!(
-                x.len(),
-                self.fields.len(),
-                "fields:{:?},data:{:?}",
-                self.fields,
-                self.data
-            );
+            if x.len() != self.fields.len() {
+                anyhow::bail!(
+                    "column and data not match {}!={}",
+                    self.fields.len(),
+                    x.len()
+                )
+            }
         }
+        anyhow::Ok(())
     }
 }
 
@@ -1007,7 +1007,7 @@ impl TableListResp {
     pub fn new(
         fields: Vec<Field>, total: usize, data: Vec<Vec<Option<String>>>,
         sql: impl Into<Option<String>>,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let sql = sql.into();
         let ret = Self {
             fields,
@@ -1015,9 +1015,8 @@ impl TableListResp {
             sql,
             data,
         };
-        #[cfg(debug_assertions)]
-        ret.check();
-        ret
+        ret.check()?;
+        anyhow::Ok(ret)
     }
 
     pub fn result(

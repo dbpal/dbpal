@@ -15,10 +15,10 @@ use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
-    Field, HumanSize, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, not_support_features,
+    Field, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail,
+    QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -398,9 +398,12 @@ impl ServerMetas for PostGresDB {
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
                 let setting: Option<String> = r.try_get(1)?;
-                let desc: String = r.try_get(2)?;
+                let desc: Option<String> = r.try_get(2)?;
                 let mut meta = MetaValue::new_opt(name, setting);
-                meta.with_desc(desc);
+                if let Some(desc) = desc {
+                    meta.with_desc(desc);
+                }
+
                 ret.push(meta);
             }
         }
@@ -981,12 +984,12 @@ impl SchemaTrait for PostGresDB {
 
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql));
+            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
         }
 
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);
-        anyhow::Ok(TableListResp::new(fields, total, data, sql))
+        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
@@ -1136,8 +1139,11 @@ impl SchemaTrait for PostGresDB {
                 table.as_str()
             );
             log::info!("sql:{}", sql);
-            let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
-            let size: Option<i64> = row.get(0);
+            let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await;
+            let size: Option<i64> = match row {
+                Ok(row) => row.get(0),
+                Err(_) => None,
+            };
             let t = ListTable::new(table, size);
             ret.push(t);
         }
@@ -1151,8 +1157,7 @@ impl SchemaTrait for PostGresDB {
         let sql = format!(
             r#"
             SELECT 
-                matviewname,
-                pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(matviewname)) as size 
+                matviewname
             FROM 
                 pg_matviews where schemaname = '{}';
         "#,
@@ -1164,11 +1169,8 @@ impl SchemaTrait for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
-            let size: Option<i64> = r.get(1);
-            ret.push(ListMaterializedView {
-                name,
-                size: size.map(|x| HumanSize(Box::new(x))),
-            });
+
+            ret.push(ListMaterializedView { name, size: None });
         }
         anyhow::Ok(ret)
     }
@@ -1270,7 +1272,7 @@ impl SchemaTrait for PostGresDB {
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let data = encode_rows(&row)?;
         let fields = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(fields, total, data, sql))
+        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
@@ -1337,7 +1339,9 @@ impl SchemaTrait for PostGresDB {
 }
 
 impl PostGresDB {
-    async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
+    pub(crate) async fn query_count(
+        &self, name: &str, where_str: Option<&str>,
+    ) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
         let schema = self.must_schema();
 
@@ -1737,8 +1741,8 @@ mod tests {
 
     use super::make_test_object;
     use crate::db::{
-        CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, ExportQueryResult, QuerySql,
-        SchemaTrait, ServerMetas, UdfOrProcedureExtraParameter,
+        CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, ExportQueryResult, IndexKind,
+        QuerySql, SchemaTrait, ServerMetas, UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
     // #[tokio::test]
@@ -1807,6 +1811,50 @@ mod tests {
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
     }
+
+    #[tokio::test]
+    async fn test_view() {
+        enable_test_log();
+        let db = make_test_object().await;
+        let _ = db.drop_view("test_view").await;
+        let _ = db.drop_table("test_view_table", true).await;
+
+        let query_id = db.open_connection().await.unwrap();
+        let query_resp = db
+            .query_sql(
+                query_id,
+                r#"
+            CREATE TABLE test_view_table (
+                
+                name TEXT,
+                value INT
+            );
+            INSERT INTO test_view_table (name, value) VALUES
+                ('Item A', 10),
+                ('Item B', 20),
+                ('Item C', 30);
+
+            CREATE VIEW test_view AS
+                SELECT * FROM test_view_table;
+        "#,
+            )
+            .await
+            .unwrap();
+        assert!(
+            query_resp.iter().all(|x| x.is_ok()),
+            "result:{:?}",
+            query_resp
+        );
+        let list = db.list_view().await.unwrap();
+        for l in list.iter() {
+            let table_resp = db
+                .show_view(&l.name, None, None, 1, 100, None)
+                .await
+                .unwrap();
+            println!("resp:{:?}", table_resp);
+        }
+    }
+
     #[tokio::test]
     async fn test_materialized_view() {
         enable_test_log();
@@ -1996,10 +2044,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_show_index() {
+    async fn test_index() {
         let table_name = "index_test";
         let db = make_test_object().await;
+        let index_name = "index_test_index_xxx";
 
+        let _ = db.drop_index(table_name, &index_name).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
 
@@ -2008,8 +2058,26 @@ mod tests {
         ).as_str()).await .unwrap()
         ;
 
+        let index_name2 = format!("{}2", index_name);
+        db.create_index(
+            table_name,
+            index_name,
+            IndexKind::Unique,
+            &["a".to_string(), "b".to_string()],
+        )
+        .await
+        .unwrap();
+        db.rename_index(table_name, index_name, &index_name2)
+            .await
+            .unwrap();
+        db.rename_index(table_name, &index_name2, index_name)
+            .await
+            .unwrap();
+
         let indexes = db.show_indexes(table_name).await.unwrap();
-        println!("{:?}", indexes);
+        for index in indexes.iter() {
+            println!("index:{:?}", index)
+        }
     }
 
     #[tokio::test]

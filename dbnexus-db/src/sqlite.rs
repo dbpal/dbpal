@@ -761,7 +761,7 @@ impl SchemaTrait for SqliteDB {
         log::trace!("encode rows ok");
         let fields = self.show_table_columns(table_name).await?;
         log::trace!("list columns ok");
-        anyhow::Ok(TableListResp::new(fields, total, data, sql))
+        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
     }
 
     async fn show_view(
@@ -777,12 +777,11 @@ impl SchemaTrait for SqliteDB {
             .await?;
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql));
+            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
         }
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);
-
-        anyhow::Ok(TableListResp::new(fields, total, data, sql))
+        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {

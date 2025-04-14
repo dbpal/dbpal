@@ -449,13 +449,7 @@ impl SchemaTrait for ClickHouseDB {
             }
         });
         let data = result.encode_json_result()?;
-
-        anyhow::Ok(TableListResp {
-            fields: infered_fs,
-            total,
-            data,
-            sql: Some(sql),
-        })
+        anyhow::Ok(TableListResp::new(infered_fs, total, data, sql)?)
     }
 
     async fn show_view(

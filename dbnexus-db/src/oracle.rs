@@ -1291,7 +1291,7 @@ impl SchemaTrait for OracleDB {
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let data = encode_rows(rows.into_iter().collect::<Vec<_>>())?;
         let cols = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(cols, total as usize, data, sql))
+        anyhow::Ok(TableListResp::new(cols, total as usize, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1446,11 +1446,11 @@ impl SchemaTrait for OracleDB {
                 total as usize,
                 vec![],
                 sql,
-            ));
+            )?);
         }
         let cols = infer_schema_by_result(&rows)?;
         let data = encode_rows(rows)?;
-        anyhow::Ok(TableListResp::new(cols, total as usize, data, sql))
+        anyhow::Ok(TableListResp::new(cols, total as usize, data, sql)?)
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {

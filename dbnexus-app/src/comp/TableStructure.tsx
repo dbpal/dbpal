@@ -1506,6 +1506,8 @@ function TableStructure(props: {
     DataSourceKind.Sqlite,
     DataSourceKind.Oracle,
     DataSourceKind.Postgres,
+    DataSourceKind.Cockroach,
+    DataSourceKind.LibSql,
     DataSourceKind.Mongo,
     DataSourceKind.Cassandra,
     DataSourceKind.FireBird,
@@ -1522,7 +1524,6 @@ function TableStructure(props: {
     DataSourceKind.Oracle,
     DataSourceKind.MsSql,
     DataSourceKind.Postgres,
-    DataSourceKind.LibSql,
   ].includes(kind);
   if (supportTrigger) {
     structures.push({ name: 'triggers', color: 'info' });
