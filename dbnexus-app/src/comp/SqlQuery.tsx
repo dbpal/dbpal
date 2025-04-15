@@ -26,6 +26,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import FastForwardIcon from '@mui/icons-material/FastForward';
 import { editor, Position } from 'monaco-editor';
 import {
   EditorBar,
@@ -36,6 +37,7 @@ import {
   msgTimeout,
   SettingContext,
 } from './Common.tsx';
+import AddIcon from '@mui/icons-material/Add';
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -279,7 +281,7 @@ function SqlQuery(props: {
         setLoading(false);
       });
   };
-  const handleQuery = async () => {
+  const handleQuery = async (append: boolean) => {
     let text = getText();
     if (!text) {
       return;
@@ -299,8 +301,11 @@ function SqlQuery(props: {
     conn
       .queryOP(text)
       .then((resp) => {
-        setResp(resp);
-
+        if (append) {
+          setResp((p) => [...p, ...resp]);
+        } else {
+          setResp(resp);
+        }
         if (showQueryLog) {
           handleLoadQueryLog();
         }
@@ -353,7 +358,7 @@ function SqlQuery(props: {
         function (event) {
           if (event.ctrlKey && event.key.toLowerCase() === 'e') {
             event.preventDefault();
-            handleQuery();
+            handleQuery(false);
           }
         }
       );
@@ -405,11 +410,24 @@ function SqlQuery(props: {
               loading={loading}
               disabled={loading || conn == null}
               onClick={() => {
-                handleQuery();
+                handleQuery(false);
               }}
               color="primary"
             >
               <PlayArrowIcon />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="execute and append result to tabs">
+            <IconButton
+              loading={loading}
+              disabled={loading || conn == null}
+              onClick={() => {
+                handleQuery(true);
+              }}
+              color="primary"
+            >
+              <FastForwardIcon />
             </IconButton>
           </Tooltip>
 

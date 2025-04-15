@@ -194,6 +194,10 @@ function initMongoBsonLanguage() {
           [/\`(?:\\.|[^\\\`])*\`/, 'string'],
         ],
       },
+      brackets: [
+        { open: '{', close: '}', token: 'delimiter.curly' },
+        { open: '[', close: ']', token: 'delimiter.parenthesis' },
+      ],
     });
 
     monaco.languages.registerDocumentFormattingEditProvider('mongoBson', {

@@ -1703,7 +1703,7 @@ impl QuerySql for MsSqlServerDB {
         let conn = conn.deref_mut();
 
         let ret = match conn.execute(sql, &[]).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.total())),
+            Ok(x) => Ok(QueryResp::row_affected(x.total(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());

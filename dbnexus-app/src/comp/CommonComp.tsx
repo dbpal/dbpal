@@ -229,7 +229,7 @@ function MenuOpenConn({ handleOpend, name }) {
         const has = await invoke('has_entered_password', { name: name });
         if (!has) {
           let key = 'save_password';
-          if (key in config && !config[key]) {
+          if (false === config[key]) {
             let pass = prompt('enter password');
             if (pass == null) {
               return;

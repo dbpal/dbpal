@@ -7,9 +7,11 @@ import {
   MenuItem,
   MenuList,
   Paper,
+  Stack,
   Tab,
   Tabs,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -156,28 +158,31 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   }, []);
 
   return (
-    vis && (
-      <div
-        style={{
-          display: 'grid',
-          height: datagridContainerHeight(data.data.length),
-        }}
-      >
-        <DataGrid
-          sortModel={sortModel}
-          onSortModelChange={onSortModelChange}
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          slotProps={slotProps}
-          rowHeight={setting.datagridRowHeight}
-          columnHeaderHeight={setting.datagridHeaderHeight}
-          columns={data.fields}
-          rows={data.data}
-          filterMode="client" // 使用客户端过滤
-          onColumnResize={onColumnResize}
-        ></DataGrid>
-      </div>
-    )
+    <Stack spacing={1}>
+      {data.sql && <Typography color="info">sql: {data.sql} </Typography>}
+      {vis && (
+        <div
+          style={{
+            display: 'grid',
+            height: datagridContainerHeight(data.data.length),
+          }}
+        >
+          <DataGrid
+            sortModel={sortModel}
+            onSortModelChange={onSortModelChange}
+            showCellVerticalBorder
+            showColumnVerticalBorder
+            slotProps={slotProps}
+            rowHeight={setting.datagridRowHeight}
+            columnHeaderHeight={setting.datagridHeaderHeight}
+            columns={data.fields}
+            rows={data.data}
+            filterMode="client" // 使用客户端过滤
+            onColumnResize={onColumnResize}
+          ></DataGrid>
+        </div>
+      )}
+    </Stack>
   );
 }
 

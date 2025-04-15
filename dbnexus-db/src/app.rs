@@ -366,21 +366,24 @@ impl App {
                             _ => unreachable!(),
                         },
                         Err(_) => {
+                            log::info!("enter child named:{}", name);
                             let dbtrait = catalog_trait.open_db(&database).await?;
                             self.opens
                                 .lock()
                                 .await
                                 .insert(name.clone(), dbtrait.clone().into());
+
                             dbtrait.clone()
                         }
                     };
 
                     let schemas = dbtrait.list_schema().await?;
                     for schema in schemas.iter() {
-                        let name = format!("{}/{}/{}", name, database, schema);
+                        let name = format!("{}/{}", name, schema);
                         match self.get_opened(&name).await {
                             Ok(_) => {}
                             Err(_) => {
+                                log::info!("enter child named:{}", name);
                                 let s = dbtrait.open_schema(&schema).await?;
                                 self.opens.lock().await.insert(name, s.into());
                             }
@@ -388,7 +391,6 @@ impl App {
                     }
                 }
             }
-
             Open::DataBase(dbtrait) => {
                 let schemas = dbtrait.list_schema().await?;
                 for schema in schemas.iter() {
@@ -396,6 +398,7 @@ impl App {
                     match self.get_opened(&name).await {
                         Ok(_) => {}
                         Err(_) => {
+                            log::info!("enter child named:{}", name);
                             let s = dbtrait.open_schema(&schema).await?;
                             self.opens.lock().await.insert(name, s.into());
                         }

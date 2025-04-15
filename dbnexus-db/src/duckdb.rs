@@ -373,6 +373,7 @@ impl DuckDB {
                 .map(|(name, typ)| Field::from_name_type(name, typ.to_string()))
                 .collect::<Vec<_>>(),
             data,
+            sql: Some(sql.to_string()),
         })
     }
 }
@@ -453,7 +454,7 @@ impl QuerySql for DuckDB {
                     Err(err) => ret.push(Err(err.to_string())),
                 },
                 _ => match conn.execute(&s.sql, []) {
-                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64))),
+                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_string()))),
                     Err(err) => ret.push(Err(err.to_string())),
                 },
             }
@@ -473,7 +474,7 @@ impl QuerySql for DuckDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let resp = match conn.execute_batch(sql) {
-            Ok(_) => Ok(QueryResp::execute_ok()),
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
         _log_gurad.set_success(resp.is_ok());

@@ -93,7 +93,7 @@ impl QuerySql for LibSqlDB {
         };
 
         let ret = match conn.execute(sql, params!()).await {
-            Ok(x) => Ok(QueryResp::row_affected(x)),
+            Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
@@ -122,7 +122,11 @@ impl QuerySql for LibSqlDB {
             if rows.len() > 0 {
                 let fields = get_row_types(rows.get(0).unwrap());
                 let data = encode_rows(&rows)?;
-                ret.push(Ok(QueryResp { fields, data }));
+                ret.push(Ok(QueryResp {
+                    fields,
+                    data,
+                    sql: None,
+                }));
             }
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));

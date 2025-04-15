@@ -1198,7 +1198,7 @@ impl QuerySql for SqliteDB {
         let conn = conn.deref_mut();
 
         let ret = match conn.execute(sqlx::raw_sql(sql)).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected())),
+            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
 
@@ -1239,13 +1239,13 @@ impl QuerySql for SqliteDB {
                     if rows.len() > 0 {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows)?;
-                        ret.push(Ok(QueryResp::new(fields, data)));
+                        ret.push(Ok(QueryResp::new(fields, data, None)));
 
                         rows.clear();
                     };
 
                     if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected())));
+                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
                     }
                 }
                 sqlx::Either::Right(row) => {
@@ -1264,7 +1264,7 @@ impl QuerySql for SqliteDB {
                 .iter()
                 .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                 .collect::<Vec<_>>();
-            ret = vec![Ok(QueryResp::new(field, vec![]))];
+            ret = vec![Ok(QueryResp::new(field, vec![], sql.to_owned()))];
         }
 
         anyhow::Ok(ret)

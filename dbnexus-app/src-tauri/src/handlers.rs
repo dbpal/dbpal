@@ -754,8 +754,8 @@ pub async fn query_sql(
             .map(|x| match x {
                 Err(e) => Err(e),
                 Ok(x) => {
-                    let QueryResp { fields, data } = x;
-                    Ok(MuiDataGridData::from((fields, data)))
+                    let QueryResp { fields, data, sql } = x;
+                    Ok(MuiDataGridData::from((fields, data, sql)))
                 }
             })
             .collect::<Vec<_>>()
@@ -2608,6 +2608,7 @@ fn random_error() -> Result<(), ErrorFrontend> {
 pub struct MuiDataGridData {
     fields: Vec<Field>,
     data: Vec<HashMap<String, String>>,
+    sql: Option<String>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, typescript_type_def::TypeDef)]
@@ -2628,20 +2629,20 @@ impl From<TableListResp> for MuiDataTableListResp {
 
         Self {
             total,
-            sql,
-            data: MuiDataGridData::from((fields, data)),
+            sql: sql.clone(),
+            data: MuiDataGridData::from((fields, data, sql)),
         }
     }
 }
 impl From<QueryResp> for MuiDataGridData {
     fn from(value: QueryResp) -> Self {
-        let QueryResp { fields, data } = value;
-        MuiDataGridData::from((fields, data))
+        let QueryResp { fields, data, sql } = value;
+        MuiDataGridData::from((fields, data, sql))
     }
 }
-impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
-    fn from(value: (Vec<Field>, Vec<Vec<Option<String>>>)) -> Self {
-        let (fields, old_data) = value;
+impl From<(Vec<Field>, Vec<Vec<Option<String>>>, Option<String>)> for MuiDataGridData {
+    fn from(value: (Vec<Field>, Vec<Vec<Option<String>>>, Option<String>)) -> Self {
+        let (fields, old_data, sql) = value;
         let data: Vec<_> = old_data
             .into_iter()
             .map(|x| {
@@ -2660,7 +2661,7 @@ impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
                 m
             })
             .collect();
-        Self { fields, data }
+        Self { fields, data, sql }
     }
 }
 
@@ -2689,6 +2690,7 @@ mod tests {
             Ok(QueryResp {
                 fields: vec![],
                 data: vec![],
+                sql: None,
             }),
         ];
 
@@ -2704,7 +2706,7 @@ mod tests {
             Field::from_name_type("b", "string"),
         ];
 
-        let x = MuiDataGridData::from((field, data));
+        let x = MuiDataGridData::from((field, data, None));
         let str = serde_json::to_string_pretty(&x).unwrap();
         println!("{}", str);
     }

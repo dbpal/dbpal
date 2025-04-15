@@ -314,6 +314,7 @@ export namespace types {
     export type MuiDataGridData = {
         "fields": (types.Field)[];
         "data": (Record<string, string>)[];
+        "sql": (string | null);
     };
     export type MuiDataTableListResp = {
         "total": types.Usize;

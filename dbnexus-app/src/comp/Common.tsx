@@ -683,9 +683,8 @@ function ConnConfigInfo(props: { uuid }) {
           reload
         </Button>
       </Stack>
-      <div style={{ display: 'grid' }}>
-        <MetaValuesView values={metas}></MetaValuesView>
-      </div>
+
+      <MetaValuesView values={metas}></MetaValuesView>
     </Stack>
   );
 }
@@ -792,7 +791,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             ],
           },
           brackets: [
-            { open: '(', close: ')', token: 'delimiter.parenthesis' },
+            { open: '{', close: '}', token: 'delimiter.curly' },
             { open: '[', close: ']', token: 'delimiter.square' },
           ],
         } as languages.IMonarchLanguage,

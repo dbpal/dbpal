@@ -798,7 +798,7 @@ impl QuerySql for ClickHouseDB {
         let mut query_log = QueryLog::get_guard(query_id, sql);
         let conn = self.get_conn()?;
         let ret = match conn.query(&sql).execute().await {
-            Ok(_) => Ok(QueryResp::execute_ok()),
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
@@ -823,7 +823,11 @@ impl QuerySql for ClickHouseDB {
                         Ok(x) => {
                             let fields = x.infer_fields();
                             let data = x.encode_json_result()?;
-                            ret.push(Ok(QueryResp { fields, data }));
+                            ret.push(Ok(QueryResp {
+                                fields,
+                                data,
+                                sql: Some(sql.sql.clone()),
+                            }));
                         }
 
                         Err(err) => {

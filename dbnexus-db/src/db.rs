@@ -907,13 +907,22 @@ impl TryFrom<&str> for IndexKind {
 pub struct QueryResp {
     pub fields: Vec<Field>,
     pub data: Vec<Vec<Option<String>>>,
+    pub sql: Option<String>,
 }
 impl QueryResp {
-    pub(crate) fn new(fields: Vec<Field>, data: Vec<Vec<Option<String>>>) -> Self {
-        Self { fields, data }
+    pub(crate) fn new(
+        fields: Vec<Field>, data: Vec<Vec<Option<String>>>, sql: impl Into<Option<String>>,
+    ) -> Self {
+        Self {
+            fields,
+            data,
+            sql: sql.into(),
+        }
     }
 
-    pub fn result(col_name: impl Into<String>, result: Vec<Option<String>>) -> Self {
+    pub fn result(
+        col_name: impl Into<String>, result: Vec<Option<String>>, sql: impl Into<Option<String>>,
+    ) -> Self {
         let col_name = col_name.into();
 
         Self {
@@ -928,10 +937,11 @@ impl QueryResp {
                 sortable: true,
                 firebird_binary_sub_type: None,
             }],
+            sql: sql.into(),
         }
     }
 
-    pub fn row_affected(affected: u64) -> Self {
+    pub fn row_affected(affected: u64, sql: impl Into<Option<String>>) -> Self {
         Self {
             data: vec![vec![Some(affected.to_string())]],
             fields: vec![Field {
@@ -944,9 +954,10 @@ impl QueryResp {
                 sortable: true,
                 firebird_binary_sub_type: None,
             }],
+            sql: sql.into(),
         }
     }
-    pub fn execute_ok() -> Self {
+    pub fn execute_ok(sql: impl Into<Option<String>>) -> Self {
         Self {
             data: vec![vec![Some("OK".to_string())]],
             fields: vec![Field {
@@ -959,6 +970,7 @@ impl QueryResp {
                 sortable: true,
                 firebird_binary_sub_type: None,
             }],
+            sql: sql.into(),
         }
     }
 }
@@ -999,9 +1011,9 @@ impl TableListResp {
             fields,
             total: _,
             data,
-            sql: _,
+            sql,
         } = self;
-        QueryResp::new(fields, data)
+        QueryResp::new(fields, data, sql)
     }
 
     pub fn new(

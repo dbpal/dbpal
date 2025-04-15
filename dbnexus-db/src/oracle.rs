@@ -213,7 +213,7 @@ impl QuerySql for OracleDB {
         let mut lock = conn.lock().await;
         let conn = lock.deref_mut();
         let ret = match block_in_place(|| conn.execute(sql, &[])) {
-            Ok(_) => Ok(QueryResp::execute_ok()),
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
@@ -252,7 +252,7 @@ impl QuerySql for OracleDB {
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows)?;
                             let data = encode_rows(rows)?;
-                            ret.push(Ok(QueryResp::new(cols, data)));
+                            ret.push(Ok(QueryResp::new(cols, data, seq.sql.to_owned())));
                         }
                         Err(err) => {
                             ret.push(Err(err.to_string()));
@@ -263,7 +263,7 @@ impl QuerySql for OracleDB {
                     let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
                     match stmt {
                         Ok(x) => match x.row_count() {
-                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
+                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x, seq.sql.to_owned()))),
                             Err(err) => ret.push(Err(err.to_string())),
                         },
                         Err(err) => ret.push(Err(err.to_string())),

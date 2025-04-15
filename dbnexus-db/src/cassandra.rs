@@ -99,6 +99,7 @@ impl PageCache {
             return QueryResp {
                 fields: self.result.fields.clone(),
                 data: vec![],
+                sql: Some(self.sql.clone()),
             };
         }
         let end = page * page_size;
@@ -108,6 +109,7 @@ impl PageCache {
         QueryResp {
             fields: self.result.fields.clone(),
             data,
+            sql: Some(self.sql.clone()),
         }
     }
 }
@@ -799,7 +801,7 @@ impl QuerySql for CassandraDB {
         let mut query_log = QueryLog::get_guard(query_id, sql);
 
         let ret = match self.session.query(sql).await {
-            Ok(_) => Ok(QueryResp::execute_ok()),
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
@@ -822,7 +824,11 @@ impl QuerySql for CassandraDB {
                         let meta = meta.unwrap();
                         let fields = infer_fields(&meta);
                         let data = encode_rows(&meta, &rows)?;
-                        ret.push(Ok(QueryResp { fields, data }));
+                        ret.push(Ok(QueryResp {
+                            fields,
+                            data,
+                            sql: Some(sql.to_owned()),
+                        }));
                     }
                 }
                 Err(err) => {
@@ -1013,6 +1019,7 @@ impl CassandraDB {
             return anyhow::Ok(QueryResp {
                 fields: vec![],
                 data: vec![],
+                sql: Some(sql.clone()),
             });
         }
         let meta = meta.unwrap();
@@ -1022,7 +1029,11 @@ impl CassandraDB {
         let data = encode_rows(&meta, &rows)?;
         // put in cache
         let cache = PageCache {
-            result: QueryResp { fields, data },
+            result: QueryResp {
+                fields,
+                data,
+                sql: Some(sql.clone()),
+            },
             condition,
             sql,
         };
@@ -1468,8 +1479,7 @@ impl SchemaTrait for CassandraDB {
                 *field = (*f).clone();
             }
         });
-
-        let QueryResp { fields, data } = ret;
+        let QueryResp { fields, data, .. } = ret;
         anyhow::Ok(TableListResp::new(
             fields,
             self.page_caching_totoal(table_name),

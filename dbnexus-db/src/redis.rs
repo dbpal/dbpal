@@ -1324,7 +1324,7 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                 .map(|x| encode_response_value_to_string(x))
                 .map(Some)
                 .collect();
-            QueryResp::result("set", result)
+            QueryResp::result("set", result, None)
         }
         Value::Array(vs) => {
             let array_type_notice = array_type_notice.unwrap_or_default();
@@ -1343,7 +1343,7 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                         Field::from_name_type("key", ""),
                         Field::from_name_type("value", ""),
                     ];
-                    QueryResp::new(fields, data)
+                    QueryResp::new(fields, data, None)
                 }
 
                 RedisValueEncodeHit::Zset => {
@@ -1360,7 +1360,7 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                         Field::from_name_type("value", ""),
                         Field::from_name_type("score", ""),
                     ];
-                    QueryResp::new(fields, data)
+                    QueryResp::new(fields, data, None)
                 }
                 RedisValueEncodeHit::None => {
                     let result: Vec<_> = vs
@@ -1368,15 +1368,17 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                         .map(|x| encode_response_value_to_string(x))
                         .map(Some)
                         .collect();
-                    QueryResp::result("array", result)
+                    QueryResp::result("array", result, None)
                 }
             }
         }
 
-        Value::SimpleString(x) => QueryResp::result("result", vec![Some(x.to_string())]),
-        Value::BulkString(_x) => {
-            QueryResp::result("result", vec![Some(encode_response_value_to_string(v))])
-        }
+        Value::SimpleString(x) => QueryResp::result("result", vec![Some(x.to_string())], None),
+        Value::BulkString(_x) => QueryResp::result(
+            "result",
+            vec![Some(encode_response_value_to_string(v))],
+            None,
+        ),
         Value::Map(x) => {
             let fields = vec![
                 Field::from_name_type("key", "string"),
@@ -1392,7 +1394,7 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                 })
                 .collect::<Vec<_>>();
 
-            QueryResp::new(fields, data)
+            QueryResp::new(fields, data, None)
         }
         Value::Attribute {
             data,
@@ -1404,10 +1406,10 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                 Field::from_name_type("value", ""),
             ];
             let data = vec![vec![Some(format.to_string()), Some(text.clone())]];
-            QueryResp::new(fields, data)
+            QueryResp::new(fields, data, None)
         }
 
-        _ => QueryResp::result("result", vec![Some(format!("{:?}", v))]),
+        _ => QueryResp::result("result", vec![Some(format!("{:?}", v))], None),
     }
 }
 

@@ -313,14 +313,18 @@ impl QuerySql for FireBirdDB {
                             if rows.len() > 0 {
                                 let fields = infer_fields(rows.get(0).unwrap());
                                 let data = encode_rows(&rows, true, |_| None)?;
-                                ret.push(Ok(QueryResp { fields, data }));
+                                ret.push(Ok(QueryResp {
+                                    fields,
+                                    data,
+                                    sql: Some(s.sql.to_owned()),
+                                }));
                             }
                         }
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
                 _ => match block_in_place(|| conn.execute(&s.sql, ())) {
-                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64))),
+                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_owned()))),
                     Err(err) => ret.push(Err(err.to_string())),
                 },
             }
@@ -344,7 +348,7 @@ impl QuerySql for FireBirdDB {
         let conn = conn.deref_mut();
 
         let resp = block_in_place(|| conn.execute(sql, ()))
-            .map(|x| QueryResp::row_affected(x as u64))
+            .map(|x| QueryResp::row_affected(x as u64, sql.to_owned()))
             .map_err(|e| e.to_string());
 
         _guard.set_success(resp.is_ok());
