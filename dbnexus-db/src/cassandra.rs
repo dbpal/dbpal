@@ -57,7 +57,7 @@ use crate::{
     helper::create_csv,
     language_server::{LangServerCommon, LexerCompletionTrait},
     meta_value::MetaValue,
-    query_log::QueryLog,
+    query_log::{QueryLogEvent, QueryLogXXX},
 };
 use cdrs_tokio::cluster::session::SessionBuilder;
 
@@ -75,6 +75,7 @@ pub struct CassandraDB {
     >,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
+    query_logs: QueryLogXXX,
 }
 
 #[derive(Clone, Debug)]
@@ -152,6 +153,7 @@ impl CassandraDB {
             session: Arc::new(session),
             config,
             paging_cache: Default::default(),
+            query_logs: Default::default(),
         })
     }
 }
@@ -796,11 +798,14 @@ impl ExportQueryResult for CassandraDB {
 }
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.invalid_page_caching(None);
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let ret = match self.session.query(sql).await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
@@ -814,7 +819,7 @@ impl QuerySql for CassandraDB {
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.invalid_page_caching(None);
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let mut ret = vec![];
         for sql in sql_to_each(&sql) {
             match self.session.query(&sql).await {

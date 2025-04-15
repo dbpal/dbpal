@@ -16,13 +16,13 @@ use sqlx::{Column, Executor, Row, SqliteConnection, TypeInfo};
 use crate::MemoryLimit;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-    Field, Index, IndexKind, ListTable, NamedStaff, QuerySql, QuoteStyle, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, QueryResp,
-    TriggerDetail, TriggerEvent, TriggerTiming,
+    Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    TriggerEvent, TriggerTiming,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
-use crate::query_log::QueryLog;
+use crate::query_log::{QueryLogEvent, QueryLogXXX};
 
 pub(crate) fn type_support_compare(_typ: &str) -> bool {
     true
@@ -34,6 +34,7 @@ pub struct SqliteDB {
     read_only: bool,
     path: String,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
+    query_logs: QueryLogXXX,
 }
 
 impl SqliteDB {
@@ -1103,6 +1104,7 @@ impl SqliteDB {
             read_only,
             query_connection: Default::default(),
             path,
+            query_logs: Default::default(),
         })
     }
 
@@ -1183,10 +1185,14 @@ impl ExportQueryResult for SqliteDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
@@ -1198,10 +1204,7 @@ impl QuerySql for SqliteDB {
         let conn = conn.deref_mut();
 
         let ret = match conn.execute(sqlx::raw_sql(sql)).await {
-            Ok(x) => Ok(QueryResp::row_affected(
-                x.rows_affected(),
-                sql.to_owned(),
-            )),
+            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
 
@@ -1211,7 +1214,7 @@ impl QuerySql for SqliteDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
@@ -1247,10 +1250,7 @@ impl QuerySql for SqliteDB {
                     };
 
                     if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(
-                            row_aff.rows_affected(),
-                            None,
-                        )));
+                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
                     }
                 }
                 sqlx::Either::Right(row) => {
@@ -1294,8 +1294,7 @@ impl QuerySql for SqliteDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        QueryLog::remove(&id);
-
+        self.query_logs.remove(&id);
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
     }
@@ -1812,7 +1811,7 @@ mod tests {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(query_id, "select 1").await.unwrap();
-        let event = db.get_query_log(query_id).await.unwrap();
+        let event = db.get_query_log(query_id).unwrap();
         println!("{:?}", event);
         assert_eq!(event.len(), 1);
     }

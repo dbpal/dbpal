@@ -7,11 +7,12 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlBuilder, SqlExecuteRet, QueryResp, TriggerDetail, UdfOrProcedureExtraParameter,
+    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
+use crate::query_log::QueryLogEvent;
 
 #[derive(Clone)]
 pub struct TiDB {
@@ -60,6 +61,9 @@ impl ExportQueryResult for TiDB {
 
 #[async_trait::async_trait]
 impl QuerySql for TiDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        self.db.get_query_log(id)
+    }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

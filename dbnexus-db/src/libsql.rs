@@ -11,13 +11,13 @@ use crate::{
     datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce},
     db::{
         BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-        Field, Index, IndexKind, ListTable, NamedStaff, QuerySql, QuoteStyle, ReadOnlyTrait,
-        SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, QueryResp,
+        Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle,
+        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
         TriggerDetail,
     },
     helper::{create_csv, is_dangerous_sql_by_parser},
     meta_value::MetaValue,
-    query_log::QueryLog,
+    query_log::{QueryLogEvent, QueryLogXXX},
     sqlite::{
         encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
         integer_like, numreic_like, real_like, text_like,
@@ -29,6 +29,7 @@ pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Connection>>,
+    query_logs: QueryLogXXX,
 }
 
 impl BackendName for LibSqlDB {
@@ -74,9 +75,13 @@ impl ExportQueryResult for LibSqlDB {
         }
     }
 }
+
 #[async_trait::async_trait]
 
 impl QuerySql for LibSqlDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
     }
@@ -84,7 +89,7 @@ impl QuerySql for LibSqlDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connections.get(&query_id);
         let conn = match &conn {
@@ -103,7 +108,7 @@ impl QuerySql for LibSqlDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connections.get(&query_id);
         let conn = match &conn {
@@ -148,6 +153,7 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
@@ -255,6 +261,7 @@ impl LibSqlDB {
             config,
             pool,
             query_connections: Default::default(),
+            query_logs: Default::default(),
         })
     }
     pub(crate) async fn get_conn(&self) -> anyhow::Result<bb8::PooledConnection<'_, PoolManager>> {
@@ -1313,7 +1320,7 @@ mod tests {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(query_id, "select 1").await.unwrap();
-        let event = db.get_query_log(query_id).await.unwrap();
+        let event = db.get_query_log(query_id).unwrap();
         println!("{:?}", event);
         assert_eq!(event.len(), 1);
     }

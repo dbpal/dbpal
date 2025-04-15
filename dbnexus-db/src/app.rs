@@ -255,7 +255,6 @@ impl DBConnectionConfig {
                 None => {
                     let db: Arc<dyn DBTrait> =
                         Arc::new(crate::oracle::OracleDB::new(conn.clone(), None)?);
-
                     anyhow::Ok(Open::DataBase(db))
                 }
             },

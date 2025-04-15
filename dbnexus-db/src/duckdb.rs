@@ -16,12 +16,12 @@ use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, QueryResp, not_support_features,
+    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
-use crate::query_log::QueryLog;
+use crate::query_log::{QueryLogEvent, QueryLogXXX};
 use std::ops::{Deref, DerefMut};
 pub struct PoolManage {
     path: String,
@@ -75,6 +75,7 @@ pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<duckdb::Connection>>>>,
+    query_logs: QueryLogXXX,
 }
 
 #[async_trait::async_trait]
@@ -101,6 +102,7 @@ impl DuckDB {
             config,
             pool,
             query_connections: Default::default(),
+            query_logs: Default::default(),
         })
     }
 
@@ -423,13 +425,16 @@ impl ExportQueryResult for DuckDB {
 }
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::DuckDbDialect {})
     }
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut _log_gurad = QueryLog::get_guard(query_id, sql);
+        let mut _log_gurad = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -466,7 +471,7 @@ impl QuerySql for DuckDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut _log_gurad = QueryLog::get_guard(query_id, sql);
+        let mut _log_gurad = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -497,6 +502,7 @@ impl QuerySql for DuckDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }

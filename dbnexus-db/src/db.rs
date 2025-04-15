@@ -13,7 +13,7 @@ use typescript_type_def::TypeDef;
 
 use crate::language_server::LanguageServer;
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLog, QueryLogEvent};
+use crate::query_log::QueryLogEvent;
 
 pub trait BackendName {
     fn backend_name(&self) -> &str;
@@ -748,13 +748,8 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 
-    async fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        let logs = QueryLog::get_instance()
-            .get(&id)
-            .map(|x| x.lock().unwrap().clone().logs)
-            .unwrap_or(vec![]);
-        anyhow::Ok(logs)
-    }
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>>;
+
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
         not_support_features(self.backend_name())
     }

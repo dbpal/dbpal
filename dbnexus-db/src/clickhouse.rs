@@ -14,12 +14,12 @@ use crate::{
     db::{
         BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
         ExportKind, ExportQueryResult, Field, ListMaterializedView, ListTable, NamedStaff,
-        QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
-        SqlExecuteRet, QueryResp, ty_is_float, ty_is_int,
+        QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+        SqlBuilder, SqlExecuteRet, ty_is_float, ty_is_int,
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
-    query_log::QueryLog,
+    query_log::{QueryLogEvent, QueryLogXXX},
 };
 
 impl BackendName for ClickHouseDB {
@@ -789,13 +789,16 @@ impl ExportQueryResult for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
     }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.get_conn()?;
         let ret = match conn.query(&sql).execute().await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
@@ -813,7 +816,7 @@ impl QuerySql for ClickHouseDB {
             kind: SqlKind::Query,
         }]);
         let mut ret = Vec::new();
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         for sql in sqls.iter() {
             log::info!("query sql kind:{:?} sql:{}", sql.kind, sql.sql);
             match sql.kind {
@@ -877,6 +880,7 @@ pub struct ClickHouseDB {
     pub(crate) config: ClickHouseConfig,
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
+    query_logs: QueryLogXXX,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {
@@ -911,6 +915,7 @@ impl ClickHouseDB {
             config,
             pool,
             client,
+            query_logs: Default::default(),
         })
     }
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManager>> {

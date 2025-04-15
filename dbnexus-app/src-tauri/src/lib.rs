@@ -20,7 +20,7 @@ mod tests {
             NamedStaff, ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
             TriggerTiming,
         };
-        use dbnexus_db::language_server::{CompletionItem, CompletionKind, SemanticToken};
+        use dbnexus_db::language_server::{CompletionItem, CompletionKind};
         use dbnexus_db::query_log::QueryLogEvent;
         use dbnexus_db::redis::RedisListTable;
         use std::io::prelude::*;
@@ -61,7 +61,6 @@ mod tests {
                 &MongoDBConfig::INFO,
                 &MuiDataGridData::INFO,
                 &QueryLogEvent::INFO,
-                &SemanticToken::INFO,
                 &CassandraDBConfig::INFO,
                 &LibSqlDBConfigSouce::INFO,
                 &CreateTableAndIndexSql::INFO,

@@ -1,91 +1,23 @@
-use std::borrow::Cow;
-use std::cmp::Ordering;
-use std::collections::HashSet;
-use std::sync::Arc;
-
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token};
+use std::borrow::Cow;
+use std::collections::HashSet;
+use std::sync::Arc;
 use typescript_type_def::TypeDef;
 
 use crate::db::{BackendName, FormatSqlOpts, monaco_editor_keyword_regexp, not_support_features};
 use crate::sqlparser_completion::CompletionStament;
-
-#[derive(Debug, Clone, Copy, enum_iterator::Sequence)]
-pub enum TokenModifier {
-    Declaration,
-}
-
-impl Into<u32> for TokenModifier {
-    fn into(self) -> u32 {
-        self as u32
-    }
-}
-
-impl TokenModifier {
-    #[allow(dead_code)] // actual used in test.
-    fn to_static_str(self) -> &'static str {
-        match self {
-            Self::Declaration => "declaration",
-        }
-    }
-}
-
-impl std::fmt::Display for TokenModifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_static_str())
-    }
-}
 
 #[async_trait::async_trait]
 pub trait LanguageServer: BackendName {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
-    async fn senmatic_tokens(&self, _sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
-        // not used but still can be used in the future
-        anyhow::Ok(vec![])
-    }
+
     fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         not_support_features(self.backend_name())
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, typescript_type_def::TypeDef, PartialOrd,
-)]
-pub struct SemanticToken {
-    pub line: u32, // 1 based
-    pub col: u32,  // 1 based
-    length: u32,
-    token_type: u32,
-    token_modifiers: Option<u32>,
-}
-
-#[allow(unused)]
-impl SemanticToken {
-    pub(crate) fn new(
-        line: u32, col: u32, length: u32, token_type: u32, token_modifiers: impl Into<Option<u32>>,
-    ) -> Self {
-        Self {
-            line,
-            col,
-            length,
-            token_type,
-            token_modifiers: token_modifiers.into(),
-        }
-    }
-}
-
-impl Ord for SemanticToken {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let o = self.line.cmp(&other.line);
-        if o == Ordering::Equal {
-            self.col.cmp(&other.col)
-        } else {
-            return o;
-        }
     }
 }
 

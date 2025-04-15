@@ -15,7 +15,7 @@ use dbnexus_db::db::{
 };
 
 use dbnexus_db::firebird::FireBirdDB;
-use dbnexus_db::language_server::{CompletionItem, SemanticToken};
+use dbnexus_db::language_server::CompletionItem;
 use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::MongoDB;
@@ -786,9 +786,9 @@ pub async fn query_logs(
     let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
 
     match db {
-        Open::DataBase(x) => x.get_query_log(query_id).await,
-        Open::Schema(x) => x.get_query_log(query_id).await,
-        Open::Catalog(x) => x.get_query_log(query_id).await,
+        Open::DataBase(x) => x.get_query_log(query_id),
+        Open::Schema(x) => x.get_query_log(query_id),
+        Open::Catalog(x) => x.get_query_log(query_id),
     }
     .map_err(|x| ErrorFrontend::from(x))
 }
@@ -1008,24 +1008,6 @@ pub async fn auto_completion(
         Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
     }
     .map_err(|x| ErrorFrontend::from(x))?;
-    Ok(ret)
-}
-
-#[tauri::command]
-pub async fn semantic_tokens(
-    name: String, sql: String, app: tauri::State<'_, App>,
-) -> Result<Vec<SemanticToken>, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-
-    let db = app.get_opened(name.as_str()).await?;
-    let ret = match db {
-        Open::Catalog(x) => x.senmatic_tokens(&sql).await,
-        Open::DataBase(x) => x.senmatic_tokens(&sql).await,
-        Open::Schema(x) => x.senmatic_tokens(&sql).await,
-    }
-    .map_err(|x| ErrorFrontend::from(x))?;
-
     Ok(ret)
 }
 

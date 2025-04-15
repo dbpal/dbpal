@@ -19,7 +19,7 @@ use crate::{
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
-    query_log::QueryLog,
+    query_log::{QueryLogEvent, QueryLogXXX},
 };
 
 use dashmap::DashMap;
@@ -282,10 +282,13 @@ impl ExportQueryResult for FireBirdDB {
 }
 #[async_trait::async_trait]
 impl QuerySql for FireBirdDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
@@ -338,7 +341,7 @@ impl QuerySql for FireBirdDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut _guard = QueryLog::get_guard(query_id, sql);
+        let mut _guard = self.query_logs.get_guard(query_id, sql);
 
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -373,6 +376,7 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
@@ -387,6 +391,7 @@ pub struct FireBirdDB {
     config: FireBirdConfig,
     pool: r2d2::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<PooledConnection<PoolManager>>>>>,
+    query_logs: QueryLogXXX,
 }
 
 impl std::fmt::Debug for FireBirdDB {
@@ -941,6 +946,7 @@ impl FireBirdDB {
             config,
             pool,
             query_connections: Default::default(),
+            query_logs: Default::default(),
         })
     }
     pub(crate) fn get_conn(&self) -> anyhow::Result<r2d2::PooledConnection<PoolManager>> {

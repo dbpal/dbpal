@@ -10,14 +10,14 @@ use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, QueryResp, TriggerDetail, TriggerEnable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable,
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, format_data_time_fix_offset,
     not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
-use crate::query_log::QueryLog;
+use crate::query_log::{QueryLogEvent, QueryLogXXX};
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_core::future::BoxFuture;
@@ -32,7 +32,7 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 pub struct MsSqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
-
+    query_logs: QueryLogXXX,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
 }
 
@@ -170,6 +170,7 @@ impl MsSqlServerDB {
             config: c,
             pool,
             query_connections: Default::default(),
+            query_logs: Default::default(),
         })
     }
 }
@@ -1663,8 +1664,12 @@ impl ExportQueryResult for MsSqlServerDB {
         }
     }
 }
+
 #[async_trait::async_trait]
 impl QuerySql for MsSqlServerDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -1686,15 +1691,14 @@ impl QuerySql for MsSqlServerDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        QueryLog::remove(&id);
-
+        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
@@ -1713,7 +1717,7 @@ impl QuerySql for MsSqlServerDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),

@@ -10,21 +10,24 @@ pub struct QueryLog {
     pub(crate) logs: Vec<QueryLogEvent>,
 }
 
-/// use single instance to manage this.
-impl QueryLog {
-    pub(crate) fn get_instance() -> Arc<DashMap<uuid::Uuid, Arc<Mutex<QueryLog>>>> {
-        static LOGS: std::sync::OnceLock<Arc<DashMap<uuid::Uuid, Arc<Mutex<QueryLog>>>>> =
-            std::sync::OnceLock::new();
-        LOGS.get_or_init(|| Default::default()).clone()
-    }
+#[derive(Clone, Debug, Default)]
+pub struct QueryLogXXX {
+    logs: Arc<DashMap<uuid::Uuid, Arc<Mutex<QueryLog>>>>,
+}
 
-    pub(crate) fn get_guard(id: uuid::Uuid, sql: impl Into<String>) -> QueryLogGuard {
-        let log = QueryLog::get_instance().entry(id).or_default().clone();
+impl QueryLogXXX {
+    pub(crate) fn get_guard(&self, id: uuid::Uuid, sql: impl Into<String>) -> QueryLogGuard {
+        let log = self.logs.entry(id).or_default().clone();
         QueryLogGuard::new(sql, log)
     }
-
-    pub(crate) fn remove(id: &uuid::Uuid) {
-        QueryLog::get_instance().remove(id);
+    pub(crate) fn remove(&self, id: &uuid::Uuid) {
+        self.logs.remove(id);
+    }
+    pub(crate) fn get(&self, id: &uuid::Uuid) -> Vec<QueryLogEvent> {
+        self.logs
+            .get(id)
+            .map(|x| x.lock().unwrap().logs.clone())
+            .unwrap_or(vec![])
     }
 }
 

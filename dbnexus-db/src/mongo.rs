@@ -15,11 +15,12 @@ use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    Index, IndexKind, ListTable, NamedStaff, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, QueryResp, not_support_features,
+    Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlExecuteRet, not_support_features,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
+use crate::query_log::QueryLogEvent;
 
 #[derive(Clone)]
 pub struct MongoDB {
@@ -806,6 +807,9 @@ impl SchemaTrait for MongoDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
+    fn get_query_log(&self, _id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        not_support_features(self.backend_name())
+    }
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {

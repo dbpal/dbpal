@@ -1,6 +1,7 @@
 /// notice oracle sql 不能带有分号
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,21 +17,22 @@ use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, HumanSize, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QuerySql, QuoteStyle,
+    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-    QueryResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, not_support_features,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
-use crate::query_log::QueryLog;
+use crate::query_log::{QueryLogEvent, QueryLogXXX};
 
 #[derive(Clone)]
 pub struct OracleDB {
     pool: Pool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
+    query_logs: QueryLogXXX,
 }
 
 #[async_trait::async_trait]
@@ -68,13 +70,13 @@ impl OracleDB {
             &config.password,
             format!("//{}:{}/{}", config.host, config.port, config.db),
         )
-        .min_connections(min_conn.unwrap_or(20))
-        .max_connections(100)
+        .min_connections(min_conn.unwrap_or(5))
         .build()?;
         anyhow::Ok(Self {
             pool,
             query_connections: Default::default(),
             config,
+            query_logs: Default::default(),
         })
     }
 }
@@ -169,6 +171,9 @@ impl ExportQueryResult for OracleDB {
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -194,8 +199,7 @@ impl QuerySql for OracleDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        QueryLog::remove(&id);
-
+        self.query_logs.remove(&id);
         if let Some((_, x)) = self.query_connections.remove(&id) {
             tokio::spawn(async move { x.lock().await.close() });
         }
@@ -204,7 +208,7 @@ impl QuerySql for OracleDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -223,7 +227,7 @@ impl QuerySql for OracleDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
@@ -263,9 +267,7 @@ impl QuerySql for OracleDB {
                     let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
                     match stmt {
                         Ok(x) => match x.row_count() {
-                            Ok(x) => {
-                                ret.push(Ok(QueryResp::row_affected(x, seq.sql.to_owned())))
-                            }
+                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x, seq.sql.to_owned()))),
                             Err(err) => ret.push(Err(err.to_string())),
                         },
                         Err(err) => ret.push(Err(err.to_string())),

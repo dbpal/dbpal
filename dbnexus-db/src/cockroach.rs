@@ -4,12 +4,13 @@ use crate::{
     db::{
         BackendName, CatalogTrait, CreateDatabaseExtra, CreateSchemaExtra, DBTrait, DefAndMetas,
         ExportKind, ExportQueryResult, Field, Index, IndexKind, ListMaterializedView, ListTable,
-        NamedStaff, ProcedureDetail, QuoteStyle, SchemaTrait, ServerMetas, ShowExtraArgs,
-        SqlBuilder, SqlExecuteRet, QueryResp, UdfOrProcedureExtraParameter,
+        NamedStaff, ProcedureDetail, QueryResp, QuoteStyle, SchemaTrait, ServerMetas,
+        ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter,
     },
     helper::is_dangerous_sql_by_parser,
     meta_value::MetaValue,
     pg_format::encode_rows,
+    query_log::QueryLogEvent,
 };
 
 use sqlx::Row;
@@ -74,6 +75,9 @@ impl ReadOnlyTrait for CockRoachDB {
 #[async_trait::async_trait]
 
 impl QuerySql for CockRoachDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        self.pg.get_query_log(id)
+    }
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
