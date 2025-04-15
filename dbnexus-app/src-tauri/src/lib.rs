@@ -10,7 +10,7 @@ mod tests {
 
     #[test]
     fn generate_ts_def() {
-        use crate::handlers::{MuiDataGridData, MuiDataTableListResp};
+        use crate::handlers::MuiDataGridData;
         use dbnexus_db::app::{self};
         use dbnexus_db::datasource_config::{
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
@@ -59,7 +59,6 @@ mod tests {
                 &RedisDBConfig::INFO,
                 &MysqlDBConfig::INFO,
                 &MongoDBConfig::INFO,
-                &MuiDataTableListResp::INFO,
                 &MuiDataGridData::INFO,
                 &QueryLogEvent::INFO,
                 &SemanticToken::INFO,

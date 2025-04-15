@@ -37,7 +37,7 @@ import {
   msgTimeout,
   SettingContext,
 } from './Common.tsx';
-import AddIcon from '@mui/icons-material/Add';
+
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';

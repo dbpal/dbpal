@@ -210,7 +210,7 @@ function SqlTableView(props: {
     page: number,
     pageSize: number,
     extra
-  ) => Promise<types.MuiDataTableListResp>;
+  ) => Promise<types.MuiDataGridData>;
   updateOP?: (wheres: object, values: object) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: object) => Promise<types.SqlExecuteRet>;
   put_value_in_sql: (typ: string, value?: string) => Promise<string>;
@@ -237,20 +237,20 @@ function SqlTableView(props: {
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
   const [pageSize, setPageSize] = useState(setting.pageSize);
-  const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
+  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
   const visiable = useContext(VisiableContext);
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editInModal, setEditInModal] = useState<EditInModalData>(null);
 
-  const handleResp = (resp: types.MuiDataTableListResp) => {
-    resp.data.data.forEach((data) => {
+  const handleResp = (resp: types.MuiDataGridData) => {
+    resp.data.forEach((data) => {
       data[keyNotInTable] = uuidv4();
     });
 
-    for (let i = 0; i < resp.data.fields.length; i++) {
-      let field = resp.data.fields[i];
+    for (let i = 0; i < resp.fields.length; i++) {
+      let field = resp.fields[i];
       //@ts-ignore
       field.renderHeader = (e) => {
         let def = e.colDef;
@@ -305,7 +305,7 @@ function SqlTableView(props: {
       );
       setLoading(false);
       await handleResp(resp);
-      resp.data.fields.forEach((e) => {
+      resp.fields.forEach((e) => {
         const width = columnWidths.getWidth(e.field);
         if (width) {
           e['width'] = width;
@@ -342,7 +342,7 @@ function SqlTableView(props: {
       if (updateRow.size == 0) {
         return newRow;
       }
-      if (!(await confrimAboutPrimary(notWarnPri, resp.data.fields))) {
+      if (!(await confrimAboutPrimary(notWarnPri, resp.fields))) {
         return oldRow;
       }
       try {
@@ -362,11 +362,11 @@ function SqlTableView(props: {
   );
 
   const handleDetele = async (id) => {
-    if (!(await confrimAboutPrimary(notWarnPri, resp.data.fields))) {
+    if (!(await confrimAboutPrimary(notWarnPri, resp.fields))) {
       return;
     }
     let old;
-    for (const e of resp.data.data) {
+    for (const e of resp.data) {
       if (e[keyNotInTable] == id) {
         old = new Map(Object.entries(e));
         break;
@@ -444,11 +444,9 @@ function SqlTableView(props: {
           }
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let row = { ...resp.data.data.find((e) => e[keyNotInTable] == id) };
+          let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           delete row[keyNotInTable];
-          let nullable = resp.data.fields.find(
-            (e) => e.field == field
-          ).nullable;
+          let nullable = resp.fields.find((e) => e.field == field).nullable;
 
           setUpMenu({
             content: (
@@ -457,7 +455,7 @@ function SqlTableView(props: {
                   setEditInModal(new EditInModalData(row, field, row[field]));
                 }}
                 nullable={nullable}
-                fields={resp.data.fields}
+                fields={resp.fields}
                 field={field}
                 content={content}
                 handleDelete={() => {
@@ -470,16 +468,14 @@ function SqlTableView(props: {
                 setWhere={setWhere}
                 put_value_in_sql={(value) => {
                   return put_value_in_sql(
-                    resp.data.fields.find((e) => e.field == field).typ,
+                    resp.fields.find((e) => e.field == field).typ,
                     value
                   );
                 }}
                 setNull={
                   updateOP
                     ? async () => {
-                        let x = resp.data.data.find(
-                          (e) => e[keyNotInTable] == id
-                        );
+                        let x = resp.data.find((e) => e[keyNotInTable] == id);
                         try {
                           //ts-ignoe
                           let values = {};
@@ -590,7 +586,7 @@ function SqlTableView(props: {
             <div
               style={{
                 display: 'grid',
-                height: datagridContainerHeight(resp.data.data.length),
+                height: datagridContainerHeight(resp.data.length),
               }}
             >
               <DataGrid
@@ -609,8 +605,8 @@ function SqlTableView(props: {
                 rowCount={resp.total}
                 sortingMode="server"
                 onSortModelChange={onSortModelChange}
-                columns={resp.data.fields}
-                rows={resp.data.data}
+                columns={resp.fields}
+                rows={resp.data}
                 onColumnResize={onColumnResize}
                 processRowUpdate={handleProcessRowUpdate}
                 onProcessRowUpdateError={onProcessRowUpdateError}

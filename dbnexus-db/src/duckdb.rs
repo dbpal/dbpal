@@ -16,9 +16,8 @@ use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp,
-    not_support_features,
+    ListMaterializedView, ListTable, NamedStaff, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, QueryResp, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -374,6 +373,7 @@ impl DuckDB {
                 .collect::<Vec<_>>(),
             data,
             sql: Some(sql.to_string()),
+            total: 0,
         })
     }
 }
@@ -1217,7 +1217,7 @@ impl SchemaTrait for DuckDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _duckdb_extracted_statementsextra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(view_name, where_str.clone())?;
         let sql = gen_show_sql(
             self.config.schema_str(),
@@ -1259,7 +1259,7 @@ impl SchemaTrait for DuckDB {
                 parsed_type.as_ref().map(|x| &x[..]),
             )?);
         }
-        anyhow::Ok(TableListResp::new(fs, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fs, total, data, sql)?)
     }
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let conn = self.get_conn()?;
@@ -1400,7 +1400,7 @@ impl SchemaTrait for DuckDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone())?;
         let sql = gen_show_sql(
             self.config.schema_str(),
@@ -1427,7 +1427,7 @@ impl SchemaTrait for DuckDB {
         while let Some(row) = rows.next()? {
             data.push(encode_row(&row, &types[..], Some(&parsed_type[..]))?);
         }
-        anyhow::Ok(TableListResp::new(fs, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fs, total, data, sql)?)
     }
 
     async fn insert(

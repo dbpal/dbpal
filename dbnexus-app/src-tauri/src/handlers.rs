@@ -10,7 +10,7 @@ use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
     DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+    ProcedureDetail, ShowExtraArgs, SqlExecuteRet, QueryResp, TriggerDetail,
     UdfOrProcedureExtraParameter,
 };
 
@@ -297,7 +297,7 @@ pub async fn redis_list_table(
 pub async fn redis_zset_show_table(
     name: String, key: String, min: Option<f64>, max: Option<f64>, where_str: Option<&str>,
     app: tauri::State<'_, App>,
-) -> Result<MuiDataTableListResp, ErrorFrontend> {
+) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -314,7 +314,7 @@ pub async fn redis_zset_show_table(
         .await
         .map_err(|x| ErrorFrontend::from(x))?;
 
-    Ok(MuiDataTableListResp::from(x))
+    Ok(MuiDataGridData::from(x))
 }
 
 #[tauri::command]
@@ -332,7 +332,7 @@ pub async fn show_table_columns(
 pub async fn show_table(
     name: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
-) -> Result<MuiDataTableListResp, ErrorFrontend> {
+) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let x = app
@@ -348,7 +348,7 @@ pub async fn show_table(
         .await
         .map_err(ErrorFrontend::from)?;
 
-    Ok(MuiDataTableListResp::from(x))
+    Ok(MuiDataGridData::from(x))
 }
 
 #[tauri::command]
@@ -638,7 +638,7 @@ pub async fn drop_table(
 pub async fn show_view(
     name: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
-) -> Result<MuiDataTableListResp, ErrorFrontend> {
+) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     app.show_view(
@@ -652,7 +652,7 @@ pub async fn show_view(
     )
     .await
     .map_err(ErrorFrontend::from)
-    .map(MuiDataTableListResp::from)
+    .map(MuiDataGridData::from)
 }
 #[tauri::command]
 pub async fn show_view_columns(
@@ -753,10 +753,7 @@ pub async fn query_sql(
         x.into_iter()
             .map(|x| match x {
                 Err(e) => Err(e),
-                Ok(x) => {
-                    let QueryResp { fields, data, sql } = x;
-                    Ok(MuiDataGridData::from((fields, data, sql)))
-                }
+                Ok(x) => Ok(MuiDataGridData::from(x)),
             })
             .collect::<Vec<_>>()
     })
@@ -1308,7 +1305,7 @@ pub async fn mongo_delete_ids(
 pub async fn mongo_show_collection_table_list(
     name: String, table_name: String, filter: Vec<u8>, page: u64, page_size: u64, sort: Vec<u8>,
     app: tauri::State<'_, App>,
-) -> Result<MuiDataTableListResp, ErrorFrontend> {
+) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let filter = parse_bson_doc(filter.as_slice())?;
@@ -1325,7 +1322,7 @@ pub async fn mongo_show_collection_table_list(
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| ErrorFrontend::from(e))
-    .map(MuiDataTableListResp::from)
+    .map(MuiDataGridData::from)
 }
 
 #[tauri::command]
@@ -2609,41 +2606,18 @@ pub struct MuiDataGridData {
     fields: Vec<Field>,
     data: Vec<HashMap<String, String>>,
     sql: Option<String>,
+    total: usize,
 }
 
-#[derive(Clone, Debug, serde::Serialize, typescript_type_def::TypeDef)]
-pub struct MuiDataTableListResp {
-    pub total: usize,
-    pub sql: Option<String>,
-    data: MuiDataGridData,
-}
-
-impl From<TableListResp> for MuiDataTableListResp {
-    fn from(value: TableListResp) -> Self {
-        let TableListResp {
-            fields,
-            total,
-            sql,
-            data,
-        } = value;
-
-        Self {
-            total,
-            sql: sql.clone(),
-            data: MuiDataGridData::from((fields, data, sql)),
-        }
-    }
-}
 impl From<QueryResp> for MuiDataGridData {
     fn from(value: QueryResp) -> Self {
-        let QueryResp { fields, data, sql } = value;
-        MuiDataGridData::from((fields, data, sql))
-    }
-}
-impl From<(Vec<Field>, Vec<Vec<Option<String>>>, Option<String>)> for MuiDataGridData {
-    fn from(value: (Vec<Field>, Vec<Vec<Option<String>>>, Option<String>)) -> Self {
-        let (fields, old_data, sql) = value;
-        let data: Vec<_> = old_data
+        let QueryResp {
+            fields,
+            data,
+            total,
+            sql,
+        } = value;
+        let data: Vec<_> = data
             .into_iter()
             .map(|x| {
                 let mut m = HashMap::new();
@@ -2654,14 +2628,17 @@ impl From<(Vec<Field>, Vec<Vec<Option<String>>>, Option<String>)> for MuiDataGri
                         Some(value) => {
                             m.insert(f.field.clone(), value);
                         }
-
                         None => {}
                     });
-
                 m
             })
             .collect();
-        Self { fields, data, sql }
+        Self {
+            fields,
+            data,
+            sql,
+            total,
+        }
     }
 }
 
@@ -2691,24 +2668,12 @@ mod tests {
                 fields: vec![],
                 data: vec![],
                 sql: None,
+                total: 0,
             }),
         ];
 
         let ret = serde_json::to_string_pretty(&xs).unwrap();
         println!("{}", ret);
-    }
-
-    #[test]
-    fn test_mui_datagrid() {
-        let data = vec![vec![Some("100".to_string()), Some("hello".to_string())]];
-        let field = vec![
-            Field::from_name_type("a", "int"),
-            Field::from_name_type("b", "string"),
-        ];
-
-        let x = MuiDataGridData::from((field, data, None));
-        let str = serde_json::to_string_pretty(&x).unwrap();
-        println!("{}", str);
     }
 
     #[test]

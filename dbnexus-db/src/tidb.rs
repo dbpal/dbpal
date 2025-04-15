@@ -7,9 +7,8 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
-    UdfOrProcedureExtraParameter,
+    ProcedureDetail, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlBuilder, SqlExecuteRet, QueryResp, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
@@ -112,7 +111,7 @@ impl SchemaTrait for TiDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         self.db
             .show_table(&table_name, where_str, order_by, page, page_size, extra)
             .await
@@ -199,7 +198,7 @@ impl SchemaTrait for TiDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         self.db
             .show_view(view_name, where_str, order_by, page, page_size, None)
             .await

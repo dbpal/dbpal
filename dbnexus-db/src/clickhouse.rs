@@ -14,8 +14,8 @@ use crate::{
     db::{
         BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
         ExportKind, ExportQueryResult, Field, ListMaterializedView, ListTable, NamedStaff,
-        QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-        SqlBuilder, SqlExecuteRet, TableListResp, ty_is_float, ty_is_int,
+        QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
+        SqlExecuteRet, QueryResp, ty_is_float, ty_is_int,
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
@@ -419,7 +419,7 @@ impl SchemaTrait for ClickHouseDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str).await?;
         let fs = self.show_table_columns(table_name).await?;
         let fs = {
@@ -449,13 +449,13 @@ impl SchemaTrait for ClickHouseDB {
             }
         });
         let data = result.encode_json_result()?;
-        anyhow::Ok(TableListResp::new(infered_fs, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(infered_fs, total, data, sql)?)
     }
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(view_name, where_str).await?;
 
         let sql = gen_show_sql(
@@ -470,7 +470,7 @@ impl SchemaTrait for ClickHouseDB {
         let result = self.query_as_json(&sql).await?;
         let fields = result.infer_fields();
         let data = result.encode_json_result()?;
-        anyhow::Ok(TableListResp {
+        anyhow::Ok(QueryResp {
             fields,
             total,
             data,
@@ -827,6 +827,7 @@ impl QuerySql for ClickHouseDB {
                                 fields,
                                 data,
                                 sql: Some(sql.sql.clone()),
+                                total: 0,
                             }));
                         }
 

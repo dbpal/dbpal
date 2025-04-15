@@ -4,8 +4,8 @@ use crate::{
     db::{
         BackendName, CatalogTrait, CreateDatabaseExtra, CreateSchemaExtra, DBTrait, DefAndMetas,
         ExportKind, ExportQueryResult, Field, Index, IndexKind, ListMaterializedView, ListTable,
-        NamedStaff, ProcedureDetail, QueryResp, QuoteStyle, SchemaTrait, ServerMetas,
-        ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, UdfOrProcedureExtraParameter,
+        NamedStaff, ProcedureDetail, QuoteStyle, SchemaTrait, ServerMetas, ShowExtraArgs,
+        SqlBuilder, SqlExecuteRet, QueryResp, UdfOrProcedureExtraParameter,
     },
     helper::is_dangerous_sql_by_parser,
     meta_value::MetaValue,
@@ -192,7 +192,7 @@ impl SchemaTrait for CockRoachDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let fields = self.show_table_columns(table_name).await?;
         let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
         let total = self.pg.query_count(table_name, where_str.clone()).await?;
@@ -213,7 +213,7 @@ impl SchemaTrait for CockRoachDB {
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let data = encode_rows(&row)?;
 
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn insert(
@@ -298,7 +298,7 @@ impl SchemaTrait for CockRoachDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         self.pg
             .show_view(view_name, where_str, order_by, page, page_size, extra)
             .await

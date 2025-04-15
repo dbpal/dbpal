@@ -814,7 +814,7 @@ function MongoTableList(props: {
     sort: BSON.Document,
     page: number,
     pageSize: number
-  ) => Promise<types.MuiDataTableListResp>;
+  ) => Promise<types.MuiDataGridData>;
   setSort;
   setFilter;
   loadOne: (id: any) => Promise<BSON.Document>;
@@ -836,7 +836,7 @@ function MongoTableList(props: {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
   const { showNotification } = useContext(NotificationContext);
-  const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
+  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
@@ -847,7 +847,7 @@ function MongoTableList(props: {
     reloadOP(filter, sort, page + 1, pageSize)
       .then((r) => {
         let has_null = false;
-        r.data.data.forEach((e) => {
+        r.data.forEach((e) => {
           e['_id'] = EJSON.parse(e['_id']);
           e[keyNotInTable] = uuidv4();
           if (!e['_id']) {
@@ -861,14 +861,14 @@ function MongoTableList(props: {
         if (has_null) {
           return;
         }
-        r.data.fields.forEach((f) => {
+        r.fields.forEach((f) => {
           let width = columnWidths.getWidth(f.field);
           if (width) {
             f['width'] = width;
           }
         });
-        if (r.data.fields.length > 0) {
-          r.data.fields[0]['renderCell'] = function (value) {
+        if (r.fields.length > 0) {
+          r.fields[0]['renderCell'] = function (value) {
             let _id = value.row._id;
             return renderId(_id);
           };
@@ -938,7 +938,7 @@ function MongoTableList(props: {
 
   const handleDel = deleteOP
     ? async (id: string) => {
-        let del = resp.data.data.find((e) => e[keyNotInTable] == id);
+        let del = resp.data.find((e) => e[keyNotInTable] == id);
         try {
           await deleteOP([del['_id']]);
           showNotification('success', 'delete OK');
@@ -961,7 +961,7 @@ function MongoTableList(props: {
           if (!field) {
             return;
           }
-          let row = { ...resp.data.data.find((e) => e[keyNotInTable] == id) };
+          let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           setUpMenu({
             content: (
               <MongoTableListContextMenu
@@ -976,7 +976,7 @@ function MongoTableList(props: {
                 field={field}
                 setFilter={setFilter}
                 loadDoc={async () => {
-                  let doc = resp.data.data.find((x) => x[keyNotInTable] == id);
+                  let doc = resp.data.find((x) => x[keyNotInTable] == id);
                   return await loadOne(doc['_id']);
                 }}
                 setSort={setSort}
@@ -1033,7 +1033,7 @@ function MongoTableList(props: {
             <div
               style={{
                 display: 'grid',
-                height: datagridContainerHeight(resp.data.data.length),
+                height: datagridContainerHeight(resp.data.length),
               }}
             >
               <DataGrid
@@ -1045,8 +1045,8 @@ function MongoTableList(props: {
                 rowHeight={setting.datagridRowHeight}
                 columnHeaderHeight={setting.datagridHeaderHeight}
                 rowCount={resp.total}
-                columns={resp.data.fields}
-                rows={resp.data.data}
+                columns={resp.fields}
+                rows={resp.data}
                 pageSizeOptions={pageSizeOptions}
                 disableColumnFilter
                 paginationMode="server"
@@ -1184,7 +1184,7 @@ function MongoTable(props: {
     sort: BSON.Document,
     page: number,
     pageSize: number
-  ) => Promise<types.MuiDataTableListResp>;
+  ) => Promise<types.MuiDataGridData>;
   realodOPDocs: (
     filter: BSON.Document,
     sort: BSON.Document,

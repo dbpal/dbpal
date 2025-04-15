@@ -15,8 +15,8 @@ use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
+    Index, IndexKind, ListTable, NamedStaff, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlExecuteRet, QueryResp, not_support_features,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -336,7 +336,7 @@ impl MongoDB {
 
     pub async fn show_collection_table_list(
         &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let db = self.get_db().await?;
         let count = db
             .collection::<u64>(collection_name)
@@ -359,7 +359,7 @@ impl MongoDB {
         let cols = infer_multi_value_column_names(&docs[..])?;
         let data = collect_table_resp(&cols, docs.as_slice())?;
 
-        anyhow::Ok(TableListResp::new(cols, count as usize, data, None)?)
+        anyhow::Ok(QueryResp::new(cols, count as usize, data, None)?)
     }
 
     pub async fn show_collection_docs(
@@ -641,7 +641,7 @@ impl SchemaTrait for MongoDB {
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }
 
@@ -730,7 +730,7 @@ impl SchemaTrait for MongoDB {
     async fn show_table(
         &self, _table_name: &str, _filter: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }
 

@@ -15,7 +15,7 @@ use crate::{
     db::{
         BackendName, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
         NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-        ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, not_support_features,
+        ShowExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
@@ -317,6 +317,7 @@ impl QuerySql for FireBirdDB {
                                     fields,
                                     data,
                                     sql: Some(s.sql.to_owned()),
+                                    total: 0,
                                 }));
                             }
                         }
@@ -612,7 +613,7 @@ impl SchemaTrait for FireBirdDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
         let fs = self.show_table_columns(table_name).await?;
@@ -625,7 +626,7 @@ impl SchemaTrait for FireBirdDB {
         let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
 
         if rows.len() == 0 {
-            return anyhow::Ok(TableListResp {
+            return anyhow::Ok(QueryResp {
                 fields: fs,
                 total: 0,
                 data: vec![],
@@ -648,7 +649,7 @@ impl SchemaTrait for FireBirdDB {
         })?;
         let total = self.query_count(table_name, where_str)?;
 
-        anyhow::Ok(TableListResp {
+        anyhow::Ok(QueryResp {
             fields,
             total,
             data,
@@ -818,7 +819,7 @@ impl SchemaTrait for FireBirdDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn()?;
@@ -827,7 +828,7 @@ impl SchemaTrait for FireBirdDB {
         if rows.len() == 0 {
             let fields = self.show_view_columns(view_name).await?;
 
-            return anyhow::Ok(TableListResp {
+            return anyhow::Ok(QueryResp {
                 fields,
                 total: 0,
                 data: vec![],
@@ -843,7 +844,7 @@ impl SchemaTrait for FireBirdDB {
                 vec![]
             }
         };
-        anyhow::Ok(TableListResp {
+        anyhow::Ok(QueryResp {
             fields,
             total,
             data,

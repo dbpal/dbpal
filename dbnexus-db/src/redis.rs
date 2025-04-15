@@ -16,8 +16,8 @@ use typescript_type_def::TypeDef;
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet, TableListResp,
+    ListTable, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet,
+    QueryResp,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
@@ -53,7 +53,7 @@ impl RedisDB {
 impl RedisDB {
     pub async fn zset_show_table(
         &self, key: &str, where_str: Option<&str>, min: Option<f64>, max: Option<f64>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
 
         let total: usize = conn.zcard(key).await?;
@@ -75,7 +75,7 @@ impl RedisDB {
             }
             key_values.push(value);
         }
-        anyhow::Ok(TableListResp::new(
+        anyhow::Ok(QueryResp::new(
             vec![
                 Field::from_name_type("key", "string"),
                 Field::from_name_type("score", "f64"),
@@ -647,7 +647,7 @@ impl BackendName for RedisDB {
 impl RedisDB {
     pub async fn zset_range_by_score(
         &self, key: &str, min: Option<f64>, max: Option<f64>, page: isize, page_count: isize,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let offset = (page - 1) * page_count;
         let total: usize = conn.zcount(key, min, max).await?;
@@ -659,7 +659,7 @@ impl RedisDB {
             .map(|x| vec![Some(x[0].clone()), Some(x[1].clone())])
             .collect();
 
-        anyhow::Ok(TableListResp::new(
+        anyhow::Ok(QueryResp::new(
             vec![
                 Field::from_name_type("key", "string"),
                 Field::from_name_type("value", "string"),
@@ -809,14 +809,14 @@ impl SchemaTrait for RedisDB {
     async fn show_table(
         &self, key: &str, where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let typ = Self::get_key_type(&mut conn, key).await?;
         use futures_util::StreamExt;
         match typ {
             RedisType::String => {
                 let ret: Option<Vec<u8>> = conn.get(key).await?;
-                anyhow::Ok(TableListResp::result(
+                anyhow::Ok(QueryResp::result(
                     "value",
                     format!("GET {}", key),
                     vec![ret.map(|x| hex::encode(x.as_slice()))],
@@ -826,7 +826,7 @@ impl SchemaTrait for RedisDB {
             RedisType::List => {
                 let r: Vec<Vec<u8>> = conn.lrange(key, 0, -1).await?;
 
-                anyhow::Ok(TableListResp::new(
+                anyhow::Ok(QueryResp::new(
                     vec![
                         Field::from_name_type("seq", "int"),
                         Field::from_name_type("value", "string"),
@@ -850,7 +850,7 @@ impl SchemaTrait for RedisDB {
                 while let Some(value) = ret.next().await {
                     set_values.push(value);
                 }
-                anyhow::Ok(TableListResp::new(
+                anyhow::Ok(QueryResp::new(
                     vec![Field::from_name_type("value", "string")],
                     total,
                     set_values
@@ -875,7 +875,7 @@ impl SchemaTrait for RedisDB {
                     }
                     index += 1;
                 }
-                anyhow::Ok(TableListResp::new(
+                anyhow::Ok(QueryResp::new(
                     vec![
                         Field::from_name_type("key", "string"),
                         Field::from_name_type("value", "string"),
@@ -1256,9 +1256,8 @@ async fn query_sql(
 
         match v {
             Ok(x) => {
-                ret.push(Ok(x));
+                ret.push(x.map_err(|x| x.to_string()));
             }
-
             Err(x) => ret.push(Err(x.to_string())),
         }
     }
@@ -1315,8 +1314,10 @@ impl RedisValueEncodeHit {
     }
 }
 
-fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHit>) -> QueryResp {
-    match v {
+fn encode_response_value(
+    v: &Value, array_type_notice: Option<RedisValueEncodeHit>,
+) -> anyhow::Result<QueryResp> {
+    let ret = match v {
         Value::Set(vs) => {
             // a set
             let result: Vec<_> = vs
@@ -1324,7 +1325,7 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                 .map(|x| encode_response_value_to_string(x))
                 .map(Some)
                 .collect();
-            QueryResp::result("set", result, None)
+            QueryResp::result("set", None, result)
         }
         Value::Array(vs) => {
             let array_type_notice = array_type_notice.unwrap_or_default();
@@ -1343,7 +1344,7 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                         Field::from_name_type("key", ""),
                         Field::from_name_type("value", ""),
                     ];
-                    QueryResp::new(fields, data, None)
+                    QueryResp::new(fields, 0, data, None)?
                 }
 
                 RedisValueEncodeHit::Zset => {
@@ -1360,7 +1361,7 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                         Field::from_name_type("value", ""),
                         Field::from_name_type("score", ""),
                     ];
-                    QueryResp::new(fields, data, None)
+                    QueryResp::new(fields, 0, data, None)?
                 }
                 RedisValueEncodeHit::None => {
                     let result: Vec<_> = vs
@@ -1368,16 +1369,16 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                         .map(|x| encode_response_value_to_string(x))
                         .map(Some)
                         .collect();
-                    QueryResp::result("array", result, None)
+                    QueryResp::result("array", None, result)
                 }
             }
         }
 
-        Value::SimpleString(x) => QueryResp::result("result", vec![Some(x.to_string())], None),
+        Value::SimpleString(x) => QueryResp::result("result", None, vec![Some(x.to_string())]),
         Value::BulkString(_x) => QueryResp::result(
             "result",
-            vec![Some(encode_response_value_to_string(v))],
             None,
+            vec![Some(encode_response_value_to_string(v))],
         ),
         Value::Map(x) => {
             let fields = vec![
@@ -1394,23 +1395,23 @@ fn encode_response_value(v: &Value, array_type_notice: Option<RedisValueEncodeHi
                 })
                 .collect::<Vec<_>>();
 
-            QueryResp::new(fields, data, None)
+            QueryResp::new(fields, 0, data, None)?
         }
         Value::Attribute {
             data,
             attributes: _, // TODO how to handle this???
-        } => encode_response_value(&data, array_type_notice),
+        } => encode_response_value(&data, array_type_notice)?,
         Value::VerbatimString { format, text } => {
             let fields = vec![
                 Field::from_name_type("format", ""),
                 Field::from_name_type("value", ""),
             ];
             let data = vec![vec![Some(format.to_string()), Some(text.clone())]];
-            QueryResp::new(fields, data, None)
+            QueryResp::new(fields, 0, data, None)?
         }
-
-        _ => QueryResp::result("result", vec![Some(format!("{:?}", v))], None),
-    }
+        _ => QueryResp::result("result", None, vec![Some(format!("{:?}", v))]),
+    };
+    anyhow::Ok(ret)
 }
 
 impl RedisDB {

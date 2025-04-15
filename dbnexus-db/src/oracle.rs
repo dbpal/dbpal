@@ -16,9 +16,9 @@ use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, HumanSize, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
+    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QuerySql, QuoteStyle,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    QueryResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
@@ -241,7 +241,7 @@ impl QuerySql for OracleDB {
         let mut lock = conn.lock().await;
         let conn = lock.deref_mut();
 
-        let mut ret = Vec::new();
+        let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
 
         for seq in ss.iter() {
             log::trace!("oracle query sql:{}", seq);
@@ -252,7 +252,7 @@ impl QuerySql for OracleDB {
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows)?;
                             let data = encode_rows(rows)?;
-                            ret.push(Ok(QueryResp::new(cols, data, seq.sql.to_owned())));
+                            ret.push(Ok(QueryResp::new(cols, 0, data, seq.sql.to_owned())?));
                         }
                         Err(err) => {
                             ret.push(Err(err.to_string()));
@@ -263,7 +263,9 @@ impl QuerySql for OracleDB {
                     let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
                     match stmt {
                         Ok(x) => match x.row_count() {
-                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x, seq.sql.to_owned()))),
+                            Ok(x) => {
+                                ret.push(Ok(QueryResp::row_affected(x, seq.sql.to_owned())))
+                            }
                             Err(err) => ret.push(Err(err.to_string())),
                         },
                         Err(err) => ret.push(Err(err.to_string())),
@@ -1283,7 +1285,7 @@ impl SchemaTrait for OracleDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let conn = self.get_conn()?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
         log::info!("query sql:{}", sql);
@@ -1291,7 +1293,7 @@ impl SchemaTrait for OracleDB {
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let data = encode_rows(rows.into_iter().collect::<Vec<_>>())?;
         let cols = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(cols, total as usize, data, sql)?)
+        anyhow::Ok(QueryResp::new(cols, total as usize, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1432,7 +1434,7 @@ impl SchemaTrait for OracleDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let conn = self.get_conn()?;
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
@@ -1441,7 +1443,7 @@ impl SchemaTrait for OracleDB {
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         if rows.len() == 0 {
-            return anyhow::Ok(TableListResp::new(
+            return anyhow::Ok(QueryResp::new(
                 self.show_view_columns(view_name).await?,
                 total as usize,
                 vec![],
@@ -1450,7 +1452,7 @@ impl SchemaTrait for OracleDB {
         }
         let cols = infer_schema_by_result(&rows)?;
         let data = encode_rows(rows)?;
-        anyhow::Ok(TableListResp::new(cols, total as usize, data, sql)?)
+        anyhow::Ok(QueryResp::new(cols, total as usize, data, sql)?)
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {

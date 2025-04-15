@@ -16,8 +16,8 @@ use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
+    SqlExecuteRet, QueryResp, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
@@ -965,7 +965,7 @@ impl SchemaTrait for PostGresDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(view_name, where_str).await?;
 
         let sql = gen_show_sql(
@@ -984,12 +984,12 @@ impl SchemaTrait for PostGresDB {
 
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
 
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
@@ -1254,7 +1254,7 @@ impl SchemaTrait for PostGresDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(
             self.must_schema(),
@@ -1272,7 +1272,7 @@ impl SchemaTrait for PostGresDB {
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let data = encode_rows(&row)?;
         let fields = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
@@ -1560,7 +1560,10 @@ impl QuerySql for PostGresDB {
         let conn = conn.deref_mut();
 
         let ret = match conn.execute(sqlx::raw_sql(sql)).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
+            Ok(x) => Ok(QueryResp::row_affected(
+                x.rows_affected(),
+                sql.to_owned(),
+            )),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
@@ -1595,11 +1598,14 @@ impl QuerySql for PostGresDB {
                     if rows.len() > 0 {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows)?;
-                        ret.push(Ok(QueryResp::new(fields, data, None)));
+                        ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
                         rows.clear();
                     };
                     if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
+                        ret.push(Ok(QueryResp::row_affected(
+                            row_aff.rows_affected(),
+                            None,
+                        )));
                     }
                 }
                 sqlx::Either::Right(row) => {
@@ -1617,7 +1623,7 @@ impl QuerySql for PostGresDB {
                 .iter()
                 .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                 .collect::<Vec<_>>();
-            ret = vec![Ok(QueryResp::new(field, vec![], sql.to_owned()))];
+            ret = vec![Ok(QueryResp::new(field, 0, vec![], sql.to_owned())?)];
         }
         anyhow::Ok(ret)
     }

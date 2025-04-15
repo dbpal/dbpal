@@ -16,8 +16,8 @@ use sqlx::{Column, Executor, Row, SqliteConnection, TypeInfo};
 use crate::MemoryLimit;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-    Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp,
+    Field, Index, IndexKind, ListTable, NamedStaff, QuerySql, QuoteStyle, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, QueryResp,
     TriggerDetail, TriggerEvent, TriggerTiming,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
@@ -744,7 +744,7 @@ impl SchemaTrait for SqliteDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         log::trace!("begin to show table");
         let total = self.query_count(table_name, where_str.clone()).await?;
         log::trace!("query count ok");
@@ -761,13 +761,13 @@ impl SchemaTrait for SqliteDB {
         log::trace!("encode rows ok");
         let fields = self.show_table_columns(table_name).await?;
         log::trace!("list columns ok");
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str.clone()).await?;
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
@@ -777,11 +777,11 @@ impl SchemaTrait for SqliteDB {
             .await?;
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1198,7 +1198,10 @@ impl QuerySql for SqliteDB {
         let conn = conn.deref_mut();
 
         let ret = match conn.execute(sqlx::raw_sql(sql)).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
+            Ok(x) => Ok(QueryResp::row_affected(
+                x.rows_affected(),
+                sql.to_owned(),
+            )),
             Err(err) => Err(err.to_string()),
         };
 
@@ -1219,7 +1222,7 @@ impl QuerySql for SqliteDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
 
-        let mut ret = Vec::new();
+        let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
         let mut rows = Vec::new();
@@ -1239,13 +1242,15 @@ impl QuerySql for SqliteDB {
                     if rows.len() > 0 {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows)?;
-                        ret.push(Ok(QueryResp::new(fields, data, None)));
-
+                        ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
                         rows.clear();
                     };
 
                     if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
+                        ret.push(Ok(QueryResp::row_affected(
+                            row_aff.rows_affected(),
+                            None,
+                        )));
                     }
                 }
                 sqlx::Either::Right(row) => {
@@ -1264,7 +1269,7 @@ impl QuerySql for SqliteDB {
                 .iter()
                 .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                 .collect::<Vec<_>>();
-            ret = vec![Ok(QueryResp::new(field, vec![], sql.to_owned()))];
+            ret = vec![Ok(QueryResp::new(field, 0, vec![], sql.to_owned())?)];
         }
 
         anyhow::Ok(ret)

@@ -55,7 +55,7 @@ pub trait SchemaTrait:
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp>;
+    ) -> anyhow::Result<QueryResp>;
 
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
@@ -137,7 +137,7 @@ pub trait SchemaTrait:
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         not_support_features(self.backend_name())
     }
 
@@ -903,44 +903,7 @@ impl TryFrom<&str> for IndexKind {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, TypeDef, PartialEq, Eq)]
-pub struct QueryResp {
-    pub fields: Vec<Field>,
-    pub data: Vec<Vec<Option<String>>>,
-    pub sql: Option<String>,
-}
 impl QueryResp {
-    pub(crate) fn new(
-        fields: Vec<Field>, data: Vec<Vec<Option<String>>>, sql: impl Into<Option<String>>,
-    ) -> Self {
-        Self {
-            fields,
-            data,
-            sql: sql.into(),
-        }
-    }
-
-    pub fn result(
-        col_name: impl Into<String>, result: Vec<Option<String>>, sql: impl Into<Option<String>>,
-    ) -> Self {
-        let col_name = col_name.into();
-
-        Self {
-            data: vec![result],
-            fields: vec![Field {
-                field: col_name,
-                typ: "".to_string(),
-                nullable: false,
-                default_value: None,
-                is_primary: false,
-                is_auto_increment: false,
-                sortable: true,
-                firebird_binary_sub_type: None,
-            }],
-            sql: sql.into(),
-        }
-    }
-
     pub fn row_affected(affected: u64, sql: impl Into<Option<String>>) -> Self {
         Self {
             data: vec![vec![Some(affected.to_string())]],
@@ -955,6 +918,7 @@ impl QueryResp {
                 firebird_binary_sub_type: None,
             }],
             sql: sql.into(),
+            total: 0,
         }
     }
     pub fn execute_ok(sql: impl Into<Option<String>>) -> Self {
@@ -971,26 +935,28 @@ impl QueryResp {
                 firebird_binary_sub_type: None,
             }],
             sql: sql.into(),
+            total: 0,
         }
     }
 }
 
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
-pub struct TableListResp {
+pub struct QueryResp {
     pub fields: Vec<Field>,
+    // only table view query resp have this field
     pub total: usize,
     pub data: Vec<Vec<Option<String>>>,
     pub sql: Option<String>,
 }
 
 /// we don't want to check `sql` somehow can be different
-impl PartialEq for TableListResp {
+impl PartialEq for QueryResp {
     fn eq(&self, other: &Self) -> bool {
         self.fields == other.fields && self.total == other.total && self.data == other.data
     }
 }
 
-impl TableListResp {
+impl QueryResp {
     fn check(&self) -> anyhow::Result<()> {
         for x in self.data.iter() {
             if x.len() != self.fields.len() {
@@ -1005,17 +971,7 @@ impl TableListResp {
     }
 }
 
-impl TableListResp {
-    pub fn to_query_resp(self) -> QueryResp {
-        let TableListResp {
-            fields,
-            total: _,
-            data,
-            sql,
-        } = self;
-        QueryResp::new(fields, data, sql)
-    }
-
+impl QueryResp {
     pub fn new(
         fields: Vec<Field>, total: usize, data: Vec<Vec<Option<String>>>,
         sql: impl Into<Option<String>>,

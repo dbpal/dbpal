@@ -10,10 +10,10 @@ use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    format_data_time_fix_offset, not_support_features,
+    NamedStaff, ProcedureDetail, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, QueryResp, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, format_data_time_fix_offset,
+    not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -263,11 +263,11 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
 fn make_table_list_from_meta_and_row(
     meta: &tiberius::ResultMetadata, rows: &Vec<tiberius::Row>, total: usize,
     sql: impl Into<String>,
-) -> anyhow::Result<TableListResp> {
+) -> anyhow::Result<QueryResp> {
     let fields = get_fields_from_meta(meta);
     let data = encode_rows(rows)?;
 
-    anyhow::Ok(TableListResp::new(fields, total, data, Some(sql.into()))?)
+    anyhow::Ok(QueryResp::new(fields, total, data, Some(sql.into()))?)
 }
 
 fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
@@ -714,7 +714,7 @@ impl SchemaTrait for MsSqlServerDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total = MsSqlServerDB::query_count(conn, view_name, where_str.clone()).await?;
@@ -862,7 +862,7 @@ impl SchemaTrait for MsSqlServerDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total = MsSqlServerDB::query_count(conn, table_name, where_str.clone()).await?;
@@ -1745,7 +1745,7 @@ impl QuerySql for MsSqlServerDB {
                             rows.len(),
                             "".to_string(),
                         )?;
-                        ret.push(Ok(table_list.to_query_resp()));
+                        ret.push(Ok(table_list));
                         rows = vec![];
                     }
                     meta_prev = Some(meta);
@@ -1759,7 +1759,7 @@ impl QuerySql for MsSqlServerDB {
                 rows.len(),
                 "",
             )?;
-            ret.push(Ok(table_list.to_query_resp()));
+            ret.push(Ok(table_list));
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)

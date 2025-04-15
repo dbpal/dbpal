@@ -11,9 +11,9 @@ use crate::{
     datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce},
     db::{
         BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-        Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle,
-        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-        TableListResp, TriggerDetail,
+        Field, Index, IndexKind, ListTable, NamedStaff, QuerySql, QuoteStyle, ReadOnlyTrait,
+        SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, QueryResp,
+        TriggerDetail,
     },
     helper::{create_csv, is_dangerous_sql_by_parser},
     meta_value::MetaValue,
@@ -126,6 +126,7 @@ impl QuerySql for LibSqlDB {
                     fields,
                     data,
                     sql: None,
+                    total: 0,
                 }));
             }
         }
@@ -621,7 +622,7 @@ impl SchemaTrait for LibSqlDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
@@ -633,13 +634,13 @@ impl SchemaTrait for LibSqlDB {
         }
         let data = encode_rows(&rows)?;
         let fields = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str.clone()).await?;
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
@@ -651,14 +652,14 @@ impl SchemaTrait for LibSqlDB {
         }
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
         let data = encode_rows(&rows)?;
         let fields = match rows.get(0) {
             Some(x) => get_row_types(x),
             None => vec![],
         };
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {

@@ -315,11 +315,7 @@ export namespace types {
         "fields": (types.Field)[];
         "data": (Record<string, string>)[];
         "sql": (string | null);
-    };
-    export type MuiDataTableListResp = {
         "total": types.Usize;
-        "sql": (string | null);
-        "data": types.MuiDataGridData;
     };
     export type QueryLogEvent = {
         "time": types.U64;

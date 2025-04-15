@@ -5,7 +5,7 @@ use crate::datasource_config::{
 use crate::datasource_config::{ClickHouseConfig, FireBirdConfig, LibSqlDBConfig};
 use crate::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, ShowExtraArgs,
-    SqlExecuteRet, TableListResp,
+    SqlExecuteRet, QueryResp,
 };
 use crate::mongo::MongoDB;
 use crate::redis::{RedisDB, RedisListTable};
@@ -478,7 +478,7 @@ impl App {
     pub async fn show_table(
         &self, name: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>,
         page: usize, page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let db = self.get_schema(name).await?;
         db.show_table(table_name, where_str, order_by, page, page_size, extra)
             .await
@@ -536,7 +536,7 @@ impl App {
     pub async fn show_view(
         &self, name: &str, view_name: &str, where_str: Option<&str>, order_by: Option<&str>,
         page: usize, page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let db = self.get_schema(name).await?;
         db.show_view(view_name, where_str, order_by, page, page_size, _extra)
             .await

@@ -534,7 +534,7 @@ function ViewMenu(props: {
               ) => {
                 let where_null = where ? where : null;
                 let orderBy_null = orderBy ? orderBy : null;
-                return await invoke<types.MuiDataTableListResp>('show_view', {
+                return await invoke<types.MuiDataGridData>('show_view', {
                   name: uuid,
                   viewName: view,
                   whereStr: where_null,

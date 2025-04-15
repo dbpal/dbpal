@@ -319,7 +319,7 @@ async function makeViewTable(
           ) => {
             let where_null = where ? where : null;
             let orderBy_null = orderBy ? orderBy : null;
-            return await invoke<types.MuiDataTableListResp>('show_table', {
+            return await invoke<types.MuiDataGridData>('show_table', {
               name: uuid,
               tableName: table,
               whereStr: where_null,
@@ -375,18 +375,15 @@ async function makeViewTable(
               }}
               content={await (async () => {
                 try {
-                  let x = await invoke<types.MuiDataTableListResp>(
-                    'show_table',
-                    {
-                      name: uuid,
-                      tableName: table,
-                      whereStr: null,
-                      orderBy: null,
-                      page: 0,
-                      pageSize: 0,
-                    }
-                  );
-                  return x.data.data[0]['value'];
+                  let x = await invoke<types.MuiDataGridData>('show_table', {
+                    name: uuid,
+                    tableName: table,
+                    whereStr: null,
+                    orderBy: null,
+                    page: 0,
+                    pageSize: 0,
+                  });
+                  return x.data[0]['value'];
                 } catch (e) {
                   showNotification(
                     'success',

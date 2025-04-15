@@ -17,9 +17,9 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter,
+    ProcedureDetail, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlBuilder, SqlExecuteRet, QueryResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -219,7 +219,6 @@ impl CheckConn for MysqlDB {
         let ins = std::time::Instant::now();
         let mut conn = self.get_conn().await?;
         sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
-
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -961,7 +960,7 @@ impl SchemaTrait for MysqlDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -972,12 +971,12 @@ impl SchemaTrait for MysqlDB {
             .await?;
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
 
         let data = encode_rows(&rows, true)?;
         let fields = get_rows_types(&rows);
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
@@ -1126,7 +1125,7 @@ impl SchemaTrait for MysqlDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
@@ -1137,7 +1136,7 @@ impl SchemaTrait for MysqlDB {
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let data = encode_rows(&row, false)?;
         let fields = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1457,7 +1456,10 @@ impl QuerySql for MysqlDB {
         let conn = conn.deref_mut();
 
         let ret = match conn.execute(sqlx::raw_sql(sql)).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
+            Ok(x) => Ok(QueryResp::row_affected(
+                x.rows_affected(),
+                sql.to_owned(),
+            )),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
@@ -1477,7 +1479,7 @@ impl QuerySql for MysqlDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
 
-        let mut ret = Vec::new();
+        let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
         let mut rows = Vec::new();
 
@@ -1494,12 +1496,14 @@ impl QuerySql for MysqlDB {
                     if rows.len() > 0 {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows, true)?;
-                        ret.push(Ok(QueryResp::new(fields, data, None)));
-
+                        ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
                         rows.clear();
                     };
                     if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
+                        ret.push(Ok(QueryResp::row_affected(
+                            row_aff.rows_affected(),
+                            None,
+                        )));
                     }
                 }
                 sqlx::Either::Right(row) => {
@@ -1516,7 +1520,12 @@ impl QuerySql for MysqlDB {
                 .iter()
                 .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                 .collect::<Vec<_>>();
-            ret = vec![Ok(QueryResp::new(field, vec![], sql.to_owned()))];
+            ret = vec![Ok(QueryResp {
+                fields: field,
+                total: 0,
+                data: vec![],
+                sql: Some(sql.to_string()),
+            })];
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)

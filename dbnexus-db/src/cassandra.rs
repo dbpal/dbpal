@@ -52,7 +52,7 @@ use crate::{
         DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind,
         ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle,
         ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-        TableListResp, UdfOrProcedureExtraParameter,
+        UdfOrProcedureExtraParameter,
     },
     helper::create_csv,
     language_server::{LangServerCommon, LexerCompletionTrait},
@@ -100,6 +100,7 @@ impl PageCache {
                 fields: self.result.fields.clone(),
                 data: vec![],
                 sql: Some(self.sql.clone()),
+                total: 0,
             };
         }
         let end = page * page_size;
@@ -110,6 +111,7 @@ impl PageCache {
             fields: self.result.fields.clone(),
             data,
             sql: Some(self.sql.clone()),
+            total: 0,
         }
     }
 }
@@ -828,6 +830,7 @@ impl QuerySql for CassandraDB {
                             fields,
                             data,
                             sql: Some(sql.to_owned()),
+                            total: 0,
                         }));
                     }
                 }
@@ -1020,6 +1023,7 @@ impl CassandraDB {
                 fields: vec![],
                 data: vec![],
                 sql: Some(sql.clone()),
+                total: 0,
             });
         }
         let meta = meta.unwrap();
@@ -1033,6 +1037,7 @@ impl CassandraDB {
                 fields,
                 data,
                 sql: Some(sql.clone()),
+                total: 0,
             },
             condition,
             sql,
@@ -1453,14 +1458,14 @@ impl SchemaTrait for CassandraDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut ret = self
             .page_caching_show(table_name, where_str, order_by, page, page_size, extra)
             .await?;
 
         let fields = self.show_table_columns(&table_name).await?;
         if ret.fields.len() == 0 {
-            return anyhow::Ok(TableListResp {
+            return anyhow::Ok(QueryResp {
                 fields,
                 data: vec![],
                 total: 0,
@@ -1480,7 +1485,7 @@ impl SchemaTrait for CassandraDB {
             }
         });
         let QueryResp { fields, data, .. } = ret;
-        anyhow::Ok(TableListResp::new(
+        anyhow::Ok(QueryResp::new(
             fields,
             self.page_caching_totoal(table_name),
             data,
@@ -1609,7 +1614,7 @@ impl SchemaTrait for CassandraDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         self.show_table(view_name, where_str, order_by, page, page_size, extra)
             .await
     }
