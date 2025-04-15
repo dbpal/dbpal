@@ -10,7 +10,7 @@ use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
     DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, ShowExtraArgs, SqlExecuteRet, QueryResp, TriggerDetail,
+    ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TriggerDetail,
     UdfOrProcedureExtraParameter,
 };
 
@@ -75,7 +75,7 @@ pub async fn save_password(name: String, pass: String) -> Result<(), ErrorFronte
 #[tauri::command]
 pub async fn page_init_callback(app: tauri::State<'_, App>) -> Result<(), ()> {
     log::info!("page init call clear all open connection.");
-    *app.opens.lock().await = Default::default();
+    app.opens.lock().await.clear();
     Ok(())
 }
 
@@ -104,7 +104,7 @@ pub async fn drop_database(
             app.opens
                 .lock()
                 .await
-                .remove(&format!("{}:{}", name, database));
+                .remove(&format!("{}/{}", name, database));
 
             Ok(())
         }
@@ -138,7 +138,7 @@ pub async fn drop_schema(
             app.opens
                 .lock()
                 .await
-                .remove(&format!("{}:{}", name, schema));
+                .remove(&format!("{}/{}", name, schema));
 
             Ok(())
         }
@@ -959,7 +959,6 @@ pub async fn list_database(
     random_error()?;
     let db = app.open(name.as_str()).await?;
     app.enter_open_child(name.as_str(), &db).await?;
-
     match db {
         app::Open::Catalog(x) => x.list_database().await,
         _ => return Err(ErrorFrontend::from("not catalog trait")),
@@ -978,10 +977,16 @@ pub async fn list_schema(
     match db {
         app::Open::DataBase(x) => x.list_schema().await,
         app::Open::Catalog(_) => {
-            return Err(ErrorFrontend::from("not database trait but a catalog"));
+            return Err(ErrorFrontend::from(format!(
+                "not database trait but a catalog of {}",
+                name
+            )));
         }
         app::Open::Schema(_) => {
-            return Err(ErrorFrontend::from("not database trait but a schema"));
+            return Err(ErrorFrontend::from(format!(
+                "not database trait but a schema of {}",
+                name
+            )));
         }
     }
     .map_err(ErrorFrontend::from)

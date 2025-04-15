@@ -4,8 +4,8 @@ use crate::datasource_config::{
 };
 use crate::datasource_config::{ClickHouseConfig, FireBirdConfig, LibSqlDBConfig};
 use crate::db::{
-    CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, SchemaTrait, ShowExtraArgs,
-    SqlExecuteRet, QueryResp,
+    CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, QueryResp, SchemaTrait,
+    ShowExtraArgs, SqlExecuteRet,
 };
 use crate::mongo::MongoDB;
 use crate::redis::{RedisDB, RedisListTable};
@@ -339,8 +339,9 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
+        let opens = Arc::new(Mutex::new(HashMap::new()));
         Self {
-            opens: Default::default(),
+            opens,
             saved_password: Default::default(),
         }
     }
