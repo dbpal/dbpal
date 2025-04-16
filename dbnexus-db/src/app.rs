@@ -435,6 +435,8 @@ impl App {
             return anyhow::Ok(x.clone());
         }
         let config = unsafe { (Self::get_config_ref().as_ref().map(|x| x(name))).unwrap()? };
+        #[cfg(debug_assertions)]
+        println!("open config:{:?}", config);
         let db = config.open().await?;
         match &db {
             Open::DataBase(x) => {
