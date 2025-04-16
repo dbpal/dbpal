@@ -21,7 +21,7 @@ use crate::db::{
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogXXX};
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 use crate::redis_lang_server::RedisDialet;
 
 /// https://stackoverflow.com/questions/30611215/redis-how-to-limit-the-return-number-of-keys-command
@@ -32,7 +32,7 @@ pub struct RedisDB {
     m: ConnectionManager,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 impl RedisDB {

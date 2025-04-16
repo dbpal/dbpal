@@ -21,7 +21,7 @@ use crate::db::{
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogXXX};
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 use std::ops::{Deref, DerefMut};
 pub struct PoolManage {
     path: String,
@@ -75,7 +75,7 @@ pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<duckdb::Connection>>>>,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 #[async_trait::async_trait]

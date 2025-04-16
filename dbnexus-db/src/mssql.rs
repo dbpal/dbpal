@@ -17,7 +17,7 @@ use crate::db::{
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogXXX};
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_core::future::BoxFuture;
@@ -32,7 +32,7 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 pub struct MsSqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
 }
 

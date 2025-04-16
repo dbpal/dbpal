@@ -57,7 +57,7 @@ use crate::{
     helper::create_csv,
     language_server::{LangServerCommon, LexerCompletionTrait},
     meta_value::MetaValue,
-    query_log::{QueryLogEvent, QueryLogXXX},
+    query_log::{QueryLogEvent, QueryLogMap},
 };
 use cdrs_tokio::cluster::session::SessionBuilder;
 
@@ -75,7 +75,7 @@ pub struct CassandraDB {
     >,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 #[derive(Clone, Debug)]

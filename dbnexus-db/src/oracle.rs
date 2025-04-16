@@ -25,14 +25,14 @@ use crate::db::{
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
-use crate::query_log::{QueryLogEvent, QueryLogXXX};
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 #[derive(Clone)]
 pub struct OracleDB {
     pool: Pool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 #[async_trait::async_trait]

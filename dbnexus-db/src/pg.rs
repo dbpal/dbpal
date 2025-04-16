@@ -23,7 +23,7 @@ use crate::db::{
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
-use crate::query_log::{QueryLogEvent, QueryLogXXX};
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 /// postgres version of pg.
 #[derive(Clone)]
@@ -32,7 +32,7 @@ pub struct PostGresDB {
     pub(crate) config: PGDBConfig,
     pub(crate) query_connection:
         Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 #[async_trait::async_trait]

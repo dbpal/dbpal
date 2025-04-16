@@ -22,7 +22,7 @@ use crate::db::{
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogXXX};
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 pub(crate) fn type_support_compare(_typ: &str) -> bool {
     true
@@ -34,7 +34,7 @@ pub struct SqliteDB {
     read_only: bool,
     path: String,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 impl SqliteDB {

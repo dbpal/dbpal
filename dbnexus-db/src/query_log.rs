@@ -11,11 +11,11 @@ pub struct QueryLog {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct QueryLogXXX {
+pub struct QueryLogMap {
     logs: Arc<DashMap<uuid::Uuid, Arc<Mutex<QueryLog>>>>,
 }
 
-impl QueryLogXXX {
+impl QueryLogMap {
     pub(crate) fn get_guard(&self, id: uuid::Uuid, sql: impl Into<String>) -> QueryLogGuard {
         let log = self.logs.entry(id).or_default().clone();
         QueryLogGuard::new(sql, log)

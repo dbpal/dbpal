@@ -19,7 +19,7 @@ use crate::{
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
-    query_log::{QueryLogEvent, QueryLogXXX},
+    query_log::{QueryLogEvent, QueryLogMap},
 };
 
 use dashmap::DashMap;
@@ -391,7 +391,7 @@ pub struct FireBirdDB {
     config: FireBirdConfig,
     pool: r2d2::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<PooledConnection<PoolManager>>>>>,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 impl std::fmt::Debug for FireBirdDB {

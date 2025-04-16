@@ -19,7 +19,7 @@ use crate::{
     },
     helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
     meta_value::MetaValue,
-    query_log::{QueryLogEvent, QueryLogXXX},
+    query_log::{QueryLogEvent, QueryLogMap},
 };
 
 impl BackendName for ClickHouseDB {
@@ -880,7 +880,7 @@ pub struct ClickHouseDB {
     pub(crate) config: ClickHouseConfig,
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {

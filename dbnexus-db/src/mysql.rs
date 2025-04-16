@@ -23,14 +23,14 @@ use crate::db::{
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogXXX};
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 #[derive(Clone)]
 pub struct MysqlDB {
     pool: sqlx::MySqlPool,
     pub(crate) config: MysqlDBConfig,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {

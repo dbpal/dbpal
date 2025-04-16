@@ -17,7 +17,7 @@ use crate::{
     },
     helper::{create_csv, is_dangerous_sql_by_parser},
     meta_value::MetaValue,
-    query_log::{QueryLogEvent, QueryLogXXX},
+    query_log::{QueryLogEvent, QueryLogMap},
     sqlite::{
         encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
         integer_like, numreic_like, real_like, text_like,
@@ -29,7 +29,7 @@ pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Connection>>,
-    query_logs: QueryLogXXX,
+    query_logs: QueryLogMap,
 }
 
 impl BackendName for LibSqlDB {
