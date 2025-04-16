@@ -496,6 +496,7 @@ function SqlTableView(props: {
             style: calMenuStyle(e, 300),
           });
         },
+
         style: { cursor: 'context-menu' },
       },
     } as GridSlotsComponentsProps;

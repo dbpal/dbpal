@@ -96,23 +96,22 @@ fn main_() {
                     }
                     if let Some(pass) = saved_password.get(&c.get_name().to_string()) {
                         c.set_password(pass.clone());
-                        return anyhow::Ok(c);
-                    }
-                    match keyring::Entry::new(PASSWORD_KEY, name) {
-                        Ok(en) => match en.get_password() {
-                            Ok(pass) => c.set_password(pass),
+                    }else {
+                        match keyring::Entry::new(PASSWORD_KEY, name) {
+                            Ok(en) => match en.get_password() {
+                                Ok(pass) => c.set_password(pass),
+                                Err(err) => {
+                                    log::error!("get password for '{}' failed,err:{}", name, err)
+                                }
+                            },
                             Err(err) => {
-                                log::error!("get password for '{}' failed,err:{}", name, err)
+                                log::error!(
+                                    "get password entry failed:{} maybe user don't set a password should be fine",
+                                    err
+                                )
                             }
-                        },
-                        Err(err) => {
-                            log::error!(
-                                "get password entry failed:{} maybe user don't set a password should be fine",
-                                err
-                            )
-                        }
-                    };
-
+                        };
+                    }
                     return anyhow::Ok(c);
                 }
                 anyhow::bail!(format!("config named '{}' not found", name))

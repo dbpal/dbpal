@@ -370,7 +370,6 @@ const components: Components<
       },
     },
   },
-
   MuiAlert: {
     styleOverrides: {
       root: {
