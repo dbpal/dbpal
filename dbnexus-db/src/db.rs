@@ -938,7 +938,7 @@ impl QueryResp {
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
 pub struct QueryResp {
     pub fields: Vec<Field>,
-    // only table view query resp have this field
+    // only pagination need this parameter.
     pub total: usize,
     pub data: Vec<Vec<Option<String>>>,
     pub sql: Option<String>,

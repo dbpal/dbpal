@@ -68,7 +68,10 @@ function WelCome() {
     <Stack spacing={1}>
       <Typography
         variant="h4"
-        style={{ fontWeight: '700', textDecoration: 'underline' }}
+        style={{
+          fontWeight: '700',
+          textShadow: '6px 6px 4px rgba(130, 130, 130, 0.5)',
+        }}
       >
         dbpal is a database management system that easy to use.
       </Typography>
@@ -84,13 +87,12 @@ function WelCome() {
           <Stack
             style={{
               padding: '4px',
-              // textShadow: '8px 8px 2px rgba(130, 130, 130, 0.5)',
               justifyContent: 'flex-end',
               alignItems: 'center',
               borderRadius: '12px',
               border: '1px solid gray',
-              width: '200px',
-              height: '130px',
+              width: '16rem',
+              height: '9rem',
             }}
             key={e.name}
           >
@@ -101,7 +103,7 @@ function WelCome() {
                 display: 'block',
               }}
               src={e.img}
-              width="80px"
+              width="70rem"
               alt={e.name}
             />
             <span>{e.name}</span>

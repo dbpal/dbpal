@@ -34,7 +34,7 @@ export default function MainPage() {
       <SiWelcometothejungle> </SiWelcometothejungle>
     ),
   ]);
-  const [selectIndex, setSelectTab] = useState(0);
+  const [selectTab, setSelectTab] = useState(0);
 
   useEffect(() => {
     let unlisten = listen('show_settings', () => {
@@ -80,8 +80,8 @@ export default function MainPage() {
     (index: number) => {
       let id = tabs[index].id;
       setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
-      if (selectIndex > 0 && selectIndex >= tabs.length - 1) {
-        setSelectTab(selectIndex - 1);
+      if (selectTab > 0 && selectTab >= tabs.length - 1) {
+        setSelectTab((e) => e - 1);
       }
     },
     [tabs]
@@ -121,7 +121,7 @@ export default function MainPage() {
       <TabsWithContent
         handleClose={closeTab}
         tabs={tabs}
-        selectIndex={selectIndex}
+        selectIndex={selectTab}
         changeTab={changeTab}
         setTabs={setTabs}
       ></TabsWithContent>

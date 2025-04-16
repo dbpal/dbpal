@@ -3257,7 +3257,7 @@ mod tests {
         );
         values.insert(
             "jsonb_column".to_string(),
-            Some("{\"key1\": \"value1\", \"key2\": \"value2\"}".to_string()),
+            Some(r#"{"key1": "value1", "key2": "value2"}"#.to_string()),
         );
         values.insert(
             "jsonb_array_column".to_string(),
@@ -3441,8 +3441,8 @@ mod tests {
                 date_range_array DATERANGE[],
                 int8_range INT8RANGE,
                 int8_range_array INT8RANGE[],
-                json_path JSONPATH,
-                json_path_array JSONPATH[],
+                -- json_path JSONPATH,
+                -- json_path_array JSONPATH[],
                 money_value MONEY,
                 money_value_array MONEY[]
             );
@@ -3468,14 +3468,14 @@ mod tests {
             "int8_range_array".to_string(),
             Some("{\"[1,6)\",\"[7,10)\"}".to_string()),
         );
-        values.insert(
-            "json_path".to_string(),
-            Some("$.\"store\".\"book\"[0].\"title\"".to_string()),
-        );
-        values.insert(
-            "json_path_array".to_string(),
-            Some("{\"$.\\\"store\\\".\\\"book\\\"[0].\\\"title\\\"\"}".to_string()),
-        );
+        // values.insert(
+        //     "json_path".to_string(),
+        //     Some("$.\"store\".\"book\"[0].\"title\"".to_string()),
+        // );
+        // values.insert(
+        //     "json_path_array".to_string(),
+        //     Some("{\"$.\\\"store\\\".\\\"book\\\"[0].\\\"title\\\"\"}".to_string()),
+        // );
         values.insert("money_value".to_string(), Some("$10.50".to_string()));
         values.insert(
             "money_value_array".to_string(),

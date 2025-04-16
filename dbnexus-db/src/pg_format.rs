@@ -46,54 +46,6 @@ impl std::fmt::Display for MacAddr8 {
     }
 }
 
-/// right now sqlx not implement macaddr8
-/// impl it myself.
-pub struct JsonPath {
-    path: String,
-}
-
-impl sqlx::Decode<'_, sqlx::Postgres> for JsonPath {
-    fn decode(value: PgValueRef<'_>) -> Result<Self, sqlx::error::BoxDynError> {
-        let mut v = value.as_bytes().unwrap().to_vec();
-        if v.len() > 0 && v[0] == 1 {
-            // TODO 为啥会出现这个字符 我现在把他去掉了。
-            //  SOH（Start of
-            // Heading）字符是ASCII字符集中的控制字符，其对应的十进制值为1。
-            // SOH字符在传统的通信协议中用作起始标记，
-            // 用于表示通信的起始或者标识一条消息的开始。
-            // 在早期的计算机通信中，SOH字符常被用于与外部设备进行数据通信，
-            // 比如打印机或终端。当发送数据时，SOH字符可用于指示开始传输数据。类似地，
-            // 接收方可以通过检测到SOH字符来识别一条消息的开始。
-            // 然而，随着通信技术的发展，
-            // SOH字符的使用已经在许多现代协议中被取代或者不再使用。在常见的通信协议（如TCP/
-            // IP）中，SOH字符没有特殊的含义，它只是一个具有特定编码的字符而已。
-            v = (&v[1..]).to_vec();
-        }
-
-        match String::from_utf8(v) {
-            Ok(s) => Ok(Self { path: s }),
-            Err(err) => Err(Box::new(err)),
-        }
-    }
-}
-
-impl sqlx::postgres::PgHasArrayType for JsonPath {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("JSONPATH")
-    }
-}
-
-impl sqlx::Type<sqlx::Postgres> for JsonPath {
-    fn type_info() -> <sqlx::Postgres as sqlx::Database>::TypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("JSONPATH")
-    }
-}
-impl std::fmt::Display for JsonPath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.path)
-    }
-}
-
 pub(crate) fn encode_row_as_json(
     r: &PgRow,
 ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
@@ -614,20 +566,10 @@ pub(crate) fn encode_row_as_json(
             }
 
             "JSONPATH" => {
-                let value: Option<JsonPath> = r.get_unchecked(c);
-                value
-                    .map(|x| format!("{}", x))
-                    .map(|x| serde_json::Value::from(x))
+                anyhow::bail!("JSONPATH not support");
             }
             "JSONPATH[]" => {
-                let value: Option<Vec<JsonPath>> = r.get_unchecked(c);
-                let value = value.map(|x| {
-                    x.into_iter()
-                        .map(|x| serde_json::Value::from(x.to_string()))
-                        .collect::<Vec<_>>()
-                });
-
-                value.map(|x| serde_json::Value::Array(x))
+                anyhow::bail!("JSONPATH[] not support");
             }
 
             "MONEY" => {
@@ -971,12 +913,10 @@ pub(crate) fn encode_rows(rows: &Vec<PgRow>) -> anyhow::Result<Vec<Vec<Option<St
                 }
 
                 "JSONPATH" => {
-                    let value: Option<JsonPath> = r.get_unchecked(c);
-                    value.map(|x| format!("{}", x))
+                    anyhow::bail!("jsonpath not support");
                 }
                 "JSONPATH[]" => {
-                    let value: Option<Vec<JsonPath>> = r.get_unchecked(c);
-                    value.map(|x| output_jsonpath_array(&x))
+                    anyhow::bail!("jsonpath[] not support");
                 }
 
                 "MONEY" => {
@@ -1405,23 +1345,6 @@ pub(crate) fn output_jsonb_array(array: &Vec<serde_json::Value>) -> String {
     ret.push_str("}");
     ret
 }
-
-pub(crate) fn output_jsonpath_array(array: &Vec<JsonPath>) -> String {
-    if array.len() == 0 {
-        return "{}".to_string();
-    }
-    let last = array.len() - 1;
-    let mut ret = "{".to_string();
-    for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("{}", v.path.replace("\"", "\\\"")).as_str());
-        if index != last {
-            ret.push_str(",")
-        }
-    }
-    ret.push_str("}");
-    ret
-}
-
 pub(crate) fn output_array<T: std::fmt::Display>(array: &Vec<T>) -> String {
     if array.len() == 0 {
         return "{}".to_string();

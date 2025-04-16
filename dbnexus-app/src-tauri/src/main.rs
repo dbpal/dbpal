@@ -45,7 +45,6 @@ use tauri_plugin_store::StoreExt;
 fn main() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .worker_threads(32)
         .thread_stack_size(4 * 1024 * 1024)
         .build()
         .unwrap();
@@ -58,11 +57,9 @@ fn main() {
 fn main_() {
     {
         use env_logger::{Builder, Env};
-
         let mut builder = Builder::from_env(Env::default());
         builder.format_file(true);
         builder.format_line_number(true);
-
         builder.try_init().unwrap();
     }
     let app = App::new();
@@ -85,24 +82,19 @@ fn main_() {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
-
             let store = app.store("store.json").unwrap();
             *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
-                let configs = store.get("connection_config");
-                let json_str = match configs {
-                    Some(x) => serde_json::to_string(&x).unwrap(),
-                    None => "[]".to_string(),
-                };
-                let configs: Vec<DBConnectionConfig> = serde_json::from_str(&json_str)?;
+                let configs: Vec<DBConnectionConfig> = serde_json::from_value(
+                    store
+                        .get("connection_config")
+                        .unwrap_or(serde_json::Value::Array(vec![])),
+                )?;
+
                 for mut c in configs.into_iter() {
                     if c.get_name() != name {
                         continue;
                     }
-                    if let Some(pass) = saved_password
-                        .lock()
-                        .unwrap()
-                        .get(&c.get_name().to_string())
-                    {
+                    if let Some(pass) = saved_password.get(&c.get_name().to_string()) {
                         c.set_password(pass.clone());
                         return anyhow::Ok(c);
                     }
@@ -115,7 +107,7 @@ fn main_() {
                         },
                         Err(err) => {
                             log::error!(
-                                "get password entry failed:{} maybe use don't set a password",
+                                "get password entry failed:{} maybe user don't set a password should be fine",
                                 err
                             )
                         }

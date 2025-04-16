@@ -626,7 +626,7 @@ function SqlTableView(props: {
             setEditInModal(null);
           }}
         >
-          <Box sx={modalStyle} width="70%">
+          <Box sx={modalStyle} width="80%">
             <EditInModal
               content={editInModal.content}
               handleModify={async (value) => {

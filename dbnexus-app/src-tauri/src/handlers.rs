@@ -33,7 +33,7 @@ pub const PASSWORD_KEY: &str = "dbpal";
 pub fn has_entered_password(
     app: tauri::State<'_, App>, name: String,
 ) -> Result<bool, ErrorFrontend> {
-    let has = app.saved_password.lock().unwrap().get(&name).is_some();
+    let has = app.saved_password.get(&name).is_some();
     Ok(has)
 }
 
@@ -56,7 +56,7 @@ pub async fn save_entered_password(
         Open::Schema(x) => x.check_conn().await,
     }
     .map_err(|x| ErrorFrontend::from(x))?;
-    app.saved_password.lock().unwrap().insert(name, pass);
+    app.saved_password.insert(name, pass);
     Ok(())
 }
 
@@ -93,15 +93,11 @@ pub async fn drop_database(
 
     // first close connections because we want delete it
 
-    app.close_conn_has_prefix(&format!("{}/{}", name, database))
-        .await;
-
+    let key = format!("{}/{}", name, database);
+    app.close_conn_has_prefix(&key).await;
     match x {
         Open::Catalog(x) => {
-            app.opens
-                .lock()
-                .await
-                .remove(&format!("{}/{}", name, database));
+            app.opens.lock().await.remove(&key);
 
             x.drop_database(&database)
                 .await
@@ -124,23 +120,18 @@ pub async fn drop_schema(
     random_sleep().await;
     random_error()?;
     // first close connections because we want delete it
-
-    app.close_conn_has_prefix(&format!("{}/{}", name, schema))
-        .await;
+    let key = format!("{}/{}", name, schema);
+    app.close_conn_has_prefix(&key).await;
     let x = app
         .get_opened(name.as_str())
         .await
         .map_err(|x| ErrorFrontend::from(x))?;
     match x {
         Open::DataBase(x) => {
-            app.opens
-                .lock()
-                .await
-                .remove(&format!("{}/{}", name, schema));
+            app.opens.lock().await.remove(&key);
             x.drop_schema(&schema)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
-
             Ok(())
         }
         _ => Err(ErrorFrontend::from(format!(
@@ -167,18 +158,18 @@ pub async fn create_database(
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            let db_name = format!("{}/{}", name, database);
+            let key = format!("{}/{}", name, database);
 
             let db = x
                 .open_db(&database)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            app.enter_open_child(&db_name, &Open::from(db.clone()))
+            app.enter_open_child(&key, &Open::from(db.clone()))
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            app.insert_open(db_name, db.into(), "crate databse insert")
+            app.insert_open(key, db.into(), "crate databse insert")
                 .await;
 
             Ok(())
@@ -207,14 +198,13 @@ pub async fn create_schema(
             x.create_schema(&schema, extra)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
-            let name = format!("{}/{}", name, schema);
-
+            let key = format!("{}/{}", name, schema);
             let schema = x
                 .open_schema(&schema)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            app.insert_open(name, schema.into(), "create schema insert")
+            app.insert_open(key, schema.into(), "create schema insert")
                 .await;
             Ok(())
         }
@@ -266,7 +256,6 @@ pub async fn mongo_list_time_serial_collection(
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-
     let schema = app
         .get_schema(&name)
         .await
@@ -392,12 +381,10 @@ pub async fn mongo_create_index(
     random_sleep().await;
     random_error()?;
     let keys = parse_bson_doc(&keys)?;
-
     let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-
     match schema.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x
             .create_index(&table_name, index_name, unique, keys)
@@ -420,7 +407,6 @@ pub async fn rename_index(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-
     schema
         .rename_index(&table_name, &old_name, &new_name)
         .await
@@ -2412,7 +2398,6 @@ pub async fn put_value_in_sql(
     if let Ok(e) = xxx::<FireBirdDB>(a, &typ, value) {
         return Ok(e);
     }
-
     if let Ok(e) = xxx::<MsSqlServerDB>(a, &typ, value) {
         return Ok(e);
     }
@@ -2545,7 +2530,7 @@ impl From<tauri::Error> for ErrorFrontend {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
         };
-        log::error!("msg:{},backtrace:{}", x.reason, x.detail);
+        log::error!("msg:{}", x.reason);
         x
     }
 }
@@ -2555,7 +2540,7 @@ impl From<anyhow::Error> for ErrorFrontend {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
         };
-        log::error!("msg:{},backtrace:{}", x.reason, x.detail);
+        log::error!("msg:{}", x.reason);
         x
     }
 }
@@ -2566,7 +2551,7 @@ impl From<hex::FromHexError> for ErrorFrontend {
             reason: format!("{}", value),
             detail: "".to_string(),
         };
-        log::error!("msg:{},details:{}", x.reason, x.detail);
+        log::error!("msg:{}", x.reason);
         x
     }
 }

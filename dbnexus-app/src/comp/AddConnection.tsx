@@ -64,7 +64,7 @@ function SelectPath(props: { path; setPath }) {
   return (
     <Stack direction="row" sx={{ alignItems: 'center' }}>
       <Chip
-        label={`path:` + path}
+        label={`path:` + (path ? path : '')}
         onClick={() => {
           selectOneFile().then((e) => {
             setPath(e);
@@ -116,7 +116,14 @@ function UserAndPassword(props: {
         onChange={(e) => setPassword(e.target.value)}
       />
 
-      <div style={{ width: '30rem' }}>
+      <Stack
+        style={{
+          width: '31rem',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+        direction="row"
+      >
         <Checkbox
           checked={savePassword}
           onChange={(e) => {
@@ -125,7 +132,7 @@ function UserAndPassword(props: {
           name="save password"
         />
         save password
-      </div>
+      </Stack>
     </Stack>
   );
 }

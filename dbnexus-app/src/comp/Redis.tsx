@@ -1419,7 +1419,7 @@ function RedisZsetTable(props: {
   const setting = useContext(SettingContext);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <TextField
           size="small"
           label="key match could be *key,key*,*key*"
@@ -1432,11 +1432,10 @@ function RedisZsetTable(props: {
         />
         <TextField
           size="small"
-          label="minimum value"
+          label="minimum value(float64)"
           variant="outlined"
           value={min}
           error={minErr}
-          helperText="put a valid float64"
           onChange={(event) => {
             if (event.target.value) {
               setMinErr(isNaN(parseFloat(event.target.value)));
@@ -1449,11 +1448,10 @@ function RedisZsetTable(props: {
 
         <TextField
           size="small"
-          label="maxiumn value"
+          label="maxiumn value(float64)"
           variant="outlined"
           value={max}
           error={maxErr}
-          helperText="put a valid float64"
           onChange={(event) => {
             if (event.target.value) {
               setMaxErr(isNaN(parseFloat(event.target.value)));

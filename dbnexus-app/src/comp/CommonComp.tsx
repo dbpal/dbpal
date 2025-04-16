@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { types } from './ApiStruct';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   DataGrid,
   GridSlotsComponentsProps,
@@ -46,6 +47,7 @@ import {
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 import { getNamedConfig, SettingContext } from './Common';
+import { MdDeleteForever } from 'react-icons/md';
 
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
@@ -313,7 +315,7 @@ function MenuDeleteConfig({ name }) {
       sx={{ color: 'error.main' }}
     >
       <ListItemIcon>
-        <CloseIcon color="error"></CloseIcon>
+        <DeleteForeverIcon color="error"></DeleteForeverIcon>
       </ListItemIcon>
       <ListItemText color="error"> Drop Connection </ListItemText>
     </MenuItem>

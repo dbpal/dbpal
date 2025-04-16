@@ -1234,7 +1234,7 @@ mod tests {
         let binary_field2 = Bson::Binary(Binary::from(bson::binary::Vector::Float32(vec![
             1f32, 2f32,
         ])));
-        let input = base64::encode("hello");
+        let input = "aGVsbG8=".to_string(); // hello base64
         let binary_field3 = Binary::from_base64(input.clone(), None).unwrap();
         let binary_field4 =
             Binary::from_base64(input.clone(), Some(BinarySubtype::Encrypted)).unwrap();

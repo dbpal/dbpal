@@ -1,3 +1,4 @@
+use dashmap::DashMap;
 use dbnexus_db::datasource_config::{
     CassandraDBConfig, DuckDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
@@ -334,7 +335,7 @@ impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for Open {
 #[derive(Clone)]
 pub struct App {
     pub opens: Arc<Mutex<HashMap<String, Open>>>,
-    pub saved_password: Arc<std::sync::Mutex<HashMap<String, String>>>,
+    pub saved_password: Arc<DashMap<String, String>>,
 }
 
 impl App {
@@ -548,10 +549,6 @@ impl App {
     }
 
     pub async fn get_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        if !self.opens.lock().await.contains_key(name) {
-            self.open(name).await?;
-        }
-
         match self.get_opened(name).await? {
             Open::Schema(x) => anyhow::Ok(x.clone()),
             _ => anyhow::bail!(format!("'{}' a schema trait", name)),
