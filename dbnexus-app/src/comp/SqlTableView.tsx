@@ -933,7 +933,7 @@ function Menu(props: {
             setShowFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="50%">
             <FilterOnValue
               content={content}
               setWhere={setWhere}

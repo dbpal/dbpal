@@ -295,7 +295,7 @@ function MongoQuery(props: {
             setShowLoggerLevel(false);
           }}
         >
-          <Box sx={modalStyle} width="55%">
+          <Box sx={modalStyle} width="45%">
             <LogLevelSelection
               level={loggerlevel}
               handleChange={(level) => {

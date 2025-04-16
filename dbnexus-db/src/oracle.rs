@@ -70,7 +70,8 @@ impl OracleDB {
             &config.password,
             format!("//{}:{}/{}", config.host, config.port, config.db),
         )
-        .min_connections(min_conn.unwrap_or(5))
+        .min_connections(min_conn.unwrap_or(10))
+        .max_connections(100)
         .build()?;
         anyhow::Ok(Self {
             pool,

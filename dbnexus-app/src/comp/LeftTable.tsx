@@ -975,7 +975,7 @@ function TableMenu(props: {
             setshowDup(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <DupTable
               table={table}
               uuid={uuid}
@@ -997,7 +997,7 @@ function TableMenu(props: {
             setShowRename(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <RenameTable
               uuid={uuid}
               table={table}
