@@ -9,6 +9,7 @@ use crate::db::{
 };
 use crate::mongo::MongoDB;
 use crate::redis::{RedisDB, RedisListTable};
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -347,6 +348,21 @@ impl App {
 type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
 impl App {
+    pub async fn insert_open(&self, name: impl Into<String>, open: Open, notice: &str) {
+        let name = name.into();
+        match &open {
+            Open::Catalog(x) => {
+                log::info!("name '{}' is catalog,notice:{} trait{:?}", name, notice, x)
+            }
+            Open::DataBase(x) => {
+                log::info!("name '{}' is database,notice:{} trait{:?}", name, notice, x)
+            }
+            Open::Schema(x) => {
+                log::info!("name '{}' is schema,notice:{} trait{:?}", name, notice, x)
+            }
+        }
+        self.opens.lock().await.insert(name, open);
+    }
     pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
         static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
         #[allow(static_mut_refs)] // this var will init once by main
@@ -367,10 +383,13 @@ impl App {
                         Err(_) => {
                             log::info!("enter child named:{}", name);
                             let dbtrait = catalog_trait.open_db(&database).await?;
-                            self.opens
-                                .lock()
-                                .await
-                                .insert(name.clone(), dbtrait.clone().into());
+
+                            self.insert_open(
+                                name.clone(),
+                                dbtrait.clone().into(),
+                                "enter_open_child enter",
+                            )
+                            .await;
 
                             dbtrait.clone()
                         }
@@ -384,7 +403,8 @@ impl App {
                             Err(_) => {
                                 log::info!("enter child named:{}", name);
                                 let s = dbtrait.open_schema(&schema).await?;
-                                self.opens.lock().await.insert(name, s.into());
+                                self.insert_open(name, s.clone().into(), "enter_open_child enter")
+                                    .await;
                             }
                         }
                     }
@@ -399,7 +419,8 @@ impl App {
                         Err(_) => {
                             log::info!("enter child named:{}", name);
                             let s = dbtrait.open_schema(&schema).await?;
-                            self.opens.lock().await.insert(name, s.into());
+                            self.insert_open(name, s.clone().into(), "enter_open_child enter")
+                                .await;
                         }
                     }
                 }
@@ -414,7 +435,6 @@ impl App {
             return anyhow::Ok(x.clone());
         }
         let config = unsafe { (Self::get_config_ref().as_ref().map(|x| x(name))).unwrap()? };
-
         let db = config.open().await?;
         match &db {
             Open::DataBase(x) => {
@@ -428,7 +448,8 @@ impl App {
             }
         }
         self.enter_open_child(name, &db).await?;
-        self.opens.lock().await.insert(name.to_string(), db.clone());
+        self.insert_open(name.to_string(), db.clone(), "open enter")
+            .await;
         anyhow::Ok(db)
     }
 

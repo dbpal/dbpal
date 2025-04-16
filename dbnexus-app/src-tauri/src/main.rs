@@ -95,6 +95,9 @@ fn main_() {
                 };
                 let configs: Vec<DBConnectionConfig> = serde_json::from_str(&json_str)?;
                 for mut c in configs.into_iter() {
+                    if c.get_name() != name {
+                        continue;
+                    }
                     if let Some(pass) = saved_password
                         .lock()
                         .unwrap()
@@ -103,25 +106,22 @@ fn main_() {
                         c.set_password(pass.clone());
                         return anyhow::Ok(c);
                     }
-
-                    if c.get_name() == name {
-                        match keyring::Entry::new(PASSWORD_KEY, name) {
-                            Ok(en) => match en.get_password() {
-                                Ok(pass) => c.set_password(pass),
-                                Err(err) => {
-                                    log::error!("get password for '{}' failed,err:{}", name, err)
-                                }
-                            },
+                    match keyring::Entry::new(PASSWORD_KEY, name) {
+                        Ok(en) => match en.get_password() {
+                            Ok(pass) => c.set_password(pass),
                             Err(err) => {
-                                log::error!(
-                                    "get password entry failed:{} maybe use don't set a password",
-                                    err
-                                )
+                                log::error!("get password for '{}' failed,err:{}", name, err)
                             }
-                        };
+                        },
+                        Err(err) => {
+                            log::error!(
+                                "get password entry failed:{} maybe use don't set a password",
+                                err
+                            )
+                        }
+                    };
 
-                        return anyhow::Ok(c);
-                    }
+                    return anyhow::Ok(c);
                 }
                 anyhow::bail!(format!("config named '{}' not found", name))
             }));

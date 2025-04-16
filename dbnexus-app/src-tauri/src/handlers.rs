@@ -178,7 +178,8 @@ pub async fn create_database(
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            app.opens.lock().await.insert(db_name, db.into());
+            app.insert_open(db_name, db.into(), "crate databse insert")
+                .await;
 
             Ok(())
         }
@@ -206,15 +207,15 @@ pub async fn create_schema(
             x.create_schema(&schema, extra)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
-            let db = x
+            let name = format!("{}/{}", name, schema);
+
+            let schema = x
                 .open_schema(&schema)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
-            app.opens
-                .lock()
-                .await
-                .insert(format!("{}/{}", name, schema), db.into());
 
+            app.insert_open(name, schema.into(), "create schema insert")
+                .await;
             Ok(())
         }
         _ => Err(ErrorFrontend::from(format!(
