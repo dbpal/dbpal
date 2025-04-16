@@ -1,14 +1,14 @@
-use crate::datasource_config::{
+use dbnexus_db::datasource_config::{
     CassandraDBConfig, DuckDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
-use crate::datasource_config::{ClickHouseConfig, FireBirdConfig, LibSqlDBConfig};
-use crate::db::{
+use dbnexus_db::datasource_config::{ClickHouseConfig, FireBirdConfig, LibSqlDBConfig};
+use dbnexus_db::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, QueryResp, SchemaTrait,
     ShowExtraArgs, SqlExecuteRet,
 };
-use crate::mongo::MongoDB;
-use crate::redis::{RedisDB, RedisListTable};
+use dbnexus_db::mongo::MongoDB;
+use dbnexus_db::redis::{RedisDB, RedisListTable};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -167,7 +167,7 @@ impl DBConnectionConfig {
         match self {
             DBConnectionConfig::Sqlite { conn, name: _ } => {
                 let db: Arc<dyn SchemaTrait> = Arc::new(
-                    crate::sqlite::SqliteDB::new(conn.path.clone(), conn.read_only).await?,
+                    dbnexus_db::sqlite::SqliteDB::new(conn.path.clone(), conn.read_only).await?,
                 );
 
                 anyhow::Ok(Open::Schema(db))
@@ -176,31 +176,31 @@ impl DBConnectionConfig {
             | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
 
                     anyhow::Ok(Open::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(crate::mysql::MysqlDB::new(conn.clone()).await?);
+                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
                     anyhow::Ok(Open::DataBase(db))
                 }
             },
             DBConnectionConfig::Tidb { conn, name: _ } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(crate::tidb::TiDB::new(conn.clone()).await?);
+                        Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
 
                     anyhow::Ok(Open::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(crate::tidb::TiDB::new(conn.clone()).await?);
+                        Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
                     anyhow::Ok(Open::DataBase(db))
                 }
             },
             DBConnectionConfig::Postgres { conn, name: _ } => {
-                let o = Arc::new(crate::pg::PostGresDB::new(conn.clone()).await?);
+                let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
                 }
@@ -211,7 +211,7 @@ impl DBConnectionConfig {
                 }
             }
             DBConnectionConfig::CockRoach { conn, .. } => {
-                let o = Arc::new(crate::cockroach::CockRoachDB::new(conn.clone()).await?);
+                let o = Arc::new(dbnexus_db::cockroach::CockRoachDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
                 }
@@ -221,7 +221,7 @@ impl DBConnectionConfig {
                 }
             }
             DBConnectionConfig::MsSql { conn, name: _ } => {
-                let o = Arc::new(crate::mssql::MsSqlServerDB::new(conn.clone()).await?);
+                let o = Arc::new(dbnexus_db::mssql::MsSqlServerDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
                 }
@@ -231,14 +231,14 @@ impl DBConnectionConfig {
                 }
             }
             DBConnectionConfig::Mongo { conn, name: _ } => {
-                let db: Arc<MongoDB> = Arc::new(crate::mongo::MongoDB::new(conn.clone())?);
+                let db: Arc<MongoDB> = Arc::new(dbnexus_db::mongo::MongoDB::new(conn.clone())?);
                 match conn.db {
                     Some(_) => anyhow::Ok(Open::Schema(db)),
                     None => anyhow::Ok(Open::DataBase(db)),
                 }
             }
             DBConnectionConfig::Redis { conn, .. } => {
-                let redis = crate::redis::RedisDB::new(conn.clone()).await?;
+                let redis = dbnexus_db::redis::RedisDB::new(conn.clone()).await?;
 
                 let db = match &conn.db {
                     Some(_) => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
@@ -250,17 +250,17 @@ impl DBConnectionConfig {
             DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(crate::oracle::OracleDB::new(conn.clone(), None)?);
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
                     anyhow::Ok(Open::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(crate::oracle::OracleDB::new(conn.clone(), None)?);
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
                     anyhow::Ok(Open::DataBase(db))
                 }
             },
             DBConnectionConfig::Cassandra { conn, .. } => {
-                let db = crate::cassandra::CassandraDB::new(conn.clone()).await?;
+                let db = dbnexus_db::cassandra::CassandraDB::new(conn.clone()).await?;
                 let db = match &conn.db {
                     Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
                     None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
@@ -270,7 +270,7 @@ impl DBConnectionConfig {
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
                 #[cfg(feature = "duckdb")]
                 {
-                    let db = crate::duckdb::DuckDB::new(_conn.clone())?;
+                    let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone())?;
                     return match &_conn.db {
                         Some(_) => match &_conn.schema {
                             Some(_) => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>)),
@@ -283,7 +283,7 @@ impl DBConnectionConfig {
                 anyhow::bail!("need enable duckdb support")
             }
             DBConnectionConfig::ClickHouse { conn, .. } => {
-                let db = crate::clickhouse::ClickHouseDB::new(conn.clone())?;
+                let db = dbnexus_db::clickhouse::ClickHouseDB::new(conn.clone())?;
                 let db = match &conn.db {
                     Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
                     None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
@@ -292,11 +292,11 @@ impl DBConnectionConfig {
                 anyhow::Ok(db)
             }
             DBConnectionConfig::LibSql { conn, .. } => {
-                let db = crate::libsql::LibSqlDB::new(conn.clone()).await?;
+                let db = dbnexus_db::libsql::LibSqlDB::new(conn.clone()).await?;
                 return anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>));
             }
             DBConnectionConfig::FireBird { conn, .. } => {
-                let db = crate::firebird::FireBirdDB::new(conn.clone())?;
+                let db = dbnexus_db::firebird::FireBirdDB::new(conn.clone())?;
                 anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>))
             }
         }
@@ -306,26 +306,26 @@ impl DBConnectionConfig {
 /// opened database variant for frontend
 #[derive(Clone, Debug)]
 pub enum Open {
-    Catalog(Arc<dyn crate::db::CatalogTrait>),
+    Catalog(Arc<dyn dbnexus_db::db::CatalogTrait>),
     /// database can contains multi database
-    DataBase(Arc<dyn crate::db::DBTrait>),
+    DataBase(Arc<dyn dbnexus_db::db::DBTrait>),
     /// a schema
-    Schema(Arc<dyn crate::db::SchemaTrait>),
+    Schema(Arc<dyn dbnexus_db::db::SchemaTrait>),
 }
 
-impl From<Arc<dyn crate::db::CatalogTrait>> for Open {
-    fn from(value: Arc<dyn crate::db::CatalogTrait>) -> Self {
+impl From<Arc<dyn dbnexus_db::db::CatalogTrait>> for Open {
+    fn from(value: Arc<dyn dbnexus_db::db::CatalogTrait>) -> Self {
         Self::Catalog(value)
     }
 }
 
-impl From<Arc<dyn crate::db::DBTrait>> for Open {
-    fn from(value: Arc<dyn crate::db::DBTrait>) -> Self {
+impl From<Arc<dyn dbnexus_db::db::DBTrait>> for Open {
+    fn from(value: Arc<dyn dbnexus_db::db::DBTrait>) -> Self {
         Self::DataBase(value)
     }
 }
-impl From<Arc<dyn crate::db::SchemaTrait>> for Open {
-    fn from(value: Arc<dyn crate::db::SchemaTrait>) -> Self {
+impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for Open {
+    fn from(value: Arc<dyn dbnexus_db::db::SchemaTrait>) -> Self {
         Self::Schema(value)
     }
 }

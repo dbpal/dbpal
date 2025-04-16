@@ -1,5 +1,5 @@
+pub mod app;
 pub mod handlers;
-
 #[cfg(test)]
 mod tests {
     use dbnexus_db::{
@@ -10,8 +10,8 @@ mod tests {
 
     #[test]
     fn generate_ts_def() {
+        use crate::app::{self};
         use crate::handlers::MuiDataGridData;
-        use dbnexus_db::app::{self};
         use dbnexus_db::datasource_config::{
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };

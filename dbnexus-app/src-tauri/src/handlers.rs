@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use std::time::Duration;
 
+use crate::app::{self, App, DBConnectionConfig, Open};
 use bson::{Document, doc};
-use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;

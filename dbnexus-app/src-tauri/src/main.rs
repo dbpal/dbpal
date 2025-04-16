@@ -1,8 +1,8 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-use dbnexus_db::app::{App, DBConnectionConfig};
+mod app;
 mod handlers;
+use app::{App, DBConnectionConfig};
 
 use handlers::{
     PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
