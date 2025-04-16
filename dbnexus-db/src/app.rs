@@ -338,9 +338,8 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let opens = Arc::new(Mutex::new(HashMap::new()));
         Self {
-            opens,
+            opens: Default::default(),
             saved_password: Default::default(),
         }
     }
@@ -431,23 +430,6 @@ impl App {
         self.enter_open_child(name, &db).await?;
         self.opens.lock().await.insert(name.to_string(), db.clone());
         anyhow::Ok(db)
-    }
-
-    pub async fn open_schema(&self, name: &str, db_name: &str) -> anyhow::Result<Open> {
-        let db = self.open(name).await?;
-        match db {
-            Open::DataBase(x) => {
-                let x = x.open_schema(db_name).await?;
-                x.check_conn().await?;
-                let db = Open::Schema(x.clone());
-                self.opens
-                    .lock()
-                    .await
-                    .insert(format!("{}-{}", name, db_name), db.clone());
-                anyhow::Ok(db)
-            }
-            _ => anyhow::bail!("this is not a database"),
-        }
     }
 
     pub async fn close_conn_has_prefix(&self, name: &str) {

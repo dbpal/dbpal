@@ -42,6 +42,7 @@ function UdfsTree() {
   const reload = () => {
     invoke<types.NamedStaff[]>('list_udf', { name: uuid })
       .then((ts) => {
+        console.log('!!!!!!!!!!!!!!!!!', ts);
         setUdfs(ts);
       })
       .catch((e) => {
@@ -55,7 +56,13 @@ function UdfsTree() {
     switch (kind) {
       case DataSourceKind.Postgres:
       case DataSourceKind.Cockroach:
-        return idPrefix + '-' + named.name + '-' + named.parameters;
+        return (
+          idPrefix +
+          '-' +
+          named.name +
+          '-' +
+          (named.parameters ? named.parameters : 'null')
+        );
       case DataSourceKind.Cassandra:
         return (
           idPrefix +

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use std::time::Duration;
 
@@ -98,13 +98,14 @@ pub async fn drop_database(
 
     match x {
         Open::Catalog(x) => {
-            x.drop_database(&database)
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?;
             app.opens
                 .lock()
                 .await
                 .remove(&format!("{}/{}", name, database));
+
+            x.drop_database(&database)
+                .await
+                .map_err(|x| ErrorFrontend::from(x))?;
 
             Ok(())
         }
@@ -132,13 +133,13 @@ pub async fn drop_schema(
         .map_err(|x| ErrorFrontend::from(x))?;
     match x {
         Open::DataBase(x) => {
-            x.drop_schema(&schema)
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?;
             app.opens
                 .lock()
                 .await
                 .remove(&format!("{}/{}", name, schema));
+            x.drop_schema(&schema)
+                .await
+                .map_err(|x| ErrorFrontend::from(x))?;
 
             Ok(())
         }
@@ -961,7 +962,12 @@ pub async fn list_database(
     app.enter_open_child(name.as_str(), &db).await?;
     match db {
         app::Open::Catalog(x) => x.list_database().await,
-        _ => return Err(ErrorFrontend::from("not catalog trait")),
+        _ => {
+            return Err(ErrorFrontend::from(format!(
+                "not catalog trait  of  {}",
+                name
+            )));
+        }
     }
     .map_err(ErrorFrontend::from)
 }
@@ -2201,10 +2207,12 @@ pub async fn list_procedure(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    schema
+    let sx = schema
         .list_procedure()
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(|x| ErrorFrontend::from(x))?;
+    check_named_staff_unique(&sx[..])?;
+    Ok(sx)
 }
 
 #[tauri::command]
@@ -2245,7 +2253,57 @@ pub async fn list_udf(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    schema.list_udf().await.map_err(|x| ErrorFrontend::from(x))
+    let sx = schema
+        .list_udf()
+        .await
+        .map_err(|x| ErrorFrontend::from(x))?;
+    // TODO why cockroach database  build in udf  `pg_get_function_arguments` return null
+    check_named_staff_unique(&sx[..])?;
+    Ok(sx)
+}
+
+fn check_named_staff_unique(named: &[NamedStaff]) -> Result<(), ErrorFrontend> {
+    #[derive(Clone, Hash, PartialEq, Eq)]
+    struct Key<'a> {
+        name: &'a String,
+        parameters: &'a Option<String>,
+        cassandra_parameters: &'a Option<Vec<String>>,
+    }
+
+    impl<'a> std::fmt::Debug for Key<'a> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.name)?;
+            if let Some(x) = self.parameters {
+                write!(f, "({})", x)?;
+            }
+            if let Some(x) = self.cassandra_parameters {
+                write!(f, "({:?})", x)?;
+            }
+            Ok(())
+        }
+    }
+
+    impl<'a> From<&'a NamedStaff> for Key<'a> {
+        fn from(value: &'a NamedStaff) -> Self {
+            Key {
+                name: &value.name,
+                parameters: &value.parameters,
+                cassandra_parameters: &value.cassandra_parameters,
+            }
+        }
+    }
+    let mut set = HashSet::new();
+    for n in named.iter() {
+        let k = Key::from(n);
+        if set.contains(&k) {
+            return Err(ErrorFrontend::from(format!(
+                "fn named '{:?}' duplicated this will make fontend not working",
+                k
+            )));
+        }
+        set.insert(k);
+    }
+    Ok(())
 }
 
 #[tauri::command]

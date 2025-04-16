@@ -230,7 +230,7 @@ function MenuOpenConn({ handleOpend, name }) {
         if (!has) {
           let key = 'save_password';
           if (false === config[key]) {
-            let pass = prompt('enter password');
+            let pass = prompt(`enter password for '${name}'`);
             if (pass == null) {
               return;
             }

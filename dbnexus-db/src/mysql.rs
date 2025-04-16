@@ -2190,6 +2190,67 @@ pub(crate) mod test_fns {
         println!("database are:{:?}", resp);
     }
 
+    pub(crate) async fn test_view(db: MysqlDB) {
+        enable_test_log();
+        let table_name = "test_view_table";
+        let view_name = "test_view";
+        let _ = db.drop_view(view_name).await;
+        let _ = db.drop_table(table_name, true).await;
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE test_view_table (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                test_time DATETIME NOT NULL,
+                speed DECIMAL(5, 2) NOT NULL,
+                unit VARCHAR(10) NOT NULL
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"               
+            INSERT INTO test_view_table (test_time, speed, unit) VALUES
+            ('2025-04-15 10:00:00', 100.50, 'Mbps'),
+            ('2025-04-15 10:30:00', 95.75, 'Mbps'),
+            ('2025-04-15 11:00:00', 102.30, 'Mbps'),
+            ('2025-04-15 11:30:00', 98.20, 'Mbps'),
+            ('2025-04-15 12:00:00', 101.00, 'Mbps');
+
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"               
+            CREATE VIEW test_view AS
+            SELECT *
+            FROM test_view_table;
+
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let views = db.list_view().await.unwrap();
+        for view in views.iter() {
+            println!("view:{:?}", view);
+            let resp = db
+                .show_view(&view.name, None, None, 1, 100, None)
+                .await
+                .unwrap();
+            println!("resp:{:?}", resp);
+        }
+    }
+
     pub(crate) async fn test_query(db: MysqlDB) {
         enable_test_log();
 
@@ -2312,6 +2373,12 @@ mod tests {
     async fn test_table_column() {
         test_fns::test_table_column(make_test_object(make_config()).await).await;
     }
+
+    #[tokio::test]
+    async fn test_view() {
+        test_fns::test_view(make_test_object(make_config()).await).await;
+    }
+
     #[ignore = "some compitable problem I don't know how to fix now"]
     #[tokio::test]
     async fn test_query() {

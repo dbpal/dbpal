@@ -322,14 +322,6 @@ export namespace types {
         "sql": string;
         "success": boolean;
     };
-    export type U32 = number;
-    export type SemanticToken = {
-        "line": types.U32;
-        "col": types.U32;
-        "length": types.U32;
-        "token_type": types.U32;
-        "token_modifiers": (types.U32 | null);
-    };
 
     /**
      * create table and all index sql.

@@ -965,10 +965,10 @@ impl RedisDB {
         let mut conn = self.get_conn().await?;
         let tables: Vec<String> = conn.keys(filter.unwrap_or("*")).await?;
         let mut ret = RedisListTable::default();
-        let mut count: usize = 1;
+        let mut count: usize = 0;
         let mut has_more = false;
         for table in tables.into_iter() {
-            if count > max {
+            if count >= max {
                 has_more = true;
                 break;
             }

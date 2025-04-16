@@ -353,7 +353,7 @@ fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTimin
 
 impl PostGresDB {
     pub(crate) fn must_schema(&self) -> &String {
-        self.config.schema.as_ref().unwrap()
+        self.config.schema.as_ref().expect("must be some")
     }
 }
 
