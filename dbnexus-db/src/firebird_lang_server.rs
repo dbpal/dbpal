@@ -28,7 +28,7 @@ impl LanguageServer for FireBirdDB {
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
-                log::error!("completion on ast failed,err:{:?}", err);
+                log::error!("completion on ast failed,err:{}", err);
             }
         };
         if !use_lexer {

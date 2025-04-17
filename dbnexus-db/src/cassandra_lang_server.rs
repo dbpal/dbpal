@@ -28,7 +28,7 @@ impl LanguageServer for CassandraDB {
         match r {
             Ok(x) => return anyhow::Ok(x),
             Err(x) => {
-                log::error!("try completion on ast failed:{:?}", x)
+                log::error!("try completion on ast failed:{}", x)
             }
         }
         if !use_lexer {

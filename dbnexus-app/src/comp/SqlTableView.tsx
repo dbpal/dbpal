@@ -162,6 +162,7 @@ function EditInModal(props: { content: string; handleModify }) {
             label={e.language}
             //@ts-ignore
             color={e.color}
+            size="small"
             disabled={language == e.language}
             onClick={() => {
               setLanguage(e.language);

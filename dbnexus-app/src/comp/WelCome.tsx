@@ -103,7 +103,7 @@ function WelCome() {
                 display: 'block',
               }}
               src={e.img}
-              width="70rem"
+              width="65rem"
               alt={e.name}
             />
             <span>{e.name}</span>

@@ -552,7 +552,7 @@ impl CompletionStament {
                 let table = match &table.relation {
                     TableFactor::Table { name, .. } => Some(name.clone()),
                     _ => {
-                        log::error!("update from table is not a Table but:{:?}", table);
+                        log::error!("update from table is not a Table but:{}", table);
                         None
                     }
                 };
