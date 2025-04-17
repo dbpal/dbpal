@@ -171,6 +171,9 @@ fn gen_show_sql(
 #[async_trait::async_trait]
 
 impl SchemaTrait for CockRoachDB {
+    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
+        self.pg.list_data_types()
+    }
     async fn export_table_or_view(
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
