@@ -197,11 +197,17 @@ function ExportTableOrView(props: {
       }}
       support_kind={support_kind}
       supportCsvHeader={
+        kind == DataSourceKind.LibSql ||
         kind == DataSourceKind.Sqlite ||
         kind == DataSourceKind.Postgres ||
+        kind == DataSourceKind.Cockroach ||
         kind == DataSourceKind.Mysql ||
         kind == DataSourceKind.MariaDB ||
-        kind == DataSourceKind.MsSql
+        kind == DataSourceKind.TiDB ||
+        kind == DataSourceKind.MsSql ||
+        kind == DataSourceKind.Cassandra ||
+        kind == DataSourceKind.FireBird ||
+        kind == DataSourceKind.ClickHouse
       }
     ></ExportView>
   );
