@@ -114,7 +114,7 @@ function WelCome() {
         <Chip
           icon={<InfoIcon></InfoIcon>}
           onClick={() => {
-            openUrl('https://github.com/dbpal/docs/blob/main/README.md');
+            openUrl('http://dbpal.site');
           }}
           label="more information"
           color="info"
