@@ -249,8 +249,11 @@ function DropTable(props: {
     switch (kind) {
       case DataSourceKind.Mysql:
       case DataSourceKind.MariaDB:
+      case DataSourceKind.TiDB:
       case DataSourceKind.Postgres:
       case DataSourceKind.Sqlite:
+      case DataSourceKind.Cockroach:
+      case DataSourceKind.LibSql:
         return true;
       default:
         return false;
