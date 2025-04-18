@@ -47,7 +47,6 @@ import {
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 import { getNamedConfig, SettingContext } from './Common';
-import { MdDeleteForever } from 'react-icons/md';
 
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];

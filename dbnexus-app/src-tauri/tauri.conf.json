@@ -1,7 +1,7 @@
 {
   "productName": "dbpal",
   "version": "1.0.0",
-  "identifier": "com.dbpal.dev",
+  "identifier": "site.dbpal.dev",
   "build": {
     "beforeDevCommand": "yarn dev",
     "devUrl": "http://localhost:1420",

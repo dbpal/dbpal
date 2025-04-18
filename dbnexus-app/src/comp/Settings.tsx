@@ -437,6 +437,9 @@ function SettingComp(props: { children }) {
     (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((setting) => {
+        if (!setting) {
+          setting = new UserSettings();
+        }
         setSetting(
           // why new a object because of js is a dynamic language
           // UserSettings maybe have no value on store
@@ -456,7 +459,7 @@ function SettingComp(props: { children }) {
       })
       .catch((e) => {
         alert(`list user settings failed ${e.toString()}`);
-        console.log('list user settting failed', e);
+        console.log('list user setting failed', e);
       });
   };
   const isDark = () => {
