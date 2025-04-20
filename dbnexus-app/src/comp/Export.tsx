@@ -207,7 +207,8 @@ function ExportTableOrView(props: {
         kind == DataSourceKind.MsSql ||
         kind == DataSourceKind.Cassandra ||
         kind == DataSourceKind.FireBird ||
-        kind == DataSourceKind.ClickHouse
+        kind == DataSourceKind.ClickHouse ||
+        kind == DataSourceKind.Oracle
       }
     ></ExportView>
   );
