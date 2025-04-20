@@ -568,7 +568,7 @@ pub trait CatalogTrait:
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum CreateDatabaseExtra {
-    DuckDB { path: String },
+    // DuckDB { path: String },
 }
 
 /// named staff maybe used for view udf etc...

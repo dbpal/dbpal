@@ -1,6 +1,5 @@
 import {
   Button,
-  Chip,
   FormControlLabel,
   IconButton,
   ListItemIcon,
@@ -131,7 +130,6 @@ function CreateDatabase({ uuid, handleClose, kind }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState('');
   const databaseDom = useRef(null);
-  const [file, setFile] = useState('');
 
   const handleCreate = () => {
     if (!database) {
@@ -141,17 +139,6 @@ function CreateDatabase({ uuid, handleClose, kind }) {
     }
 
     let extra = null;
-    switch (kind) {
-      case DataSourceKind.DuckDB:
-        if (!file) {
-          showNotification('error', 'need select a file to attach');
-          return;
-        }
-        extra = { extra: 'duckdb', path: file };
-        break;
-      default:
-    }
-
     invoke('create_database', { name: uuid, database, extra })
       .then(() => {
         showNotification('success', 'Create OK');
@@ -174,21 +161,6 @@ function CreateDatabase({ uuid, handleClose, kind }) {
 
   return (
     <Stack spacing={1}>
-      {kind === DataSourceKind.DuckDB && (
-        <>
-          <Chip
-            color="info"
-            onClick={async () => {
-              const selected = await open({
-                multiple: false,
-              });
-              setFile(selected);
-            }}
-            label={'attach file:' + file}
-          ></Chip>
-        </>
-      )}
-
       <Stack>
         <TextField
           size="small"
