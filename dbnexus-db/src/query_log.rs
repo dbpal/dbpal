@@ -20,9 +20,11 @@ impl QueryLogMap {
         let log = self.logs.entry(id).or_default().clone();
         QueryLogGuard::new(sql, log)
     }
+
     pub(crate) fn remove(&self, id: &uuid::Uuid) {
         self.logs.remove(id);
     }
+
     pub(crate) fn get(&self, id: &uuid::Uuid) -> Vec<QueryLogEvent> {
         self.logs
             .get(id)
@@ -68,6 +70,7 @@ impl QueryLogGuard {
             dest,
         }
     }
+
     pub(crate) fn set_success(&mut self, success: bool) {
         self.success = success;
     }

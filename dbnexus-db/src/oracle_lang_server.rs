@@ -104,10 +104,12 @@ impl AstCompletionHelper for OracleDB {
         anyhow::Ok(
             row.column_info()
                 .iter()
-                .map(|x| CompletionItem {
-                    item: x.name().to_string().into(),
-                    desc: Some(x.oracle_type().to_string().into()),
-                    kind: CompletionKind::Column,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.name().to_string().into(),
+                        desc: Some(x.oracle_type().to_string().into()),
+                        kind: CompletionKind::Column,
+                    }
                 })
                 .collect(),
         )
@@ -146,18 +148,22 @@ impl AstCompletionHelper for OracleDB {
         }
         let mut ret: Vec<_> = ret
             .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Function,
-                desc: None,
+            .map(|x| {
+                CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
+                }
             })
             .collect();
 
         if include_build_in {
-            ret.extend(ORACLE_BUILD_IN_FUNCTIONS.iter().map(|x| CompletionItem {
-                item: (*x).into(),
-                kind: CompletionKind::Function,
-                desc: None,
+            ret.extend(ORACLE_BUILD_IN_FUNCTIONS.iter().map(|x| {
+                CompletionItem {
+                    item: (*x).into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
+                }
             }));
         }
         anyhow::Ok(ret)

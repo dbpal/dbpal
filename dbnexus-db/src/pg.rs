@@ -54,6 +54,7 @@ impl DBTrait for PostGresDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
@@ -423,6 +424,7 @@ impl SchemaTrait for PostGresDB {
         // TODO
         not_support_features(self.backend_name())
     }
+
     async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TYPE  "{}"."{typ}" "#, self.must_schema());
         log::info!("sql:{}", sql);
@@ -705,10 +707,12 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let arg = match &arg {
-            Some(arg) => match arg {
-                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                _ => return Err(arg.wrong_type()),
-            },
+            Some(arg) => {
+                match arg {
+                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                    _ => return Err(arg.wrong_type()),
+                }
+            }
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
 
@@ -745,13 +749,15 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => match x {
-                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                #[allow(unreachable_patterns)]
-                _ => {
-                    anyhow::bail!("must be a postgres parameter")
+            Some(x) => {
+                match x {
+                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                    #[allow(unreachable_patterns)]
+                    _ => {
+                        anyhow::bail!("must be a postgres parameter")
+                    }
                 }
-            },
+            }
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 
@@ -1501,6 +1507,7 @@ impl ExportQueryResult for PostGresDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1528,6 +1535,7 @@ impl QuerySql for PostGresDB {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::PostgreSqlDialect {})
     }
@@ -1551,6 +1559,7 @@ impl QuerySql for PostGresDB {
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -1570,6 +1579,7 @@ impl QuerySql for PostGresDB {
         query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -1749,6 +1759,7 @@ impl SqlBuilder for PostGresDB {
     ) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
+
     fn type_support_compare(&self, typ: &str) -> bool {
         type_support_compare(typ)
     }

@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
-
 use serde::Serializer;
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
@@ -890,10 +889,12 @@ impl TryFrom<&str> for IndexKind {
             "primary" => Ok(Self::Primary),
             "normal" => Ok(Self::Index),
             "unique" => Ok(Self::Unique),
-            _ => Err(format!(
-                "the frontend may pass the wrong parameter of {}",
-                value
-            )),
+            _ => {
+                Err(format!(
+                    "the frontend may pass the wrong parameter of {}",
+                    value
+                ))
+            }
         }
     }
 }
@@ -916,6 +917,7 @@ impl QueryResp {
             total: 0,
         }
     }
+
     pub fn execute_ok(sql: impl Into<Option<String>>) -> Self {
         Self {
             data: vec![vec![Some("OK".to_string())]],

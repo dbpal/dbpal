@@ -9,7 +9,6 @@ import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
 import * as tauriwindow from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
-
 if (['windows', 'linux'].includes(platform())) {
   document.addEventListener('keydown', function (event) {
     if (event.key === 'F11') {
@@ -37,7 +36,6 @@ if (!debugBuild) {
     }
   });
 }
-
 // call every time maybe use refresh this app some what.
 window.addEventListener('load', (_event) => {
   invoke('page_init_callback');

@@ -1,65 +1,69 @@
-/*
-出现错误 InvalidRequest: Error from server: code=2200 [Invalid query] message="org.apache.cassandra.auth.CassandraRoleManager doesn't support PASSWORD" 的原因是 Cassandra 的身份验证机制未启用，或者配置不支持密码身份验证
-。
-要解决这个问题，请按照以下步骤操作：
-1. 修改 cassandra.yaml 配置文件
-默认情况下，Cassandra 使用 AllowAllAuthenticator，这表示禁用了身份验证。你需要将其改为 PasswordAuthenticator，以启用基于密码的身份验证
-。
+// 出现错误 InvalidRequest: Error from server: code=2200 [Invalid query]
+// message="org.apache.cassandra.auth.CassandraRoleManager doesn't support
+// PASSWORD" 的原因是 Cassandra 的身份验证机制未启用，或者配置不支持密码身份验证
+// 。
+// 要解决这个问题，请按照以下步骤操作：
+// 1. 修改 cassandra.yaml 配置文件
+// 默认情况下，Cassandra 使用
+// AllowAllAuthenticator，这表示禁用了身份验证。你需要将其改为
+// PasswordAuthenticator，以启用基于密码的身份验证 。
+//
+// 打开 cassandra.yaml 文件（通常位于 /etc/cassandra/conf/cassandra.yaml 或
+// Cassandra 安装目录的 conf 文件夹中）。 找到以下行：
+// yaml复制
+//
+// authenticator: AllowAllAuthenticator
+//
+// 将其更改为：
+// yaml复制
+//
+// authenticator: PasswordAuthenticator
+//
+// 保存文件并重启 Cassandra 服务
+//
+// InvalidRequest: Error from server: code=2200 [Invalid query]
+// message="User-defined functions are disabled in cassandra.yaml - set
+// user_defined_functions_enabled=true to enable"
+//
 
-    打开 cassandra.yaml 文件（通常位于 /etc/cassandra/conf/cassandra.yaml 或 Cassandra 安装目录的 conf 文件夹中）。
-    找到以下行：
-    yaml复制
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
 
-    authenticator: AllowAllAuthenticator
-
-    将其更改为：
-    yaml复制
-
-    authenticator: PasswordAuthenticator
-
-    保存文件并重启 Cassandra 服务
-
-    InvalidRequest: Error from server: code=2200 [Invalid query] message="User-defined functions are disabled in cassandra.yaml - set user_defined_functions_enabled=true to enable"
-
-*/
-
-use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
-
-use cdrs_tokio::{
-    authenticators::StaticPasswordAuthenticatorProvider,
-    cluster::{NodeTcpConfigBuilder, session::TcpSessionBuilder},
-    frame::message_result::{ColType, RowsMetadata},
-    load_balancing::RoundRobinLoadBalancingStrategy,
-    types::{
-        AsCassandraType, IntoRustByIndex, blob::Blob, cassandra_type::CassandraType, list::List,
-        map::Map, prelude::Decimal, rows::Row, tuple::Tuple, udt::Udt,
-    },
-};
+use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
+use cdrs_tokio::cluster::NodeTcpConfigBuilder;
+use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
+use cdrs_tokio::frame::message_result::{ColType, RowsMetadata};
+use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
+use cdrs_tokio::types::blob::Blob;
+use cdrs_tokio::types::cassandra_type::CassandraType;
+use cdrs_tokio::types::list::List;
+use cdrs_tokio::types::map::Map;
+use cdrs_tokio::types::prelude::Decimal;
+use cdrs_tokio::types::rows::Row;
+use cdrs_tokio::types::tuple::Tuple;
+use cdrs_tokio::types::udt::Udt;
+use cdrs_tokio::types::{AsCassandraType, IntoRustByIndex};
 use chrono::{DateTime, NaiveDate, NaiveTime};
-use cql3_parser::{
-    cassandra_ast::CassandraAST,
-    cassandra_statement::CassandraStatement,
-    common::{ColumnDefinition, DataType},
-};
+use cql3_parser::cassandra_ast::CassandraAST;
+use cql3_parser::cassandra_statement::CassandraStatement;
+use cql3_parser::common::{ColumnDefinition, DataType};
 use dashmap::DashMap;
-
 use num_bigint::{BigInt, ToBigInt};
 
-use crate::{
-    datasource_config::CassandraDBConfig,
-    db::{
-        BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
-        DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind,
-        ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle,
-        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-        UdfOrProcedureExtraParameter,
-    },
-    helper::create_csv,
-    language_server::{LangServerCommon, LexerCompletionTrait},
-    meta_value::MetaValue,
-    query_log::{QueryLogEvent, QueryLogMap},
+use crate::datasource_config::CassandraDBConfig;
+use crate::db::{
+    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    UdfOrProcedureExtraParameter,
 };
-use cdrs_tokio::cluster::session::SessionBuilder;
+use crate::helper::create_csv;
+use crate::language_server::{LangServerCommon, LexerCompletionTrait};
+use crate::meta_value::MetaValue;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 #[derive(Clone)]
 pub struct CassandraDB {
@@ -314,12 +318,14 @@ fn encode_rows_as_json(
                 ColType::List => {
                     let x: Option<List> = row.get_by_index(index)?;
                     match x {
-                        Some(list) => match list.as_cassandra_type()? {
-                            Some(CassandraType::List(mut vs)) => {
-                                Some(serde_json::Value::Array(encode_list(&mut vs)?))
+                        Some(list) => {
+                            match list.as_cassandra_type()? {
+                                Some(CassandraType::List(mut vs)) => {
+                                    Some(serde_json::Value::Array(encode_list(&mut vs)?))
+                                }
+                                _ => anyhow::bail!("should be able to cast to list"),
                             }
-                            _ => anyhow::bail!("should be able to cast to list"),
-                        },
+                        }
                         None => None,
                     }
                 }
@@ -327,12 +333,14 @@ fn encode_rows_as_json(
                 ColType::Map => {
                     let x: Option<Map> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Map(mut vs)) => {
-                                Some(serde_json::Value::Object(encode_map(&mut vs)?))
+                        Some(map) => {
+                            match map.as_cassandra_type()? {
+                                Some(CassandraType::Map(mut vs)) => {
+                                    Some(serde_json::Value::Object(encode_map(&mut vs)?))
+                                }
+                                _ => anyhow::bail!("should be able to cast to map"),
                             }
-                            _ => anyhow::bail!("should be able to cast to map"),
-                        },
+                        }
                         None => None,
                     }
                 }
@@ -340,36 +348,42 @@ fn encode_rows_as_json(
                 ColType::Set => {
                     let x: Option<List> = row.get_by_index(index)?;
                     match x {
-                        Some(list) => match list.as_cassandra_type()? {
-                            Some(CassandraType::List(mut vs)) => {
-                                Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
+                        Some(list) => {
+                            match list.as_cassandra_type()? {
+                                Some(CassandraType::List(mut vs)) => {
+                                    Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
+                                }
+                                _ => anyhow::bail!("should be able to cast to list"),
                             }
-                            _ => anyhow::bail!("should be able to cast to list"),
-                        },
+                        }
                         None => None,
                     }
                 }
                 ColType::Udt => {
                     let x: Option<Udt> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Udt(mut vs)) => {
-                                Some(serde_json::Value::Object(encode_udf(&mut vs)?))
+                        Some(map) => {
+                            match map.as_cassandra_type()? {
+                                Some(CassandraType::Udt(mut vs)) => {
+                                    Some(serde_json::Value::Object(encode_udf(&mut vs)?))
+                                }
+                                _ => anyhow::bail!("should be able to cast to map"),
                             }
-                            _ => anyhow::bail!("should be able to cast to map"),
-                        },
+                        }
                         None => None,
                     }
                 }
                 ColType::Tuple => {
                     let x: Option<Tuple> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Tuple(mut vs)) => {
-                                Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
+                        Some(map) => {
+                            match map.as_cassandra_type()? {
+                                Some(CassandraType::Tuple(mut vs)) => {
+                                    Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
+                                }
+                                _ => anyhow::bail!("should be able to cast to tuple"),
                             }
-                            _ => anyhow::bail!("should be able to cast to tuple"),
-                        },
+                        }
                         None => None,
                     }
                 }
@@ -578,10 +592,12 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
                 ColType::List => {
                     let x: Option<List> = row.get_by_index(index)?;
                     match x {
-                        Some(list) => match list.as_cassandra_type()? {
-                            Some(CassandraType::List(mut vs)) => Some(encode_list(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to list"),
-                        },
+                        Some(list) => {
+                            match list.as_cassandra_type()? {
+                                Some(CassandraType::List(mut vs)) => Some(encode_list(&mut vs)?),
+                                _ => anyhow::bail!("should be able to cast to list"),
+                            }
+                        }
                         None => None,
                     }
                 }
@@ -589,10 +605,12 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
                 ColType::Map => {
                     let x: Option<Map> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Map(mut vs)) => Some(encode_map(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to map"),
-                        },
+                        Some(map) => {
+                            match map.as_cassandra_type()? {
+                                Some(CassandraType::Map(mut vs)) => Some(encode_map(&mut vs)?),
+                                _ => anyhow::bail!("should be able to cast to map"),
+                            }
+                        }
                         None => None,
                     }
                 }
@@ -600,30 +618,36 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
                 ColType::Set => {
                     let x: Option<List> = row.get_by_index(index)?;
                     match x {
-                        Some(list) => match list.as_cassandra_type()? {
-                            Some(CassandraType::List(mut vs)) => Some(encode_tuple(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to list"),
-                        },
+                        Some(list) => {
+                            match list.as_cassandra_type()? {
+                                Some(CassandraType::List(mut vs)) => Some(encode_tuple(&mut vs)?),
+                                _ => anyhow::bail!("should be able to cast to list"),
+                            }
+                        }
                         None => None,
                     }
                 }
                 ColType::Udt => {
                     let x: Option<Udt> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Udt(mut vs)) => Some(encode_udf(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to map"),
-                        },
+                        Some(map) => {
+                            match map.as_cassandra_type()? {
+                                Some(CassandraType::Udt(mut vs)) => Some(encode_udf(&mut vs)?),
+                                _ => anyhow::bail!("should be able to cast to map"),
+                            }
+                        }
                         None => None,
                     }
                 }
                 ColType::Tuple => {
                     let x: Option<Tuple> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Tuple(mut vs)) => Some(encode_tuple(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to tuple"),
-                        },
+                        Some(map) => {
+                            match map.as_cassandra_type()? {
+                                Some(CassandraType::Tuple(mut vs)) => Some(encode_tuple(&mut vs)?),
+                                _ => anyhow::bail!("should be able to cast to tuple"),
+                            }
+                        }
                         None => None,
                     }
                 }
@@ -801,6 +825,7 @@ impl QuerySql for CassandraDB {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -847,6 +872,7 @@ impl QuerySql for CassandraDB {
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         anyhow::Ok(uuid::Uuid::new_v4())
     }
@@ -930,6 +956,7 @@ impl CassandraDB {
 impl CassandraDB {
     // page caching size
     const PAGE_CACHE_LIMIG_SIZE: usize = 2000;
+
     fn invalid_page_caching(&self, table: Option<&str>) {
         if let Some(table) = table {
             self.paging_cache.remove(&table.to_string());
@@ -944,6 +971,7 @@ impl CassandraDB {
             .map(|x| x.result.data.len())
             .unwrap_or(usize::MAX)
     }
+
     fn page_caching_sql(&self, name: &str) -> Option<String> {
         self.paging_cache
             .get(&name.to_string())
@@ -984,9 +1012,11 @@ impl CassandraDB {
             page_size
         );
         let allow_filtering = match &extra {
-            Some(x) => match x {
-                ShowExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
-            },
+            Some(x) => {
+                match x {
+                    ShowExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
+                }
+            }
             None => false,
         };
         let sql = format!(
@@ -1143,6 +1173,7 @@ impl CassandraDB {
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
             .await
     }
+
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1150,6 +1181,7 @@ impl CassandraDB {
         log::info!("sql:{}", sql);
         self.export_query_result_as_json(&sql, pretty, sender).await
     }
+
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1227,6 +1259,7 @@ impl SqlBuilder for CassandraDB {
     ) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
+
     fn type_support_compare(&self, typ: &str) -> bool {
         type_support_compare(typ)
     }
@@ -1352,16 +1385,24 @@ impl SchemaTrait for CassandraDB {
         }
         let row = rows.get(0).unwrap();
 
-        /*
-        { flags: RowsMetadataFlags(GLOBAL_TABLE_SPACE), columns_count: 4, paging_state: None, new_metadata_id: None, global_table_spec: Some(TableSpec { ks_name: "system", table_name: "describe" }), col_specs: [ColSpec { table_spec: None, name: "keyspace_name", col_type: ColTypeOption { id: Varchar, value: None } }, ColSpec { table_spec: None, name: "type", col_type: ColTypeOption { id: Varchar, value: None } }, ColSpec { table_spec: None, name: "name", col_type: ColTypeOption { id: Varchar, value: None } }, ColSpec { table_spec: None, name: "create_statement", col_type: ColTypeOption { id: Varchar, value: None } }] }
-            */
+        // { flags: RowsMetadataFlags(GLOBAL_TABLE_SPACE), columns_count: 4,
+        // paging_state: None, new_metadata_id: None, global_table_spec: Some(TableSpec
+        // { ks_name: "system", table_name: "describe" }), col_specs: [ColSpec {
+        // table_spec: None, name: "keyspace_name", col_type: ColTypeOption { id:
+        // Varchar, value: None } }, ColSpec { table_spec: None, name: "type", col_type:
+        // ColTypeOption { id: Varchar, value: None } }, ColSpec { table_spec: None,
+        // name: "name", col_type: ColTypeOption { id: Varchar, value: None } }, ColSpec
+        // { table_spec: None, name: "create_statement", col_type: ColTypeOption { id:
+        // Varchar, value: None } }] }
         // why `row.get_by_index(3)?` looks cassandra return this value.
         let ret: Option<String> = row.get_by_index(3)?;
         match ret {
-            Some(x) => anyhow::Ok(CreateTableAndIndexSql {
-                create_table: x,
-                indexes: vec![],
-            }),
+            Some(x) => {
+                anyhow::Ok(CreateTableAndIndexSql {
+                    create_table: x,
+                    indexes: vec![],
+                })
+            }
             None => anyhow::bail!("create table sql should not be null"),
         }
     }
@@ -1417,6 +1458,7 @@ impl SchemaTrait for CassandraDB {
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_table_impl(self.config.key_space_str()).await
     }
+
     // cassandra can use this function for materlized view too.
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let sql = format!(
@@ -1497,6 +1539,7 @@ impl SchemaTrait for CassandraDB {
             self.page_caching_sql(table_name),
         )?)
     }
+
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!(
             "SELECT index_name from system_schema.indexes WHERE  table_name = '{table_name}' AND keyspace_name = '{}'",
@@ -1522,6 +1565,7 @@ impl SchemaTrait for CassandraDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -1536,6 +1580,7 @@ impl SchemaTrait for CassandraDB {
             changes: Some(1),
         })
     }
+
     async fn update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
@@ -1602,6 +1647,7 @@ impl SchemaTrait for CassandraDB {
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
+
     async fn modify_table_column(
         &self, table: &str, old_name: &str, new_name: &str, _typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
@@ -1610,12 +1656,14 @@ impl SchemaTrait for CassandraDB {
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
+
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} DROP {col};");
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
+
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
@@ -1623,6 +1671,7 @@ impl SchemaTrait for CassandraDB {
         self.show_table(view_name, where_str, order_by, page, page_size, extra)
             .await
     }
+
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         self.show_table_columns(view_name).await
     }
@@ -1634,11 +1683,9 @@ impl SchemaTrait for CassandraDB {
     async fn show_udf(
         &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
-        /*
-        add parameter to udf have this error
-        cassandra@cqlsh:test> DESCRIBE FUNCTION  test.test_udf(int);
-        Improper DESCRIBE command.
-         */
+        // add parameter to udf have this error
+        // cassandra@cqlsh:test> DESCRIBE FUNCTION  test.test_udf(int);
+        // Improper DESCRIBE command.
         let sql = format!(r#" DESCRIBE FUNCTION  "{}""#, name);
         log::info!("sql:{}", sql);
         let body = self.session.query(sql).await?.response_body()?;
@@ -1646,12 +1693,14 @@ impl SchemaTrait for CassandraDB {
         // println!("meta:{:?}", meta);
 
         let parameters = match &extra {
-            Some(extra) => match &extra {
-                UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
-                _ => {
-                    anyhow::bail!("show udf for cassandra need extra parameter.");
+            Some(extra) => {
+                match &extra {
+                    UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
+                    _ => {
+                        anyhow::bail!("show udf for cassandra need extra parameter.");
+                    }
                 }
-            },
+            }
             None => anyhow::bail!("show udf for cassandra need extra parameter."),
         };
 
@@ -1690,12 +1739,14 @@ impl SchemaTrait for CassandraDB {
         &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(extra) => match &extra {
-                UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
-                _ => {
-                    anyhow::bail!("drop udf for cassandra need extra parameter.");
+            Some(extra) => {
+                match &extra {
+                    UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
+                    _ => {
+                        anyhow::bail!("drop udf for cassandra need extra parameter.");
+                    }
                 }
-            },
+            }
             None => anyhow::bail!("drop udf for cassandra need extra parameter."),
         };
 
@@ -1707,6 +1758,7 @@ impl SchemaTrait for CassandraDB {
         self.session.query(sql).await?;
         anyhow::Ok(())
     }
+
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
         anyhow::Ok(<Self as LexerCompletionTrait>::TYPES)
     }
@@ -1716,11 +1768,13 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let typ = typ.to_lowercase();
     log::trace!("encode value '{:?}' on type '{}'", value, typ);
     match typ.as_str() {
-        "ascii" | "varchar" | "timestamp" | "text" | "date" | "time" | "inet" => anyhow::Ok(
-            value
-                .map(|x| format!("'{}'", x))
-                .unwrap_or("null".to_string()),
-        ),
+        "ascii" | "varchar" | "timestamp" | "text" | "date" | "time" | "inet" => {
+            anyhow::Ok(
+                value
+                    .map(|x| format!("'{}'", x))
+                    .unwrap_or("null".to_string()),
+            )
+        }
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
 }
@@ -1779,6 +1833,7 @@ impl DBTrait for CassandraDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let body = self
             .session
@@ -1792,6 +1847,7 @@ impl DBTrait for CassandraDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
         config.db = Some(name.to_string());
@@ -1973,6 +2029,7 @@ impl CassandraDB {
         }
         anyhow::Ok(ret)
     }
+
     pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NamedStaff>> {
         self.list_aggregate_impl(self.config.key_space_str()).await
     }
@@ -2304,10 +2361,10 @@ mod tests {
             .await
             .unwrap();
         assert!(x.is_ok());
-        /*
-        INSERT INTO test_types1 (id, ascii_column, bigint_column, blob_column, boolean_column, decimal_column, double_column)
-        VALUES (e6361ec1-b0a6-4eb6-b7bd-2db2d13329ab, 'example_ascii', 1234567890123456789, 0x48656c6c6f, true, 123.45, 3.14159);
-        */
+        // INSERT INTO test_types1 (id, ascii_column, bigint_column, blob_column,
+        // boolean_column, decimal_column, double_column)
+        // VALUES (e6361ec1-b0a6-4eb6-b7bd-2db2d13329ab, 'example_ascii',
+        // 1234567890123456789, 0x48656c6c6f, true, 123.45, 3.14159);
 
         let mut values = HashMap::new();
 
@@ -2333,7 +2390,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            //export test
+            // export test
 
             let ret = db
                 .export_table_to_string(
@@ -2346,21 +2403,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2426,7 +2483,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            //export test
+            // export test
 
             let ret = db
                 .export_table_to_string(
@@ -2439,21 +2496,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2491,11 +2548,10 @@ mod tests {
             .await
             .unwrap();
         assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
-        /*
-        INSERT INTO test_types2 (id, float_value, int_value, timestamp_value, varchar_value, varint_value)
-            VALUES (uuid(), 3.14, 42, '2023-01-01 10:00:00', 'Sample Text', '123456789012345678901234567890');
-
-        */
+        // INSERT INTO test_types2 (id, float_value, int_value, timestamp_value,
+        // varchar_value, varint_value) VALUES (uuid(), 3.14, 42, '2023-01-01
+        // 10:00:00', 'Sample Text', '123456789012345678901234567890');
+        //
 
         let mut values = HashMap::new();
 
@@ -2521,7 +2577,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            //export test
+            // export test
 
             let ret = db
                 .export_table_to_string(
@@ -2534,21 +2590,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2586,11 +2642,10 @@ mod tests {
             .await
             .unwrap();
         assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
-        /*
-        INSERT INTO test_types2 (id, float_value, int_value, timestamp_value, varchar_value, varint_value)
-            VALUES (uuid(), 3.14, 42, '2023-01-01 10:00:00', 'Sample Text', '123456789012345678901234567890');
-
-        */
+        // INSERT INTO test_types2 (id, float_value, int_value, timestamp_value,
+        // varchar_value, varint_value) VALUES (uuid(), 3.14, 42, '2023-01-01
+        // 10:00:00', 'Sample Text', '123456789012345678901234567890');
+        //
 
         let mut values = HashMap::new();
 
@@ -2619,7 +2674,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            //export test
+            // export test
 
             let ret = db
                 .export_table_to_string(
@@ -2632,21 +2687,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2686,18 +2741,16 @@ mod tests {
             .await
             .unwrap();
         assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
-        /*
-        INSERT INTO test_types3 (id, timeuuid_value, inet_value, date_value, time_value, smallint_value, tinyint_value)
-        VALUES (
-            uuid(),
-            now(),                          -- 生成当前的timeuuid
-            '192.168.1.1',                 -- 示例IP地址
-            '2023-01-01',                  -- 示例日期
-            '10:30:00',                    -- 示例时间
-            123,                            -- 示例smallint值
-            5,                              -- 示例tinyint值
-        );
-        */
+        // INSERT INTO test_types3 (id, timeuuid_value, inet_value, date_value,
+        // time_value, smallint_value, tinyint_value) VALUES (
+        // uuid(),
+        // now(),                          -- 生成当前的timeuuid
+        // '192.168.1.1',                 -- 示例IP地址
+        // '2023-01-01',                  -- 示例日期
+        // '10:30:00',                    -- 示例时间
+        // 123,                            -- 示例smallint值
+        // 5,                              -- 示例tinyint值
+        // );
 
         let mut values = HashMap::new();
 
@@ -2718,7 +2771,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            //export test
+            // export test
 
             let ret = db
                 .export_table_to_string(
@@ -2731,21 +2784,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2785,18 +2838,16 @@ mod tests {
             .await
             .unwrap();
         assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
-        /*
-        INSERT INTO test_types3 (id, timeuuid_value, inet_value, date_value, time_value, smallint_value, tinyint_value)
-        VALUES (
-            uuid(),
-            now(),                          -- 生成当前的timeuuid
-            '192.168.1.1',                 -- 示例IP地址
-            '2023-01-01',                  -- 示例日期
-            '10:30:00',                    -- 示例时间
-            123,                            -- 示例smallint值
-            5,                              -- 示例tinyint值
-        );
-        */
+        // INSERT INTO test_types3 (id, timeuuid_value, inet_value, date_value,
+        // time_value, smallint_value, tinyint_value) VALUES (
+        // uuid(),
+        // now(),                          -- 生成当前的timeuuid
+        // '192.168.1.1',                 -- 示例IP地址
+        // '2023-01-01',                  -- 示例日期
+        // '10:30:00',                    -- 示例时间
+        // 123,                            -- 示例smallint值
+        // 5,                              -- 示例tinyint值
+        // );
 
         let mut values = HashMap::new();
 
@@ -2820,7 +2871,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            //export test
+            // export test
 
             let ret = db
                 .export_table_to_string(
@@ -2833,21 +2884,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2903,7 +2954,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            //export test
+            // export test
 
             let ret = db
                 .export_table_to_string(
@@ -2916,21 +2967,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,

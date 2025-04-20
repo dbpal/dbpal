@@ -1,21 +1,19 @@
 use cdrs_tokio::types::IntoRustByIndex;
-use cql3_parser::{
-    alter_table::AlterTableOperation,
-    alter_type::AlterTypeOperation,
-    cassandra_ast::{CassandraAST, ParsedStatement},
-    cassandra_statement::CassandraStatement,
-    common::{
-        FQName, Identifier, IdentifierRef, Operand, RelationElement, Resource, Span, WithItem,
-    },
-    create_index::IndexColumnType,
-    insert::InsertValues,
-    select::SelectElement,
+use cql3_parser::alter_table::AlterTableOperation;
+use cql3_parser::alter_type::AlterTypeOperation;
+use cql3_parser::cassandra_ast::{CassandraAST, ParsedStatement};
+use cql3_parser::cassandra_statement::CassandraStatement;
+use cql3_parser::common::{
+    FQName, Identifier, IdentifierRef, Operand, RelationElement, Resource, Span, WithItem,
 };
+use cql3_parser::create_index::IndexColumnType;
+use cql3_parser::insert::InsertValues;
+use cql3_parser::select::SelectElement;
 
-use crate::{
-    cassandra::CassandraDB,
-    db::DBTrait,
-    language_server::{CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait},
+use crate::cassandra::CassandraDB;
+use crate::db::DBTrait;
+use crate::language_server::{
+    CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
 };
 
 #[async_trait::async_trait]
@@ -50,9 +48,11 @@ impl LanguageServer for CassandraDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for CassandraDB {
     type Dialect = sqlparser::dialect::GenericDialect;
+
     const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
-    const TYPES: &'static [&'static str] = TYPES;
     const TEXTS: &'static [&'static str] = &["true", "false"];
+    const TYPES: &'static [&'static str] = TYPES;
+
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();
 
@@ -62,10 +62,12 @@ impl LexerCompletionTrait for CassandraDB {
                     self.list_aggregate_impl(&key_space)
                         .await?
                         .into_iter()
-                        .map(|x| CompletionItem {
-                            kind: CompletionKind::Function,
-                            desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
-                            item: x.name.clone().into(),
+                        .map(|x| {
+                            CompletionItem {
+                                kind: CompletionKind::Function,
+                                desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
+                                item: x.name.clone().into(),
+                            }
                         }),
                 );
             }
@@ -80,10 +82,12 @@ impl LexerCompletionTrait for CassandraDB {
             }
         }
 
-        ret.extend(BUILD_IN_FN.iter().map(|x| CompletionItem {
-            item: (*x).into(),
-            kind: CompletionKind::Function,
-            desc: None,
+        ret.extend(BUILD_IN_FN.iter().map(|x| {
+            CompletionItem {
+                item: (*x).into(),
+                kind: CompletionKind::Function,
+                desc: None,
+            }
         }));
 
         anyhow::Ok(ret)
@@ -130,13 +134,15 @@ impl AstCompletion {
 
         self.result = Some(
             x.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.name.clone().into(),
-                    kind: CompletionKind::Function,
-                    desc: x
-                        .cassandra_parameters
-                        .clone()
-                        .map(|x| format!("{:?}", x).into()),
+                .map(|x| {
+                    CompletionItem {
+                        item: x.name.clone().into(),
+                        kind: CompletionKind::Function,
+                        desc: x
+                            .cassandra_parameters
+                            .clone()
+                            .map(|x| format!("{:?}", x).into()),
+                    }
                 })
                 .collect(),
         );
@@ -179,6 +185,7 @@ impl AstCompletion {
         let x = key_space.map(|x| x.to_string());
         self.need_key_space(x.as_ref().map(|x| x.as_str()))
     }
+
     fn in_pos(&self, span: Option<&Span>) -> bool {
         match span {
             Some(span) => {
@@ -188,9 +195,11 @@ impl AstCompletion {
             None => false,
         }
     }
+
     fn finished(&self) -> bool {
         self.on_def || self.result.is_some()
     }
+
     fn result(self) -> Vec<CompletionItem> {
         let Self { result, .. } = self;
         result.unwrap_or_default()
@@ -204,10 +213,12 @@ impl AstCompletion {
             DBTrait::list_schema(&self.db)
                 .await?
                 .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    desc: None,
-                    kind: CompletionKind::Schema,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.into(),
+                        desc: None,
+                        kind: CompletionKind::Schema,
+                    }
                 })
                 .collect(),
         );
@@ -237,10 +248,12 @@ impl AstCompletion {
                 .list_materialized_view_impl(&key_space)
                 .await?
                 .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.name.into(),
-                    desc: None,
-                    kind: CompletionKind::View,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.name.into(),
+                        desc: None,
+                        kind: CompletionKind::View,
+                    }
                 })
                 .collect()
         };
@@ -250,6 +263,7 @@ impl AstCompletion {
         self.result = Some(result);
         anyhow::Ok(())
     }
+
     async fn on_table_or_view(&mut self, table: &FQName) -> anyhow::Result<()> {
         if let Some(key_space) = table.keyspace.as_ref() {
             self.on_key_space(key_space).await?;
@@ -274,10 +288,12 @@ impl AstCompletion {
                 .list_table_impl(key_space.as_str())
                 .await?
                 .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.name.into(),
-                    desc: None,
-                    kind: CompletionKind::Table,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.name.into(),
+                        desc: None,
+                        kind: CompletionKind::Table,
+                    }
                 })
                 .collect()
         };
@@ -287,10 +303,12 @@ impl AstCompletion {
                     .list_materialized_view_impl(&key_space)
                     .await?
                     .into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.name.into(),
-                        desc: None,
-                        kind: CompletionKind::View,
+                    .map(|x| {
+                        CompletionItem {
+                            item: x.name.into(),
+                            desc: None,
+                            kind: CompletionKind::View,
+                        }
                     }),
             );
         }
@@ -307,10 +325,12 @@ impl AstCompletion {
             .list_schema()
             .await?
             .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                desc: None,
-                kind: CompletionKind::Schema,
+            .map(|x| {
+                CompletionItem {
+                    item: x.into(),
+                    desc: None,
+                    kind: CompletionKind::Schema,
+                }
             })
             .collect();
         anyhow::Ok(ret)
@@ -331,6 +351,7 @@ impl AstCompletion {
         }
         anyhow::Ok(())
     }
+
     async fn on_role(&mut self, r: &Identifier) -> anyhow::Result<()> {
         if !self.in_pos(r.span()) {
             return anyhow::Ok(());
@@ -363,6 +384,7 @@ impl AstCompletion {
         self.result = Some(result);
         anyhow::Ok(())
     }
+
     async fn on_user(&mut self, r: &Identifier) -> anyhow::Result<()> {
         if !self.in_pos(r.span()) {
             return anyhow::Ok(());
@@ -440,6 +462,7 @@ impl AstCompletion {
         self.result = Some(result);
         anyhow::Ok(())
     }
+
     async fn on_type(&mut self, typ: &FQName) -> anyhow::Result<()> {
         if let Some(key_space) = typ.keyspace.as_ref() {
             self.on_key_space(key_space).await?;
@@ -483,6 +506,7 @@ impl AstCompletion {
         self.result = Some(result);
         anyhow::Ok(())
     }
+
     async fn on_type_field(&mut self, typ: &FQName, field: &Identifier) -> anyhow::Result<()> {
         self.on_type(typ).await?;
         if self.finished() {
@@ -515,10 +539,12 @@ impl AstCompletion {
                     self.result = Some(
                         x.columns
                             .iter()
-                            .map(|x| CompletionItem {
-                                kind: CompletionKind::Column,
-                                item: x.name.to_string().into(),
-                                desc: Some(x.data_type.to_string().into()),
+                            .map(|x| {
+                                CompletionItem {
+                                    kind: CompletionKind::Column,
+                                    item: x.name.to_string().into(),
+                                    desc: Some(x.data_type.to_string().into()),
+                                }
                             })
                             .collect(),
                     );
@@ -542,6 +568,7 @@ impl AstCompletion {
         self.on_operand(table, &r.value).await?;
         anyhow::Ok(())
     }
+
     async fn on_aggregate(&mut self, a: &FQName) -> anyhow::Result<()> {
         if let Some(key_space) = a.keyspace.as_ref() {
             self.on_key_space(key_space).await?;
@@ -584,6 +611,7 @@ WHERE keyspace_name = '{key_space}';"#
         self.result = Some(result);
         anyhow::Ok(())
     }
+
     async fn on_function(&mut self, a: &FQName) -> anyhow::Result<()> {
         if let Some(key_space) = a.keyspace.as_ref() {
             self.on_key_space(key_space).await?;
@@ -628,6 +656,7 @@ WHERE keyspace_name = '{key_space}';"#
         self.result = Some(result);
         anyhow::Ok(())
     }
+
     async fn on_index(&mut self, a: &FQName) -> anyhow::Result<()> {
         if let Some(key_space) = a.keyspace.as_ref() {
             self.on_key_space(key_space).await?;
@@ -741,6 +770,7 @@ WHERE keyspace_name = '{key_space}';"#
         }
         anyhow::Ok(())
     }
+
     async fn on_resource(&mut self, r: &Resource) -> anyhow::Result<()> {
         match r {
             Resource::AllFunctions(_) => {}
@@ -759,6 +789,7 @@ WHERE keyspace_name = '{key_space}';"#
         }
         anyhow::Ok(())
     }
+
     async fn on_statement(&mut self, s: &ParsedStatement) -> anyhow::Result<()> {
         match &s.statement {
             CassandraStatement::AlterKeyspace(create_keyspace) => {
@@ -970,10 +1001,12 @@ WHERE keyspace_name = '{key_space}';"#
                                     create_materialized_view
                                         .columns
                                         .iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.to_string().into(),
-                                            kind: CompletionKind::Column,
-                                            desc: None,
+                                        .map(|x| {
+                                            CompletionItem {
+                                                item: x.to_string().into(),
+                                                kind: CompletionKind::Column,
+                                                desc: None,
+                                            }
                                         })
                                         .collect(),
                                 );
@@ -1016,10 +1049,12 @@ WHERE keyspace_name = '{key_space}';"#
                                 create_table
                                     .columns
                                     .iter()
-                                    .map(|x| CompletionItem {
-                                        item: x.name.to_string().into(),
-                                        desc: None,
-                                        kind: CompletionKind::Column,
+                                    .map(|x| {
+                                        CompletionItem {
+                                            item: x.name.to_string().into(),
+                                            desc: None,
+                                            kind: CompletionKind::Column,
+                                        }
                                     })
                                     .collect(),
                             );
@@ -1036,10 +1071,12 @@ WHERE keyspace_name = '{key_space}';"#
                                     create_table
                                         .columns
                                         .iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.name.to_string().into(),
-                                            desc: None,
-                                            kind: CompletionKind::Column,
+                                        .map(|x| {
+                                            CompletionItem {
+                                                item: x.name.to_string().into(),
+                                                desc: None,
+                                                kind: CompletionKind::Column,
+                                            }
                                         })
                                         .collect(),
                                 );
@@ -1252,11 +1289,12 @@ WHERE keyspace_name = '{key_space}';"#
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        cassandra::make_test_object, db::QuerySql, enable_test_log,
-        language_server::completion_test::test_file_auto_completion,
-    };
     use std::path::Path;
+
+    use crate::cassandra::make_test_object;
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::language_server::completion_test::test_file_auto_completion;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {

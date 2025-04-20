@@ -52,6 +52,7 @@ impl ExportQueryResult for TiDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -64,11 +65,13 @@ impl QuerySql for TiDB {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         self.db.get_query_log(id)
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.db.execute_sql(query_id, sql).await
     }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -300,6 +303,7 @@ impl SqlBuilder for TiDB {
     ) -> anyhow::Result<String> {
         self.db.put_value_in_sql(typ, None, value)
     }
+
     fn type_support_compare(&self, typ: &str) -> bool {
         self.db.type_support_compare(typ)
     }
@@ -315,6 +319,7 @@ impl DBTrait for TiDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         self.db.list_schema().await
     }

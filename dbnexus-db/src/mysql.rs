@@ -598,12 +598,14 @@ impl MysqlDB {
             // tidb return data_length as `BIGINT` no UNSIGNED
             let size: Option<u64> = match r.try_get::<'_, u64, _>(1) {
                 Ok(x) => Some(x),
-                Err(_) => match r.try_get::<'_, i64, _>(1) {
-                    Ok(x) => Some(x as u64),
-                    Err(_) => {
-                        anyhow::bail!("extract data_length failed:{:?}", r)
+                Err(_) => {
+                    match r.try_get::<'_, i64, _>(1) {
+                        Ok(x) => Some(x as u64),
+                        Err(_) => {
+                            anyhow::bail!("extract data_length failed:{:?}", r)
+                        }
                     }
-                },
+                }
             };
 
             ret.push(ListTable::new(table_name, size));
@@ -837,6 +839,7 @@ impl SchemaTrait for MysqlDB {
         sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
         anyhow::Ok(())
     }
+
     async fn rename_index(
         &self, table_name: &str, oldname: &str, newname: &str,
     ) -> anyhow::Result<()> {
@@ -1096,12 +1099,14 @@ impl SchemaTrait for MysqlDB {
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
                 Ok(x) => x,
-                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
-                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
-                    Err(_err) => {
-                        anyhow::bail!("can get column as string or vec<u8>")
+                Err(_) => {
+                    match r.try_get::<'_, Vec<u8>, _>(0) {
+                        Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                        Err(_err) => {
+                            anyhow::bail!("can get column as string or vec<u8>")
+                        }
                     }
-                },
+                }
             };
             // due to issue https://github.com/launchbadge/sqlx/issues/3390
             // use `try_get_unchecked` to extract
@@ -1341,6 +1346,7 @@ impl DBTrait for MysqlDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn: PoolConnection<sqlx::MySql> = self.get_conn().await?;
         let rows = sqlx::query("show databases")
@@ -1422,6 +1428,7 @@ impl QuerySql for MysqlDB {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn().await?;
@@ -1446,6 +1453,7 @@ impl QuerySql for MysqlDB {
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -1467,6 +1475,7 @@ impl QuerySql for MysqlDB {
 
         anyhow::Ok(ret)
     }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {

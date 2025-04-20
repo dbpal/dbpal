@@ -104,6 +104,7 @@ impl DuckDBConfig {
     pub(crate) fn schema_str(&self) -> &str {
         self.schema.as_ref().expect("must be some")
     }
+
     #[allow(unused)]
     pub(crate) fn db_str(&self) -> &str {
         self.db.as_ref().expect("must be some")

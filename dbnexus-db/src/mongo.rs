@@ -90,6 +90,7 @@ impl DBTrait for MongoDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let mut names = conn
@@ -810,11 +811,13 @@ impl QuerySql for MongoDB {
     fn get_query_log(&self, _id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         not_support_features(self.backend_name())
     }
+
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         not_support_features(self.backend_name())
     }
+
     async fn execute_sql(
         &self, _query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

@@ -3,7 +3,6 @@
 mod app;
 mod handlers;
 use app::{App, DBConnectionConfig};
-
 use handlers::{
     PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
     cassandra_list_aggregate, cassandra_show_aggregate, check_conn, close_conn,

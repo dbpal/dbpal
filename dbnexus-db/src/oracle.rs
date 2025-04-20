@@ -1,7 +1,6 @@
 /// notice oracle sql 不能带有分号
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
@@ -148,6 +147,7 @@ impl ExportQueryResult for OracleDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -175,6 +175,7 @@ impl QuerySql for OracleDB {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -206,6 +207,7 @@ impl QuerySql for OracleDB {
         }
         anyhow::Ok(())
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -267,10 +269,14 @@ impl QuerySql for OracleDB {
                 SqlKind::Execution => {
                     let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
                     match stmt {
-                        Ok(x) => match x.row_count() {
-                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x, seq.sql.to_owned()))),
-                            Err(err) => ret.push(Err(err.to_string())),
-                        },
+                        Ok(x) => {
+                            match x.row_count() {
+                                Ok(x) => {
+                                    ret.push(Ok(QueryResp::row_affected(x, seq.sql.to_owned())))
+                                }
+                                Err(err) => ret.push(Err(err.to_string())),
+                            }
+                        }
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
@@ -465,82 +471,118 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let typ = typ.to_string().to_uppercase();
 
     match typ.as_str() {
-        "VARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("VARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NVARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("NVARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
+        "VARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("VARCHAR2") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NVARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("NVARCHAR2") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
 
-        "CHAR" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("CHAR") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCHAR" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("NCHAR") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "RAW" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("RAW") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
+        "CHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("CHAR") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("NCHAR") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "RAW" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("RAW") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
 
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
+            anyhow::Ok(match value {
+                Some(x) => x.to_string(),
+                None => null_string,
+            })
+        }
 
-        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
+        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => {
+            anyhow::Ok(match value {
+                Some(x) => x.to_string(),
+                None => null_string,
+            })
+        }
 
-        "CLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCLOB" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "BLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "LONG" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "TIMESTAMP" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("TIMESTAMP") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
+        "CLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "BLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "LONG" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "TIMESTAMP" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("TIMESTAMP") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -842,11 +884,12 @@ impl OracleDB {
         let rows: Vec<_> = rows.collect();
         if include_header && rows.len() > 0 {
             let fs = match rows.get(0).unwrap() {
-                Ok(x) => x
-                    .column_info()
-                    .iter()
-                    .map(|x| Some(x.name().to_owned()))
-                    .collect::<Vec<_>>(),
+                Ok(x) => {
+                    x.column_info()
+                        .iter()
+                        .map(|x| Some(x.name().to_owned()))
+                        .collect::<Vec<_>>()
+                }
                 Err(_) => vec![],
             };
 
@@ -931,6 +974,7 @@ impl OracleDB {
         }
         anyhow::Ok(ret)
     }
+
     pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"SELECT TABLE_NAME FROM DBA_TABLES WHERE OWNER = '{}'  ORDER BY TABLE_NAME "#,
@@ -949,12 +993,14 @@ impl OracleDB {
 
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| ListTable {
-                    size: sizes
-                        .get(&x)
-                        .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
-                        .flatten(),
-                    name: x,
+                .map(|x| {
+                    ListTable {
+                        size: sizes
+                            .get(&x)
+                            .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
+                            .flatten(),
+                        name: x,
+                    }
                 })
                 .collect(),
         )
@@ -1008,12 +1054,14 @@ impl SchemaTrait for OracleDB {
 
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| ListTable {
-                    size: sizes
-                        .get(&x)
-                        .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
-                        .flatten(),
-                    name: x,
+                .map(|x| {
+                    ListTable {
+                        size: sizes
+                            .get(&x)
+                            .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
+                            .flatten(),
+                        name: x,
+                    }
                 })
                 .collect(),
         )

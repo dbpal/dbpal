@@ -1,18 +1,18 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use dashmap::DashMap;
 use dbnexus_db::datasource_config::{
-    CassandraDBConfig, DuckDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
-    RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
+    CassandraDBConfig, ClickHouseConfig, DuckDBConfig, FireBirdConfig, LibSqlDBConfig,
+    MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
+    SqliteDBConfig,
 };
-use dbnexus_db::datasource_config::{ClickHouseConfig, FireBirdConfig, LibSqlDBConfig};
 use dbnexus_db::db::{
     CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, QueryResp, SchemaTrait,
     ShowExtraArgs, SqlExecuteRet,
 };
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
-
-use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -174,32 +174,36 @@ impl DBConnectionConfig {
                 anyhow::Ok(Open::Schema(db))
             }
             DBConnectionConfig::Mysql { conn, name: _ }
-            | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
-                Some(_) => {
-                    let db: Arc<dyn SchemaTrait> =
-                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
+            | DBConnectionConfig::MariaDB { conn, name: _ } => {
+                match &conn.db {
+                    Some(_) => {
+                        let db: Arc<dyn SchemaTrait> =
+                            Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
 
-                    anyhow::Ok(Open::Schema(db))
+                        anyhow::Ok(Open::Schema(db))
+                    }
+                    None => {
+                        let db: Arc<dyn DBTrait> =
+                            Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
+                        anyhow::Ok(Open::DataBase(db))
+                    }
                 }
-                None => {
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
-                    anyhow::Ok(Open::DataBase(db))
-                }
-            },
-            DBConnectionConfig::Tidb { conn, name: _ } => match &conn.db {
-                Some(_) => {
-                    let db: Arc<dyn SchemaTrait> =
-                        Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
+            }
+            DBConnectionConfig::Tidb { conn, name: _ } => {
+                match &conn.db {
+                    Some(_) => {
+                        let db: Arc<dyn SchemaTrait> =
+                            Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
 
-                    anyhow::Ok(Open::Schema(db))
+                        anyhow::Ok(Open::Schema(db))
+                    }
+                    None => {
+                        let db: Arc<dyn DBTrait> =
+                            Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
+                        anyhow::Ok(Open::DataBase(db))
+                    }
                 }
-                None => {
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
-                    anyhow::Ok(Open::DataBase(db))
-                }
-            },
+            }
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
@@ -248,18 +252,20 @@ impl DBConnectionConfig {
 
                 anyhow::Ok(db)
             }
-            DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
-                Some(_) => {
-                    let db: Arc<dyn SchemaTrait> =
-                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
-                    anyhow::Ok(Open::Schema(db))
+            DBConnectionConfig::Oracle { conn, name: _ } => {
+                match conn.schema.as_ref() {
+                    Some(_) => {
+                        let db: Arc<dyn SchemaTrait> =
+                            Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
+                        anyhow::Ok(Open::Schema(db))
+                    }
+                    None => {
+                        let db: Arc<dyn DBTrait> =
+                            Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
+                        anyhow::Ok(Open::DataBase(db))
+                    }
                 }
-                None => {
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
-                    anyhow::Ok(Open::DataBase(db))
-                }
-            },
+            }
             DBConnectionConfig::Cassandra { conn, .. } => {
                 let db = dbnexus_db::cassandra::CassandraDB::new(conn.clone()).await?;
                 let db = match &conn.db {
@@ -273,10 +279,14 @@ impl DBConnectionConfig {
                 {
                     let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone())?;
                     return match &_conn.db {
-                        Some(_) => match &_conn.schema {
-                            Some(_) => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>)),
-                            None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn DBTrait>)),
-                        },
+                        Some(_) => {
+                            match &_conn.schema {
+                                Some(_) => {
+                                    anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>))
+                                }
+                                None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn DBTrait>)),
+                            }
+                        }
                         None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn CatalogTrait>)),
                     };
                 }
@@ -364,6 +374,7 @@ impl App {
         }
         self.opens.lock().await.insert(name, open);
     }
+
     pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
         static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
         #[allow(static_mut_refs)] // this var will init once by main
@@ -377,10 +388,12 @@ impl App {
                 for database in databases.iter() {
                     let name = format!("{}/{}", name, database);
                     let dbtrait = match self.get_opened(&name).await {
-                        Ok(x) => match x {
-                            Open::DataBase(x) => x.clone(),
-                            _ => unreachable!(),
-                        },
+                        Ok(x) => {
+                            match x {
+                                Open::DataBase(x) => x.clone(),
+                                _ => unreachable!(),
+                            }
+                        }
                         Err(_) => {
                             log::info!("enter child named:{}", name);
                             let dbtrait = catalog_trait.open_db(&database).await?;

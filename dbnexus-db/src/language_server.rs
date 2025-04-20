@@ -1,10 +1,11 @@
+use std::borrow::Cow;
+use std::collections::HashSet;
+use std::sync::Arc;
+
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token};
-use std::borrow::Cow;
-use std::collections::HashSet;
-use std::sync::Arc;
 use typescript_type_def::TypeDef;
 
 use crate::db::{BackendName, FormatSqlOpts, monaco_editor_keyword_regexp, not_support_features};
@@ -140,10 +141,12 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             Self::KEY_WORDS
                 .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: Cow::Borrowed(*x),
+                        kind: CompletionKind::KeyWord,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
@@ -151,56 +154,51 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             Self::TYPES
                 .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::Type,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: Cow::Borrowed(*x),
+                        kind: CompletionKind::Type,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(
             Self::TEXTS
                 .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::Text,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: Cow::Borrowed(*x),
+                        kind: CompletionKind::Text,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(self.extra_completion_item().await.into_iter());
-        ret.extend(
-            self.list_table_or_view()
-                .await?
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Table,
-                    desc: None,
-                }),
-        );
+        ret.extend(self.list_table_or_view().await?.into_iter().map(|x| {
+            CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Table,
+                desc: None,
+            }
+        }));
         ret.extend(self.list_function().await?.into_iter());
 
-        ret.extend(
-            self.list_database()
-                .await?
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Database,
-                    desc: None,
-                }),
-        );
-        ret.extend(
-            self.list_schema(None)
-                .await?
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Schema,
-                    desc: None,
-                }),
-        );
+        ret.extend(self.list_database().await?.into_iter().map(|x| {
+            CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Database,
+                desc: None,
+            }
+        }));
+        ret.extend(self.list_schema(None).await?.into_iter().map(|x| {
+            CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Schema,
+                desc: None,
+            }
+        }));
         anyhow::Ok(ret)
     }
 

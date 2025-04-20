@@ -199,10 +199,12 @@ impl AstCompletionHelper for MysqlDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| CompletionItem {
-                item: x.name().to_string().into(),
-                desc: Some(x.type_info().to_string().into()),
-                kind: CompletionKind::Column,
+            .map(|x| {
+                CompletionItem {
+                    item: x.name().to_string().into(),
+                    desc: Some(x.type_info().to_string().into()),
+                    kind: CompletionKind::Column,
+                }
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -222,10 +224,12 @@ impl AstCompletionHelper for MysqlDB {
             .await
             .map(|x| {
                 x.into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Function,
-                        desc: None,
+                    .map(|x| {
+                        CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::Function,
+                            desc: None,
+                        }
                     })
                     .collect::<Vec<_>>()
             })?

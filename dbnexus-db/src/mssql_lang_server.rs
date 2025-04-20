@@ -33,6 +33,7 @@ impl LexerCompletionTrait for MsSqlServerDB {
         );
         anyhow::Ok(ret)
     }
+
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
@@ -101,6 +102,7 @@ impl LangServerCommon for MsSqlServerDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         CatalogTrait::list_database(self).await
     }
+
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![MsSqlServerDB::ONLY_SCHEMA.to_string()])
     }
@@ -200,10 +202,12 @@ impl AstCompletionHelper for MsSqlServerDB {
                         result_metadata
                             .columns()
                             .iter()
-                            .map(|x| CompletionItem {
-                                item: x.name().to_string().into(),
-                                desc: Some(format!("{:?}", x.column_type()).into()),
-                                kind: CompletionKind::Column,
+                            .map(|x| {
+                                CompletionItem {
+                                    item: x.name().to_string().into(),
+                                    desc: Some(format!("{:?}", x.column_type()).into()),
+                                    kind: CompletionKind::Column,
+                                }
                             })
                             .collect(),
                     );
@@ -219,10 +223,12 @@ impl AstCompletionHelper for MsSqlServerDB {
         let mut ret = SchemaTrait::list_udf(self)
             .await
             .map(|x| {
-                x.into_iter().map(|x| CompletionItem {
-                    item: x.name.into(),
-                    desc: None,
-                    kind: CompletionKind::Function,
+                x.into_iter().map(|x| {
+                    CompletionItem {
+                        item: x.name.into(),
+                        desc: None,
+                        kind: CompletionKind::Function,
+                    }
                 })
             })?
             .collect::<Vec<_>>();

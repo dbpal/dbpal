@@ -2,16 +2,15 @@ pub mod app;
 pub mod handlers;
 #[cfg(test)]
 mod tests {
-    use dbnexus_db::{
-        cassandra::CassandraDB,
-        datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce},
-        db::CreateTableAndIndexSql,
-    };
+    use dbnexus_db::cassandra::CassandraDB;
+    use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce};
+    use dbnexus_db::db::CreateTableAndIndexSql;
 
     #[test]
     fn generate_ts_def() {
-        use crate::app::{self};
-        use crate::handlers::MuiDataGridData;
+        use std::io::prelude::*;
+        use std::path::Path;
+
         use dbnexus_db::datasource_config::{
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };
@@ -23,11 +22,12 @@ mod tests {
         use dbnexus_db::language_server::{CompletionItem, CompletionKind};
         use dbnexus_db::query_log::QueryLogEvent;
         use dbnexus_db::redis::RedisListTable;
-        use std::io::prelude::*;
-        use std::path::Path;
         use typescript_type_def::{
             DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos,
         };
+
+        use crate::app::{self};
+        use crate::handlers::MuiDataGridData;
 
         let dir = env!("CARGO_MANIFEST_DIR");
         let filepath = Path::new(&dir)

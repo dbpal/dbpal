@@ -797,14 +797,18 @@ impl SchemaTrait for RedisDB {
             RedisType::String => anyhow::Ok(vec![Field::from_name_type("value", "string")]),
             RedisType::List => anyhow::Ok(vec![Field::from_name_type("list element", "string")]),
             RedisType::Set => anyhow::Ok(vec![Field::from_name_type("set element", "string")]),
-            RedisType::Hash => anyhow::Ok(vec![
-                Field::from_name_type("key", "string"),
-                Field::from_name_type("value", "string"),
-            ]),
-            RedisType::Zset => anyhow::Ok(vec![
-                Field::from_name_type("value", "string"),
-                Field::from_name_type("score", "float64"),
-            ]),
+            RedisType::Hash => {
+                anyhow::Ok(vec![
+                    Field::from_name_type("key", "string"),
+                    Field::from_name_type("value", "string"),
+                ])
+            }
+            RedisType::Zset => {
+                anyhow::Ok(vec![
+                    Field::from_name_type("value", "string"),
+                    Field::from_name_type("score", "float64"),
+                ])
+            }
         }
     }
 
@@ -1000,6 +1004,7 @@ impl DBTrait for RedisDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let r: String = redis::cmd("info")
@@ -1077,6 +1082,7 @@ impl QuerySql for RedisDB {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
             x.first()
@@ -1120,6 +1126,7 @@ impl QuerySql for RedisDB {
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -1135,6 +1142,7 @@ impl QuerySql for RedisDB {
             }
         }
     }
+
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -1223,14 +1231,18 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialet, line).tokenize()?;
         let c = tokens
             .iter()
-            .filter(|x| match x {
-                Token::Whitespace(_) => false,
-                _ => true,
+            .filter(|x| {
+                match x {
+                    Token::Whitespace(_) => false,
+                    _ => true,
+                }
             })
-            .map(|x| match x {
-                Token::SingleQuotedString(x) => x.to_string(),
-                Token::DoubleQuotedString(x) => x.to_string(),
-                _ => x.to_string(),
+            .map(|x| {
+                match x {
+                    Token::SingleQuotedString(x) => x.to_string(),
+                    Token::DoubleQuotedString(x) => x.to_string(),
+                    _ => x.to_string(),
+                }
             })
             .collect();
         commands.push(c);
@@ -1274,10 +1286,12 @@ async fn query_sql(
 fn encode_response_value_to_string(v: &Value) -> String {
     match v {
         Value::Int(v) => v.to_string(),
-        Value::BulkString(x) => match from_utf8(x.as_slice()) {
-            Ok(x) => x.to_owned(),
-            Err(_) => format!("0x{}", hex::encode(x.as_slice())),
-        },
+        Value::BulkString(x) => {
+            match from_utf8(x.as_slice()) {
+                Ok(x) => x.to_owned(),
+                Err(_) => format!("0x{}", hex::encode(x.as_slice())),
+            }
+        }
         Value::SimpleString(x) => x.to_owned(),
         Value::Double(d) => d.to_string(),
         Value::Boolean(x) => x.to_string(),
@@ -1379,11 +1393,13 @@ fn encode_response_value(
         }
 
         Value::SimpleString(x) => QueryResp::result("result", None, vec![Some(x.to_string())]),
-        Value::BulkString(_x) => QueryResp::result(
-            "result",
-            None,
-            vec![Some(encode_response_value_to_string(v))],
-        ),
+        Value::BulkString(_x) => {
+            QueryResp::result(
+                "result",
+                None,
+                vec![Some(encode_response_value_to_string(v))],
+            )
+        }
         Value::Map(x) => {
             let fields = vec![
                 Field::from_name_type("key", "string"),

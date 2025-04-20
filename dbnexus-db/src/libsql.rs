@@ -1,29 +1,27 @@
-use std::{
-    borrow::Cow, collections::HashMap, future::Future, ops::Deref, sync::Arc, time::Duration,
-};
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::future::Future;
+use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
+use std::time::Duration;
 
 use bb8::ManageConnection;
-
 use dashmap::DashMap;
 use libsql::{Connection, Row, ValueType, params};
 
-use crate::{
-    datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce},
-    db::{
-        BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-        Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle,
-        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-        TriggerDetail,
-    },
-    helper::{create_csv, is_dangerous_sql_by_parser},
-    meta_value::MetaValue,
-    query_log::{QueryLogEvent, QueryLogMap},
-    sqlite::{
-        encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
-        integer_like, numreic_like, real_like, text_like,
-    },
+use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
+use crate::db::{
+    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
+    Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
 };
-use std::ops::DerefMut;
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::meta_value::MetaValue;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
+use crate::sqlite::{
+    encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
+    integer_like, numreic_like, real_like, text_like,
+};
 #[derive(Clone)]
 pub struct LibSqlDB {
     config: LibSqlDBConfig,
@@ -54,6 +52,7 @@ impl ExportQueryResult for LibSqlDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -82,6 +81,7 @@ impl QuerySql for LibSqlDB {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
     }
@@ -139,6 +139,7 @@ impl QuerySql for LibSqlDB {
 
         anyhow::Ok(ret)
     }
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let conn = self.connect().await?;
         let id = uuid::Uuid::new_v4();
@@ -246,6 +247,7 @@ impl bb8::ManageConnection for PoolManager {
             Ok(())
         }
     }
+
     fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
         false
     }
@@ -264,6 +266,7 @@ impl LibSqlDB {
             query_logs: Default::default(),
         })
     }
+
     pub(crate) async fn get_conn(&self) -> anyhow::Result<bb8::PooledConnection<'_, PoolManager>> {
         let conn = self.pool.get().await?;
         anyhow::Ok(conn)
@@ -710,14 +713,18 @@ impl SqlBuilder for LibSqlDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => {
+                match value {
+                    Some(x) => format!("'{}'", x),
+                    None => "null".to_string(),
+                }
+            }
+            _ if text_like(typ.as_str()) => {
+                match value {
+                    Some(x) => format!("'{}'", x),
+                    None => "null".to_string(),
+                }
+            }
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
                 value.unwrap_or("null").to_string()

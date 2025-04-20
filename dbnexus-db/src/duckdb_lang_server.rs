@@ -1,12 +1,14 @@
+use std::collections::HashSet;
+use std::sync::Arc;
+
+use tokio::task::block_in_place;
+
 use crate::db::CatalogTrait;
 use crate::duckdb::{DuckDB, use_database};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
     LexerCompletionTrait, try_completion_on_syntax,
 };
-use std::collections::HashSet;
-use std::sync::Arc;
-use tokio::task::block_in_place;
 #[async_trait::async_trait]
 impl LanguageServer for DuckDB {
     async fn auto_completion(
@@ -90,6 +92,7 @@ impl AstCompletionHelper for DuckDB {
         let ret = self.list_view_impl(db, schema)?;
         anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
     }
+
     async fn list_column(
         &self, db: Option<&str>, schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -104,14 +107,17 @@ impl AstCompletionHelper for DuckDB {
             .column_names()
             .into_iter()
             .enumerate()
-            .map(|(index, name)| CompletionItem {
-                item: name.into(),
-                desc: Some(stmt.column_type(index).to_string().into()),
-                kind: CompletionKind::Column,
+            .map(|(index, name)| {
+                CompletionItem {
+                    item: name.into(),
+                    desc: Some(stmt.column_type(index).to_string().into()),
+                    kind: CompletionKind::Column,
+                }
             })
             .collect::<Vec<_>>();
         anyhow::Ok(fs)
     }
+
     async fn list_function(
         &self, _db: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -172,6 +178,7 @@ impl DuckDB {
             None => anyhow::bail!("empty database"),
         }
     }
+
     fn not_allow_empty_schema<'a>(db: Option<&'a str>) -> anyhow::Result<&'a str> {
         match db {
             Some(x) => return anyhow::Ok(x),
@@ -183,9 +190,11 @@ impl DuckDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for DuckDB {
     type Dialect = sqlparser::dialect::DuckDbDialect;
+
     const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
-    const TYPES: &'static [&'static str] = TYPES;
     const TEXTS: &'static [&'static str] = &["true", "false"];
+    const TYPES: &'static [&'static str] = TYPES;
+
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
@@ -231,6 +240,7 @@ impl LangServerCommon for DuckDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         CatalogTrait::list_database(self).await
     }
+
     async fn list_schema(&self, db: Option<&str>) -> anyhow::Result<Vec<String>> {
         let db = self.db_merge_config(db);
         if let Some(db) = db {
@@ -298,12 +308,11 @@ const TYPES: &'static [&'static str] = &[
 mod tests {
     use std::path::Path;
 
-    use crate::{
-        db::{QuerySql, monaco_editor_keyword_regexp},
-        duckdb::make_test_object,
-        enable_test_log,
-        language_server::{LexerCompletionTrait, completion_test::test_file_auto_completion},
-    };
+    use crate::db::{QuerySql, monaco_editor_keyword_regexp};
+    use crate::duckdb::make_test_object;
+    use crate::enable_test_log;
+    use crate::language_server::LexerCompletionTrait;
+    use crate::language_server::completion_test::test_file_auto_completion;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

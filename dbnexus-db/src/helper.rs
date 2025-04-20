@@ -1,11 +1,9 @@
 use std::borrow::Cow;
 
 use line_index::{LineCol, TextSize};
-use sqlparser::{
-    ast::Statement,
-    dialect::Dialect,
-    tokenizer::{Location, Token},
-};
+use sqlparser::ast::Statement;
+use sqlparser::dialect::Dialect;
+use sqlparser::tokenizer::{Location, Token};
 
 /// front can execute a sequence of sql.
 /// this represent a single query and a kind.

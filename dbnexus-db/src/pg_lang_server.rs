@@ -17,6 +17,7 @@ impl LexerCompletionTrait for PostGresDB {
 
     const KEY_WORDS: &'static [&'static str] = PG_KEYWORDS;
     const TYPES: &'static [&'static str] = TYPES;
+
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         let mut ret = AstCompletionHelper::list_table(self, None, None).await?;
         ret.extend(
@@ -26,6 +27,7 @@ impl LexerCompletionTrait for PostGresDB {
         );
         anyhow::Ok(ret)
     }
+
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
@@ -198,10 +200,12 @@ impl AstCompletionHelper for PostGresDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| CompletionItem {
-                item: x.name().to_string().into(),
-                desc: Some(x.type_info().to_string().into()),
-                kind: CompletionKind::Column,
+            .map(|x| {
+                CompletionItem {
+                    item: x.name().to_string().into(),
+                    desc: Some(x.type_info().to_string().into()),
+                    kind: CompletionKind::Column,
+                }
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -468,6 +472,7 @@ impl LangServerCommon for PostGresDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         CatalogTrait::list_database(self).await
     }
+
     async fn list_schema(&self, db: Option<&str>) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let db = self.db_merge_config(db);
@@ -538,10 +543,9 @@ impl LanguageServer for PostGresDB {
 mod tests {
     use std::path::Path;
 
-    use crate::language_server::completion_test::test_file_auto_completion;
-
     use crate::db::QuerySql;
     use crate::enable_test_log;
+    use crate::language_server::completion_test::test_file_auto_completion;
     use crate::pg::make_test_object;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

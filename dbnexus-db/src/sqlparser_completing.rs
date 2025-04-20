@@ -1,13 +1,14 @@
-use crate::sqlparser_completion::{FromTableOrTemp, NearNestTableNamed, ThisTableEnum};
-use crate::{
-    language_server::{CompletionItem, CompletionKind},
-    sqlparser_completion::{CompletionStament, Scope, ScopesGuard, TempTable, TempTableColumn},
-};
-use sqlparser::ast::ColumnOption;
-use sqlparser::ast::*;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
+
+use sqlparser::ast::{ColumnOption, *};
+
+use crate::language_server::{CompletionItem, CompletionKind};
+use crate::sqlparser_completion::{
+    CompletionStament, FromTableOrTemp, NearNestTableNamed, Scope, ScopesGuard, TempTable,
+    TempTableColumn, ThisTableEnum,
+};
 
 impl Into<CompletionKind> for ObjectType {
     fn into(self) -> CompletionKind {
@@ -67,9 +68,11 @@ impl CompletionStament {
                 .unwrap_or_default(),
         )
     }
+
     pub(crate) async fn c_on_trigger_exec_body(&mut self, _body: &TriggerExecBody) {
         // sqlparser don't support parse trigger body??
     }
+
     pub(crate) async fn c_on_role(&mut self, role: &Ident) {
         if !self.in_pos(&role.span) {
             return;
@@ -84,10 +87,12 @@ impl CompletionStament {
                 })
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    desc: None,
-                    kind: CompletionKind::Role,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.into(),
+                        desc: None,
+                        kind: CompletionKind::Role,
+                    }
                 })
                 .collect(),
         );
@@ -104,14 +109,17 @@ impl CompletionStament {
                 .map_err(|x| log::error!("list_cluster failed,err:{:?}", x))
                 .unwrap_or_default()
                 .into_iter()
-                .map(|name| CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::Cluster,
-                    desc: None,
+                .map(|name| {
+                    CompletionItem {
+                        item: name.into(),
+                        kind: CompletionKind::Cluster,
+                        desc: None,
+                    }
                 })
                 .collect(),
         );
     }
+
     pub(crate) async fn c_on_mysql_trigger(&mut self, object_name: &ObjectName) {
         self.c_on_db_schema(object_name).await;
         if self.finished() {
@@ -126,15 +134,15 @@ impl CompletionStament {
             return;
         }
 
-        /*
-           在 MySQL 中，SHOW CREATE TRIGGER 语句用于显示创建指定触发器的 CREATE TRIGGER 语句
-           。其基本语法为：
-           sql复制
-           SHOW CREATE TRIGGER trigger_name;
-           其中，trigger_name 是触发器的名称。需要注意的是，SHOW CREATE TRIGGER 语句不支持直接指定数据库名称。如果要查看特定数据库中的触发器定义，需要先切换到该数据库，或者在触发器名称中明确指定数据库名称
-           。
-           例如，如果要查看数据库 mydb 中名为 my_trigger 的触发器定义，可以先切换到该数据库：
-        */
+        // 在 MySQL 中，SHOW CREATE TRIGGER 语句用于显示创建指定触发器的 CREATE TRIGGER
+        // 语句 。其基本语法为：
+        // sql复制
+        // SHOW CREATE TRIGGER trigger_name;
+        // 其中，trigger_name 是触发器的名称。需要注意的是，SHOW CREATE TRIGGER
+        // 语句不支持直接指定数据库名称。如果要查看特定数据库中的触发器定义，
+        // 需要先切换到该数据库，或者在触发器名称中明确指定数据库名称 。
+        // 例如，如果要查看数据库 mydb 中名为 my_trigger
+        // 的触发器定义，可以先切换到该数据库：
 
         self.result = Some(
             self.helper
@@ -159,6 +167,7 @@ impl CompletionStament {
             ShowCreateObject::View => self.c_on_view(&name).await,
         }
     }
+
     pub(crate) async fn c_on_variable(&mut self, var: &Ident) {
         if !self.in_pos(&var.span) {
             return;
@@ -173,14 +182,17 @@ impl CompletionStament {
                 })
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Variable,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Variable,
+                        desc: None,
+                    }
                 })
                 .collect(),
         );
     }
+
     pub(crate) async fn c_on_policy(&mut self, table_name: &ObjectName, name: &Ident) {
         if !self.in_pos(&name.span) {
             return;
@@ -193,10 +205,12 @@ impl CompletionStament {
                 .map_err(|e| log::error!("postgres_table_policy failed,err:{:?}", e))
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Policy,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Policy,
+                        desc: None,
+                    }
                 })
                 .collect(),
         );
@@ -218,18 +232,20 @@ impl CompletionStament {
                 name.push(ObjectNamePart::Identifier(Ident::new("fake")));
                 self.c_on_db_schema(&ObjectName(name)).await;
             }
-            ObjectType::Role => match name.0.len() {
-                1 => {
-                    self.c_on_role(match name.0.first().unwrap() {
-                        ObjectNamePart::Identifier(ident) => ident,
-                    })
-                    .await
-                }
+            ObjectType::Role => {
+                match name.0.len() {
+                    1 => {
+                        self.c_on_role(match name.0.first().unwrap() {
+                            ObjectNamePart::Identifier(ident) => ident,
+                        })
+                        .await
+                    }
 
-                _ => {
-                    log::error!("role name is too long:{:?}", name)
+                    _ => {
+                        log::error!("role name is too long:{:?}", name)
+                    }
                 }
-            },
+            }
             ObjectType::Sequence => {
                 // rule not support
             }
@@ -241,6 +257,7 @@ impl CompletionStament {
             }
         }
     }
+
     pub(crate) async fn c_on_privileges_action(&mut self, tables: &[ObjectName], a: &Action) {
         match a {
             Action::Insert { columns }
@@ -272,6 +289,7 @@ impl CompletionStament {
             _ => {}
         }
     }
+
     pub(crate) async fn c_on_postgres_comment_object(
         &mut self, object_type: CommentObject, name: &ObjectName,
     ) {
@@ -340,10 +358,12 @@ impl CompletionStament {
                             .ok()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| CompletionItem {
-                                item: x.into(),
-                                kind: CompletionKind::Partition,
-                                desc: None,
+                            .map(|x| {
+                                CompletionItem {
+                                    item: x.into(),
+                                    kind: CompletionKind::Partition,
+                                    desc: None,
+                                }
                             })
                             .collect::<Vec<_>>(),
                     );
@@ -354,6 +374,7 @@ impl CompletionStament {
             }
         }
     }
+
     pub(crate) async fn c_on_index(&mut self, name: &ObjectName) {
         if !self.in_pos(&name.span()) {
             return;
@@ -381,10 +402,12 @@ impl CompletionStament {
                 .ok()
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Index,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Index,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
@@ -446,14 +469,17 @@ impl CompletionStament {
                 .ok()
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Rule,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Rule,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
     }
+
     pub(crate) async fn c_on_constraint(&mut self, table_name: &ObjectName, name: &Ident) {
         if self.in_pos(&name.span) {
             let (db, schema, table_name) = self.extract_db_schme_item(table_name);
@@ -468,10 +494,12 @@ impl CompletionStament {
                     .ok()
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Constraint,
-                        desc: None,
+                    .map(|x| {
+                        CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::Constraint,
+                            desc: None,
+                        }
                     })
                     .collect::<Vec<_>>(),
             );
@@ -487,113 +515,116 @@ impl CompletionStament {
         }
         for op in operations.iter() {
             match op {
-                AlterTableOperation::AddConstraint(table_constraint) => match table_constraint {
-                    TableConstraint::Unique {
-                        name,
-                        index_name,
-                        columns,
-                        ..
-                    }
-                    | TableConstraint::PrimaryKey {
-                        name,
-                        index_name,
-                        columns,
-                        ..
-                    } => {
-                        if let Some(name) = name {
-                            if self.in_pos(&name.span) {
-                                self.set_on_def();
-                                return;
+                AlterTableOperation::AddConstraint(table_constraint) => {
+                    match table_constraint {
+                        TableConstraint::Unique {
+                            name,
+                            index_name,
+                            columns,
+                            ..
+                        }
+                        | TableConstraint::PrimaryKey {
+                            name,
+                            index_name,
+                            columns,
+                            ..
+                        } => {
+                            if let Some(name) = name {
+                                if self.in_pos(&name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
+                            };
+                            if let Some(index_name) = index_name {
+                                if self.in_pos(&index_name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
+                            };
+                            for c in columns.iter() {
+                                self.c_on_column(table_name, c).await;
+                                if self.finished() {
+                                    return;
+                                }
                             }
-                        };
-                        if let Some(index_name) = index_name {
-                            if self.in_pos(&index_name.span) {
-                                self.set_on_def();
-                                return;
+                        }
+                        TableConstraint::ForeignKey {
+                            name,
+                            columns,
+                            foreign_table,
+                            referred_columns,
+                            ..
+                        } => {
+                            if let Some(name) = name {
+                                if self.in_pos(&name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
                             }
-                        };
-                        for c in columns.iter() {
-                            self.c_on_column(table_name, c).await;
+                            for c in columns.iter() {
+                                self.c_on_column(table_name, c).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                            self.c_on_table(foreign_table).await;
                             if self.finished() {
                                 return;
                             }
-                        }
-                    }
-                    TableConstraint::ForeignKey {
-                        name,
-                        columns,
-                        foreign_table,
-                        referred_columns,
-                        ..
-                    } => {
-                        if let Some(name) = name {
-                            if self.in_pos(&name.span) {
-                                self.set_on_def();
-                                return;
+                            for c in referred_columns.iter() {
+                                self.c_on_column(foreign_table, c).await;
+                                if self.finished() {
+                                    return;
+                                }
                             }
                         }
-                        for c in columns.iter() {
-                            self.c_on_column(table_name, c).await;
-                            if self.finished() {
-                                return;
+                        TableConstraint::Check { name, expr } => {
+                            //  https://www.w3schools.com/sql/sql_check.asp
+                            let _guard =
+                                self.scopes.push(Scope::from_this_table(table_name.clone()));
+                            if let Some(name) = name {
+                                if self.in_pos(&name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
+                            }
+                            self.c_on_expr(expr).await;
+                        }
+                        TableConstraint::Index { name, columns, .. } => {
+                            // MySQLs [index definition][1] for index creation
+                            if let Some(name) = name {
+                                if self.in_pos(&name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
+                            }
+                            for c in columns.iter() {
+                                self.c_on_column(table_name, c).await;
+                                if self.finished() {
+                                    return;
+                                }
                             }
                         }
-                        self.c_on_table(foreign_table).await;
-                        if self.finished() {
-                            return;
-                        }
-                        for c in referred_columns.iter() {
-                            self.c_on_column(foreign_table, c).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                    }
-                    TableConstraint::Check { name, expr } => {
-                        //  https://www.w3schools.com/sql/sql_check.asp
-                        let _guard = self.scopes.push(Scope::from_this_table(table_name.clone()));
-                        if let Some(name) = name {
-                            if self.in_pos(&name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        }
-                        self.c_on_expr(expr).await;
-                    }
-                    TableConstraint::Index { name, columns, .. } => {
-                        // MySQLs [index definition][1] for index creation
-                        if let Some(name) = name {
-                            if self.in_pos(&name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        }
-                        for c in columns.iter() {
-                            self.c_on_column(table_name, c).await;
-                            if self.finished() {
-                                return;
+                        TableConstraint::FulltextOrSpatial {
+                            opt_index_name,
+                            columns,
+                            ..
+                        } => {
+                            if let Some(opt_index_name) = opt_index_name {
+                                if self.in_pos(&opt_index_name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
+                            };
+                            for c in columns.iter() {
+                                self.c_on_column(table_name, c).await;
+                                if self.finished() {
+                                    return;
+                                }
                             }
                         }
                     }
-                    TableConstraint::FulltextOrSpatial {
-                        opt_index_name,
-                        columns,
-                        ..
-                    } => {
-                        if let Some(opt_index_name) = opt_index_name {
-                            if self.in_pos(&opt_index_name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        };
-                        for c in columns.iter() {
-                            self.c_on_column(table_name, c).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                    }
-                },
+                }
                 AlterTableOperation::AddColumn {
                     column_def,
                     column_position,
@@ -801,6 +832,7 @@ impl CompletionStament {
             }
         }
     }
+
     pub(crate) async fn c_on_view(&mut self, name: &ObjectName) {
         self.c_on_db_schema(name).await;
         if self.finished() {
@@ -827,10 +859,12 @@ impl CompletionStament {
                 .ok()
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Table,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Table,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
@@ -1424,26 +1458,28 @@ impl CompletionStament {
                         AccessExpr::Dot(expr) => {
                             Box::pin(self.c_on_expr(&expr)).await;
                         }
-                        AccessExpr::Subscript(subscript) => match subscript {
-                            Subscript::Index { index } => {
-                                Box::pin(self.c_on_expr(&index)).await;
+                        AccessExpr::Subscript(subscript) => {
+                            match subscript {
+                                Subscript::Index { index } => {
+                                    Box::pin(self.c_on_expr(&index)).await;
+                                }
+                                Subscript::Slice {
+                                    lower_bound,
+                                    upper_bound,
+                                    stride,
+                                } => {
+                                    if let Some(lower_bound) = lower_bound {
+                                        Box::pin(self.c_on_expr(&lower_bound)).await;
+                                    }
+                                    if let Some(upper_bound) = upper_bound {
+                                        Box::pin(self.c_on_expr(&upper_bound)).await;
+                                    }
+                                    if let Some(stride) = stride {
+                                        Box::pin(self.c_on_expr(&stride)).await;
+                                    }
+                                }
                             }
-                            Subscript::Slice {
-                                lower_bound,
-                                upper_bound,
-                                stride,
-                            } => {
-                                if let Some(lower_bound) = lower_bound {
-                                    Box::pin(self.c_on_expr(&lower_bound)).await;
-                                }
-                                if let Some(upper_bound) = upper_bound {
-                                    Box::pin(self.c_on_expr(&upper_bound)).await;
-                                }
-                                if let Some(stride) = stride {
-                                    Box::pin(self.c_on_expr(&stride)).await;
-                                }
-                            }
-                        },
+                        }
                     }
                 }
             }
@@ -1513,10 +1549,12 @@ impl CompletionStament {
                     .ok()
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Trigger,
-                        desc: None,
+                    .map(|x| {
+                        CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::Trigger,
+                            desc: None,
+                        }
                     })
                     .collect(),
             );
@@ -1540,10 +1578,12 @@ impl CompletionStament {
                             .ok()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| CompletionItem {
-                                kind: CompletionKind::Schema,
-                                item: x.into(),
-                                desc: None,
+                            .map(|x| {
+                                CompletionItem {
+                                    kind: CompletionKind::Schema,
+                                    item: x.into(),
+                                    desc: None,
+                                }
                             })
                             .collect::<Vec<_>>(),
                     );
@@ -1563,10 +1603,12 @@ impl CompletionStament {
                             .ok()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| CompletionItem {
-                                kind: CompletionKind::Database,
-                                item: x.into(),
-                                desc: None,
+                            .map(|x| {
+                                CompletionItem {
+                                    kind: CompletionKind::Database,
+                                    item: x.into(),
+                                    desc: None,
+                                }
                             })
                             .collect::<Vec<_>>(),
                     );
@@ -1586,10 +1628,12 @@ impl CompletionStament {
                             .ok()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| CompletionItem {
-                                kind: CompletionKind::Schema,
-                                item: x.into(),
-                                desc: None,
+                            .map(|x| {
+                                CompletionItem {
+                                    kind: CompletionKind::Schema,
+                                    item: x.into(),
+                                    desc: None,
+                                }
                             })
                             .collect::<Vec<_>>(),
                     );
@@ -1655,10 +1699,12 @@ impl CompletionStament {
         items.extend(self.helper.list_schema(None).await.unwrap_or_default());
         let mut items = items
             .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Table,
-                desc: None,
+            .map(|x| {
+                CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
+                }
             })
             .collect::<Vec<_>>();
 
@@ -1670,6 +1716,7 @@ impl CompletionStament {
         );
         self.result = Some(items);
     }
+
     pub(crate) async fn c_from_table(&mut self, from_table: &FromTable) -> ScopesGuard {
         let tables = match from_table {
             FromTable::WithFromKeyword(vec) => vec,
@@ -1905,33 +1952,35 @@ impl CompletionStament {
                                         });
 
                                     match name {
-                                        Some(x) => match x {
-                                            NearNestTableNamed::Alias { table } => {
-                                                let (db, schema, table) =
-                                                    self.extract_db_schme_item(&table);
-                                                let f = self
-                                                    .helper
-                                                    .list_column(db, schema, table)
-                                                    .await
-                                                    .map_err(|e| {
-                                                        log::error!(
-                                                            "list_column failed,err:{:?}",
-                                                            e
-                                                        )
-                                                    })
-                                                    .ok()
-                                                    .unwrap_or_default();
-                                                ret.extend(f.iter().map(TempTableColumn::from));
+                                        Some(x) => {
+                                            match x {
+                                                NearNestTableNamed::Alias { table } => {
+                                                    let (db, schema, table) =
+                                                        self.extract_db_schme_item(&table);
+                                                    let f = self
+                                                        .helper
+                                                        .list_column(db, schema, table)
+                                                        .await
+                                                        .map_err(|e| {
+                                                            log::error!(
+                                                                "list_column failed,err:{:?}",
+                                                                e
+                                                            )
+                                                        })
+                                                        .ok()
+                                                        .unwrap_or_default();
+                                                    ret.extend(f.iter().map(TempTableColumn::from));
+                                                }
+                                                NearNestTableNamed::Temp { table } => {
+                                                    ret.extend(table.columns.iter().map(|x| {
+                                                        TempTableColumn {
+                                                            name: x.name.clone(),
+                                                            typ: None,
+                                                        }
+                                                    }));
+                                                }
                                             }
-                                            NearNestTableNamed::Temp { table } => {
-                                                ret.extend(table.columns.iter().map(|x| {
-                                                    TempTableColumn {
-                                                        name: x.name.clone(),
-                                                        typ: None,
-                                                    }
-                                                }));
-                                            }
-                                        },
+                                        }
                                         None => {
                                             // can't find maybe a error by user
                                         }
@@ -2078,9 +2127,11 @@ impl CompletionStament {
                         // last one we will return anyway
                         if index == last {
                             let cols = (0..es.len())
-                                .map(|x| TempTableColumn {
-                                    name: format!("column_{}", x),
-                                    typ: None,
+                                .map(|x| {
+                                    TempTableColumn {
+                                        name: format!("column_{}", x),
+                                        typ: None,
+                                    }
                                 })
                                 .collect::<Vec<_>>();
                             return anyhow::Ok(cols);
@@ -2134,6 +2185,7 @@ impl CompletionStament {
             FunctionArgExpr::Wildcard => {}
         }
     }
+
     pub(crate) async fn c_on_table_factor(&mut self, f: &TableFactor, s: &mut Scope) {
         #[allow(unused)]
         match f {
@@ -2158,7 +2210,7 @@ impl CompletionStament {
                     //     self.set_on_def();
                     //     return;
                     // }
-                    //TODO alias have column definition.
+                    // TODO alias have column definition.
                     s.enter_table(alias.name.clone(), name.clone());
                 } else {
                     s.enter_table(
@@ -2267,6 +2319,7 @@ impl CompletionStament {
             TableFactor::MatchRecognize { .. } => {}
         }
     }
+
     pub(crate) async fn c_on_procedure(&mut self, name: &ObjectName) {
         self.c_on_db_schema(name).await;
         if self.finished() {
@@ -2287,14 +2340,17 @@ impl CompletionStament {
                 .ok()
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| CompletionItem {
-                    kind: CompletionKind::Function,
-                    item: x.into(),
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        kind: CompletionKind::Function,
+                        item: x.into(),
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
     }
+
     pub(crate) fn last_name_in_pos(&mut self, name: &ObjectName) -> bool {
         name.0
             .last()
@@ -2345,12 +2401,14 @@ impl CompletionStament {
                                 _ => {}
                             };
                         }
-                        FunctionArg::Unnamed(function_arg_expr) => match function_arg_expr {
-                            FunctionArgExpr::Expr(expr) => {
-                                self.c_on_expr(expr).await;
+                        FunctionArg::Unnamed(function_arg_expr) => {
+                            match function_arg_expr {
+                                FunctionArgExpr::Expr(expr) => {
+                                    self.c_on_expr(expr).await;
+                                }
+                                _ => {}
                             }
-                            _ => {}
-                        },
+                        }
                     }
                 }
             }
@@ -2378,6 +2436,7 @@ impl CompletionStament {
                 .unwrap_or_default(),
         )
     }
+
     pub(crate) async fn c_on_function(&mut self, name: &ObjectName) {
         self.c_on_db_schema(name).await;
         if self.finished() {
