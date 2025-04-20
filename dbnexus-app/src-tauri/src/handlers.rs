@@ -26,7 +26,7 @@ use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::tidb::TiDB;
 
 use crate::app::{self, App, DBConnectionConfig, Open};
-pub const PASSWORD_KEY: &str = "dbpal";
+pub const PASSWORD_KEY: &str = "site.dbpal.dev";
 
 #[tauri::command]
 pub fn has_entered_password(
