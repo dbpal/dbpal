@@ -4,7 +4,7 @@
   ],
   "rust-analyzer.checkOnSave": true,
   "rust-analyzer.cargo.features": [
-    "duckdb"
+  
   ],
   "prettier.singleQuote": true,
 }

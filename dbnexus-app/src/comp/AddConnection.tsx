@@ -779,7 +779,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
           <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
-          <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
+          {/* <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem> */}
           <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
         </Select>
       </FormControl>

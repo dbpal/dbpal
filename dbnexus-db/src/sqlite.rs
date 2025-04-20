@@ -871,14 +871,18 @@ impl SqlBuilder for SqliteDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => {
+                match value {
+                    Some(x) => format!("'{}'", x),
+                    None => "null".to_string(),
+                }
+            }
+            _ if text_like(typ.as_str()) => {
+                match value {
+                    Some(x) => format!("'{}'", x),
+                    None => "null".to_string(),
+                }
+            }
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) => {
                 value.unwrap_or("null").to_string()
@@ -1138,15 +1142,21 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1161,6 +1171,7 @@ impl ExportQueryResult for SqliteDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1211,6 +1222,7 @@ impl QuerySql for SqliteDB {
         query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -1469,11 +1481,9 @@ pub(crate) fn gen_show_sql(
 
 // this test no need clean up, we use memory sqlite db.
 pub(crate) async fn make_test_object() -> SqliteDB {
-    let path = std::env!("CARGO_MANIFEST_DIR");
+    let path = std::env::var("DBPAL_SQLITE_TEST_FILE").unwrap();
 
-    let db = SqliteDB::new(format!("{path}/tests/sqlite.test.db"), false)
-        .await
-        .unwrap();
+    let db = SqliteDB::new(path, false).await.unwrap();
     db
 }
 
