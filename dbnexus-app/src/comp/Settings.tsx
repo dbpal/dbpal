@@ -56,7 +56,7 @@ function ModifySettings() {
         }
       })
       .catch((e) => {
-        showNotification('error', 'port is not a number', e);
+        showNotification('error', 'get config failed', e);
       });
   };
   useEffect(() => {
@@ -92,7 +92,7 @@ function ModifySettings() {
       });
   };
 
-  const headerSize = '15%';
+  const headerSize = '30%';
   return (
     <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -196,7 +196,7 @@ function ModifySettings() {
         <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
           <Tooltip title="dbpal use monaco editor as build in editor">
             <Typography width={headerSize} textAlign="right">
-              editor options:
+              monaco editor options:
             </Typography>
           </Tooltip>
           <Typography
@@ -310,7 +310,7 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
-        fontWeight: 'bold',
+        fontWeight: '550',
       },
     },
   },
@@ -320,7 +320,7 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
-        fontWeight: 'bold',
+        fontWeight: '550',
       },
     },
   },
@@ -338,7 +338,7 @@ const components: Components<
     styleOverrides: {
       cell: {
         fontSize: '1rem',
-        fontWeight: '700',
+        fontWeight: '550',
       },
       columnHeaders: {
         fontSize: '0.8rem', // 调整表头字体大小

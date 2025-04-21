@@ -15,7 +15,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { MdQueryStats } from 'react-icons/md';
+
 import {
   memo,
   useCallback,
@@ -74,7 +74,7 @@ import {
   TabsSetContext,
   UuidContext,
 } from './helper';
-
+import { TbDatabaseSearch } from 'react-icons/tb';
 import { SqlQuery } from './SqlQuery';
 import { RedisQuery } from './RedisQuery';
 import { MongoQuery } from './MongoQuery.tsx';
@@ -449,6 +449,13 @@ function Left_() {
       handleReload();
     });
   });
+  const m = useMemo(() => {
+    return matchPattern
+      ? wcmatch(matchPattern, { flags: 'i' })
+      : () => {
+          return true;
+        };
+  }, [matchPattern]);
   return (
     <Stack
       style={{
@@ -463,16 +470,7 @@ function Left_() {
       <Stack>
         {configs.map((e) => {
           return (
-            <MatchPatternContext.Provider
-              value={
-                matchPattern
-                  ? wcmatch(matchPattern, { flags: 'i' })
-                  : () => {
-                      return true;
-                    }
-              }
-              key={e.name}
-            >
+            <MatchPatternContext.Provider value={m} key={e.name}>
               <ConnTypeContext.Provider
                 value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
               >
@@ -488,7 +486,6 @@ function Left_() {
           );
         })}
       </Stack>
-
       <div style={{ minHeight: '300px' }}></div>
     </Stack>
   );
@@ -603,7 +600,7 @@ function FavoriteSqlList(props: { handleClose }) {
             generateRandomString(10),
             `q@${row.uuid}`,
             content,
-            <MdQueryStats> </MdQueryStats>
+            <TbDatabaseSearch> </TbDatabaseSearch>
           ),
         ];
       });
@@ -618,7 +615,6 @@ function FavoriteSqlList(props: { handleClose }) {
   useEffect(() => {
     handleReload(false);
   }, []);
-
   const { setUpMenu } = useContext(ContextMenuContext);
   function Menu(props: { content: string; id: string }) {
     const { content, id } = props;
@@ -711,7 +707,7 @@ function FavoriteSqlList(props: { handleClose }) {
   const handleclean = async () => {
     let confirm = await secondConfirm({
       title: 'clean all favorite sql???',
-      confirmText: 'clean',
+      confirmText: 'Clean',
     });
     if (!confirm) {
       return;
@@ -931,6 +927,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
       {opened && kind == DataSourceKind.Mongo && (
         <>
           <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TablesType.MongoTimeSerial} />
           <ViewsTree viewkind={ViewKind.Normal} />
         </>
       )}
@@ -1114,12 +1111,8 @@ function CatalogMenu(props: {
   handleCloseConn;
   kind: DataSourceKind;
 }) {
-  //@ts-ignore
   const { uuid, reload, handleOpend, opened, handleCloseConn, kind } = props;
-
   const [showCreateDB, setShowCreateDB] = useState(false);
-  // const { showNotification } = useContext(NotificationContext);
-  // const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>
       <MenuList>
@@ -1134,20 +1127,6 @@ function CatalogMenu(props: {
             }}
           ></MenuCreateDatabase>
         )}
-
-        {/* {opened && (
-          <MenuNewQuery
-            handle={() => {
-              openNewQuery(
-                setSelectTab,
-                setTabs,
-                uuid,
-                kind,
-                showNotification
-              );
-            }}
-          ></MenuNewQuery>
-        )} */}
 
         {opened && <MenuRefresh reload={reload}></MenuRefresh>}
         {opened && <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>}
@@ -1263,14 +1242,19 @@ async function openNewQuery(
       );
       break;
     default:
-      throw `impl this ${kind}`;
+      console.log(`impl this ${kind}`);
   }
 
   setTabs((e: TabContent[]) => {
     setSelectTab(e.length);
     return [
       ...e,
-      new TabContent(id, `q@${uuid}`, content, <MdQueryStats> </MdQueryStats>),
+      new TabContent(
+        id,
+        `q@${uuid}`,
+        content,
+        <TbDatabaseSearch> </TbDatabaseSearch>
+      ),
     ];
   });
 }

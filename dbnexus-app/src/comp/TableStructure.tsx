@@ -81,6 +81,7 @@ function ColumnsStructure(props: {
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
+    kind == DataSourceKind.Cockroach ||
     kind == DataSourceKind.Oracle ||
     kind == DataSourceKind.TiDB ||
     kind == DataSourceKind.Cassandra ||
@@ -110,7 +111,7 @@ function ColumnsStructure(props: {
         handleReload();
       })
       .catch((e) => {
-        showNotification('error', 'Drop column OK', e);
+        showNotification('error', 'Drop column Failure', e);
       });
   };
 
@@ -152,7 +153,7 @@ function ColumnsStructure(props: {
       {
         field: 'is_primary',
         renderHeader: () => {
-          return 'primary';
+          return 'primary key';
         },
         renderCell: (row) => {
           return TrueOrFalse(row.row['is_primary']);
@@ -447,7 +448,7 @@ function IndexesStructure(props: {
     let confirm = await secondConfirm({
       title: `drop index '${indexName}'`,
       content: 'Are u sure to drop the index',
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;
@@ -837,7 +838,6 @@ function AddIndex(props: {
       ></TextField>
       <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography> includes: </Typography>
-
         {includes.map((x) => (
           <Button
             onClick={() => {
@@ -955,7 +955,7 @@ function TableAddColumn(props: {
         }}
       ></TableTypesButton>
       {/*   TODO some mariadb require a length parameter    */}
-      <Stack direction="row">
+      <Stack direction="row" spacing={1}>
         <TextField
           fullWidth
           size="small"
@@ -1180,7 +1180,11 @@ function TableTypesButton(props: { handleChange; uuid }) {
   );
 }
 function ColumnParentThesesHint() {
-  return <span> some type require specify a size like `varchar(128)`</span>;
+  return (
+    <Typography color="info">
+      some type require specify a size like `varchar(128)`
+    </Typography>
+  );
 }
 
 function ColumnNullness({ nullness, handleNullness }) {

@@ -69,18 +69,18 @@ function WelCome() {
       <Typography
         variant="h4"
         style={{
-          fontWeight: '700',
+          fontWeight: '600',
           textShadow: '6px 6px 4px rgba(130, 130, 130, 0.5)',
         }}
       >
         dbpal is a database management system that easy to use.
       </Typography>
 
-      <Typography variant="h6" style={{ fontWeight: '700' }}>
+      <Typography variant="h6" style={{ fontWeight: '600' }}>
         right now we support:
       </Typography>
       <Stack
-        style={{ fontSize: '2rem', fontWeight: '700', flexWrap: 'wrap' }}
+        style={{ fontSize: '2rem', fontWeight: '600', flexWrap: 'wrap' }}
         direction="row"
       >
         {databases.map((e) => (

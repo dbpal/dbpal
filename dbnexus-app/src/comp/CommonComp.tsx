@@ -284,7 +284,7 @@ function MenuDeleteConfig({ name }) {
   const handleDelete = async () => {
     const confirm = await secondConfirm({
       title: `drop connection '${name}'`,
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;

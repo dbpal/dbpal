@@ -76,7 +76,7 @@ function OracleCommit(props: { conn: IQueryConn }) {
       await conn.oracleQueryCommit();
       showNotification('success', 'rollback ok');
     } catch (e) {
-      showNotification('error', 'oracle commit failed', e);
+      showNotification('error', 'oracle rollback failed', e);
     }
   };
   const handleReverse = async () => {
@@ -178,9 +178,9 @@ function SqlQuery(props: {
   const handleReconnect = async () => {
     if (conn) {
       const confirm = await secondConfirm({
-        title: 're connection',
-        content: 'Maybe unsaved data will lost.',
-        confirmText: 'connect',
+        title: 'reconnection',
+        content: 'unsaved data may lost.',
+        confirmText: 'Connect',
       });
       if (!confirm) {
         return;
@@ -211,7 +211,7 @@ function SqlQuery(props: {
   const warnDangerousSql = async (text): Promise<boolean> => {
     if (await conn.isDangerSql(text)) {
       return await secondConfirm({
-        confirmText: 'execute',
+        confirmText: 'Execute',
         title: 'This is a dangerous sql',
         content: `Are u sure going to execute '${text}'`,
       });
@@ -564,7 +564,7 @@ function SqlQuery(props: {
               handleClose={() => {
                 setShowExport(false);
               }}
-              support_kind={['csv', 'json', 'jsonline']}
+              supportKind={['csv', 'json', 'jsonline']}
               exportOP={async (kind, file) => {
                 try {
                   const sql = getText();

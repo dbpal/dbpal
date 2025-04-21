@@ -30,6 +30,7 @@ import {
   reloadOK,
   SimpleResizeEditor,
 } from './Common.tsx';
+import RemoveIcon from '@mui/icons-material/Remove';
 
 import { types } from './ApiStruct.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -78,13 +79,13 @@ function RedisAddList(props: {
 }) {
   const { lpushOP, rpushOP } = props;
   const [loading, setLoading] = useState(false);
-  const [lOrR, setLOrR] = useState('lpush');
+  const [direction, setDirection] = useState<'left' | 'right'>('left');
   const [key, setKey] = useState('');
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
     // reset some state
     setLoading(true);
-    (lOrR == 'lpush' ? lpushOP : rpushOP)(key)
+    (direction == 'left' ? lpushOP : rpushOP)(key)
       .then(() => {
         showNotification('success', 'Push OK');
       })
@@ -95,7 +96,6 @@ function RedisAddList(props: {
         setLoading(false);
       });
   };
-
   return (
     <Stack spacing={1}>
       <Box width="200px">
@@ -104,14 +104,15 @@ function RedisAddList(props: {
           <Select
             labelId="simple-select-label"
             id="simple-select"
-            value={lOrR}
+            value={direction}
             onChange={(e) => {
-              setLOrR(e.target.value);
+              //@ts-ignore
+              setDirection(e.target.value);
             }}
             label=""
           >
-            <MenuItem value="lpush">List head (LPUSH)</MenuItem>
-            <MenuItem value="rpush">List tail (RPUSH)</MenuItem>
+            <MenuItem value="left">List head (LPUSH)</MenuItem>
+            <MenuItem value="right">List tail (RPUSH)</MenuItem>
           </Select>
         </FormControl>
       </Box>
@@ -224,7 +225,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
           loading={loading}
           onClick={handleAdd}
         >
-          Add
+          add
         </Button>
       </Stack>
     </Stack>
@@ -491,7 +492,6 @@ function RedisEditModeSelect(props: {
   handleChange: (mode: RedisEditorMode) => void;
 }) {
   const { mode, handleChange } = props;
-
   return (
     <Box>
       <FormControl fullWidth>
@@ -587,6 +587,14 @@ function RedisValueEditor(props: {
     setNewValue(array);
     handleValue(arrayToHex(array));
   };
+  const handleDelLength = () => {
+    if (newValue.length == 0) {
+      return;
+    }
+    let array = newValue.slice(0, -1);
+    setNewValue(array);
+    handleValue(arrayToHex(array as Uint8Array));
+  };
 
   if (!hexRows) {
     hexRows = 5;
@@ -649,23 +657,32 @@ function RedisValueEditor(props: {
             style={{ width: '100%', height: '100%' }}
           ></HexEditor>
 
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
             <TextField
               size="small"
               error={addLengthErr}
               value={addLength}
-              helperText="length add the hex"
+              label="length add to the hex"
               onChange={(e) => {
                 setAddLength(e.target.value);
               }}
             ></TextField>
-
             <Button
               color="primary"
               variant="contained"
               onClick={handleAddLength}
             >
               <AddIcon></AddIcon>
+            </Button>
+
+            <Button
+              color="primary"
+              variant="contained"
+              onClick={() => {
+                handleDelLength();
+              }}
+            >
+              <RemoveIcon></RemoveIcon>
             </Button>
           </Stack>
         </Stack>
@@ -993,7 +1010,6 @@ function RedisListTableContextMenu(props: {
   content;
 }) {
   const { delOP, content } = props;
-
   const [count, setCount] = useState('1');
   const [showDel, setShowDel] = useState(false);
   const { showNotification } = useContext(NotificationContext);

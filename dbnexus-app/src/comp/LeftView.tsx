@@ -269,7 +269,7 @@ function ViewStructure(props: {
         ))}
       </Stack>
       {structure == 'columns' && (
-        <ColumnsTabContent uuid={uuid} view={view}></ColumnsTabContent>
+        <ColumnsContent uuid={uuid} view={view}></ColumnsContent>
       )}
       {structure == 'statement' && (
         <StatementStructure
@@ -283,7 +283,7 @@ function ViewStructure(props: {
   );
 }
 
-function ColumnsTabContent(props: { uuid: string; view: string }) {
+function ColumnsContent(props: { uuid: string; view: string }) {
   const { uuid, view } = props;
   const setting = useContext(SettingContext);
 
@@ -730,7 +730,7 @@ function ViewMenu(props: {
                 setShowExport(false);
               }}
               kind={kind}
-              support_kind={['csv', 'json', 'jsonline']}
+              supportKind={['csv', 'json', 'jsonline']}
             ></ExportTableOrView>
           </Box>
         </Modal>

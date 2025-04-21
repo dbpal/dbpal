@@ -104,10 +104,6 @@ const getNamedConfig = async (
 class DocsAndCount {
   constructor(public docs: BSON.Document[], public total: number) {}
 }
-enum MongoDataViewModel {
-  List,
-  Object,
-}
 
 function EditorBar(props: {
   left?: any;
@@ -148,17 +144,12 @@ function CreateDatabase({ uuid, handleClose, kind }) {
         showNotification('error', 'Create Failure', e);
       });
   };
-
   let createButtonName;
   switch (kind) {
-    case DataSourceKind.DuckDB:
-      createButtonName = 'attch';
-      break;
     default:
       createButtonName = 'create';
       break;
   }
-
   return (
     <Stack spacing={1}>
       <Stack>
@@ -192,7 +183,6 @@ function CreateSchema(props: {
   kind: DataSourceKind;
   schemas: string[];
 }) {
-  //@ts-ignore
   const { uuid, handleClose, kind, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
   const { showNotification } = useContext(NotificationContext);
@@ -356,7 +346,7 @@ async function dropDatabase(props: {
 
   const confirm = await secondConfirm({
     title: `drop database ${database}`,
-    confirmText: 'drop',
+    confirmText: 'Drop',
   });
   if (!confirm) {
     return;
@@ -376,7 +366,7 @@ async function dropDatabase(props: {
 async function dropSchema({ uuid, schema, showNotification, okCallback }) {
   const confirm = await secondConfirm({
     title: `drop ${schema}`,
-    confirmText: 'drop',
+    confirmText: 'Drop',
   });
   if (!confirm) {
     return;
@@ -391,7 +381,7 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
     });
 }
 
-function countLines(str) {
+function countLines(str): number | undefined {
   if (!str) return undefined; // 如果字符串为空，返回 0
   return str.split('\n').length; // 按换行符分割并计算长度
 }
@@ -490,7 +480,7 @@ function SimpleResizeEditor(props: {
   );
 }
 
-const msgTimeout = 5000;
+const msgTimeout = 10000;
 
 function tabsHasId(tabs: TabContent[], id: string): number | null {
   for (let i = 0; i < tabs.length; i++) {
@@ -1006,13 +996,13 @@ async function makeQueryConnInfo(uuid: string) {
   } as CSSProperties;
 
   switch (config.conn_type) {
-    case 'mysql':
-    case 'mariadb':
-    case 'postgres':
-    case 'mssql':
-    case 'cassandra':
-    case 'tidb':
-    case 'clickhouse':
+    case DataSourceKind.Mysql:
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.Postgres:
+    case DataSourceKind.MsSql:
+    case DataSourceKind.Cassandra:
+    case DataSourceKind.ClickHouse:
+    case DataSourceKind.Cockroach:
       content = (
         <div style={s}>
           <strong>{config.conn_type}</strong>&nbsp;
@@ -1022,7 +1012,7 @@ async function makeQueryConnInfo(uuid: string) {
         </div>
       );
       break;
-    case 'sqlite':
+    case DataSourceKind.Sqlite:
       content = (
         <div style={s}>
           <strong>sqlite</strong>&nbsp;
@@ -1030,7 +1020,7 @@ async function makeQueryConnInfo(uuid: string) {
         </div>
       );
       break;
-    case 'redis':
+    case DataSourceKind.Redis:
       content = (
         <div style={s}>
           <strong>{config.conn_type}</strong>&nbsp;
@@ -1250,11 +1240,10 @@ function LoadStoreFileForQuery(props: {
 }
 type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
-const treeItemCommonStyle = { fontWeight: '600' } as CSSProperties;
+const treeItemCommonStyle = { fontWeight: '550' } as CSSProperties;
 export {
   modalStyle,
   DocsAndCount,
-  MongoDataViewModel,
   EditorBar,
   SimpleResizeEditor,
   editorInitHeight,

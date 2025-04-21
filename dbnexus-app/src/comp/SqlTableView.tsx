@@ -170,7 +170,6 @@ function EditInModal(props: { content: string; handleModify }) {
           ></Chip>
         ))}
       </Stack>
-      <Divider></Divider>
       <SimpleResizeEditor
         value={content}
         language={language}
@@ -180,7 +179,6 @@ function EditInModal(props: { content: string; handleModify }) {
           });
         }}
       ></SimpleResizeEditor>
-
       <Divider></Divider>
       <Stack spacing={1} direction="row">
         <Button
@@ -304,7 +302,6 @@ function SqlTableView(props: {
         pageSize,
         extra
       );
-      setLoading(false);
       await handleResp(resp);
       resp.fields.forEach((e) => {
         const width = columnWidths.getWidth(e.field);
@@ -312,6 +309,7 @@ function SqlTableView(props: {
           e['width'] = width;
         }
       });
+      setLoading(false);
       setResp(resp);
       if (showOK) {
         reloadOK(showNotification);
@@ -398,7 +396,6 @@ function SqlTableView(props: {
     handleReload(false);
   }, [page, pageSize, where, sort, allowFiltering]);
 
-  useEffect(() => {}, [sort]);
   useEffect(() => {
     setLastLoadTime(new Date());
   }, [resp]);
@@ -565,7 +562,7 @@ function SqlTableView(props: {
                 <Typography
                   sx={{
                     cursor: 'pointer',
-                    fontWeight: '800',
+                    fontWeight: '700',
                     fontSize: '0.9rem',
                     fontStyle: 'italic',
                     color: 'green',

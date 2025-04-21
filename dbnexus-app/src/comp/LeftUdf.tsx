@@ -206,7 +206,7 @@ function UdfMenu(props: {
   const handleDrop = async () => {
     let confirm = await secondConfirm({
       title: `Drop UDF '${udf}'`,
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;
@@ -218,7 +218,7 @@ function UdfMenu(props: {
         reload();
       })
       .catch((e) => {
-        showNotification('error', 'Drop udf Failure', e);
+        showNotification('error', 'Drop udf failure', e);
       });
   };
 
@@ -301,7 +301,7 @@ function CassandraAggregateMenu(props: {
   const handleDrop = async () => {
     let confirm = await secondConfirm({
       title: `Drop Aggregate '${agg}'`,
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;

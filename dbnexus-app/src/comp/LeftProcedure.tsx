@@ -1,5 +1,4 @@
 import {
-  Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -176,7 +175,7 @@ function ProcedureMenu(props: {
   const handleDrop = async () => {
     let confirm = await secondConfirm({
       title: `Drop Procedure '${procedure}'`,
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;
@@ -204,7 +203,7 @@ function ProcedureMenu(props: {
           </ListItemIcon>
           <ListItemText> Detail </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {

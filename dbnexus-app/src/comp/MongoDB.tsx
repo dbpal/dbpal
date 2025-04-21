@@ -63,7 +63,6 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import {
   DocsAndCount,
   modalStyle,
-  MongoDataViewModel,
   editorInitHeight,
   SettingContext,
   reloadOK,
@@ -84,6 +83,10 @@ import {
   VisiableContext,
 } from './helper';
 
+enum MongoDataViewModel {
+  List,
+  Object,
+}
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code|float32|int8)\b/;
 function mongoBsonAutoCompletion(): languages.CompletionList {

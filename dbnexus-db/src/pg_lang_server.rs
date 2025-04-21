@@ -711,7 +711,7 @@ pub(crate) const TYPES: &[&str] = &[
     "VOID",
 ];
 
-const PG_KEYWORDS: &[&str] = &[
+pub(crate) const PG_KEYWORDS: &[&str] = &[
     "ABORT",
     "ABS",
     "ABSENT",

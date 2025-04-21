@@ -9,10 +9,10 @@ use sqlx::{Postgres, Row};
 
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, CreateDatabaseExtra, CreateSchemaExtra, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListMaterializedView,
-    ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter,
 };
 use crate::helper::is_dangerous_sql_by_parser;
@@ -168,12 +168,73 @@ fn gen_show_sql(
 
     sql
 }
+pub(crate) const COCKROACH_DATA_TYPES: &'static [&'static str] = &[
+    "BIT",
+    "BIT[]",
+    "BOOL",
+    "BOOL[]",
+    "BYTES",
+    "BYTES[]",
+    "COLLATE",
+    "COLLATE[]",
+    "DATE",
+    "DATE[]",
+    "DECIMAL",
+    "DECIMAL[]",
+    "FLOAT",
+    "FLOAT[]",
+    "INET",
+    "INET[]",
+    "INT",
+    "INT[]",
+    "INTERVAL",
+    "INTERVAL[]",
+    "NULL",
+    "NULL[]",
+    "JSONB",
+    "JSONB[]",
+    "OID",
+    "OID[]",
+    "SERIAL",
+    "STRING",
+    "STRING[]",
+    "TIME",
+    "TIME[]",
+    "TIMETZ",
+    "TIMETZ[]",
+    "TIMESTAMP",
+    "TIMESTAMP[]",
+    "TIMESTAMPTZ",
+    "TIMESTAMPTZ[]",
+    "TSQUERY",
+    "TSVECTOR",
+    "UUID",
+    "VECTOR",
+];
 
 #[async_trait::async_trait]
 
 impl SchemaTrait for CockRoachDB {
+    async fn add_table_column(
+        &self, table: &str, name: &str, col: ColumnType,
+    ) -> anyhow::Result<()> {
+        self.pg.add_table_column(table, name, col).await
+    }
+
+    async fn modify_table_column(
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
+    ) -> anyhow::Result<()> {
+        self.pg
+            .modify_table_column(table, old_name, new_name, typ)
+            .await
+    }
+
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+        self.pg.drop_table_column(table, col).await
+    }
+
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        self.pg.list_data_types()
+        anyhow::Ok(COCKROACH_DATA_TYPES)
     }
 
     async fn export_table_or_view(
@@ -420,6 +481,55 @@ mod tests {
     use super::*;
     use crate::db::{IndexKind, UdfOrProcedureExtraParameter};
     use crate::enable_test_log;
+
+    #[tokio::test]
+    async fn test_table_column() {
+        let db = make_test_object().await;
+        let table_name = "test_column";
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = db.open_connection().await.unwrap();
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_column
+                (
+                    id INT PRIMARY KEY                     -- 主键，无符号32位整数
+                )
+                "#,
+            )
+            .await
+            .unwrap();
+
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "INT2".to_string(),
+                nullness: Some("null".to_string()),
+                after: None,
+                default_value: Some("1".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+        db.modify_table_column(
+            table_name,
+            "name",
+            "name2",
+            Some(ColumnType {
+                typ: "INT4".to_string(),
+                nullness: Some("null".to_string()),
+                after: None,
+                default_value: Some("2".to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        db.drop_table_column(table_name, "name2").await.unwrap();
+    }
 
     #[tokio::test]
     async fn test_index() {

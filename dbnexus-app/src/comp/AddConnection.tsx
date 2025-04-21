@@ -280,19 +280,20 @@ function Database(props: {
   }
   return (
     <Stack>
-      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
-        {candidates.map((e) => (
-          <Button
-            key={e}
-            onClick={() => {
-              setDatabase(e);
-            }}
-          >
-            {e}
-          </Button>
-        ))}
-      </Stack>
-
+      {candidates.length > 0 && (
+        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+          {candidates.map((e) => (
+            <Button
+              key={e}
+              onClick={() => {
+                setDatabase(e);
+              }}
+            >
+              {e}
+            </Button>
+          ))}
+        </Stack>
+      )}
       <Stack direction="row">
         <TextField
           fullWidth
@@ -312,19 +313,20 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
 
   return (
     <Stack>
-      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
-        {candidates.map((e) => (
-          <Button
-            key={e}
-            onClick={() => {
-              setSchema(e);
-            }}
-          >
-            {e}
-          </Button>
-        ))}
-      </Stack>
-
+      {candidates.length > 0 && (
+        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+          {candidates.map((e) => (
+            <Button
+              key={e}
+              onClick={() => {
+                setSchema(e);
+              }}
+            >
+              {e}
+            </Button>
+          ))}
+        </Stack>
+      )}
       <Stack direction="row">
         <TextField
           size="small"
@@ -718,7 +720,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   useEffect(() => {
     let config = makeConfig();
     if (connectionType === DataSourceKind.Oracle) {
-      // TODO oracle have bug rigthnow
+      // TODO oracle have bug right now
       return;
     }
     if (config) {

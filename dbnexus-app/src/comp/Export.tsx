@@ -17,12 +17,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { DataSourceKind } from './helper';
 function ExportView(props: {
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
-  support_kind: string[];
+  supportKind: string[];
   handleClose;
   supportCsvHeader: boolean;
 }) {
-  const { exportOP, handleClose, support_kind, supportCsvHeader } = props;
-  const [kind, setKind] = useState('csv');
+  const { exportOP, handleClose, supportKind, supportCsvHeader } = props;
+  const [kind, setKind] = useState(supportKind[0]);
   const [includeCsvHeader, setIncluCsvdeHeader] = useState(false);
   const [delimiter, setDelimiter] = useState(',');
   const [pretty, setPretty] = useState(true);
@@ -78,7 +78,7 @@ function ExportView(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
-        {support_kind.map((e) => (
+        {supportKind.map((e) => (
           <Chip
             disabled={kind == e}
             onClick={() => {
@@ -179,10 +179,10 @@ function ExportTableOrView(props: {
   handleClose;
   uuid: string;
   name: string;
-  support_kind: string[];
+  supportKind: string[];
   kind: DataSourceKind;
 }) {
-  let { handleClose, uuid, name, support_kind, kind } = props;
+  let { handleClose, uuid, name, supportKind, kind } = props;
 
   return (
     <ExportView
@@ -195,7 +195,7 @@ function ExportTableOrView(props: {
           kind,
         });
       }}
-      support_kind={support_kind}
+      supportKind={supportKind}
       supportCsvHeader={
         kind == DataSourceKind.LibSql ||
         kind == DataSourceKind.Sqlite ||

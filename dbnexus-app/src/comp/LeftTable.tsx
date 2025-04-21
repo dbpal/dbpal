@@ -224,7 +224,7 @@ function DropTable(props: {
 
   const handleDrop = async () => {
     const confirm = await secondConfirm({
-      confirmText: 'drop',
+      confirmText: 'Drop',
       title: `are u sure to drop table '${table}'`,
     });
     if (!confirm) {
@@ -254,6 +254,7 @@ function DropTable(props: {
       case DataSourceKind.Sqlite:
       case DataSourceKind.Cockroach:
       case DataSourceKind.LibSql:
+      case DataSourceKind.Oracle:
         return true;
       default:
         return false;
@@ -1029,7 +1030,7 @@ function TableMenu(props: {
               handleClose={() => {
                 setShowExport(false);
               }}
-              support_kind={getExportKind()}
+              supportKind={getExportKind()}
               kind={kind}
             ></ExportTableOrView>
           </Box>
@@ -1135,7 +1136,7 @@ function RenameTable(props: {
     const confirm = await secondConfirm({
       title: 'rename table',
       content: `are u sure going to rename table '${table}'`,
-      confirmText: 'rename',
+      confirmText: 'Rename',
     });
     if (!confirm) {
       return;
