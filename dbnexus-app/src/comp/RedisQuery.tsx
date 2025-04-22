@@ -93,7 +93,7 @@ function RedisQuery(props: {
     <SplitPane
       split="vertical"
       minSize={50}
-      defaultSize={650}
+      defaultSize="40vw"
       step={5}
       onDragStarted={() => {
         setIsDragging(true);

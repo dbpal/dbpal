@@ -116,7 +116,6 @@ pub enum DBConnectionConfig {
         conn: FireBirdConfig,
         name: String,
     },
-
     DuckDB {
         #[serde(flatten)]
         conn: DuckDBConfig,
@@ -125,6 +124,15 @@ pub enum DBConnectionConfig {
 }
 
 impl DBConnectionConfig {
+    pub fn need_password(&mut self) -> bool {
+        match self {
+            DBConnectionConfig::Sqlite { .. } => false,
+            DBConnectionConfig::DuckDB { .. } => false,
+            DBConnectionConfig::LibSql { .. } => false,
+            _ => true,
+        }
+    }
+
     pub fn set_password(&mut self, pass: String) {
         match self {
             DBConnectionConfig::Sqlite { .. } => {}
@@ -152,7 +160,9 @@ impl DBConnectionConfig {
             DBConnectionConfig::Oracle { conn, .. } => {
                 conn.password = pass;
             }
-            DBConnectionConfig::FireBird { conn, .. } => conn.password = pass,
+            DBConnectionConfig::FireBird { conn, .. } => {
+                conn.password = pass;
+            }
             DBConnectionConfig::Cassandra { conn, .. } => conn.password = Some(pass),
             DBConnectionConfig::DuckDB { .. } => {}
             DBConnectionConfig::ClickHouse { conn, .. } => conn.password = Some(pass),

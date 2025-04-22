@@ -1809,10 +1809,9 @@ impl MsSqlServerDB {
     pub(crate) async fn get_conn<'a>(
         &'a self,
     ) -> anyhow::Result<bb8::PooledConnection<'a, bb8_tiberius::ConnectionManager>> {
-        let conn = self.pool.get().await?;
-        // if let Some(s) = self.config.schema.as_ref() {
-        //     set_current_schema(conn.deref_mut(), s).await?;
-        // }
+        let conn =
+            tokio::time::timeout(Duration::from_secs(5), async { self.pool.get().await }).await??;
+
         anyhow::Ok(conn)
     }
 
@@ -1921,6 +1920,7 @@ impl CatalogTrait for MsSqlServerDB {
     }
 }
 
+#[allow(dead_code)]
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> MsSqlServerDB {
     let ss = MsSqlServerDB::new(SqlServerDBConfig {
@@ -1943,6 +1943,7 @@ impl ReadOnlyTrait for MsSqlServerDB {
         self.config.read_only
     }
 }
+
 #[cfg(test)]
 mod tests {
 

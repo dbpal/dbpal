@@ -41,7 +41,7 @@ class MongoBsonObject {
 }
 
 function trimQuoteMark(str: string): string {
-  if (str[0] == '"' || str[0] == "'" || str[0] == '`') {
+  if (str[0] === '"' || str[0] === "'" || str[0] === '`') {
     return str.substring(1, str.length - 1);
   } else {
     return str;

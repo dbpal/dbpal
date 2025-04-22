@@ -450,9 +450,9 @@ class BsonExtraDataType {
     return BSON.Binary.fromFloat32Array(array)
   }
 }
-    var db : IMongoDB;
-    var logger : ILogger;
-    var bsonExtraDataType : BsonExtraDataType
+    let db : IMongoDB;
+    let logger : ILogger;
+    let bsonExtraDataType : BsonExtraDataType
   
   
         `);

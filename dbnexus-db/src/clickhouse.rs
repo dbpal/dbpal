@@ -673,6 +673,7 @@ impl r2d2::ManageConnection for PoolManager {
         if let Some(db) = self.config.db.as_ref() {
             client = client.with_database(db);
         }
+
         Ok(client)
     }
 

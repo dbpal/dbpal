@@ -404,7 +404,11 @@ function SqlQuery(props: {
           </Paper>
         )}
         {connectInfo}
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: 'center', flexWrap: 'wrap' }}
+        >
           <Tooltip title="execute">
             <IconButton
               loading={loading}

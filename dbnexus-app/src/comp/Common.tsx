@@ -594,15 +594,16 @@ function ConnConfigInfo(props: { uuid }) {
       switch (config.conn_type) {
         case DataSourceKind.Mysql:
         case DataSourceKind.MariaDB:
+        case DataSourceKind.TiDB:
         case DataSourceKind.Postgres:
         case DataSourceKind.Cockroach:
         case DataSourceKind.Redis:
         case DataSourceKind.Mongo:
-        case DataSourceKind.TiDB:
         case DataSourceKind.Cassandra:
         case DataSourceKind.Oracle:
         case DataSourceKind.ClickHouse:
         case DataSourceKind.FireBird:
+        case DataSourceKind.MsSql:
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,
