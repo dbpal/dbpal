@@ -676,9 +676,8 @@ pub enum CreateSchemaExtra {
 
 #[async_trait::async_trait]
 pub trait ExportQueryResult: BackendName + Send + Sync + 'static {
-    fn clone(&self) -> Box<dyn ExportQueryResult> {
-        unreachable!("missing implementation")
-    }
+    fn clone(&self) -> Box<dyn ExportQueryResult>;
+
     async fn export_query_result(
         &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {

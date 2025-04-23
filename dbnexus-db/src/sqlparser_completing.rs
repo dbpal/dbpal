@@ -162,7 +162,7 @@ impl CompletionStament {
             }
             ShowCreateObject::Function => self.c_on_function(&name).await,
             ShowCreateObject::Procedure => self.c_on_procedure(&name).await,
-            ShowCreateObject::Table => self.c_on_table(&name).await,
+            ShowCreateObject::Table => self.c_on_table(&name, false).await,
             ShowCreateObject::Trigger => self.c_on_mysql_trigger(&name).await,
             ShowCreateObject::View => self.c_on_view(&name).await,
         }
@@ -221,7 +221,7 @@ impl CompletionStament {
             return;
         }
         match typ {
-            ObjectType::Table => self.c_on_table(name).await,
+            ObjectType::Table => self.c_on_table(name, false).await,
             ObjectType::View => self.c_on_view(name).await,
             ObjectType::Index => self.c_on_index(name).await,
             ObjectType::Schema | ObjectType::Database => {
@@ -297,7 +297,7 @@ impl CompletionStament {
             return;
         }
         match object_type {
-            CommentObject::Table => self.c_on_table(name).await,
+            CommentObject::Table => self.c_on_table(name, false).await,
             CommentObject::Schema | CommentObject::Database => {
                 // c_on_db_schema 假设形式是 database.schema.table
                 // 但是在这种情况下 ident肯定没这么长
@@ -509,7 +509,7 @@ impl CompletionStament {
     pub(crate) async fn c_on_alert_table(
         &mut self, table_name: &ObjectName, operations: &Vec<AlterTableOperation>,
     ) {
-        self.c_on_table(table_name).await;
+        self.c_on_table(table_name, false).await;
         if self.finished() {
             return;
         }
@@ -567,7 +567,7 @@ impl CompletionStament {
                                     return;
                                 }
                             }
-                            self.c_on_table(foreign_table).await;
+                            self.c_on_table(foreign_table, false).await;
                             if self.finished() {
                                 return;
                             }
@@ -914,7 +914,7 @@ impl CompletionStament {
                         .collect::<Vec<_>>(),
                 );
 
-                self.c_on_table(&table).await;
+                self.c_on_table(&table, false).await;
                 if self.finished() {
                     return;
                 }
@@ -1440,7 +1440,7 @@ impl CompletionStament {
             }
             Expr::QualifiedWildcard(table, _) => {
                 // nothing here
-                self.c_on_table(table).await;
+                self.c_on_table(table, false).await;
             }
             Expr::OuterJoin(expr) => {
                 Box::pin(self.c_on_expr(&expr)).await;
@@ -1653,12 +1653,12 @@ impl CompletionStament {
     pub(crate) async fn c_on_table_or_view(&mut self, name: &ObjectName) {
         self.c_on_view(name).await;
         let mut x1 = self.result.take().unwrap_or_default();
-        self.c_on_table(name).await;
+        self.c_on_table(name, false).await;
         x1.extend(self.result.take().unwrap_or_default().into_iter());
         self.result = Some(x1);
     }
 
-    pub(crate) async fn c_on_table(&mut self, table_name: &ObjectName) {
+    pub(crate) async fn c_on_table(&mut self, table_name: &ObjectName, incluede_fn: bool) {
         self.c_on_db_schema(table_name).await;
         if self.finished() {
             return;
@@ -1709,12 +1709,15 @@ impl CompletionStament {
             })
             .collect::<Vec<_>>();
 
-        items.extend(
-            self.helper
-                .list_function(None, None, false)
-                .await
-                .unwrap_or_default(),
-        );
+        if incluede_fn {
+            items.extend(
+                self.helper
+                    .list_function(None, None, false)
+                    .await
+                    .unwrap_or_default(),
+            );
+        }
+
         self.result = Some(items);
     }
 
@@ -1941,7 +1944,7 @@ impl CompletionStament {
                 SelectItem::QualifiedWildcard(select, _wildcard_additional_options) => {
                     match select {
                         SelectItemQualifiedWildcardKind::ObjectName(object_name) => {
-                            self.c_on_table(object_name).await;
+                            self.c_on_table(object_name, false).await;
                             if self.finished() {
                                 return anyhow::Ok(vec![]);
                             }
@@ -2188,7 +2191,6 @@ impl CompletionStament {
     }
 
     pub(crate) async fn c_on_table_factor(&mut self, f: &TableFactor, s: &mut Scope) {
-        #[allow(unused)]
         match f {
             TableFactor::Table {
                 name,
@@ -2198,7 +2200,7 @@ impl CompletionStament {
                 partitions,
                 ..
             } => {
-                self.c_on_table(name).await;
+                self.c_on_table(name, true).await;
                 if self.finished() {
                     return;
                 }
@@ -2231,11 +2233,7 @@ impl CompletionStament {
                 if let Some(args) = args {
                     for a in args.args.iter() {
                         match a {
-                            FunctionArg::Named {
-                                name,
-                                arg,
-                                operator,
-                            } => {
+                            FunctionArg::Named { name, arg, .. } => {
                                 if self.in_pos(&name.span) {
                                     self.set_on_def();
                                     return;
@@ -2256,10 +2254,9 @@ impl CompletionStament {
                     self.c_on_expr(h).await;
                 }
             }
+
             TableFactor::Derived {
-                lateral,
-                subquery,
-                alias,
+                subquery, alias, ..
             } => {
                 let cols = self
                     .c_on_query(&subquery)
@@ -2287,7 +2284,7 @@ impl CompletionStament {
                     });
                 }
             }
-            TableFactor::TableFunction { expr, alias } => {
+            TableFactor::TableFunction { expr: _, alias } => {
                 if let Some(alias) = alias {
                     s.enter_temp_table(
                         alias.name.clone(),

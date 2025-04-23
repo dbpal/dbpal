@@ -422,10 +422,8 @@ function SimpleResizeEditor(props: {
 }) {
   let { language, value, onMount, minHeigth, barLeft, style, wordWrap } = props;
   const [pos, setPos] = useState<Position>(null);
-  let height = editorInitHeight(
-    value,
-    useContext(SettingContext).editorFontSize * 1.2
-  );
+  const setting = useContext(SettingContext);
+  let height = editorInitHeight(value, setting.editorFontSize * 1.2);
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
   }
@@ -440,7 +438,7 @@ function SimpleResizeEditor(props: {
     },
     [onMount]
   );
-  const setting = useContext(SettingContext);
+
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.editorFontSize,

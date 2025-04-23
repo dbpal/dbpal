@@ -178,6 +178,7 @@ function EditInModal(props: { content: string; handleModify }) {
             setValue(editor.getValue());
           });
         }}
+        minHeigth={350}
       ></SimpleResizeEditor>
       <Divider></Divider>
       <Stack spacing={1} direction="row">

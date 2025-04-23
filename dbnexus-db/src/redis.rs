@@ -29,7 +29,7 @@ use crate::redis_lang_server::RedisDialet;
 #[derive(Clone)]
 pub struct RedisDB {
     config: RedisDBConfig,
-    m: ConnectionManager,
+    conn_manager: ConnectionManager,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
     query_logs: QueryLogMap,
@@ -44,7 +44,7 @@ impl RedisDB {
         let m = redis::aio::ConnectionManager::new(client).await?;
         anyhow::Ok(Self {
             config,
-            m,
+            conn_manager: m,
             query_connections: Default::default(),
             created_database: Default::default(),
             query_logs: Default::default(),
@@ -89,25 +89,6 @@ impl RedisDB {
                 .collect(),
             None,
         )?)
-    }
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef)]
-#[serde(tag = "redis_byte_or_str_arg", rename_all = "lowercase")]
-pub enum RedisBytesOrStringArg {
-    Bytes(Vec<u8>),
-    String(String),
-}
-
-impl redis::ToRedisArgs for RedisBytesOrStringArg {
-    fn write_redis_args<W>(&self, out: &mut W)
-    where
-        W: ?Sized + redis::RedisWrite,
-    {
-        match self {
-            Self::Bytes(x) => x.as_slice().write_redis_args(out),
-            Self::String(s) => s.write_redis_args(out),
-        }
     }
 }
 
@@ -675,7 +656,11 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 
-impl ExportQueryResult for RedisDB {}
+impl ExportQueryResult for RedisDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
+}
 
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
@@ -687,7 +672,7 @@ impl SchemaTrait for RedisDB {
 
     async fn duplicate_table(&self, key: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
-            anyhow::bail!(format!("table '{}' already exists", dup));
+            anyhow::bail!(format!("key '{}' already exists", dup));
         }
 
         let mut conn = self.get_conn().await?;
@@ -704,20 +689,20 @@ impl SchemaTrait for RedisDB {
                 let size: isize = 100;
                 let iter = OffsetLimitIter::new(total, 100);
                 for x in iter {
-                    let list: Vec<String> = conn.lrange(key, x, x + size).await?;
+                    let list: Vec<Vec<u8>> = conn.lrange(key, x, x + size).await?;
                     let _: () = conn_set.rpush(dup, list).await?;
                 }
             }
             RedisType::Set => {
-                let mut iter = conn.sscan::<_, String>(key).await?.ready_chunks(100);
+                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?.ready_chunks(100);
                 while let Some(set) = iter.next().await {
                     let _: () = conn_set.sadd(dup, set).await?;
                 }
             }
 
             RedisType::Hash => {
-                let mut stream: AsyncIter<'_, String> = conn.hscan(key).await?;
-                let mut key = None as Option<String>;
+                let mut stream: AsyncIter<'_, Vec<u8>> = conn.hscan(key).await?;
+                let mut key = None as Option<Vec<u8>>;
                 while let Some(value) = stream.next().await {
                     match &key {
                         Some(key2) => {
@@ -731,8 +716,8 @@ impl SchemaTrait for RedisDB {
                 }
             }
             RedisType::Zset => {
-                let mut stream: AsyncIter<'_, String> = conn.zscan(key).await?;
-                let mut zkey = None as Option<String>;
+                let mut stream: AsyncIter<'_, Vec<u8>> = conn.zscan(key).await?;
+                let mut zkey = None as Option<Vec<u8>>;
 
                 while let Some(score) = stream.next().await {
                     match zkey {
@@ -1441,7 +1426,7 @@ impl RedisDB {
     }
 
     pub(crate) async fn get_conn(&self) -> anyhow::Result<redis::aio::ConnectionManager> {
-        anyhow::Ok(self.m.clone())
+        anyhow::Ok(self.conn_manager.clone())
     }
 }
 

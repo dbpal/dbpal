@@ -84,7 +84,11 @@ impl ReadOnlyTrait for MongoDB {
 }
 
 #[async_trait::async_trait]
-impl ExportQueryResult for MongoDB {}
+impl ExportQueryResult for MongoDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
+}
 #[async_trait::async_trait]
 impl DBTrait for MongoDB {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1245,7 +1249,7 @@ mod tests {
         let data = doc! {
             "_id": ObjectId::new(),
             "string_field": "Hello, world!",
-            "int_field": 123,
+            "int32_field": Bson::Int32(123),
             "float_field": 123.45,
             "bool_field": true,
             "date_field": DateTime::from_millis(now * 1_000), // MongoDB uses milliseconds since epoch

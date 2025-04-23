@@ -1418,6 +1418,19 @@ mod tests {
             .await
             .unwrap();
 
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+             CREATE TYPE address (
+                    zip_code text
+                );
+
+        "#,
+            )
+            .await
+            .unwrap();
+
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
