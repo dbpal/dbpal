@@ -357,7 +357,7 @@ const components: Components<
     styleOverrides: {
       root: {
         fontSize: '1rem',
-        fontWeight: '600',
+        fontWeight: '550',
       },
     },
   },

@@ -1,4 +1,5 @@
-import React, {
+import {
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -20,6 +21,10 @@ import {
   MenuList,
   ListItemIcon,
   ListItemText,
+  RadioGroup,
+  Radio,
+  FormControlLabel,
+  Chip,
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -30,7 +35,6 @@ import {
   reloadOK,
   SimpleResizeEditor,
 } from './Common.tsx';
-import RemoveIcon from '@mui/icons-material/Remove';
 
 import { types } from './ApiStruct.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -41,20 +45,15 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
-import HexEditor from 'react-hex-editor';
-import oneDarkPro from 'react-hex-editor/themes/oneDarkPro';
-import AddIcon from '@mui/icons-material/Add';
 
 import {
-  arrayToHex,
   calMenuStyle,
   ContextMenuContext,
   datagridContainerHeight,
   handleCopyToClipboard,
-  hexTryToUtf8,
+  hexToString,
+  hexTryToString,
   stringToHex,
-  stringToHexArray,
-  uint8ArrayToUtf8,
   VisiableContext,
 } from './helper.ts';
 import { pageSizeOptions } from './CommonComp.tsx';
@@ -98,29 +97,24 @@ function RedisAddList(props: {
   };
   return (
     <Stack spacing={1}>
-      <Box width="200px">
-        <FormControl fullWidth>
-          <InputLabel id="simple-select-label">Direction</InputLabel>
-          <Select
-            labelId="simple-select-label"
-            id="simple-select"
-            value={direction}
-            onChange={(e) => {
-              //@ts-ignore
-              setDirection(e.target.value);
-            }}
-            label=""
-          >
-            <MenuItem value="left">List head (LPUSH)</MenuItem>
-            <MenuItem value="right">List tail (RPUSH)</MenuItem>
-          </Select>
-        </FormControl>
-      </Box>
+      <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+        <Typography color="info"> direction: </Typography>
+        <RadioGroup
+          row
+          onChange={(_e, value) => {
+            //@ts-ignore
+            setDirection(value);
+          }}
+          value={direction}
+        >
+          <FormControlLabel value="left" control={<Radio />} label="head" />
+          <FormControlLabel value="right" control={<Radio />} label="tail" />
+        </RadioGroup>
+      </Stack>
+
       <RedisValueEditor
-        hexRows={17}
-        textRows={18}
         handleValue={(e) => setKey(e)}
-        jsonHeigth="60vh"
+        editorHeight="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -166,9 +160,7 @@ function RedisStringTable(props: {
         handleValue={(e) => {
           setNewConent(e);
         }}
-        textRows={22}
-        hexRows={0x17}
-        jsonHeigth="60vh"
+        editorHeight="60vh"
       ></RedisValueEditor>
 
       <Stack width="100px" direction="row" spacing={1}>
@@ -213,9 +205,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
         handleValue={(e) => {
           setKey(e);
         }}
-        hexRows={17}
-        textRows={18}
-        jsonHeigth="60vh"
+        editorHeight="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -258,25 +248,22 @@ function RedisAddHash(props: {
 
   return (
     <Stack spacing={1}>
-      <Typography variant="h5"> key </Typography>
       <RedisValueEditor
         oldValue={key}
         handleValue={(e) => {
           setKey(e);
         }}
-        hexRows={10}
-        textRows={10}
-        jsonHeigth="40vh"
+        editorHeight="40vh"
+        header=<span color="info"> key </span>
       ></RedisValueEditor>
-      <Typography variant="h5"> value </Typography>
+
       <RedisValueEditor
         oldValue={value}
         handleValue={(e) => {
           setValue(e);
         }}
-        hexRows={10}
-        textRows={10}
-        jsonHeigth="40vh"
+        editorHeight="40vh"
+        header=<span color="info"> value </span>
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -336,9 +323,7 @@ function RedisAddZset(props: {
         handleValue={(e) => {
           setKey(e);
         }}
-        hexRows={17}
-        textRows={18}
-        jsonHeigth="60vh"
+        editorHeight="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -386,19 +371,22 @@ function RedisEditHash(props: {
 
   return (
     <Stack spacing={1}>
-      <Typography variant="h5">key</Typography>
       <RedisValueEditor
         oldValue={newKey}
         handleValue={(e) => {
           setNewKey(e);
         }}
+        editorHeight="29vh"
+        header=<span color="info"> key </span>
       ></RedisValueEditor>
-      <Typography variant="h5">value</Typography>
+
       <RedisValueEditor
         oldValue={newValue}
         handleValue={(e) => {
           setNewValue(e);
         }}
+        editorHeight="29vh"
+        header=<span color="info"> value </span>
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -471,6 +459,7 @@ function RedisEditZset(props: {
         handleValue={(e) => {
           setNewKey(e);
         }}
+        editorHeight="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -493,41 +482,38 @@ function RedisEditModeSelect(props: {
 }) {
   const { mode, handleChange } = props;
   return (
-    <Box>
-      <FormControl fullWidth>
-        <InputLabel id="simple-select-label">viewer</InputLabel>
-        <Select
-          labelId="simple-select-label"
-          id="simple-select"
-          value={mode}
-          onChange={(e) => {
-            handleChange(e.target.value as RedisEditorMode);
-          }}
-          label="viewer"
-        >
-          <MenuItem value={RedisEditorMode.Text}>text</MenuItem>
-          <MenuItem value={RedisEditorMode.Json}>json</MenuItem>
-          <MenuItem value={RedisEditorMode.Hex}>hex</MenuItem>
-        </Select>
-      </FormControl>
-    </Box>
+    <FormControl fullWidth>
+      <InputLabel id="simple-select-label">viewer</InputLabel>
+      <Select
+        labelId="simple-select-label"
+        id="simple-select"
+        value={mode}
+        onChange={(e) => {
+          handleChange(e.target.value as RedisEditorMode);
+        }}
+        label="viewer"
+      >
+        <MenuItem value={RedisEditorMode.Text}>text</MenuItem>
+        <MenuItem value={RedisEditorMode.Json}>json</MenuItem>
+        <MenuItem value={RedisEditorMode.Hex}>hex</MenuItem>
+      </Select>
+    </FormControl>
   );
 }
 
 function RedisValueEditor(props: {
   oldValue?: string;
   handleValue: (a: string) => void;
-  hexRows?: number;
-  textRows?: number;
-  jsonHeigth?: string;
+  editorHeight: string;
+  header?: ReactNode;
 }) {
-  let { oldValue, handleValue, hexRows, textRows, jsonHeigth } = props;
-  const [newValue, setNewValue] = useState<string | Uint8Array>('');
+  let { oldValue, handleValue, editorHeight, header } = props;
+  const [newValue, setNewValue] = useState<string>('');
   const [editModel, setEditModel] = useState<RedisEditorMode>(
     RedisEditorMode.Text
   );
   useEffect(() => {
-    let value = hexTryToUtf8(oldValue);
+    let value = hexTryToString(oldValue);
     if (typeof value === 'string') {
       let isJson = false;
       try {
@@ -538,155 +524,72 @@ function RedisValueEditor(props: {
       } else {
         setEditModel(RedisEditorMode.Text);
       }
+      setNewValue(value);
     } else {
       setEditModel(RedisEditorMode.Hex);
+      setNewValue(oldValue);
     }
-    setNewValue(value);
   }, []);
-
   useEffect(() => {
-    if (editModel == RedisEditorMode.Hex && typeof newValue == 'string') {
-      setNewValue((e) => stringToHexArray(e as string));
+    switch (editModel) {
+      case RedisEditorMode.Hex:
+        handleValue(newValue);
+        break;
+      default:
+        handleValue(stringToHex(newValue));
     }
-    if (
-      (editModel == RedisEditorMode.Text ||
-        editModel == RedisEditorMode.Json) &&
-      typeof newValue == 'object'
-    ) {
-      setNewValue((e) => {
-        return uint8ArrayToUtf8(e);
-      });
-    }
-  }, [editModel]);
+  }, [newValue]);
 
-  const [addLength, setAddLength] = useState('1');
-  const [addLengthErr, setAddLengthErr] = useState(false);
-
-  const [nonce, setNonce] = useState(0);
-  // The callback facilitates updates to the source data.
-  const handleSetValue = React.useCallback(
-    (offset, value) => {
-      //@ts-ignore
-      newValue[offset] = value;
-      setNonce((v) => v + 1);
-      handleValue(arrayToHex(newValue as Uint8Array));
-    },
-    [newValue]
-  );
-
-  const handleAddLength = () => {
-    let length = parseInt(addLength);
-    if (isNaN(length)) {
-      setAddLengthErr(true);
-      return;
-    } else {
-      setAddLengthErr(false);
-    }
-    let array = new Uint8Array(newValue.length + length);
-    array.set(newValue as Uint8Array);
-    setNewValue(array);
-    handleValue(arrayToHex(array));
-  };
-  const handleDelLength = () => {
-    if (newValue.length == 0) {
-      return;
-    }
-    let array = newValue.slice(0, -1);
-    setNewValue(array);
-    handleValue(arrayToHex(array as Uint8Array));
-  };
-
-  if (!hexRows) {
-    hexRows = 5;
-  }
-  if (!textRows) {
-    textRows = 4;
-  }
-  if (!jsonHeigth) {
-    jsonHeigth = '20vh';
-  }
   return (
     <Stack spacing={1}>
-      <RedisEditModeSelect
-        mode={editModel}
-        handleChange={(mode) => {
-          setEditModel(mode);
-        }}
-      ></RedisEditModeSelect>
-      {editModel == RedisEditorMode.Text && (
-        <TextField
-          size="small"
-          value={newValue}
-          label="key"
-          multiline
-          rows={textRows}
-          onChange={(event) => {
-            setNewValue(event.target.value);
-            handleValue(stringToHex(event.target.value));
-          }}
-        ></TextField>
-      )}
-
-      {editModel == RedisEditorMode.Json && (
-        <SimpleResizeEditor
-          language="json"
-          // in some times newvalue is not change as a string
-          value={typeof newValue == 'object' ? '' : newValue}
-          onMount={(editor) => {
-            editor.onDidChangeModelContent(() => {
-              const value = editor.getValue();
-              setNewValue(value);
-              handleValue(stringToHex(value));
-            });
-          }}
-          style={{ height: jsonHeigth }}
-        ></SimpleResizeEditor>
-      )}
-
-      {editModel == RedisEditorMode.Hex && (
-        <Stack spacing={1}>
-          <HexEditor
-            rows={hexRows}
-            data={newValue}
-            nonce={nonce}
-            onSetValue={handleSetValue}
-            theme={{ hexEditor: oneDarkPro }}
-            showAscii={true}
-            showRowLabels={true}
-            showColumnLabels={true}
-            style={{ width: '100%', height: '100%' }}
-          ></HexEditor>
-
-          <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-            <TextField
-              size="small"
-              error={addLengthErr}
-              value={addLength}
-              label="length add to the hex"
-              onChange={(e) => {
-                setAddLength(e.target.value);
-              }}
-            ></TextField>
-            <Button
-              color="primary"
-              variant="contained"
-              onClick={handleAddLength}
-            >
-              <AddIcon></AddIcon>
-            </Button>
-
-            <Button
-              color="primary"
-              variant="contained"
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        {header}
+        {editModel == RedisEditorMode.Hex && (
+          <>
+            <span style={{ width: '18rem', textAlign: 'center' }}>
+              looking for hex editor???
+            </span>
+            <Chip
+              label="try hexed.it"
               onClick={() => {
-                handleDelLength();
+                openUrl('https://hexed.it/');
               }}
-            >
-              <RemoveIcon></RemoveIcon>
-            </Button>
-          </Stack>
-        </Stack>
-      )}
+            ></Chip>
+          </>
+        )}
+        <RedisEditModeSelect
+          mode={editModel}
+          handleChange={(mode) => {
+            if (
+              mode == RedisEditorMode.Hex &&
+              (editModel == RedisEditorMode.Json ||
+                editModel == RedisEditorMode.Text)
+            ) {
+              setNewValue(stringToHex(newValue));
+            }
+            if (
+              (mode == RedisEditorMode.Json || mode == RedisEditorMode.Text) &&
+              editModel == RedisEditorMode.Hex
+            )
+              setNewValue(hexToString(newValue));
+            setEditModel(mode);
+          }}
+        ></RedisEditModeSelect>
+      </Stack>
+
+      <SimpleResizeEditor
+        language={editModel == RedisEditorMode.Json ? 'json' : 'text'}
+        // in some times newvalue is not change as a string
+        value={typeof newValue == 'object' ? '' : newValue}
+        onMount={(editor) => {
+          editor.onDidChangeModelContent(() => {
+            const value = editor.getValue();
+            setNewValue(value);
+          });
+        }}
+        wordWrap="on"
+        style={{ height: editorHeight }}
+      ></SimpleResizeEditor>
     </Stack>
   );
 }
@@ -726,6 +629,7 @@ function RedisEditList(props: {
         handleValue={(e) => {
           setNewValue(e);
         }}
+        editorHeight="60vh"
       ></RedisValueEditor>
       <Stack direction="row" spacing={1}>
         <Button
@@ -776,6 +680,7 @@ function RedisEditSet(props: {
         handleValue={(e) => {
           setNewValue(e);
         }}
+        editorHeight="60vh"
       ></RedisValueEditor>
       <Stack direction="row" spacing={1}>
         <Button
@@ -793,7 +698,7 @@ function RedisEditSet(props: {
 }
 
 function redisRenderCell(p: any) {
-  let value = hexTryToUtf8(p);
+  let value = hexTryToString(p);
   if (typeof value === 'string') {
     return value;
   } else {
@@ -978,7 +883,7 @@ function RedisSetTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="80%">
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
                 try {
@@ -1051,7 +956,7 @@ function RedisListTableContextMenu(props: {
             setShowDel(null);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="40%">
             <Stack spacing={1}>
               <TextField
                 size="small"
@@ -1096,9 +1001,7 @@ function RedisListTable(props: {
   const { reloadOP, modifyOP, delOP } = props;
   const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
   const [resp2, setResp2] = useState<types.MuiDataGridData | null>(null);
-
   const [selectRow, setSelectRow] = useState<any>(null);
-
   const { showNotification } = useContext(NotificationContext);
   const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
   const [page, setPage] = useState(0);
@@ -1265,7 +1168,7 @@ function RedisListTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="80%">
             <RedisEditList
               modifyOP={async (index, newValue) => {
                 try {
@@ -1523,7 +1426,7 @@ function RedisZsetTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="80%">
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
                 try {
@@ -1636,7 +1539,7 @@ function RedisHashTable(props: {
       await delOP(del.key);
       showNotification('success', 'Delete OK');
     } catch (e) {
-      showNotification('error', 'delete failure', e);
+      showNotification('error', 'Delete failure', e);
     }
 
     handleReload(false);
@@ -1734,7 +1637,7 @@ function RedisHashTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="80%">
             <RedisEditHash
               modifyOP={async (req) => {
                 try {

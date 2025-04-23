@@ -106,7 +106,11 @@ function WelCome() {
               width="65rem"
               alt={e.name}
             />
-            <span>{e.name}</span>
+            <span
+              style={{ textShadow: '8px 8px 4px rgba(130, 130, 130, 0.5)' }}
+            >
+              {e.name}
+            </span>
           </Stack>
         ))}
       </Stack>

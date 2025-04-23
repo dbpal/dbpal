@@ -83,7 +83,7 @@ function delayedReturn(value: any, delay: number) {
 // 不然当成二进制数据来处理呢
 // 后台放回数据的时候都是 hex string模式
 
-function hexTryToUtf8(hex): string | Uint8Array {
+function hexTryToString(hex): string | Uint8Array {
   if (!hex) {
     return '';
   }
@@ -114,18 +114,7 @@ function uint8ArrayToUtf8(uint8Array): string {
 
 }
 
-function hexToUint8Array(hex) {
-  if (!hex) {
-    return new Uint8Array([]);
-  }
-  const bytes = [];
-
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes.push(parseInt(hex.substr(i, 2), 16));
-  }
-  return new Uint8Array(bytes);
-}
-function hexToUtf8(hex: string): string {
+function hexToString(hex: string): string {
   if (!hex) {
     return '';
   }
@@ -505,11 +494,8 @@ export {
   delayedReturn,
   voidTestFunction,
   generateRandomUint8Array,
-  hexTryToUtf8,
-  hexToUtf8,
-  hexToUint8Array,
-  stringToHexArray,
-  arrayToHex,
+  hexTryToString,
+  hexToString,
   stringToHex,
   backendCompletionItemToEditor,
   extractConfigNameFromUuid,

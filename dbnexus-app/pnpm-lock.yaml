@@ -83,9 +83,6 @@ importers:
       react-dom:
         specifier: ^19.0
         version: 19.1.0(react@19.1.0)
-      react-hex-editor:
-        specifier: ^0.3.0
-        version: 0.3.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.17(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
       react-icons:
         specifier: ^5.4.0
         version: 5.5.0(react@19.1.0)
@@ -1029,9 +1026,6 @@ packages:
   caniuse-lite@1.0.30001715:
     resolution: {integrity: sha512-7ptkFGMm2OAOgvZpwgA4yjQ5SQbrNVGdRjzH0pBdy1Fasvcr+KAeECmbCAECzTuDuoX0FCY8KzUxjf9+9kfZEw==}
 
-  classnames@2.5.1:
-    resolution: {integrity: sha512-saHYOzhIQs6wy2sVxTM6bUDsQO4F50V9RQ22qBpEdCW+I+/Wmke2HOl6lS6dTpdxVhb88/I6+Hs+438c3lfUow==}
-
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
     engines: {node: '>=6'}
@@ -1247,12 +1241,6 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  keycode-js@2.0.3:
-    resolution: {integrity: sha512-nGuOQ0zvYQFr0OOBOZS47e/ifsiuNz1pleQIFS+LX+udj3St6AvHpv55MI8DCre6Yg9D2CG/qqWbuAx7iQt9FQ==}
-
-  keycoder@1.1.1:
-    resolution: {integrity: sha512-a5/Z1O28CLLGtzOmknZPPCze8OG8ZavCYRxB/GGfqyHMP3i1zTyBHCp6oyCNA4S/0jhOWIK/Sb7Zbaof6XY+yw==}
-
   lines-and-columns@1.2.4:
     resolution: {integrity: sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==}
 
@@ -1266,9 +1254,6 @@ packages:
 
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
-
-  memoize-one@5.2.1:
-    resolution: {integrity: sha512-zYiwtZUcYyXKo/np96AGZAckk+FWWsUdJ3cHGGmld7+AhvcWmQyGCYUh1hc4Q/pkOhb65dQR/pqCyK0cOaHz4Q==}
 
   merge-stream@2.0.0:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
@@ -1360,12 +1345,6 @@ packages:
     peerDependencies:
       react: ^19.1.0
 
-  react-hex-editor@0.3.0:
-    resolution: {integrity: sha512-LnmNYK4OKDb4tgPGkC4j4ASwN1PRPvXy6cxlDawJnggAjp9eohtR728ohVkWolr/U67XgPH3657zmzoRg2WUFQ==}
-    peerDependencies:
-      react: ^16.8.6
-      styled-components: ^4.3.2
-
   react-icons@5.5.0:
     resolution: {integrity: sha512-MEFcXdkP3dLo8uumGI5xN3lDFNsRtrjbOEKDLD7yv76v4wpnEq2Lt2qeHaQOr34I/wPN3s3+N08WkQ+CW37Xiw==}
     peerDependencies:
@@ -1415,19 +1394,6 @@ packages:
     peerDependencies:
       react: '>=16.6.0'
       react-dom: '>=16.6.0'
-
-  react-virtualized-auto-sizer@1.0.26:
-    resolution: {integrity: sha512-CblNyiNVw2o+hsa5/49NH2ogGxZ+t+3aweRvNSq7TVjDIlwk7ir4lencEg5HxHeSzwNarSkNkiu0qJSOXtxm5A==}
-    peerDependencies:
-      react: ^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0 || ^19.0.0
-      react-dom: ^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  react-window@1.8.11:
-    resolution: {integrity: sha512-+SRbUVT2scadgFSWx+R1P754xHPEqvcfSfVX10QYg6POOz+WNgkN48pS+BtZNIMGiL1HYrSEiCkwsMS15QogEQ==}
-    engines: {node: '>8.0.0'}
-    peerDependencies:
-      react: ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-      react-dom: ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   react@19.1.0:
     resolution: {integrity: sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg==}
@@ -2441,8 +2407,6 @@ snapshots:
 
   caniuse-lite@1.0.30001715: {}
 
-  classnames@2.5.1: {}
-
   clsx@2.1.1: {}
 
   convert-source-map@1.9.0: {}
@@ -2649,10 +2613,6 @@ snapshots:
 
   json5@2.2.3: {}
 
-  keycode-js@2.0.3: {}
-
-  keycoder@1.1.1: {}
-
   lines-and-columns@1.2.4: {}
 
   loglevel@1.9.2: {}
@@ -2664,8 +2624,6 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
-
-  memoize-one@5.2.1: {}
 
   merge-stream@2.0.0: {}
 
@@ -2745,18 +2703,6 @@ snapshots:
       react: 19.1.0
       scheduler: 0.26.0
 
-  react-hex-editor@0.3.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.17(react-dom@19.1.0(react@19.1.0))(react@19.1.0)):
-    dependencies:
-      classnames: 2.5.1
-      keycode-js: 2.0.3
-      keycoder: 1.1.1
-      react: 19.1.0
-      react-virtualized-auto-sizer: 1.0.26(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      react-window: 1.8.11(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      styled-components: 6.1.17(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-    transitivePeerDependencies:
-      - react-dom
-
   react-icons@5.5.0(react@19.1.0):
     dependencies:
       react: 19.1.0
@@ -2802,18 +2748,6 @@ snapshots:
       dom-helpers: 5.2.1
       loose-envify: 1.4.0
       prop-types: 15.8.1
-      react: 19.1.0
-      react-dom: 19.1.0(react@19.1.0)
-
-  react-virtualized-auto-sizer@1.0.26(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
-    dependencies:
-      react: 19.1.0
-      react-dom: 19.1.0(react@19.1.0)
-
-  react-window@1.8.11(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
-    dependencies:
-      '@babel/runtime': 7.27.0
-      memoize-one: 5.2.1
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
 

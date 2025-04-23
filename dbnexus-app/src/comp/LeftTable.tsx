@@ -68,6 +68,7 @@ import {
   UuidContext,
   handleCopyToClipboard,
 } from './helper';
+import { FaKey } from 'react-icons/fa';
 import { MenuRefresh } from './CommonComp';
 
 import { TableStructure } from './TableStructure';
@@ -1320,8 +1321,7 @@ function RedisTables(prpos: { schema?: string }) {
           });
         }}
       >
-        <TableViewIcon> </TableViewIcon>
-
+        <FaKey> </FaKey>
         {tables && tables.has_more ? (
           <Tooltip title={`result exceed ${max},some result are omited`}>
             <Typography color="error">keys</Typography>

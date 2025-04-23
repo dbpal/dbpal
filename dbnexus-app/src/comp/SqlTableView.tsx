@@ -562,7 +562,7 @@ function SqlTableView(props: {
                 <Typography
                   sx={{
                     cursor: 'pointer',
-                    fontWeight: '700',
+                    fontWeight: '600',
                     fontSize: '0.9rem',
                     fontStyle: 'italic',
                     color: 'green',

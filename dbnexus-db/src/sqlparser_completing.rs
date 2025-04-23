@@ -1438,8 +1438,9 @@ impl CompletionStament {
             Expr::Wildcard(..) => {
                 // nothing here
             }
-            Expr::QualifiedWildcard(..) => {
+            Expr::QualifiedWildcard(table, _) => {
                 // nothing here
+                self.c_on_table(table).await;
             }
             Expr::OuterJoin(expr) => {
                 Box::pin(self.c_on_expr(&expr)).await;
