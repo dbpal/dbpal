@@ -1134,8 +1134,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"PRAGMA user_version;
-12 user_version"#,
+            r#"SELECT e.id AS EmployeeID,  e.name AS EmployeeName,  d.name AS DepartmentName FROM employees AS e JOIN departments AS d ON e.department_id = d.id;
+9 e"#,
             &db,
             false,
         )

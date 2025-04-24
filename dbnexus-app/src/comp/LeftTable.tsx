@@ -18,7 +18,6 @@ import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
 import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { IoConstructOutline } from 'react-icons/io5';
-import { FaListOl } from 'react-icons/fa';
 
 import {
   Box,
@@ -36,7 +35,6 @@ import {
   Switch,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
 
 import { TabContent } from './Tabs';
@@ -68,9 +66,7 @@ import {
   UuidContext,
   handleCopyToClipboard,
 } from './helper';
-import { FaKey } from 'react-icons/fa';
 import { MenuRefresh } from './CommonComp';
-
 import { TableStructure } from './TableStructure';
 
 enum TablesType {
@@ -1231,25 +1227,18 @@ function RedisTables(prpos: { schema?: string }) {
   const makeOneKind = (
     idPrefix: string,
     tables: string[],
-
     typ: RedisTableType
   ) => {
     let name;
-    //@ts-ignore
-    let icon;
-
     switch (typ) {
       case RedisTableType.String:
         name = 'string';
-
         break;
       case RedisTableType.List:
         name = 'list';
-        icon = <FaListOl></FaListOl>;
         break;
       case RedisTableType.Set:
         name = 'set';
-        icon = <span>{'{...}'}</span>;
         break;
       case RedisTableType.Zset:
         name = 'zset';
@@ -1265,8 +1254,19 @@ function RedisTables(prpos: { schema?: string }) {
           spacing={1}
           direction="row"
           sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+          onContextMenu={(e) => {
+            setUpMenu({
+              content: (
+                <Paper>
+                  <MenuList>
+                    <MenuRefresh reload={handleReload}></MenuRefresh>
+                  </MenuList>
+                </Paper>
+              ),
+              style: calMenuStyle(e, 70),
+            });
+          }}
         >
-          {/* <span>{icon} </span> */}
           <span>{name}</span>
         </Stack>
       >
@@ -1302,39 +1302,7 @@ function RedisTables(prpos: { schema?: string }) {
 
   let { setUpMenu } = useContext(ContextMenuContext);
   return (
-    <TreeItem
-      itemId={getPrefix()}
-      label=<Stack
-        spacing={1}
-        direction="row"
-        style={{ ...treeItemCommonStyle }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={handleReload}></MenuRefresh>
-                </MenuList>
-              </Paper>
-            ),
-            style: calMenuStyle(e, 70),
-          });
-        }}
-      >
-        <FaKey> </FaKey>
-        {tables && tables.has_more ? (
-          <Tooltip title={`result exceed ${max},some result are omited`}>
-            <Typography color="error">keys</Typography>
-          </Tooltip>
-        ) : (
-          <span>keys</span>
-        )}
-
-        {loading && (
-          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-        )}
-      </Stack>
-    >
+    <>
       <TreeItem
         itemId={filterTreeID}
         label=<Stack
@@ -1344,8 +1312,16 @@ function RedisTables(prpos: { schema?: string }) {
             setShowEditFilter(true);
           }}
         >
-          filter:
-          <em> {filter} </em>
+          {tables && tables.has_more ? (
+            <Tooltip title={`result exceed ${max},some result are omited`}>
+              <em style={{ color: 'red' }}> filter:{filter} </em>
+            </Tooltip>
+          ) : (
+            <em> filter:{filter} </em>
+          )}
+          {loading && (
+            <CircularProgress size={progressBarSizeSmall}></CircularProgress>
+          )}
         </Stack>
       ></TreeItem>
       {tables &&
@@ -1398,7 +1374,7 @@ function RedisTables(prpos: { schema?: string }) {
           </Box>
         </Modal>
       )}
-    </TreeItem>
+    </>
   );
 }
 

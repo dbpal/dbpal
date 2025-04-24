@@ -463,7 +463,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="export  query result of selected statement">
+          <Tooltip title="export  query result to a file">
             <IconButton
               disabled={loading || conn == null}
               onClick={() => {

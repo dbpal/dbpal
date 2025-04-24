@@ -1493,6 +1493,7 @@ mod tests {
         println!("{:?}", ret);
     }
 
+    #[ignore = "example_table may not exists"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_table() {
         let db = make_test_object();

@@ -6,7 +6,7 @@ use sqlparser::ast::{ColumnOption, *};
 
 use crate::language_server::{CompletionItem, CompletionKind};
 use crate::sqlparser_completion::{
-    CompletionStament, FromTableOrTemp, NearNestTableNamed, Scope, ScopesGuard, TempTable,
+    CompletionStatement, FromTableOrTemp, NearNestTableNamed, Scope, ScopesDropGuard, TempTable,
     TempTableColumn, ThisTableEnum,
 };
 
@@ -53,7 +53,7 @@ impl Into<CompletionKind> for CommentObject {
     }
 }
 
-impl CompletionStament {
+impl CompletionStatement {
     pub(crate) async fn c_on_duck_extension(&mut self, name: &Ident, installed: Option<bool>) {
         if !self.in_pos(&name.span) {
             return;
@@ -162,7 +162,7 @@ impl CompletionStament {
             }
             ShowCreateObject::Function => self.c_on_function(&name).await,
             ShowCreateObject::Procedure => self.c_on_procedure(&name).await,
-            ShowCreateObject::Table => self.c_on_table(&name, false).await,
+            ShowCreateObject::Table => self.c_on_table(&name).await,
             ShowCreateObject::Trigger => self.c_on_mysql_trigger(&name).await,
             ShowCreateObject::View => self.c_on_view(&name).await,
         }
@@ -221,7 +221,7 @@ impl CompletionStament {
             return;
         }
         match typ {
-            ObjectType::Table => self.c_on_table(name, false).await,
+            ObjectType::Table => self.c_on_table(name).await,
             ObjectType::View => self.c_on_view(name).await,
             ObjectType::Index => self.c_on_index(name).await,
             ObjectType::Schema | ObjectType::Database => {
@@ -297,7 +297,7 @@ impl CompletionStament {
             return;
         }
         match object_type {
-            CommentObject::Table => self.c_on_table(name, false).await,
+            CommentObject::Table => self.c_on_table(name).await,
             CommentObject::Schema | CommentObject::Database => {
                 // c_on_db_schema 假设形式是 database.schema.table
                 // 但是在这种情况下 ident肯定没这么长
@@ -506,10 +506,33 @@ impl CompletionStament {
         }
     }
 
+    pub(crate) async fn c_on_clickhouse_partition(
+        &mut self, table_name: &ObjectName, p: &Partition,
+    ) {
+        match p {
+            Partition::Identifier(ident) => self.c_on_column(table_name, ident).await,
+            Partition::Expr(expr) => {
+                self.c_on_expr(expr).await;
+            }
+            Partition::Part(expr) => {
+                self.c_on_expr(expr).await;
+            }
+
+            Partition::Partitions(exprs) => {
+                for expr in exprs.iter() {
+                    self.c_on_expr(expr).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     pub(crate) async fn c_on_alert_table(
         &mut self, table_name: &ObjectName, operations: &Vec<AlterTableOperation>,
     ) {
-        self.c_on_table(table_name, false).await;
+        self.c_on_table(table_name).await;
         if self.finished() {
             return;
         }
@@ -567,7 +590,7 @@ impl CompletionStament {
                                     return;
                                 }
                             }
-                            self.c_on_table(foreign_table, false).await;
+                            self.c_on_table(foreign_table).await;
                             if self.finished() {
                                 return;
                             }
@@ -664,14 +687,14 @@ impl CompletionStament {
                 AlterTableOperation::DropColumn { column_name, .. } => {
                     self.c_on_column(table_name, column_name).await;
                 }
-                AlterTableOperation::AttachPartition { .. } => {
-                    // this is a ClickHouse-specific operation
+                AlterTableOperation::AttachPartition { partition } => {
+                    self.c_on_clickhouse_partition(table_name, partition).await;
                 }
-                AlterTableOperation::DetachPartition { .. } => {
-                    //  this is a ClickHouse-specific operation
+                AlterTableOperation::DetachPartition { partition } => {
+                    self.c_on_clickhouse_partition(table_name, partition).await;
                 }
-                AlterTableOperation::FreezePartition { .. } => {
-                    //  this is a ClickHouse-specific operation
+                AlterTableOperation::FreezePartition { partition, .. } => {
+                    self.c_on_clickhouse_partition(table_name, partition).await;
                 }
                 AlterTableOperation::UnfreezePartition { .. } => {
                     // this is a ClickHouse-specific operation
@@ -914,7 +937,7 @@ impl CompletionStament {
                         .collect::<Vec<_>>(),
                 );
 
-                self.c_on_table(&table, false).await;
+                self.c_on_table(&table).await;
                 if self.finished() {
                     return;
                 }
@@ -1440,7 +1463,7 @@ impl CompletionStament {
             }
             Expr::QualifiedWildcard(table, _) => {
                 // nothing here
-                self.c_on_table(table, false).await;
+                self.c_on_table(table).await;
             }
             Expr::OuterJoin(expr) => {
                 Box::pin(self.c_on_expr(&expr)).await;
@@ -1653,12 +1676,12 @@ impl CompletionStament {
     pub(crate) async fn c_on_table_or_view(&mut self, name: &ObjectName) {
         self.c_on_view(name).await;
         let mut x1 = self.result.take().unwrap_or_default();
-        self.c_on_table(name, false).await;
+        self.c_on_table(name).await;
         x1.extend(self.result.take().unwrap_or_default().into_iter());
         self.result = Some(x1);
     }
 
-    pub(crate) async fn c_on_table(&mut self, table_name: &ObjectName, incluede_fn: bool) {
+    pub(crate) async fn c_on_table(&mut self, table_name: &ObjectName) {
         self.c_on_db_schema(table_name).await;
         if self.finished() {
             return;
@@ -1695,10 +1718,10 @@ impl CompletionStament {
                 .unwrap_or_default(),
         );
         items.extend(self.scopes.tables().into_iter());
-        // here maybe we are suggrest database all schemas.
+        // here maybe we are suggest database all schemas.
         items.extend(self.helper.list_database().await.unwrap_or_default());
         items.extend(self.helper.list_schema(None).await.unwrap_or_default());
-        let mut items = items
+        let items = items
             .into_iter()
             .map(|x| {
                 CompletionItem {
@@ -1709,19 +1732,10 @@ impl CompletionStament {
             })
             .collect::<Vec<_>>();
 
-        if incluede_fn {
-            items.extend(
-                self.helper
-                    .list_function(None, None, false)
-                    .await
-                    .unwrap_or_default(),
-            );
-        }
-
         self.result = Some(items);
     }
 
-    pub(crate) async fn c_from_table(&mut self, from_table: &FromTable) -> ScopesGuard {
+    pub(crate) async fn c_from_table(&mut self, from_table: &FromTable) -> ScopesDropGuard {
         let tables = match from_table {
             FromTable::WithFromKeyword(vec) => vec,
             FromTable::WithoutKeyword(vec) => vec,
@@ -1729,7 +1743,9 @@ impl CompletionStament {
         self.c_on_table_with_joins(&tables[..]).await
     }
 
-    pub(crate) async fn c_on_table_with_joins(&mut self, joins: &[TableWithJoins]) -> ScopesGuard {
+    pub(crate) async fn c_on_table_with_joins(
+        &mut self, joins: &[TableWithJoins],
+    ) -> ScopesDropGuard {
         for (index, join_tables) in joins.iter().enumerate() {
             let scope = self.c_on_table_with_join(join_tables).await;
             if self.finished() {
@@ -1944,7 +1960,7 @@ impl CompletionStament {
                 SelectItem::QualifiedWildcard(select, _wildcard_additional_options) => {
                     match select {
                         SelectItemQualifiedWildcardKind::ObjectName(object_name) => {
-                            self.c_on_table(object_name, false).await;
+                            self.c_on_table(object_name).await;
                             if self.finished() {
                                 return anyhow::Ok(vec![]);
                             }
@@ -2200,7 +2216,27 @@ impl CompletionStament {
                 partitions,
                 ..
             } => {
-                self.c_on_table(name, true).await;
+                self.c_on_table(name).await;
+
+                if name
+                    .0
+                    .last()
+                    .map(|x| self.in_pos(&x.span()))
+                    .unwrap_or(false)
+                {
+                    // match table
+                    if self.result.is_none() {
+                        self.result = Some(vec![]);
+                    }
+                    // extend function this is query
+                    self.result.as_mut().unwrap().extend(
+                        self.helper
+                            .list_function(None, None, true)
+                            .await
+                            .unwrap_or_default(),
+                    );
+                }
+
                 if self.finished() {
                     return;
                 }

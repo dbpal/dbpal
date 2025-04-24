@@ -13,7 +13,7 @@ use sqlparser::tokenizer::{Location, Span};
 
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
 
-pub struct CompletionStament {
+pub struct CompletionStatement {
     pub(crate) loc: Location,
     pub(crate) result: Option<Vec<CompletionItem>>,
     pub(crate) helper: Arc<dyn AstCompletionHelper>,
@@ -27,12 +27,12 @@ pub struct Scopes {
     ss: Arc<Mutex<Vec<Scope>>>,
 }
 
-pub(crate) struct ScopesGuard {
+pub(crate) struct ScopesDropGuard {
     ss: Arc<Mutex<Vec<Scope>>>,
     n: usize,
 }
 
-impl Drop for ScopesGuard {
+impl Drop for ScopesDropGuard {
     fn drop(&mut self) {
         let n = self.n;
         let mut m = self.ss.lock().unwrap();
@@ -54,8 +54,8 @@ impl Scopes {
         vec![]
     }
 
-    pub(crate) fn drop_n(&self, n: usize) -> ScopesGuard {
-        ScopesGuard {
+    pub(crate) fn drop_n(&self, n: usize) -> ScopesDropGuard {
+        ScopesDropGuard {
             ss: self.ss.clone(),
             n,
         }
@@ -77,17 +77,14 @@ impl Scopes {
     }
 
     pub(crate) fn tables(&self) -> Vec<String> {
-        let names: HashSet<String> = HashSet::new();
-        let mut ret = Vec::new();
+        let mut names: HashSet<String> = HashSet::new();
         self.inner_first(|scope| {
             if let Some(table) = &scope.this_table {
                 match table {
                     ThisTableEnum::Table { name } => {
                         let name = name.0.last().unwrap();
                         let name_str = name.to_string();
-                        if !names.contains(&name_str) {
-                            ret.push(name_str);
-                        }
+                        names.insert(name_str);
                     }
                     ThisTableEnum::Temp { temp: _ } => {
                         // nothing to here.
@@ -96,25 +93,21 @@ impl Scopes {
             }
             for name in scope.table_entered.keys() {
                 let name_str = name.to_string();
-                if !names.contains(&name_str) {
-                    ret.push(name_str);
-                }
+                names.insert(name_str);
             }
             for temp in scope.temp_tables.keys() {
                 let name_str = temp.to_string();
-                if !names.contains(&name_str) {
-                    ret.push(name_str);
-                }
+                names.insert(name_str);
             }
             // this clouse need return a option.
             return None as Option<()>;
         });
-        ret
+        names.into_iter().collect()
     }
 
-    pub(crate) fn push(&self, scope: Scope) -> ScopesGuard {
+    pub(crate) fn push(&self, scope: Scope) -> ScopesDropGuard {
         self.ss.lock().unwrap().push(scope);
-        ScopesGuard {
+        ScopesDropGuard {
             ss: self.ss.clone(),
             n: 1,
         }
@@ -299,7 +292,18 @@ impl Scope {
     }
 }
 
-impl CompletionStament {
+impl CompletionStatement {
+    pub(crate) fn new(loc: Location, helper: Arc<dyn AstCompletionHelper>) -> Self {
+        Self {
+            loc,
+            helper,
+            result: None,
+            scopes: Scopes::new(),
+            on_def: false,
+            has_err: false,
+        }
+    }
+
     pub(crate) fn set_on_def(&mut self) {
         self.on_def = true
     }
@@ -312,17 +316,6 @@ impl CompletionStament {
         self.result.is_some() || self.on_def || self.has_err
     }
 
-    pub(crate) fn new(loc: Location, helper: Arc<dyn AstCompletionHelper>) -> Self {
-        Self {
-            loc,
-            helper,
-            result: None,
-            scopes: Scopes::new(),
-            on_def: false,
-            has_err: false,
-        }
-    }
-
     pub(crate) fn in_pos(&self, span: &Span) -> bool {
         (self.loc.line >= span.start.line && self.loc.line <= span.end.line)
             && (self.loc.column >= span.start.column && self.loc.column <= span.end.column)
@@ -331,7 +324,8 @@ impl CompletionStament {
     pub(crate) fn in_pos_optinal(&self, span: Option<&Span>) -> bool {
         span.map(|span| self.in_pos(span)).unwrap_or_default()
     }
-
+}
+impl CompletionStatement {
     pub(crate) async fn completion_on_statement(&mut self, statement: &Statement) {
         match statement {
             Statement::Analyze {
@@ -340,7 +334,7 @@ impl CompletionStament {
                 partitions,
                 ..
             } => {
-                self.c_on_table(table_name, false).await;
+                self.c_on_table(table_name).await;
                 if self.finished() {
                     return;
                 }
@@ -365,7 +359,7 @@ impl CompletionStament {
                 ..
             } => {
                 for t in table_names.iter() {
-                    self.c_on_table(&t.name, false).await;
+                    self.c_on_table(&t.name).await;
                     if self.finished() {
                         return;
                     }
@@ -387,7 +381,7 @@ impl CompletionStament {
             Statement::Insert(insert) => {
                 match &insert.table {
                     TableObject::TableName(object_name) => {
-                        self.c_on_table(object_name, false).await;
+                        self.c_on_table(object_name).await;
                         if self.finished() {
                             return;
                         }
@@ -515,7 +509,7 @@ impl CompletionStament {
                         table_name,
                         columns,
                     } => {
-                        self.c_on_table(table_name, false).await;
+                        self.c_on_table(table_name).await;
                         if self.finished() {
                             return;
                         }
@@ -622,7 +616,7 @@ impl CompletionStament {
                 };
 
                 for t in delete.tables.iter() {
-                    self.c_on_table(t, false).await;
+                    self.c_on_table(t).await;
                     if self.finished() {
                         return;
                     }
@@ -782,7 +776,7 @@ impl CompletionStament {
                                 );
                                 return;
                             }
-                            self.c_on_table(foreign_table, false).await;
+                            self.c_on_table(foreign_table).await;
                             for r in referred_columns.iter() {
                                 self.c_on_column(foreign_table, r).await;
                                 if self.finished() {
@@ -870,7 +864,7 @@ impl CompletionStament {
                         return;
                     }
                 }
-                self.c_on_table(&create_index.table_name, false).await;
+                self.c_on_table(&create_index.table_name).await;
                 if self.finished() {
                     return;
                 }
@@ -945,7 +939,7 @@ impl CompletionStament {
                     self.set_on_def();
                     return;
                 }
-                self.c_on_table(table_name, false).await;
+                self.c_on_table(table_name).await;
                 if self.finished() {
                     return;
                 }
@@ -1028,7 +1022,7 @@ impl CompletionStament {
             Statement::AlterPolicy {
                 table_name, name, ..
             } => {
-                self.c_on_table(table_name, false).await;
+                self.c_on_table(table_name).await;
                 if self.finished() {
                     return;
                 }
@@ -1076,7 +1070,7 @@ impl CompletionStament {
             Statement::DropPolicy {
                 table_name, name, ..
             } => {
-                self.c_on_table(table_name, false).await;
+                self.c_on_table(table_name).await;
                 if self.finished() {
                     return;
                 }
@@ -1123,7 +1117,7 @@ impl CompletionStament {
             }
             Statement::Flush { tables, .. } => {
                 for table in tables.iter() {
-                    self.c_on_table(table, false).await;
+                    self.c_on_table(table).await;
                     if self.finished() {
                         return;
                     }
@@ -1308,7 +1302,7 @@ impl CompletionStament {
                     self.set_on_def();
                     return;
                 }
-                self.c_on_table(table_name, false).await;
+                self.c_on_table(table_name).await;
                 if self.finished() {
                     return;
                 }
@@ -1326,14 +1320,14 @@ impl CompletionStament {
                     }
                 }
                 if let Some(r) = referenced_table_name {
-                    self.c_on_table(r, false).await;
+                    self.c_on_table(r).await;
                     if self.finished() {
                         return;
                     }
                 }
                 for r in referencing.iter() {
                     // TODO is this actual a table name.
-                    self.c_on_table(&r.transition_relation_name, false).await;
+                    self.c_on_table(&r.transition_relation_name).await;
                 }
                 let mut scope = Scope::default();
                 // TODO `NEW` and `OLD` is suitable for all database we
@@ -1358,7 +1352,7 @@ impl CompletionStament {
                     if trigger_name.0.len() > 1 {
                         log::error!("multi part trigger name:{:?}", trigger_name);
                     }
-                    self.c_on_table(table_name, false).await;
+                    self.c_on_table(table_name).await;
                     if self.finished() {
                         return;
                     }
@@ -1461,7 +1455,7 @@ impl CompletionStament {
                         GrantObjects::Sequences(_vec) => {}
                         GrantObjects::Tables(vec) => {
                             for table in vec.iter() {
-                                self.c_on_table(table, false).await;
+                                self.c_on_table(table).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -1520,7 +1514,7 @@ impl CompletionStament {
             }
             Statement::Kill { .. } => {}
             Statement::ExplainTable { table_name, .. } => {
-                self.c_on_table(table_name, false).await;
+                self.c_on_table(table_name).await;
             }
             Statement::Explain { statement, .. } => {
                 Box::pin(self.completion_on_statement(statement)).await;
@@ -1536,7 +1530,7 @@ impl CompletionStament {
                 // 所以这里不能做
             }
             Statement::Merge { .. } => {
-                // Snowflake ... not support rightnow
+                // Snowflake not support rightnow
             }
             Statement::Cache { .. } => {
                 // Spark SQL
@@ -1610,10 +1604,9 @@ impl CompletionStament {
             }
             Statement::LockTables { tables } => {
                 for t in tables.iter() {
-                    self.c_on_table(
-                        &ObjectName(vec![ObjectNamePart::Identifier(t.table.clone())]),
-                        false,
-                    )
+                    self.c_on_table(&ObjectName(vec![ObjectNamePart::Identifier(
+                        t.table.clone(),
+                    )]))
                     .await;
                     if self.finished() {
                         return;
@@ -1631,7 +1624,7 @@ impl CompletionStament {
                 // not support right now
             }
             Statement::OptimizeTable { name, .. } => {
-                self.c_on_table(&name, false).await;
+                self.c_on_table(&name).await;
             }
             Statement::LISTEN { .. } => {}
             Statement::UNLISTEN { .. } => {}
@@ -1648,8 +1641,8 @@ impl CompletionStament {
             Statement::ShowObjects(..) => {}
             Statement::RenameTable(rename_tables) => {
                 for rename in rename_tables.iter() {
-                    self.c_on_table(&rename.old_name, false).await;
-                    self.c_on_table(&rename.new_name, false).await;
+                    self.c_on_table(&rename.old_name).await;
+                    self.c_on_table(&rename.new_name).await;
                 }
             }
             Statement::List(..) => {}

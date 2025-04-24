@@ -249,7 +249,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
         let db = make_test_object();
-        enable_test_log();
+        // enable_test_log();
         let query_id = db.open_connection().await.unwrap();
         let _ = db
             .query_sql(
@@ -283,8 +283,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object();
         test_file_auto_completion(
-            r#"CREATE TABLE sales_data (  order_id UInt64,  product_id UInt32, quantity UInt16,  order_date Date ) ENGINE = MergeTree() PARTITION BY toYYYYMM(order_date) ORDER BY (order_date, order_id) PRIMARY KEY order_id
-176 order_id"#,
+            r#"CREATE TABLE example_table(id UInt32, name String,event_date Date,value Float32) ENGINE = MergeTree() PARTITION BY toYYYYMM(event_date) ORDER BY (event_date, id);
+135 event_date"#,
             &db,
             false,
         )

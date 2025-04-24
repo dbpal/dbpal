@@ -9,7 +9,7 @@ use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
 use crate::db::{BackendName, FormatSqlOpts, monaco_editor_keyword_regexp, not_support_features};
-use crate::sqlparser_completion::CompletionStament;
+use crate::sqlparser_completion::CompletionStatement;
 
 #[async_trait::async_trait]
 pub trait LanguageServer: BackendName {
@@ -360,7 +360,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
 
     for statement in statements {
         log::trace!("completion on ast:{:?}", statement);
-        let mut c = CompletionStament::new(loc, helper.clone());
+        let mut c = CompletionStatement::new(loc, helper.clone());
         c.completion_on_statement(&statement).await;
         if c.finished() {
             let m = c.result.unwrap_or_default();
@@ -383,7 +383,11 @@ pub(crate) mod completion_test {
             items.iter().any(|x| x.item.eq_ignore_ascii_case(name)),
             "line:{} items:{:?},expect:{:?}",
             line,
-            items,
+            if items.len() > 10 {
+                &items[0..10]
+            } else {
+                items
+            },
             name
         )
     }
