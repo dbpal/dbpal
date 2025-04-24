@@ -10,7 +10,7 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { useContext, useEffect, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
-import { initMonacoLanague, tabsHasId, treeItemCommonStyle } from './Common';
+import { initMonacoLanague, tabsHasId } from './Common';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -66,7 +66,7 @@ function ProceduresTree() {
       label=<Stack
         direction="row"
         spacing={1}
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -108,7 +108,7 @@ function ProceduresTree() {
                   style: calMenuStyle(e, 100),
                 });
               }}
-              sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+              sx={{ alignItems: 'center' }}
             >
               <SiProcessingfoundation></SiProcessingfoundation>
               <span>{p.name}</span>

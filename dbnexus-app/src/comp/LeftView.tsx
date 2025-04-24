@@ -11,7 +11,6 @@ import {
   tabsHasId,
   modalStyle,
   DocsAndCount,
-  treeItemCommonStyle,
   SettingContext,
   initMonacoLanague,
   SimpleResizeEditor,
@@ -140,7 +139,6 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       label=<Stack
         direction="row"
         spacing={1}
-        style={{ ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -433,7 +431,7 @@ function ViewTree(props: {
         <Stack
           direction="row"
           spacing={1}
-          sx={{ justifyContent: 'space-between', ...treeItemCommonStyle }}
+          sx={{ justifyContent: 'space-between' }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (

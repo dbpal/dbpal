@@ -4,7 +4,6 @@ import {
   progressBarSizeSmall,
   tabsHasId,
   DocsAndCount,
-  treeItemCommonStyle,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -127,7 +126,7 @@ function TablesTree(props: { typ: TablesType }) {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -195,7 +194,6 @@ function TableTree(props: {
               style: calMenuStyle(e, 200),
             });
           }}
-          style={{ ...treeItemCommonStyle }}
         >
           <Stack direction="row" spacing={1}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
@@ -1253,7 +1251,7 @@ function RedisTables(prpos: { schema?: string }) {
         label=<Stack
           spacing={1}
           direction="row"
-          sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+          sx={{ alignItems: 'center' }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -1275,7 +1273,6 @@ function RedisTables(prpos: { schema?: string }) {
             key={table}
             itemId={idPrefix + table}
             label=<Stack
-              style={{ ...treeItemCommonStyle }}
               direction="row"
               onContextMenu={(e) => {
                 setUpMenu({
@@ -1307,7 +1304,7 @@ function RedisTables(prpos: { schema?: string }) {
         itemId={filterTreeID}
         label=<Stack
           direction="row"
-          style={{ cursor: 'pointer', ...treeItemCommonStyle }}
+          style={{ cursor: 'pointer' }}
           onClick={() => {
             setShowEditFilter(true);
           }}

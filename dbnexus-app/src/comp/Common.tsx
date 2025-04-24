@@ -1241,7 +1241,7 @@ function LoadStoreFileForQuery(props: {
 }
 type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
-const treeItemCommonStyle = { fontWeight: '550' } as CSSProperties;
+
 export {
   modalStyle,
   DocsAndCount,
@@ -1271,7 +1271,6 @@ export {
   LoadStoreFileForQuery,
   keyNotInTable,
   extractBaseName,
-  treeItemCommonStyle,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn };

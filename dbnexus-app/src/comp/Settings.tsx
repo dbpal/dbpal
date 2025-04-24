@@ -310,7 +310,6 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
-        fontWeight: '520',
       },
     },
   },
@@ -320,7 +319,6 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
-        fontWeight: '520',
       },
     },
   },
@@ -338,7 +336,6 @@ const components: Components<
     styleOverrides: {
       cell: {
         fontSize: '1rem',
-        fontWeight: '520',
       },
       columnHeaders: {
         fontSize: '0.8rem', // 调整表头字体大小
@@ -357,7 +354,6 @@ const components: Components<
     styleOverrides: {
       root: {
         fontSize: '1rem',
-        fontWeight: '520',
       },
     },
   },

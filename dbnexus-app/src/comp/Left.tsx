@@ -40,7 +40,6 @@ import {
   initMonacoLanague,
   makeQueryConnInfo,
   QueryConn,
-  treeItemCommonStyle,
   SettingContext,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
@@ -886,7 +885,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
@@ -1384,7 +1383,6 @@ function CatalogTree(_props: {}) {
             style: calMenuStyle(e, 70),
           });
         }}
-        style={{ ...treeItemCommonStyle }}
       >
         <span>{name} </span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -1469,7 +1467,7 @@ function DatabaseTree(props: {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
       >
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
