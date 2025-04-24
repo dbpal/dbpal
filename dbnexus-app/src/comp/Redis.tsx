@@ -554,6 +554,7 @@ function RedisValueEditor(props: {
               onClick={() => {
                 openUrl('https://hexed.it/');
               }}
+              size="small"
             ></Chip>
           </>
         )}

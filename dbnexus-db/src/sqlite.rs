@@ -1549,8 +1549,7 @@ mod tests {
                     rand::random::<f64>() * 100000f64,
                     rand::random::<f64>() * 1100000f64,
                 );
-                let err = db.query_sql(query_id.clone(), &sql).await.unwrap();
-                println!("insert table result:{:?} sql:{}", err, sql);
+                db.query_sql(query_id.clone(), &sql).await.unwrap();
             }
         }
     }

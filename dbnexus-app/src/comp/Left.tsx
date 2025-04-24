@@ -43,10 +43,10 @@ import {
   treeItemCommonStyle,
   SettingContext,
 } from './Common';
-import { FaCopyright } from 'react-icons/fa';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
 import { PiFileSqlFill } from 'react-icons/pi';
+import { FaCopy } from 'react-icons/fa';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -171,7 +171,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
                 setShowCopyConn(true);
               }}
             >
-              <FaCopyright style={{ fontSize: '2.6rem' }}> </FaCopyright>
+              <FaCopy style={{ fontSize: '2.2rem' }}> </FaCopy>
             </IconButton>
           </Tooltip>
         </Stack>

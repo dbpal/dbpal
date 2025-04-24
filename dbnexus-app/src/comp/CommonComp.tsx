@@ -7,7 +7,6 @@ import {
   Paper,
   MenuList,
   Stack,
-  Button,
   Divider,
   Chip,
 } from '@mui/material';
@@ -70,17 +69,16 @@ const LogLevelSelection = ({ handleChange, level }) => {
     <Stack direction="row" spacing={1}>
       {levels.map((e) => {
         return (
-          <Button
+          <Chip
             key={e}
-            variant={level == e ? 'contained' : 'outlined'}
+            size="small"
             disabled={level == e}
             color={getColor(e)}
             onClick={() => {
               handleChange(e);
             }}
-          >
-            {e}
-          </Button>
+            label={e}
+          ></Chip>
         );
       })}
     </Stack>

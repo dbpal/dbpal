@@ -231,6 +231,7 @@ function EnableSSlCert(props: {
               label={
                 'CA Cert(optional):' + (sslCa ? extractBaseName(sslCa) : '')
               }
+              size="small"
             ></Chip>
           </Tooltip>
           <Tooltip title={sslCert}>
@@ -245,6 +246,7 @@ function EnableSSlCert(props: {
                 'Certificate(optional):' +
                 (sslCert ? extractBaseName(sslCert) : '')
               }
+              size="small"
             ></Chip>
           </Tooltip>
           <Tooltip title={sslKey}>
@@ -255,6 +257,7 @@ function EnableSSlCert(props: {
                   setSslKey(file);
                 }
               }}
+              size="small"
               label={
                 'Key File(optional):' + (sslKey ? extractBaseName(sslKey) : '')
               }

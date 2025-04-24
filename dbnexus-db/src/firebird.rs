@@ -75,6 +75,7 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
         |x| SqlKind::get_from_sql(x),
     )
 }
+
 fn infer_fields(row: &Row) -> Vec<Field> {
     row.cols
         .iter()
@@ -95,9 +96,30 @@ fn infer_fields(row: &Row) -> Vec<Field> {
         .collect()
 }
 
+fn is_date(x: &Option<&String>) -> bool {
+    x.map(|x| x.eq_ignore_ascii_case("date")).unwrap_or(false)
+}
+fn is_time(x: &Option<&String>) -> bool {
+    x.map(|x| x.eq_ignore_ascii_case("time")).unwrap_or(false)
+}
+
 fn encode_rows(
-    rows: &Vec<Row>, try_blob_2_str: bool, get_sub_type: impl Fn(&str) -> Option<i64>,
+    rows: &Vec<Row>, try_blob_2_str: bool, types: Option<HashMap<&String, &Field>>,
 ) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+    let get_binary_sub_type = |name: &String| {
+        types
+            .as_ref()
+            .map(|x| x.get(name).map(|x| x.firebird_binary_sub_type))
+            .flatten()
+            .flatten()
+    };
+    let get_type = |name: &String| {
+        types
+            .as_ref()
+            .map(|x| x.get(name).map(|x| &x.typ))
+            .flatten()
+            .map(|x| x.to_uppercase())
+    };
     let mut ret = Vec::with_capacity(rows.len());
     for row in rows.iter() {
         let mut data = Vec::with_capacity(row.cols.len());
@@ -106,9 +128,19 @@ fn encode_rows(
                 SqlType::Text(x) => Some(x.clone()),
                 SqlType::Integer(x) => Some(x.to_string()),
                 SqlType::Floating(x) => Some(x.to_string()),
-                SqlType::Timestamp(naive_date_time) => Some(naive_date_time.to_string()),
+                SqlType::Timestamp(naive_date_time) => {
+                    let typ = get_type(&v.name);
+                    let typ = typ.as_ref();
+                    if is_date(&typ) {
+                        Some(naive_date_time.date().to_string())
+                    } else if is_time(&typ) {
+                        Some(naive_date_time.time().to_string())
+                    } else {
+                        Some(naive_date_time.to_string())
+                    }
+                }
                 SqlType::Binary(items) => {
-                    let sub_type = get_sub_type(&v.name);
+                    let sub_type = get_binary_sub_type(&v.name);
                     match sub_type {
                         _ if sub_type_is_text(sub_type) => Some(String::from_utf8(items.clone())?),
                         _ => {
@@ -155,7 +187,7 @@ impl FireBirdDB {
 
                     first = false;
                 }
-                let data = encode_rows(&vec![row], true, |_| None)?;
+                let data = encode_rows(&vec![row], true, None)?;
                 sender.blocking_send(Cow::Owned(create_csv(&data, delimiter)))?;
             }
             anyhow::Ok(())
@@ -315,7 +347,7 @@ impl QuerySql for FireBirdDB {
                         Ok(rows) => {
                             if rows.len() > 0 {
                                 let fields = infer_fields(rows.get(0).unwrap());
-                                let data = encode_rows(&rows, true, |_| None)?;
+                                let data = encode_rows(&rows, true, None)?;
                                 ret.push(Ok(QueryResp {
                                     fields,
                                     data,
@@ -451,8 +483,13 @@ impl FireBirdDB {
         let table_name = table_name.to_owned();
         let firebird = Clone::clone(self);
         let cols = SchemaTrait::show_table_columns(self, &table_name).await?;
-
         tokio::task::spawn_blocking(move || {
+            let mut types = HashMap::new();
+
+            cols.iter().for_each(|x| {
+                types.insert(&x.field, x);
+            });
+
             if include_table_schema {
                 anyhow::bail!("include schema not support by firebird");
             }
@@ -466,12 +503,7 @@ impl FireBirdDB {
             let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
             for row in rows {
                 let row = row?;
-                let data = encode_rows(&vec![row], true, |name| {
-                    cols_map
-                        .get(&name)
-                        .map(|x| x.firebird_binary_sub_type)
-                        .flatten()
-                })?;
+                let data = encode_rows(&vec![row], true, Some(types.clone()))?;
                 for d in data.into_iter() {
                     let mut m = HashMap::new();
                     for (d, f) in d.into_iter().zip(cols.iter()) {
@@ -627,6 +659,7 @@ impl SchemaTrait for FireBirdDB {
         log::info!("sql:{}", sql);
         let fs = self.show_table_columns(table_name).await?;
         let mut fields_map = HashMap::new();
+
         fs.iter().for_each(|x| {
             fields_map.insert(&x.field, x);
         });
@@ -642,20 +675,13 @@ impl SchemaTrait for FireBirdDB {
                 sql: Some(sql),
             });
         }
-
         let mut fields = infer_fields(&rows[0]);
         fields.iter_mut().for_each(|x| {
             if let Some(f) = fields_map.get(&x.field) {
                 *x = (*f).clone();
             }
         });
-
-        let data = encode_rows(&rows, false, |name| {
-            fields_map
-                .get(&name.to_string())
-                .map(|x| x.firebird_binary_sub_type)
-                .flatten()
-        })?;
+        let data = encode_rows(&rows, false, Some(fields_map))?;
         let total = self.query_count(table_name, where_str)?;
 
         anyhow::Ok(QueryResp {
@@ -845,8 +871,7 @@ impl SchemaTrait for FireBirdDB {
                 sql: Some(sql),
             });
         }
-
-        let data = encode_rows(&rows, true, |_| None)?;
+        let data = encode_rows(&rows, true, None)?;
         let total = self.query_count(view_name, where_str)?;
         let fields = match rows.get(0) {
             Some(x) => infer_fields(x),
@@ -1338,7 +1363,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, Some("1 =1 "), Some("ID asc "), 1, 100, None)
+                .show_table(table_name, Some("1 = 1"), Some("ID asc "), 1, 100, None)
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);

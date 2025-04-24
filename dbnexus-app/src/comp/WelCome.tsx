@@ -1,6 +1,7 @@
 import { Chip, Stack, Typography } from '@mui/material';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import InfoIcon from '@mui/icons-material/Info';
+
 function WelCome() {
   const databases = [
     {
@@ -69,18 +70,18 @@ function WelCome() {
       <Typography
         variant="h4"
         style={{
-          fontWeight: '600',
+          fontWeight: '520',
           textShadow: '6px 6px 4px rgba(130, 130, 130, 0.5)',
         }}
       >
         dbpal is a database management system that easy to use.
       </Typography>
 
-      <Typography variant="h6" style={{ fontWeight: '600' }}>
+      <Typography variant="h6" style={{ fontWeight: '520' }}>
         right now we support:
       </Typography>
       <Stack
-        style={{ fontSize: '2rem', fontWeight: '600', flexWrap: 'wrap' }}
+        style={{ fontSize: '2rem', fontWeight: '520', flexWrap: 'wrap' }}
         direction="row"
       >
         {databases.map((e) => (

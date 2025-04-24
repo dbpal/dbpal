@@ -44,7 +44,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { secondConfirm } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
-
+import { PiFileSqlFill } from 'react-icons/pi';
 const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
 };
@@ -500,7 +500,7 @@ function SqlQuery(props: {
               }}
               color="primary"
             >
-              <FavoriteIcon />
+              <PiFileSqlFill style={{ fontSize: '1.6rem' }} />
             </IconButton>
           </Tooltip>
 
