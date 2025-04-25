@@ -25,6 +25,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { appStore, AppStoreKey, extractBaseName, msgTimeout } from './Common';
 import { DataSourceKind } from './helper';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 async function selectOneFile() {
   const selected = await open({
@@ -168,15 +169,26 @@ function Https(props: { https; setHttps }) {
 function TrustCert(props: { trustCert; setTrustCert }) {
   let { trustCert, setTrustCert } = props;
   return (
-    <FormControlLabel
-      control={
-        <Switch
-          checked={trustCert}
-          onChange={(e) => setTrustCert(e.target.checked)}
-        />
-      }
-      label="Trust Cert"
-    />
+    <Stack direction="row" style={{ alignItems: 'center' }}>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={trustCert}
+            onChange={(e) => setTrustCert(e.target.checked)}
+          />
+        }
+        label="Trust Cert"
+      />
+      <Chip
+        label="?"
+        size="small"
+        onClick={() => {
+          openUrl(
+            'https://docs.rs/tiberius/0.12.3/tiberius/struct.Config.html#method.trust_cert'
+          );
+        }}
+      ></Chip>
+    </Stack>
   );
 }
 
@@ -1051,6 +1063,17 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
 
       {connectionType === DataSourceKind.Oracle && (
         <>
+          <Typography
+            color="info"
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              openUrl(
+                'https://odpi-c.readthedocs.io/en/latest/user_guide/installation.html'
+              );
+            }}
+          >
+            oracle need extra driver{' '}
+          </Typography>
           <HostAndPort
             onBlur={toggleTriggerReload}
             host={host}
