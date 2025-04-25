@@ -475,7 +475,7 @@ pub trait SqlBuilder: BackendName + QuoteStyle {
                 )?);
                 first = false;
             }
-            sql.push_str(")");
+            sql.push_str(");");
         }
         anyhow::Ok(sql)
     }
