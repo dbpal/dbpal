@@ -37,7 +37,7 @@ use handlers::{
     save_password, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
     show_trigger, show_udf, show_view, show_view_columns, test_connection, truncate_table, update,
 };
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
@@ -187,8 +187,11 @@ fn main_() {
                                 true,
                                 None as Option<&'static str>,
                             )?,
-                            #[cfg(any(target_os = "macos"))]
-                            &PredefinedMenuItem::about(handle, None, None)?,
+                            &PredefinedMenuItem::about(handle, Some("dbpal is an easy to use database management system."),Some({
+                                let mut meta = AboutMetadata ::default();
+                                meta.website  = Some("http://dbpal.site".to_string());
+                                meta
+                            }))?,
                         ],
                     )?,
                 ],
