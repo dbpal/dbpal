@@ -1166,10 +1166,13 @@ impl CompletionStatement {
                 // no one can write a sql like this???
             }
             Statement::ShowVariable { variable } => {
-                for var in variable {
-                    self.c_on_variable(var).await;
-                    if self.finished() {
-                        return;
+                let name = self.helper.backend_name();
+                if name == "postgres" {
+                    for var in variable {
+                        self.c_on_variable(var).await;
+                        if self.finished() {
+                            return;
+                        }
                     }
                 }
             }
@@ -1672,25 +1675,10 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
- 
-DECLARE
-    result INT := 1;
-BEGIN
-    IF n < 0 THEN
-        RETURN NULL;  -- 负数的阶乘未定义
-    ELSIF n = 0 THEN
-        RETURN 1;  -- 0 的阶乘为 1
-    ELSE
-        FOR i IN 1..n LOOP
-            result := result * i;
-        END LOOP;
-        RETURN result;
-    END IF;
-END;
- 
+            SHOW Databa
         "#;
 
-        let dialect = sqlparser::dialect::PostgreSqlDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
         let mut p = p.try_with_sql(sql).unwrap();
         let statement = p.parse_statement().unwrap();

@@ -709,6 +709,9 @@ pub(crate) const TYPES: &[&str] = &[
     "MONEY",
     "MONEY[]",
     "VOID",
+    "SERIAL",
+    "BIGSERIAL",
+    "SMALLSERIAL",
 ];
 
 pub(crate) const PG_KEYWORDS: &[&str] = &[

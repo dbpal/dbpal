@@ -187,7 +187,7 @@ fn main_() {
                                 true,
                                 None as Option<&'static str>,
                             )?,
-                            &PredefinedMenuItem::about(handle, Some("dbpal is an easy to use database management system."),Some({
+                            &PredefinedMenuItem::about(handle, Some("an easy to use database management system."),Some({
                                 let mut meta = AboutMetadata ::default();
                                 meta.website  = Some("http://dbpal.site".to_string());
                                 meta
