@@ -445,7 +445,8 @@ function MenuResetColumnWidths() {
   );
 }
 
-function TrueOrFalse(b: boolean) {
+function TrueOrFalse(props: { b: boolean }) {
+  const { b } = props;
   return b ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
 }
 

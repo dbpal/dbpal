@@ -147,7 +147,7 @@ function ColumnsStructure(props: {
       {
         field: 'nullable',
         renderCell: (row) => {
-          return TrueOrFalse(row.row['nullable']);
+          return <TrueOrFalse b={row.row['nullable']} />;
         },
       },
       {
@@ -156,7 +156,7 @@ function ColumnsStructure(props: {
           return 'primary key';
         },
         renderCell: (row) => {
-          return TrueOrFalse(row.row['is_primary']);
+          return <TrueOrFalse b={row.row['is_primary']} />;
         },
       },
       {
@@ -165,7 +165,7 @@ function ColumnsStructure(props: {
           return 'auto increment';
         },
         renderCell: (row) => {
-          return TrueOrFalse(row.row['is_auto_increment']);
+          return <TrueOrFalse b={row.row['is_auto_increment']} />;
         },
       },
       {
@@ -177,7 +177,7 @@ function ColumnsStructure(props: {
       {
         field: 'sortable',
         renderCell: (row) => {
-          return TrueOrFalse(row.row['sortable']);
+          return <TrueOrFalse b={row.row['sortable']} />;
         },
       },
     ] as GridColDef[];
@@ -1314,11 +1314,16 @@ function TriggersStructure(props: {
       {
         field: 'enable',
         renderCell: (r) => {
-          let enable = r.row.enable;
+          let enable = r.row.enable as types.TriggerEnable;
           if (!enable) {
             return;
           }
-          return enable.enable;
+          switch (enable.kind) {
+            case 'postgres':
+              return enable.enable;
+            case 'bool':
+              return <TrueOrFalse b={enable.enable} />;
+          }
         },
       },
     ] as GridColDef[];
