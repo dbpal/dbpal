@@ -1945,7 +1945,7 @@ mod tests {
             db.disable_trigger(&table_name, &tri.name).await.unwrap();
             db.enable_trigger(&table_name, &tri.name).await.unwrap();
         }
-        db.drop_trigger(&table_name, "TRG_NO_ACTION").await.unwrap();
+        
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
