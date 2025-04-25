@@ -31,7 +31,20 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use cdrs_tokio::{authenticators::StaticPasswordAuthenticatorProvider, cluster::{session::{SessionBuilder, TcpSessionBuilder}, NodeTcpConfigBuilder}, frame::message_result::{ColType, RowsMetadata}, load_balancing::RoundRobinLoadBalancingStrategy, types::{blob::Blob, cassandra_type::CassandraType, list::List, map::Map, prelude::Decimal, rows::Row, tuple::Tuple, udt::Udt, AsCassandraType, IntoRustByIndex}};
+use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
+use cdrs_tokio::cluster::NodeTcpConfigBuilder;
+use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
+use cdrs_tokio::frame::message_result::{ColType, RowsMetadata};
+use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
+use cdrs_tokio::types::blob::Blob;
+use cdrs_tokio::types::cassandra_type::CassandraType;
+use cdrs_tokio::types::list::List;
+use cdrs_tokio::types::map::Map;
+use cdrs_tokio::types::prelude::Decimal;
+use cdrs_tokio::types::rows::Row;
+use cdrs_tokio::types::tuple::Tuple;
+use cdrs_tokio::types::udt::Udt;
+use cdrs_tokio::types::{AsCassandraType, IntoRustByIndex};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
 use cql3_parser::cassandra_statement::CassandraStatement;
@@ -1207,7 +1220,6 @@ impl CassandraDB {
                 values.insert(f.field.clone(), v.clone());
             });
             let sql = self.insert_sql(self.config.db.as_deref(), table_name, &fs, &values)?;
-            log::info!("sql:{}", sql);
             sender.send(Cow::Owned(sql)).await?;
         }
 
