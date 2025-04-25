@@ -79,13 +79,18 @@ export default function MainPage() {
   const closeTab = useCallback(
     (index: number) => {
       let id = tabs[index].id;
-      setTabs((prevTabs) => prevTabs.filter((x) => x.id !== id));
-      if (selectTab > 0 && selectTab >= tabs.length - 1) {
-        setSelectTab((e) => e - 1);
-      }
+      setTabs((prevTabs) => {
+        return prevTabs.filter((x) => x.id !== id);
+      });
     },
     [tabs]
   );
+
+  useEffect(() => {
+    if (selectTab > 0 && selectTab >= tabs.length) {
+      setSelectTab((e) => e - 1);
+    }
+  }, [tabs]);
 
   const changeTab = useCallback((index) => {
     setSelectTab(index as number);
