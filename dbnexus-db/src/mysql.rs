@@ -206,6 +206,7 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
                     .unwrap_or(null_value.clone())
             }
 
+            "NULL" => serde_json::Value::Null,
             _ => anyhow::bail!(format!("type '{ty}' not supported")),
         };
         values.insert(row.column(c).name().to_string(), v);
@@ -1152,7 +1153,7 @@ impl SchemaTrait for MysqlDB {
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
         let mut map: HashMap<String, Index> = HashMap::new();
         for r in rows.iter() {
-            let unique: Option<i32> = r.get(1);
+            let non_unique: Option<i32> = r.get(1);
             let name: String = r.get(2);
             let column_name = r.get(4);
             if let Some(x) = map.get_mut(&name) {
@@ -1164,7 +1165,7 @@ impl SchemaTrait for MysqlDB {
                         name.clone(),
                         if name == "PRIMARY" {
                             IndexKind::Primary
-                        } else if unique.map(|x| x != 0).unwrap_or_default() {
+                        } else if non_unique.map(|x| x == 0).unwrap_or_default() {
                             IndexKind::Unique
                         } else {
                             IndexKind::Index
@@ -1277,6 +1278,7 @@ fn encode_rows(
                     let value: Option<BigDecimal> = r.try_get(c)?;
                     value.map(|x| x.to_string())
                 }
+                "NULL" => None,
 
                 _ => anyhow::bail!(format!("type '{ty}' not supported")),
             };

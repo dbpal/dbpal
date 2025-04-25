@@ -836,36 +836,43 @@ function AddIndex(props: {
         size="small"
         required
       ></TextField>
-      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+      <Stack
+        direction="row"
+        style={{ flexWrap: 'wrap', alignItems: 'center' }}
+        spacing={1}
+      >
         <Typography> includes: </Typography>
         {includes.map((x) => (
-          <Button
+          <Chip
             onClick={() => {
               setIncludes((e) => e.filter((e) => e != x));
             }}
+            size="small"
             key={x}
             color="primary"
-            variant="outlined"
-          >
-            {x}
-          </Button>
+            label={x}
+          ></Chip>
         ))}
       </Stack>
 
-      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+      <Stack
+        direction="row"
+        style={{ flexWrap: 'wrap', alignItems: 'center' }}
+        spacing={1}
+      >
         <Typography> candidates: </Typography>
         {fields
           .filter((f) => includes.find((e) => e == f.field) == undefined)
           .map((x) => (
-            <Button
+            <Chip
+              size="small"
               key={x.field}
               onClick={() => {
                 setIncludes((e) => [...e, x.field]);
               }}
-              color="primary"
-            >
-              {x.field}
-            </Button>
+              color="default"
+              label={x.field}
+            ></Chip>
           ))}
       </Stack>
 
