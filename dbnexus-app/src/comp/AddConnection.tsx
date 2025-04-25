@@ -387,7 +387,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   };
   const [libSqlModel, setlibSqlModal] = useState<'remote' | 'local'>(
     //@ts-ignore
-    getConfig('source') // backend has name this to source
+    getConfig('source', 'local') // backend has name this to source
   );
   const [url, setUrl] = useState(getConfig('url'));
   const [replica, setReplica] = useState(getConfig('replica', false));

@@ -180,7 +180,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           fullWidth
           value={matchPattern}
           size="small"
-          label="match key for table view udf procedure ..."
+          label="match pattern for table view udf procedure ..."
           onChange={(e) => {
             setMatchPattern(e.target.value.trim());
           }}
@@ -338,7 +338,12 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   let cols = useMemo(() => {
     const cols = [
       { field: 'name' },
-      { field: 'conn_type' },
+      {
+        field: 'conn_type',
+        renderHeader: () => {
+          return 'kind';
+        },
+      },
       { field: 'host' },
       { field: 'path' },
       { field: 'port' },
