@@ -713,18 +713,14 @@ impl SqlBuilder for LibSqlDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => {
-                match value {
-                    Some(x) => format!("'{}'", x),
-                    None => "null".to_string(),
-                }
-            }
-            _ if text_like(typ.as_str()) => {
-                match value {
-                    Some(x) => format!("'{}'", x),
-                    None => "null".to_string(),
-                }
-            }
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
+            _ if text_like(typ.as_str()) => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
                 value.unwrap_or("null").to_string()
@@ -799,7 +795,7 @@ impl LibSqlDB {
 
                 let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send("\n".into()).await?;
+                sender.send(";\n".into()).await?;
             }
         }
         anyhow::Ok(())

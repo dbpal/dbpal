@@ -104,6 +104,7 @@ impl ClickHouseDB {
                 &fs,
                 &values,
             )?;
+            let s = format!("{};\n", s);
             sender.send(Cow::Owned(s)).await?;
         }
 
@@ -1072,22 +1073,20 @@ impl JsonResp {
             let mut data = Vec::with_capacity(self.meta.len());
             for meta in self.meta.iter() {
                 let value: Option<String> = match d.get(&meta.name) {
-                    Some(value) => {
-                        match value {
-                            serde_json::Value::Null => None,
-                            serde_json::Value::Bool(x) => Some(x.to_string()),
-                            serde_json::Value::Number(number) => Some(number.to_string()),
-                            serde_json::Value::String(x) => Some(x.clone()),
-                            serde_json::Value::Array(_) => {
-                                let ty = parse_type(&meta.r#type)?;
-                                Some(encode_nested(value, &ty)?)
-                            }
-                            serde_json::Value::Object(_) => {
-                                let ty = parse_type(&meta.r#type)?;
-                                Some(encode_nested(value, &ty)?)
-                            }
+                    Some(value) => match value {
+                        serde_json::Value::Null => None,
+                        serde_json::Value::Bool(x) => Some(x.to_string()),
+                        serde_json::Value::Number(number) => Some(number.to_string()),
+                        serde_json::Value::String(x) => Some(x.clone()),
+                        serde_json::Value::Array(_) => {
+                            let ty = parse_type(&meta.r#type)?;
+                            Some(encode_nested(value, &ty)?)
                         }
-                    }
+                        serde_json::Value::Object(_) => {
+                            let ty = parse_type(&meta.r#type)?;
+                            Some(encode_nested(value, &ty)?)
+                        }
+                    },
                     None => None,
                 };
 
@@ -1424,7 +1423,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_dup() {
-        enable_test_log();
+        // enable_test_log();
         let db = make_test_object();
         let name = "test_dup";
         let name2 = format!("{}2", name);

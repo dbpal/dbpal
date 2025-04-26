@@ -141,14 +141,14 @@ impl PostGresDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = (self).insert_sql(
+                let insert_sql = self.insert_sql(
                     self.config.schema.as_ref().map(|x| x.as_str()),
                     table_name,
                     &cols,
                     &m,
                 )?;
                 sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send("\n".into()).await?;
+                sender.send(";\n".into()).await?;
             }
         }
         anyhow::Ok(())
@@ -707,12 +707,10 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let arg = match &arg {
-            Some(arg) => {
-                match arg {
-                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                    _ => return Err(arg.wrong_type()),
-                }
-            }
+            Some(arg) => match arg {
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                _ => return Err(arg.wrong_type()),
+            },
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
 
@@ -749,15 +747,13 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => {
-                match x {
-                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                    #[allow(unreachable_patterns)]
-                    _ => {
-                        anyhow::bail!("must be a postgres parameter")
-                    }
+            Some(x) => match x {
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                #[allow(unreachable_patterns)]
+                _ => {
+                    anyhow::bail!("must be a postgres parameter")
                 }
-            }
+            },
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 
