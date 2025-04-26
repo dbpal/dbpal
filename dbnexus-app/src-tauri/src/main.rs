@@ -189,7 +189,7 @@ fn main_() {
                             )?,
                             &PredefinedMenuItem::about(handle, Some("an easy to use database management system."),Some({
                                 let mut meta = AboutMetadata ::default();
-                                meta.website  = Some("http://dbpal.site".to_string());
+                                meta.website  = Some("https://dbpal.site".to_string());
                                 meta
                             }))?,
                         ],
