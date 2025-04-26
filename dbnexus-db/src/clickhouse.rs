@@ -488,7 +488,7 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self).insert_sql(
+        let sql = self.insert_sql(
             self.config.db.as_ref().map(|x| x.as_str()),
             &table_name,
             &fs,
