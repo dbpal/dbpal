@@ -49,23 +49,31 @@ impl ReadOnlyTrait for PostGresDB {
         self.config.read_only
     }
 }
-#[async_trait::async_trait]
-impl DBTrait for PostGresDB {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+impl PostGresDB {
+    async fn list_schema_impl(&self, skip_internal: bool) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let sql = format!(
-            r#"
+        let sql = if skip_internal {
+            format!(
+                r#"
         SELECT schema_name 
             FROM information_schema.schemata
             WHERE schema_name NOT IN ('information_schema', 'pg_catalog' , 'pg_toast') and 
             schemata.catalog_name ='{}' order by schema_name
     "#,
-            self.config.db_str()
-        );
+                self.config.db_str()
+            )
+        } else {
+            format!(
+                r#"
+        SELECT schema_name 
+            FROM information_schema.schemata
+            WHERE 
+            schemata.catalog_name ='{}' order by schema_name
+    "#,
+                self.config.db_str()
+            )
+        };
         log::info!("sql:{}", sql);
 
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
@@ -76,6 +84,17 @@ impl DBTrait for PostGresDB {
             ret.push(name)
         }
         anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl DBTrait for PostGresDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        self.list_schema_impl(true).await
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
@@ -625,7 +644,7 @@ impl SchemaTrait for PostGresDB {
                 SELECT 
                     pg_catalog.pg_get_function_result(p.oid) AS return_type,
                     pg_catalog.pg_get_function_arguments(p.oid) AS arguments,
-                    p.prosrc AS source_code
+                    pg_get_functiondef(p.oid) AS source_code
                 FROM pg_catalog.pg_proc p
                     JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
                 WHERE n.nspname = '{}'  -- 指定目标模式
@@ -707,10 +726,12 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let arg = match &arg {
-            Some(arg) => match arg {
-                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                _ => return Err(arg.wrong_type()),
-            },
+            Some(arg) => {
+                match arg {
+                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                    _ => return Err(arg.wrong_type()),
+                }
+            }
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
 
@@ -747,13 +768,15 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => match x {
-                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                #[allow(unreachable_patterns)]
-                _ => {
-                    anyhow::bail!("must be a postgres parameter")
+            Some(x) => {
+                match x {
+                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                    #[allow(unreachable_patterns)]
+                    _ => {
+                        anyhow::bail!("must be a postgres parameter")
+                    }
                 }
-            },
+            }
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 

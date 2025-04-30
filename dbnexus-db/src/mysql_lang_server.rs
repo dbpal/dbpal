@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use sqlx::Row;
 
-use crate::db::{BackendName, DBTrait, FormatSqlOpts, not_support_features};
+use crate::db::{BackendName, FormatSqlOpts, not_support_features};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -137,7 +137,7 @@ impl LangServerCommon for MysqlDB {
     }
 
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
+        MysqlDB::list_schema_impl(self, false).await
     }
 }
 

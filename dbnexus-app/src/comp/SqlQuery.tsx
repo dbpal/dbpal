@@ -176,6 +176,7 @@ function SqlQuery(props: {
     }
   }, [showQueryLog]);
   const handleReconnect = async () => {
+    setLoading(false);
     if (conn) {
       const confirm = await secondConfirm({
         title: 'reconnection',
@@ -437,6 +438,7 @@ function SqlQuery(props: {
 
           <Tooltip title="execute sql not expecting result">
             <IconButton
+              loading={loading}
               disabled={loading || conn == null}
               onClick={handleExecute}
               color="primary"
@@ -453,7 +455,6 @@ function SqlQuery(props: {
             }
           >
             <IconButton
-              disabled={loading}
               onClick={() => {
                 handleReconnect();
               }}
@@ -465,6 +466,7 @@ function SqlQuery(props: {
 
           <Tooltip title="export  query result to a file">
             <IconButton
+              loading={loading}
               disabled={loading || conn == null}
               onClick={() => {
                 const value = getText();

@@ -21,7 +21,7 @@ use crate::db::{
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{TimeSome, create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
@@ -150,31 +150,28 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
-            "VARCHAR" | "CHAR" | "TEXT" => {
-                let x: Result<Option<String>, _> = row.try_get_unchecked(c);
-                if try_blob_to_str && x.is_ok() {
-                    x.unwrap()
-                        .map(serde_json::Value::from)
-                        .unwrap_or(null_value.clone())
-                } else {
-                    let value: Option<String> = row.try_get(c)?;
-                    value
-                        .map(serde_json::Value::from)
-                        .unwrap_or(null_value.clone())
-                }
-            }
-            _ if ty.starts_with("VARCHAR") || ty.starts_with("CHAR") || ty.starts_with("TEXT") => {
+
+            _ if type_is_string(ty) => {
                 let value: Option<String> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
-            "VARBINARY" | "BINARY" | "BLOB" => {
-                let value: Option<Vec<u8>> = row.try_get(c)?;
-                value
-                    .map(|x| format!("0x{}", hex::encode_upper(x.as_slice())))
-                    .map(serde_json::Value::from)
-                    .unwrap_or(null_value.clone())
+            _ if type_is_blob(ty) => {
+                let string_value = row.try_get::<String, _>(c);
+                if try_blob_to_str && string_value.is_ok() {
+                    serde_json::Value::from(string_value.unwrap())
+                } else {
+                    let value: Option<Vec<u8>> = row.try_get(c)?;
+                    value
+                        .map(|x| {
+                            x.into_iter()
+                                .map(|x| serde_json::Value::from(x))
+                                .collect::<Vec<_>>()
+                        })
+                        .map(|x| serde_json::Value::Array(x))
+                        .unwrap_or(null_value.clone())
+                }
             }
 
             "TIMESTAMP" => {
@@ -213,6 +210,22 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
     }
 
     anyhow::Ok(serde_json::Value::Object(values))
+}
+
+fn type_is_blob(ty: &str) -> bool {
+    match ty {
+        "VARBINARY" | "BINARY" | "BLOB" | "LONGBLOB" | "TINYBLOB" | "MEDIUMBLOB" => true,
+        _ => false,
+    }
+}
+
+fn type_is_string(ty: &str) -> bool {
+    match ty {
+        "VARCHAR" | "CHAR" | "TEXT" | "TINYTEXT" | "MEDIUMTEXT" | "LONGTEXT" => true,
+        _ if ty.starts_with("VARCHAR") || ty.starts_with("CHAR") || ty.starts_with("TEXT") => true,
+
+        _ => false,
+    }
 }
 
 #[async_trait::async_trait]
@@ -471,42 +484,6 @@ impl FunctionOrProcedure {
         anyhow::Ok(ret)
     }
 
-    async fn query_details(
-        self, conn: &mut MySqlConnection, db: &str, name: &str,
-    ) -> anyhow::Result<(String, Vec<MetaValue>)> {
-        let sql = format!(
-            r#"
-            SELECT
-                ROUTINE_DEFINITION, 
-                CREATED, 
-                Last_Altered
-            FROM 
-                information_schema.Routines
-            WHERE 
-                ROUTINE_SCHEMA = '{}' 
-                AND ROUTINE_TYPE = '{}' AND ROUTINE_NAME='{}'
-                "#,
-            db,
-            self.sql_condtion_str(),
-            name
-        );
-        log::info!("sql:{}", sql);
-
-        let row = sqlx::query(&sql).fetch_one(conn).await?;
-        let def: String = row.try_get_unchecked(0)?;
-        let create: chrono::DateTime<Utc> = row.try_get(1)?;
-        let create = create.naive_utc();
-        let last_altered: chrono::DateTime<Utc> = row.try_get(1)?;
-        let last_altered = last_altered.naive_utc();
-        anyhow::Ok((
-            def,
-            vec![
-                MetaValue::new("created", create),
-                MetaValue::new("last_altered", last_altered),
-            ],
-        ))
-    }
-
     fn sql_condtion_str(self) -> &'static str {
         match self {
             FunctionOrProcedure::Function => "FUNCTION",
@@ -599,12 +576,14 @@ impl MysqlDB {
             // tidb return data_length as `BIGINT` no UNSIGNED
             let size: Option<u64> = match r.try_get::<'_, u64, _>(1) {
                 Ok(x) => Some(x),
-                Err(_) => match r.try_get::<'_, i64, _>(1) {
-                    Ok(x) => Some(x as u64),
-                    Err(_) => {
-                        anyhow::bail!("extract data_length failed:{:?}", r)
+                Err(_) => {
+                    match r.try_get::<'_, i64, _>(1) {
+                        Ok(x) => Some(x as u64),
+                        Err(_) => {
+                            anyhow::bail!("extract data_length failed:{:?}", r)
+                        }
                     }
-                },
+                }
             };
 
             ret.push(ListTable::new(table_name, size));
@@ -781,11 +760,16 @@ impl SchemaTrait for MysqlDB {
         &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let mut conn = self.get_conn().await?;
-        let (def, metas) = FunctionOrProcedure::Procedure
-            .query_details(conn.deref_mut(), self.config.db.as_ref().unwrap(), name)
-            .await?;
 
-        anyhow::Ok(ProcedureDetail::new(def, metas))
+        let sql = format!("SHOW CREATE PROCEDURE {name};");
+
+        let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+        let sql_mode: Option<String> = row.try_get(1)?;
+        let sql: String = row.try_get(2)?;
+        anyhow::Ok(ProcedureDetail::new(
+            sql,
+            vec![MetaValue::new_opt("sql_mode", sql_mode)],
+        ))
     }
 
     async fn drop_procedure(
@@ -802,11 +786,16 @@ impl SchemaTrait for MysqlDB {
         &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let mut conn = self.get_conn().await?;
-        let (def, metas) = FunctionOrProcedure::Function
-            .query_details(conn.deref_mut(), self.config.db.as_ref().unwrap(), name)
-            .await?;
 
-        anyhow::Ok(DefAndMetas::new(def, metas))
+        let sql = format!("SHOW CREATE FUNCTION {name};");
+
+        let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+        let sql_mode: Option<String> = row.try_get(1)?;
+        let sql: String = row.try_get(2)?;
+        anyhow::Ok(DefAndMetas::new(
+            sql,
+            vec![MetaValue::new_opt("sql_mode", sql_mode)],
+        ))
     }
 
     async fn drop_udf(
@@ -1098,12 +1087,14 @@ impl SchemaTrait for MysqlDB {
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
                 Ok(x) => x,
-                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
-                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
-                    Err(_err) => {
-                        anyhow::bail!("can get column as string or vec<u8>")
+                Err(_) => {
+                    match r.try_get::<'_, Vec<u8>, _>(0) {
+                        Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                        Err(_err) => {
+                            anyhow::bail!("can get column as string or vec<u8>")
+                        }
                     }
-                },
+                }
             };
             // due to issue https://github.com/launchbadge/sqlx/issues/3390
             // use `try_get_unchecked` to extract
@@ -1230,19 +1221,13 @@ fn encode_rows(
                     let value: Option<f64> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
-                "VARCHAR" | "CHAR" | "TEXT" => {
-                    let value: Option<String> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                _ if ty.starts_with("VARCHAR")
-                    || ty.starts_with("CHAR")
-                    || ty.starts_with("TEXT") =>
-                {
+
+                _ if type_is_string(ty) => {
                     let value: Option<String> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
 
-                "VARBINARY" | "BINARY" | "BLOB" => {
+                _ if type_is_blob(ty) => {
                     //
                     let x: Result<Option<String>, _> = r.try_get_unchecked(c);
 
@@ -1339,13 +1324,10 @@ impl MysqlDB {
     }
 }
 
-#[async_trait::async_trait]
-impl DBTrait for MysqlDB {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+impl MysqlDB {
+    pub(crate) async fn list_schema_impl(
+        &self, skip_internal: bool,
+    ) -> anyhow::Result<Vec<String>> {
         let mut conn: PoolConnection<sqlx::MySql> = self.get_conn().await?;
         let rows = sqlx::query("show databases")
             .fetch_all(conn.deref_mut())
@@ -1354,14 +1336,28 @@ impl DBTrait for MysqlDB {
         let mut ret = Vec::new();
         for r in rows.iter() {
             let name: String = r.try_get_unchecked(0)?;
-            if name.eq_ignore_ascii_case("information_schema")
-                || name.eq_ignore_ascii_case("mysql")
-                || name.eq_ignore_ascii_case("performance_schema")
-            {
-                continue;
+            if skip_internal {
+                if name.eq_ignore_ascii_case("information_schema")
+                    || name.eq_ignore_ascii_case("mysql")
+                    || name.eq_ignore_ascii_case("performance_schema")
+                {
+                    continue;
+                }
             }
             ret.push(name);
         }
+        ret.sort();
+        anyhow::Ok(ret)
+    }
+}
+#[async_trait::async_trait]
+impl DBTrait for MysqlDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        let mut ret = self.list_schema_impl(true).await?;
         ret.sort();
         anyhow::Ok(ret)
     }
@@ -1486,11 +1482,11 @@ impl QuerySql for MysqlDB {
 
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
+        let _xxx = TimeSome::new(format!("query_sql:{}", sql));
         let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
         let mut rows = Vec::new();
-
+        log::info!("execute sql:{}", sql);
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(x) => x,
@@ -1499,6 +1495,7 @@ impl QuerySql for MysqlDB {
                     continue;
                 }
             };
+            log::trace!("item: {:?}", item);
             match item {
                 sqlx::Either::Left(row_aff) => {
                     if rows.len() > 0 {
@@ -1567,13 +1564,10 @@ impl SqlBuilder for MysqlDB {
             "BIGINT UNSIGNED" => default_str,
             "FLOAT" => default_str,
             "DOUBLE" => default_str,
-            "VARCHAR" | "CHAR" | "TEXT" => single_quote_str,
-            _ if ty.starts_with("VARCHAR") || ty.starts_with("CHAR") || ty.starts_with("TEXT") => {
-                single_quote_str
-            }
+            _ if type_is_string(&ty) => single_quote_str,
             "DECIMAL" => default_str,
             _ if ty.starts_with("DECIMAL") => default_str,
-            "VARBINARY" | "BINARY" | "BLOB" => default_str,
+            "VARBINARY" | "BINARY" | "BLOB" | "LONGBLOB" => default_str,
             "TIMESTAMP" => single_quote_str,
             "DATETIME" => single_quote_str,
             "DATE" => single_quote_str,
