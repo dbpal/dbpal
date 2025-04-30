@@ -185,9 +185,10 @@ function mongoBsonAutoCompletion(): languages.CompletionList {
 }
 
 function initMongoBsonLanguage() {
+  const language = 'mongoBson';
   loader.init().then((monaco) => {
-    monaco.languages.register({ id: 'mongoBson' });
-    monaco.languages.setMonarchTokensProvider('mongoBson', {
+    monaco.languages.register({ id: language });
+    monaco.languages.setMonarchTokensProvider(language, {
       ignoreCase: true,
       tokenizer: {
         root: [
@@ -203,7 +204,7 @@ function initMongoBsonLanguage() {
       ],
     });
 
-    monaco.languages.registerDocumentFormattingEditProvider('mongoBson', {
+    monaco.languages.registerDocumentFormattingEditProvider(language, {
       provideDocumentFormattingEdits(model, options, _token) {
         let text = model.getValue();
         try {
@@ -220,7 +221,7 @@ function initMongoBsonLanguage() {
       },
     });
 
-    monaco.languages.registerCompletionItemProvider('mongoBson', {
+    monaco.languages.registerCompletionItemProvider(language, {
       provideCompletionItems: (
         _model: editor.ITextModel,
         _position: Position,

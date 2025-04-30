@@ -62,6 +62,8 @@ import {
 } from './helper';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
+import { CancellationToken, editor, languages, Position } from 'monaco-editor';
+import { loader } from '@monaco-editor/react';
 
 const confrimAboutPrimary = async (
   notWarnPri,
@@ -81,6 +83,54 @@ const confrimAboutPrimary = async (
 };
 
 const getRowId = (e) => e[keyNotInTable];
+const whereLanguage = 'ckqQtTcQDmO3e2fiBMB4QOv6Mhalfk';
+
+let whereFields = [] as types.Field[];
+
+loader.init().then((monaco) => {
+  monaco.languages.register({ id: whereLanguage });
+  monaco.languages.setMonarchTokensProvider(whereLanguage, {
+    ignoreCase: true,
+    tokenizer: {
+      root: [[/\'(?:\\.|[^\\\'])*\'/, 'string']],
+    },
+  });
+
+  monaco.languages.registerCompletionItemProvider(whereLanguage, {
+    provideCompletionItems: (
+      _model: editor.ITextModel,
+      _position: Position,
+      _context: any,
+      _token: CancellationToken
+    ) => {
+      let s = whereFields.map((e) => {
+        return {
+          label: e.field,
+          kind: monaco.languages.CompletionItemKind.Field,
+          range: undefined,
+          insertText: e.field,
+          detail: e.typ,
+          documentation: e.typ,
+        };
+      });
+
+      ['asc', 'desc', 'null', 'not', 'and', 'or'].forEach((e) => {
+        s.push({
+          label: e,
+          kind: monaco.languages.CompletionItemKind.Keyword,
+          range: undefined,
+          insertText: e,
+          detail: e,
+          documentation: e,
+        });
+      });
+
+      return {
+        suggestions: s,
+      } as languages.CompletionList;
+    },
+  });
+});
 
 function WhereSort(props: {
   open: boolean;
@@ -88,9 +138,11 @@ function WhereSort(props: {
   value: string;
   setValue;
   label;
+  fields: types.Field[];
 }) {
-  const { open, onClose, value, setValue, label } = props;
+  const { open, onClose, value, setValue, label, fields } = props;
   const [newValue, setNewValue] = useState(value);
+  whereFields = fields;
 
   return (
     <Modal
@@ -102,17 +154,17 @@ function WhereSort(props: {
         onClose();
       }}
     >
-      <Box sx={modalStyle} width="45%">
+      <Box sx={modalStyle} width="75%">
         <Stack spacing={1}>
-          <TextField
-            fullWidth
+          <SimpleResizeEditor
             value={newValue}
-            onChange={(e) => {
-              setNewValue(e.target.value);
+            onMount={(e) => {
+              e.onDidChangeModelContent(() => {
+                setNewValue(e.getValue());
+              });
             }}
-            label={label}
-            size="small"
-          ></TextField>
+            language={whereLanguage}
+          ></SimpleResizeEditor>
 
           <Stack direction="row" spacing={1}>
             <Button
@@ -122,7 +174,7 @@ function WhereSort(props: {
                 onClose();
               }}
             >
-              set
+              set {`'${label}'`}
             </Button>
             {newValue && (
               <Button
@@ -654,6 +706,7 @@ function SqlTableView(props: {
             setShowSetWhere(false);
           }}
           label="filter"
+          fields={resp.fields}
         ></WhereSort>
       )}
       {showSetSort && (
@@ -663,6 +716,7 @@ function SqlTableView(props: {
           setValue={(v) => {
             setSort(v);
           }}
+          fields={resp.fields}
           onClose={() => {
             setShowSetSort(false);
           }}
