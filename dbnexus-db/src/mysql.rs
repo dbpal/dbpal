@@ -424,12 +424,12 @@ WHERE
 #[allow(dead_code)]
 async fn query_trigger_detail(
     conn: &mut MySqlConnection, name: &str,
-) -> anyhow::Result<(TriggerEvent, TriggerTiming, String, Vec<MetaValue>)> {
+) -> anyhow::Result<(TriggerEvent, TriggerTiming, Vec<MetaValue>)> {
     let sql = format!("SHOW TRIGGERS WHERE `Trigger`='{name}'");
     log::info!("sql:{}", sql);
     let row = sqlx::query(&sql).fetch_one(conn).await?;
     let event: String = row.try_get_unchecked(1)?;
-    let sql = row.try_get_unchecked(3)?;
+
     let timing: String = row.try_get_unchecked(4)?;
     let create_time: chrono::DateTime<Utc> = row.try_get(5)?;
     let sql_mode: String = row.try_get_unchecked(6)?;
@@ -443,7 +443,6 @@ async fn query_trigger_detail(
     anyhow::Ok((
         TriggerEvent::try_from(event.as_str())?,
         timing,
-        sql,
         vec![
             MetaValue::new("created", create_time),
             MetaValue::new("sql_mode", sql_mode),
@@ -850,8 +849,16 @@ impl SchemaTrait for MysqlDB {
 
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
-        let (event, timing, sql, metas) = query_trigger_detail(&mut conn, name).await?;
-        let mut d = TriggerDetail::new(name, timing, event, sql, None);
+        let (event, timing, metas) = query_trigger_detail(&mut conn, name).await?;
+
+        let create_stmt = {
+            let sql = format!("show CREATE TRIGGER `{}`", name);
+            let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+            let create_stmt = row.try_get::<String, _>(2)?;
+            create_stmt
+        };
+
+        let mut d = TriggerDetail::new(name, timing, event, create_stmt, None);
         d.with_metas(metas);
         anyhow::Ok(d)
     }
