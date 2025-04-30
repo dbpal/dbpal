@@ -52,6 +52,7 @@ function DefAndMetasView(props: {
             style={{ minHeight: '200px' }}
             language={language}
             value={detail.def}
+            readOnly={true}
           ></SimpleResizeEditor>
           {detail.metas.length > 0 && (
             <>

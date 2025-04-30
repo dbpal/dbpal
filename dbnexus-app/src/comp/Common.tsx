@@ -419,8 +419,18 @@ function SimpleResizeEditor(props: {
   barLeft?: ReactNode;
   style?: CSSProperties;
   wordWrap?: string;
+  readOnly?: boolean;
 }) {
-  let { language, value, onMount, minHeigth, barLeft, style, wordWrap } = props;
+  let {
+    language,
+    value,
+    onMount,
+    minHeigth,
+    barLeft,
+    style,
+    wordWrap,
+    readOnly,
+  } = props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
   let height = editorInitHeight(value, setting.editorFontSize * 1.2);
@@ -444,6 +454,7 @@ function SimpleResizeEditor(props: {
       fontSize: setting.editorFontSize,
       //@ts-ignore
       wordWrap: wordWrap,
+      readOnly,
       ...setting.editorOption,
     };
   }, [setting]);

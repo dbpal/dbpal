@@ -1655,6 +1655,7 @@ function StatementStructure(props: {
         <SimpleResizeEditor
           language={uuid}
           value={getValue()}
+          readOnly={true}
         ></SimpleResizeEditor>
       )}
     </Stack>

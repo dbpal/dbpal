@@ -221,7 +221,11 @@ function StatementStructure(props: {
         </Button>
       </Stack>
       {sql && (
-        <SimpleResizeEditor language={uuid} value={sql}></SimpleResizeEditor>
+        <SimpleResizeEditor
+          readOnly={true}
+          language={uuid}
+          value={sql}
+        ></SimpleResizeEditor>
       )}
     </Stack>
   );
