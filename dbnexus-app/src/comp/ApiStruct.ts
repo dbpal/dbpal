@@ -335,4 +335,10 @@ export namespace types {
          */
         "indexes": (string)[];
     };
+    export type ColumnType = {
+        "typ": string;
+        "nullness": (string | null);
+        "after": (string | null);
+        "default_value": (string | null);
+    };
 }

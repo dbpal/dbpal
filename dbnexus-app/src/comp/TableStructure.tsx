@@ -925,8 +925,8 @@ function TableAddColumn(props: {
         typ: typ,
         nullness: nullness ? nullness : null,
         after: after ? after : null,
-        defaultValue: defaultValue ? defaultValue : null,
-      },
+        default_value: defaultValue ? defaultValue : null,
+      } as types.ColumnType,
     })
       .then(() => {
         showNotification('success', 'Add Column OK');

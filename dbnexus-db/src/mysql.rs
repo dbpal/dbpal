@@ -679,6 +679,8 @@ impl SchemaTrait for MysqlDB {
         if let Some(a) = col.after.as_ref() {
             sql.push_str(format!("after {}", a).as_str());
         }
+        log::info!("sql:{}", sql);
+
         let mut conn = self.get_conn().await?;
         sqlx::query(&sql).execute(conn.deref_mut()).await?;
         anyhow::Ok(())

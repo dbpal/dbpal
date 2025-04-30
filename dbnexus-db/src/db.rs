@@ -487,7 +487,7 @@ pub struct CreatedType {
     pub sql: String,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
 pub struct ColumnType {
     // type string like `varchar`
     pub(crate) typ: String,
@@ -888,10 +888,12 @@ impl TryFrom<&str> for IndexKind {
             "primary" => Ok(Self::Primary),
             "normal" => Ok(Self::Index),
             "unique" => Ok(Self::Unique),
-            _ => Err(format!(
-                "the frontend may pass the wrong parameter of {}",
-                value
-            )),
+            _ => {
+                Err(format!(
+                    "the frontend may pass the wrong parameter of {}",
+                    value
+                ))
+            }
         }
     }
 }
