@@ -89,8 +89,6 @@ let whereAtuoCompletion: (
   pos: Position
 ) => Promise<languages.CompletionList> = null;
 
-// let whereFields = [] as types.Field[];
-
 loader.init().then((monaco) => {
   monaco.languages.register({ id: whereLanguage });
   monaco.languages.setMonarchTokensProvider(whereLanguage, {
