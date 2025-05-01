@@ -134,6 +134,8 @@ function WhereSort(props: {
           kind: languages.CompletionItemKind.Field,
           insertText: e.field,
           range: undefined,
+          detail: e.typ,
+          documentation: e.typ,
         });
       });
       return list;
