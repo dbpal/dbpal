@@ -84,7 +84,7 @@ const confrimAboutPrimary = async (
 
 const getRowId = (e) => e[keyNotInTable];
 const whereLanguage = 'ckqQtTcQDmO3e2fiBMB4QOv6Mhalfk';
-let whereAtuoCompletion: (
+let whereAutoCompletion: (
   sql: string,
   pos: Position
 ) => Promise<languages.CompletionList> = null;
@@ -105,7 +105,7 @@ loader.init().then((monaco) => {
       _context: any,
       _token: CancellationToken
     ) => {
-      return whereAtuoCompletion(model.getValue(), position);
+      return whereAutoCompletion(model.getValue(), position);
     },
   });
 });
@@ -126,7 +126,7 @@ function WhereSort(props: {
     props;
   const [newValue, setNewValue] = useState(value);
 
-  whereAtuoCompletion = async (sql, p) => {
+  whereAutoCompletion = async (sql, p) => {
     return autoCompletion(sql, p).then((list) => {
       fields.forEach((e) => {
         list.suggestions.push({
