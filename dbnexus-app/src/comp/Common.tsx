@@ -667,13 +667,9 @@ function reloadOK(showNotification) {
 }
 const registeredLanguage = new Set<string>();
 
-// uuid as language identifier.
-function initMonacoLanague(uuid: string, kind: DataSourceKind) {
-  if (registeredLanguage.has(uuid)) {
-    return;
-  }
-  registeredLanguage.add(uuid);
-
+function makeAutoComplete(
+  uuid
+): (sql: string, pos: Position) => Promise<languages.CompletionList> {
   const autoCompletion = async (
     sql: string,
     pos: Position
@@ -695,6 +691,16 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       throw e;
     }
   };
+  return autoCompletion;
+}
+
+// uuid as language identifier.
+function initMonacoLanague(uuid: string, kind: DataSourceKind) {
+  if (registeredLanguage.has(uuid)) {
+    return;
+  }
+  registeredLanguage.add(uuid);
+  const autoCompletion = makeAutoComplete(uuid);
   const format = async (sql: string, _opts: languages.FormattingOptions) => {
     try {
       let text = await invoke<string>('format_sql', {
@@ -1282,6 +1288,7 @@ export {
   LoadStoreFileForQuery,
   keyNotInTable,
   extractBaseName,
+  makeAutoComplete,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn };

@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod app;
 mod handlers;
+
 use app::{App, DBConnectionConfig};
 use handlers::{
     PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,

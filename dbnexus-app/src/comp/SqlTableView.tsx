@@ -84,6 +84,10 @@ const confrimAboutPrimary = async (
 
 const getRowId = (e) => e[keyNotInTable];
 const whereLanguage = 'ckqQtTcQDmO3e2fiBMB4QOv6Mhalfk';
+let whereAtuoCompletion: (
+  sql: string,
+  pos: Position
+) => Promise<languages.CompletionList> = null;
 
 let whereFields = [] as types.Field[];
 
@@ -98,36 +102,27 @@ loader.init().then((monaco) => {
 
   monaco.languages.registerCompletionItemProvider(whereLanguage, {
     provideCompletionItems: (
-      _model: editor.ITextModel,
-      _position: Position,
+      model: editor.ITextModel,
+      position: Position,
       _context: any,
       _token: CancellationToken
     ) => {
-      let s = whereFields.map((e) => {
-        return {
-          label: e.field,
-          kind: monaco.languages.CompletionItemKind.Field,
-          range: undefined,
-          insertText: e.field,
-          detail: e.typ,
-          documentation: e.typ,
-        };
-      });
-
-      ['asc', 'desc', 'null', 'not', 'and', 'or'].forEach((e) => {
-        s.push({
-          label: e,
-          kind: monaco.languages.CompletionItemKind.Keyword,
-          range: undefined,
-          insertText: e,
-          detail: e,
-          documentation: e,
+      return whereAtuoCompletion(model.getValue(), position).then((list) => {
+        let fields = whereFields.map((e) => {
+          return {
+            label: e.field,
+            kind: monaco.languages.CompletionItemKind.Field,
+            range: undefined,
+            insertText: e.field,
+            detail: e.typ,
+            documentation: e.typ,
+          };
         });
+        fields.forEach((f) => {
+          list.suggestions.push(f);
+        });
+        return list;
       });
-
-      return {
-        suggestions: s,
-      } as languages.CompletionList;
     },
   });
 });
@@ -139,10 +134,16 @@ function WhereSort(props: {
   setValue;
   label;
   fields: types.Field[];
+  autoCompletion: (
+    sql: string,
+    pos: Position
+  ) => Promise<languages.CompletionList>;
 }) {
-  const { open, onClose, value, setValue, label, fields } = props;
+  const { open, onClose, value, setValue, label, fields, autoCompletion } =
+    props;
   const [newValue, setNewValue] = useState(value);
   whereFields = fields;
+  whereAtuoCompletion = autoCompletion;
 
   return (
     <Modal
@@ -270,6 +271,10 @@ function SqlTableView(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
   tableName: string;
+  autoCompletion?: (
+    sql: string,
+    pos: Position
+  ) => Promise<languages.CompletionList>;
 }) {
   let {
     reloadOP,
@@ -280,6 +285,7 @@ function SqlTableView(props: {
     kind,
     tableName,
     addOP,
+    autoCompletion,
   } = props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -570,7 +576,7 @@ function SqlTableView(props: {
         >
           reload
         </Button>
-
+        {/* <Typography color="info"> select * from {tableName} where </Typography> */}
         <Chip
           label={where}
           onClick={() => {
@@ -580,7 +586,7 @@ function SqlTableView(props: {
           icon={<FilterAltIcon />}
           style={{ ...filterStyle.style }}
         ></Chip>
-
+        {/* <Typography color="info"> order by </Typography> */}
         <Chip
           label={sort}
           onClick={() => {
@@ -702,6 +708,7 @@ function SqlTableView(props: {
           setValue={(v) => {
             setWhere(v);
           }}
+          autoCompletion={autoCompletion}
           onClose={() => {
             setShowSetWhere(false);
           }}
@@ -711,6 +718,7 @@ function SqlTableView(props: {
       )}
       {showSetSort && (
         <WhereSort
+          autoCompletion={autoCompletion}
           open={showSetSort}
           value={sort}
           setValue={(v) => {

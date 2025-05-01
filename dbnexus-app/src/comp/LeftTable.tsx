@@ -4,6 +4,7 @@ import {
   progressBarSizeSmall,
   tabsHasId,
   DocsAndCount,
+  makeAutoComplete,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -307,6 +308,7 @@ async function makeViewTable(
     case DataSourceKind.Cockroach:
       tableList = (
         <SqlTableView
+          autoCompletion={makeAutoComplete(uuid)}
           tableName={table}
           kind={kind}
           reloadOP={async (

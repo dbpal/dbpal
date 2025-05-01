@@ -14,6 +14,7 @@ import {
   SettingContext,
   initMonacoLanague,
   SimpleResizeEditor,
+  makeAutoComplete,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -524,6 +525,7 @@ function ViewMenu(props: {
         case DataSourceKind.Cockroach:
           list = (
             <SqlTableView
+              autoCompletion={makeAutoComplete(uuid)}
               tableName={view}
               kind={kind}
               notWarnPri={true}
