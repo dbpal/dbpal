@@ -36,7 +36,7 @@ function RedisQuery(props: {
   const urlPrefix = 'https://redis.io/docs/latest/commands/';
 
   const getURL = (command: string) => {
-    return urlPrefix + command + '/';
+    return urlPrefix + command + '/' + '#examples';
   };
 
   // 启用 iframe 的鼠标事件
