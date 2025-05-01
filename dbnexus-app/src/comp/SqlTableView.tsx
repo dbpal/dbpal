@@ -89,7 +89,7 @@ let whereAtuoCompletion: (
   pos: Position
 ) => Promise<languages.CompletionList> = null;
 
-let whereFields = [] as types.Field[];
+// let whereFields = [] as types.Field[];
 
 loader.init().then((monaco) => {
   monaco.languages.register({ id: whereLanguage });
@@ -107,22 +107,7 @@ loader.init().then((monaco) => {
       _context: any,
       _token: CancellationToken
     ) => {
-      return whereAtuoCompletion(model.getValue(), position).then((list) => {
-        let fields = whereFields.map((e) => {
-          return {
-            label: e.field,
-            kind: monaco.languages.CompletionItemKind.Field,
-            range: undefined,
-            insertText: e.field,
-            detail: e.typ,
-            documentation: e.typ,
-          };
-        });
-        fields.forEach((f) => {
-          list.suggestions.push(f);
-        });
-        return list;
-      });
+      return whereAtuoCompletion(model.getValue(), position);
     },
   });
 });
@@ -142,8 +127,20 @@ function WhereSort(props: {
   const { open, onClose, value, setValue, label, fields, autoCompletion } =
     props;
   const [newValue, setNewValue] = useState(value);
-  whereFields = fields;
-  whereAtuoCompletion = autoCompletion;
+
+  whereAtuoCompletion = async (sql, p) => {
+    return autoCompletion(sql, p).then((list) => {
+      fields.forEach((e) => {
+        list.suggestions.push({
+          label: e.field,
+          kind: languages.CompletionItemKind.Field,
+          insertText: e.field,
+          range: undefined,
+        });
+      });
+      return list;
+    });
+  };
 
   return (
     <Modal
