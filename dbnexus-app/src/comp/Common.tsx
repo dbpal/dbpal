@@ -187,6 +187,7 @@ function CreateSchema(props: {
   const schemaSet = new Set(schemas);
   const { showNotification } = useContext(NotificationContext);
   const [schema, setSchema] = useState('');
+  const schemaDom = useRef(null);
   const replicationStrateges = ['SimpleStrategy', 'NetworkTopologyStrategy'];
   const [replicationStrategy, setReplicationStrategy] = useState(
     replicationStrateges[0]
@@ -194,6 +195,7 @@ function CreateSchema(props: {
   const [replicationFactor, setReplicationFactor] = useState('3');
   const handleCreate = () => {
     if (!schema) {
+      schemaDom.current.focus();
       showNotification('error', 'Schema is empty');
       return;
     }
@@ -252,6 +254,7 @@ function CreateSchema(props: {
           onChange={(e) => {
             setSchema(e.target.value);
           }}
+          inputRef={schemaDom}
           label="name"
         ></TextField>
         <Stack direction="row">
@@ -295,6 +298,7 @@ function CreateSchema(props: {
             onChange={(e) => {
               setSchema(e.target.value);
             }}
+            inputRef={schemaDom}
             label="name"
           ></TextField>
         </Stack>
@@ -321,6 +325,7 @@ function CreateSchema(props: {
             setSchema(e.target.value);
           }}
           label="name"
+          inputRef={schemaDom}
         ></TextField>
       </Stack>
       <Stack direction="row">
