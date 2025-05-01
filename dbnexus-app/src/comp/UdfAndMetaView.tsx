@@ -10,7 +10,7 @@ function DefAndMetasView(props: {
   uuid: string;
 }) {
   let { reloadOP, uuid: language } = props;
-  const titleVariant = 'h4';
+  const titleVariant = 'h6';
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas | null>(null);
   const { showNotification } = useContext(NotificationContext);
