@@ -1226,6 +1226,7 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
                 match x {
                     Token::SingleQuotedString(x) => x.to_string(),
                     Token::DoubleQuotedString(x) => x.to_string(),
+                    Token::Word(x) if x.quote_style == Some('"') => x.value.to_string(),
                     _ => x.to_string(),
                 }
             })
@@ -1235,6 +1236,16 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
     anyhow::Ok(commands)
 }
 
+#[cfg(test)]
+#[test]
+fn test_xxx() {
+    let cs = get_command_from_sql(r#"set my_key "value"   'value' "#).unwrap();
+    let c = &cs[0];
+
+    for x in c.iter() {
+        println!("x:{}", x);
+    }
+}
 impl ReadOnlyTrait for RedisDB {
     fn read_only(&self) -> bool {
         self.config.read_only
