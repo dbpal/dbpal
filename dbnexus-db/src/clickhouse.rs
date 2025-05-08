@@ -1073,20 +1073,22 @@ impl JsonResp {
             let mut data = Vec::with_capacity(self.meta.len());
             for meta in self.meta.iter() {
                 let value: Option<String> = match d.get(&meta.name) {
-                    Some(value) => match value {
-                        serde_json::Value::Null => None,
-                        serde_json::Value::Bool(x) => Some(x.to_string()),
-                        serde_json::Value::Number(number) => Some(number.to_string()),
-                        serde_json::Value::String(x) => Some(x.clone()),
-                        serde_json::Value::Array(_) => {
-                            let ty = parse_type(&meta.r#type)?;
-                            Some(encode_nested(value, &ty)?)
+                    Some(value) => {
+                        match value {
+                            serde_json::Value::Null => None,
+                            serde_json::Value::Bool(x) => Some(x.to_string()),
+                            serde_json::Value::Number(number) => Some(number.to_string()),
+                            serde_json::Value::String(x) => Some(x.clone()),
+                            serde_json::Value::Array(_) => {
+                                let ty = parse_type(&meta.r#type)?;
+                                Some(encode_nested(value, &ty)?)
+                            }
+                            serde_json::Value::Object(_) => {
+                                let ty = parse_type(&meta.r#type)?;
+                                Some(encode_nested(value, &ty)?)
+                            }
                         }
-                        serde_json::Value::Object(_) => {
-                            let ty = parse_type(&meta.r#type)?;
-                            Some(encode_nested(value, &ty)?)
-                        }
-                    },
+                    }
                     None => None,
                 };
 
@@ -1147,6 +1149,59 @@ fn parse_type(typ: &str) -> anyhow::Result<DataType> {
 }
 
 impl SqlBuilder for ClickHouseDB {
+    fn update_sql(
+        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        //
+
+        let mut field_by_name = HashMap::new();
+        for f in fs.iter() {
+            field_by_name.insert(&f.field, f);
+        }
+
+        let mut sql = format!(
+            "ALTER TABLE {}{} UPDATE ",
+            if let Some(schema) = schema {
+                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
+            } else {
+                "".to_string()
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
+        );
+        {
+            let last = values.len() - 1;
+            for (index, (k, v)) in values.iter().enumerate() {
+                let f = field_by_name.get(k);
+                if f.is_none() {
+                    anyhow::bail!("field '{}' not found", k);
+                }
+
+                sql.push_str(
+                    format!(
+                        "{}{}{} = {}",
+                        self.quote_style(),
+                        k,
+                        self.quote_style(),
+                        self.put_value_in_sql(
+                            &f.unwrap().typ,
+                            f.unwrap().firebird_binary_sub_type,
+                            v.as_ref().map(|x| x.as_str())
+                        )?
+                    )
+                    .as_str(),
+                );
+                if index != last {
+                    sql.push_str(",")
+                }
+            }
+        }
+        sql.push_str(" WHERE ");
+        sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
+        log::info!("update sql:{}", sql);
+        anyhow::Ok(sql)
+    }
+
     fn type_support_compare(&self, typ: &str) -> bool {
         type_support_compare(typ)
     }
