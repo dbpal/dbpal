@@ -1475,7 +1475,7 @@ function TriggersStructure(props: {
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="80%">
             <TriggerDetail
               reloadOP={async () => {
                 return Promise.resolve(row);
