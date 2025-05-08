@@ -638,7 +638,7 @@ function ViewMenu(props: {
           ...e,
           new TabContent(
             id,
-            `${view}-struct`,
+            `${view}`,
             (
               <ViewStructure
                 view={view}

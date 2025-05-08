@@ -827,7 +827,7 @@ function TableMenu(props: {
           ...e,
           new TabContent(
             id,
-            `${table}-structure`,
+            `${table}`,
             (
               <TableStructure
                 kind={kind}
