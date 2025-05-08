@@ -145,10 +145,12 @@ function WhereSort(props: {
   return (
     <Modal
       open={open}
-      onClose={(_, reason) => {
+      onClose={(e, reason) => {
         if (reason === 'backdropClick') {
           return;
         }
+        //@ts-ignore
+        e.preventDefault();
         onClose();
       }}
     >
@@ -674,10 +676,12 @@ function SqlTableView(props: {
       {editInModal && (
         <Modal
           open={!!editInModal}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setEditInModal(null);
           }}
         >
@@ -985,10 +989,12 @@ function Menu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowFilter(false);
           }}
         >

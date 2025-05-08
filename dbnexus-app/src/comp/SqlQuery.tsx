@@ -558,10 +558,12 @@ function SqlQuery(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowExport(false);
           }}
         >
@@ -588,10 +590,12 @@ function SqlQuery(props: {
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowFavoriteName(false);
           }}
         >

@@ -226,10 +226,12 @@ function ModifySettings() {
       {showEditorOptions && (
         <Modal
           open={showEditorOptions}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowEditorOptions(false);
           }}
         >

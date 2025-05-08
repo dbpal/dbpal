@@ -719,10 +719,12 @@ function ViewMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowExport(false);
           }}
         >

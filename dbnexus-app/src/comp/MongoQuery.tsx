@@ -291,10 +291,12 @@ function MongoQuery(props: {
       {showLoggerLevel && (
         <Modal
           open={showLoggerLevel}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowLoggerLevel(false);
           }}
         >
@@ -313,10 +315,12 @@ function MongoQuery(props: {
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowFavoriteName(false);
           }}
         >

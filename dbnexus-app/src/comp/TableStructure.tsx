@@ -300,10 +300,12 @@ function ColumnsStructure(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowAdd(false);
           }}
         >
@@ -324,10 +326,12 @@ function ColumnsStructure(props: {
       {supportModifyColumn && row && (
         <Modal
           open={!!row}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setRow(null);
           }}
         >
@@ -628,10 +632,12 @@ function IndexesStructure(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowAdd(false);
           }}
         >
@@ -643,10 +649,12 @@ function IndexesStructure(props: {
       {renameIndexName && (
         <Modal
           open={!!renameIndexName}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setRenameIndexName('');
           }}
         >
@@ -1468,10 +1476,12 @@ function TriggersStructure(props: {
       {row && (
         <Modal
           open={!!row}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setRow(null);
           }}
         >

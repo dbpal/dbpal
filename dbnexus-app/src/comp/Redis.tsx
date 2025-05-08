@@ -877,10 +877,12 @@ function RedisSetTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setSelectRow(null);
           }}
         >
@@ -950,10 +952,12 @@ function RedisListTableContextMenu(props: {
       {showDel && (
         <Modal
           open={!!showDel}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowDel(null);
           }}
         >
@@ -1162,10 +1166,12 @@ function RedisListTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setSelectRow(null);
           }}
         >
@@ -1420,10 +1426,12 @@ function RedisZsetTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setSelectRow(null);
           }}
         >
@@ -1631,10 +1639,12 @@ function RedisHashTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setSelectRow(null);
           }}
         >

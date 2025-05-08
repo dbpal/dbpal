@@ -85,10 +85,12 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
       {selectSql && (
         <Modal
           open={!!selectSql}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setSelectSql('');
           }}
         >

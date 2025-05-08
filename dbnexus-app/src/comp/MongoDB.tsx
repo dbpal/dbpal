@@ -519,10 +519,12 @@ function MongoTableListToolBar(props: {
       {showModifyFilter && (
         <Modal
           open={showModifyFilter}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowModifyFilter(false);
           }}
         >
@@ -548,6 +550,8 @@ function MongoTableListToolBar(props: {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowModifySort(false);
           }}
         >
@@ -729,6 +733,8 @@ function MongoTableListContextMenu(props: {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowFilter(false);
           }}
         >
@@ -1003,10 +1009,12 @@ function MongoTableList(props: {
       {selectModifyDoc && (
         <Modal
           open={!!selectModifyDoc}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setSelectModifyDoc(null);
           }}
         >
