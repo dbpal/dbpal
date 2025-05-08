@@ -849,7 +849,7 @@ function AddIndex(props: {
             }}
             size="small"
             key={x}
-            color="primary"
+            color="success"
             label={x}
           ></Chip>
         ))}
@@ -1551,10 +1551,9 @@ function TableStructure(props: {
             onClick={() => {
               setStructure(e.name);
             }}
-            disabled={structure == e.name}
             key={e.name}
             //@ts-ignore
-            color={e.color}
+            color={e.name == structure ? e.color : 'default'}
             label={e.name}
           ></Chip>
         ))}
