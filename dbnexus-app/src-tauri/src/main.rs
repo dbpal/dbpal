@@ -191,6 +191,8 @@ fn main_() {
                             &PredefinedMenuItem::about(handle, Some("an easy to use database management system."),Some({
                                 let mut meta = AboutMetadata ::default();
                                 meta.website  = Some("https://dbpal.site".to_string());
+                                meta.name = Some("dbpals".to_string());
+                                meta.authors = Some(vec!["756445638@qq.com".to_string()]);
                                 meta
                             }))?,
                         ],

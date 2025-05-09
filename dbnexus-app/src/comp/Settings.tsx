@@ -344,7 +344,6 @@ const components: Components<
       },
     },
   },
-
   MuiMenuList: {
     styleOverrides: {
       root: {
@@ -355,15 +354,6 @@ const components: Components<
   MuiChip: {
     styleOverrides: {
       root: {
-        fontSize: '1rem',
-      },
-    },
-  },
-
-  MuiSelect: {
-    styleOverrides: {
-      root: {
-        height: '2.3rem',
         fontSize: '1rem',
       },
     },

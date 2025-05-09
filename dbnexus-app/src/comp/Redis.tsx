@@ -485,8 +485,7 @@ function RedisEditModeSelect(props: {
     <FormControl fullWidth>
       <InputLabel id="simple-select-label">viewer</InputLabel>
       <Select
-        labelId="simple-select-label"
-        id="simple-select"
+        size="small"
         value={mode}
         onChange={(e) => {
           handleChange(e.target.value as RedisEditorMode);

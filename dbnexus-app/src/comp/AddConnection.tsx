@@ -777,6 +777,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       <FormControl fullWidth>
         <InputLabel>Connection Type</InputLabel>
         <Select
+          size="small"
           value={connectionType}
           label="Connection Type"
           onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}

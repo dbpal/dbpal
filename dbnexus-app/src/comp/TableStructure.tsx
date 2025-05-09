@@ -895,6 +895,8 @@ function AddIndex(props: {
   );
 }
 
+const typeHint = 'some type require specify a size like `varchar(128)`';
+
 function TableAddColumn(props: {
   table: string;
   uuid;
@@ -963,12 +965,12 @@ function TableAddColumn(props: {
         }}
         label="column name"
       ></TextField>
-      <TableTypesButton
+      <TableTypes
         uuid={uuid}
         handleChange={(e) => {
           setTyp(e);
         }}
-      ></TableTypesButton>
+      ></TableTypes>
       {/*   TODO some mariadb require a length parameter    */}
       <Stack direction="row" spacing={1}>
         <TextField
@@ -977,8 +979,8 @@ function TableAddColumn(props: {
           value={typ}
           onChange={(e) => setTyp(e.target.value)}
           label="type"
+          helperText={typeHint}
         ></TextField>
-        <ColumnParentThesesHint />
       </Stack>
       {supportNull && (
         <ColumnNullness
@@ -1002,13 +1004,14 @@ function TableAddColumn(props: {
 
       {supportAfter && (
         <FormControl style={{ minWidth: '180px' }}>
-          <InputLabel id="dropdown-label">Select After column </InputLabel>
+          <InputLabel>Select After Column</InputLabel>
           <Select
-            labelId="dropdown-label"
+            size="small"
             value={after}
             onChange={(e) => {
               setAfter(e.target.value);
             }}
+            label="Select After Column"
           >
             <MenuItem value="">none</MenuItem>
             {fields.map((e) => (
@@ -1117,14 +1120,14 @@ function ModifyTableColumn(props: {
       )}
       {modifyType && (
         <Stack spacing={1}>
-          <TableTypesButton
+          <TableTypes
             uuid={uuid}
             handleChange={(e) => {
               setNewTyp(e);
             }}
-          ></TableTypesButton>
+          ></TableTypes>
 
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
             <TextField
               size="small"
               label="Type"
@@ -1133,8 +1136,8 @@ function ModifyTableColumn(props: {
                 setNewTyp(e.target.value);
               }}
               fullWidth
+              helperText={typeHint}
             ></TextField>
-            <ColumnParentThesesHint />
           </Stack>
           {kindSupportNull(kind) && (
             <ColumnNullness
@@ -1158,7 +1161,7 @@ function ModifyTableColumn(props: {
   );
 }
 
-function TableTypesButton(props: { handleChange; uuid }) {
+function TableTypes(props: { handleChange; uuid }) {
   let { handleChange, uuid } = props;
   const [types, setTypes] = useState([]);
   const [show, setShow] = useState(false);
@@ -1181,24 +1184,18 @@ function TableTypesButton(props: { handleChange; uuid }) {
       </Button>
       {show &&
         types.map((t) => (
-          <Button
+          <Chip
+            color="info"
             key={t}
-            style={{ padding: '3px' }}
+            style={{ margin: '1px' }}
+            size="small"
             onClick={() => {
               handleChange(t);
             }}
-          >
-            {t}
-          </Button>
+            label={t}
+          ></Chip>
         ))}
     </Stack>
-  );
-}
-function ColumnParentThesesHint() {
-  return (
-    <Typography color="info">
-      some type require specify a size like `varchar(128)`
-    </Typography>
   );
 }
 
