@@ -9,6 +9,8 @@ import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
 import * as tauriwindow from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
+import { secondConfirm } from './comp/helper';
+
 if (['windows', 'linux'].includes(platform())) {
   document.addEventListener('keydown', function (event) {
     if (event.key === 'F11') {
@@ -16,6 +18,20 @@ if (['windows', 'linux'].includes(platform())) {
       window.isFullscreen().then((isFull) => {
         window.setFullscreen(!isFull);
       });
+    }
+  });
+}
+
+let appWindow = tauriwindow.getCurrent();
+if (appWindow) {
+  appWindow.onCloseRequested(async (event) => {
+    let confirm = await secondConfirm({
+      title: 'close the window',
+      content: 'are u sure to exit the app',
+      confirmText: 'close',
+    });
+    if (!confirm) {
+      event.preventDefault();
     }
   });
 }
