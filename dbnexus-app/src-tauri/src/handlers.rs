@@ -1009,9 +1009,6 @@ pub async fn auto_completion(
 ) -> Result<Vec<CompletionItem>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    // TODO front is very hard to pass this parameter to the server
-    // because of manoca language is global registerd.
-
     let use_lexer = true;
     let db = app.get_opened(name.as_str()).await?;
     let ret = match db {
