@@ -63,7 +63,7 @@ impl LanguageServer for SqliteDB {
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
-                log::error!("completion on ast failed,err:{:?}", err);
+                log::error!("completion on ast failed,err:{}", err);
             }
         };
         if !use_lexer {
@@ -134,10 +134,12 @@ impl AstCompletionHelper for SqliteDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| CompletionItem {
-                item: x.name().to_string().into(),
-                desc: Some(x.type_info().to_string().into()),
-                kind: CompletionKind::Column,
+            .map(|x| {
+                CompletionItem {
+                    item: x.name().to_string().into(),
+                    desc: Some(x.type_info().to_string().into()),
+                    kind: CompletionKind::Column,
+                }
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -148,10 +150,12 @@ impl AstCompletionHelper for SqliteDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let vec = SQLITE_FN_AND_DESC
             .iter()
-            .map(|x| CompletionItem {
-                item: x[0].into(),
-                kind: CompletionKind::Function,
-                desc: Some(x[1].into()),
+            .map(|x| {
+                CompletionItem {
+                    item: x[0].into(),
+                    kind: CompletionKind::Function,
+                    desc: Some(x[1].into()),
+                }
             })
             .collect::<Vec<_>>();
         anyhow::Ok(vec)
@@ -1130,8 +1134,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"PRAGMA user_version;
-12 user_version"#,
+            r#"SELECT e.id AS EmployeeID,  e.name AS EmployeeName,  d.name AS DepartmentName FROM employees AS e JOIN departments AS d ON e.department_id = d.id;
+9 e"#,
             &db,
             false,
         )

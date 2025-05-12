@@ -81,6 +81,7 @@ function ColumnsStructure(props: {
     kind == DataSourceKind.MsSql ||
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.Postgres ||
+    kind == DataSourceKind.Cockroach ||
     kind == DataSourceKind.Oracle ||
     kind == DataSourceKind.TiDB ||
     kind == DataSourceKind.Cassandra ||
@@ -110,7 +111,7 @@ function ColumnsStructure(props: {
         handleReload();
       })
       .catch((e) => {
-        showNotification('error', 'Drop column OK', e);
+        showNotification('error', 'Drop column Failure', e);
       });
   };
 
@@ -146,16 +147,16 @@ function ColumnsStructure(props: {
       {
         field: 'nullable',
         renderCell: (row) => {
-          return TrueOrFalse(row.row['nullable']);
+          return <TrueOrFalse b={row.row['nullable']} />;
         },
       },
       {
         field: 'is_primary',
         renderHeader: () => {
-          return 'primary';
+          return 'primary key';
         },
         renderCell: (row) => {
-          return TrueOrFalse(row.row['is_primary']);
+          return <TrueOrFalse b={row.row['is_primary']} />;
         },
       },
       {
@@ -164,7 +165,7 @@ function ColumnsStructure(props: {
           return 'auto increment';
         },
         renderCell: (row) => {
-          return TrueOrFalse(row.row['is_auto_increment']);
+          return <TrueOrFalse b={row.row['is_auto_increment']} />;
         },
       },
       {
@@ -176,7 +177,7 @@ function ColumnsStructure(props: {
       {
         field: 'sortable',
         renderCell: (row) => {
-          return TrueOrFalse(row.row['sortable']);
+          return <TrueOrFalse b={row.row['sortable']} />;
         },
       },
     ] as GridColDef[];
@@ -208,18 +209,16 @@ function ColumnsStructure(props: {
             </MenuItem>
           )}
           {supportModifyColumn && (
-            <>
-              <MenuItem
-                onClick={() => {
-                  handleDrop(col);
-                }}
-              >
-                <ListItemIcon>
-                  <DeleteForeverIcon></DeleteForeverIcon>
-                </ListItemIcon>
-                <ListItemText> drop </ListItemText>
-              </MenuItem>
-            </>
+            <MenuItem
+              onClick={() => {
+                handleDrop(col);
+              }}
+            >
+              <ListItemIcon>
+                <DeleteForeverIcon></DeleteForeverIcon>
+              </ListItemIcon>
+              <ListItemText> drop </ListItemText>
+            </MenuItem>
           )}
         </MenuList>
       </Paper>
@@ -301,10 +300,12 @@ function ColumnsStructure(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowAdd(false);
           }}
         >
@@ -325,10 +326,12 @@ function ColumnsStructure(props: {
       {supportModifyColumn && row && (
         <Modal
           open={!!row}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setRow(null);
           }}
         >
@@ -449,7 +452,7 @@ function IndexesStructure(props: {
     let confirm = await secondConfirm({
       title: `drop index '${indexName}'`,
       content: 'Are u sure to drop the index',
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;
@@ -629,10 +632,12 @@ function IndexesStructure(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowAdd(false);
           }}
         >
@@ -644,10 +649,12 @@ function IndexesStructure(props: {
       {renameIndexName && (
         <Modal
           open={!!renameIndexName}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setRenameIndexName('');
           }}
         >
@@ -837,37 +844,43 @@ function AddIndex(props: {
         size="small"
         required
       ></TextField>
-      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+      <Stack
+        direction="row"
+        style={{ flexWrap: 'wrap', alignItems: 'center' }}
+        spacing={1}
+      >
         <Typography> includes: </Typography>
-
         {includes.map((x) => (
-          <Button
+          <Chip
             onClick={() => {
               setIncludes((e) => e.filter((e) => e != x));
             }}
+            size="small"
             key={x}
-            color="primary"
-            variant="outlined"
-          >
-            {x}
-          </Button>
+            color="success"
+            label={x}
+          ></Chip>
         ))}
       </Stack>
 
-      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+      <Stack
+        direction="row"
+        style={{ flexWrap: 'wrap', alignItems: 'center' }}
+        spacing={1}
+      >
         <Typography> candidates: </Typography>
         {fields
           .filter((f) => includes.find((e) => e == f.field) == undefined)
           .map((x) => (
-            <Button
+            <Chip
+              size="small"
               key={x.field}
               onClick={() => {
                 setIncludes((e) => [...e, x.field]);
               }}
-              color="primary"
-            >
-              {x.field}
-            </Button>
+              color="default"
+              label={x.field}
+            ></Chip>
           ))}
       </Stack>
 
@@ -881,6 +894,8 @@ function AddIndex(props: {
     </Stack>
   );
 }
+
+const typeHint = 'some type require specify a size like `varchar(128)`';
 
 function TableAddColumn(props: {
   table: string;
@@ -920,8 +935,8 @@ function TableAddColumn(props: {
         typ: typ,
         nullness: nullness ? nullness : null,
         after: after ? after : null,
-        defaultValue: defaultValue ? defaultValue : null,
-      },
+        default_value: defaultValue ? defaultValue : null,
+      } as types.ColumnType,
     })
       .then(() => {
         showNotification('success', 'Add Column OK');
@@ -950,22 +965,22 @@ function TableAddColumn(props: {
         }}
         label="column name"
       ></TextField>
-      <TableTypesButton
+      <TableTypes
         uuid={uuid}
         handleChange={(e) => {
           setTyp(e);
         }}
-      ></TableTypesButton>
+      ></TableTypes>
       {/*   TODO some mariadb require a length parameter    */}
-      <Stack direction="row">
+      <Stack direction="row" spacing={1}>
         <TextField
           fullWidth
           size="small"
           value={typ}
           onChange={(e) => setTyp(e.target.value)}
           label="type"
+          helperText={typeHint}
         ></TextField>
-        <ColumnParentThesesHint />
       </Stack>
       {supportNull && (
         <ColumnNullness
@@ -989,13 +1004,14 @@ function TableAddColumn(props: {
 
       {supportAfter && (
         <FormControl style={{ minWidth: '180px' }}>
-          <InputLabel id="dropdown-label">Select After column </InputLabel>
+          <InputLabel>Select After Column</InputLabel>
           <Select
-            labelId="dropdown-label"
+            size="small"
             value={after}
             onChange={(e) => {
               setAfter(e.target.value);
             }}
+            label="Select After Column"
           >
             <MenuItem value="">none</MenuItem>
             {fields.map((e) => (
@@ -1104,14 +1120,14 @@ function ModifyTableColumn(props: {
       )}
       {modifyType && (
         <Stack spacing={1}>
-          <TableTypesButton
+          <TableTypes
             uuid={uuid}
             handleChange={(e) => {
               setNewTyp(e);
             }}
-          ></TableTypesButton>
+          ></TableTypes>
 
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
             <TextField
               size="small"
               label="Type"
@@ -1120,8 +1136,8 @@ function ModifyTableColumn(props: {
                 setNewTyp(e.target.value);
               }}
               fullWidth
+              helperText={typeHint}
             ></TextField>
-            <ColumnParentThesesHint />
           </Stack>
           {kindSupportNull(kind) && (
             <ColumnNullness
@@ -1145,7 +1161,7 @@ function ModifyTableColumn(props: {
   );
 }
 
-function TableTypesButton(props: { handleChange; uuid }) {
+function TableTypes(props: { handleChange; uuid }) {
   let { handleChange, uuid } = props;
   const [types, setTypes] = useState([]);
   const [show, setShow] = useState(false);
@@ -1168,21 +1184,19 @@ function TableTypesButton(props: { handleChange; uuid }) {
       </Button>
       {show &&
         types.map((t) => (
-          <Button
+          <Chip
+            color="info"
             key={t}
-            style={{ padding: '3px' }}
+            style={{ margin: '1px' }}
+            size="small"
             onClick={() => {
               handleChange(t);
             }}
-          >
-            {t}
-          </Button>
+            label={t}
+          ></Chip>
         ))}
     </Stack>
   );
-}
-function ColumnParentThesesHint() {
-  return <span> some type require specify a size like `varchar(128)`</span>;
 }
 
 function ColumnNullness({ nullness, handleNullness }) {
@@ -1305,11 +1319,16 @@ function TriggersStructure(props: {
       {
         field: 'enable',
         renderCell: (r) => {
-          let enable = r.row.enable;
+          let enable = r.row.enable as types.TriggerEnable;
           if (!enable) {
             return;
           }
-          return enable.enable;
+          switch (enable.kind) {
+            case 'postgres':
+              return enable.enable;
+            case 'bool':
+              return <TrueOrFalse b={enable.enable} />;
+          }
         },
       },
     ] as GridColDef[];
@@ -1454,14 +1473,16 @@ function TriggersStructure(props: {
       {row && (
         <Modal
           open={!!row}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="80%">
             <TriggerDetail
               reloadOP={async () => {
                 return Promise.resolve(row);
@@ -1537,10 +1558,9 @@ function TableStructure(props: {
             onClick={() => {
               setStructure(e.name);
             }}
-            disabled={structure == e.name}
             key={e.name}
             //@ts-ignore
-            color={e.color}
+            color={e.name == structure ? e.color : 'default'}
             label={e.name}
           ></Chip>
         ))}
@@ -1641,6 +1661,7 @@ function StatementStructure(props: {
         <SimpleResizeEditor
           language={uuid}
           value={getValue()}
+          readOnly={true}
         ></SimpleResizeEditor>
       )}
     </Stack>

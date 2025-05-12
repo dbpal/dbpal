@@ -1,12 +1,12 @@
-use typescript_type_def::{
-    TypeDef,
-    type_expr::{
-        DefinedTypeInfo, Ident, NativeTypeInfo, ObjectField, TypeDefinition, TypeExpr, TypeInfo,
-        TypeName, TypeObject, TypeString, TypeUnion,
-    },
+use typescript_type_def::TypeDef;
+use typescript_type_def::type_expr::{
+    DefinedTypeInfo, Ident, NativeTypeInfo, ObjectField, TypeDefinition, TypeExpr, TypeInfo,
+    TypeName, TypeObject, TypeString, TypeUnion,
 };
 
-use crate::{db::HumanSize, language_server::CompletionItem, meta_value::MetaValue};
+use crate::db::HumanSize;
+use crate::language_server::CompletionItem;
+use crate::meta_value::MetaValue;
 
 impl TypeDef for CompletionItem {
     const INFO: TypeInfo = TypeInfo::Defined(DefinedTypeInfo {

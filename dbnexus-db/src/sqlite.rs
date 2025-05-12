@@ -17,12 +17,12 @@ use crate::MemoryLimit;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
     Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp,
-    TriggerDetail, TriggerEvent, TriggerTiming,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    TriggerEvent, TriggerTiming,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
-use crate::query_log::QueryLog;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 pub(crate) fn type_support_compare(_typ: &str) -> bool {
     true
@@ -34,6 +34,7 @@ pub struct SqliteDB {
     read_only: bool,
     path: String,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
+    query_logs: QueryLogMap,
 }
 
 impl SqliteDB {
@@ -102,7 +103,7 @@ impl SqliteDB {
 
                 let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send("\n".into()).await?;
+                sender.send(";\n".into()).await?;
             }
         }
         anyhow::Ok(())
@@ -744,7 +745,7 @@ impl SchemaTrait for SqliteDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         log::trace!("begin to show table");
         let total = self.query_count(table_name, where_str.clone()).await?;
         log::trace!("query count ok");
@@ -761,13 +762,13 @@ impl SchemaTrait for SqliteDB {
         log::trace!("encode rows ok");
         let fields = self.show_table_columns(table_name).await?;
         log::trace!("list columns ok");
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str.clone()).await?;
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
@@ -777,11 +778,11 @@ impl SchemaTrait for SqliteDB {
             .await?;
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -870,14 +871,18 @@ impl SqlBuilder for SqliteDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => {
+                match value {
+                    Some(x) => format!("'{}'", x),
+                    None => "null".to_string(),
+                }
+            }
+            _ if text_like(typ.as_str()) => {
+                match value {
+                    Some(x) => format!("'{}'", x),
+                    None => "null".to_string(),
+                }
+            }
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) => {
                 value.unwrap_or("null").to_string()
@@ -1103,6 +1108,7 @@ impl SqliteDB {
             read_only,
             query_connection: Default::default(),
             path,
+            query_logs: Default::default(),
         })
     }
 
@@ -1136,15 +1142,21 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| match &x.option {
-                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
-                        Token::Word(w) => {
-                            let x = w.value.to_uppercase();
-                            x == "AUTOINCREMENT"
+                if c.options.iter().any(|x| {
+                    match &x.option {
+                        ColumnOption::DialectSpecific(x) => {
+                            x.iter().any(|x| {
+                                match x {
+                                    Token::Word(w) => {
+                                        let x = w.value.to_uppercase();
+                                        x == "AUTOINCREMENT"
+                                    }
+                                    _ => false,
+                                }
+                            })
                         }
                         _ => false,
-                    }),
-                    _ => false,
+                    }
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1159,6 +1171,7 @@ impl ExportQueryResult for SqliteDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1183,10 +1196,14 @@ impl ExportQueryResult for SqliteDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
@@ -1198,17 +1215,18 @@ impl QuerySql for SqliteDB {
         let conn = conn.deref_mut();
 
         let ret = match conn.execute(sqlx::raw_sql(sql)).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected())),
+            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
 
         query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
@@ -1219,7 +1237,7 @@ impl QuerySql for SqliteDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
 
-        let mut ret = Vec::new();
+        let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
 
         let mut rows = Vec::new();
@@ -1239,13 +1257,12 @@ impl QuerySql for SqliteDB {
                     if rows.len() > 0 {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows)?;
-                        ret.push(Ok(QueryResp::new(fields, data)));
-
+                        ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
                         rows.clear();
                     };
 
                     if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected())));
+                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
                     }
                 }
                 sqlx::Either::Right(row) => {
@@ -1264,7 +1281,7 @@ impl QuerySql for SqliteDB {
                 .iter()
                 .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                 .collect::<Vec<_>>();
-            ret = vec![Ok(QueryResp::new(field, vec![]))];
+            ret = vec![Ok(QueryResp::new(field, 0, vec![], sql.to_owned())?)];
         }
 
         anyhow::Ok(ret)
@@ -1289,8 +1306,7 @@ impl QuerySql for SqliteDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        QueryLog::remove(&id);
-
+        self.query_logs.remove(&id);
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
     }
@@ -1465,11 +1481,9 @@ pub(crate) fn gen_show_sql(
 
 // this test no need clean up, we use memory sqlite db.
 pub(crate) async fn make_test_object() -> SqliteDB {
-    let path = std::env!("CARGO_MANIFEST_DIR");
+    let path = std::env::var("DBPAL_SQLITE_TEST_FILE").unwrap();
 
-    let db = SqliteDB::new(format!("{path}/tests/sqlite.test.db"), false)
-        .await
-        .unwrap();
+    let db = SqliteDB::new(path, false).await.unwrap();
     db
 }
 
@@ -1535,8 +1549,7 @@ mod tests {
                     rand::random::<f64>() * 100000f64,
                     rand::random::<f64>() * 1100000f64,
                 );
-                let err = db.query_sql(query_id.clone(), &sql).await.unwrap();
-                println!("insert table result:{:?} sql:{}", err, sql);
+                db.query_sql(query_id.clone(), &sql).await.unwrap();
             }
         }
     }
@@ -1807,7 +1820,7 @@ mod tests {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(query_id, "select 1").await.unwrap();
-        let event = db.get_query_log(query_id).await.unwrap();
+        let event = db.get_query_log(query_id).unwrap();
         println!("{:?}", event);
         assert_eq!(event.len(), 1);
     }

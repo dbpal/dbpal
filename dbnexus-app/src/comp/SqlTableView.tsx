@@ -62,6 +62,8 @@ import {
 } from './helper';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
+import { CancellationToken, editor, languages, Position } from 'monaco-editor';
+import { loader } from '@monaco-editor/react';
 
 const confrimAboutPrimary = async (
   notWarnPri,
@@ -81,6 +83,32 @@ const confrimAboutPrimary = async (
 };
 
 const getRowId = (e) => e[keyNotInTable];
+const whereLanguage = 'ckqQtTcQDmO3e2fiBMB4QOv6Mhalfk';
+let whereAutoCompletion: (
+  sql: string,
+  pos: Position
+) => Promise<languages.CompletionList> = null;
+
+loader.init().then((monaco) => {
+  monaco.languages.register({ id: whereLanguage });
+  monaco.languages.setMonarchTokensProvider(whereLanguage, {
+    ignoreCase: true,
+    tokenizer: {
+      root: [[/\'(?:\\.|[^\\\'])*\'/, 'string']],
+    },
+  });
+
+  monaco.languages.registerCompletionItemProvider(whereLanguage, {
+    provideCompletionItems: (
+      model: editor.ITextModel,
+      position: Position,
+      _context: any,
+      _token: CancellationToken
+    ) => {
+      return whereAutoCompletion(model.getValue(), position);
+    },
+  });
+});
 
 function WhereSort(props: {
   open: boolean;
@@ -88,31 +116,55 @@ function WhereSort(props: {
   value: string;
   setValue;
   label;
+  fields: types.Field[];
+  autoCompletion: (
+    sql: string,
+    pos: Position
+  ) => Promise<languages.CompletionList>;
 }) {
-  const { open, onClose, value, setValue, label } = props;
+  const { open, onClose, value, setValue, label, fields, autoCompletion } =
+    props;
   const [newValue, setNewValue] = useState(value);
+
+  whereAutoCompletion = async (sql, p) => {
+    return autoCompletion(sql, p).then((list) => {
+      fields.forEach((e) => {
+        list.suggestions.push({
+          label: e.field,
+          kind: languages.CompletionItemKind.Field,
+          insertText: e.field,
+          range: undefined,
+          detail: e.typ,
+          documentation: e.typ,
+        });
+      });
+      return list;
+    });
+  };
 
   return (
     <Modal
       open={open}
-      onClose={(_, reason) => {
+      onClose={(e, reason) => {
         if (reason === 'backdropClick') {
           return;
         }
+        //@ts-ignore
+        e.preventDefault();
         onClose();
       }}
     >
-      <Box sx={modalStyle} width="45%">
+      <Box sx={modalStyle} width="75%">
         <Stack spacing={1}>
-          <TextField
-            fullWidth
+          <SimpleResizeEditor
             value={newValue}
-            onChange={(e) => {
-              setNewValue(e.target.value);
+            onMount={(e) => {
+              e.onDidChangeModelContent(() => {
+                setNewValue(e.getValue());
+              });
             }}
-            label={label}
-            size="small"
-          ></TextField>
+            language={whereLanguage}
+          ></SimpleResizeEditor>
 
           <Stack direction="row" spacing={1}>
             <Button
@@ -122,7 +174,7 @@ function WhereSort(props: {
                 onClose();
               }}
             >
-              set
+              set {`'${label}'`}
             </Button>
             {newValue && (
               <Button
@@ -162,6 +214,7 @@ function EditInModal(props: { content: string; handleModify }) {
             label={e.language}
             //@ts-ignore
             color={e.color}
+            size="small"
             disabled={language == e.language}
             onClick={() => {
               setLanguage(e.language);
@@ -169,7 +222,6 @@ function EditInModal(props: { content: string; handleModify }) {
           ></Chip>
         ))}
       </Stack>
-      <Divider></Divider>
       <SimpleResizeEditor
         value={content}
         language={language}
@@ -178,8 +230,8 @@ function EditInModal(props: { content: string; handleModify }) {
             setValue(editor.getValue());
           });
         }}
+        minHeigth={350}
       ></SimpleResizeEditor>
-
       <Divider></Divider>
       <Stack spacing={1} direction="row">
         <Button
@@ -210,7 +262,7 @@ function SqlTableView(props: {
     page: number,
     pageSize: number,
     extra
-  ) => Promise<types.MuiDataTableListResp>;
+  ) => Promise<types.MuiDataGridData>;
   updateOP?: (wheres: object, values: object) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: object) => Promise<types.SqlExecuteRet>;
   put_value_in_sql: (typ: string, value?: string) => Promise<string>;
@@ -218,6 +270,10 @@ function SqlTableView(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
   tableName: string;
+  autoCompletion?: (
+    sql: string,
+    pos: Position
+  ) => Promise<languages.CompletionList>;
 }) {
   let {
     reloadOP,
@@ -228,6 +284,7 @@ function SqlTableView(props: {
     kind,
     tableName,
     addOP,
+    autoCompletion,
   } = props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -237,20 +294,20 @@ function SqlTableView(props: {
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
   const [pageSize, setPageSize] = useState(setting.pageSize);
-  const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
+  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
   const visiable = useContext(VisiableContext);
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editInModal, setEditInModal] = useState<EditInModalData>(null);
 
-  const handleResp = (resp: types.MuiDataTableListResp) => {
-    resp.data.data.forEach((data) => {
+  const handleResp = (resp: types.MuiDataGridData) => {
+    resp.data.forEach((data) => {
       data[keyNotInTable] = uuidv4();
     });
 
-    for (let i = 0; i < resp.data.fields.length; i++) {
-      let field = resp.data.fields[i];
+    for (let i = 0; i < resp.fields.length; i++) {
+      let field = resp.fields[i];
       //@ts-ignore
       field.renderHeader = (e) => {
         let def = e.colDef;
@@ -303,14 +360,14 @@ function SqlTableView(props: {
         pageSize,
         extra
       );
-      setLoading(false);
       await handleResp(resp);
-      resp.data.fields.forEach((e) => {
+      resp.fields.forEach((e) => {
         const width = columnWidths.getWidth(e.field);
         if (width) {
           e['width'] = width;
         }
       });
+      setLoading(false);
       setResp(resp);
       if (showOK) {
         reloadOK(showNotification);
@@ -342,7 +399,7 @@ function SqlTableView(props: {
       if (updateRow.size == 0) {
         return newRow;
       }
-      if (!(await confrimAboutPrimary(notWarnPri, resp.data.fields))) {
+      if (!(await confrimAboutPrimary(notWarnPri, resp.fields))) {
         return oldRow;
       }
       try {
@@ -362,11 +419,11 @@ function SqlTableView(props: {
   );
 
   const handleDetele = async (id) => {
-    if (!(await confrimAboutPrimary(notWarnPri, resp.data.fields))) {
+    if (!(await confrimAboutPrimary(notWarnPri, resp.fields))) {
       return;
     }
     let old;
-    for (const e of resp.data.data) {
+    for (const e of resp.data) {
       if (e[keyNotInTable] == id) {
         old = new Map(Object.entries(e));
         break;
@@ -397,7 +454,6 @@ function SqlTableView(props: {
     handleReload(false);
   }, [page, pageSize, where, sort, allowFiltering]);
 
-  useEffect(() => {}, [sort]);
   useEffect(() => {
     setLastLoadTime(new Date());
   }, [resp]);
@@ -444,11 +500,9 @@ function SqlTableView(props: {
           }
           let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let row = { ...resp.data.data.find((e) => e[keyNotInTable] == id) };
+          let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           delete row[keyNotInTable];
-          let nullable = resp.data.fields.find(
-            (e) => e.field == field
-          ).nullable;
+          let nullable = resp.fields.find((e) => e.field == field).nullable;
 
           setUpMenu({
             content: (
@@ -457,7 +511,7 @@ function SqlTableView(props: {
                   setEditInModal(new EditInModalData(row, field, row[field]));
                 }}
                 nullable={nullable}
-                fields={resp.data.fields}
+                fields={resp.fields}
                 field={field}
                 content={content}
                 handleDelete={() => {
@@ -470,16 +524,14 @@ function SqlTableView(props: {
                 setWhere={setWhere}
                 put_value_in_sql={(value) => {
                   return put_value_in_sql(
-                    resp.data.fields.find((e) => e.field == field).typ,
+                    resp.fields.find((e) => e.field == field).typ,
                     value
                   );
                 }}
                 setNull={
                   updateOP
                     ? async () => {
-                        let x = resp.data.data.find(
-                          (e) => e[keyNotInTable] == id
-                        );
+                        let x = resp.data.find((e) => e[keyNotInTable] == id);
                         try {
                           //ts-ignoe
                           let values = {};
@@ -500,6 +552,7 @@ function SqlTableView(props: {
             style: calMenuStyle(e, 300),
           });
         },
+
         style: { cursor: 'context-menu' },
       },
     } as GridSlotsComponentsProps;
@@ -522,7 +575,7 @@ function SqlTableView(props: {
         >
           reload
         </Button>
-
+        {/* <Typography color="info"> select * from {tableName} where </Typography> */}
         <Chip
           label={where}
           onClick={() => {
@@ -532,7 +585,7 @@ function SqlTableView(props: {
           icon={<FilterAltIcon />}
           style={{ ...filterStyle.style }}
         ></Chip>
-
+        {/* <Typography color="info"> order by </Typography> */}
         <Chip
           label={sort}
           onClick={() => {
@@ -567,7 +620,7 @@ function SqlTableView(props: {
                 <Typography
                   sx={{
                     cursor: 'pointer',
-                    fontWeight: '800',
+
                     fontSize: '0.9rem',
                     fontStyle: 'italic',
                     color: 'green',
@@ -590,7 +643,7 @@ function SqlTableView(props: {
             <div
               style={{
                 display: 'grid',
-                height: datagridContainerHeight(resp.data.data.length),
+                height: datagridContainerHeight(resp.data.length),
               }}
             >
               <DataGrid
@@ -609,8 +662,8 @@ function SqlTableView(props: {
                 rowCount={resp.total}
                 sortingMode="server"
                 onSortModelChange={onSortModelChange}
-                columns={resp.data.fields}
-                rows={resp.data.data}
+                columns={resp.fields}
+                rows={resp.data}
                 onColumnResize={onColumnResize}
                 processRowUpdate={handleProcessRowUpdate}
                 onProcessRowUpdateError={onProcessRowUpdateError}
@@ -623,14 +676,16 @@ function SqlTableView(props: {
       {editInModal && (
         <Modal
           open={!!editInModal}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setEditInModal(null);
           }}
         >
-          <Box sx={modalStyle} width="70%">
+          <Box sx={modalStyle} width="80%">
             <EditInModal
               content={editInModal.content}
               handleModify={async (value) => {
@@ -654,19 +709,23 @@ function SqlTableView(props: {
           setValue={(v) => {
             setWhere(v);
           }}
+          autoCompletion={autoCompletion}
           onClose={() => {
             setShowSetWhere(false);
           }}
           label="filter"
+          fields={resp.fields}
         ></WhereSort>
       )}
       {showSetSort && (
         <WhereSort
+          autoCompletion={autoCompletion}
           open={showSetSort}
           value={sort}
           setValue={(v) => {
             setSort(v);
           }}
+          fields={resp.fields}
           onClose={() => {
             setShowSetSort(false);
           }}
@@ -883,18 +942,16 @@ function Menu(props: {
         </MenuItem>
 
         {content && (
-          <>
-            <MenuItem
-              onClick={() => {
-                setShowFilter(true);
-              }}
-            >
-              <ListItemIcon>
-                <FilterAltIcon></FilterAltIcon>
-              </ListItemIcon>
-              <ListItemText> Quick Filter </ListItemText>
-            </MenuItem>
-          </>
+          <MenuItem
+            onClick={() => {
+              setShowFilter(true);
+            }}
+          >
+            <ListItemIcon>
+              <FilterAltIcon></FilterAltIcon>
+            </ListItemIcon>
+            <ListItemText> Quick Filter </ListItemText>
+          </MenuItem>
         )}
         <Divider></Divider>
 
@@ -911,20 +968,20 @@ function Menu(props: {
           </MenuItem>
         )}
         {addOP && (
-          <>
-            <MenuItem onClick={handleClone}>
-              <ListItemIcon>
-                <FileCopyIcon></FileCopyIcon>
-              </ListItemIcon>
-              <ListItemText> Clone Row </ListItemText>
-            </MenuItem>
-            <MenuItem onClick={handleDelete}>
-              <ListItemIcon>
-                <DeleteForeverIcon></DeleteForeverIcon>
-              </ListItemIcon>
-              <ListItemText> Delete Row</ListItemText>
-            </MenuItem>
-          </>
+          <MenuItem onClick={handleClone}>
+            <ListItemIcon>
+              <FileCopyIcon></FileCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Clone Row </ListItemText>
+          </MenuItem>
+        )}
+        {addOP && (
+          <MenuItem onClick={handleDelete}>
+            <ListItemIcon>
+              <DeleteForeverIcon></DeleteForeverIcon>
+            </ListItemIcon>
+            <ListItemText> Delete Row</ListItemText>
+          </MenuItem>
         )}
         <MenuResetColumnWidths></MenuResetColumnWidths>
       </MenuList>
@@ -932,14 +989,16 @@ function Menu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="50%">
             <FilterOnValue
               content={content}
               setWhere={setWhere}

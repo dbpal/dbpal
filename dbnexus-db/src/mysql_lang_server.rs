@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use sqlx::Row;
 
-use crate::db::{BackendName, DBTrait, FormatSqlOpts, not_support_features};
+use crate::db::{BackendName, FormatSqlOpts, not_support_features};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -87,7 +87,7 @@ impl LanguageServer for MysqlDB {
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
-                log::error!("completion on ast failed,err:{:?}", err);
+                log::error!("completion on ast failed,err:{}", err);
             }
         };
         if !use_lexer {
@@ -137,7 +137,7 @@ impl LangServerCommon for MysqlDB {
     }
 
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
+        MysqlDB::list_schema_impl(self, false).await
     }
 }
 
@@ -199,10 +199,12 @@ impl AstCompletionHelper for MysqlDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| CompletionItem {
-                item: x.name().to_string().into(),
-                desc: Some(x.type_info().to_string().into()),
-                kind: CompletionKind::Column,
+            .map(|x| {
+                CompletionItem {
+                    item: x.name().to_string().into(),
+                    desc: Some(x.type_info().to_string().into()),
+                    kind: CompletionKind::Column,
+                }
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -222,10 +224,12 @@ impl AstCompletionHelper for MysqlDB {
             .await
             .map(|x| {
                 x.into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Function,
-                        desc: None,
+                    .map(|x| {
+                        CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::Function,
+                            desc: None,
+                        }
                     })
                     .collect::<Vec<_>>()
             })?

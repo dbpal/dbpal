@@ -1,6 +1,5 @@
 import {
   Button,
-  Chip,
   FormControlLabel,
   IconButton,
   ListItemIcon,
@@ -105,10 +104,6 @@ const getNamedConfig = async (
 class DocsAndCount {
   constructor(public docs: BSON.Document[], public total: number) {}
 }
-enum MongoDataViewModel {
-  List,
-  Object,
-}
 
 function EditorBar(props: {
   left?: any;
@@ -131,7 +126,6 @@ function CreateDatabase({ uuid, handleClose, kind }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState('');
   const databaseDom = useRef(null);
-  const [file, setFile] = useState('');
 
   const handleCreate = () => {
     if (!database) {
@@ -141,17 +135,6 @@ function CreateDatabase({ uuid, handleClose, kind }) {
     }
 
     let extra = null;
-    switch (kind) {
-      case DataSourceKind.DuckDB:
-        if (!file) {
-          showNotification('error', 'need select a file to attach');
-          return;
-        }
-        extra = { extra: 'duckdb', path: file };
-        break;
-      default:
-    }
-
     invoke('create_database', { name: uuid, database, extra })
       .then(() => {
         showNotification('success', 'Create OK');
@@ -161,34 +144,14 @@ function CreateDatabase({ uuid, handleClose, kind }) {
         showNotification('error', 'Create Failure', e);
       });
   };
-
   let createButtonName;
   switch (kind) {
-    case DataSourceKind.DuckDB:
-      createButtonName = 'attch';
-      break;
     default:
       createButtonName = 'create';
       break;
   }
-
   return (
     <Stack spacing={1}>
-      {kind === DataSourceKind.DuckDB && (
-        <>
-          <Chip
-            color="info"
-            onClick={async () => {
-              const selected = await open({
-                multiple: false,
-              });
-              setFile(selected);
-            }}
-            label={'attach file:' + file}
-          ></Chip>
-        </>
-      )}
-
       <Stack>
         <TextField
           size="small"
@@ -220,11 +183,11 @@ function CreateSchema(props: {
   kind: DataSourceKind;
   schemas: string[];
 }) {
-  //@ts-ignore
   const { uuid, handleClose, kind, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
   const { showNotification } = useContext(NotificationContext);
   const [schema, setSchema] = useState('');
+  const schemaDom = useRef(null);
   const replicationStrateges = ['SimpleStrategy', 'NetworkTopologyStrategy'];
   const [replicationStrategy, setReplicationStrategy] = useState(
     replicationStrateges[0]
@@ -232,6 +195,7 @@ function CreateSchema(props: {
   const [replicationFactor, setReplicationFactor] = useState('3');
   const handleCreate = () => {
     if (!schema) {
+      schemaDom.current.focus();
       showNotification('error', 'Schema is empty');
       return;
     }
@@ -290,6 +254,7 @@ function CreateSchema(props: {
           onChange={(e) => {
             setSchema(e.target.value);
           }}
+          inputRef={schemaDom}
           label="name"
         ></TextField>
         <Stack direction="row">
@@ -333,6 +298,7 @@ function CreateSchema(props: {
             onChange={(e) => {
               setSchema(e.target.value);
             }}
+            inputRef={schemaDom}
             label="name"
           ></TextField>
         </Stack>
@@ -359,6 +325,7 @@ function CreateSchema(props: {
             setSchema(e.target.value);
           }}
           label="name"
+          inputRef={schemaDom}
         ></TextField>
       </Stack>
       <Stack direction="row">
@@ -384,7 +351,7 @@ async function dropDatabase(props: {
 
   const confirm = await secondConfirm({
     title: `drop database ${database}`,
-    confirmText: 'drop',
+    confirmText: 'Drop',
   });
   if (!confirm) {
     return;
@@ -404,7 +371,7 @@ async function dropDatabase(props: {
 async function dropSchema({ uuid, schema, showNotification, okCallback }) {
   const confirm = await secondConfirm({
     title: `drop ${schema}`,
-    confirmText: 'drop',
+    confirmText: 'Drop',
   });
   if (!confirm) {
     return;
@@ -419,7 +386,7 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
     });
 }
 
-function countLines(str) {
+function countLines(str): number | undefined {
   if (!str) return undefined; // 如果字符串为空，返回 0
   return str.split('\n').length; // 按换行符分割并计算长度
 }
@@ -456,14 +423,22 @@ function SimpleResizeEditor(props: {
   minHeigth?: number;
   barLeft?: ReactNode;
   style?: CSSProperties;
+  wordWrap?: string;
+  readOnly?: boolean;
 }) {
-  let { language, value, onMount, minHeigth, barLeft, style } = props;
-
-  const [pos, setPos] = useState<Position>(null);
-  let height = editorInitHeight(
+  let {
+    language,
     value,
-    useContext(SettingContext).editorFontSize * 1.2
-  );
+    onMount,
+    minHeigth,
+    barLeft,
+    style,
+    wordWrap,
+    readOnly,
+  } = props;
+  const [pos, setPos] = useState<Position>(null);
+  const setting = useContext(SettingContext);
+  let height = editorInitHeight(value, setting.editorFontSize * 1.2);
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
   }
@@ -478,10 +453,13 @@ function SimpleResizeEditor(props: {
     },
     [onMount]
   );
-  const setting = useContext(SettingContext);
+
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.editorFontSize,
+      //@ts-ignore
+      wordWrap: wordWrap,
+      readOnly,
       ...setting.editorOption,
     };
   }, [setting]);
@@ -518,7 +496,7 @@ function SimpleResizeEditor(props: {
   );
 }
 
-const msgTimeout = 5000;
+const msgTimeout = 10000;
 
 function tabsHasId(tabs: TabContent[], id: string): number | null {
   for (let i = 0; i < tabs.length; i++) {
@@ -630,23 +608,25 @@ function ConnConfigInfo(props: { uuid }) {
       let config = await getNamedConfig(uuid);
       let configMetas = [];
       switch (config.conn_type) {
-        case 'mysql':
-        case 'mariadb':
-        case 'postgres':
-        case 'redis':
-        case 'mongo':
-        case 'tidb':
-        case 'cassandra':
-        case 'oracle':
-        case 'clickhouse':
-        case 'firebird':
+        case DataSourceKind.Mysql:
+        case DataSourceKind.MariaDB:
+        case DataSourceKind.TiDB:
+        case DataSourceKind.Postgres:
+        case DataSourceKind.Cockroach:
+        case DataSourceKind.Redis:
+        case DataSourceKind.Mongo:
+        case DataSourceKind.Cassandra:
+        case DataSourceKind.Oracle:
+        case DataSourceKind.ClickHouse:
+        case DataSourceKind.FireBird:
+        case DataSourceKind.MsSql:
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,
             { name: 'user', value: config.username } as types.MetaValue,
           ];
           break;
-        case 'libsql':
+        case DataSourceKind.LibSql:
           if (config.source === 'local') {
             configMetas = [
               { name: 'host', value: config.path } as types.MetaValue,
@@ -658,7 +638,7 @@ function ConnConfigInfo(props: { uuid }) {
             ];
           }
           break;
-        case 'sqlite':
+        case DataSourceKind.Sqlite:
           configMetas = [
             { name: 'path', value: config.path } as types.MetaValue,
           ];
@@ -682,9 +662,8 @@ function ConnConfigInfo(props: { uuid }) {
           reload
         </Button>
       </Stack>
-      <div style={{ display: 'grid' }}>
-        <MetaValuesView values={metas}></MetaValuesView>
-      </div>
+
+      <MetaValuesView values={metas}></MetaValuesView>
     </Stack>
   );
 }
@@ -693,13 +672,9 @@ function reloadOK(showNotification) {
 }
 const registeredLanguage = new Set<string>();
 
-// uuid as language identifier.
-function initMonacoLanague(uuid: string, kind: DataSourceKind) {
-  if (registeredLanguage.has(uuid)) {
-    return;
-  }
-  registeredLanguage.add(uuid);
-
+function makeAutoComplete(
+  uuid
+): (sql: string, pos: Position) => Promise<languages.CompletionList> {
   const autoCompletion = async (
     sql: string,
     pos: Position
@@ -721,6 +696,16 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       throw e;
     }
   };
+  return autoCompletion;
+}
+
+// uuid as language identifier.
+function initMonacoLanague(uuid: string, kind: DataSourceKind) {
+  if (registeredLanguage.has(uuid)) {
+    return;
+  }
+  registeredLanguage.add(uuid);
+  const autoCompletion = makeAutoComplete(uuid);
   const format = async (sql: string, _opts: languages.FormattingOptions) => {
     try {
       let text = await invoke<string>('format_sql', {
@@ -791,7 +776,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             ],
           },
           brackets: [
-            { open: '(', close: ')', token: 'delimiter.parenthesis' },
+            { open: '{', close: '}', token: 'delimiter.curly' },
             { open: '[', close: ']', token: 'delimiter.square' },
           ],
         } as languages.IMonarchLanguage,
@@ -1034,13 +1019,13 @@ async function makeQueryConnInfo(uuid: string) {
   } as CSSProperties;
 
   switch (config.conn_type) {
-    case 'mysql':
-    case 'mariadb':
-    case 'postgres':
-    case 'mssql':
-    case 'cassandra':
-    case 'tidb':
-    case 'clickhouse':
+    case DataSourceKind.Mysql:
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.Postgres:
+    case DataSourceKind.MsSql:
+    case DataSourceKind.Cassandra:
+    case DataSourceKind.ClickHouse:
+    case DataSourceKind.Cockroach:
       content = (
         <div style={s}>
           <strong>{config.conn_type}</strong>&nbsp;
@@ -1050,7 +1035,7 @@ async function makeQueryConnInfo(uuid: string) {
         </div>
       );
       break;
-    case 'sqlite':
+    case DataSourceKind.Sqlite:
       content = (
         <div style={s}>
           <strong>sqlite</strong>&nbsp;
@@ -1058,7 +1043,7 @@ async function makeQueryConnInfo(uuid: string) {
         </div>
       );
       break;
-    case 'redis':
+    case DataSourceKind.Redis:
       content = (
         <div style={s}>
           <strong>{config.conn_type}</strong>&nbsp;
@@ -1278,11 +1263,10 @@ function LoadStoreFileForQuery(props: {
 }
 type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
-const treeItemCommonStyle = { fontWeight: '600' } as CSSProperties;
+
 export {
   modalStyle,
   DocsAndCount,
-  MongoDataViewModel,
   EditorBar,
   SimpleResizeEditor,
   editorInitHeight,
@@ -1309,7 +1293,7 @@ export {
   LoadStoreFileForQuery,
   keyNotInTable,
   extractBaseName,
-  treeItemCommonStyle,
+  makeAutoComplete,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn };

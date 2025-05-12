@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -10,82 +9,16 @@ use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
 use crate::db::{BackendName, FormatSqlOpts, monaco_editor_keyword_regexp, not_support_features};
-use crate::sqlparser_completion::CompletionStament;
-
-#[derive(Debug, Clone, Copy, enum_iterator::Sequence)]
-pub enum TokenModifier {
-    Declaration,
-}
-
-impl Into<u32> for TokenModifier {
-    fn into(self) -> u32 {
-        self as u32
-    }
-}
-
-impl TokenModifier {
-    #[allow(dead_code)] // actual used in test.
-    fn to_static_str(self) -> &'static str {
-        match self {
-            Self::Declaration => "declaration",
-        }
-    }
-}
-
-impl std::fmt::Display for TokenModifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_static_str())
-    }
-}
+use crate::sqlparser_completion::CompletionStatement;
 
 #[async_trait::async_trait]
 pub trait LanguageServer: BackendName {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
-    async fn senmatic_tokens(&self, _sql: &str) -> anyhow::Result<Vec<SemanticToken>> {
-        // not used but still can be used in the future
-        anyhow::Ok(vec![])
-    }
+
     fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         not_support_features(self.backend_name())
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, typescript_type_def::TypeDef, PartialOrd,
-)]
-pub struct SemanticToken {
-    pub line: u32, // 1 based
-    pub col: u32,  // 1 based
-    length: u32,
-    token_type: u32,
-    token_modifiers: Option<u32>,
-}
-
-#[allow(unused)]
-impl SemanticToken {
-    pub(crate) fn new(
-        line: u32, col: u32, length: u32, token_type: u32, token_modifiers: impl Into<Option<u32>>,
-    ) -> Self {
-        Self {
-            line,
-            col,
-            length,
-            token_type,
-            token_modifiers: token_modifiers.into(),
-        }
-    }
-}
-
-impl Ord for SemanticToken {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let o = self.line.cmp(&other.line);
-        if o == Ordering::Equal {
-            self.col.cmp(&other.col)
-        } else {
-            return o;
-        }
     }
 }
 
@@ -208,10 +141,12 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             Self::KEY_WORDS
                 .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: Cow::Borrowed(*x),
+                        kind: CompletionKind::KeyWord,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
@@ -219,56 +154,51 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             Self::TYPES
                 .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::Type,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: Cow::Borrowed(*x),
+                        kind: CompletionKind::Type,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(
             Self::TEXTS
                 .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::Text,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: Cow::Borrowed(*x),
+                        kind: CompletionKind::Text,
+                        desc: None,
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(self.extra_completion_item().await.into_iter());
-        ret.extend(
-            self.list_table_or_view()
-                .await?
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Table,
-                    desc: None,
-                }),
-        );
+        ret.extend(self.list_table_or_view().await?.into_iter().map(|x| {
+            CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Table,
+                desc: None,
+            }
+        }));
         ret.extend(self.list_function().await?.into_iter());
 
-        ret.extend(
-            self.list_database()
-                .await?
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Database,
-                    desc: None,
-                }),
-        );
-        ret.extend(
-            self.list_schema(None)
-                .await?
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Schema,
-                    desc: None,
-                }),
-        );
+        ret.extend(self.list_database().await?.into_iter().map(|x| {
+            CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Database,
+                desc: None,
+            }
+        }));
+        ret.extend(self.list_schema(None).await?.into_iter().map(|x| {
+            CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Schema,
+                desc: None,
+            }
+        }));
         anyhow::Ok(ret)
     }
 
@@ -430,7 +360,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
 
     for statement in statements {
         log::trace!("completion on ast:{:?}", statement);
-        let mut c = CompletionStament::new(loc, helper.clone());
+        let mut c = CompletionStatement::new(loc, helper.clone());
         c.completion_on_statement(&statement).await;
         if c.finished() {
             let m = c.result.unwrap_or_default();
@@ -453,7 +383,11 @@ pub(crate) mod completion_test {
             items.iter().any(|x| x.item.eq_ignore_ascii_case(name)),
             "line:{} items:{:?},expect:{:?}",
             line,
-            items,
+            if items.len() > 10 {
+                &items[0..10]
+            } else {
+                items
+            },
             name
         )
     }

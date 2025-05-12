@@ -18,19 +18,20 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, HumanSize, Index, IndexKind,
     ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-    TableListResp, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, not_support_features,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
-use crate::query_log::QueryLog;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 #[derive(Clone)]
 pub struct OracleDB {
     pool: Pool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
+    query_logs: QueryLogMap,
 }
 
 #[async_trait::async_trait]
@@ -68,13 +69,14 @@ impl OracleDB {
             &config.password,
             format!("//{}:{}/{}", config.host, config.port, config.db),
         )
-        .min_connections(min_conn.unwrap_or(20))
+        .min_connections(min_conn.unwrap_or(10))
         .max_connections(100)
         .build()?;
         anyhow::Ok(Self {
             pool,
             query_connections: Default::default(),
             config,
+            query_logs: Default::default(),
         })
     }
 }
@@ -145,6 +147,7 @@ impl ExportQueryResult for OracleDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -169,6 +172,10 @@ impl ExportQueryResult for OracleDB {
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -194,17 +201,17 @@ impl QuerySql for OracleDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        QueryLog::remove(&id);
-
+        self.query_logs.remove(&id);
         if let Some((_, x)) = self.query_connections.remove(&id) {
             tokio::spawn(async move { x.lock().await.close() });
         }
         anyhow::Ok(())
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -213,7 +220,7 @@ impl QuerySql for OracleDB {
         let mut lock = conn.lock().await;
         let conn = lock.deref_mut();
         let ret = match block_in_place(|| conn.execute(sql, &[])) {
-            Ok(_) => Ok(QueryResp::execute_ok()),
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
@@ -223,7 +230,7 @@ impl QuerySql for OracleDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
@@ -241,7 +248,7 @@ impl QuerySql for OracleDB {
         let mut lock = conn.lock().await;
         let conn = lock.deref_mut();
 
-        let mut ret = Vec::new();
+        let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
 
         for seq in ss.iter() {
             log::trace!("oracle query sql:{}", seq);
@@ -252,7 +259,7 @@ impl QuerySql for OracleDB {
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows)?;
                             let data = encode_rows(rows)?;
-                            ret.push(Ok(QueryResp::new(cols, data)));
+                            ret.push(Ok(QueryResp::new(cols, 0, data, seq.sql.to_owned())?));
                         }
                         Err(err) => {
                             ret.push(Err(err.to_string()));
@@ -262,10 +269,14 @@ impl QuerySql for OracleDB {
                 SqlKind::Execution => {
                     let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
                     match stmt {
-                        Ok(x) => match x.row_count() {
-                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x))),
-                            Err(err) => ret.push(Err(err.to_string())),
-                        },
+                        Ok(x) => {
+                            match x.row_count() {
+                                Ok(x) => {
+                                    ret.push(Ok(QueryResp::row_affected(x, seq.sql.to_owned())))
+                                }
+                                Err(err) => ret.push(Err(err.to_string())),
+                            }
+                        }
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
@@ -460,82 +471,118 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let typ = typ.to_string().to_uppercase();
 
     match typ.as_str() {
-        "VARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("VARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NVARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("NVARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
+        "VARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("VARCHAR2") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NVARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("NVARCHAR2") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
 
-        "CHAR" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("CHAR") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCHAR" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("NCHAR") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "RAW" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("RAW") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
+        "CHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("CHAR") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("NCHAR") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "RAW" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("RAW") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
 
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
+            anyhow::Ok(match value {
+                Some(x) => x.to_string(),
+                None => null_string,
+            })
+        }
 
-        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
+        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => {
+            anyhow::Ok(match value {
+                Some(x) => x.to_string(),
+                None => null_string,
+            })
+        }
 
-        "CLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCLOB" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "BLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "LONG" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "TIMESTAMP" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("TIMESTAMP") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
+        "CLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "BLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "LONG" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "TIMESTAMP" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("TIMESTAMP") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -767,7 +814,7 @@ impl OracleDB {
             }
             let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
             sender.send(Cow::Owned(insert_sql)).await?;
-            sender.send("\n".into()).await?;
+            sender.send(";\n".into()).await?;
         }
 
         anyhow::Ok(())
@@ -837,11 +884,12 @@ impl OracleDB {
         let rows: Vec<_> = rows.collect();
         if include_header && rows.len() > 0 {
             let fs = match rows.get(0).unwrap() {
-                Ok(x) => x
-                    .column_info()
-                    .iter()
-                    .map(|x| Some(x.name().to_owned()))
-                    .collect::<Vec<_>>(),
+                Ok(x) => {
+                    x.column_info()
+                        .iter()
+                        .map(|x| Some(x.name().to_owned()))
+                        .collect::<Vec<_>>()
+                }
                 Err(_) => vec![],
             };
 
@@ -926,6 +974,7 @@ impl OracleDB {
         }
         anyhow::Ok(ret)
     }
+
     pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"SELECT TABLE_NAME FROM DBA_TABLES WHERE OWNER = '{}'  ORDER BY TABLE_NAME "#,
@@ -944,12 +993,14 @@ impl OracleDB {
 
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| ListTable {
-                    size: sizes
-                        .get(&x)
-                        .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
-                        .flatten(),
-                    name: x,
+                .map(|x| {
+                    ListTable {
+                        size: sizes
+                            .get(&x)
+                            .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
+                            .flatten(),
+                        name: x,
+                    }
                 })
                 .collect(),
         )
@@ -1003,12 +1054,14 @@ impl SchemaTrait for OracleDB {
 
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| ListTable {
-                    size: sizes
-                        .get(&x)
-                        .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
-                        .flatten(),
-                    name: x,
+                .map(|x| {
+                    ListTable {
+                        size: sizes
+                            .get(&x)
+                            .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
+                            .flatten(),
+                        name: x,
+                    }
                 })
                 .collect(),
         )
@@ -1283,7 +1336,7 @@ impl SchemaTrait for OracleDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let conn = self.get_conn()?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
         log::info!("query sql:{}", sql);
@@ -1291,7 +1344,7 @@ impl SchemaTrait for OracleDB {
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let data = encode_rows(rows.into_iter().collect::<Vec<_>>())?;
         let cols = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(cols, total as usize, data, sql)?)
+        anyhow::Ok(QueryResp::new(cols, total as usize, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1432,7 +1485,7 @@ impl SchemaTrait for OracleDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let conn = self.get_conn()?;
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
@@ -1441,7 +1494,7 @@ impl SchemaTrait for OracleDB {
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         if rows.len() == 0 {
-            return anyhow::Ok(TableListResp::new(
+            return anyhow::Ok(QueryResp::new(
                 self.show_view_columns(view_name).await?,
                 total as usize,
                 vec![],
@@ -1450,7 +1503,7 @@ impl SchemaTrait for OracleDB {
         }
         let cols = infer_schema_by_result(&rows)?;
         let data = encode_rows(rows)?;
-        anyhow::Ok(TableListResp::new(cols, total as usize, data, sql)?)
+        anyhow::Ok(QueryResp::new(cols, total as usize, data, sql)?)
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -1892,7 +1945,6 @@ mod tests {
             db.disable_trigger(&table_name, &tri.name).await.unwrap();
             db.enable_trigger(&table_name, &tri.name).await.unwrap();
         }
-        db.drop_trigger(&table_name, "TRG_NO_ACTION").await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

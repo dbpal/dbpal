@@ -56,7 +56,7 @@ function ModifySettings() {
         }
       })
       .catch((e) => {
-        showNotification('error', 'port is not a number', e);
+        showNotification('error', 'get config failed', e);
       });
   };
   useEffect(() => {
@@ -92,7 +92,7 @@ function ModifySettings() {
       });
   };
 
-  const headerSize = '15%';
+  const headerSize = '30%';
   return (
     <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -196,7 +196,7 @@ function ModifySettings() {
         <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
           <Tooltip title="dbpal use monaco editor as build in editor">
             <Typography width={headerSize} textAlign="right">
-              editor options:
+              monaco editor options:
             </Typography>
           </Tooltip>
           <Typography
@@ -226,10 +226,12 @@ function ModifySettings() {
       {showEditorOptions && (
         <Modal
           open={showEditorOptions}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowEditorOptions(false);
           }}
         >
@@ -310,7 +312,6 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
-        fontWeight: 'bold',
       },
     },
   },
@@ -320,7 +321,6 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px 4px',
         textTransform: 'none',
-        fontWeight: 'bold',
       },
     },
   },
@@ -338,14 +338,12 @@ const components: Components<
     styleOverrides: {
       cell: {
         fontSize: '1rem',
-        fontWeight: '700',
       },
       columnHeaders: {
         fontSize: '0.8rem', // 调整表头字体大小
       },
     },
   },
-
   MuiMenuList: {
     styleOverrides: {
       root: {
@@ -357,20 +355,9 @@ const components: Components<
     styleOverrides: {
       root: {
         fontSize: '1rem',
-        fontWeight: '600',
       },
     },
   },
-
-  MuiSelect: {
-    styleOverrides: {
-      root: {
-        height: '2.3rem',
-        fontSize: '1rem',
-      },
-    },
-  },
-
   MuiAlert: {
     styleOverrides: {
       root: {
@@ -438,6 +425,9 @@ function SettingComp(props: { children }) {
     (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((setting) => {
+        if (!setting) {
+          setting = new UserSettings();
+        }
         setSetting(
           // why new a object because of js is a dynamic language
           // UserSettings maybe have no value on store
@@ -457,7 +447,7 @@ function SettingComp(props: { children }) {
       })
       .catch((e) => {
         alert(`list user settings failed ${e.toString()}`);
-        console.log('list user settting failed', e);
+        console.log('list user setting failed', e);
       });
   };
   const isDark = () => {

@@ -8,11 +8,11 @@ use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
     ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
-    UdfOrProcedureExtraParameter,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
+use crate::query_log::QueryLogEvent;
 
 #[derive(Clone)]
 pub struct TiDB {
@@ -52,6 +52,7 @@ impl ExportQueryResult for TiDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -61,11 +62,16 @@ impl ExportQueryResult for TiDB {
 
 #[async_trait::async_trait]
 impl QuerySql for TiDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        self.db.get_query_log(id)
+    }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.db.execute_sql(query_id, sql).await
     }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -112,7 +118,7 @@ impl SchemaTrait for TiDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         self.db
             .show_table(&table_name, where_str, order_by, page, page_size, extra)
             .await
@@ -199,7 +205,7 @@ impl SchemaTrait for TiDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         self.db
             .show_view(view_name, where_str, order_by, page, page_size, None)
             .await
@@ -297,6 +303,7 @@ impl SqlBuilder for TiDB {
     ) -> anyhow::Result<String> {
         self.db.put_value_in_sql(typ, None, value)
     }
+
     fn type_support_compare(&self, typ: &str) -> bool {
         self.db.type_support_compare(typ)
     }
@@ -312,6 +319,7 @@ impl DBTrait for TiDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         self.db.list_schema().await
     }
@@ -429,5 +437,10 @@ mod tests {
     #[tokio::test]
     async fn test_table_column() {
         test_fns::test_table_column(make_test_object(make_config()).await).await;
+    }
+
+    #[tokio::test]
+    async fn test_view() {
+        test_fns::test_view(make_test_object(make_config()).await).await;
     }
 }

@@ -7,12 +7,12 @@ import {
   Paper,
   MenuList,
   Stack,
-  Button,
   Divider,
   Chip,
 } from '@mui/material';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { types } from './ApiStruct';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   DataGrid,
   GridSlotsComponentsProps,
@@ -46,7 +46,6 @@ import {
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 import { getNamedConfig, SettingContext } from './Common';
-import { debugBuild } from './debug';
 
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
@@ -70,17 +69,16 @@ const LogLevelSelection = ({ handleChange, level }) => {
     <Stack direction="row" spacing={1}>
       {levels.map((e) => {
         return (
-          <Button
+          <Chip
             key={e}
-            variant={level == e ? 'contained' : 'outlined'}
+            size="small"
             disabled={level == e}
             color={getColor(e)}
             onClick={() => {
               handleChange(e);
             }}
-          >
-            {e}
-          </Button>
+            label={e}
+          ></Chip>
         );
       })}
     </Stack>
@@ -167,12 +165,9 @@ function ConnPingTime({ uuid }) {
 
   useEffect(() => {
     reloadStatus();
-    let interval = setInterval(
-      () => {
-        reloadStatus();
-      },
-      debugBuild ? 500000 : 5000
-    );
+    let interval = setInterval(() => {
+      reloadStatus();
+    }, 5000);
     return () => {
       clearInterval(interval);
     };
@@ -233,8 +228,8 @@ function MenuOpenConn({ handleOpend, name }) {
         const has = await invoke('has_entered_password', { name: name });
         if (!has) {
           let key = 'save_password';
-          if (key in config && !config[key]) {
-            let pass = prompt('enter password');
+          if (false === config[key]) {
+            let pass = prompt(`enter password for '${name}'`);
             if (pass == null) {
               return;
             }
@@ -287,7 +282,7 @@ function MenuDeleteConfig({ name }) {
   const handleDelete = async () => {
     const confirm = await secondConfirm({
       title: `drop connection '${name}'`,
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;
@@ -317,7 +312,7 @@ function MenuDeleteConfig({ name }) {
       sx={{ color: 'error.main' }}
     >
       <ListItemIcon>
-        <CloseIcon color="error"></CloseIcon>
+        <DeleteForeverIcon color="error"></DeleteForeverIcon>
       </ListItemIcon>
       <ListItemText color="error"> Drop Connection </ListItemText>
     </MenuItem>
@@ -450,7 +445,8 @@ function MenuResetColumnWidths() {
   );
 }
 
-function TrueOrFalse(b: boolean) {
+function TrueOrFalse(props: { b: boolean }) {
+  const { b } = props;
   return b ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
 }
 

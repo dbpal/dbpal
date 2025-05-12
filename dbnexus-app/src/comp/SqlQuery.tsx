@@ -26,6 +26,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import FastForwardIcon from '@mui/icons-material/FastForward';
 import { editor, Position } from 'monaco-editor';
 import {
   EditorBar,
@@ -36,13 +37,14 @@ import {
   msgTimeout,
   SettingContext,
 } from './Common.tsx';
+
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { secondConfirm } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
-
+import { PiFileSqlFill } from 'react-icons/pi';
 const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
 };
@@ -74,7 +76,7 @@ function OracleCommit(props: { conn: IQueryConn }) {
       await conn.oracleQueryCommit();
       showNotification('success', 'rollback ok');
     } catch (e) {
-      showNotification('error', 'oracle commit failed', e);
+      showNotification('error', 'oracle rollback failed', e);
     }
   };
   const handleReverse = async () => {
@@ -174,11 +176,12 @@ function SqlQuery(props: {
     }
   }, [showQueryLog]);
   const handleReconnect = async () => {
+    setLoading(false);
     if (conn) {
       const confirm = await secondConfirm({
-        title: 're connection',
-        content: 'Maybe unsaved data will lost.',
-        confirmText: 'connect',
+        title: 'reconnection',
+        content: 'unsaved data may lost.',
+        confirmText: 'Connect',
       });
       if (!confirm) {
         return;
@@ -209,7 +212,7 @@ function SqlQuery(props: {
   const warnDangerousSql = async (text): Promise<boolean> => {
     if (await conn.isDangerSql(text)) {
       return await secondConfirm({
-        confirmText: 'execute',
+        confirmText: 'Execute',
         title: 'This is a dangerous sql',
         content: `Are u sure going to execute '${text}'`,
       });
@@ -279,7 +282,7 @@ function SqlQuery(props: {
         setLoading(false);
       });
   };
-  const handleQuery = async () => {
+  const handleQuery = async (append: boolean) => {
     let text = getText();
     if (!text) {
       return;
@@ -299,8 +302,11 @@ function SqlQuery(props: {
     conn
       .queryOP(text)
       .then((resp) => {
-        setResp(resp);
-
+        if (append) {
+          setResp((p) => [...p, ...resp]);
+        } else {
+          setResp(resp);
+        }
         if (showQueryLog) {
           handleLoadQueryLog();
         }
@@ -353,7 +359,7 @@ function SqlQuery(props: {
         function (event) {
           if (event.ctrlKey && event.key.toLowerCase() === 'e') {
             event.preventDefault();
-            handleQuery();
+            handleQuery(false);
           }
         }
       );
@@ -399,13 +405,17 @@ function SqlQuery(props: {
           </Paper>
         )}
         {connectInfo}
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: 'center', flexWrap: 'wrap' }}
+        >
           <Tooltip title="execute">
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
               onClick={() => {
-                handleQuery();
+                handleQuery(false);
               }}
               color="primary"
             >
@@ -413,8 +423,22 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
+          <Tooltip title="execute and append result to tabs">
+            <IconButton
+              loading={loading}
+              disabled={loading || conn == null}
+              onClick={() => {
+                handleQuery(true);
+              }}
+              color="primary"
+            >
+              <FastForwardIcon />
+            </IconButton>
+          </Tooltip>
+
           <Tooltip title="execute sql not expecting result">
             <IconButton
+              loading={loading}
               disabled={loading || conn == null}
               onClick={handleExecute}
               color="primary"
@@ -431,7 +455,6 @@ function SqlQuery(props: {
             }
           >
             <IconButton
-              disabled={loading}
               onClick={() => {
                 handleReconnect();
               }}
@@ -441,8 +464,9 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="export  query result of selected statement">
+          <Tooltip title="export  query result to a file">
             <IconButton
+              loading={loading}
               disabled={loading || conn == null}
               onClick={() => {
                 const value = getText();
@@ -478,7 +502,7 @@ function SqlQuery(props: {
               }}
               color="primary"
             >
-              <FavoriteIcon />
+              <PiFileSqlFill style={{ fontSize: '1.6rem' }} />
             </IconButton>
           </Tooltip>
 
@@ -534,10 +558,12 @@ function SqlQuery(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowExport(false);
           }}
         >
@@ -546,7 +572,7 @@ function SqlQuery(props: {
               handleClose={() => {
                 setShowExport(false);
               }}
-              support_kind={['csv', 'json', 'jsonline']}
+              supportKind={['csv', 'json', 'jsonline']}
               exportOP={async (kind, file) => {
                 try {
                   const sql = getText();
@@ -564,10 +590,12 @@ function SqlQuery(props: {
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowFavoriteName(false);
           }}
         >

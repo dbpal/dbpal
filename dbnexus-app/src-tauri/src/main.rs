@@ -1,9 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-use dbnexus_db::app::{App, DBConnectionConfig};
+mod app;
 mod handlers;
 
+use app::{App, DBConnectionConfig};
 use handlers::{
     PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
     cassandra_list_aggregate, cassandra_show_aggregate, check_conn, close_conn,
@@ -35,18 +35,16 @@ use handlers::{
     redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_set_add,
     redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
     redis_zset_replace, redis_zset_show_table, rename_index, rename_table, save_entered_password,
-    save_password, semantic_tokens, server_metas, show_indexes, show_procedure, show_table,
-    show_table_columns, show_trigger, show_udf, show_view, show_view_columns, test_connection,
-    truncate_table, update,
+    save_password, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
+    show_trigger, show_udf, show_view, show_view_columns, test_connection, truncate_table, update,
 };
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
 fn main() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .worker_threads(32)
         .thread_stack_size(4 * 1024 * 1024)
         .build()
         .unwrap();
@@ -59,11 +57,9 @@ fn main() {
 fn main_() {
     {
         use env_logger::{Builder, Env};
-
         let mut builder = Builder::from_env(Env::default());
         builder.format_file(true);
         builder.format_line_number(true);
-
         builder.try_init().unwrap();
     }
     let app = App::new();
@@ -86,43 +82,39 @@ fn main_() {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
-
             let store = app.store("store.json").unwrap();
             *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
-                let configs = store.get("connection_config");
-                let json_str = match configs {
-                    Some(x) => serde_json::to_string(&x).unwrap(),
-                    None => "[]".to_string(),
-                };
-                let configs: Vec<DBConnectionConfig> = serde_json::from_str(&json_str)?;
+                let configs: Vec<DBConnectionConfig> = serde_json::from_value(
+                    store
+                        .get("connection_config")
+                        .unwrap_or(serde_json::Value::Array(vec![])),
+                )?;
+
                 for mut c in configs.into_iter() {
-                    if let Some(pass) = saved_password
-                        .lock()
-                        .unwrap()
-                        .get(&c.get_name().to_string())
-                    {
-                        c.set_password(pass.clone());
-                        return anyhow::Ok(c);
+                    if c.get_name() != name {
+                        continue;
                     }
-
-                    if c.get_name() == name {
-                        match keyring::Entry::new(PASSWORD_KEY, name) {
-                            Ok(en) => match en.get_password() {
-                                Ok(pass) => c.set_password(pass),
+                    if c.need_password() {
+                        if let Some(pass) = saved_password.get(&c.get_name().to_string()) {
+                            c.set_password(pass.clone());
+                        }else {
+                            match keyring::Entry::new(PASSWORD_KEY, name) {
+                                Ok(en) => match en.get_password() {
+                                    Ok(pass) => c.set_password(pass),
+                                    Err(err) => {
+                                        log::error!("get password for '{}' failed,err:{}", name, err)
+                                    }
+                                },
                                 Err(err) => {
-                                    log::error!("get password for '{}' failed,err:{}", name, err)
+                                    log::error!(
+                                        "get password entry failed:{} maybe user don't set a password should be fine",
+                                        err
+                                    )
                                 }
-                            },
-                            Err(err) => {
-                                log::error!(
-                                    "get password entry failed:{} maybe use don't set a password",
-                                    err
-                                )
-                            }
-                        };
-
-                        return anyhow::Ok(c);
+                            };
+                        }
                     }
+                    return anyhow::Ok(c);
                 }
                 anyhow::bail!(format!("config named '{}' not found", name))
             }));
@@ -196,8 +188,14 @@ fn main_() {
                                 true,
                                 None as Option<&'static str>,
                             )?,
-                            #[cfg(any(target_os = "macos"))]
-                            &PredefinedMenuItem::about(handle, None, None)?,
+                            &PredefinedMenuItem::about(handle, Some("an easy to use database management system."),Some({
+                                let mut meta = AboutMetadata ::default();
+                                meta.website  = Some("https://dbpal.site".to_string());
+                                meta.name = Some("dbpals".to_string());
+                                meta.authors = Some(vec!["756445638@qq.com".to_string()]);
+                                meta.copyright = Some("Copyright © yuyang 2025 All rights reserved.".to_string());
+                                meta
+                            }))?,
                         ],
                     )?,
                 ],
@@ -304,7 +302,6 @@ fn main_() {
             export_query_result_to_file,
             redis_zset_show_table,
             page_init_callback,
-            semantic_tokens,
             mongo_query_collection_count_docs,
             mongo_query_collection_create_index,
             mongo_query_collection_create_search_index,

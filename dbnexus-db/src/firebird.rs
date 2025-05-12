@@ -1,33 +1,28 @@
-/*
-docker run -d   --name some-firebird  -e FIREBIRD_DATABASE=test.fdb   -e FIREBIRD_ROOT_PASSWORD=root  -e FIREBIRD_USER=alice -e         FIREBIRD_PASSWORD=root  -e   -e   -p 3050:3050    firebirdsql/firebird
-*/
+// docker run -d   --name some-firebird  -e FIREBIRD_DATABASE=test.fdb   -e
+// FIREBIRD_ROOT_PASSWORD=root  -e FIREBIRD_USER=alice -e
+// FIREBIRD_PASSWORD=root  -e   -e   -p 3050:3050    firebirdsql/firebird
 
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    ops::DerefMut,
-    sync::Arc,
-    time::Duration,
-};
-
-use crate::{
-    datasource_config::FireBirdConfig,
-    db::{
-        BackendName, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
-        NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-        ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, not_support_features,
-    },
-    helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
-    meta_value::MetaValue,
-    query_log::QueryLog,
-};
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::ops::DerefMut;
+use std::sync::Arc;
+use std::time::Duration;
 
 use dashmap::DashMap;
 use r2d2::PooledConnection;
-use rsfbclient::{Execute, Queryable, Row, builder_pure_rust};
-use rsfbclient::{FbError, SqlType};
+use rsfbclient::{Execute, FbError, Queryable, Row, SqlType, builder_pure_rust};
+use tokio::sync::Mutex;
+use tokio::task::block_in_place;
 
-use tokio::{sync::Mutex, task::block_in_place};
+use crate::datasource_config::FireBirdConfig;
+use crate::db::{
+    BackendName, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
+    NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
+};
+use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::meta_value::MetaValue;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 pub struct PoolManager {
     config: FireBirdConfig,
 }
@@ -37,6 +32,7 @@ pub type Connection = rsfbclient::Connection<rsfbclient_rust::RustFbClient>;
 impl r2d2::ManageConnection for PoolManager {
     type Connection = Connection;
     type Error = FbError;
+
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
         let conn = builder_pure_rust()
             .host(&self.config.host)
@@ -47,6 +43,7 @@ impl r2d2::ManageConnection for PoolManager {
             .connect()?;
         Ok(conn)
     }
+
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         let _: Option<Row> = conn.query_first("SELECT 1 FROM RDB$DATABASE;", ())?;
         Ok(())
@@ -78,6 +75,7 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
         |x| SqlKind::get_from_sql(x),
     )
 }
+
 fn infer_fields(row: &Row) -> Vec<Field> {
     row.cols
         .iter()
@@ -98,9 +96,30 @@ fn infer_fields(row: &Row) -> Vec<Field> {
         .collect()
 }
 
+fn is_date(x: &Option<&String>) -> bool {
+    x.map(|x| x.eq_ignore_ascii_case("date")).unwrap_or(false)
+}
+fn is_time(x: &Option<&String>) -> bool {
+    x.map(|x| x.eq_ignore_ascii_case("time")).unwrap_or(false)
+}
+
 fn encode_rows(
-    rows: &Vec<Row>, try_blob_2_str: bool, get_sub_type: impl Fn(&str) -> Option<i64>,
+    rows: &Vec<Row>, try_blob_2_str: bool, types: Option<HashMap<&String, &Field>>,
 ) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+    let get_binary_sub_type = |name: &String| {
+        types
+            .as_ref()
+            .map(|x| x.get(name).map(|x| x.firebird_binary_sub_type))
+            .flatten()
+            .flatten()
+    };
+    let get_type = |name: &String| {
+        types
+            .as_ref()
+            .map(|x| x.get(name).map(|x| &x.typ))
+            .flatten()
+            .map(|x| x.to_uppercase())
+    };
     let mut ret = Vec::with_capacity(rows.len());
     for row in rows.iter() {
         let mut data = Vec::with_capacity(row.cols.len());
@@ -109,9 +128,19 @@ fn encode_rows(
                 SqlType::Text(x) => Some(x.clone()),
                 SqlType::Integer(x) => Some(x.to_string()),
                 SqlType::Floating(x) => Some(x.to_string()),
-                SqlType::Timestamp(naive_date_time) => Some(naive_date_time.to_string()),
+                SqlType::Timestamp(naive_date_time) => {
+                    let typ = get_type(&v.name);
+                    let typ = typ.as_ref();
+                    if is_date(&typ) {
+                        Some(naive_date_time.date().to_string())
+                    } else if is_time(&typ) {
+                        Some(naive_date_time.time().to_string())
+                    } else {
+                        Some(naive_date_time.to_string())
+                    }
+                }
                 SqlType::Binary(items) => {
-                    let sub_type = get_sub_type(&v.name);
+                    let sub_type = get_binary_sub_type(&v.name);
                     match sub_type {
                         _ if sub_type_is_text(sub_type) => Some(String::from_utf8(items.clone())?),
                         _ => {
@@ -158,7 +187,7 @@ impl FireBirdDB {
 
                     first = false;
                 }
-                let data = encode_rows(&vec![row], true, |_| None)?;
+                let data = encode_rows(&vec![row], true, None)?;
                 sender.blocking_send(Cow::Owned(create_csv(&data, delimiter)))?;
             }
             anyhow::Ok(())
@@ -167,6 +196,7 @@ impl FireBirdDB {
 
         anyhow::Ok(())
     }
+
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -259,6 +289,7 @@ impl ExportQueryResult for FireBirdDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -282,10 +313,14 @@ impl ExportQueryResult for FireBirdDB {
 }
 #[async_trait::async_trait]
 impl QuerySql for FireBirdDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
@@ -312,17 +347,24 @@ impl QuerySql for FireBirdDB {
                         Ok(rows) => {
                             if rows.len() > 0 {
                                 let fields = infer_fields(rows.get(0).unwrap());
-                                let data = encode_rows(&rows, true, |_| None)?;
-                                ret.push(Ok(QueryResp { fields, data }));
+                                let data = encode_rows(&rows, true, None)?;
+                                ret.push(Ok(QueryResp {
+                                    fields,
+                                    data,
+                                    sql: Some(s.sql.to_owned()),
+                                    total: 0,
+                                }));
                             }
                         }
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
-                _ => match block_in_place(|| conn.execute(&s.sql, ())) {
-                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64))),
-                    Err(err) => ret.push(Err(err.to_string())),
-                },
+                _ => {
+                    match block_in_place(|| conn.execute(&s.sql, ())) {
+                        Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_owned()))),
+                        Err(err) => ret.push(Err(err.to_string())),
+                    }
+                }
             }
         }
 
@@ -333,7 +375,7 @@ impl QuerySql for FireBirdDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut _guard = QueryLog::get_guard(query_id, sql);
+        let mut _guard = self.query_logs.get_guard(query_id, sql);
 
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -344,7 +386,7 @@ impl QuerySql for FireBirdDB {
         let conn = conn.deref_mut();
 
         let resp = block_in_place(|| conn.execute(sql, ()))
-            .map(|x| QueryResp::row_affected(x as u64))
+            .map(|x| QueryResp::row_affected(x as u64, sql.to_owned()))
             .map_err(|e| e.to_string());
 
         _guard.set_success(resp.is_ok());
@@ -368,6 +410,7 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
@@ -382,6 +425,7 @@ pub struct FireBirdDB {
     config: FireBirdConfig,
     pool: r2d2::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<PooledConnection<PoolManager>>>>>,
+    query_logs: QueryLogMap,
 }
 
 impl std::fmt::Debug for FireBirdDB {
@@ -414,6 +458,7 @@ impl FireBirdDB {
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
             .await
     }
+
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -422,6 +467,7 @@ impl FireBirdDB {
         self.export_query_result_as_json(sql.as_str(), pretty, sender)
             .await
     }
+
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -437,8 +483,13 @@ impl FireBirdDB {
         let table_name = table_name.to_owned();
         let firebird = Clone::clone(self);
         let cols = SchemaTrait::show_table_columns(self, &table_name).await?;
-
         tokio::task::spawn_blocking(move || {
+            let mut types = HashMap::new();
+
+            cols.iter().for_each(|x| {
+                types.insert(&x.field, x);
+            });
+
             if include_table_schema {
                 anyhow::bail!("include schema not support by firebird");
             }
@@ -452,12 +503,7 @@ impl FireBirdDB {
             let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
             for row in rows {
                 let row = row?;
-                let data = encode_rows(&vec![row], true, |name| {
-                    cols_map
-                        .get(&name)
-                        .map(|x| x.firebird_binary_sub_type)
-                        .flatten()
-                })?;
+                let data = encode_rows(&vec![row], true, Some(types.clone()))?;
                 for d in data.into_iter() {
                     let mut m = HashMap::new();
                     for (d, f) in d.into_iter().zip(cols.iter()) {
@@ -465,7 +511,7 @@ impl FireBirdDB {
                     }
                     let insert_sql = firebird.insert_sql(None, &table_name, &cols, &m)?;
                     sender.blocking_send(Cow::Owned(insert_sql))?;
-                    sender.blocking_send("\n".into())?;
+                    sender.blocking_send(";\n".into())?;
                 }
             }
             anyhow::Ok(())
@@ -608,11 +654,12 @@ impl SchemaTrait for FireBirdDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
         let fs = self.show_table_columns(table_name).await?;
         let mut fields_map = HashMap::new();
+
         fs.iter().for_each(|x| {
             fields_map.insert(&x.field, x);
         });
@@ -621,30 +668,23 @@ impl SchemaTrait for FireBirdDB {
         let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
 
         if rows.len() == 0 {
-            return anyhow::Ok(TableListResp {
+            return anyhow::Ok(QueryResp {
                 fields: fs,
                 total: 0,
                 data: vec![],
                 sql: Some(sql),
             });
         }
-
         let mut fields = infer_fields(&rows[0]);
         fields.iter_mut().for_each(|x| {
             if let Some(f) = fields_map.get(&x.field) {
                 *x = (*f).clone();
             }
         });
-
-        let data = encode_rows(&rows, false, |name| {
-            fields_map
-                .get(&name.to_string())
-                .map(|x| x.firebird_binary_sub_type)
-                .flatten()
-        })?;
+        let data = encode_rows(&rows, false, Some(fields_map))?;
         let total = self.query_count(table_name, where_str)?;
 
-        anyhow::Ok(TableListResp {
+        anyhow::Ok(QueryResp {
             fields,
             total,
             data,
@@ -657,7 +697,7 @@ impl SchemaTrait for FireBirdDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self).insert_sql(None, table_name, &fs, &values)?;
+        let sql = self.insert_sql(None, table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn()?;
         let changes = conn.execute(&sql, ())?;
@@ -724,6 +764,7 @@ impl SchemaTrait for FireBirdDB {
         block_in_place(|| conn.execute(&sql, ()))?;
         anyhow::Ok(())
     }
+
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TABLE "{}""#, table);
         let mut conn = self.get_conn()?;
@@ -814,7 +855,7 @@ impl SchemaTrait for FireBirdDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn()?;
@@ -823,15 +864,14 @@ impl SchemaTrait for FireBirdDB {
         if rows.len() == 0 {
             let fields = self.show_view_columns(view_name).await?;
 
-            return anyhow::Ok(TableListResp {
+            return anyhow::Ok(QueryResp {
                 fields,
                 total: 0,
                 data: vec![],
                 sql: Some(sql),
             });
         }
-
-        let data = encode_rows(&rows, true, |_| None)?;
+        let data = encode_rows(&rows, true, None)?;
         let total = self.query_count(view_name, where_str)?;
         let fields = match rows.get(0) {
             Some(x) => infer_fields(x),
@@ -839,7 +879,7 @@ impl SchemaTrait for FireBirdDB {
                 vec![]
             }
         };
-        anyhow::Ok(TableListResp {
+        anyhow::Ok(QueryResp {
             fields,
             total,
             data,
@@ -860,6 +900,7 @@ impl SqlBuilder for FireBirdDB {
     ) -> anyhow::Result<String> {
         put_value_in_sql(typ, firebird_blob_sub_type, value)
     }
+
     fn type_support_compare(&self, typ: &str) -> bool {
         type_support_compare(typ)
     }
@@ -891,25 +932,35 @@ fn put_value_in_sql(
     let typ = typ.to_lowercase();
     log::trace!("encode value '{:?}' on type '{}'", value, typ);
     match typ.as_str() {
-        "text" | "varying" | "date" | "time" | "timestamp" => anyhow::Ok(
-            value
-                .map(|x| format!("'{}'", x))
-                .unwrap_or("null".to_string()),
-        ),
-        // binary is blob
-        "blob" if sub_type_is_text(sub_type) => anyhow::Ok(
-            value
-                .map(|x| format!("'{}'", x))
-                .unwrap_or("null".to_string()),
-        ),
-        "blob" => match sub_type {
-            Some(sub_type) => anyhow::Ok(
+        "text" | "varying" | "date" | "time" | "timestamp" => {
+            anyhow::Ok(
                 value
-                    .map(|x| format!("CAST(HEX_DECODE('{}') AS BLOB SUB_TYPE {})", x, sub_type))
+                    .map(|x| format!("'{}'", x))
                     .unwrap_or("null".to_string()),
-            ),
-            None => anyhow::bail!("sub type shoule some."),
-        },
+            )
+        }
+        // binary is blob
+        "blob" if sub_type_is_text(sub_type) => {
+            anyhow::Ok(
+                value
+                    .map(|x| format!("'{}'", x))
+                    .unwrap_or("null".to_string()),
+            )
+        }
+        "blob" => {
+            match sub_type {
+                Some(sub_type) => {
+                    anyhow::Ok(
+                        value
+                            .map(|x| {
+                                format!("CAST(HEX_DECODE('{}') AS BLOB SUB_TYPE {})", x, sub_type)
+                            })
+                            .unwrap_or("null".to_string()),
+                    )
+                }
+                None => anyhow::bail!("sub type shoule some."),
+            }
+        }
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
 }
@@ -936,8 +987,10 @@ impl FireBirdDB {
             config,
             pool,
             query_connections: Default::default(),
+            query_logs: Default::default(),
         })
     }
+
     pub(crate) fn get_conn(&self) -> anyhow::Result<r2d2::PooledConnection<PoolManager>> {
         let conn = block_in_place(|| self.pool.get())?;
         anyhow::Ok(conn)
@@ -978,7 +1031,8 @@ pub(crate) fn make_test_object() -> FireBirdDB {
 
 mod tests {
     use super::*;
-    use crate::{db::IndexKind, enable_test_log};
+    use crate::db::IndexKind;
+    use crate::enable_test_log;
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_check_conn() {
         let db = make_test_object();
@@ -1214,7 +1268,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
@@ -1309,13 +1363,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, Some("1 =1 "), Some("ID asc "), 1, 100, None)
+                .show_table(table_name, Some("1 = 1"), Some("ID asc "), 1, 100, None)
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);
         }
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)

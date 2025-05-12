@@ -92,7 +92,7 @@ function TabsMenu(props: {
             const confirm = await secondConfirm({
               title: 'close all tab',
               content: 'are u sure',
-              confirmText: 'close',
+              confirmText: 'Close',
             });
             if (!confirm) {
               return;

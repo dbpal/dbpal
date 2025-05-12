@@ -16,10 +16,11 @@ use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
     Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlExecuteRet, TableListResp, not_support_features,
+    ServerMetas, ShowExtraArgs, SqlExecuteRet, not_support_features,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
+use crate::query_log::QueryLogEvent;
 
 #[derive(Clone)]
 pub struct MongoDB {
@@ -83,12 +84,17 @@ impl ReadOnlyTrait for MongoDB {
 }
 
 #[async_trait::async_trait]
-impl ExportQueryResult for MongoDB {}
+impl ExportQueryResult for MongoDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
+}
 #[async_trait::async_trait]
 impl DBTrait for MongoDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn().await?;
         let mut names = conn
@@ -336,7 +342,7 @@ impl MongoDB {
 
     pub async fn show_collection_table_list(
         &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let db = self.get_db().await?;
         let count = db
             .collection::<u64>(collection_name)
@@ -359,7 +365,7 @@ impl MongoDB {
         let cols = infer_multi_value_column_names(&docs[..])?;
         let data = collect_table_resp(&cols, docs.as_slice())?;
 
-        anyhow::Ok(TableListResp::new(cols, count as usize, data, None)?)
+        anyhow::Ok(QueryResp::new(cols, count as usize, data, None)?)
     }
 
     pub async fn show_collection_docs(
@@ -641,7 +647,7 @@ impl SchemaTrait for MongoDB {
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }
 
@@ -730,7 +736,7 @@ impl SchemaTrait for MongoDB {
     async fn show_table(
         &self, _table_name: &str, _filter: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }
 
@@ -806,11 +812,16 @@ impl SchemaTrait for MongoDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
+    fn get_query_log(&self, _id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        not_support_features(self.backend_name())
+    }
+
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         not_support_features(self.backend_name())
     }
+
     async fn execute_sql(
         &self, _query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -863,9 +874,11 @@ mod tests {
 
     use std::str::FromStr;
     use std::time::SystemTime;
+    use std::vec;
 
     use bson::oid::ObjectId;
-    use bson::{Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
+    use bson::spec::BinarySubtype;
+    use bson::{Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
     use mongodb::options::TimeseriesOptions;
 
     use super::make_test_object;
@@ -1200,9 +1213,7 @@ mod tests {
     #[tokio::test]
     async fn test_xxx() {
         let db = make_test_object();
-
         let view_name = "test_mongo";
-
         let docs = db
             .show_collection_docs(view_name, doc! {}, doc! {}, 1, 100)
             .await
@@ -1218,27 +1229,37 @@ mod tests {
         let db = make_test_object();
         let table = "test_mongo";
         let _ = db.drop_table(&table, false).await;
-        db.insert(table, doc! {"name" : "xxx" , "age" : 22})
-            .await
-            .unwrap();
-        db.insert(table, doc! {"name" : "yyy" , "age" : 22})
-            .await
-            .unwrap();
 
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Time went backwards")
             .as_secs() as i64;
+
+        println!("now:{}", now);
+
+        let binary_field = Bson::Binary(Binary::from(bson::binary::Vector::Int8(vec![1, 2])));
+        let binary_field2 = Bson::Binary(Binary::from(bson::binary::Vector::Float32(vec![
+            1f32, 2f32,
+        ])));
+        let input = "aGVsbG8=".to_string(); // hello base64
+        let binary_field3 = Binary::from_base64(input.clone(), None).unwrap();
+        let binary_field4 =
+            Binary::from_base64(input.clone(), Some(BinarySubtype::Encrypted)).unwrap();
+        let binary_field5 = Binary::from_base64(input, Some(BinarySubtype::Reserved(10))).unwrap();
         let data = doc! {
             "_id": ObjectId::new(),
             "string_field": "Hello, world!",
-            "int_field": 123,
+            "int32_field": Bson::Int32(123),
             "float_field": 123.45,
             "bool_field": true,
             "date_field": DateTime::from_millis(now * 1_000), // MongoDB uses milliseconds since epoch
             "null_field": Bson::Null,
             "regex_field": Regex { pattern : "haha".to_string(),options :"i".to_string()} ,
-            "binary_field": vec![0x01, 0x02, 0x03],
+            "binary_field":binary_field,
+            "binary_field2": binary_field2,
+            "binary_field3": binary_field3,
+            "binary_field4": binary_field4,
+            "binary_field5": binary_field5,
             "uuid_field": Uuid::new(),
             "array_field": vec![
                 Bson::Int32(1),
@@ -1247,7 +1268,7 @@ mod tests {
             ],
             "object_field": doc! {"nested_key": "nested_value"},
             "decimal_field": Decimal128::from_str("1").unwrap(),
-            "timestamp_field": Timestamp {time: now as u32, increment: 1},
+            "timestamp_field": Timestamp {time: now as u32, increment: 1 },
         };
 
         db.insert(&table, data).await.unwrap();

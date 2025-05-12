@@ -47,11 +47,12 @@ enum-iterator = "2.1.0"
 cdrs-tokio = "8.1.5"
 num-bigint = "*"
 r2d2 = "*"
+base64 = "*"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 clickhouse = { version = "0.13.1", features = ["rustls-tls", "time", "uuid"] }
 # https://github.com/duckdb/duckdb-rs/issues/436  
-duckdb = { version = "=1.2.1", features = ["bundled"], optional = true }
-libduckdb-sys = { version = "=1.2.1", optional = true }
+duckdb = { version = "=1.2.2", features = ["bundled"], optional = true }
+libduckdb-sys = { version = "=1.2.2", optional = true }
 cql3-parser = { git = "https://github.com/dbpal/rust-cql3-parser", rev = "89aef5f99854449a78dc37a17363823f889374c8" }
 libsql = { git = "https://github.com/tursodatabase/libsql", rev = "28294c9ea7577b4bcb5b5faac0c97dd102343851" }
 rsfbclient = { version = "0.25.1", default-features = false, features = [

@@ -1,11 +1,9 @@
 use std::borrow::Cow;
 
 use line_index::{LineCol, TextSize};
-use sqlparser::{
-    ast::Statement,
-    dialect::Dialect,
-    tokenizer::{Location, Token},
-};
+use sqlparser::ast::Statement;
+use sqlparser::dialect::Dialect;
+use sqlparser::tokenizer::{Location, Token};
 
 /// front can execute a sequence of sql.
 /// this represent a single query and a kind.
@@ -340,6 +338,31 @@ impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
         }
     }
 }
+
+pub struct TimeSome {
+    some: String,
+    start: std::time::Instant,
+}
+
+impl Drop for TimeSome {
+    fn drop(&mut self) {
+        println!(
+            "start:{:?} elapsed:{}ms end:{}",
+            self.start,
+            self.start.elapsed().as_millis(),
+            self.some
+        );
+    }
+}
+
+impl TimeSome {
+    pub fn new(some: String) -> Self {
+        let start = std::time::Instant::now();
+        println!("start:{} time:{:?}", some, start);
+        Self { some, start }
+    }
+}
+
 /// format sql routine for crate `sqlformat`.
 pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
     sqlformat::format(sql, &sqlformat::QueryParams::None, &op.unwrap_or_default())

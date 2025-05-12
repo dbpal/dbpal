@@ -15,7 +15,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { MdQueryStats } from 'react-icons/md';
+
 import {
   memo,
   useCallback,
@@ -40,13 +40,12 @@ import {
   initMonacoLanague,
   makeQueryConnInfo,
   QueryConn,
-  treeItemCommonStyle,
   SettingContext,
 } from './Common';
-import { FaCopyright } from 'react-icons/fa';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
 import { PiFileSqlFill } from 'react-icons/pi';
+import { FaCopy } from 'react-icons/fa';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -74,7 +73,7 @@ import {
   TabsSetContext,
   UuidContext,
 } from './helper';
-
+import { TbDatabaseSearch } from 'react-icons/tb';
 import { SqlQuery } from './SqlQuery';
 import { RedisQuery } from './RedisQuery';
 import { MongoQuery } from './MongoQuery.tsx';
@@ -171,7 +170,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
                 setShowCopyConn(true);
               }}
             >
-              <FaCopyright style={{ fontSize: '2.6rem' }}> </FaCopyright>
+              <FaCopy style={{ fontSize: '2.2rem' }}> </FaCopy>
             </IconButton>
           </Tooltip>
         </Stack>
@@ -181,7 +180,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           fullWidth
           value={matchPattern}
           size="small"
-          label="match key for table view udf procedure ..."
+          label="match pattern for table view udf procedure ..."
           onChange={(e) => {
             setMatchPattern(e.target.value.trim());
           }}
@@ -192,10 +191,12 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {showFavoriteSql && (
         <Modal
           open={showFavoriteSql}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowFavoriteSql(false);
           }}
         >
@@ -212,10 +213,12 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {showAddConnection && (
         <Modal
           open={showAddConnection}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowAddConnection(false);
           }}
         >
@@ -231,10 +234,12 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {copyConn && (
         <Modal
           open={!!copyConn}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setCopyConn(null);
           }}
         >
@@ -252,10 +257,12 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {showCopyConn && (
         <Modal
           open={showCopyConn}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowCopyConn(false);
           }}
         >
@@ -339,7 +346,12 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   let cols = useMemo(() => {
     const cols = [
       { field: 'name' },
-      { field: 'conn_type' },
+      {
+        field: 'conn_type',
+        renderHeader: () => {
+          return 'kind';
+        },
+      },
       { field: 'host' },
       { field: 'path' },
       { field: 'port' },
@@ -449,6 +461,13 @@ function Left_() {
       handleReload();
     });
   });
+  const m = useMemo(() => {
+    return matchPattern
+      ? wcmatch(matchPattern, { flags: 'i' })
+      : () => {
+          return true;
+        };
+  }, [matchPattern]);
   return (
     <Stack
       style={{
@@ -463,16 +482,7 @@ function Left_() {
       <Stack>
         {configs.map((e) => {
           return (
-            <MatchPatternContext.Provider
-              value={
-                matchPattern
-                  ? wcmatch(matchPattern, { flags: 'i' })
-                  : () => {
-                      return true;
-                    }
-              }
-              key={e.name}
-            >
+            <MatchPatternContext.Provider value={m} key={e.name}>
               <ConnTypeContext.Provider
                 value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
               >
@@ -488,7 +498,6 @@ function Left_() {
           );
         })}
       </Stack>
-
       <div style={{ minHeight: '300px' }}></div>
     </Stack>
   );
@@ -603,7 +612,7 @@ function FavoriteSqlList(props: { handleClose }) {
             generateRandomString(10),
             `q@${row.uuid}`,
             content,
-            <MdQueryStats> </MdQueryStats>
+            <TbDatabaseSearch> </TbDatabaseSearch>
           ),
         ];
       });
@@ -618,7 +627,6 @@ function FavoriteSqlList(props: { handleClose }) {
   useEffect(() => {
     handleReload(false);
   }, []);
-
   const { setUpMenu } = useContext(ContextMenuContext);
   function Menu(props: { content: string; id: string }) {
     const { content, id } = props;
@@ -711,7 +719,7 @@ function FavoriteSqlList(props: { handleClose }) {
   const handleclean = async () => {
     let confirm = await secondConfirm({
       title: 'clean all favorite sql???',
-      confirmText: 'clean',
+      confirmText: 'Clean',
     });
     if (!confirm) {
       return;
@@ -890,7 +898,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
@@ -931,6 +939,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
       {opened && kind == DataSourceKind.Mongo && (
         <>
           <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TablesType.MongoTimeSerial} />
           <ViewsTree viewkind={ViewKind.Normal} />
         </>
       )}
@@ -1075,21 +1084,18 @@ function DatabaseMenu(props: {
           </MenuItem>
         )}
 
-        {!database && (
-          <>
-            <Divider></Divider>
-            <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
-          </>
-        )}
+        {!database && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
       </MenuList>
 
       {showCreateSchema && (
         <Modal
           open={showCreateSchema}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowCreateSchema(false);
           }}
         >
@@ -1119,12 +1125,8 @@ function CatalogMenu(props: {
   handleCloseConn;
   kind: DataSourceKind;
 }) {
-  //@ts-ignore
   const { uuid, reload, handleOpend, opened, handleCloseConn, kind } = props;
-
   const [showCreateDB, setShowCreateDB] = useState(false);
-  // const { showNotification } = useContext(NotificationContext);
-  // const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
     <Paper>
       <MenuList>
@@ -1139,20 +1141,6 @@ function CatalogMenu(props: {
             }}
           ></MenuCreateDatabase>
         )}
-
-        {/* {opened && (
-          <MenuNewQuery
-            handle={() => {
-              openNewQuery(
-                setSelectTab,
-                setTabs,
-                uuid,
-                kind,
-                showNotification
-              );
-            }}
-          ></MenuNewQuery>
-        )} */}
 
         {opened && <MenuRefresh reload={reload}></MenuRefresh>}
         {opened && <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>}
@@ -1169,10 +1157,12 @@ function CatalogMenu(props: {
       {showCreateDB && (
         <Modal
           open={showCreateDB}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowCreateDB(false);
           }}
         >
@@ -1268,14 +1258,19 @@ async function openNewQuery(
       );
       break;
     default:
-      throw `impl this ${kind}`;
+      console.log(`impl this ${kind}`);
   }
 
   setTabs((e: TabContent[]) => {
     setSelectTab(e.length);
     return [
       ...e,
-      new TabContent(id, `q@${uuid}`, content, <MdQueryStats> </MdQueryStats>),
+      new TabContent(
+        id,
+        `q@${uuid}`,
+        content,
+        <TbDatabaseSearch> </TbDatabaseSearch>
+      ),
     ];
   });
 }
@@ -1345,12 +1340,7 @@ function SchemaMenu(props: {
             <ListItemText color="error"> drop </ListItemText>
           </MenuItem>
         )}
-        {!schema && (
-          <>
-            <Divider></Divider>
-            <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
-          </>
-        )}
+        {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
       </MenuList>
     </Paper>
   );
@@ -1410,7 +1400,6 @@ function CatalogTree(_props: {}) {
             style: calMenuStyle(e, 70),
           });
         }}
-        style={{ ...treeItemCommonStyle }}
       >
         <span>{name} </span>
         {loading && <CircularProgress size={progressBarSizeSmall} />}
@@ -1495,7 +1484,7 @@ function DatabaseTree(props: {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
       >
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>

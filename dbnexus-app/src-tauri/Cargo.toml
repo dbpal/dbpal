@@ -39,7 +39,7 @@ humantime = "*"
 tauri-plugin-store = "2"
 tauri-plugin-http = "2"
 enum-iterator = "*"
-tauri-plugin-clipboard-manager = "2.2.0"
+tauri-plugin-clipboard-manager = "2"
 keyring = { version = "3", features = [
     "apple-native",
     "windows-native",

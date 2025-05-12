@@ -1,23 +1,19 @@
-use std::{
-    collections::{HashMap, HashSet},
-    ops::{Deref, DerefMut},
-    sync::{Arc, Mutex},
-};
+use std::collections::{HashMap, HashSet};
+use std::ops::{Deref, DerefMut};
+use std::sync::{Arc, Mutex};
 
-use sqlparser::{
-    ast::{
-        AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CopySource, CreateFunctionBody,
-        DataType, Declare, DeclareAssignment, GrantObjects, GranteeName, Ident, ObjectName,
-        ObjectNamePart, OneOrManyWithParens, Privileges, SchemaName, SelectItem, SequenceOptions,
-        Spanned, Statement, TableConstraint, TableFactor, TableObject, TriggerEvent,
-        UpdateTableFromKind, UserDefinedTypeRepresentation,
-    },
-    tokenizer::{Location, Span},
+use sqlparser::ast::{
+    AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CopySource, CreateFunctionBody,
+    DataType, Declare, DeclareAssignment, GrantObjects, GranteeName, Ident, ObjectName,
+    ObjectNamePart, OneOrManyWithParens, Privileges, SchemaName, SelectItem, SequenceOptions,
+    Spanned, Statement, TableConstraint, TableFactor, TableObject, TriggerEvent,
+    UpdateTableFromKind, UserDefinedTypeRepresentation,
 };
+use sqlparser::tokenizer::{Location, Span};
 
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
 
-pub struct CompletionStament {
+pub struct CompletionStatement {
     pub(crate) loc: Location,
     pub(crate) result: Option<Vec<CompletionItem>>,
     pub(crate) helper: Arc<dyn AstCompletionHelper>,
@@ -31,12 +27,12 @@ pub struct Scopes {
     ss: Arc<Mutex<Vec<Scope>>>,
 }
 
-pub(crate) struct ScopesGuard {
+pub(crate) struct ScopesDropGuard {
     ss: Arc<Mutex<Vec<Scope>>>,
     n: usize,
 }
 
-impl Drop for ScopesGuard {
+impl Drop for ScopesDropGuard {
     fn drop(&mut self) {
         let n = self.n;
         let mut m = self.ss.lock().unwrap();
@@ -58,18 +54,21 @@ impl Scopes {
         vec![]
     }
 
-    pub(crate) fn drop_n(&self, n: usize) -> ScopesGuard {
-        ScopesGuard {
+    pub(crate) fn drop_n(&self, n: usize) -> ScopesDropGuard {
+        ScopesDropGuard {
             ss: self.ss.clone(),
             n,
         }
     }
+
     pub(crate) fn enter_declare(&self, d: Arc<Declare>) {
         self.current_scope(|x| x.enter_declare(d));
     }
+
     pub(crate) fn current_scope<R>(&self, f: impl FnOnce(&mut Scope) -> R) -> R {
         f(self.ss.lock().unwrap().last_mut().unwrap())
     }
+
     pub(crate) fn new() -> Self {
         Self {
             // at lease one scope.
@@ -78,17 +77,14 @@ impl Scopes {
     }
 
     pub(crate) fn tables(&self) -> Vec<String> {
-        let names: HashSet<String> = HashSet::new();
-        let mut ret = Vec::new();
+        let mut names: HashSet<String> = HashSet::new();
         self.inner_first(|scope| {
             if let Some(table) = &scope.this_table {
                 match table {
                     ThisTableEnum::Table { name } => {
                         let name = name.0.last().unwrap();
                         let name_str = name.to_string();
-                        if !names.contains(&name_str) {
-                            ret.push(name_str);
-                        }
+                        names.insert(name_str);
                     }
                     ThisTableEnum::Temp { temp: _ } => {
                         // nothing to here.
@@ -97,29 +93,26 @@ impl Scopes {
             }
             for name in scope.table_entered.keys() {
                 let name_str = name.to_string();
-                if !names.contains(&name_str) {
-                    ret.push(name_str);
-                }
+                names.insert(name_str);
             }
             for temp in scope.temp_tables.keys() {
                 let name_str = temp.to_string();
-                if !names.contains(&name_str) {
-                    ret.push(name_str);
-                }
+                names.insert(name_str);
             }
             // this clouse need return a option.
             return None as Option<()>;
         });
-        ret
+        names.into_iter().collect()
     }
 
-    pub(crate) fn push(&self, scope: Scope) -> ScopesGuard {
+    pub(crate) fn push(&self, scope: Scope) -> ScopesDropGuard {
         self.ss.lock().unwrap().push(scope);
-        ScopesGuard {
+        ScopesDropGuard {
             ss: self.ss.clone(),
             n: 1,
         }
     }
+
     pub(crate) fn push_without_guard(&self, s: Scope) {
         self.ss.lock().unwrap().push(s);
     }
@@ -133,6 +126,7 @@ impl Scopes {
         }
         None
     }
+
     pub(crate) fn nearest_table_named(&self, name: &Ident) -> Option<NearNestTableNamed> {
         let name = name.to_owned();
         self.inner_first(|scope| -> Option<NearNestTableNamed> {
@@ -298,16 +292,7 @@ impl Scope {
     }
 }
 
-impl CompletionStament {
-    pub(crate) fn set_on_def(&mut self) {
-        self.on_def = true
-    }
-    pub(crate) fn set_has_err(&mut self) {
-        self.has_err = true
-    }
-    pub(crate) fn finished(&self) -> bool {
-        self.result.is_some() || self.on_def || self.has_err
-    }
+impl CompletionStatement {
     pub(crate) fn new(loc: Location, helper: Arc<dyn AstCompletionHelper>) -> Self {
         Self {
             loc,
@@ -319,6 +304,18 @@ impl CompletionStament {
         }
     }
 
+    pub(crate) fn set_on_def(&mut self) {
+        self.on_def = true
+    }
+
+    pub(crate) fn set_has_err(&mut self) {
+        self.has_err = true
+    }
+
+    pub(crate) fn finished(&self) -> bool {
+        self.result.is_some() || self.on_def || self.has_err
+    }
+
     pub(crate) fn in_pos(&self, span: &Span) -> bool {
         (self.loc.line >= span.start.line && self.loc.line <= span.end.line)
             && (self.loc.column >= span.start.column && self.loc.column <= span.end.column)
@@ -327,7 +324,8 @@ impl CompletionStament {
     pub(crate) fn in_pos_optinal(&self, span: Option<&Span>) -> bool {
         span.map(|span| self.in_pos(span)).unwrap_or_default()
     }
-
+}
+impl CompletionStatement {
     pub(crate) async fn completion_on_statement(&mut self, statement: &Statement) {
         match statement {
             Statement::Analyze {
@@ -341,7 +339,7 @@ impl CompletionStament {
                     return;
                 }
                 for c in columns.iter() {
-                    self.c_on_column(table_name, c).await;
+                    self.c_on_column(table_name, c, false).await;
                     if self.finished() {
                         return;
                     }
@@ -394,7 +392,7 @@ impl CompletionStament {
                 match &insert.table {
                     TableObject::TableName(object_name) => {
                         for c in insert.columns.iter() {
-                            self.c_on_column(object_name, c).await;
+                            self.c_on_column(object_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
@@ -406,7 +404,7 @@ impl CompletionStament {
                     TableObject::TableName(object_name) => {
                         // I don't understand this,But we can still suggest table column
                         for c in insert.after_columns.iter() {
-                            self.c_on_column(object_name, c).await;
+                            self.c_on_column(object_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
@@ -432,7 +430,9 @@ impl CompletionStament {
                 }
                 match &insert.table {
                     TableObject::TableName(object_name) => {
-                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE 或 DELETE 语句后返回被操作的行的特定列。这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
+                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
+                        // 或 DELETE 语句后返回被操作的行的特定列。
+                        // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
                         let _gurad = self
                             .scopes
                             .push(Scope::from_this_table(object_name.clone()));
@@ -458,7 +458,9 @@ impl CompletionStament {
                                 }
                             }
                         }
-                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE 或 DELETE 语句后返回被操作的行的特定列。这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
+                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
+                        // 或 DELETE 语句后返回被操作的行的特定列。
+                        // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
                         let _gurad = self
                             .scopes
                             .push(Scope::from_this_table(object_name.clone()));
@@ -512,7 +514,7 @@ impl CompletionStament {
                             return;
                         }
                         for c in columns.iter() {
-                            self.c_on_column(table_name, &c).await;
+                            self.c_on_column(table_name, &c, false).await;
                             if self.finished() {
                                 return;
                             }
@@ -552,7 +554,7 @@ impl CompletionStament {
                 let table = match &table.relation {
                     TableFactor::Table { name, .. } => Some(name.clone()),
                     _ => {
-                        log::error!("update from table is not a Table but:{:?}", table);
+                        log::error!("update from table is not a Table but:{}", table);
                         None
                     }
                 };
@@ -579,6 +581,7 @@ impl CompletionStament {
                                                     ident,
                                                 ) => ident,
                                             },
+                                            false,
                                         ))
                                         .await;
                                     }
@@ -655,9 +658,11 @@ impl CompletionStament {
                             create_table
                                 .columns
                                 .iter()
-                                .map(|c| TempTableColumn {
-                                    name: c.name.value.clone(),
-                                    typ: Some(c.data_type.to_string()),
+                                .map(|c| {
+                                    TempTableColumn {
+                                        name: c.name.value.clone(),
+                                        typ: Some(c.data_type.to_string()),
+                                    }
                                 })
                                 .collect(),
                         ),
@@ -733,10 +738,12 @@ impl CompletionStament {
                                 self.result = Some(
                                     columns
                                         .iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.value.clone().into(),
-                                            kind: CompletionKind::Column,
-                                            desc: None,
+                                        .map(|x| {
+                                            CompletionItem {
+                                                item: x.value.clone().into(),
+                                                kind: CompletionKind::Column,
+                                                desc: None,
+                                            }
                                         })
                                         .collect(),
                                 );
@@ -759,10 +766,12 @@ impl CompletionStament {
                                 self.result = Some(
                                     columns
                                         .iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.value.clone().into(),
-                                            kind: CompletionKind::Column,
-                                            desc: None,
+                                        .map(|x| {
+                                            CompletionItem {
+                                                item: x.value.clone().into(),
+                                                kind: CompletionKind::Column,
+                                                desc: None,
+                                            }
                                         })
                                         .collect(),
                                 );
@@ -770,7 +779,7 @@ impl CompletionStament {
                             }
                             self.c_on_table(foreign_table).await;
                             for r in referred_columns.iter() {
-                                self.c_on_column(foreign_table, r).await;
+                                self.c_on_column(foreign_table, r, false).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -797,10 +806,12 @@ impl CompletionStament {
                                 self.result = Some(
                                     columns
                                         .iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.value.clone().into(),
-                                            kind: CompletionKind::Column,
-                                            desc: None,
+                                        .map(|x| {
+                                            CompletionItem {
+                                                item: x.value.clone().into(),
+                                                kind: CompletionKind::Column,
+                                                desc: None,
+                                            }
                                         })
                                         .collect(),
                                 );
@@ -822,10 +833,12 @@ impl CompletionStament {
                                 self.result = Some(
                                     columns
                                         .iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.value.clone().into(),
-                                            kind: CompletionKind::Column,
-                                            desc: None,
+                                        .map(|x| {
+                                            CompletionItem {
+                                                item: x.value.clone().into(),
+                                                kind: CompletionKind::Column,
+                                                desc: None,
+                                            }
                                         })
                                         .collect(),
                                 );
@@ -859,8 +872,8 @@ impl CompletionStament {
                 let _guard = self
                     .scopes
                     .push(Scope::from_this_table(create_index.table_name.clone()));
-                // using 在 PostgreSQL 中，USING 关键字用于指定索引的类型，例如 B-tree、HASH、GIN 等。示例如下：
-                // using 用lexer的自动完成即可
+                // using 在 PostgreSQL 中，USING 关键字用于指定索引的类型，例如
+                // B-tree、HASH、GIN 等。示例如下： using 用lexer的自动完成即可
 
                 for c in create_index.columns.iter() {
                     self.c_on_order_by_expr(c).await;
@@ -868,9 +881,12 @@ impl CompletionStament {
                         return;
                     }
                 }
-                // 在 PostgreSQL 中，CREATE INDEX 语句的 INCLUDE 关键字用于在创建索引时指定额外的列，这些列不会用于索引的排序或查找，但会被包含在索引的叶节点中。这种功能主要用于提高查询性能，特别是在需要返回额外列的场景中。
+                // 在 PostgreSQL 中，CREATE INDEX 语句的 INCLUDE
+                // 关键字用于在创建索引时指定额外的列，这些列不会用于索引的排序或查找，
+                // 但会被包含在索引的叶节点中。这种功能主要用于提高查询性能，
+                // 特别是在需要返回额外列的场景中。
                 for i in create_index.include.iter() {
-                    self.c_on_column(&create_index.table_name, i).await;
+                    self.c_on_column(&create_index.table_name, i, false).await;
                     if self.finished() {
                         return;
                     }
@@ -1151,10 +1167,13 @@ impl CompletionStament {
                 // no one can write a sql like this???
             }
             Statement::ShowVariable { variable } => {
-                for var in variable {
-                    self.c_on_variable(var).await;
-                    if self.finished() {
-                        return;
+                let name = self.helper.backend_name();
+                if name == "postgres" {
+                    for var in variable {
+                        self.c_on_variable(var).await;
+                        if self.finished() {
+                            return;
+                        }
                     }
                 }
             }
@@ -1295,7 +1314,7 @@ impl CompletionStament {
                     match e {
                         TriggerEvent::Update(fields) => {
                             for field in fields.iter() {
-                                self.c_on_column(table_name, field).await;
+                                self.c_on_column(table_name, field, false).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -1515,7 +1534,7 @@ impl CompletionStament {
                 // 所以这里不能做
             }
             Statement::Merge { .. } => {
-                //Snowflake ... not support rightnow
+                // Snowflake not support rightnow
             }
             Statement::Cache { .. } => {
                 // Spark SQL
@@ -1608,8 +1627,8 @@ impl CompletionStament {
             Statement::Unload { .. } => {
                 // not support right now
             }
-            Statement::OptimizeTable { .. } => {
-                // ClickHouse spec
+            Statement::OptimizeTable { name, .. } => {
+                self.c_on_table(&name).await;
             }
             Statement::LISTEN { .. } => {}
             Statement::UNLISTEN { .. } => {}
@@ -1657,25 +1676,10 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
- 
-DECLARE
-    result INT := 1;
-BEGIN
-    IF n < 0 THEN
-        RETURN NULL;  -- 负数的阶乘未定义
-    ELSIF n = 0 THEN
-        RETURN 1;  -- 0 的阶乘为 1
-    ELSE
-        FOR i IN 1..n LOOP
-            result := result * i;
-        END LOOP;
-        RETURN result;
-    END IF;
-END;
- 
+            SHOW Databa
         "#;
 
-        let dialect = sqlparser::dialect::PostgreSqlDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
         let mut p = p.try_with_sql(sql).unwrap();
         let statement = p.parse_statement().unwrap();

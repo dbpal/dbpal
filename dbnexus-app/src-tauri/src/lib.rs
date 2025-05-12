@@ -1,17 +1,16 @@
+pub mod app;
 pub mod handlers;
-
 #[cfg(test)]
 mod tests {
-    use dbnexus_db::{
-        cassandra::CassandraDB,
-        datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce},
-        db::CreateTableAndIndexSql,
-    };
+    use dbnexus_db::cassandra::CassandraDB;
+    use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce};
+    use dbnexus_db::db::{ColumnType, CreateTableAndIndexSql};
 
     #[test]
     fn generate_ts_def() {
-        use crate::handlers::{MuiDataGridData, MuiDataTableListResp};
-        use dbnexus_db::app::{self};
+        use std::io::prelude::*;
+        use std::path::Path;
+
         use dbnexus_db::datasource_config::{
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };
@@ -20,14 +19,15 @@ mod tests {
             NamedStaff, ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
             TriggerTiming,
         };
-        use dbnexus_db::language_server::{CompletionItem, CompletionKind, SemanticToken};
+        use dbnexus_db::language_server::{CompletionItem, CompletionKind};
         use dbnexus_db::query_log::QueryLogEvent;
         use dbnexus_db::redis::RedisListTable;
-        use std::io::prelude::*;
-        use std::path::Path;
         use typescript_type_def::{
             DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos,
         };
+
+        use crate::app::{self};
+        use crate::handlers::MuiDataGridData;
 
         let dir = env!("CARGO_MANIFEST_DIR");
         let filepath = Path::new(&dir)
@@ -59,14 +59,13 @@ mod tests {
                 &RedisDBConfig::INFO,
                 &MysqlDBConfig::INFO,
                 &MongoDBConfig::INFO,
-                &MuiDataTableListResp::INFO,
                 &MuiDataGridData::INFO,
                 &QueryLogEvent::INFO,
-                &SemanticToken::INFO,
                 &CassandraDBConfig::INFO,
                 &LibSqlDBConfigSouce::INFO,
                 &CreateTableAndIndexSql::INFO,
                 &EnableSsl::INFO,
+                &ColumnType::INFO,
             ];
 
             let mut buf = Vec::new();

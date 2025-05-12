@@ -1,26 +1,22 @@
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Duration;
+
 use r2d2::PooledConnection;
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
-
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    time::Duration,
-};
 use tokio::task::block_in_place;
 
-use crate::{
-    datasource_config::ClickHouseConfig,
-    db::{
-        BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-        ExportKind, ExportQueryResult, Field, ListMaterializedView, ListTable, NamedStaff,
-        QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-        SqlBuilder, SqlExecuteRet, TableListResp, ty_is_float, ty_is_int,
-    },
-    helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq},
-    meta_value::MetaValue,
-    query_log::QueryLog,
+use crate::datasource_config::ClickHouseConfig;
+use crate::db::{
+    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    ExportKind, ExportQueryResult, Field, ListMaterializedView, ListTable, NamedStaff, QueryResp,
+    QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
+    SqlExecuteRet, ty_is_float, ty_is_int,
 };
+use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::meta_value::MetaValue;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 impl BackendName for ClickHouseDB {
     fn backend_name(&self) -> &str {
@@ -46,6 +42,7 @@ impl ClickHouseDB {
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
             .await
     }
+
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -107,6 +104,7 @@ impl ClickHouseDB {
                 &fs,
                 &values,
             )?;
+            let s = format!("{};\n", s);
             sender.send(Cow::Owned(s)).await?;
         }
 
@@ -199,6 +197,7 @@ impl SchemaTrait for ClickHouseDB {
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         self.list_view_impl(self.config.db_str()).await
     }
+
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
         self.list_materialized_view_impl(self.config.db_str()).await
     }
@@ -282,6 +281,7 @@ impl SchemaTrait for ClickHouseDB {
         conn.query(&sql).execute().await?;
         anyhow::Ok(())
     }
+
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!(r#"CREATE TABLE "{dup}" AS "{table}";"#);
@@ -325,6 +325,7 @@ impl SchemaTrait for ClickHouseDB {
         j2.await??;
         anyhow::Ok(())
     }
+
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE TABLE "{table_name}""#);
@@ -333,12 +334,15 @@ impl SchemaTrait for ClickHouseDB {
         conn.query(&sql).execute().await?;
         anyhow::Ok(())
     }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_table_impl(self.config.db_str()).await
     }
+
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let conn = self.get_conn()?;
         let primary_keys = {
@@ -419,7 +423,7 @@ impl SchemaTrait for ClickHouseDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str).await?;
         let fs = self.show_table_columns(table_name).await?;
         let fs = {
@@ -449,13 +453,13 @@ impl SchemaTrait for ClickHouseDB {
             }
         });
         let data = result.encode_json_result()?;
-        anyhow::Ok(TableListResp::new(infered_fs, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(infered_fs, total, data, sql)?)
     }
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(view_name, where_str).await?;
 
         let sql = gen_show_sql(
@@ -470,20 +474,21 @@ impl SchemaTrait for ClickHouseDB {
         let result = self.query_as_json(&sql).await?;
         let fields = result.infer_fields();
         let data = result.encode_json_result()?;
-        anyhow::Ok(TableListResp {
+        anyhow::Ok(QueryResp {
             fields,
             total,
             data,
             sql: Some(sql),
         })
     }
+
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self).insert_sql(
+        let sql = self.insert_sql(
             self.config.db.as_ref().map(|x| x.as_str()),
             &table_name,
             &fs,
@@ -494,6 +499,7 @@ impl SchemaTrait for ClickHouseDB {
         conn.query(&sql).execute().await?;
         anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
+
     async fn update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
@@ -576,6 +582,7 @@ impl SchemaTrait for ClickHouseDB {
         }
         anyhow::Ok(())
     }
+
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
@@ -637,7 +644,7 @@ fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: Option<&str>) -> Stri
         DataType::Date => single_quote_str,
         DataType::Date32 => single_quote_str,
         DataType::Datetime(_) => single_quote_str,
-        DataType::Datetime64(_, _) => single_quote_str,
+        DataType::Datetime64(..) => single_quote_str,
         DataType::LowCardinality(x) => put_value_in_sql(x.as_ref(), value),
         DataType::Uuid => single_quote_str,
         _ => default_str,
@@ -651,6 +658,7 @@ pub struct PoolManager {
 impl r2d2::ManageConnection for PoolManager {
     type Connection = clickhouse::Client;
     type Error = clickhouse::error::Error;
+
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
         let mut client = clickhouse::Client::default();
         client = client.with_url(format!(
@@ -666,6 +674,7 @@ impl r2d2::ManageConnection for PoolManager {
         if let Some(db) = self.config.db.as_ref() {
             client = client.with_database(db);
         }
+
         Ok(client)
     }
 
@@ -765,6 +774,7 @@ impl ExportQueryResult for ClickHouseDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -789,22 +799,28 @@ impl ExportQueryResult for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.get_conn()?;
         let ret = match conn.query(&sql).execute().await {
-            Ok(_) => Ok(QueryResp::execute_ok()),
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
 
         anyhow::Ok(ret)
     }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -813,7 +829,7 @@ impl QuerySql for ClickHouseDB {
             kind: SqlKind::Query,
         }]);
         let mut ret = Vec::new();
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         for sql in sqls.iter() {
             log::info!("query sql kind:{:?} sql:{}", sql.kind, sql.sql);
             match sql.kind {
@@ -823,7 +839,12 @@ impl QuerySql for ClickHouseDB {
                         Ok(x) => {
                             let fields = x.infer_fields();
                             let data = x.encode_json_result()?;
-                            ret.push(Ok(QueryResp { fields, data }));
+                            ret.push(Ok(QueryResp {
+                                fields,
+                                data,
+                                sql: Some(sql.sql.clone()),
+                                total: 0,
+                            }));
                         }
 
                         Err(err) => {
@@ -872,6 +893,7 @@ pub struct ClickHouseDB {
     pub(crate) config: ClickHouseConfig,
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
+    query_logs: QueryLogMap,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {
@@ -906,8 +928,10 @@ impl ClickHouseDB {
             config,
             pool,
             client,
+            query_logs: Default::default(),
         })
     }
+
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManager>> {
         let conn = block_in_place(|| self.pool.get())?;
         anyhow::Ok(conn)
@@ -919,11 +943,13 @@ impl DBTrait for ClickHouseDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn()?;
         let databases: Vec<String> = conn.query("show databases").fetch_all().await.unwrap();
         anyhow::Ok(databases)
     }
+
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
         config.db = Some(name.to_owned());
@@ -978,43 +1004,47 @@ impl JsonResp {
                 serde_json::Value::Bool(x) => x.to_string(),
                 serde_json::Value::Number(number) => number.to_string(),
                 serde_json::Value::String(x) => format!("'{}'", x),
-                serde_json::Value::Array(values) => match typ {
-                    DataType::Tuple(tys) => {
-                        // a check
-                        if values.len() != tys.len() {
-                            anyhow::bail!(
-                                "we are dealing with tuple values length and types length shold be equal ,values len:{} tys:{:?}",
-                                values.len(),
-                                tys
-                            )
+                serde_json::Value::Array(values) => {
+                    match typ {
+                        DataType::Tuple(tys) => {
+                            // a check
+                            if values.len() != tys.len() {
+                                anyhow::bail!(
+                                    "we are dealing with tuple values length and types length shold be equal ,values len:{} tys:{:?}",
+                                    values.len(),
+                                    tys
+                                )
+                            }
+                            let mut xs = Vec::with_capacity(values.len());
+                            for (value, ty) in values.iter().zip(tys.iter()) {
+                                let v = encode_nested(value, &ty.field_type)?;
+                                xs.push(v);
+                            }
+                            format!("({})", xs.join(","))
                         }
-                        let mut xs = Vec::with_capacity(values.len());
-                        for (value, ty) in values.iter().zip(tys.iter()) {
-                            let v = encode_nested(value, &ty.field_type)?;
-                            xs.push(v);
-                        }
-                        format!("({})", xs.join(","))
-                    }
 
-                    DataType::Array(ty) => {
-                        let mut xs = Vec::with_capacity(values.len());
-                        for e in values.iter() {
-                            xs.push(encode_nested(
-                                e,
-                                match ty {
-                                    ArrayElemTypeDef::Parenthesis(x) => x.as_ref(),
-                                    _ => anyhow::bail!(
-                                        "clickhouse accpet Parenthesis type parameter."
-                                    ),
-                                },
-                            )?);
+                        DataType::Array(ty) => {
+                            let mut xs = Vec::with_capacity(values.len());
+                            for e in values.iter() {
+                                xs.push(encode_nested(
+                                    e,
+                                    match ty {
+                                        ArrayElemTypeDef::Parenthesis(x) => x.as_ref(),
+                                        _ => {
+                                            anyhow::bail!(
+                                                "clickhouse accpet Parenthesis type parameter."
+                                            )
+                                        }
+                                    },
+                                )?);
+                            }
+                            format!("[{}]", xs.join(","))
                         }
-                        format!("[{}]", xs.join(","))
+                        _ => {
+                            anyhow::bail!("datatype should array but :{:?}", typ)
+                        }
                     }
-                    _ => {
-                        anyhow::bail!("datatype should array but :{:?}", typ)
-                    }
-                },
+                }
                 serde_json::Value::Object(map) => {
                     let (kty, vty) = match typ {
                         DataType::Map(k, v) => (k.as_ref(), v.as_ref()),
@@ -1043,20 +1073,22 @@ impl JsonResp {
             let mut data = Vec::with_capacity(self.meta.len());
             for meta in self.meta.iter() {
                 let value: Option<String> = match d.get(&meta.name) {
-                    Some(value) => match value {
-                        serde_json::Value::Null => None,
-                        serde_json::Value::Bool(x) => Some(x.to_string()),
-                        serde_json::Value::Number(number) => Some(number.to_string()),
-                        serde_json::Value::String(x) => Some(x.clone()),
-                        serde_json::Value::Array(_) => {
-                            let ty = parse_type(&meta.r#type)?;
-                            Some(encode_nested(value, &ty)?)
+                    Some(value) => {
+                        match value {
+                            serde_json::Value::Null => None,
+                            serde_json::Value::Bool(x) => Some(x.to_string()),
+                            serde_json::Value::Number(number) => Some(number.to_string()),
+                            serde_json::Value::String(x) => Some(x.clone()),
+                            serde_json::Value::Array(_) => {
+                                let ty = parse_type(&meta.r#type)?;
+                                Some(encode_nested(value, &ty)?)
+                            }
+                            serde_json::Value::Object(_) => {
+                                let ty = parse_type(&meta.r#type)?;
+                                Some(encode_nested(value, &ty)?)
+                            }
                         }
-                        serde_json::Value::Object(_) => {
-                            let ty = parse_type(&meta.r#type)?;
-                            Some(encode_nested(value, &ty)?)
-                        }
-                    },
+                    }
                     None => None,
                 };
 
@@ -1108,6 +1140,79 @@ impl ClickHouseDB {
     }
 }
 
+fn parse_type(typ: &str) -> anyhow::Result<DataType> {
+    let d = sqlparser::dialect::ClickHouseDialect {};
+    let mut p = sqlparser::parser::Parser::new(&d);
+    p = p.try_with_sql(&typ)?;
+    let ret = p.parse_data_type()?;
+    anyhow::Ok(ret)
+}
+
+impl SqlBuilder for ClickHouseDB {
+    fn update_sql(
+        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        //
+
+        let mut field_by_name = HashMap::new();
+        for f in fs.iter() {
+            field_by_name.insert(&f.field, f);
+        }
+
+        let mut sql = format!(
+            "ALTER TABLE {}{} UPDATE ",
+            if let Some(schema) = schema {
+                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
+            } else {
+                "".to_string()
+            },
+            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
+        );
+        {
+            let last = values.len() - 1;
+            for (index, (k, v)) in values.iter().enumerate() {
+                let f = field_by_name.get(k);
+                if f.is_none() {
+                    anyhow::bail!("field '{}' not found", k);
+                }
+
+                sql.push_str(
+                    format!(
+                        "{}{}{} = {}",
+                        self.quote_style(),
+                        k,
+                        self.quote_style(),
+                        self.put_value_in_sql(
+                            &f.unwrap().typ,
+                            f.unwrap().firebird_binary_sub_type,
+                            v.as_ref().map(|x| x.as_str())
+                        )?
+                    )
+                    .as_str(),
+                );
+                if index != last {
+                    sql.push_str(",")
+                }
+            }
+        }
+        sql.push_str(" WHERE ");
+        sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
+        log::info!("update sql:{}", sql);
+        anyhow::Ok(sql)
+    }
+
+    fn type_support_compare(&self, typ: &str) -> bool {
+        type_support_compare(typ)
+    }
+
+    fn put_value_in_sql(
+        &self, typ: &str, _: Option<i64>, value: Option<&str>,
+    ) -> anyhow::Result<String> {
+        anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn make_test_object() -> ClickHouseDB {
     ClickHouseDB::new(ClickHouseConfig {
@@ -1123,33 +1228,13 @@ pub(crate) fn make_test_object() -> ClickHouseDB {
     .unwrap()
 }
 
-fn parse_type(typ: &str) -> anyhow::Result<DataType> {
-    let d = sqlparser::dialect::ClickHouseDialect {};
-    let mut p = sqlparser::parser::Parser::new(&d);
-    p = p.try_with_sql(&typ)?;
-    let ret = p.parse_data_type()?;
-    anyhow::Ok(ret)
-}
-
-impl SqlBuilder for ClickHouseDB {
-    fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
-    }
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{get_sql_seq, make_test_object, parse_type};
-    use crate::{
-        db::{ColumnType, DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas},
-        enable_test_log,
-    };
     use std::collections::HashMap;
+
+    use super::{get_sql_seq, make_test_object, parse_type};
+    use crate::db::{ColumnType, DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas};
+    use crate::enable_test_log;
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_metas() {
         let db = make_test_object();
@@ -1393,7 +1478,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_dup() {
-        enable_test_log();
+        // enable_test_log();
         let db = make_test_object();
         let name = "test_dup";
         let name2 = format!("{}2", name);
@@ -1462,6 +1547,7 @@ mod tests {
         println!("{:?}", ret);
     }
 
+    #[ignore = "example_table may not exists"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_table() {
         let db = make_test_object();

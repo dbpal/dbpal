@@ -11,10 +11,10 @@ import {
   tabsHasId,
   modalStyle,
   DocsAndCount,
-  treeItemCommonStyle,
   SettingContext,
   initMonacoLanague,
   SimpleResizeEditor,
+  makeAutoComplete,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -140,7 +140,6 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       label=<Stack
         direction="row"
         spacing={1}
-        style={{ ...treeItemCommonStyle }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -223,7 +222,11 @@ function StatementStructure(props: {
         </Button>
       </Stack>
       {sql && (
-        <SimpleResizeEditor language={uuid} value={sql}></SimpleResizeEditor>
+        <SimpleResizeEditor
+          readOnly={true}
+          language={uuid}
+          value={sql}
+        ></SimpleResizeEditor>
       )}
     </Stack>
   );
@@ -269,7 +272,7 @@ function ViewStructure(props: {
         ))}
       </Stack>
       {structure == 'columns' && (
-        <ColumnsTabContent uuid={uuid} view={view}></ColumnsTabContent>
+        <ColumnsContent uuid={uuid} view={view}></ColumnsContent>
       )}
       {structure == 'statement' && (
         <StatementStructure
@@ -283,7 +286,7 @@ function ViewStructure(props: {
   );
 }
 
-function ColumnsTabContent(props: { uuid: string; view: string }) {
+function ColumnsContent(props: { uuid: string; view: string }) {
   const { uuid, view } = props;
   const setting = useContext(SettingContext);
 
@@ -433,7 +436,7 @@ function ViewTree(props: {
         <Stack
           direction="row"
           spacing={1}
-          sx={{ justifyContent: 'space-between', ...treeItemCommonStyle }}
+          sx={{ justifyContent: 'space-between' }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -522,6 +525,7 @@ function ViewMenu(props: {
         case DataSourceKind.Cockroach:
           list = (
             <SqlTableView
+              autoCompletion={makeAutoComplete(uuid)}
               tableName={view}
               kind={kind}
               notWarnPri={true}
@@ -534,7 +538,7 @@ function ViewMenu(props: {
               ) => {
                 let where_null = where ? where : null;
                 let orderBy_null = orderBy ? orderBy : null;
-                return await invoke<types.MuiDataTableListResp>('show_view', {
+                return await invoke<types.MuiDataGridData>('show_view', {
                   name: uuid,
                   viewName: view,
                   whereStr: where_null,
@@ -634,7 +638,7 @@ function ViewMenu(props: {
           ...e,
           new TabContent(
             id,
-            `${view}-struct`,
+            `${view}`,
             (
               <ViewStructure
                 view={view}
@@ -715,10 +719,12 @@ function ViewMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowExport(false);
           }}
         >
@@ -730,7 +736,7 @@ function ViewMenu(props: {
                 setShowExport(false);
               }}
               kind={kind}
-              support_kind={['csv', 'json', 'jsonline']}
+              supportKind={['csv', 'json', 'jsonline']}
             ></ExportTableOrView>
           </Box>
         </Modal>

@@ -36,7 +36,7 @@ function RedisQuery(props: {
   const urlPrefix = 'https://redis.io/docs/latest/commands/';
 
   const getURL = (command: string) => {
-    return urlPrefix + command + '/';
+    return urlPrefix + command + '/' + '#examples';
   };
 
   // 启用 iframe 的鼠标事件
@@ -93,7 +93,7 @@ function RedisQuery(props: {
     <SplitPane
       split="vertical"
       minSize={50}
-      defaultSize={800}
+      defaultSize="40vw"
       step={5}
       onDragStarted={() => {
         setIsDragging(true);

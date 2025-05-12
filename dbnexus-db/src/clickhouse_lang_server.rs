@@ -1,12 +1,11 @@
-use std::{sync::Arc, vec};
+use std::sync::Arc;
+use std::vec;
 
-use crate::{
-    clickhouse::{ClickHouseDB, JsonRespMeta},
-    db::DBTrait,
-    language_server::{
-        AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-        LexerCompletionTrait, try_completion_on_syntax,
-    },
+use crate::clickhouse::{ClickHouseDB, JsonRespMeta};
+use crate::db::DBTrait;
+use crate::language_server::{
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 
 #[async_trait::async_trait]
@@ -110,6 +109,7 @@ impl AstCompletionHelper for ClickHouseDB {
         );
         anyhow::Ok(ret)
     }
+
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -140,10 +140,12 @@ impl AstCompletionHelper for ClickHouseDB {
         anyhow::Ok(
             result
                 .into_iter()
-                .map(|(name, desc)| CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::Function,
-                    desc: Some(desc.into()),
+                .map(|(name, desc)| {
+                    CompletionItem {
+                        item: name.into(),
+                        kind: CompletionKind::Function,
+                        desc: Some(desc.into()),
+                    }
                 })
                 .collect::<Vec<_>>(),
         )
@@ -157,9 +159,11 @@ impl AstCompletionHelper for ClickHouseDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for ClickHouseDB {
     type Dialect = sqlparser::dialect::ClickHouseDialect;
+
     const KEY_WORDS: &'static [&'static str] = &[];
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
+
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
@@ -170,10 +174,12 @@ impl LexerCompletionTrait for ClickHouseDB {
         let ret: Vec<String> = conn.query(sql).fetch_all().await?;
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::KeyWord,
+                        desc: None,
+                    }
                 })
                 .collect(),
         )
@@ -230,20 +236,20 @@ const TYPES: &'static [&'static str] = &[
 #[cfg(test)]
 
 mod tests {
-    use std::{collections::HashSet, path::Path};
+    use std::collections::HashSet;
+    use std::path::Path;
 
-    use crate::{
-        clickhouse::{ClickHouseDB, make_test_object},
-        db::{QuerySql, monaco_editor_keyword_regexp},
-        enable_test_log,
-        language_server::{LexerCompletionTrait, completion_test::test_file_auto_completion},
-    };
+    use crate::clickhouse::{ClickHouseDB, make_test_object};
+    use crate::db::{QuerySql, monaco_editor_keyword_regexp};
+    use crate::enable_test_log;
+    use crate::language_server::LexerCompletionTrait;
+    use crate::language_server::completion_test::test_file_auto_completion;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
         let db = make_test_object();
-        enable_test_log();
+        // enable_test_log();
         let query_id = db.open_connection().await.unwrap();
         let _ = db
             .query_sql(
@@ -277,8 +283,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object();
         test_file_auto_completion(
-            r#"CREATE TABLE sales_data (  order_id UInt64,  product_id UInt32, quantity UInt16,  order_date Date ) ENGINE = MergeTree() PARTITION BY toYYYYMM(order_date) ORDER BY (order_date, order_id) PRIMARY KEY order_id
-176 order_id"#,
+            r#"CREATE TABLE example_table(id UInt32, name String,event_date Date,value Float32) ENGINE = MergeTree() PARTITION BY toYYYYMM(event_date) ORDER BY (event_date, id);
+135 event_date"#,
             &db,
             false,
         )

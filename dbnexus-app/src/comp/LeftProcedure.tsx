@@ -1,5 +1,4 @@
 import {
-  Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -11,7 +10,7 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { useContext, useEffect, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
-import { initMonacoLanague, tabsHasId, treeItemCommonStyle } from './Common';
+import { initMonacoLanague, tabsHasId } from './Common';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -67,7 +66,7 @@ function ProceduresTree() {
       label=<Stack
         direction="row"
         spacing={1}
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -91,7 +90,7 @@ function ProceduresTree() {
           <TreeItem
             key={p.name + '-' + p.parameters}
             itemId={getItemId(p)}
-            sx={{ alignItems: 'center' }}
+            style={{ alignItems: 'center' }}
             label=<Stack
               spacing={1}
               direction="row"
@@ -109,7 +108,7 @@ function ProceduresTree() {
                   style: calMenuStyle(e, 100),
                 });
               }}
-              sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+              sx={{ alignItems: 'center' }}
             >
               <SiProcessingfoundation></SiProcessingfoundation>
               <span>{p.name}</span>
@@ -176,7 +175,7 @@ function ProcedureMenu(props: {
   const handleDrop = async () => {
     let confirm = await secondConfirm({
       title: `Drop Procedure '${procedure}'`,
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;
@@ -204,7 +203,7 @@ function ProcedureMenu(props: {
           </ListItemIcon>
           <ListItemText> Detail </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {

@@ -4,20 +4,6 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
-#[cfg(test)]
-use crate::TEST_HOST;
-use crate::datasource_config::SqlServerDBConfig;
-use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    format_data_time_fix_offset, not_support_features,
-};
-use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
-use crate::meta_value::MetaValue;
-use crate::query_log::QueryLog;
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_core::future::BoxFuture;
@@ -28,11 +14,26 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
+#[cfg(test)]
+use crate::TEST_HOST;
+use crate::datasource_config::SqlServerDBConfig;
+use crate::db::{
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, format_data_time_fix_offset,
+    not_support_features,
+};
+use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::meta_value::MetaValue;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
+
 #[derive(Clone)]
 pub struct MsSqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
-
+    query_logs: QueryLogMap,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
 }
 
@@ -170,6 +171,7 @@ impl MsSqlServerDB {
             config: c,
             pool,
             query_connections: Default::default(),
+            query_logs: Default::default(),
         })
     }
 }
@@ -234,20 +236,26 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -263,11 +271,11 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
 fn make_table_list_from_meta_and_row(
     meta: &tiberius::ResultMetadata, rows: &Vec<tiberius::Row>, total: usize,
     sql: impl Into<String>,
-) -> anyhow::Result<TableListResp> {
+) -> anyhow::Result<QueryResp> {
     let fields = get_fields_from_meta(meta);
     let data = encode_rows(rows)?;
 
-    anyhow::Ok(TableListResp::new(fields, total, data, Some(sql.into()))?)
+    anyhow::Ok(QueryResp::new(fields, total, data, Some(sql.into()))?)
 }
 
 fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
@@ -714,7 +722,7 @@ impl SchemaTrait for MsSqlServerDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total = MsSqlServerDB::query_count(conn, view_name, where_str.clone()).await?;
@@ -862,7 +870,7 @@ impl SchemaTrait for MsSqlServerDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total = MsSqlServerDB::query_count(conn, table_name, where_str.clone()).await?;
@@ -1363,46 +1371,57 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
             tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
             tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::String(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Guid(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Binary(x) => x
-                .as_ref()
-                .map(|x| format!("0X{}", hex::encode_upper(x)))
-                .map(serde_json::Value::from),
-            tiberius::ColumnData::Numeric(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::String(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Guid(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Binary(x) => {
+                x.as_ref()
+                    .map(|x| format!("0X{}", hex::encode_upper(x)))
+                    .map(serde_json::Value::from)
+            }
+            tiberius::ColumnData::Numeric(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Xml(x) => x
-                .as_ref()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Xml(x) => {
+                x.as_ref()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
             tiberius::ColumnData::DateTime(_)
             | tiberius::ColumnData::DateTime2(_)
-            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            | tiberius::ColumnData::SmallDateTime(_) => {
+                chrono::NaiveDateTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Date(_) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
-            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string())
-                .map(serde_json::Value::from),
+            tiberius::ColumnData::Time(_x) => {
+                chrono::NaiveTime::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string())
+                    .map(serde_json::Value::from)
+            }
 
             tiberius::ColumnData::DateTimeOffset(_) => {
                 chrono::DateTime::<FixedOffset>::from_sql(value)
@@ -1465,14 +1484,14 @@ impl MsSqlServerDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = (self).insert_sql(
+                let insert_sql = self.insert_sql(
                     self.config.schema.as_ref().map(|x| x.as_str()),
                     table_name,
                     &cols,
                     &m,
                 )?;
                 sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send("\n".into()).await?;
+                sender.send(";\n".into()).await?;
             }
         }
         anyhow::Ok(())
@@ -1642,6 +1661,7 @@ impl ExportQueryResult for MsSqlServerDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1663,8 +1683,13 @@ impl ExportQueryResult for MsSqlServerDB {
         }
     }
 }
+
 #[async_trait::async_trait]
 impl QuerySql for MsSqlServerDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -1686,15 +1711,15 @@ impl QuerySql for MsSqlServerDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        QueryLog::remove(&id);
-
+        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
@@ -1703,7 +1728,7 @@ impl QuerySql for MsSqlServerDB {
         let conn = conn.deref_mut();
 
         let ret = match conn.execute(sql, &[]).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.total())),
+            Ok(x) => Ok(QueryResp::row_affected(x.total(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
@@ -1713,7 +1738,7 @@ impl QuerySql for MsSqlServerDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
@@ -1745,7 +1770,7 @@ impl QuerySql for MsSqlServerDB {
                             rows.len(),
                             "".to_string(),
                         )?;
-                        ret.push(Ok(table_list.to_query_resp()));
+                        ret.push(Ok(table_list));
                         rows = vec![];
                     }
                     meta_prev = Some(meta);
@@ -1759,7 +1784,7 @@ impl QuerySql for MsSqlServerDB {
                 rows.len(),
                 "",
             )?;
-            ret.push(Ok(table_list.to_query_resp()));
+            ret.push(Ok(table_list));
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
@@ -1784,10 +1809,9 @@ impl MsSqlServerDB {
     pub(crate) async fn get_conn<'a>(
         &'a self,
     ) -> anyhow::Result<bb8::PooledConnection<'a, bb8_tiberius::ConnectionManager>> {
-        let conn = self.pool.get().await?;
-        // if let Some(s) = self.config.schema.as_ref() {
-        //     set_current_schema(conn.deref_mut(), s).await?;
-        // }
+        let conn =
+            tokio::time::timeout(Duration::from_secs(5), async { self.pool.get().await }).await??;
+
         anyhow::Ok(conn)
     }
 
@@ -1896,6 +1920,7 @@ impl CatalogTrait for MsSqlServerDB {
     }
 }
 
+#[allow(dead_code)]
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> MsSqlServerDB {
     let ss = MsSqlServerDB::new(SqlServerDBConfig {
@@ -1918,6 +1943,7 @@ impl ReadOnlyTrait for MsSqlServerDB {
         self.config.read_only
     }
 }
+
 #[cfg(test)]
 mod tests {
 
@@ -2483,10 +2509,10 @@ mod tests {
                 nullness: Some("null".to_string()),
                 after: None,
                 // must be none here
-                /*
-                                query failed
-                Token error: 'The object 'DF__test_colum__name__6C2EE8AB' is dependent on column 'name2'.' on server sqlpreview executing on line 1 (code: 5074, state: 1, class: 16)
-                    */
+                // query failed
+                // Token error: 'The object 'DF__test_colum__name__6C2EE8AB' is dependent on column
+                // 'name2'.' on server sqlpreview executing on line 1 (code: 5074, state: 1, class:
+                // 16)
                 default_value: None,
             },
         )

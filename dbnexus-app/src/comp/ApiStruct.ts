@@ -7,10 +7,10 @@ export namespace types {
         "read_only": boolean;
     };
     export type EnableSsl = {
-        "ssl_enable": boolean;
-        "ssl_ca": (string | null);
-        "ssl_cert": (string | null);
-        "ssl_key": (string | null);
+        "ssl_enable"?: boolean;
+        "ssl_ca"?: (string | null);
+        "ssl_cert"?: (string | null);
+        "ssl_key"?: (string | null);
     };
     export type U16 = number;
     export type MysqlDBConfig = (types.EnableSsl & {
@@ -314,24 +314,13 @@ export namespace types {
     export type MuiDataGridData = {
         "fields": (types.Field)[];
         "data": (Record<string, string>)[];
-    };
-    export type MuiDataTableListResp = {
-        "total": types.Usize;
         "sql": (string | null);
-        "data": types.MuiDataGridData;
+        "total": types.Usize;
     };
     export type QueryLogEvent = {
         "time": types.U64;
         "sql": string;
         "success": boolean;
-    };
-    export type U32 = number;
-    export type SemanticToken = {
-        "line": types.U32;
-        "col": types.U32;
-        "length": types.U32;
-        "token_type": types.U32;
-        "token_modifiers": (types.U32 | null);
     };
 
     /**
@@ -345,5 +334,11 @@ export namespace types {
          * this can be empty
          */
         "indexes": (string)[];
+    };
+    export type ColumnType = {
+        "typ": string;
+        "nullness": (string | null);
+        "after": (string | null);
+        "default_value": (string | null);
     };
 }

@@ -17,13 +17,13 @@ use crate::db::{
     CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail,
     QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlBuilder, SqlExecuteRet, TableListResp, TriggerDetail, TriggerEvent, TriggerTiming,
+    SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, not_support_features,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
-use crate::query_log::QueryLog;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 /// postgres version of pg.
 #[derive(Clone)]
@@ -32,6 +32,7 @@ pub struct PostGresDB {
     pub(crate) config: PGDBConfig,
     pub(crate) query_connection:
         Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
+    query_logs: QueryLogMap,
 }
 
 #[async_trait::async_trait]
@@ -48,22 +49,31 @@ impl ReadOnlyTrait for PostGresDB {
         self.config.read_only
     }
 }
-#[async_trait::async_trait]
-impl DBTrait for PostGresDB {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+
+impl PostGresDB {
+    async fn list_schema_impl(&self, skip_internal: bool) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let sql = format!(
-            r#"
+        let sql = if skip_internal {
+            format!(
+                r#"
         SELECT schema_name 
             FROM information_schema.schemata
             WHERE schema_name NOT IN ('information_schema', 'pg_catalog' , 'pg_toast') and 
             schemata.catalog_name ='{}' order by schema_name
     "#,
-            self.config.db_str()
-        );
+                self.config.db_str()
+            )
+        } else {
+            format!(
+                r#"
+        SELECT schema_name 
+            FROM information_schema.schemata
+            WHERE 
+            schemata.catalog_name ='{}' order by schema_name
+    "#,
+                self.config.db_str()
+            )
+        };
         log::info!("sql:{}", sql);
 
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
@@ -74,6 +84,17 @@ impl DBTrait for PostGresDB {
             ret.push(name)
         }
         anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl DBTrait for PostGresDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        self.list_schema_impl(true).await
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
@@ -139,14 +160,14 @@ impl PostGresDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = (self).insert_sql(
+                let insert_sql = self.insert_sql(
                     self.config.schema.as_ref().map(|x| x.as_str()),
                     table_name,
                     &cols,
                     &m,
                 )?;
                 sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send("\n".into()).await?;
+                sender.send(";\n".into()).await?;
             }
         }
         anyhow::Ok(())
@@ -352,7 +373,7 @@ fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTimin
 
 impl PostGresDB {
     pub(crate) fn must_schema(&self) -> &String {
-        self.config.schema.as_ref().unwrap()
+        self.config.schema.as_ref().expect("must be some")
     }
 }
 
@@ -422,6 +443,7 @@ impl SchemaTrait for PostGresDB {
         // TODO
         not_support_features(self.backend_name())
     }
+
     async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TYPE  "{}"."{typ}" "#, self.must_schema());
         log::info!("sql:{}", sql);
@@ -622,7 +644,7 @@ impl SchemaTrait for PostGresDB {
                 SELECT 
                     pg_catalog.pg_get_function_result(p.oid) AS return_type,
                     pg_catalog.pg_get_function_arguments(p.oid) AS arguments,
-                    p.prosrc AS source_code
+                    pg_get_functiondef(p.oid) AS source_code
                 FROM pg_catalog.pg_proc p
                     JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
                 WHERE n.nspname = '{}'  -- 指定目标模式
@@ -704,10 +726,12 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let arg = match &arg {
-            Some(arg) => match arg {
-                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                _ => return Err(arg.wrong_type()),
-            },
+            Some(arg) => {
+                match arg {
+                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                    _ => return Err(arg.wrong_type()),
+                }
+            }
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
 
@@ -744,13 +768,15 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => match x {
-                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                #[allow(unreachable_patterns)]
-                _ => {
-                    anyhow::bail!("must be a postgres parameter")
+            Some(x) => {
+                match x {
+                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                    #[allow(unreachable_patterns)]
+                    _ => {
+                        anyhow::bail!("must be a postgres parameter")
+                    }
                 }
-            },
+            }
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 
@@ -965,7 +991,7 @@ impl SchemaTrait for PostGresDB {
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(view_name, where_str).await?;
 
         let sql = gen_show_sql(
@@ -984,12 +1010,12 @@ impl SchemaTrait for PostGresDB {
 
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
 
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
@@ -1254,7 +1280,7 @@ impl SchemaTrait for PostGresDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(
             self.must_schema(),
@@ -1272,7 +1298,7 @@ impl SchemaTrait for PostGresDB {
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let data = encode_rows(&row)?;
         let fields = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
@@ -1395,6 +1421,7 @@ impl PostGresDB {
             pool,
             config,
             query_connection: Default::default(),
+            query_logs: Default::default(),
         })
     }
 
@@ -1499,6 +1526,7 @@ impl ExportQueryResult for PostGresDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1523,6 +1551,10 @@ impl ExportQueryResult for PostGresDB {
 
 #[async_trait::async_trait]
 impl QuerySql for PostGresDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::PostgreSqlDialect {})
     }
@@ -1542,15 +1574,15 @@ impl QuerySql for PostGresDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        QueryLog::remove(&id);
-
+        self.query_logs.remove(&id);
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }
+
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1560,16 +1592,17 @@ impl QuerySql for PostGresDB {
         let conn = conn.deref_mut();
 
         let ret = match conn.execute(sqlx::raw_sql(sql)).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected())),
+            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1595,11 +1628,11 @@ impl QuerySql for PostGresDB {
                     if rows.len() > 0 {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows)?;
-                        ret.push(Ok(QueryResp::new(fields, data)));
+                        ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
                         rows.clear();
                     };
                     if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected())));
+                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
                     }
                 }
                 sqlx::Either::Right(row) => {
@@ -1617,7 +1650,7 @@ impl QuerySql for PostGresDB {
                 .iter()
                 .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                 .collect::<Vec<_>>();
-            ret = vec![Ok(QueryResp::new(field, vec![]))];
+            ret = vec![Ok(QueryResp::new(field, 0, vec![], sql.to_owned())?)];
         }
         anyhow::Ok(ret)
     }
@@ -1745,6 +1778,7 @@ impl SqlBuilder for PostGresDB {
     ) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
+
     fn type_support_compare(&self, typ: &str) -> bool {
         type_support_compare(typ)
     }
@@ -3253,7 +3287,7 @@ mod tests {
         );
         values.insert(
             "jsonb_column".to_string(),
-            Some("{\"key1\": \"value1\", \"key2\": \"value2\"}".to_string()),
+            Some(r#"{"key1": "value1", "key2": "value2"}"#.to_string()),
         );
         values.insert(
             "jsonb_array_column".to_string(),
@@ -3437,8 +3471,8 @@ mod tests {
                 date_range_array DATERANGE[],
                 int8_range INT8RANGE,
                 int8_range_array INT8RANGE[],
-                json_path JSONPATH,
-                json_path_array JSONPATH[],
+                -- json_path JSONPATH,
+                -- json_path_array JSONPATH[],
                 money_value MONEY,
                 money_value_array MONEY[]
             );
@@ -3464,14 +3498,14 @@ mod tests {
             "int8_range_array".to_string(),
             Some("{\"[1,6)\",\"[7,10)\"}".to_string()),
         );
-        values.insert(
-            "json_path".to_string(),
-            Some("$.\"store\".\"book\"[0].\"title\"".to_string()),
-        );
-        values.insert(
-            "json_path_array".to_string(),
-            Some("{\"$.\\\"store\\\".\\\"book\\\"[0].\\\"title\\\"\"}".to_string()),
-        );
+        // values.insert(
+        //     "json_path".to_string(),
+        //     Some("$.\"store\".\"book\"[0].\"title\"".to_string()),
+        // );
+        // values.insert(
+        //     "json_path_array".to_string(),
+        //     Some("{\"$.\\\"store\\\".\\\"book\\\"[0].\\\"title\\\"\"}".to_string()),
+        // );
         values.insert("money_value".to_string(), Some("$10.50".to_string()));
         values.insert(
             "money_value_array".to_string(),

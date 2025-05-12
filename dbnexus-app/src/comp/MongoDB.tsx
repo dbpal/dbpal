@@ -63,7 +63,6 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import {
   DocsAndCount,
   modalStyle,
-  MongoDataViewModel,
   editorInitHeight,
   SettingContext,
   reloadOK,
@@ -84,6 +83,10 @@ import {
   VisiableContext,
 } from './helper';
 
+enum MongoDataViewModel {
+  List,
+  Object,
+}
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code|float32|int8)\b/;
 function mongoBsonAutoCompletion(): languages.CompletionList {
@@ -182,9 +185,10 @@ function mongoBsonAutoCompletion(): languages.CompletionList {
 }
 
 function initMongoBsonLanguage() {
+  const language = 'mongoBson';
   loader.init().then((monaco) => {
-    monaco.languages.register({ id: 'mongoBson' });
-    monaco.languages.setMonarchTokensProvider('mongoBson', {
+    monaco.languages.register({ id: language });
+    monaco.languages.setMonarchTokensProvider(language, {
       ignoreCase: true,
       tokenizer: {
         root: [
@@ -194,9 +198,13 @@ function initMongoBsonLanguage() {
           [/\`(?:\\.|[^\\\`])*\`/, 'string'],
         ],
       },
+      brackets: [
+        { open: '{', close: '}', token: 'delimiter.curly' },
+        { open: '[', close: ']', token: 'delimiter.parenthesis' },
+      ],
     });
 
-    monaco.languages.registerDocumentFormattingEditProvider('mongoBson', {
+    monaco.languages.registerDocumentFormattingEditProvider(language, {
       provideDocumentFormattingEdits(model, options, _token) {
         let text = model.getValue();
         try {
@@ -213,7 +221,7 @@ function initMongoBsonLanguage() {
       },
     });
 
-    monaco.languages.registerCompletionItemProvider('mongoBson', {
+    monaco.languages.registerCompletionItemProvider(language, {
       provideCompletionItems: (
         _model: editor.ITextModel,
         _position: Position,
@@ -511,10 +519,12 @@ function MongoTableListToolBar(props: {
       {showModifyFilter && (
         <Modal
           open={showModifyFilter}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowModifyFilter(false);
           }}
         >
@@ -540,6 +550,8 @@ function MongoTableListToolBar(props: {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowModifySort(false);
           }}
         >
@@ -721,6 +733,8 @@ function MongoTableListContextMenu(props: {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowFilter(false);
           }}
         >
@@ -810,7 +824,7 @@ function MongoTableList(props: {
     sort: BSON.Document,
     page: number,
     pageSize: number
-  ) => Promise<types.MuiDataTableListResp>;
+  ) => Promise<types.MuiDataGridData>;
   setSort;
   setFilter;
   loadOne: (id: any) => Promise<BSON.Document>;
@@ -832,7 +846,7 @@ function MongoTableList(props: {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
   const { showNotification } = useContext(NotificationContext);
-  const [resp, setResp] = useState<types.MuiDataTableListResp | null>(null);
+  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
@@ -843,7 +857,7 @@ function MongoTableList(props: {
     reloadOP(filter, sort, page + 1, pageSize)
       .then((r) => {
         let has_null = false;
-        r.data.data.forEach((e) => {
+        r.data.forEach((e) => {
           e['_id'] = EJSON.parse(e['_id']);
           e[keyNotInTable] = uuidv4();
           if (!e['_id']) {
@@ -857,14 +871,14 @@ function MongoTableList(props: {
         if (has_null) {
           return;
         }
-        r.data.fields.forEach((f) => {
+        r.fields.forEach((f) => {
           let width = columnWidths.getWidth(f.field);
           if (width) {
             f['width'] = width;
           }
         });
-        if (r.data.fields.length > 0) {
-          r.data.fields[0]['renderCell'] = function (value) {
+        if (r.fields.length > 0) {
+          r.fields[0]['renderCell'] = function (value) {
             let _id = value.row._id;
             return renderId(_id);
           };
@@ -934,7 +948,7 @@ function MongoTableList(props: {
 
   const handleDel = deleteOP
     ? async (id: string) => {
-        let del = resp.data.data.find((e) => e[keyNotInTable] == id);
+        let del = resp.data.find((e) => e[keyNotInTable] == id);
         try {
           await deleteOP([del['_id']]);
           showNotification('success', 'delete OK');
@@ -957,7 +971,7 @@ function MongoTableList(props: {
           if (!field) {
             return;
           }
-          let row = { ...resp.data.data.find((e) => e[keyNotInTable] == id) };
+          let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           setUpMenu({
             content: (
               <MongoTableListContextMenu
@@ -972,7 +986,7 @@ function MongoTableList(props: {
                 field={field}
                 setFilter={setFilter}
                 loadDoc={async () => {
-                  let doc = resp.data.data.find((x) => x[keyNotInTable] == id);
+                  let doc = resp.data.find((x) => x[keyNotInTable] == id);
                   return await loadOne(doc['_id']);
                 }}
                 setSort={setSort}
@@ -995,10 +1009,12 @@ function MongoTableList(props: {
       {selectModifyDoc && (
         <Modal
           open={!!selectModifyDoc}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setSelectModifyDoc(null);
           }}
         >
@@ -1029,7 +1045,7 @@ function MongoTableList(props: {
             <div
               style={{
                 display: 'grid',
-                height: datagridContainerHeight(resp.data.data.length),
+                height: datagridContainerHeight(resp.data.length),
               }}
             >
               <DataGrid
@@ -1041,8 +1057,8 @@ function MongoTableList(props: {
                 rowHeight={setting.datagridRowHeight}
                 columnHeaderHeight={setting.datagridHeaderHeight}
                 rowCount={resp.total}
-                columns={resp.data.fields}
-                rows={resp.data.data}
+                columns={resp.fields}
+                rows={resp.data}
                 pageSizeOptions={pageSizeOptions}
                 disableColumnFilter
                 paginationMode="server"
@@ -1180,7 +1196,7 @@ function MongoTable(props: {
     sort: BSON.Document,
     page: number,
     pageSize: number
-  ) => Promise<types.MuiDataTableListResp>;
+  ) => Promise<types.MuiDataGridData>;
   realodOPDocs: (
     filter: BSON.Document,
     sort: BSON.Document,

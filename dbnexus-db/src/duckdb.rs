@@ -1,14 +1,15 @@
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
+use std::time::Duration;
+
 use chrono::NaiveDate;
 use dashmap::DashMap;
 use duckdb::Connection;
 use duckdb::arrow::datatypes::DataType;
 use duckdb::types::TimeUnit;
 use r2d2::PooledConnection;
-
-use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
@@ -17,13 +18,11 @@ use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, Index, IndexKind,
     ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp,
-    not_support_features,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
-use crate::query_log::QueryLog;
-use std::ops::{Deref, DerefMut};
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 pub struct PoolManage {
     path: String,
 }
@@ -76,6 +75,7 @@ pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<duckdb::Connection>>>>,
+    query_logs: QueryLogMap,
 }
 
 #[async_trait::async_trait]
@@ -102,6 +102,7 @@ impl DuckDB {
             config,
             pool,
             query_connections: Default::default(),
+            query_logs: Default::default(),
         })
     }
 
@@ -373,6 +374,8 @@ impl DuckDB {
                 .map(|(name, typ)| Field::from_name_type(name, typ.to_string()))
                 .collect::<Vec<_>>(),
             data,
+            sql: Some(sql.to_string()),
+            total: 0,
         })
     }
 }
@@ -388,6 +391,7 @@ impl SqlBuilder for DuckDB {
     ) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
+
     fn type_support_compare(&self, typ: &str) -> bool {
         type_support_compare(typ)
     }
@@ -399,6 +403,7 @@ impl ExportQueryResult for DuckDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -422,13 +427,18 @@ impl ExportQueryResult for DuckDB {
 }
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::DuckDbDialect {})
     }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut _log_gurad = QueryLog::get_guard(query_id, sql);
+        let mut _log_gurad = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -448,14 +458,18 @@ impl QuerySql for DuckDB {
         let mut ret = Vec::new();
         for s in ss.iter() {
             match s.kind {
-                SqlKind::Query => match Self::query_resp(&conn, &s.sql) {
-                    Ok(x) => ret.push(Ok(x)),
-                    Err(err) => ret.push(Err(err.to_string())),
-                },
-                _ => match conn.execute(&s.sql, []) {
-                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64))),
-                    Err(err) => ret.push(Err(err.to_string())),
-                },
+                SqlKind::Query => {
+                    match Self::query_resp(&conn, &s.sql) {
+                        Ok(x) => ret.push(Ok(x)),
+                        Err(err) => ret.push(Err(err.to_string())),
+                    }
+                }
+                _ => {
+                    match conn.execute(&s.sql, []) {
+                        Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_string()))),
+                        Err(err) => ret.push(Err(err.to_string())),
+                    }
+                }
             }
         }
         _log_gurad.set_success(ret.iter().all(|x| x.is_ok()));
@@ -465,7 +479,7 @@ impl QuerySql for DuckDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut _log_gurad = QueryLog::get_guard(query_id, sql);
+        let mut _log_gurad = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -473,7 +487,7 @@ impl QuerySql for DuckDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let resp = match conn.execute_batch(sql) {
-            Ok(_) => Ok(QueryResp::execute_ok()),
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
         _log_gurad.set_success(resp.is_ok());
@@ -496,6 +510,7 @@ impl QuerySql for DuckDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
@@ -551,9 +566,11 @@ fn encode_value(
     log::trace!("value:{:?} ty:{:?} parse type:{:?}", value, ty, prased_type);
     let is_time = matches!(ty, DataType::Time32(_)) || matches!(ty, DataType::Time64(_));
     let is_bit = prased_type
-        .map(|x| match x {
-            sqlparser::ast::DataType::Bit(_) => true,
-            _ => false,
+        .map(|x| {
+            match x {
+                sqlparser::ast::DataType::Bit(_) => true,
+                _ => false,
+            }
         })
         .unwrap_or(false);
     let r = match value {
@@ -630,19 +647,23 @@ fn encode_value(
                 }
             };
             let parsed_type = match prased_type {
-                Some(x) => match x {
-                    sqlparser::ast::DataType::Array(x) => match x {
-                        sqlparser::ast::ArrayElemTypeDef::SquareBracket(data_type, _) => {
-                            Some(data_type.as_ref())
+                Some(x) => {
+                    match x {
+                        sqlparser::ast::DataType::Array(x) => {
+                            match x {
+                                sqlparser::ast::ArrayElemTypeDef::SquareBracket(data_type, _) => {
+                                    Some(data_type.as_ref())
+                                }
+                                _ => {
+                                    anyhow::bail!("not suitable type for duckdb :{:?}", x)
+                                }
+                            }
                         }
                         _ => {
-                            anyhow::bail!("not suitable type for duckdb :{:?}", x)
+                            anyhow::bail!("expect an array type but:{:?}", ty)
                         }
-                    },
-                    _ => {
-                        anyhow::bail!("expect an array type but:{:?}", ty)
                     }
-                },
+                }
                 None => None,
             };
 
@@ -663,39 +684,45 @@ fn encode_value(
 
             for (k, v) in ordered_map.iter() {
                 let ty = match ty {
-                    DataType::Struct(x) => match x.find(&k) {
-                        Some(x) => x.1.data_type(),
-                        None => anyhow::bail!("field {} not found,this should not happen", k),
-                    },
+                    DataType::Struct(x) => {
+                        match x.find(&k) {
+                            Some(x) => x.1.data_type(),
+                            None => anyhow::bail!("field {} not found,this should not happen", k),
+                        }
+                    }
                     _ => {
                         anyhow::bail!("expect struct type but {:?}", ty)
                     }
                 };
                 let prased_type = match prased_type {
-                    Some(x) => match x {
-                        sqlparser::ast::DataType::Struct(x, _) => {
-                            let f = x.iter().find(|x| match &x.field_name {
-                                Some(x) => x.value.to_string().eq_ignore_ascii_case(k),
-                                None => false,
-                            });
-                            match f {
-                                Some(f) => Some(f.field_type.clone()),
-                                None => {
-                                    anyhow::bail!(
-                                        "field '{}' not found,availables are:{:?}",
-                                        k,
-                                        x.iter()
-                                            .map(|x| x.field_name.as_ref().map(|x| &x.value))
-                                            .flatten()
-                                            .collect::<Vec<_>>()
-                                    )
+                    Some(x) => {
+                        match x {
+                            sqlparser::ast::DataType::Struct(x, _) => {
+                                let f = x.iter().find(|x| {
+                                    match &x.field_name {
+                                        Some(x) => x.value.to_string().eq_ignore_ascii_case(k),
+                                        None => false,
+                                    }
+                                });
+                                match f {
+                                    Some(f) => Some(f.field_type.clone()),
+                                    None => {
+                                        anyhow::bail!(
+                                            "field '{}' not found,availables are:{:?}",
+                                            k,
+                                            x.iter()
+                                                .map(|x| x.field_name.as_ref().map(|x| &x.value))
+                                                .flatten()
+                                                .collect::<Vec<_>>()
+                                        )
+                                    }
                                 }
                             }
+                            _ => {
+                                anyhow::bail!("expect a struct type but {:?}", x)
+                            }
                         }
-                        _ => {
-                            anyhow::bail!("expect a struct type but {:?}", x)
-                        }
-                    },
+                    }
                     None => None,
                 };
                 values.push(format!(
@@ -708,22 +735,24 @@ fn encode_value(
         }
         duckdb::types::Value::Map(ordered_map) => {
             let (kty, vty) = match ty {
-                DataType::Map(k, _) => match k.data_type() {
-                    DataType::Struct(fs) => {
-                        let kty = fs.find("key");
-                        let vty = fs.find("value");
+                DataType::Map(k, _) => {
+                    match k.data_type() {
+                        DataType::Struct(fs) => {
+                            let kty = fs.find("key");
+                            let vty = fs.find("value");
 
-                        match (kty, vty) {
-                            (Some(k), Some(v)) => (k.1.data_type(), v.1.data_type()),
-                            _ => {
-                                anyhow::bail!("map must have key and value field")
+                            match (kty, vty) {
+                                (Some(k), Some(v)) => (k.1.data_type(), v.1.data_type()),
+                                _ => {
+                                    anyhow::bail!("map must have key and value field")
+                                }
                             }
                         }
+                        _ => {
+                            anyhow::bail!("type here should a struct")
+                        }
                     }
-                    _ => {
-                        anyhow::bail!("type here should a struct")
-                    }
-                },
+                }
                 _ => {
                     anyhow::bail!("data should be a map but {:?}", ty)
                 }
@@ -731,27 +760,32 @@ fn encode_value(
 
             let (pkty, pvty) = match prased_type {
                 None => (None, None),
-                Some(prased_type) => match prased_type {
-                    sqlparser::ast::DataType::Map(k, v) => {
-                        (Some(k.as_ref().clone()), Some(v.as_ref().clone()))
-                    }
-                    sqlparser::ast::DataType::Custom(x, subtypes) => {
-                        if x.to_string().to_uppercase() == "MAP" {
-                            if subtypes.len() != 2 {
-                                anyhow::bail!("sub type should have length 2 but {:?}", subtypes)
+                Some(prased_type) => {
+                    match prased_type {
+                        sqlparser::ast::DataType::Map(k, v) => {
+                            (Some(k.as_ref().clone()), Some(v.as_ref().clone()))
+                        }
+                        sqlparser::ast::DataType::Custom(x, subtypes) => {
+                            if x.to_string().to_uppercase() == "MAP" {
+                                if subtypes.len() != 2 {
+                                    anyhow::bail!(
+                                        "sub type should have length 2 but {:?}",
+                                        subtypes
+                                    )
+                                }
+                                (
+                                    Some(parse_type(&subtypes[0])?),
+                                    Some(parse_type(&subtypes[1])?),
+                                )
+                            } else {
+                                anyhow::bail!("custon should be map but {:?}", x)
                             }
-                            (
-                                Some(parse_type(&subtypes[0])?),
-                                Some(parse_type(&subtypes[1])?),
-                            )
-                        } else {
-                            anyhow::bail!("custon should be map but {:?}", x)
+                        }
+                        _ => {
+                            anyhow::bail!("type must be map but {:?}", prased_type)
                         }
                     }
-                    _ => {
-                        anyhow::bail!("type must be map but {:?}", prased_type)
-                    }
-                },
+                }
             };
             let mut keys = Vec::new();
             let mut values = Vec::new();
@@ -987,6 +1021,7 @@ impl SchemaTrait for DuckDB {
         block_in_place(|| conn.execute(&sql, []))?;
         anyhow::Ok(())
     }
+
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!(
             "select index_name , is_unique , sql from duckdb_indexes() where database_name='{}' and schema_name='{}' and  table_name =  '{}'",
@@ -1213,10 +1248,11 @@ impl SchemaTrait for DuckDB {
         block_in_place(|| conn.execute(&sql, []))?;
         anyhow::Ok(())
     }
+
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _duckdb_extracted_statementsextra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(view_name, where_str.clone())?;
         let sql = gen_show_sql(
             self.config.schema_str(),
@@ -1258,8 +1294,9 @@ impl SchemaTrait for DuckDB {
                 parsed_type.as_ref().map(|x| &x[..]),
             )?);
         }
-        anyhow::Ok(TableListResp::new(fs, total, data, sql))
+        anyhow::Ok(QueryResp::new(fs, total, data, sql)?)
     }
+
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let conn = self.get_conn()?;
 
@@ -1399,7 +1436,7 @@ impl SchemaTrait for DuckDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone())?;
         let sql = gen_show_sql(
             self.config.schema_str(),
@@ -1426,7 +1463,7 @@ impl SchemaTrait for DuckDB {
         while let Some(row) = rows.next()? {
             data.push(encode_row(&row, &types[..], Some(&parsed_type[..]))?);
         }
-        anyhow::Ok(TableListResp::new(fs, total, data, sql))
+        anyhow::Ok(QueryResp::new(fs, total, data, sql)?)
     }
 
     async fn insert(
@@ -1523,11 +1560,13 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
                     .unwrap_or("null".to_string()),
             )
         }
-        _ if typ.ends_with("[]") => anyhow::Ok(
-            value
-                .map(|x| format!("{}", x))
-                .unwrap_or("null".to_string()),
-        ),
+        _ if typ.ends_with("[]") => {
+            anyhow::Ok(
+                value
+                    .map(|x| format!("{}", x))
+                    .unwrap_or("null".to_string()),
+            )
+        }
         _ if typ.starts_with("time")
             || typ.starts_with("date")
             || typ.starts_with("utf8")
@@ -1571,6 +1610,7 @@ impl DBTrait for DuckDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         self.list_schema_impl(self.config.db_str())
     }
@@ -1620,46 +1660,20 @@ impl CatalogTrait for DuckDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut x = Clone::clone(self);
         x.config.db = Some(name.to_owned());
         anyhow::Ok(Arc::new(x))
     }
+
     async fn create_database(
         &self, _name: &str, _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
-        // self.can_write()?;
-        // let path = match &extra {
-        //     Some(x) => match &x {
-        //         CreateDatabaseExtra::DuckDB { path } => path,
-        //     },
-        //     None => anyhow::bail!("attach database need extra parameter."),
-        // };
-        // let sql = format!("ATTACH '{path}' AS {name}");
-        // log::info!("sql:{}", sql);
-        // let conn = self.get_conn()?;
-        // log::info!("attach sql:{} {} ", sql, conn.is_autocommit());
-        // conn.execute(&sql, [])?;
-        // anyhow::Ok(())
         anyhow::bail!("duckdb can't create database")
     }
 
     async fn drop_database(&self, _name: &str) -> anyhow::Result<()> {
-        // if self
-        //     .config
-        //     .db
-        //     .as_ref()
-        //     .map(|x| x.as_str().eq_ignore_ascii_case(&name))
-        //     .unwrap_or_default()
-        // {
-        //     anyhow::bail!("can't detach self.")
-        // }
-
-        // let sql = format!("DETACH  {name}");
-        // log::info!("sql:{}", sql);
-        // let conn = self.get_conn()?;
-        // block_in_place(|| conn.execute(&sql, []))?;
-        // anyhow::Ok(())
         anyhow::bail!("duckdb can't drop database")
     }
 }
@@ -1898,22 +1912,8 @@ mod tests {
         let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(None);
-        db.create_database(
-            "abc",
-            Some(CreateDatabaseExtra::DuckDB {
-                path: {
-                    let dir = env!("CARGO_MANIFEST_DIR");
-                    let path = format!("{dir}/tests/abc.duckdb");
-                    path
-                },
-            }),
-        )
-        .await
-        .unwrap();
-
         let x = db.list_database().await.unwrap();
         println!("database:{:?}", x);
-        db.drop_database("abc").await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -2129,7 +2129,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(
@@ -2142,21 +2142,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2231,7 +2231,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(
@@ -2244,21 +2244,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2321,7 +2321,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(
@@ -2334,21 +2334,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2411,7 +2411,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(
@@ -2424,21 +2424,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2500,7 +2500,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(
@@ -2513,21 +2513,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2589,7 +2589,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(
@@ -2602,21 +2602,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2671,7 +2671,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(
@@ -2684,21 +2684,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2759,7 +2759,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         {
-            //export test
+            // export test
             let db = db;
             let ret = db
                 .export_table_to_string(
@@ -2772,21 +2772,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("csv:{}", ret);
-            //export json
+            // export json
 
             let ret = db
                 .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", ret);
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            //export jsonline
+            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,

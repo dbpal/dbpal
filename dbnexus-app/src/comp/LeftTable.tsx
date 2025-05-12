@@ -4,7 +4,7 @@ import {
   progressBarSizeSmall,
   tabsHasId,
   DocsAndCount,
-  treeItemCommonStyle,
+  makeAutoComplete,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -18,7 +18,6 @@ import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
 import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { IoConstructOutline } from 'react-icons/io5';
-import { FaListOl } from 'react-icons/fa';
 
 import {
   Box,
@@ -36,7 +35,6 @@ import {
   Switch,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
 
 import { TabContent } from './Tabs';
@@ -69,7 +67,6 @@ import {
   handleCopyToClipboard,
 } from './helper';
 import { MenuRefresh } from './CommonComp';
-
 import { TableStructure } from './TableStructure';
 
 enum TablesType {
@@ -130,7 +127,7 @@ function TablesTree(props: { typ: TablesType }) {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -198,7 +195,6 @@ function TableTree(props: {
               style: calMenuStyle(e, 200),
             });
           }}
-          style={{ ...treeItemCommonStyle }}
         >
           <Stack direction="row" spacing={1}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
@@ -224,7 +220,7 @@ function DropTable(props: {
 
   const handleDrop = async () => {
     const confirm = await secondConfirm({
-      confirmText: 'drop',
+      confirmText: 'Drop',
       title: `are u sure to drop table '${table}'`,
     });
     if (!confirm) {
@@ -249,8 +245,12 @@ function DropTable(props: {
     switch (kind) {
       case DataSourceKind.Mysql:
       case DataSourceKind.MariaDB:
+      case DataSourceKind.TiDB:
       case DataSourceKind.Postgres:
       case DataSourceKind.Sqlite:
+      case DataSourceKind.Cockroach:
+      case DataSourceKind.LibSql:
+      case DataSourceKind.Oracle:
         return true;
       default:
         return false;
@@ -308,6 +308,7 @@ async function makeViewTable(
     case DataSourceKind.Cockroach:
       tableList = (
         <SqlTableView
+          autoCompletion={makeAutoComplete(uuid)}
           tableName={table}
           kind={kind}
           reloadOP={async (
@@ -319,7 +320,7 @@ async function makeViewTable(
           ) => {
             let where_null = where ? where : null;
             let orderBy_null = orderBy ? orderBy : null;
-            return await invoke<types.MuiDataTableListResp>('show_table', {
+            return await invoke<types.MuiDataGridData>('show_table', {
               name: uuid,
               tableName: table,
               whereStr: where_null,
@@ -375,18 +376,15 @@ async function makeViewTable(
               }}
               content={await (async () => {
                 try {
-                  let x = await invoke<types.MuiDataTableListResp>(
-                    'show_table',
-                    {
-                      name: uuid,
-                      tableName: table,
-                      whereStr: null,
-                      orderBy: null,
-                      page: 0,
-                      pageSize: 0,
-                    }
-                  );
-                  return x.data.data[0]['value'];
+                  let x = await invoke<types.MuiDataGridData>('show_table', {
+                    name: uuid,
+                    tableName: table,
+                    whereStr: null,
+                    orderBy: null,
+                    page: 0,
+                    pageSize: 0,
+                  });
+                  return x.data[0]['value'];
                 } catch (e) {
                   showNotification(
                     'success',
@@ -829,7 +827,7 @@ function TableMenu(props: {
           ...e,
           new TabContent(
             id,
-            `${table}-structure`,
+            `${table}`,
             (
               <TableStructure
                 kind={kind}
@@ -971,14 +969,16 @@ function TableMenu(props: {
       {showDup && (
         <Modal
           open={showDup}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setshowDup(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <DupTable
               table={table}
               uuid={uuid}
@@ -993,14 +993,16 @@ function TableMenu(props: {
       {showRename && (
         <Modal
           open={showRename}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowRename(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <RenameTable
               uuid={uuid}
               table={table}
@@ -1015,10 +1017,12 @@ function TableMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowExport(false);
           }}
         >
@@ -1029,7 +1033,7 @@ function TableMenu(props: {
               handleClose={() => {
                 setShowExport(false);
               }}
-              support_kind={getExportKind()}
+              supportKind={getExportKind()}
               kind={kind}
             ></ExportTableOrView>
           </Box>
@@ -1039,10 +1043,12 @@ function TableMenu(props: {
       {showDrop && (
         <Modal
           open={showDrop}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowDrop(false);
           }}
         >
@@ -1135,7 +1141,7 @@ function RenameTable(props: {
     const confirm = await secondConfirm({
       title: 'rename table',
       content: `are u sure going to rename table '${table}'`,
-      confirmText: 'rename',
+      confirmText: 'Rename',
     });
     if (!confirm) {
       return;
@@ -1229,25 +1235,18 @@ function RedisTables(prpos: { schema?: string }) {
   const makeOneKind = (
     idPrefix: string,
     tables: string[],
-
     typ: RedisTableType
   ) => {
     let name;
-    //@ts-ignore
-    let icon;
-
     switch (typ) {
       case RedisTableType.String:
         name = 'string';
-
         break;
       case RedisTableType.List:
         name = 'list';
-        icon = <FaListOl></FaListOl>;
         break;
       case RedisTableType.Set:
         name = 'set';
-        icon = <span>{'{...}'}</span>;
         break;
       case RedisTableType.Zset:
         name = 'zset';
@@ -1262,9 +1261,20 @@ function RedisTables(prpos: { schema?: string }) {
         label=<Stack
           spacing={1}
           direction="row"
-          sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+          sx={{ alignItems: 'center' }}
+          onContextMenu={(e) => {
+            setUpMenu({
+              content: (
+                <Paper>
+                  <MenuList>
+                    <MenuRefresh reload={handleReload}></MenuRefresh>
+                  </MenuList>
+                </Paper>
+              ),
+              style: calMenuStyle(e, 70),
+            });
+          }}
         >
-          {/* <span>{icon} </span> */}
           <span>{name}</span>
         </Stack>
       >
@@ -1273,7 +1283,6 @@ function RedisTables(prpos: { schema?: string }) {
             key={table}
             itemId={idPrefix + table}
             label=<Stack
-              style={{ ...treeItemCommonStyle }}
               direction="row"
               onContextMenu={(e) => {
                 setUpMenu({
@@ -1300,51 +1309,26 @@ function RedisTables(prpos: { schema?: string }) {
 
   let { setUpMenu } = useContext(ContextMenuContext);
   return (
-    <TreeItem
-      itemId={getPrefix()}
-      label=<Stack
-        spacing={1}
-        direction="row"
-        style={{ ...treeItemCommonStyle }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={handleReload}></MenuRefresh>
-                </MenuList>
-              </Paper>
-            ),
-            style: calMenuStyle(e, 70),
-          });
-        }}
-      >
-        <TableViewIcon> </TableViewIcon>
-
-        {tables && tables.has_more ? (
-          <Tooltip title={`result exceed ${max},some result are omited`}>
-            <Typography color="error">keys</Typography>
-          </Tooltip>
-        ) : (
-          <span>keys</span>
-        )}
-
-        {loading && (
-          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-        )}
-      </Stack>
-    >
+    <>
       <TreeItem
         itemId={filterTreeID}
         label=<Stack
           direction="row"
-          style={{ cursor: 'pointer', ...treeItemCommonStyle }}
+          style={{ cursor: 'pointer' }}
           onClick={() => {
             setShowEditFilter(true);
           }}
         >
-          filter:
-          <em> {filter} </em>
+          {tables && tables.has_more ? (
+            <Tooltip title={`result exceed ${max},some result are omited`}>
+              <em style={{ color: 'red' }}> filter:{filter} </em>
+            </Tooltip>
+          ) : (
+            <em> filter:{filter} </em>
+          )}
+          {loading && (
+            <CircularProgress size={progressBarSizeSmall}></CircularProgress>
+          )}
         </Stack>
       ></TreeItem>
       {tables &&
@@ -1376,14 +1360,16 @@ function RedisTables(prpos: { schema?: string }) {
       {showEditFilter && (
         <Modal
           open={showEditFilter}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowEditFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <TextField
               size="small"
               value={filter}
@@ -1397,7 +1383,7 @@ function RedisTables(prpos: { schema?: string }) {
           </Box>
         </Modal>
       )}
-    </TreeItem>
+    </>
   );
 }
 

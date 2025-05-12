@@ -1,25 +1,25 @@
-use std::{borrow::Cow, collections::HashMap, ops::DerefMut, sync::Arc, time::Duration};
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::ops::DerefMut;
+use std::sync::Arc;
+use std::time::Duration;
 
-use crate::{
-    db::{
-        BackendName, CatalogTrait, CreateDatabaseExtra, CreateSchemaExtra, DBTrait, DefAndMetas,
-        ExportKind, ExportQueryResult, Field, Index, IndexKind, ListMaterializedView, ListTable,
-        NamedStaff, ProcedureDetail, QueryResp, QuoteStyle, SchemaTrait, ServerMetas,
-        ShowExtraArgs, SqlBuilder, SqlExecuteRet, TableListResp, UdfOrProcedureExtraParameter,
-    },
-    helper::is_dangerous_sql_by_parser,
-    meta_value::MetaValue,
-    pg_format::encode_rows,
+use sqlx::pool::PoolConnection;
+use sqlx::{Postgres, Row};
+
+use crate::datasource_config::PGDBConfig;
+use crate::db::{
+    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    UdfOrProcedureExtraParameter,
 };
-
-use sqlx::Row;
-use sqlx::{Postgres, pool::PoolConnection};
-
-use crate::{
-    datasource_config::PGDBConfig,
-    db::{CheckConn, QuerySql, ReadOnlyTrait},
-    pg::PostGresDB,
-};
+use crate::helper::is_dangerous_sql_by_parser;
+use crate::meta_value::MetaValue;
+use crate::pg::PostGresDB;
+use crate::pg_format::encode_rows;
+use crate::query_log::QueryLogEvent;
 
 impl BackendName for CockRoachDB {
     fn backend_name(&self) -> &str {
@@ -36,6 +36,7 @@ impl CockRoachDB {
         let pg = PostGresDB::new(conn).await?;
         anyhow::Ok(Self { pg: Arc::new(pg) })
     }
+
     pub(crate) async fn get_conn(&self) -> anyhow::Result<PoolConnection<Postgres>> {
         self.pg.get_conn().await
     }
@@ -74,6 +75,10 @@ impl ReadOnlyTrait for CockRoachDB {
 #[async_trait::async_trait]
 
 impl QuerySql for CockRoachDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        self.pg.get_query_log(id)
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -163,18 +168,85 @@ fn gen_show_sql(
 
     sql
 }
+pub(crate) const COCKROACH_DATA_TYPES: &'static [&'static str] = &[
+    "BIT",
+    "BIT[]",
+    "BOOL",
+    "BOOL[]",
+    "BYTES",
+    "BYTES[]",
+    "COLLATE",
+    "COLLATE[]",
+    "DATE",
+    "DATE[]",
+    "DECIMAL",
+    "DECIMAL[]",
+    "FLOAT",
+    "FLOAT[]",
+    "INET",
+    "INET[]",
+    "INT",
+    "INT[]",
+    "INTERVAL",
+    "INTERVAL[]",
+    "NULL",
+    "NULL[]",
+    "JSONB",
+    "JSONB[]",
+    "OID",
+    "OID[]",
+    "SERIAL",
+    "STRING",
+    "STRING[]",
+    "TIME",
+    "TIME[]",
+    "TIMETZ",
+    "TIMETZ[]",
+    "TIMESTAMP",
+    "TIMESTAMP[]",
+    "TIMESTAMPTZ",
+    "TIMESTAMPTZ[]",
+    "TSQUERY",
+    "TSVECTOR",
+    "UUID",
+    "VECTOR",
+];
 
 #[async_trait::async_trait]
 
 impl SchemaTrait for CockRoachDB {
+    async fn add_table_column(
+        &self, table: &str, name: &str, col: ColumnType,
+    ) -> anyhow::Result<()> {
+        self.pg.add_table_column(table, name, col).await
+    }
+
+    async fn modify_table_column(
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
+    ) -> anyhow::Result<()> {
+        self.pg
+            .modify_table_column(table, old_name, new_name, typ)
+            .await
+    }
+
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+        self.pg.drop_table_column(table, col).await
+    }
+
+    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
+        anyhow::Ok(COCKROACH_DATA_TYPES)
+    }
+
     async fn export_table_or_view(
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         self.pg.export_table_or_view(name, kind, sender).await
     }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         self.pg.rename_table(old, new).await
     }
@@ -182,9 +254,11 @@ impl SchemaTrait for CockRoachDB {
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         self.pg.duplicate_table(table, dup).await
     }
+
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         self.pg.list_table().await
     }
+
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         self.pg.show_table_columns(table_name).await
     }
@@ -192,7 +266,7 @@ impl SchemaTrait for CockRoachDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let fields = self.show_table_columns(table_name).await?;
         let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
         let total = self.pg.query_count(table_name, where_str.clone()).await?;
@@ -213,7 +287,7 @@ impl SchemaTrait for CockRoachDB {
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let data = encode_rows(&row)?;
 
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn insert(
@@ -221,6 +295,7 @@ impl SchemaTrait for CockRoachDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.pg.insert(table_name, values).await
     }
+
     async fn update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
@@ -249,11 +324,13 @@ impl SchemaTrait for CockRoachDB {
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
         self.pg.list_procedure().await
     }
+
     async fn show_procedure(
         &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         self.pg.show_procedure(name, arg).await
     }
+
     async fn drop_procedure(
         &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
@@ -292,13 +369,15 @@ impl SchemaTrait for CockRoachDB {
 
         anyhow::Ok(ret)
     }
+
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.pg.drop_view(view_name).await
     }
+
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         self.pg
             .show_view(view_name, where_str, order_by, page, page_size, extra)
             .await
@@ -319,12 +398,15 @@ impl SchemaTrait for CockRoachDB {
     ) -> anyhow::Result<()> {
         self.pg.drop_udf(name, extra).await
     }
+
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         self.pg.show_view_columns(view_name).await
     }
+
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         self.pg.show_indexes(table_name).await
     }
+
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -347,12 +429,14 @@ impl DBTrait for CockRoachDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         self.pg.list_schema().await
     }
+
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let pg = self.pg.open_schema(name).await?;
         let pg = pg.as_any().downcast_ref::<PostGresDB>().unwrap();
         let pg = Clone::clone(pg);
         anyhow::Ok(Arc::new(Self { pg: Arc::new(pg) }))
     }
+
     async fn create_schema(
         &self, name: &str, extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
@@ -362,6 +446,7 @@ impl DBTrait for CockRoachDB {
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
         self.pg.drop_schema(name).await
     }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -372,6 +457,7 @@ impl CatalogTrait for CockRoachDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         self.pg.list_database().await
     }
+
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let pg = self.pg.open_db(name).await?;
         let pg = pg.as_any().downcast_ref::<PostGresDB>().unwrap();
@@ -392,12 +478,58 @@ impl CatalogTrait for CockRoachDB {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        db::{IndexKind, UdfOrProcedureExtraParameter},
-        enable_test_log,
-    };
-
     use super::*;
+    use crate::db::{IndexKind, UdfOrProcedureExtraParameter};
+    use crate::enable_test_log;
+
+    #[tokio::test]
+    async fn test_table_column() {
+        let db = make_test_object().await;
+        let table_name = "test_column";
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = db.open_connection().await.unwrap();
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_column
+                (
+                    id INT PRIMARY KEY                     -- 主键，无符号32位整数
+                )
+                "#,
+            )
+            .await
+            .unwrap();
+
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "INT2".to_string(),
+                nullness: Some("null".to_string()),
+                after: None,
+                default_value: Some("1".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+        db.modify_table_column(
+            table_name,
+            "name",
+            "name2",
+            Some(ColumnType {
+                typ: "INT4".to_string(),
+                nullness: Some("null".to_string()),
+                after: None,
+                default_value: Some("2".to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        db.drop_table_column(table_name, "name2").await.unwrap();
+    }
 
     #[tokio::test]
     async fn test_index() {

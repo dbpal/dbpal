@@ -1,34 +1,33 @@
-use std::{
-    borrow::Cow, collections::HashMap, future::Future, ops::Deref, sync::Arc, time::Duration,
-};
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::future::Future;
+use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
+use std::time::Duration;
 
 use bb8::ManageConnection;
-
 use dashmap::DashMap;
 use libsql::{Connection, Row, ValueType, params};
 
-use crate::{
-    datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce},
-    db::{
-        BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-        Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle,
-        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-        TableListResp, TriggerDetail,
-    },
-    helper::{create_csv, is_dangerous_sql_by_parser},
-    meta_value::MetaValue,
-    query_log::QueryLog,
-    sqlite::{
-        encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
-        integer_like, numreic_like, real_like, text_like,
-    },
+use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
+use crate::db::{
+    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
+    Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
 };
-use std::ops::DerefMut;
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::meta_value::MetaValue;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
+use crate::sqlite::{
+    encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
+    integer_like, numreic_like, real_like, text_like,
+};
 #[derive(Clone)]
 pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Connection>>,
+    query_logs: QueryLogMap,
 }
 
 impl BackendName for LibSqlDB {
@@ -53,6 +52,7 @@ impl ExportQueryResult for LibSqlDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
+
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -74,9 +74,14 @@ impl ExportQueryResult for LibSqlDB {
         }
     }
 }
+
 #[async_trait::async_trait]
 
 impl QuerySql for LibSqlDB {
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
+        anyhow::Ok(self.query_logs.get(&id))
+    }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
     }
@@ -84,7 +89,7 @@ impl QuerySql for LibSqlDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connections.get(&query_id);
         let conn = match &conn {
@@ -93,7 +98,7 @@ impl QuerySql for LibSqlDB {
         };
 
         let ret = match conn.execute(sql, params!()).await {
-            Ok(x) => Ok(QueryResp::row_affected(x)),
+            Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         query_log.set_success(ret.is_ok());
@@ -103,7 +108,7 @@ impl QuerySql for LibSqlDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = QueryLog::get_guard(query_id, sql);
+        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connections.get(&query_id);
         let conn = match &conn {
@@ -122,13 +127,19 @@ impl QuerySql for LibSqlDB {
             if rows.len() > 0 {
                 let fields = get_row_types(rows.get(0).unwrap());
                 let data = encode_rows(&rows)?;
-                ret.push(Ok(QueryResp { fields, data }));
+                ret.push(Ok(QueryResp {
+                    fields,
+                    data,
+                    sql: None,
+                    total: 0,
+                }));
             }
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
 
         anyhow::Ok(ret)
     }
+
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let conn = self.connect().await?;
         let id = uuid::Uuid::new_v4();
@@ -143,6 +154,7 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
@@ -235,6 +247,7 @@ impl bb8::ManageConnection for PoolManager {
             Ok(())
         }
     }
+
     fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
         false
     }
@@ -250,8 +263,10 @@ impl LibSqlDB {
             config,
             pool,
             query_connections: Default::default(),
+            query_logs: Default::default(),
         })
     }
+
     pub(crate) async fn get_conn(&self) -> anyhow::Result<bb8::PooledConnection<'_, PoolManager>> {
         let conn = self.pool.get().await?;
         anyhow::Ok(conn)
@@ -617,7 +632,7 @@ impl SchemaTrait for LibSqlDB {
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
@@ -629,13 +644,13 @@ impl SchemaTrait for LibSqlDB {
         }
         let data = encode_rows(&rows)?;
         let fields = self.show_table_columns(table_name).await?;
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         let conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str.clone()).await?;
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
@@ -647,14 +662,14 @@ impl SchemaTrait for LibSqlDB {
         }
         if rows.len() == 0 {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(TableListResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
         let data = encode_rows(&rows)?;
         let fields = match rows.get(0) {
             Some(x) => get_row_types(x),
             None => vec![],
         };
-        anyhow::Ok(TableListResp::new(fields, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -698,14 +713,18 @@ impl SqlBuilder for LibSqlDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => {
+                match value {
+                    Some(x) => format!("'{}'", x),
+                    None => "null".to_string(),
+                }
+            }
+            _ if text_like(typ.as_str()) => {
+                match value {
+                    Some(x) => format!("'{}'", x),
+                    None => "null".to_string(),
+                }
+            }
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
                 value.unwrap_or("null").to_string()
@@ -780,7 +799,7 @@ impl LibSqlDB {
 
                 let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send("\n".into()).await?;
+                sender.send(";\n".into()).await?;
             }
         }
         anyhow::Ok(())
@@ -1308,7 +1327,7 @@ mod tests {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
         db.query_sql(query_id, "select 1").await.unwrap();
-        let event = db.get_query_log(query_id).await.unwrap();
+        let event = db.get_query_log(query_id).unwrap();
         println!("{:?}", event);
         assert_eq!(event.len(), 1);
     }

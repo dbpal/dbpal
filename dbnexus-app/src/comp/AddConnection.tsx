@@ -25,6 +25,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { appStore, AppStoreKey, extractBaseName, msgTimeout } from './Common';
 import { DataSourceKind } from './helper';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 async function selectOneFile() {
   const selected = await open({
@@ -64,7 +65,7 @@ function SelectPath(props: { path; setPath }) {
   return (
     <Stack direction="row" sx={{ alignItems: 'center' }}>
       <Chip
-        label={`path:` + path}
+        label={`path:` + (path ? path : '')}
         onClick={() => {
           selectOneFile().then((e) => {
             setPath(e);
@@ -116,7 +117,14 @@ function UserAndPassword(props: {
         onChange={(e) => setPassword(e.target.value)}
       />
 
-      <div style={{ width: '30rem' }}>
+      <Stack
+        style={{
+          width: '31rem',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+        direction="row"
+      >
         <Checkbox
           checked={savePassword}
           onChange={(e) => {
@@ -125,7 +133,7 @@ function UserAndPassword(props: {
           name="save password"
         />
         save password
-      </div>
+      </Stack>
     </Stack>
   );
 }
@@ -161,15 +169,26 @@ function Https(props: { https; setHttps }) {
 function TrustCert(props: { trustCert; setTrustCert }) {
   let { trustCert, setTrustCert } = props;
   return (
-    <FormControlLabel
-      control={
-        <Switch
-          checked={trustCert}
-          onChange={(e) => setTrustCert(e.target.checked)}
-        />
-      }
-      label="Trust Cert"
-    />
+    <Stack direction="row" style={{ alignItems: 'center' }}>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={trustCert}
+            onChange={(e) => setTrustCert(e.target.checked)}
+          />
+        }
+        label="Trust Cert"
+      />
+      <Chip
+        label="?"
+        size="small"
+        onClick={() => {
+          openUrl(
+            'https://docs.rs/tiberius/0.12.3/tiberius/struct.Config.html#method.trust_cert'
+          );
+        }}
+      ></Chip>
+    </Stack>
   );
 }
 
@@ -195,7 +214,11 @@ function EnableSSlCert(props: {
   } = props;
 
   return (
-    <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+    <Stack
+      direction="row"
+      spacing={1}
+      style={{ alignItems: 'center', flexWrap: 'wrap' }}
+    >
       <>
         <Checkbox
           checked={enableSsl}
@@ -217,7 +240,10 @@ function EnableSSlCert(props: {
             }}
           >
             <Chip
-              label={'CA Cert:' + (sslCa ? extractBaseName(sslCa) : '')}
+              label={
+                'CA Cert(optional):' + (sslCa ? extractBaseName(sslCa) : '')
+              }
+              size="small"
             ></Chip>
           </Tooltip>
           <Tooltip title={sslCert}>
@@ -228,10 +254,13 @@ function EnableSSlCert(props: {
                   setSslCert(file);
                 }
               }}
-              label={'Certificate:' + (sslCert ? extractBaseName(sslCert) : '')}
+              label={
+                'Certificate(optional):' +
+                (sslCert ? extractBaseName(sslCert) : '')
+              }
+              size="small"
             ></Chip>
           </Tooltip>
-
           <Tooltip title={sslKey}>
             <Chip
               onClick={async () => {
@@ -240,7 +269,10 @@ function EnableSSlCert(props: {
                   setSslKey(file);
                 }
               }}
-              label={'Key File:' + (sslKey ? extractBaseName(sslKey) : '')}
+              size="small"
+              label={
+                'Key File(optional):' + (sslKey ? extractBaseName(sslKey) : '')
+              }
             ></Chip>
           </Tooltip>
         </>
@@ -263,19 +295,20 @@ function Database(props: {
   }
   return (
     <Stack>
-      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
-        {candidates.map((e) => (
-          <Button
-            key={e}
-            onClick={() => {
-              setDatabase(e);
-            }}
-          >
-            {e}
-          </Button>
-        ))}
-      </Stack>
-
+      {candidates.length > 0 && (
+        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+          {candidates.map((e) => (
+            <Button
+              key={e}
+              onClick={() => {
+                setDatabase(e);
+              }}
+            >
+              {e}
+            </Button>
+          ))}
+        </Stack>
+      )}
       <Stack direction="row">
         <TextField
           fullWidth
@@ -295,19 +328,20 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
 
   return (
     <Stack>
-      <Stack direction="row" style={{ flexWrap: 'wrap' }}>
-        {candidates.map((e) => (
-          <Button
-            key={e}
-            onClick={() => {
-              setSchema(e);
-            }}
-          >
-            {e}
-          </Button>
-        ))}
-      </Stack>
-
+      {candidates.length > 0 && (
+        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+          {candidates.map((e) => (
+            <Button
+              key={e}
+              onClick={() => {
+                setSchema(e);
+              }}
+            >
+              {e}
+            </Button>
+          ))}
+        </Stack>
+      )}
       <Stack direction="row">
         <TextField
           size="small"
@@ -365,7 +399,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   };
   const [libSqlModel, setlibSqlModal] = useState<'remote' | 'local'>(
     //@ts-ignore
-    getConfig('source') // backend has name this to source
+    getConfig('source', 'local') // backend has name this to source
   );
   const [url, setUrl] = useState(getConfig('url'));
   const [replica, setReplica] = useState(getConfig('replica', false));
@@ -701,7 +735,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   useEffect(() => {
     let config = makeConfig();
     if (connectionType === DataSourceKind.Oracle) {
-      // TODO oracle have bug rigthnow
+      // TODO oracle have bug right now
       return;
     }
     if (config) {
@@ -743,6 +777,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       <FormControl fullWidth>
         <InputLabel>Connection Type</InputLabel>
         <Select
+          size="small"
           value={connectionType}
           label="Connection Type"
           onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
@@ -762,7 +797,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
           <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
-          <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
+          {/* <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem> */}
           <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
         </Select>
       </FormControl>
@@ -1029,6 +1064,17 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
 
       {connectionType === DataSourceKind.Oracle && (
         <>
+          <Typography
+            color="info"
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              openUrl(
+                'https://odpi-c.readthedocs.io/en/latest/user_guide/installation.html'
+              );
+            }}
+          >
+            oracle need extra driver{' '}
+          </Typography>
           <HostAndPort
             onBlur={toggleTriggerReload}
             host={host}

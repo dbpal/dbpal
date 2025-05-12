@@ -1,6 +1,7 @@
 import { Chip, Stack, Typography } from '@mui/material';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import InfoIcon from '@mui/icons-material/Info';
+
 function WelCome() {
   const databases = [
     {
@@ -55,10 +56,10 @@ function WelCome() {
       name: 'firebird',
       img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQG24A0f2jnl4T9rul7TPM1pELdOB82qJJMmA3le9C3xzfkdZVoQjm3GbGkW2XEfN4mDos&usqp=CAU',
     },
-    {
-      name: 'duckdb',
-      img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/DuckDB_logo.svg/1200px-DuckDB_logo.svg.png',
-    },
+    // {
+    //   name: 'duckdb',
+    //   img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/DuckDB_logo.svg/1200px-DuckDB_logo.svg.png',
+    // },
     {
       name: 'cockroach',
       img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHdzT2jM3iJSR0ku-DfJpUGwG4vA86B5pvLQ&s',
@@ -68,31 +69,28 @@ function WelCome() {
     <Stack spacing={1}>
       <Typography
         variant="h4"
-        style={{ fontWeight: '700', textDecoration: 'underline' }}
+        style={{
+          textShadow: '6px 6px 4px rgba(130, 130, 130, 0.5)',
+        }}
       >
         dbpal is a database management system that easy to use.
       </Typography>
 
-      <Typography variant="h6" style={{ fontWeight: '700' }}>
-        right now we support:
-      </Typography>
-      <Stack
-        style={{ fontSize: '2rem', fontWeight: '700', flexWrap: 'wrap' }}
-        direction="row"
-      >
+      <Typography variant="h6">right now we support:</Typography>
+      <Stack style={{ fontSize: '2rem', flexWrap: 'wrap' }} direction="row">
         {databases.map((e) => (
           <Stack
             style={{
               padding: '4px',
-              // textShadow: '8px 8px 2px rgba(130, 130, 130, 0.5)',
               justifyContent: 'flex-end',
               alignItems: 'center',
               borderRadius: '12px',
               border: '1px solid gray',
-              width: '200px',
-              height: '130px',
+              width: '16rem',
+              height: '9rem',
             }}
             key={e.name}
+            className="welcome-image-container"
           >
             <img
               style={{
@@ -101,10 +99,14 @@ function WelCome() {
                 display: 'block',
               }}
               src={e.img}
-              width="80px"
+              width="65rem"
               alt={e.name}
             />
-            <span>{e.name}</span>
+            <span
+              style={{ textShadow: '8px 8px 4px rgba(130, 130, 130, 0.5)' }}
+            >
+              {e.name}
+            </span>
           </Stack>
         ))}
       </Stack>
@@ -112,7 +114,7 @@ function WelCome() {
         <Chip
           icon={<InfoIcon></InfoIcon>}
           onClick={() => {
-            openUrl('https://github.com/dbpal/docs/blob/main/README.md');
+            openUrl('https://dbpal.site');
           }}
           label="more information"
           color="info"

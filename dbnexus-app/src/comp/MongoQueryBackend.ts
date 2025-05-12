@@ -88,6 +88,12 @@ class MongoDBQuery implements IMongoDB {
     this.uuid = uuid
   }
   collection(name: string) {
+    if (!name) {
+      throw `collection name can't be empty`;
+    }
+    if (typeof name !== "string") {
+      throw `name must be string but ${typeof name}`
+    }
     return new MongoDBQueryCollection(this.uuid, name);
   }
   createcollection(name: string) {
@@ -450,9 +456,9 @@ class BsonExtraDataType {
     return BSON.Binary.fromFloat32Array(array)
   }
 }
-    var db : IMongoDB;
-    var logger : ILogger;
-    var bsonExtraDataType : BsonExtraDataType
+    let db : IMongoDB;
+    let logger : ILogger;
+    let bsonExtraDataType : BsonExtraDataType
   
   
         `);

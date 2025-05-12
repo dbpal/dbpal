@@ -6,14 +6,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
-
 use serde::Serializer;
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
 
 use crate::language_server::LanguageServer;
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLog, QueryLogEvent};
+use crate::query_log::QueryLogEvent;
 
 pub trait BackendName {
     fn backend_name(&self) -> &str;
@@ -55,7 +54,7 @@ pub trait SchemaTrait:
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp>;
+    ) -> anyhow::Result<QueryResp>;
 
     async fn insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
@@ -137,7 +136,7 @@ pub trait SchemaTrait:
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<TableListResp> {
+    ) -> anyhow::Result<QueryResp> {
         not_support_features(self.backend_name())
     }
 
@@ -488,7 +487,7 @@ pub struct CreatedType {
     pub sql: String,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
 pub struct ColumnType {
     // type string like `varchar`
     pub(crate) typ: String,
@@ -569,7 +568,7 @@ pub trait CatalogTrait:
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum CreateDatabaseExtra {
-    DuckDB { path: String },
+    // DuckDB { path: String },
 }
 
 /// named staff maybe used for view udf etc...
@@ -677,9 +676,8 @@ pub enum CreateSchemaExtra {
 
 #[async_trait::async_trait]
 pub trait ExportQueryResult: BackendName + Send + Sync + 'static {
-    fn clone(&self) -> Box<dyn ExportQueryResult> {
-        unreachable!("missing implementation")
-    }
+    fn clone(&self) -> Box<dyn ExportQueryResult>;
+
     async fn export_query_result(
         &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -748,13 +746,8 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 
-    async fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        let logs = QueryLog::get_instance()
-            .get(&id)
-            .map(|x| x.lock().unwrap().clone().logs)
-            .unwrap_or(vec![]);
-        anyhow::Ok(logs)
-    }
+    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>>;
+
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
         not_support_features(self.backend_name())
     }
@@ -895,43 +888,18 @@ impl TryFrom<&str> for IndexKind {
             "primary" => Ok(Self::Primary),
             "normal" => Ok(Self::Index),
             "unique" => Ok(Self::Unique),
-            _ => Err(format!(
-                "the frontend may pass the wrong parameter of {}",
-                value
-            )),
+            _ => {
+                Err(format!(
+                    "the frontend may pass the wrong parameter of {}",
+                    value
+                ))
+            }
         }
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, TypeDef, PartialEq, Eq)]
-pub struct QueryResp {
-    pub fields: Vec<Field>,
-    pub data: Vec<Vec<Option<String>>>,
-}
 impl QueryResp {
-    pub(crate) fn new(fields: Vec<Field>, data: Vec<Vec<Option<String>>>) -> Self {
-        Self { fields, data }
-    }
-
-    pub fn result(col_name: impl Into<String>, result: Vec<Option<String>>) -> Self {
-        let col_name = col_name.into();
-
-        Self {
-            data: vec![result],
-            fields: vec![Field {
-                field: col_name,
-                typ: "".to_string(),
-                nullable: false,
-                default_value: None,
-                is_primary: false,
-                is_auto_increment: false,
-                sortable: true,
-                firebird_binary_sub_type: None,
-            }],
-        }
-    }
-
-    pub fn row_affected(affected: u64) -> Self {
+    pub fn row_affected(affected: u64, sql: impl Into<Option<String>>) -> Self {
         Self {
             data: vec![vec![Some(affected.to_string())]],
             fields: vec![Field {
@@ -944,9 +912,12 @@ impl QueryResp {
                 sortable: true,
                 firebird_binary_sub_type: None,
             }],
+            sql: sql.into(),
+            total: 0,
         }
     }
-    pub fn execute_ok() -> Self {
+
+    pub fn execute_ok(sql: impl Into<Option<String>>) -> Self {
         Self {
             data: vec![vec![Some("OK".to_string())]],
             fields: vec![Field {
@@ -959,26 +930,29 @@ impl QueryResp {
                 sortable: true,
                 firebird_binary_sub_type: None,
             }],
+            sql: sql.into(),
+            total: 0,
         }
     }
 }
 
 #[derive(Clone, Debug, serde::Serialize, TypeDef)]
-pub struct TableListResp {
+pub struct QueryResp {
     pub fields: Vec<Field>,
+    // only pagination need this parameter.
     pub total: usize,
     pub data: Vec<Vec<Option<String>>>,
     pub sql: Option<String>,
 }
 
 /// we don't want to check `sql` somehow can be different
-impl PartialEq for TableListResp {
+impl PartialEq for QueryResp {
     fn eq(&self, other: &Self) -> bool {
         self.fields == other.fields && self.total == other.total && self.data == other.data
     }
 }
 
-impl TableListResp {
+impl QueryResp {
     fn check(&self) -> anyhow::Result<()> {
         for x in self.data.iter() {
             if x.len() != self.fields.len() {
@@ -993,17 +967,7 @@ impl TableListResp {
     }
 }
 
-impl TableListResp {
-    pub fn to_query_resp(self) -> QueryResp {
-        let TableListResp {
-            fields,
-            total: _,
-            data,
-            sql: _,
-        } = self;
-        QueryResp::new(fields, data)
-    }
-
+impl QueryResp {
     pub fn new(
         fields: Vec<Field>, total: usize, data: Vec<Vec<Option<String>>>,
         sql: impl Into<Option<String>>,

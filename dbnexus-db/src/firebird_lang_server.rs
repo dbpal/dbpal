@@ -2,13 +2,11 @@ use std::sync::Arc;
 
 use rsfbclient::Queryable;
 
-use crate::{
-    db::SchemaTrait,
-    firebird::FireBirdDB,
-    language_server::{
-        AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-        LexerCompletionTrait, try_completion_on_syntax,
-    },
+use crate::db::SchemaTrait;
+use crate::firebird::FireBirdDB;
+use crate::language_server::{
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 
 #[async_trait::async_trait]
@@ -28,7 +26,7 @@ impl LanguageServer for FireBirdDB {
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
-                log::error!("completion on ast failed,err:{:?}", err);
+                log::error!("completion on ast failed,err:{}", err);
             }
         };
         if !use_lexer {
@@ -78,15 +76,18 @@ impl AstCompletionHelper for FireBirdDB {
         let rows: Vec<(String,)> = conn.query(sql, ())?;
         anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
     }
+
     async fn list_column(
         &self, _db: Option<&str>, _schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         SchemaTrait::show_table_columns(self, name).await.map(|x| {
             x.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.field.clone().into(),
-                    kind: CompletionKind::Column,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.field.clone().into(),
+                        kind: CompletionKind::Column,
+                        desc: None,
+                    }
                 })
                 .collect()
         })
@@ -108,10 +109,12 @@ impl AstCompletionHelper for FireBirdDB {
 
         anyhow::Ok(
             rows.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.0.trim().to_owned().into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.0.trim().to_owned().into(),
+                        kind: CompletionKind::Function,
+                        desc: None,
+                    }
                 })
                 .collect(),
         )
@@ -132,9 +135,10 @@ impl AstCompletionHelper for FireBirdDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for FireBirdDB {
     type Dialect = sqlparser::dialect::GenericDialect;
+
     const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
-    const TYPES: &'static [&'static str] = TYPES;
     const TEXTS: &'static [&'static str] = &["true", "false"];
+    const TYPES: &'static [&'static str] = TYPES;
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         let mut ret: Vec<_> = AstCompletionHelper::list_table(self, None, None).await?;
@@ -147,6 +151,7 @@ impl LexerCompletionTrait for FireBirdDB {
 
         anyhow::Ok(ret)
     }
+
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
@@ -157,10 +162,10 @@ impl LexerCompletionTrait for FireBirdDB {
 mod tests {
     use std::path::Path;
 
-    use crate::{
-        db::QuerySql, enable_test_log, firebird::make_test_object,
-        language_server::completion_test::test_file_auto_completion,
-    };
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::firebird::make_test_object;
+    use crate::language_server::completion_test::test_file_auto_completion;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

@@ -1,24 +1,22 @@
-use std::collections::HashMap;
-
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use bson::{Document, doc};
-use dbnexus_db::app::{self, App, DBConnectionConfig, Open};
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
     DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TableListResp, TriggerDetail,
+    ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TriggerDetail,
     UdfOrProcedureExtraParameter,
 };
-
 use dbnexus_db::firebird::FireBirdDB;
-use dbnexus_db::language_server::{CompletionItem, SemanticToken};
+use dbnexus_db::language_server::CompletionItem;
 use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::MongoDB;
+use dbnexus_db::mssql::MsSqlServerDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
@@ -26,13 +24,15 @@ use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::tidb::TiDB;
-pub const PASSWORD_KEY: &str = "dbpal";
+
+use crate::app::{self, App, DBConnectionConfig, Open};
+pub const PASSWORD_KEY: &str = "site.dbpal.dev";
 
 #[tauri::command]
 pub fn has_entered_password(
     app: tauri::State<'_, App>, name: String,
 ) -> Result<bool, ErrorFrontend> {
-    let has = app.saved_password.lock().unwrap().get(&name).is_some();
+    let has = app.saved_password.get(&name).is_some();
     Ok(has)
 }
 
@@ -55,7 +55,7 @@ pub async fn save_entered_password(
         Open::Schema(x) => x.check_conn().await,
     }
     .map_err(|x| ErrorFrontend::from(x))?;
-    app.saved_password.lock().unwrap().insert(name, pass);
+    app.saved_password.insert(name, pass);
     Ok(())
 }
 
@@ -74,7 +74,7 @@ pub async fn save_password(name: String, pass: String) -> Result<(), ErrorFronte
 #[tauri::command]
 pub async fn page_init_callback(app: tauri::State<'_, App>) -> Result<(), ()> {
     log::info!("page init call clear all open connection.");
-    *app.opens.lock().await = Default::default();
+    app.opens.lock().await.clear();
     Ok(())
 }
 
@@ -92,26 +92,25 @@ pub async fn drop_database(
 
     // first close connections because we want delete it
 
-    app.close_conn_has_prefix(&format!("{}/{}", name, database))
-        .await;
-
+    let key = format!("{}/{}", name, database);
+    app.close_conn_has_prefix(&key).await;
     match x {
         Open::Catalog(x) => {
+            app.opens.lock().await.remove(&key);
+
             x.drop_database(&database)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
-            app.opens
-                .lock()
-                .await
-                .remove(&format!("{}:{}", name, database));
 
             Ok(())
         }
 
-        _ => Err(ErrorFrontend::from(format!(
-            "'{}' is not a db catalog",
-            name
-        ))),
+        _ => {
+            Err(ErrorFrontend::from(format!(
+                "'{}' is not a db catalog",
+                name
+            )))
+        }
     }
 }
 
@@ -122,29 +121,26 @@ pub async fn drop_schema(
     random_sleep().await;
     random_error()?;
     // first close connections because we want delete it
-
-    app.close_conn_has_prefix(&format!("{}/{}", name, schema))
-        .await;
+    let key = format!("{}/{}", name, schema);
+    app.close_conn_has_prefix(&key).await;
     let x = app
         .get_opened(name.as_str())
         .await
         .map_err(|x| ErrorFrontend::from(x))?;
     match x {
         Open::DataBase(x) => {
+            app.opens.lock().await.remove(&key);
             x.drop_schema(&schema)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
-            app.opens
-                .lock()
-                .await
-                .remove(&format!("{}:{}", name, schema));
-
             Ok(())
         }
-        _ => Err(ErrorFrontend::from(format!(
-            "'{}' is not a db database",
-            name
-        ))),
+        _ => {
+            Err(ErrorFrontend::from(format!(
+                "'{}' is not a db database",
+                name
+            )))
+        }
     }
 }
 
@@ -165,26 +161,29 @@ pub async fn create_database(
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            let db_name = format!("{}/{}", name, database);
+            let key = format!("{}/{}", name, database);
 
             let db = x
                 .open_db(&database)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            app.enter_open_child(&db_name, &Open::from(db.clone()))
+            app.enter_open_child(&key, &Open::from(db.clone()))
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            app.opens.lock().await.insert(db_name, db.into());
+            app.insert_open(key, db.into(), "crate databse insert")
+                .await;
 
             Ok(())
         }
 
-        _ => Err(ErrorFrontend::from(format!(
-            "'{}' is not a db catalog",
-            name
-        ))),
+        _ => {
+            Err(ErrorFrontend::from(format!(
+                "'{}' is not a db catalog",
+                name
+            )))
+        }
     }
 }
 
@@ -204,21 +203,22 @@ pub async fn create_schema(
             x.create_schema(&schema, extra)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
-            let db = x
+            let key = format!("{}/{}", name, schema);
+            let schema = x
                 .open_schema(&schema)
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
-            app.opens
-                .lock()
-                .await
-                .insert(format!("{}/{}", name, schema), db.into());
 
+            app.insert_open(key, schema.into(), "create schema insert")
+                .await;
             Ok(())
         }
-        _ => Err(ErrorFrontend::from(format!(
-            "'{}' is not a db database",
-            name
-        ))),
+        _ => {
+            Err(ErrorFrontend::from(format!(
+                "'{}' is not a db database",
+                name
+            )))
+        }
     }
 }
 
@@ -228,6 +228,7 @@ pub async fn open_conn(name: String, app: tauri::State<'_, App>) -> Result<(), E
     random_error()?;
     log::info!("open db:{}", name);
     let secs = 5;
+    let name_clone = name.clone();
 
     tokio::time::timeout(Duration::from_secs(secs), async move {
         app.open(name.as_str())
@@ -236,7 +237,12 @@ pub async fn open_conn(name: String, app: tauri::State<'_, App>) -> Result<(), E
             .map(|_| ())
     })
     .await
-    .map_err(|_| ErrorFrontend::from(format!("open connection not finished in {}s", secs)))?
+    .map_err(|_| {
+        ErrorFrontend::from(format!(
+            "'{name_clone}' open connection not finished in {}s",
+            secs
+        ))
+    })?
 }
 
 #[tauri::command]
@@ -263,17 +269,17 @@ pub async fn mongo_list_time_serial_collection(
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-
     let schema = app
         .get_schema(&name)
         .await
         .map_err(|x| ErrorFrontend::from(x))?;
 
     let ret = match schema.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => x
-            .list_time_serial_collection()
-            .await
-            .map_err(|x| ErrorFrontend::from(x))?,
+        Some(x) => {
+            x.list_time_serial_collection()
+                .await
+                .map_err(|x| ErrorFrontend::from(x))?
+        }
         None => {
             return Err(ErrorFrontend::from(format!("'{}' is not a mongo", name)));
         }
@@ -296,7 +302,7 @@ pub async fn redis_list_table(
 pub async fn redis_zset_show_table(
     name: String, key: String, min: Option<f64>, max: Option<f64>, where_str: Option<&str>,
     app: tauri::State<'_, App>,
-) -> Result<MuiDataTableListResp, ErrorFrontend> {
+) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -313,7 +319,7 @@ pub async fn redis_zset_show_table(
         .await
         .map_err(|x| ErrorFrontend::from(x))?;
 
-    Ok(MuiDataTableListResp::from(x))
+    Ok(MuiDataGridData::from(x))
 }
 
 #[tauri::command]
@@ -331,7 +337,7 @@ pub async fn show_table_columns(
 pub async fn show_table(
     name: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
-) -> Result<MuiDataTableListResp, ErrorFrontend> {
+) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let x = app
@@ -347,7 +353,7 @@ pub async fn show_table(
         .await
         .map_err(ErrorFrontend::from)?;
 
-    Ok(MuiDataTableListResp::from(x))
+    Ok(MuiDataGridData::from(x))
 }
 
 #[tauri::command]
@@ -389,17 +395,16 @@ pub async fn mongo_create_index(
     random_sleep().await;
     random_error()?;
     let keys = parse_bson_doc(&keys)?;
-
     let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-
     match schema.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => x
-            .create_index(&table_name, index_name, unique, keys)
-            .await
-            .map_err(|x| ErrorFrontend::from(x))?,
+        Some(x) => {
+            x.create_index(&table_name, index_name, unique, keys)
+                .await
+                .map_err(|x| ErrorFrontend::from(x))?
+        }
         None => {
             return Err(ErrorFrontend::from(format!("'{}' not a mongo", name)));
         }
@@ -417,7 +422,6 @@ pub async fn rename_index(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-
     schema
         .rename_index(&table_name, &old_name, &new_name)
         .await
@@ -637,7 +641,7 @@ pub async fn drop_table(
 pub async fn show_view(
     name: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
-) -> Result<MuiDataTableListResp, ErrorFrontend> {
+) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     app.show_view(
@@ -651,7 +655,7 @@ pub async fn show_view(
     )
     .await
     .map_err(ErrorFrontend::from)
-    .map(MuiDataTableListResp::from)
+    .map(MuiDataGridData::from)
 }
 #[tauri::command]
 pub async fn show_view_columns(
@@ -750,11 +754,10 @@ pub async fn query_sql(
 
     result.map_err(ErrorFrontend::from).map(|x| {
         x.into_iter()
-            .map(|x| match x {
-                Err(e) => Err(e),
-                Ok(x) => {
-                    let QueryResp { fields, data } = x;
-                    Ok(MuiDataGridData::from((fields, data)))
+            .map(|x| {
+                match x {
+                    Err(e) => Err(e),
+                    Ok(x) => Ok(MuiDataGridData::from(x)),
                 }
             })
             .collect::<Vec<_>>()
@@ -788,9 +791,9 @@ pub async fn query_logs(
     let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
 
     match db {
-        Open::DataBase(x) => x.get_query_log(query_id).await,
-        Open::Schema(x) => x.get_query_log(query_id).await,
-        Open::Catalog(x) => x.get_query_log(query_id).await,
+        Open::DataBase(x) => x.get_query_log(query_id),
+        Open::Schema(x) => x.get_query_log(query_id),
+        Open::Catalog(x) => x.get_query_log(query_id),
     }
     .map_err(|x| ErrorFrontend::from(x))
 }
@@ -933,10 +936,12 @@ pub async fn config_list_database_or_schema(
 ) -> Result<Vec<String>, ErrorFrontend> {
     let x = conn.open().await?;
     match x {
-        Open::Catalog(catalog_trait) => catalog_trait
-            .list_database()
-            .await
-            .map_err(ErrorFrontend::from),
+        Open::Catalog(catalog_trait) => {
+            catalog_trait
+                .list_database()
+                .await
+                .map_err(ErrorFrontend::from)
+        }
         Open::DataBase(dbtrait) => dbtrait.list_schema().await.map_err(ErrorFrontend::from),
         Open::Schema(_) => Ok(vec![]),
     }
@@ -961,10 +966,14 @@ pub async fn list_database(
     random_error()?;
     let db = app.open(name.as_str()).await?;
     app.enter_open_child(name.as_str(), &db).await?;
-
     match db {
         app::Open::Catalog(x) => x.list_database().await,
-        _ => return Err(ErrorFrontend::from("not catalog trait")),
+        _ => {
+            return Err(ErrorFrontend::from(format!(
+                "not catalog trait  of  {}",
+                name
+            )));
+        }
     }
     .map_err(ErrorFrontend::from)
 }
@@ -980,10 +989,16 @@ pub async fn list_schema(
     match db {
         app::Open::DataBase(x) => x.list_schema().await,
         app::Open::Catalog(_) => {
-            return Err(ErrorFrontend::from("not database trait but a catalog"));
+            return Err(ErrorFrontend::from(format!(
+                "not database trait but a catalog of {}",
+                name
+            )));
         }
         app::Open::Schema(_) => {
-            return Err(ErrorFrontend::from("not database trait but a schema"));
+            return Err(ErrorFrontend::from(format!(
+                "not database trait but a schema of {}",
+                name
+            )));
         }
     }
     .map_err(ErrorFrontend::from)
@@ -994,9 +1009,6 @@ pub async fn auto_completion(
 ) -> Result<Vec<CompletionItem>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    // TODO front is very hard to pass this parameter to the server
-    // because of manoca language is global registerd.
-
     let use_lexer = true;
     let db = app.get_opened(name.as_str()).await?;
     let ret = match db {
@@ -1005,25 +1017,17 @@ pub async fn auto_completion(
         Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
     }
     .map_err(|x| ErrorFrontend::from(x))?;
-    Ok(ret)
-}
-
-#[tauri::command]
-pub async fn semantic_tokens(
-    name: String, sql: String, app: tauri::State<'_, App>,
-) -> Result<Vec<SemanticToken>, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-
-    let db = app.get_opened(name.as_str()).await?;
-    let ret = match db {
-        Open::Catalog(x) => x.senmatic_tokens(&sql).await,
-        Open::DataBase(x) => x.senmatic_tokens(&sql).await,
-        Open::Schema(x) => x.senmatic_tokens(&sql).await,
+    let mut names = HashSet::new();
+    let mut ret2 = Vec::new();
+    for item in ret.into_iter() {
+        let name = item.item.to_lowercase();
+        if names.contains(&name) {
+            continue;
+        }
+        names.insert(name);
+        ret2.push(item);
     }
-    .map_err(|x| ErrorFrontend::from(x))?;
-
-    Ok(ret)
+    Ok(ret2)
 }
 
 #[tauri::command]
@@ -1037,10 +1041,11 @@ pub async fn oracle_query_set_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_set_autocommit(query_id, commit)
-            .await
-            .map_err(ErrorFrontend::from),
+        Some(x) => {
+            x.query_set_autocommit(query_id, commit)
+                .await
+                .map_err(ErrorFrontend::from)
+        }
         None => Err(ErrorFrontend::from(format!("db '{}' is not oracle", name))),
     }
 }
@@ -1055,10 +1060,11 @@ pub async fn oracle_query_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_autocommit(query_id)
-            .await
-            .map_err(ErrorFrontend::from),
+        Some(x) => {
+            x.query_autocommit(query_id)
+                .await
+                .map_err(ErrorFrontend::from)
+        }
         None => Err(ErrorFrontend::from(format!("db '{}' is not oracle", name))),
     }
 }
@@ -1073,10 +1079,11 @@ pub async fn oracle_query_commit(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_commit(query_id)
-            .await
-            .map_err(|e| ErrorFrontend::from(e)),
+        Some(x) => {
+            x.query_commit(query_id)
+                .await
+                .map_err(|e| ErrorFrontend::from(e))
+        }
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -1091,10 +1098,11 @@ pub async fn oracle_query_rollback(
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => x
-            .query_rollback(query_id)
-            .await
-            .map_err(|e| ErrorFrontend::from(e)),
+        Some(x) => {
+            x.query_rollback(query_id)
+                .await
+                .map_err(|e| ErrorFrontend::from(e))
+        }
         None => Err(format!("db '{}' is not oracle", name).into()),
     }
 }
@@ -1307,7 +1315,7 @@ pub async fn mongo_delete_ids(
 pub async fn mongo_show_collection_table_list(
     name: String, table_name: String, filter: Vec<u8>, page: u64, page_size: u64, sort: Vec<u8>,
     app: tauri::State<'_, App>,
-) -> Result<MuiDataTableListResp, ErrorFrontend> {
+) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let filter = parse_bson_doc(filter.as_slice())?;
@@ -1324,7 +1332,7 @@ pub async fn mongo_show_collection_table_list(
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(|e| ErrorFrontend::from(e))
-    .map(MuiDataTableListResp::from)
+    .map(MuiDataGridData::from)
 }
 
 #[tauri::command]
@@ -2216,10 +2224,12 @@ pub async fn list_procedure(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    schema
+    let sx = schema
         .list_procedure()
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(|x| ErrorFrontend::from(x))?;
+    check_named_staff_unique(&sx[..])?;
+    Ok(sx)
 }
 
 #[tauri::command]
@@ -2260,7 +2270,58 @@ pub async fn list_udf(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    schema.list_udf().await.map_err(|x| ErrorFrontend::from(x))
+    let sx = schema
+        .list_udf()
+        .await
+        .map_err(|x| ErrorFrontend::from(x))?;
+    // TODO why cockroach database  build in udf  `pg_get_function_arguments` return
+    // null
+    check_named_staff_unique(&sx[..])?;
+    Ok(sx)
+}
+
+fn check_named_staff_unique(named: &[NamedStaff]) -> Result<(), ErrorFrontend> {
+    #[derive(Clone, Hash, PartialEq, Eq)]
+    struct Key<'a> {
+        name: &'a String,
+        parameters: &'a Option<String>,
+        cassandra_parameters: &'a Option<Vec<String>>,
+    }
+
+    impl<'a> std::fmt::Debug for Key<'a> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.name)?;
+            if let Some(x) = self.parameters {
+                write!(f, "({})", x)?;
+            }
+            if let Some(x) = self.cassandra_parameters {
+                write!(f, "({:?})", x)?;
+            }
+            Ok(())
+        }
+    }
+
+    impl<'a> From<&'a NamedStaff> for Key<'a> {
+        fn from(value: &'a NamedStaff) -> Self {
+            Key {
+                name: &value.name,
+                parameters: &value.parameters,
+                cassandra_parameters: &value.cassandra_parameters,
+            }
+        }
+    }
+    let mut set = HashSet::new();
+    for n in named.iter() {
+        let k = Key::from(n);
+        if set.contains(&k) {
+            return Err(ErrorFrontend::from(format!(
+                "fn named '{:?}' duplicated this will make fontend not working",
+                k
+            )));
+        }
+        set.insert(k);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -2368,7 +2429,7 @@ pub async fn put_value_in_sql(
     if let Ok(e) = xxx::<FireBirdDB>(a, &typ, value) {
         return Ok(e);
     }
-    if let Ok(e) = xxx::<ClickHouseDB>(a, &typ, value) {
+    if let Ok(e) = xxx::<MsSqlServerDB>(a, &typ, value) {
         return Ok(e);
     }
     #[cfg(feature = "duckdb")]
@@ -2378,7 +2439,6 @@ pub async fn put_value_in_sql(
             return Ok(e);
         }
     }
-
     Err(ErrorFrontend::from(
         "not valid schema to put value in sql.maybe a internal error",
     ))
@@ -2415,10 +2475,11 @@ pub async fn cassandra_show_aggregate(
         .map_err(ErrorFrontend::from)?;
 
     let ret = match schema.as_any().downcast_ref::<CassandraDB>() {
-        Some(x) => x
-            .show_aggregate(&agg_name, parameters)
-            .await
-            .map_err(ErrorFrontend::from)?,
+        Some(x) => {
+            x.show_aggregate(&agg_name, parameters)
+                .await
+                .map_err(ErrorFrontend::from)?
+        }
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra",
@@ -2439,10 +2500,11 @@ pub async fn cassandra_drop_aggregate(
         .map_err(ErrorFrontend::from)?;
 
     match schema.as_any().downcast_ref::<CassandraDB>() {
-        Some(x) => x
-            .drop_aggregate(&agg_name, parameters)
-            .await
-            .map_err(ErrorFrontend::from)?,
+        Some(x) => {
+            x.drop_aggregate(&agg_name, parameters)
+                .await
+                .map_err(ErrorFrontend::from)?
+        }
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra",
@@ -2501,7 +2563,7 @@ impl From<tauri::Error> for ErrorFrontend {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
         };
-        log::error!("msg:{},backtrace:{}", x.reason, x.detail);
+        log::error!("msg:{}", x.reason);
         x
     }
 }
@@ -2511,7 +2573,7 @@ impl From<anyhow::Error> for ErrorFrontend {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
         };
-        log::error!("msg:{},backtrace:{}", x.reason, x.detail);
+        log::error!("msg:{}", x.reason);
         x
     }
 }
@@ -2522,7 +2584,7 @@ impl From<hex::FromHexError> for ErrorFrontend {
             reason: format!("{}", value),
             detail: "".to_string(),
         };
-        log::error!("msg:{},details:{}", x.reason, x.detail);
+        log::error!("msg:{}", x.reason);
         x
     }
 }
@@ -2607,59 +2669,39 @@ fn random_error() -> Result<(), ErrorFrontend> {
 pub struct MuiDataGridData {
     fields: Vec<Field>,
     data: Vec<HashMap<String, String>>,
+    sql: Option<String>,
+    total: usize,
 }
 
-#[derive(Clone, Debug, serde::Serialize, typescript_type_def::TypeDef)]
-pub struct MuiDataTableListResp {
-    pub total: usize,
-    pub sql: Option<String>,
-    data: MuiDataGridData,
-}
-
-impl From<TableListResp> for MuiDataTableListResp {
-    fn from(value: TableListResp) -> Self {
-        let TableListResp {
-            fields,
-            total,
-            sql,
-            data,
-        } = value;
-
-        Self {
-            total,
-            sql,
-            data: MuiDataGridData::from((fields, data)),
-        }
-    }
-}
 impl From<QueryResp> for MuiDataGridData {
     fn from(value: QueryResp) -> Self {
-        let QueryResp { fields, data } = value;
-        MuiDataGridData::from((fields, data))
-    }
-}
-impl From<(Vec<Field>, Vec<Vec<Option<String>>>)> for MuiDataGridData {
-    fn from(value: (Vec<Field>, Vec<Vec<Option<String>>>)) -> Self {
-        let (fields, old_data) = value;
-        let data: Vec<_> = old_data
+        let QueryResp {
+            fields,
+            data,
+            total,
+            sql,
+        } = value;
+        let data: Vec<_> = data
             .into_iter()
             .map(|x| {
                 let mut m = HashMap::new();
-                fields
-                    .iter()
-                    .zip(x.into_iter())
-                    .for_each(|(f, value)| match value {
+                fields.iter().zip(x.into_iter()).for_each(|(f, value)| {
+                    match value {
                         Some(value) => {
                             m.insert(f.field.clone(), value);
                         }
-
                         None => {}
-                    });
-
+                    }
+                });
                 m
             })
             .collect();
-        Self { fields, data }
+        Self {
+            fields,
+            data,
+            sql,
+            total,
+        }
     }
 }
 
@@ -2688,24 +2730,13 @@ mod tests {
             Ok(QueryResp {
                 fields: vec![],
                 data: vec![],
+                sql: None,
+                total: 0,
             }),
         ];
 
         let ret = serde_json::to_string_pretty(&xs).unwrap();
         println!("{}", ret);
-    }
-
-    #[test]
-    fn test_mui_datagrid() {
-        let data = vec![vec![Some("100".to_string()), Some("hello".to_string())]];
-        let field = vec![
-            Field::from_name_type("a", "int"),
-            Field::from_name_type("b", "string"),
-        ];
-
-        let x = MuiDataGridData::from((field, data));
-        let str = serde_json::to_string_pretty(&x).unwrap();
-        println!("{}", str);
     }
 
     #[test]

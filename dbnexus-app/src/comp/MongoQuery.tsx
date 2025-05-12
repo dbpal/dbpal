@@ -29,6 +29,7 @@ import {
 import { NotificationContext } from './Notification';
 import { LogLevelSelection } from './CommonComp';
 import * as esprima from 'esprima';
+import { PiFileSqlFill } from 'react-icons/pi';
 initMongoQueryGlobals();
 
 function makeLog(level, ...msg: any[]): string {
@@ -179,6 +180,7 @@ function MongoQuery(props: {
           <Chip
             label={loggerlevel}
             color="primary"
+            size="small"
             onClick={() => {
               setShowLoggerLevel(true);
             }}
@@ -207,7 +209,7 @@ function MongoQuery(props: {
             }}
             color="primary"
           >
-            <FavoriteIcon />
+            <PiFileSqlFill style={{ fontSize: '1.6rem' }} />
           </IconButton>
         </Tooltip>
 
@@ -263,6 +265,7 @@ function MongoQuery(props: {
         color="info"
         label=" logger"
         style={{ fontWeight: 'bold', fontSize: '1.2rem' }}
+        size="small"
       />
       <div
         style={{
@@ -288,14 +291,16 @@ function MongoQuery(props: {
       {showLoggerLevel && (
         <Modal
           open={showLoggerLevel}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowLoggerLevel(false);
           }}
         >
-          <Box sx={modalStyle} width="55%">
+          <Box sx={modalStyle} width="45%">
             <LogLevelSelection
               level={loggerlevel}
               handleChange={(level) => {
@@ -310,10 +315,12 @@ function MongoQuery(props: {
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
-          onClose={(_, reason) => {
+          onClose={(e, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
+            //@ts-ignore
+            e.preventDefault();
             setShowFavoriteName(false);
           }}
         >

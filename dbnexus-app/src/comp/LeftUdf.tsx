@@ -12,7 +12,7 @@ import { useContext, useEffect, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
 import { MdFunctions } from 'react-icons/md';
-import { initMonacoLanague, tabsHasId, treeItemCommonStyle } from './Common';
+import { initMonacoLanague, tabsHasId } from './Common';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -55,7 +55,13 @@ function UdfsTree() {
     switch (kind) {
       case DataSourceKind.Postgres:
       case DataSourceKind.Cockroach:
-        return idPrefix + '-' + named.name + '-' + named.parameters;
+        return (
+          idPrefix +
+          '-' +
+          named.name +
+          '-' +
+          (named.parameters ? named.parameters : 'null')
+        );
       case DataSourceKind.Cassandra:
         return (
           idPrefix +
@@ -77,7 +83,7 @@ function UdfsTree() {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -109,7 +115,7 @@ function UdfsTree() {
             label=<Stack
               direction="row"
               spacing={1}
-              sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+              sx={{ alignItems: 'center' }}
               onContextMenu={(e) => {
                 setUpMenu({
                   content: (
@@ -200,7 +206,7 @@ function UdfMenu(props: {
   const handleDrop = async () => {
     let confirm = await secondConfirm({
       title: `Drop UDF '${udf}'`,
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;
@@ -212,7 +218,7 @@ function UdfMenu(props: {
         reload();
       })
       .catch((e) => {
-        showNotification('error', 'Drop udf Failure', e);
+        showNotification('error', 'Drop udf failure', e);
       });
   };
 
@@ -295,7 +301,7 @@ function CassandraAggregateMenu(props: {
   const handleDrop = async () => {
     let confirm = await secondConfirm({
       title: `Drop Aggregate '${agg}'`,
-      confirmText: 'drop',
+      confirmText: 'Drop',
     });
     if (!confirm) {
       return;
@@ -376,7 +382,7 @@ function CassaandraAggregatesTree() {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -408,7 +414,7 @@ function CassaandraAggregatesTree() {
             label=<Stack
               direction="row"
               spacing={1}
-              sx={{ alignItems: 'center', ...treeItemCommonStyle }}
+              sx={{ alignItems: 'center' }}
               onContextMenu={(e) => {
                 setUpMenu({
                   content: (
