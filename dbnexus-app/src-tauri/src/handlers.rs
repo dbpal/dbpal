@@ -1020,7 +1020,17 @@ pub async fn auto_completion(
         Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
     }
     .map_err(|x| ErrorFrontend::from(x))?;
-    Ok(ret)
+    let mut names = HashSet::new();
+    let mut ret2 = Vec::new();
+    for item in ret.into_iter() {
+        let name = item.item.to_lowercase();
+        if names.contains(&name) {
+            continue;
+        }
+        names.insert(name);
+        ret2.push(item);
+    }
+    Ok(ret2)
 }
 
 #[tauri::command]

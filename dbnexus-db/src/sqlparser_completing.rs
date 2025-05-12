@@ -1044,8 +1044,8 @@ impl CompletionStatement {
             ColumnOption::Default(expr) => {
                 Box::pin(self.c_on_expr(expr)).await;
             }
-            ColumnOption::Materialized(_expr) => {
-                // ClickHouse
+            ColumnOption::Materialized(expr) => {
+                Box::pin(self.c_on_expr(expr)).await;
             }
             ColumnOption::Ephemeral(expr) => {
                 if let Some(expr) = expr {
@@ -1434,11 +1434,11 @@ impl CompletionStatement {
             Expr::Named { .. } => {
                 // bitquery not support
             }
-            Expr::Dictionary(..) => {
-                // duckdb not support
+            Expr::Dictionary(_) => {
+                // literal value
             }
-            Expr::Map(..) => {
-                // duckdb not support
+            Expr::Map(_) => {
+                // literal value
             }
             Expr::Array(array) => {
                 for e in array.elem.iter() {
