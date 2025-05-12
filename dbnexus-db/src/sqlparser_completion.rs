@@ -339,7 +339,7 @@ impl CompletionStatement {
                     return;
                 }
                 for c in columns.iter() {
-                    self.c_on_column(table_name, c).await;
+                    self.c_on_column(table_name, c, false).await;
                     if self.finished() {
                         return;
                     }
@@ -392,7 +392,7 @@ impl CompletionStatement {
                 match &insert.table {
                     TableObject::TableName(object_name) => {
                         for c in insert.columns.iter() {
-                            self.c_on_column(object_name, c).await;
+                            self.c_on_column(object_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
@@ -404,7 +404,7 @@ impl CompletionStatement {
                     TableObject::TableName(object_name) => {
                         // I don't understand this,But we can still suggest table column
                         for c in insert.after_columns.iter() {
-                            self.c_on_column(object_name, c).await;
+                            self.c_on_column(object_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
@@ -514,7 +514,7 @@ impl CompletionStatement {
                             return;
                         }
                         for c in columns.iter() {
-                            self.c_on_column(table_name, &c).await;
+                            self.c_on_column(table_name, &c, false).await;
                             if self.finished() {
                                 return;
                             }
@@ -581,6 +581,7 @@ impl CompletionStatement {
                                                     ident,
                                                 ) => ident,
                                             },
+                                            false,
                                         ))
                                         .await;
                                     }
@@ -778,7 +779,7 @@ impl CompletionStatement {
                             }
                             self.c_on_table(foreign_table).await;
                             for r in referred_columns.iter() {
-                                self.c_on_column(foreign_table, r).await;
+                                self.c_on_column(foreign_table, r, false).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -885,7 +886,7 @@ impl CompletionStatement {
                 // 但会被包含在索引的叶节点中。这种功能主要用于提高查询性能，
                 // 特别是在需要返回额外列的场景中。
                 for i in create_index.include.iter() {
-                    self.c_on_column(&create_index.table_name, i).await;
+                    self.c_on_column(&create_index.table_name, i, false).await;
                     if self.finished() {
                         return;
                     }
@@ -1313,7 +1314,7 @@ impl CompletionStatement {
                     match e {
                         TriggerEvent::Update(fields) => {
                             for field in fields.iter() {
-                                self.c_on_column(table_name, field).await;
+                                self.c_on_column(table_name, field, false).await;
                                 if self.finished() {
                                     return;
                                 }

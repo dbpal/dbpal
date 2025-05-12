@@ -317,6 +317,7 @@ impl CompletionStatement {
                         match name.0.last().unwrap() {
                             ObjectNamePart::Identifier(ident) => ident,
                         },
+                        false,
                     )
                     .await;
                 }
@@ -336,7 +337,7 @@ impl CompletionStatement {
         if let Some(column_position) = column_position {
             match column_position {
                 MySQLColumnPosition::First => {}
-                MySQLColumnPosition::After(col) => self.c_on_column(table_name, col).await,
+                MySQLColumnPosition::After(col) => self.c_on_column(table_name, col, false).await,
             }
         }
     }
@@ -510,7 +511,7 @@ impl CompletionStatement {
         &mut self, table_name: &ObjectName, p: &Partition,
     ) {
         match p {
-            Partition::Identifier(ident) => self.c_on_column(table_name, ident).await,
+            Partition::Identifier(ident) => self.c_on_column(table_name, ident, false).await,
             Partition::Expr(expr) => {
                 self.c_on_expr(expr).await;
             }
@@ -565,7 +566,7 @@ impl CompletionStatement {
                                 }
                             };
                             for c in columns.iter() {
-                                self.c_on_column(table_name, c).await;
+                                self.c_on_column(table_name, c, false).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -585,7 +586,7 @@ impl CompletionStatement {
                                 }
                             }
                             for c in columns.iter() {
-                                self.c_on_column(table_name, c).await;
+                                self.c_on_column(table_name, c, false).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -595,7 +596,7 @@ impl CompletionStatement {
                                 return;
                             }
                             for c in referred_columns.iter() {
-                                self.c_on_column(foreign_table, c).await;
+                                self.c_on_column(foreign_table, c, false).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -622,7 +623,7 @@ impl CompletionStatement {
                                 }
                             }
                             for c in columns.iter() {
-                                self.c_on_column(table_name, c).await;
+                                self.c_on_column(table_name, c, false).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -640,7 +641,7 @@ impl CompletionStatement {
                                 }
                             };
                             for c in columns.iter() {
-                                self.c_on_column(table_name, c).await;
+                                self.c_on_column(table_name, c, false).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -685,7 +686,7 @@ impl CompletionStatement {
                     self.c_on_constraint(table_name, name).await;
                 }
                 AlterTableOperation::DropColumn { column_name, .. } => {
-                    self.c_on_column(table_name, column_name).await;
+                    self.c_on_column(table_name, column_name, false).await;
                 }
                 AlterTableOperation::AttachPartition { partition } => {
                     self.c_on_clickhouse_partition(table_name, partition).await;
@@ -780,7 +781,7 @@ impl CompletionStatement {
                     old_column_name,
                     new_column_name,
                 } => {
-                    self.c_on_column(table_name, old_column_name).await;
+                    self.c_on_column(table_name, old_column_name, false).await;
                     if self.finished() {
                         return;
                     }
@@ -801,7 +802,7 @@ impl CompletionStatement {
                     column_position,
                     ..
                 } => {
-                    self.c_on_column(table_name, old_name).await;
+                    self.c_on_column(table_name, old_name, false).await;
                     if self.finished() {
                         return;
                     }
@@ -817,7 +818,7 @@ impl CompletionStatement {
                     column_position,
                     ..
                 } => {
-                    self.c_on_column(table_name, col_name).await;
+                    self.c_on_column(table_name, col_name, false).await;
                     if self.finished() {
                         return;
                     }
@@ -832,7 +833,7 @@ impl CompletionStatement {
                     self.c_on_constraint(table_name, old_name).await;
                 }
                 AlterTableOperation::AlterColumn { column_name, .. } => {
-                    self.c_on_column(table_name, column_name).await;
+                    self.c_on_column(table_name, column_name, false).await;
                     // other fallback to lexer.
                 }
                 AlterTableOperation::SwapWith { .. } => {
@@ -913,7 +914,7 @@ impl CompletionStatement {
                 if let Some(table) = self.scopes.nearest_table_named(&table) {
                     match table {
                         NearNestTableNamed::Alias { table } => {
-                            self.c_on_column(&table, &idents[1]).await;
+                            self.c_on_column(&table, &idents[1], false).await;
                         }
                         NearNestTableNamed::Temp { table } => {
                             self.result =
@@ -924,6 +925,7 @@ impl CompletionStatement {
                     self.c_on_column(
                         &ObjectName(vec![ObjectNamePart::Identifier(table.clone())]),
                         &idents[1],
+                        true,
                     )
                     .await;
                 }
@@ -941,7 +943,7 @@ impl CompletionStatement {
                 if self.finished() {
                     return;
                 }
-                self.c_on_column(&table, &idents[2]).await;
+                self.c_on_column(&table, &idents[2], false).await;
             }
             _ => {
                 log::error!("identifers too long:{:?}", idents)
@@ -958,7 +960,7 @@ impl CompletionStatement {
             log::trace!("this table found:{:?}", this_table);
             match this_table {
                 ThisTableEnum::Table { name } => {
-                    self.c_on_column(&name, ident).await;
+                    self.c_on_column(&name, ident, true).await;
                 }
                 ThisTableEnum::Temp { temp } => {
                     self.result = Some(temp.columns.iter().map(CompletionItem::from).collect());
@@ -1013,6 +1015,18 @@ impl CompletionStatement {
                         self.result = Some(old);
                     }
                 }
+
+                // keep result
+
+                let items = self.result.take().unwrap_or_default();
+                self.c_on_table_or_view(&ObjectName(vec![ObjectNamePart::Identifier(
+                    ident.clone(),
+                )]))
+                .await;
+                if self.result.is_none() {
+                    self.result = Some(vec![]);
+                }
+                self.result.as_mut().unwrap().extend(items);
             }
         }
     }
@@ -1048,7 +1062,7 @@ impl CompletionStatement {
                 ..
             } => {
                 for r in referred_columns.iter() {
-                    self.c_on_column(foreign_table, r).await;
+                    self.c_on_column(foreign_table, r, false).await;
                     if self.finished() {}
                 }
             }
@@ -1442,7 +1456,7 @@ impl CompletionStatement {
                     for c in columns.iter() {
                         match &this_table {
                             ThisTableEnum::Table { name } => {
-                                self.c_on_column(name, c).await;
+                                self.c_on_column(name, c, false).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -1540,20 +1554,28 @@ impl CompletionStatement {
         }
     }
 
-    pub(crate) async fn c_on_column(&mut self, table_name: &ObjectName, col: &Ident) {
+    pub(crate) async fn c_on_column(
+        &mut self, table_name: &ObjectName, col: &Ident, suggest_table: bool,
+    ) {
         if self.in_pos(&col.span) {
+            if suggest_table {
+                self.c_on_table_or_view(table_name).await;
+            }
             let (db, schema, table_name) = self.extract_db_schme_item(table_name);
-            self.result = Some(
-                self.helper
-                    .list_column(db, schema, table_name)
-                    .await
-                    .map_err(|e| {
-                        log::error!("list column error:{:?}", e);
-                        self.set_has_err();
-                    })
-                    .ok()
-                    .unwrap_or_default(),
-            );
+            if self.result.is_none() {
+                self.result = Some(vec![]);
+            }
+            let items = self
+                .helper
+                .list_column(db, schema, table_name)
+                .await
+                .map_err(|e| {
+                    log::error!("list column error:{:?}", e);
+                    self.set_has_err();
+                })
+                .ok()
+                .unwrap_or_default();
+            self.result.as_mut().unwrap().extend(items);
         }
     }
 

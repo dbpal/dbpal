@@ -193,7 +193,7 @@ fn main_() {
                                 meta.website  = Some("https://dbpal.site".to_string());
                                 meta.name = Some("dbpals".to_string());
                                 meta.authors = Some(vec!["756445638@qq.com".to_string()]);
-                                meta.copyright = Some("Copyright © 2025 All rights reserved.".to_string());
+                                meta.copyright = Some("Copyright © yuyang 2025 All rights reserved.".to_string());
                                 meta
                             }))?,
                         ],
