@@ -90,6 +90,7 @@ function WelCome() {
               height: '9rem',
             }}
             key={e.name}
+            className="image-container"
           >
             <img
               style={{

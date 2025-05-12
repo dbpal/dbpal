@@ -16,6 +16,19 @@
         /* font-size: 15px;    */
         transition: all 1s ease;
       }
+      .image-container {
+        width: 300px; /* 设置父 div 的宽度 */
+        overflow: hidden; /* 隐藏溢出的部分 */
+        position: relative;
+      }
+
+      .image-container img {
+        transition: transform 0.3s ease; /* 添加过渡效果 */
+      }
+
+      .image-container:hover img {
+        transform: scale(1.25); /* 悬停时放大图片 */
+      }
     </style>
   </head>
 
