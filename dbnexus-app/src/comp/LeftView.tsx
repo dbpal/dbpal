@@ -249,6 +249,7 @@ function ViewStructure(props: {
     DataSourceKind.Mysql,
     DataSourceKind.MariaDB,
     DataSourceKind.TiDB,
+    DataSourceKind.Sqlite,
   ].includes(kind);
 
   if (supportStatement) {
