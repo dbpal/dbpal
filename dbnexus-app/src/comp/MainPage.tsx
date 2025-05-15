@@ -2,7 +2,7 @@ import { NotificationProvider } from './Notification';
 
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
-
+import { platform } from '@tauri-apps/plugin-os';
 import {
   CSSProperties,
   ReactNode,
@@ -16,6 +16,28 @@ import { WelCome } from './WelCome';
 import { tabsHasId } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
+
+const keyShortChangetab = {} as { prev: () => void; next: () => void };
+
+const changeTabkeyDownCallback = (e: KeyboardEvent) => {
+  if (platform() == 'macos') {
+    console.log(e.metaKey, e.key);
+    if (e.metaKey && e.key == '[') {
+      keyShortChangetab.prev();
+    }
+    if (e.metaKey && e.key == ']') {
+      keyShortChangetab.next();
+    }
+  }
+  if (['windows', 'linux'].includes(platform())) {
+    if (e.ctrlKey && e.key == '[') {
+      keyShortChangetab.prev();
+    }
+    if (e.ctrlKey && e.key == ']') {
+      keyShortChangetab.next();
+    }
+  }
+};
 
 import { ModifySettings, SettingComp } from './Settings.tsx';
 import {
@@ -35,6 +57,21 @@ export default function MainPage() {
     ),
   ]);
   const [selectTab, setSelectTab] = useState(0);
+
+  keyShortChangetab.prev = () => {
+    setSelectTab((e) => (e > 0 ? e - 1 : e));
+  };
+
+  keyShortChangetab.next = () => {
+    if (tabs.length - 1 > selectTab) {
+      setSelectTab((e) => e + 1);
+    }
+  };
+
+  // shortcut
+  useEffect(() => {
+    document.addEventListener('keydown', changeTabkeyDownCallback);
+  }, []);
 
   useEffect(() => {
     let unlisten = listen('show_settings', () => {

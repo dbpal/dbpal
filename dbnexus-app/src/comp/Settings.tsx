@@ -116,7 +116,7 @@ function ModifySettings() {
           onClick={() => {
             setTheme('light');
           }}
-          style={{ backgroundColor: 'white', color: 'black' }}
+          color="info"
         ></Chip>
 
         <Chip
@@ -125,7 +125,7 @@ function ModifySettings() {
           onClick={() => {
             setTheme('dark');
           }}
-          style={{ backgroundColor: 'black', color: 'white' }}
+          color="info"
         ></Chip>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
