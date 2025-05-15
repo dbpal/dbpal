@@ -17,26 +17,30 @@ import { tabsHasId } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 
-const keyShortChangetab = {} as { prev: () => void; next: () => void };
-
-const changeTabkeyDownCallback = (e: KeyboardEvent) => {
-  if (platform() == 'macos') {
-    console.log(e.metaKey, e.key);
-    if (e.metaKey && e.key == '[') {
-      keyShortChangetab.prev();
+const keyShortChangetab = {
+  callback: (e: KeyboardEvent) => {
+    if (platform() == 'macos') {
+      console.log(e.metaKey, e.key);
+      if (e.metaKey && e.key == '[') {
+        keyShortChangetab.prev();
+      }
+      if (e.metaKey && e.key == ']') {
+        keyShortChangetab.next();
+      }
     }
-    if (e.metaKey && e.key == ']') {
-      keyShortChangetab.next();
+    if (['windows', 'linux'].includes(platform())) {
+      if (e.ctrlKey && e.key == '[') {
+        keyShortChangetab.prev();
+      }
+      if (e.ctrlKey && e.key == ']') {
+        keyShortChangetab.next();
+      }
     }
-  }
-  if (['windows', 'linux'].includes(platform())) {
-    if (e.ctrlKey && e.key == '[') {
-      keyShortChangetab.prev();
-    }
-    if (e.ctrlKey && e.key == ']') {
-      keyShortChangetab.next();
-    }
-  }
+  },
+} as {
+  prev: () => void;
+  next: () => void;
+  callback: (e: KeyboardEvent) => void;
 };
 
 import { ModifySettings, SettingComp } from './Settings.tsx';
@@ -47,6 +51,7 @@ import {
   TabsSetContext,
 } from './helper.ts';
 import { IoMdSettings } from 'react-icons/io';
+
 export default function MainPage() {
   let [tabs, setTabs] = useState([
     new TabContent(
@@ -70,7 +75,7 @@ export default function MainPage() {
 
   // shortcut
   useEffect(() => {
-    document.addEventListener('keydown', changeTabkeyDownCallback);
+    document.addEventListener('keydown', keyShortChangetab.callback);
   }, []);
 
   useEffect(() => {
