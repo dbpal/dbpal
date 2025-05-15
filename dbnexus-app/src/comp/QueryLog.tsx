@@ -4,7 +4,12 @@ import { DataGrid, GridPaginationModel } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
 import { useCallback, useContext, useMemo, useState } from 'react';
-import { modalStyle, SettingContext, SimpleResizeEditor } from './Common.tsx';
+import {
+  EscDownEvent,
+  modalStyle,
+  SettingContext,
+  SimpleResizeEditor,
+} from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import { GridInitialStateCommunity } from '@mui/x-data-grid/models/gridStateCommunity';
@@ -85,11 +90,10 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
       {selectSql && (
         <Modal
           open={!!selectSql}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setSelectSql('');
           }}

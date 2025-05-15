@@ -5,6 +5,7 @@ import {
   tabsHasId,
   DocsAndCount,
   makeAutoComplete,
+  EscDownEvent,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -969,11 +970,11 @@ function TableMenu(props: {
       {showDup && (
         <Modal
           open={showDup}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setshowDup(false);
           }}
@@ -993,11 +994,11 @@ function TableMenu(props: {
       {showRename && (
         <Modal
           open={showRename}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowRename(false);
           }}
@@ -1017,11 +1018,11 @@ function TableMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowExport(false);
           }}
@@ -1043,11 +1044,11 @@ function TableMenu(props: {
       {showDrop && (
         <Modal
           open={showDrop}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowDrop(false);
           }}
@@ -1360,11 +1361,11 @@ function RedisTables(prpos: { schema?: string }) {
       {showEditFilter && (
         <Modal
           open={showEditFilter}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowEditFilter(false);
           }}

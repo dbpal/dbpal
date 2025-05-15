@@ -1,6 +1,7 @@
 import { Chip, Stack, Typography } from '@mui/material';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import InfoIcon from '@mui/icons-material/Info';
+import { CSSProperties } from 'react';
 
 function WelCome() {
   const databases = [
@@ -65,18 +66,20 @@ function WelCome() {
       img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHdzT2jM3iJSR0ku-DfJpUGwG4vA86B5pvLQ&s',
     },
   ];
+  let s: CSSProperties = {
+    textShadow: '6px 6px 4px rgba(130, 130, 130, 0.5)',
+    fontStyle: 'italic',
+    fontWeight: 'bold',
+  };
   return (
-    <Stack spacing={1}>
-      <Typography
-        variant="h4"
-        style={{
-          textShadow: '6px 6px 4px rgba(130, 130, 130, 0.5)',
-        }}
-      >
+    <Stack spacing={1} style={s}>
+      <Typography variant="h4" fontWeight="bold">
         dbpal is a database management system that easy to use.
       </Typography>
 
-      <Typography variant="h6">right now we support:</Typography>
+      <Typography variant="h6" fontWeight="bold">
+        right now we support:
+      </Typography>
       <Stack style={{ fontSize: '2rem', flexWrap: 'wrap' }} direction="row">
         {databases.map((e) => (
           <Stack
@@ -102,11 +105,7 @@ function WelCome() {
               width="65rem"
               alt={e.name}
             />
-            <span
-              style={{ textShadow: '8px 8px 4px rgba(130, 130, 130, 0.5)' }}
-            >
-              {e.name}
-            </span>
+            <span>{e.name}</span>
           </Stack>
         ))}
       </Stack>
@@ -116,6 +115,7 @@ function WelCome() {
           onClick={() => {
             openUrl('https://dbpal.site');
           }}
+          style={{ fontStyle: 'normal' }}
           label="more information"
           color="info"
         ></Chip>

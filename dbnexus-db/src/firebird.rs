@@ -14,6 +14,7 @@ use rsfbclient::{Execute, FbError, Queryable, Row, SqlType, builder_pure_rust};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
+use crate::MemoryLimit;
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendName, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
@@ -338,13 +339,17 @@ impl QuerySql for FireBirdDB {
         let mut conn = conn.lock().await;
 
         let conn = conn.deref_mut();
-
+        let mut ml = MemoryLimit::new();
         for s in ss.iter() {
+            ml.exceed_error()?;
+
             match s.kind {
                 SqlKind::Query => {
                     let rows: Result<Vec<Row>, _> = block_in_place(|| conn.query(&s.sql, ()));
                     match rows {
                         Ok(rows) => {
+                            ml.exceed_error()?;
+
                             if rows.len() > 0 {
                                 let fields = infer_fields(rows.get(0).unwrap());
                                 let data = encode_rows(&rows, true, None)?;

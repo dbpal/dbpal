@@ -13,6 +13,7 @@ use sqlx::types::BigDecimal;
 use sqlx::{Column, Executor, MySqlConnection, Row, TypeInfo};
 use tokio::sync::Mutex;
 
+use crate::MemoryLimit;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
@@ -1496,7 +1497,10 @@ impl QuerySql for MysqlDB {
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
         let mut rows = Vec::new();
         log::info!("execute sql:{}", sql);
+        let mut ml = MemoryLimit::new();
         while let Some(item) = stream.next().await {
+            ml.exceed_error()?;
+
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {

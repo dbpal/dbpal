@@ -30,6 +30,7 @@ import FastForwardIcon from '@mui/icons-material/FastForward';
 import { editor, Position } from 'monaco-editor';
 import {
   EditorBar,
+  EscDownEvent,
   IQueryConn,
   LoadStoreFileForQuery,
   MakeIQueryConn,
@@ -558,11 +559,11 @@ function SqlQuery(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowExport(false);
           }}
@@ -590,11 +591,11 @@ function SqlQuery(props: {
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowFavoriteName(false);
           }}

@@ -9,6 +9,7 @@ use bb8::ManageConnection;
 use dashmap::DashMap;
 use libsql::{Connection, Row, ValueType, params};
 
+use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
@@ -118,10 +119,12 @@ impl QuerySql for LibSqlDB {
 
         let mut batch_rows = conn.execute_batch(sql).await?;
         let mut ret = Vec::new();
-
+        let mut ml = MemoryLimit::new();
         while let Some(mut rows_) = batch_rows.next_stmt_row().flatten() {
+            ml.exceed_error()?;
             let mut rows = Vec::new();
             while let Some(row) = rows_.next().await? {
+                ml.exceed_error()?;
                 rows.push(row);
             }
             if rows.len() > 0 {

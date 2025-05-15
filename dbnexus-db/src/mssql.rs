@@ -14,6 +14,7 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
+use crate::MemoryLimit;
 #[cfg(test)]
 use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
@@ -1751,6 +1752,8 @@ impl QuerySql for MsSqlServerDB {
         let mut stream = conn.simple_query(sql).await?;
         let mut meta_prev = None;
         let mut rows = Vec::new();
+        let mut ml = MemoryLimit::new();
+
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(item) => item,
@@ -1759,7 +1762,7 @@ impl QuerySql for MsSqlServerDB {
                     continue;
                 }
             };
-
+            ml.exceed_error()?;
             match item {
                 tiberius::QueryItem::Row(row) => rows.push(row),
                 tiberius::QueryItem::Metadata(meta) => {

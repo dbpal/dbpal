@@ -29,9 +29,14 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import { NotificationContext } from './Notification';
 import { IoIosAddCircle } from 'react-icons/io';
-import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  GridSlotsComponentsProps,
+  GridSortModel,
+} from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  EscDownEvent,
   keyNotInTable,
   modalStyle,
   reloadOK,
@@ -468,7 +473,7 @@ function SqlTableView(props: {
 
   const { setUpMenu } = useContext(ContextMenuContext);
 
-  const onSortModelChange = useCallback((sorts) => {
+  const onSortModelChange = useCallback((sorts: GridSortModel) => {
     if (sorts.length == 0) {
       setSort('');
       return;
@@ -478,7 +483,7 @@ function SqlTableView(props: {
       setSort('');
       return;
     }
-    setSort(`${sort.field} ${sort.sort}`);
+    setSort(`${sort.field} ${sort.sort.toUpperCase()}`);
   }, []);
 
   const onProcessRowUpdateError = useCallback((e) => {
@@ -676,11 +681,11 @@ function SqlTableView(props: {
       {editInModal && (
         <Modal
           open={!!editInModal}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setEditInModal(null);
           }}
@@ -989,11 +994,11 @@ function Menu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowFilter(false);
           }}

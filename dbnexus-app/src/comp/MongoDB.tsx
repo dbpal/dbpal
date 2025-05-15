@@ -67,6 +67,7 @@ import {
   SettingContext,
   reloadOK,
   keyNotInTable,
+  EscDownEvent,
 } from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -519,11 +520,11 @@ function MongoTableListToolBar(props: {
       {showModifyFilter && (
         <Modal
           open={showModifyFilter}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowModifyFilter(false);
           }}
@@ -546,11 +547,11 @@ function MongoTableListToolBar(props: {
       {showModifySort && (
         <Modal
           open={showModifySort}
-          onClose={(_, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowModifySort(false);
           }}
@@ -729,11 +730,10 @@ function MongoTableListContextMenu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={(_, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowFilter(false);
           }}
@@ -1009,11 +1009,11 @@ function MongoTableList(props: {
       {selectModifyDoc && (
         <Modal
           open={!!selectModifyDoc}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setSelectModifyDoc(null);
           }}

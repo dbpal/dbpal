@@ -118,7 +118,6 @@ impl MemoryLimit {
             .unwrap_or(false)
     }
 
-    #[inline]
     pub fn exceed_error(&mut self) -> anyhow::Result<()> {
         self.count += 1;
         if (self.count % self.m) == 0 && Self::exceed() {

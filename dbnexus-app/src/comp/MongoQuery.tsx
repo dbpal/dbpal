@@ -22,6 +22,7 @@ import {
 import { generateRandomString } from './helper';
 import {
   EditorBar,
+  EscDownEvent,
   LoadStoreFileForQuery,
   modalStyle,
   SettingContext,
@@ -291,11 +292,11 @@ function MongoQuery(props: {
       {showLoggerLevel && (
         <Modal
           open={showLoggerLevel}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowLoggerLevel(false);
           }}
@@ -315,11 +316,11 @@ function MongoQuery(props: {
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowFavoriteName(false);
           }}

@@ -41,6 +41,7 @@ import {
   makeQueryConnInfo,
   QueryConn,
   SettingContext,
+  EscDownEvent,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -191,11 +192,10 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {showFavoriteSql && (
         <Modal
           open={showFavoriteSql}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowFavoriteSql(false);
           }}
@@ -213,11 +213,10 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {showAddConnection && (
         <Modal
           open={showAddConnection}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowAddConnection(false);
           }}
@@ -234,11 +233,11 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {copyConn && (
         <Modal
           open={!!copyConn}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setCopyConn(null);
           }}
@@ -257,11 +256,10 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {showCopyConn && (
         <Modal
           open={showCopyConn}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowCopyConn(false);
           }}
@@ -1090,11 +1088,10 @@ function DatabaseMenu(props: {
       {showCreateSchema && (
         <Modal
           open={showCreateSchema}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowCreateSchema(false);
           }}
@@ -1157,11 +1154,11 @@ function CatalogMenu(props: {
       {showCreateDB && (
         <Modal
           open={showCreateDB}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowCreateDB(false);
           }}

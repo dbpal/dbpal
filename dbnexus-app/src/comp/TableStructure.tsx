@@ -8,6 +8,7 @@ import {
 } from 'react';
 import types from './ApiStruct';
 import {
+  EscDownEvent,
   initMonacoLanague,
   modalStyle,
   SettingContext,
@@ -300,11 +301,11 @@ function ColumnsStructure(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowAdd(false);
           }}
@@ -326,11 +327,11 @@ function ColumnsStructure(props: {
       {supportModifyColumn && row && (
         <Modal
           open={!!row}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setRow(null);
           }}
@@ -632,11 +633,11 @@ function IndexesStructure(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowAdd(false);
           }}
@@ -649,11 +650,10 @@ function IndexesStructure(props: {
       {renameIndexName && (
         <Modal
           open={!!renameIndexName}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setRenameIndexName('');
           }}

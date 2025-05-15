@@ -12,6 +12,7 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
+use crate::MemoryLimit;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
@@ -249,13 +250,15 @@ impl QuerySql for OracleDB {
         let conn = lock.deref_mut();
 
         let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
-
+        let mut ml = MemoryLimit::new();
         for seq in ss.iter() {
+            ml.exceed_error()?;
             log::trace!("oracle query sql:{}", seq);
             match seq.kind {
                 SqlKind::Query => {
                     match block_in_place(|| conn.query(&seq.sql, &[])) {
                         Ok(rows) => {
+                            ml.exceed_error()?;
                             let rows = rows.into_iter().collect::<Vec<_>>();
                             let cols = infer_schema_by_result(&rows)?;
                             let data = encode_rows(rows)?;

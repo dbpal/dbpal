@@ -1264,6 +1264,8 @@ function LoadStoreFileForQuery(props: {
 type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
 
+type EscDownEvent = { preventDefault: () => void };
+
 export {
   modalStyle,
   DocsAndCount,
@@ -1296,4 +1298,4 @@ export {
   makeAutoComplete,
 };
 
-export type { DefAndMetas, IQueryConn, MakeIQueryConn };
+export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };

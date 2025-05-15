@@ -15,6 +15,7 @@ import {
   initMonacoLanague,
   SimpleResizeEditor,
   makeAutoComplete,
+  EscDownEvent,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -720,11 +721,11 @@ function ViewMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowExport(false);
           }}
