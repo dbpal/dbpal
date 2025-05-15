@@ -768,32 +768,21 @@ function TableMenu(props: {
   };
 
   const handleViewData = async () => {
-    const id = uuid + '-table-' + table;
-    let index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
-      setSelectTab(index);
-    } else {
-      let tableList: ReactNode = await makeViewTable(
-        uuid,
-        table,
-        kind,
-        redisTableType,
-        showNotification
-      );
-
-      setTabs((e) => {
-        setSelectTab(tabs.length);
-        return [
-          ...e,
-          new TabContent(
-            id,
-            table,
-            tableList,
-            <TableViewIcon> </TableViewIcon>
-          ),
-        ];
-      });
-    }
+    const id = uuid + '-table-' + generateRandomString(10);
+    let tableList: ReactNode = await makeViewTable(
+      uuid,
+      table,
+      kind,
+      redisTableType,
+      showNotification
+    );
+    setTabs((e) => {
+      setSelectTab(tabs.length);
+      return [
+        ...e,
+        new TabContent(id, table, tableList, <TableViewIcon> </TableViewIcon>),
+      ];
+    });
   };
   const handleAddData = async () => {
     const id = generateRandomString(10);
