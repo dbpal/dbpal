@@ -71,14 +71,15 @@ export default function MainPage() {
   keyShortChangetab.prev = () => {
     setTab((e) => (e > 0 ? e - 1 : e));
   };
-  keyShortChangetab.showSetting = () => {
-    setShowSetting(true);
-  };
 
   keyShortChangetab.next = () => {
     if (tabs.length - 1 > tab) {
       setTab((e) => e + 1);
     }
+  };
+
+  keyShortChangetab.showSetting = () => {
+    setShowSetting(true);
   };
 
   // shortcut
@@ -155,14 +156,18 @@ export default function MainPage() {
         (await appStore()).set(AppStoreKey.LeftSize, newsize);
       }}
     >
-      <Left></Left>
-      <TabsWithContent
-        handleClose={closeTab}
-        tabs={tabs}
-        selectIndex={tab}
-        changeTab={changeTab}
-        setTabs={setTabs}
-      ></TabsWithContent>
+      <div style={{ overflowY: 'auto', height: '100vh' }}>
+        <Left></Left>
+      </div>
+      <div style={{ overflowY: 'auto', height: '100vh' }}>
+        <TabsWithContent
+          handleClose={closeTab}
+          tabs={tabs}
+          selectIndex={tab}
+          changeTab={changeTab}
+          setTabs={setTabs}
+        ></TabsWithContent>
+      </div>
     </SplitPane>
   );
 
