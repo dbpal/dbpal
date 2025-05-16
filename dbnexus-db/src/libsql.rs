@@ -87,12 +87,7 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
-        let conn = self.query_connections.get(&query_id);
-        let conn = match &conn {
-            Some(x) => x.deref(),
-            None => anyhow::bail!("collection closed????"),
-        };
-        anyhow::Ok(conn.is_autocommit())
+        anyhow::Ok(self.query_connections_transaction.get(&query_id).is_none())
     }
 
     async fn set_auto_commit(&self, query_id: uuid::Uuid, c: bool) -> anyhow::Result<()> {

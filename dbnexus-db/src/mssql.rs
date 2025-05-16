@@ -1721,8 +1721,8 @@ impl QuerySql for MsSqlServerDB {
         anyhow::Ok(true)
     }
 
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, c: bool) -> anyhow::Result<()> {
-        if c {
+    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+        if commit {
             anyhow::bail!("mssql use commit or rollback to end transaction");
         }
         let conn = match self.query_connections.get(&query_id) {

@@ -1452,8 +1452,8 @@ impl QuerySql for MysqlDB {
         anyhow::Ok(d == 0)
     }
 
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, c: bool) -> anyhow::Result<()> {
-        if c {
+    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+        if commit {
             anyhow::bail!("sqlite use commit or rollback to end transaction");
         }
         use sqlx_core::any::AnyConnectionBackend;
