@@ -1236,7 +1236,7 @@ impl QuerySql for SqliteDB {
 
     async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
-        self.tx_execute_times.reset(query_id);
+
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1245,12 +1245,13 @@ impl QuerySql for SqliteDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.commit().await?;
+        self.tx_execute_times.reset(query_id);
         anyhow::Ok(())
     }
 
     async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
-        self.tx_execute_times.reset(query_id);
+
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1259,7 +1260,7 @@ impl QuerySql for SqliteDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.rollback().await?;
-
+        self.tx_execute_times.reset(query_id);
         anyhow::Ok(())
     }
 
