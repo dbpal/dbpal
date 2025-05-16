@@ -38,7 +38,8 @@ import {
   msgTimeout,
   SettingContext,
 } from './Common.tsx';
-
+import { FaUpload } from 'react-icons/fa';
+import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -96,14 +97,22 @@ function ManualCommit(props: { conn: IQueryConn; nonce }) {
   return (
     <>
       <Tooltip title="reverse commit mode">
-        <Button onClick={handleReverse}>
+        <Button onClick={handleReverse} variant="outlined">
           {commit ? 'auto' : 'manual'}-commit
         </Button>
       </Tooltip>
       {!commit && (
         <>
-          <Button onClick={handleCommit}>commit </Button>
-          <Button onClick={handleRollback}>rollback </Button>
+          <Tooltip title="commit">
+            <IconButton onClick={handleCommit} color="primary">
+              <FaUpload fontSize="1.1rem"></FaUpload>
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="rollback">
+            <IconButton onClick={handleRollback} color="primary">
+              <MdOutlineReply fontSize="1.7rem"></MdOutlineReply>
+            </IconButton>
+          </Tooltip>
         </>
       )}
     </>

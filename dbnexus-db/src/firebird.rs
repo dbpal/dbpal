@@ -324,7 +324,7 @@ impl QuerySql for FireBirdDB {
             // 这里肯定是设置为了 false 然后再要设置成自动提交 但是没有相应的接口
             debug_assert!(self.query_connections_tx.contains(&query_id));
             anyhow::bail!(
-                "firebird not support set to auto-commit while enabled,I think u need to reconnect"
+                "firebird not support set to auto-commit while in transaction,maybe need reconnect"
             );
         }
         let conn = match self.query_connections.get(&query_id) {

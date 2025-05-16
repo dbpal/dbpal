@@ -73,7 +73,11 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
-import { pageSizeOptions, SelectPageSize } from './CommonComp';
+import {
+  MenuResetColumnWidths,
+  pageSizeOptions,
+  SelectPageSize,
+} from './CommonComp';
 import {
   calMenuStyle,
   columnWidths,
@@ -322,7 +326,7 @@ function MongoBsonEditor(props: {
       </div>
 
       <Stack direction="row" justifyContent="space-between">
-        <Stack direction="row" alignContent="center" spacing={1}>
+        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
           {buttons.map((button) => {
             return (
               //@ts-ignore
@@ -725,6 +729,7 @@ function MongoTableListContextMenu(props: {
             <ListItemText> Delete </ListItemText>
           </MenuItem>
         )}
+        <MenuResetColumnWidths></MenuResetColumnWidths>
       </MenuList>
 
       {showFilter && (
@@ -1013,7 +1018,6 @@ function MongoTableList(props: {
             if (reason === 'backdropClick') {
               return;
             }
-
             e.preventDefault();
             setSelectModifyDoc(null);
           }}
@@ -1028,6 +1032,7 @@ function MongoTableList(props: {
                       } catch (e) {
                         throw e;
                       }
+                      setSelectModifyDoc(null);
                       handleReload(false);
                     }
                   : undefined
