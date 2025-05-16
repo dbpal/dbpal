@@ -351,8 +351,8 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         },
       },
       { field: 'host' },
-      { field: 'path' },
       { field: 'port' },
+      { field: 'path' },
       {
         field: 'db',
         renderHeader: () => {

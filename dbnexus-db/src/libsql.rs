@@ -338,7 +338,7 @@ impl LibSqlDB {
         let manager = PoolManager {
             config: config.clone(),
         };
-        let pool = bb8::Pool::builder().max_size(15).build(manager).await?;
+        let pool = bb8::Pool::builder().build(manager).await?;
         anyhow::Ok(Self {
             config,
             pool,
