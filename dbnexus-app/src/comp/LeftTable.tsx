@@ -19,7 +19,7 @@ import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
 import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { IoConstructOutline } from 'react-icons/io5';
-
+import { HiDuplicate, HiOutlineDuplicate } from 'react-icons/hi';
 import {
   Box,
   Button,
@@ -39,7 +39,7 @@ import {
 } from '@mui/material';
 
 import { TabContent } from './Tabs';
-import { SqlTableView, SqlTableViewAdd } from './SqlTableView';
+import { SqlTableView, SqlTableViewData } from './SqlTableView';
 import { ExportTableOrView } from './Export';
 import AddIcon from '@mui/icons-material/Add';
 import {
@@ -618,8 +618,9 @@ async function makeAddTable(
     case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
       tableList = (
-        <SqlTableViewAdd
-          addOP={async (values) => {
+        <SqlTableViewData
+          buttonName="add"
+          handleData={async (values) => {
             return invoke('insert', {
               name: uuid,
               tableName: table,
@@ -632,7 +633,7 @@ async function makeAddTable(
               tableName: table,
             });
           })()}
-        ></SqlTableViewAdd>
+        ></SqlTableViewData>
       );
       break;
     case DataSourceKind.Redis:
@@ -908,7 +909,9 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
+            <HiOutlineDuplicate
+              style={{ fontSize: '1.7rem' }}
+            ></HiOutlineDuplicate>
           </ListItemIcon>
           <ListItemText> Duplicate </ListItemText>
         </MenuItem>

@@ -1031,80 +1031,75 @@ pub async fn auto_completion(
 }
 
 #[tauri::command]
-pub async fn oracle_query_set_autocommit(
+pub async fn query_set_autocommit(
     name: String, query_id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app
-        .get_schema(name.as_str())
+    let open = app
+        .get_opened(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_set_autocommit(query_id, commit)
-                .await
-                .map_err(ErrorFrontend::from)
-        }
-        None => Err(ErrorFrontend::from(format!("db '{}' is not oracle", name))),
+    match open {
+        Open::Catalog(x) => x.set_commit(query_id, commit).await,
+        Open::DataBase(x) => x.set_commit(query_id, commit).await,
+        Open::Schema(x) => x.set_commit(query_id, commit).await,
     }
+    .map_err(|e| ErrorFrontend::from(e))?;
+    Ok(())
 }
+
 #[tauri::command]
-pub async fn oracle_query_autocommit(
+pub async fn query_get_commit(
     name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app
-        .get_schema(name.as_str())
+    let open = app
+        .get_opened(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_autocommit(query_id)
-                .await
-                .map_err(ErrorFrontend::from)
-        }
-        None => Err(ErrorFrontend::from(format!("db '{}' is not oracle", name))),
+    match open {
+        Open::Catalog(x) => x.get_commit(query_id).await,
+        Open::DataBase(x) => x.get_commit(query_id).await,
+        Open::Schema(x) => x.get_commit(query_id).await,
     }
+    .map_err(|e| ErrorFrontend::from(e))
+}
+
+#[tauri::command]
+pub async fn query_commit(
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let open = app
+        .get_opened(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    match open {
+        Open::Catalog(x) => x.commit(query_id).await,
+        Open::DataBase(x) => x.commit(query_id).await,
+        Open::Schema(x) => x.commit(query_id).await,
+    }
+    .map_err(|e| ErrorFrontend::from(e))
 }
 #[tauri::command]
-pub async fn oracle_query_commit(
+pub async fn query_rollback(
     name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_opened(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_commit(query_id)
-                .await
-                .map_err(|e| ErrorFrontend::from(e))
-        }
-        None => Err(format!("db '{}' is not oracle", name).into()),
+    match db {
+        Open::Catalog(x) => x.rollback(query_id).await,
+        Open::DataBase(x) => x.rollback(query_id).await,
+        Open::Schema(x) => x.rollback(query_id).await,
     }
-}
-#[tauri::command]
-pub async fn oracle_query_rollback(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
-) -> Result<(), ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app
-        .get_schema(name.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<OracleDB>() {
-        Some(x) => {
-            x.query_rollback(query_id)
-                .await
-                .map_err(|e| ErrorFrontend::from(e))
-        }
-        None => Err(format!("db '{}' is not oracle", name).into()),
-    }
+    .map_err(|x| ErrorFrontend::from(x))
 }
 
 #[tauri::command]

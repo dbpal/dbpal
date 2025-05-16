@@ -8,7 +8,7 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use r2d2::PooledConnection;
 use rsfbclient::{Execute, FbError, Queryable, Row, SqlType, builder_pure_rust};
 use tokio::sync::Mutex;
@@ -314,6 +314,53 @@ impl ExportQueryResult for FireBirdDB {
 }
 #[async_trait::async_trait]
 impl QuerySql for FireBirdDB {
+    async fn get_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+        let tx = self.query_connections_tx.contains(&query_id);
+        anyhow::Ok(!tx)
+    }
+
+    async fn set_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+        if commit {
+            // 这里肯定是设置为了 false 然后再要设置成自动提交 但是没有相应的接口
+            debug_assert!(self.query_connections_tx.contains(&query_id));
+            anyhow::bail!(
+                "firebird not support set to auto-commit while enabled,I think u need to reconnect"
+            );
+        }
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        conn.begin_transaction()?;
+        self.query_connections_tx.insert(query_id);
+        anyhow::Ok(())
+    }
+
+    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        conn.commit()?;
+
+        anyhow::Ok(())
+    }
+
+    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        conn.rollback()?;
+        anyhow::Ok(())
+    }
+
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
@@ -339,6 +386,7 @@ impl QuerySql for FireBirdDB {
         let mut conn = conn.lock().await;
 
         let conn = conn.deref_mut();
+
         let mut ml = MemoryLimit::new();
         for s in ss.iter() {
             ml.exceed_error()?;
@@ -411,6 +459,7 @@ impl QuerySql for FireBirdDB {
         let conn = self.get_conn()?;
         self.query_connections
             .insert(id.clone(), Arc::new(Mutex::new(conn)));
+        self.query_connections_tx.remove(&id);
         anyhow::Ok(())
     }
 
@@ -430,6 +479,8 @@ pub struct FireBirdDB {
     config: FireBirdConfig,
     pool: r2d2::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<PooledConnection<PoolManager>>>>>,
+    query_connections_tx: DashSet<uuid::Uuid>,
+
     query_logs: QueryLogMap,
 }
 
@@ -993,6 +1044,7 @@ impl FireBirdDB {
             pool,
             query_connections: Default::default(),
             query_logs: Default::default(),
+            query_connections_tx: Default::default(),
         })
     }
 
@@ -1048,6 +1100,69 @@ mod tests {
     fn test_lock() -> &'static Mutex<()> {
         static MUTEX: Mutex<()> = Mutex::const_new(());
         &MUTEX
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_commit() {
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object();
+
+        let table_name = "TEST_COMMIT";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+             CREATE TABLE TEST_COMMIT (
+                ID INTEGER PRIMARY KEY,
+                NAME VARCHAR(50)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.set_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO TEST_COMMIT (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.rollback(query_id).await.unwrap();
+
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 0
+        );
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO TEST_COMMIT (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.commit(query_id).await.unwrap();
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 1
+        );
+        db.re_connect(query_id).await.unwrap();
+
+        assert!(db.get_commit(query_id).await.unwrap());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

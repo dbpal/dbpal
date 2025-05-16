@@ -732,6 +732,19 @@ pub trait ExportQueryResult: BackendName + Send + Sync + 'static {
 
 #[async_trait::async_trait]
 pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
+    async fn get_commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<bool> {
+        not_support_features(self.backend_name())
+    }
+    async fn set_commit(&self, _query_id: uuid::Uuid, _c: bool) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+    async fn commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+    async fn rollback(&self, _query_id: uuid::Uuid) -> anyhow::Result<()> {
+        not_support_features(self.backend_name())
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;

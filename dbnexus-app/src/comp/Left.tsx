@@ -185,7 +185,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           onChange={(e) => {
             setMatchPattern(e.target.value.trim());
           }}
-          helperText="name* etc"
+          helperText="name etc"
         ></TextField>
       )}
 
@@ -461,7 +461,7 @@ function Left_() {
   });
   const m = useMemo(() => {
     return matchPattern
-      ? wcmatch(matchPattern, { flags: 'i' })
+      ? wcmatch('*' + matchPattern + '*', { flags: 'i' })
       : () => {
           return true;
         };
@@ -506,7 +506,7 @@ const makeConn = async (uuid: string, kind: DataSourceKind) => {
     name: uuid,
   });
   console.log('open connection:', queryId);
-  return new QueryConn(uuid, queryId, kind == DataSourceKind.Oracle);
+  return new QueryConn(uuid, queryId, kind);
 };
 function FavoriteSqlList(props: { handleClose }) {
   const { handleClose } = props;

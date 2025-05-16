@@ -1074,23 +1074,27 @@ interface IQueryConn {
   ) => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
   destroy: () => void;
-  oracleQuerySetAutocommit: (boolean) => Promise<void>;
-  oracleQueryAutocommit: () => Promise<boolean>;
-  oracleQueryCommit: () => Promise<void>;
-  oracleQueryRollback: () => Promise<void>;
-  isOracle: boolean;
+  setAutoCommit: (boolean) => Promise<void>;
+  getAutoCommit: () => Promise<boolean>;
+  commit: () => Promise<void>;
+  rollback: () => Promise<void>;
+  isMunalCommit: () => boolean;
 }
 
 class QueryConn implements IQueryConn {
   queryId: string;
   uuid: string;
-  isOracle: boolean;
-
-  constructor(uuid, queryId: string, isOracle = false) {
+  kind: DataSourceKind;
+  constructor(uuid, queryId: string, kind: DataSourceKind) {
     this.queryId = queryId;
     this.uuid = uuid;
-    this.isOracle = isOracle;
+    this.kind = kind;
   }
+
+  isMunalCommit(): boolean {
+    return [DataSourceKind.Oracle, DataSourceKind.FireBird].includes(this.kind);
+  }
+
   exportQueryResult(
     sql: string,
     kind: types.ExportKind,
@@ -1104,27 +1108,27 @@ class QueryConn implements IQueryConn {
     });
   }
 
-  oracleQuerySetAutocommit(commit: boolean): Promise<void> {
-    return invoke<void>('oracle_query_set_autocommit', {
+  setAutoCommit(commit: boolean): Promise<void> {
+    return invoke<void>('query_set_autocommit', {
       name: this.uuid,
       queryId: this.queryId,
       commit,
     });
   }
-  oracleQueryAutocommit(): Promise<boolean> {
-    return invoke<boolean>('oracle_query_autocommit', {
+  getAutoCommit(): Promise<boolean> {
+    return invoke<boolean>('query_get_commit', {
       name: this.uuid,
       queryId: this.queryId,
     });
   }
-  oracleQueryCommit(): Promise<void> {
-    return invoke<void>('oracle_query_commit', {
+  commit(): Promise<void> {
+    return invoke<void>('query_commit', {
       name: this.uuid,
       queryId: this.queryId,
     });
   }
-  oracleQueryRollback(): Promise<void> {
-    return invoke<void>('oracle_query_rollback', {
+  rollback(): Promise<void> {
+    return invoke<void>('query_rollback', {
       name: this.uuid,
       queryId: this.queryId,
     });

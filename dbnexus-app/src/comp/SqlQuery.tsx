@@ -50,43 +50,47 @@ const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
 };
 
-function OracleCommit(props: { conn: IQueryConn }) {
-  const { conn } = props;
+function ManualCommit(props: { conn: IQueryConn; nonce }) {
+  const { conn, nonce } = props;
   const [commit, setCommit] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const handleQueryCommit = async () => {
     try {
-      setCommit(await conn.oracleQueryAutocommit());
+      setCommit(await conn.getAutoCommit());
     } catch (e) {
-      showNotification('error', 'query oracle commit failed', e);
+      showNotification('error', 'query commit failed', e);
     }
   };
   useEffect(() => {
     handleQueryCommit();
   }, []);
+
+  useEffect(() => {
+    handleQueryCommit();
+  }, [nonce]);
   const handleCommit = async () => {
     try {
-      await conn.oracleQueryCommit();
+      await conn.commit();
       showNotification('success', 'commit ok');
     } catch (e) {
-      showNotification('error', 'oracle commit failed', e);
+      showNotification('error', 'commit failed', e);
     }
   };
   const handleRollback = async () => {
     try {
-      await conn.oracleQueryCommit();
+      await conn.rollback();
       showNotification('success', 'rollback ok');
     } catch (e) {
-      showNotification('error', 'oracle rollback failed', e);
+      showNotification('error', 'rollback failed', e);
     }
   };
   const handleReverse = async () => {
     try {
-      await conn.oracleQuerySetAutocommit(!commit);
+      await conn.setAutoCommit(!commit);
       setCommit((e) => !e);
       showNotification('success', 'set auto commit ok');
     } catch (e) {
-      showNotification('error', 'oracle set commit failed', e);
+      showNotification('error', 'set commit failed', e);
     }
   };
   return (
@@ -138,6 +142,7 @@ function SqlQuery(props: {
     null
   );
 
+  const [commitNonce, setCommitNonce] = useState(0);
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
@@ -192,6 +197,7 @@ function SqlQuery(props: {
       conn
         .reconnect()
         .then(() => {
+          setCommitNonce((e) => e + 1);
           showNotification('success', 'Reconnect OK');
         })
         .catch((e) => {
@@ -201,6 +207,7 @@ function SqlQuery(props: {
       makeConn()
         .then((conn) => {
           setConn(conn);
+          setCommitNonce((e) => e + 1);
           showNotification('success', 'Reconnect OK');
         })
 
@@ -507,7 +514,9 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          {conn && conn.isOracle && <OracleCommit conn={conn} />}
+          {conn && conn.isMunalCommit() && (
+            <ManualCommit nonce={commitNonce} conn={conn} />
+          )}
           <LoadStoreFileForQuery
             file={file}
             getQuery={() => {

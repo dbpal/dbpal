@@ -106,40 +106,6 @@ impl OracleDB {
         let mut lock = conn.lock().await;
         block_in_place(|| f(&mut lock))
     }
-
-    // a list of set function
-    pub async fn query_set_autocommit(
-        &self, id: uuid::Uuid, autocommit: bool,
-    ) -> anyhow::Result<()> {
-        self.with_query_connection(id, |x| -> anyhow::Result<()> {
-            x.set_autocommit(autocommit);
-            anyhow::Ok(())
-        })
-        .await
-    }
-
-    pub async fn query_autocommit(&self, id: uuid::Uuid) -> anyhow::Result<bool> {
-        self.with_query_connection(id, |x| -> anyhow::Result<bool> {
-            anyhow::Ok(x.autocommit())
-        })
-        .await
-    }
-
-    pub async fn query_commit(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.with_query_connection(id, |f| -> anyhow::Result<()> {
-            f.commit()?;
-            anyhow::Ok(())
-        })
-        .await
-    }
-
-    pub async fn query_rollback(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.with_query_connection(id, |f| -> anyhow::Result<()> {
-            f.rollback()?;
-            anyhow::Ok(())
-        })
-        .await
-    }
 }
 
 const QUERY_AUTO_COMMIT: bool = true;
@@ -173,6 +139,37 @@ impl ExportQueryResult for OracleDB {
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
+    async fn get_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+        self.with_query_connection(query_id, |x| -> anyhow::Result<bool> {
+            anyhow::Ok(x.autocommit())
+        })
+        .await
+    }
+
+    async fn set_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+        self.with_query_connection(query_id, |x| -> anyhow::Result<()> {
+            x.set_autocommit(commit);
+            anyhow::Ok(())
+        })
+        .await
+    }
+
+    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        self.with_query_connection(query_id, |f| -> anyhow::Result<()> {
+            f.commit()?;
+            anyhow::Ok(())
+        })
+        .await
+    }
+
+    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        self.with_query_connection(query_id, |f| -> anyhow::Result<()> {
+            f.rollback()?;
+            anyhow::Ok(())
+        })
+        .await
+    }
+
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
@@ -2229,8 +2226,8 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         // get query_uuid
         let query_uuid = db.open_connection().await.unwrap();
         // test auto commit
-        db.query_set_autocommit(query_uuid, false).await.unwrap();
-        assert!(!db.query_autocommit(query_uuid).await.unwrap());
+        db.set_commit(query_uuid, false).await.unwrap();
+        assert!(!db.get_commit(query_uuid).await.unwrap());
 
         let sqls = vec![
             r#"
@@ -2247,14 +2244,14 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         ];
         // test a rollback but we rollback nothings
 
-        db.query_rollback(query_uuid).await.unwrap();
+        db.rollback(query_uuid).await.unwrap();
 
         let _ = db.drop_table("TEST_QUERY", false).await;
         for sql in sqls.iter() {
             let _ = db.query_sql(query_uuid, *sql).await;
         }
 
-        db.query_commit(query_uuid).await.unwrap();
+        db.commit(query_uuid).await.unwrap();
 
         let resp = db
             .show_table("TEST_QUERY", None, None, 1, 100, None)

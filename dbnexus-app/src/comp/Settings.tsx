@@ -364,13 +364,13 @@ const components: Components<
       },
     },
   },
-  MuiAlert: {
-    styleOverrides: {
-      root: {
-        padding: 0,
-      },
-    },
-  },
+  // MuiAlert: {
+  //   styleOverrides: {
+  //     root: {
+  //       padding: 0,
+  //     },
+  //   },
+  // },
   MuiTabs: {
     styleOverrides: {
       root: {
