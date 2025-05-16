@@ -79,6 +79,26 @@ impl QuerySql for CockRoachDB {
         self.pg.get_query_log(id)
     }
 
+    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
+        self.pg.tx_execute_counts(query_id)
+    }
+
+    async fn get_auto_commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<bool> {
+        self.pg.get_auto_commit(_query_id).await
+    }
+
+    async fn set_auto_commit(&self, query_id: uuid::Uuid, c: bool) -> anyhow::Result<()> {
+        self.pg.set_auto_commit(query_id, c).await
+    }
+
+    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        self.pg.commit(query_id).await
+    }
+
+    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        self.pg.rollback(query_id).await
+    }
+
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
@@ -481,6 +501,71 @@ mod tests {
     use super::*;
     use crate::db::{IndexKind, UdfOrProcedureExtraParameter};
     use crate::enable_test_log;
+
+    #[tokio::test]
+    async fn test_transaction() {
+        let db = make_test_object().await;
+
+        let table_name = "test_commit";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+             CREATE TABLE test_commit (
+                ID INTEGER PRIMARY KEY,
+                NAME VARCHAR(50)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.rollback(query_id).await.unwrap();
+
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 0
+        );
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.commit(query_id).await.unwrap();
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 1
+        );
+        db.re_connect(query_id).await.unwrap();
+
+        assert!(db.get_auto_commit(query_id).await.unwrap());
+    }
 
     #[tokio::test]
     async fn test_table_column() {

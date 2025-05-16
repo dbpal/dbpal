@@ -22,7 +22,9 @@ use crate::db::{
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     not_support_features,
 };
-use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::helper::{
+    SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
+};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
@@ -33,6 +35,7 @@ pub struct OracleDB {
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
     query_logs: QueryLogMap,
+    tx_execute_times: TXExecuteTimes,
 }
 
 #[async_trait::async_trait]
@@ -78,6 +81,7 @@ impl OracleDB {
             query_connections: Default::default(),
             config,
             query_logs: Default::default(),
+            tx_execute_times: Default::default(),
         })
     }
 }
@@ -139,14 +143,18 @@ impl ExportQueryResult for OracleDB {
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
-    async fn get_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
+        anyhow::Ok(self.tx_execute_times.get(query_id))
+    }
+
+    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
         self.with_query_connection(query_id, |x| -> anyhow::Result<bool> {
             anyhow::Ok(x.autocommit())
         })
         .await
     }
 
-    async fn set_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
         self.with_query_connection(query_id, |x| -> anyhow::Result<()> {
             x.set_autocommit(commit);
             anyhow::Ok(())
@@ -159,7 +167,10 @@ impl QuerySql for OracleDB {
             f.commit()?;
             anyhow::Ok(())
         })
-        .await
+        .await?;
+        self.tx_execute_times.reset(query_id);
+
+        anyhow::Ok(())
     }
 
     async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
@@ -167,7 +178,10 @@ impl QuerySql for OracleDB {
             f.rollback()?;
             anyhow::Ok(())
         })
-        .await
+        .await?;
+        self.tx_execute_times.reset(query_id);
+
+        anyhow::Ok(())
     }
 
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
@@ -195,6 +209,8 @@ impl QuerySql for OracleDB {
         conn.set_autocommit(QUERY_AUTO_COMMIT);
         self.query_connections
             .insert(id.clone(), Arc::new(Mutex::new(conn)));
+        self.tx_execute_times.reset(id);
+
         anyhow::Ok(())
     }
 
@@ -203,12 +219,16 @@ impl QuerySql for OracleDB {
         if let Some((_, x)) = self.query_connections.remove(&id) {
             tokio::spawn(async move { x.lock().await.close() });
         }
+        self.tx_execute_times.reset(id);
         anyhow::Ok(())
     }
 
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
+        if !self.get_auto_commit(query_id).await? {
+            self.tx_execute_times.inc(query_id);
+        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = match self.query_connections.get(&query_id) {
@@ -228,6 +248,9 @@ impl QuerySql for OracleDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        if !self.get_auto_commit(query_id).await? {
+            self.tx_execute_times.inc(query_id);
+        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
@@ -2226,8 +2249,8 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         // get query_uuid
         let query_uuid = db.open_connection().await.unwrap();
         // test auto commit
-        db.set_commit(query_uuid, false).await.unwrap();
-        assert!(!db.get_commit(query_uuid).await.unwrap());
+        db.set_auto_commit(query_uuid, false).await.unwrap();
+        assert!(!db.get_auto_commit(query_uuid).await.unwrap());
 
         let sqls = vec![
             r#"

@@ -19,7 +19,7 @@ import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
 import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { IoConstructOutline } from 'react-icons/io5';
-import { HiDuplicate, HiOutlineDuplicate } from 'react-icons/hi';
+import { HiOutlineDuplicate } from 'react-icons/hi';
 import {
   Box,
   Button,

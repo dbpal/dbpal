@@ -17,20 +17,6 @@ dbnexus-db = { path = "dbnexus-db" }
 # crates.io dependencies
 serde_json = "1.0"
 async-trait = "0.1"
-sqlx = { version = "0.8.5", features = [
-    "runtime-tokio",
-    "postgres",
-    "sqlite",
-    "mysql",
-    "bigdecimal",
-    "mac_address",
-    "chrono",
-    "ipnetwork",
-    "bit-vec",
-    "uuid",
-    "json",
-    "tls-rustls",
-] }
 
 redis = { version = "*", features = [
     "tokio-comp",

@@ -31,12 +31,13 @@ use handlers::{
     mongo_show_collection_table_list, mongo_update_one, open_conn, page_init_callback,
     put_value_in_sql, query_commit, query_get_commit, query_logs, query_rollback,
     query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
-    query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
-    redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_set_add,
-    redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
-    redis_zset_replace, redis_zset_show_table, rename_index, rename_table, save_entered_password,
-    save_password, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
-    show_trigger, show_udf, show_view, show_view_columns, test_connection, truncate_table, update,
+    query_sql_re_connection, query_tx_execute_counts, redis_hash_add, redis_hash_del,
+    redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
+    redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
+    redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
+    rename_table, save_entered_password, save_password, server_metas, show_indexes, show_procedure,
+    show_table, show_table_columns, show_trigger, show_udf, show_view, show_view_columns,
+    test_connection, truncate_table, update,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -342,6 +343,7 @@ fn main_() {
             query_set_autocommit,
             query_commit,
             query_rollback,
+            query_tx_execute_counts
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

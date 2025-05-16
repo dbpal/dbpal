@@ -732,10 +732,14 @@ pub trait ExportQueryResult: BackendName + Send + Sync + 'static {
 
 #[async_trait::async_trait]
 pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
-    async fn get_commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    fn tx_execute_counts(&self, _query_id: uuid::Uuid) -> anyhow::Result<usize> {
         not_support_features(self.backend_name())
     }
-    async fn set_commit(&self, _query_id: uuid::Uuid, _c: bool) -> anyhow::Result<()> {
+
+    async fn get_auto_commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<bool> {
+        not_support_features(self.backend_name())
+    }
+    async fn set_auto_commit(&self, _query_id: uuid::Uuid, _commit: bool) -> anyhow::Result<()> {
         not_support_features(self.backend_name())
     }
     async fn commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<()> {

@@ -1041,9 +1041,9 @@ pub async fn query_set_autocommit(
         .await
         .map_err(|e| e.to_string())?;
     match open {
-        Open::Catalog(x) => x.set_commit(query_id, commit).await,
-        Open::DataBase(x) => x.set_commit(query_id, commit).await,
-        Open::Schema(x) => x.set_commit(query_id, commit).await,
+        Open::Catalog(x) => x.set_auto_commit(query_id, commit).await,
+        Open::DataBase(x) => x.set_auto_commit(query_id, commit).await,
+        Open::Schema(x) => x.set_auto_commit(query_id, commit).await,
     }
     .map_err(|e| ErrorFrontend::from(e))?;
     Ok(())
@@ -1060,9 +1060,9 @@ pub async fn query_get_commit(
         .await
         .map_err(|e| e.to_string())?;
     match open {
-        Open::Catalog(x) => x.get_commit(query_id).await,
-        Open::DataBase(x) => x.get_commit(query_id).await,
-        Open::Schema(x) => x.get_commit(query_id).await,
+        Open::Catalog(x) => x.get_auto_commit(query_id).await,
+        Open::DataBase(x) => x.get_auto_commit(query_id).await,
+        Open::Schema(x) => x.get_auto_commit(query_id).await,
     }
     .map_err(|e| ErrorFrontend::from(e))
 }
@@ -1084,6 +1084,26 @@ pub async fn query_commit(
     }
     .map_err(|e| ErrorFrontend::from(e))
 }
+
+#[tauri::command]
+pub async fn query_tx_execute_counts(
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+) -> Result<usize, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let open = app
+        .get_opened(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
+    let size = match open {
+        Open::Catalog(x) => x.tx_execute_counts(query_id),
+        Open::DataBase(x) => x.tx_execute_counts(query_id),
+        Open::Schema(x) => x.tx_execute_counts(query_id),
+    }
+    .map_err(|e| ErrorFrontend::from(e))?;
+    Ok(size)
+}
+
 #[tauri::command]
 pub async fn query_rollback(
     name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,

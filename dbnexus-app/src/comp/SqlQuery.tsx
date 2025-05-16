@@ -6,6 +6,7 @@ import './style/react-split-pane.css';
 import {
   Box,
   Button,
+  Chip,
   IconButton,
   Modal,
   Paper,
@@ -51,36 +52,58 @@ const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
 };
 
-function ManualCommit(props: { conn: IQueryConn; nonce }) {
+function SqlTransaction(props: { conn: IQueryConn; nonce }) {
   const { conn, nonce } = props;
   const [commit, setCommit] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+  const [txCount, setTxCount] = useState(0);
+
   const handleQueryCommit = async () => {
     try {
-      setCommit(await conn.getAutoCommit());
+      let c = await conn.getAutoCommit();
+      setCommit(c);
     } catch (e) {
       showNotification('error', 'query commit failed', e);
     }
   };
+
+  const handleReloadTxCount = async () => {
+    conn
+      .txExecuteCounts()
+      .then((count) => {
+        setTxCount(count);
+      })
+      .catch((e) => {
+        showNotification('error', 'query tx count failed', e);
+      });
+  };
+
   useEffect(() => {
     handleQueryCommit();
   }, []);
 
   useEffect(() => {
     handleQueryCommit();
+    handleReloadTxCount();
   }, [nonce]);
+
   const handleCommit = async () => {
     try {
       await conn.commit();
       showNotification('success', 'commit ok');
+      handleQueryCommit();
+      handleReloadTxCount();
     } catch (e) {
       showNotification('error', 'commit failed', e);
     }
   };
+
   const handleRollback = async () => {
     try {
       await conn.rollback();
       showNotification('success', 'rollback ok');
+      handleQueryCommit();
+      handleReloadTxCount();
     } catch (e) {
       showNotification('error', 'rollback failed', e);
     }
@@ -94,15 +117,25 @@ function ManualCommit(props: { conn: IQueryConn; nonce }) {
       showNotification('error', 'set commit failed', e);
     }
   };
+
   return (
     <>
       <Tooltip title="reverse commit mode">
-        <Button onClick={handleReverse} variant="outlined">
-          {commit ? 'auto' : 'manual'}-commit
-        </Button>
+        <Chip
+          onClick={handleReverse}
+          label={`${commit ? 'auto' : 'manual'}-commit`}
+          size="small"
+          color="info"
+        ></Chip>
       </Tooltip>
+
       {!commit && (
         <>
+          <Chip
+            label={`executes:` + txCount}
+            size="small"
+            color="success"
+          ></Chip>
           <Tooltip title="commit">
             <IconButton onClick={handleCommit} color="primary">
               <FaUpload fontSize="1.1rem"></FaUpload>
@@ -206,22 +239,25 @@ function SqlQuery(props: {
       conn
         .reconnect()
         .then(() => {
-          setCommitNonce((e) => e + 1);
           showNotification('success', 'Reconnect OK');
         })
         .catch((e) => {
           showNotification('error', 'Reconnect Failure', e);
+        })
+        .finally(() => {
+          setCommitNonce((e) => e + 1);
         });
     } else {
       makeConn()
         .then((conn) => {
           setConn(conn);
-          setCommitNonce((e) => e + 1);
           showNotification('success', 'Reconnect OK');
         })
-
         .catch((e) => {
           showNotification('error', 'Reconnect Failure', e);
+        })
+        .finally(() => {
+          setCommitNonce((e) => e + 1);
         });
     }
   };
@@ -297,6 +333,7 @@ function SqlQuery(props: {
       })
       .finally(() => {
         setLoading(false);
+        setCommitNonce((e) => e + 1);
       });
   };
   const handleQuery = async (append: boolean) => {
@@ -336,6 +373,7 @@ function SqlQuery(props: {
       })
       .finally(() => {
         setLoading(false);
+        setCommitNonce((e) => e + 1);
       });
   };
 
@@ -523,8 +561,8 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          {conn && conn.isMunalCommit() && (
-            <ManualCommit nonce={commitNonce} conn={conn} />
+          {conn && conn.supportTransaction() && (
+            <SqlTransaction nonce={commitNonce} conn={conn} />
           )}
           <LoadStoreFileForQuery
             file={file}

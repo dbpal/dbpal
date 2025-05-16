@@ -1078,7 +1078,8 @@ interface IQueryConn {
   getAutoCommit: () => Promise<boolean>;
   commit: () => Promise<void>;
   rollback: () => Promise<void>;
-  isMunalCommit: () => boolean;
+  supportTransaction: () => boolean;
+  txExecuteCounts: () => Promise<number>;
 }
 
 class QueryConn implements IQueryConn {
@@ -1091,8 +1092,26 @@ class QueryConn implements IQueryConn {
     this.kind = kind;
   }
 
-  isMunalCommit(): boolean {
-    return [DataSourceKind.Oracle, DataSourceKind.FireBird].includes(this.kind);
+  txExecuteCounts(): Promise<number> {
+    return invoke<number>('query_tx_execute_counts', {
+      name: this.uuid,
+      queryId: this.queryId,
+    });
+  }
+
+  supportTransaction(): boolean {
+    return [
+      DataSourceKind.Oracle,
+      DataSourceKind.FireBird,
+      DataSourceKind.Sqlite,
+      DataSourceKind.LibSql,
+      DataSourceKind.Mysql,
+      DataSourceKind.MariaDB,
+      DataSourceKind.TiDB,
+      DataSourceKind.Postgres,
+      DataSourceKind.Cockroach,
+      DataSourceKind.MsSql,
+    ].includes(this.kind);
   }
 
   exportQueryResult(

@@ -368,6 +368,11 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_transaction() {
+        test_fns::test_transaction(make_test_object(make_config()).await).await;
+    }
+
     #[ignore = "1105 (HY000): 'CREATE TABLE ... SELECT' is not implemented yet"]
     #[tokio::test]
     async fn test_duplicate() {
