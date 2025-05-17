@@ -502,6 +502,9 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
+          {conn && conn.supportTransaction() && (
+            <SqlTransaction nonce={commitNonce} conn={conn} />
+          )}
           <Tooltip
             title={
               showSuggestReconn
@@ -561,9 +564,6 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          {conn && conn.supportTransaction() && (
-            <SqlTransaction nonce={commitNonce} conn={conn} />
-          )}
           <LoadStoreFileForQuery
             file={file}
             getQuery={() => {
