@@ -29,6 +29,7 @@ import {
   GridSortModel,
 } from '@mui/x-data-grid';
 import React, {
+  CSSProperties,
   memo,
   useCallback,
   useContext,
@@ -207,31 +208,48 @@ function CustomTabPanel(props: TabPanelProps) {
   );
 }
 
+let styleForTrans: CSSProperties = {
+  transition: 'all 0.3s ease',
+  position: 'relative',
+};
+
 function MultiQueryResp_(props: { data: any[] }) {
   let { data } = props;
   if (data.length == 0) {
     return <></>;
   }
-  if (data.length == 1) {
-    return data[0].Err ? (
-      <Alert severity="error">{data[0].Err}</Alert>
-    ) : (
-      <QueryResp data={data[0].Ok}></QueryResp>
-    );
-  }
+  const [top, setTop] = useState(0);
   const [value, setValue] = React.useState(0);
-  const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setValue(newValue);
-  };
   useEffect(() => {
     if (value >= data.length) {
       setValue(0);
     }
+    setTop(50);
+    setTimeout(() => {
+      setTop(0);
+    }, 200);
   }, [data]);
+
+  if (data.length == 1) {
+    return data[0].Err ? (
+      <Alert style={{ top, left: top, ...styleForTrans }} severity="error">
+        {data[0].Err}
+      </Alert>
+    ) : (
+      <div style={{ top, left: top, ...styleForTrans }}>
+        <QueryResp data={data[0].Ok}></QueryResp>
+      </div>
+    );
+  }
+
+  const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setValue(newValue);
+  };
+
   let idPrefix = generateRandomString(10);
   const vis = useContext(VisiableContext);
   return (
-    <div>
+    <div style={{ top, left: top, ...styleForTrans }}>
       <div style={{ display: 'grid' }}>
         <Tabs
           value={value}
