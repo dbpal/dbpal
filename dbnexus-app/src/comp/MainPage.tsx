@@ -156,10 +156,10 @@ export default function MainPage() {
         (await appStore()).set(AppStoreKey.LeftSize, newsize);
       }}
     >
-      <div style={{ overflowY: 'auto', height: '100vh' }}>
+      <div style={{ overflow: 'auto', height: '100vh' }}>
         <Left></Left>
       </div>
-      <div style={{ overflowY: 'auto', height: '100vh' }}>
+      <div style={{ overflow: 'auto', height: '100vh' }}>
         <TabsWithContent
           handleClose={closeTab}
           tabs={tabs}
