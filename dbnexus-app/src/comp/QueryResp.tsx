@@ -211,6 +211,7 @@ function CustomTabPanel(props: TabPanelProps) {
 let styleForTrans: CSSProperties = {
   transition: 'all 0.3s ease',
   position: 'relative',
+  overflow: 'hidden',
 };
 
 function MultiQueryResp_(props: { data: any[] }) {
@@ -220,23 +221,29 @@ function MultiQueryResp_(props: { data: any[] }) {
   }
   const [top, setTop] = useState(0);
   const [value, setValue] = React.useState(0);
+  const [opacity, setOpacity] = useState(1);
   useEffect(() => {
     if (value >= data.length) {
       setValue(0);
     }
     setTop(50);
+    setOpacity(0);
     setTimeout(() => {
       setTop(0);
-    }, 200);
+      setOpacity(1);
+    }, 400);
   }, [data]);
 
   if (data.length == 1) {
     return data[0].Err ? (
-      <Alert style={{ top, left: top, ...styleForTrans }} severity="error">
+      <Alert
+        style={{ top, opacity, left: top, ...styleForTrans }}
+        severity="error"
+      >
         {data[0].Err}
       </Alert>
     ) : (
-      <div style={{ top, left: top, ...styleForTrans }}>
+      <div style={{ top, opacity, left: top, ...styleForTrans }}>
         <QueryResp data={data[0].Ok}></QueryResp>
       </div>
     );
@@ -249,7 +256,7 @@ function MultiQueryResp_(props: { data: any[] }) {
   let idPrefix = generateRandomString(10);
   const vis = useContext(VisiableContext);
   return (
-    <div style={{ top, left: top, ...styleForTrans }}>
+    <div style={{ top, opacity, left: top, ...styleForTrans }}>
       <div style={{ display: 'grid' }}>
         <Tabs
           value={value}
