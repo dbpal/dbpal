@@ -37,7 +37,7 @@ function TriggerDetail(props: {
 
   return (
     <DefAndMetasView
-      uuid={language}
+      language={language}
       reloadOP={async () => {
         return reloadOP().then((detail) => {
           return {

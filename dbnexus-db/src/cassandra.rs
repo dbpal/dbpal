@@ -52,6 +52,7 @@ use cql3_parser::common::{ColumnDefinition, DataType};
 use dashmap::DashMap;
 use num_bigint::{BigInt, ToBigInt};
 
+use crate::MemoryLimit;
 use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
@@ -846,10 +847,13 @@ impl QuerySql for CassandraDB {
         self.invalid_page_caching(None);
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let mut ret = vec![];
+        let mut ml = MemoryLimit::new();
+
         for sql in sql_to_each(&sql) {
             match self.session.query(&sql).await {
                 Ok(x) => {
                     let body = x.response_body()?;
+                    ml.exceed_error()?;
                     let meta = body.as_rows_metadata().map(|x| x.clone());
                     let rows = body.into_rows().unwrap_or_default();
                     if meta.is_some() {

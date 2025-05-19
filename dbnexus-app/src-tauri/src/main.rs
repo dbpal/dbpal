@@ -28,15 +28,16 @@ use handlers::{
     mongo_query_collection_list_search_indexes, mongo_query_collection_replace_one,
     mongo_query_collection_update_many, mongo_query_collection_update_one, mongo_query_db_drop,
     mongo_query_db_list_collection_names, mongo_query_db_run_command, mongo_show_collection_docs,
-    mongo_show_collection_table_list, mongo_update_one, open_conn, oracle_query_autocommit,
-    oracle_query_commit, oracle_query_rollback, oracle_query_set_autocommit, page_init_callback,
-    put_value_in_sql, query_logs, query_sql, query_sql_close_connection, query_sql_open_connection,
-    query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
-    redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_set_add,
-    redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
-    redis_zset_replace, redis_zset_show_table, rename_index, rename_table, save_entered_password,
-    save_password, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
-    show_trigger, show_udf, show_view, show_view_columns, test_connection, truncate_table, update,
+    mongo_show_collection_table_list, mongo_update_one, open_conn, page_init_callback,
+    put_value_in_sql, query_commit, query_get_commit, query_logs, query_rollback,
+    query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
+    query_sql_re_connection, query_tx_execute_counts, redis_hash_add, redis_hash_del,
+    redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
+    redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
+    redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
+    rename_table, save_entered_password, save_password, server_metas, show_indexes, show_procedure,
+    show_table, show_table_columns, show_trigger, show_udf, show_view, show_view_columns,
+    test_connection, truncate_table, update,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -188,7 +189,7 @@ fn main_() {
                                 true,
                                 None as Option<&'static str>,
                             )?,
-                            &PredefinedMenuItem::about(handle, Some("an easy to use database management system."),Some({
+                            &PredefinedMenuItem::about(handle, Some("make database management easy."),Some({
                                 let mut meta = AboutMetadata ::default();
                                 meta.website  = Some("https://dbpal.site".to_string());
                                 meta.name = Some("dbpals".to_string());
@@ -243,10 +244,6 @@ fn main_() {
             query_sql_open_connection,
             query_sql_re_connection,
             export_table_or_view,
-            oracle_query_autocommit,
-            oracle_query_commit,
-            oracle_query_rollback,
-            oracle_query_set_autocommit,
             show_trigger,
             format_sql,
             test_connection,
@@ -342,6 +339,11 @@ fn main_() {
             execute_sql,
             save_entered_password,
             has_entered_password,
+            query_get_commit,
+            query_set_autocommit,
+            query_commit,
+            query_rollback,
+            query_tx_execute_counts
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

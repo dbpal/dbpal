@@ -29,9 +29,14 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import { NotificationContext } from './Notification';
 import { IoIosAddCircle } from 'react-icons/io';
-import { DataGrid, GridSlotsComponentsProps } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  GridSlotsComponentsProps,
+  GridSortModel,
+} from '@mui/x-data-grid';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  EscDownEvent,
   keyNotInTable,
   modalStyle,
   reloadOK,
@@ -60,11 +65,13 @@ import {
   TabsSetContext,
   VisiableContext,
 } from './helper';
+import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
 import { loader } from '@monaco-editor/react';
-
+import wcmatch from 'wildcard-match';
+import { MdEditNote } from 'react-icons/md';
 const confrimAboutPrimary = async (
   notWarnPri,
   fields: types.Field[]
@@ -145,11 +152,10 @@ function WhereSort(props: {
   return (
     <Modal
       open={open}
-      onClose={(e, reason) => {
+      onClose={(e: EscDownEvent, reason) => {
         if (reason === 'backdropClick') {
           return;
         }
-        //@ts-ignore
         e.preventDefault();
         onClose();
       }}
@@ -247,7 +253,7 @@ function EditInModal(props: { content: string; handleModify }) {
   );
 }
 
-class EditInModalData {
+class EditInModalCellData {
   constructor(
     public row: object,
     public field: string,
@@ -299,7 +305,8 @@ function SqlTableView(props: {
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
   const visiable = useContext(VisiableContext);
   const [allowFiltering, setAllowFiltering] = useState(false);
-  const [editInModal, setEditInModal] = useState<EditInModalData>(null);
+  const [editInModal, setEditInModal] = useState<EditInModalCellData>(null);
+  const [editInModalRow, setEditInModalRow] = useState<object>(null);
 
   const handleResp = (resp: types.MuiDataGridData) => {
     resp.data.forEach((data) => {
@@ -468,7 +475,7 @@ function SqlTableView(props: {
 
   const { setUpMenu } = useContext(ContextMenuContext);
 
-  const onSortModelChange = useCallback((sorts) => {
+  const onSortModelChange = useCallback((sorts: GridSortModel) => {
     if (sorts.length == 0) {
       setSort('');
       return;
@@ -478,7 +485,7 @@ function SqlTableView(props: {
       setSort('');
       return;
     }
-    setSort(`${sort.field} ${sort.sort}`);
+    setSort(`${sort.field} ${sort.sort.toUpperCase()}`);
   }, []);
 
   const onProcessRowUpdateError = useCallback((e) => {
@@ -507,8 +514,13 @@ function SqlTableView(props: {
           setUpMenu({
             content: (
               <Menu
-                editInModal={() => {
-                  setEditInModal(new EditInModalData(row, field, row[field]));
+                editCellInModal={() => {
+                  setEditInModal(
+                    new EditInModalCellData(row, field, row[field])
+                  );
+                }}
+                editRowInModal={() => {
+                  setEditInModalRow(row);
                 }}
                 nullable={nullable}
                 fields={resp.fields}
@@ -676,11 +688,10 @@ function SqlTableView(props: {
       {editInModal && (
         <Modal
           open={!!editInModal}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setEditInModal(null);
           }}
@@ -702,6 +713,59 @@ function SqlTableView(props: {
         </Modal>
       )}
 
+      {editInModalRow && (
+        <Modal
+          open={!!editInModalRow}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            e.preventDefault();
+            setEditInModalRow(null);
+          }}
+        >
+          <Box sx={modalStyle} width="80%">
+            <SqlTableViewData
+              initValues={editInModalRow}
+              buttonName="modify"
+              fields={resp.fields}
+              handleData={async (args) => {
+                await handleProcessRowUpdate(args, editInModalRow);
+                setEditInModalRow(null);
+                handleReload(false);
+              }}
+            ></SqlTableViewData>
+          </Box>
+        </Modal>
+      )}
+      {editInModal && (
+        <Modal
+          open={!!editInModal}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+
+            e.preventDefault();
+            setEditInModal(null);
+          }}
+        >
+          <Box sx={modalStyle} width="80%">
+            <EditInModal
+              content={editInModal.content}
+              handleModify={async (value) => {
+                // clone
+                let newRow = { ...editInModal.row };
+                // modify
+                newRow[editInModal.field] = value;
+                await handleProcessRowUpdate(newRow, editInModal.row);
+                handleReload(false);
+                setEditInModal(null);
+              }}
+            ></EditInModal>
+          </Box>
+        </Modal>
+      )}
       {showSetWhere && (
         <WhereSort
           open={showSetWhere}
@@ -736,12 +800,15 @@ function SqlTableView(props: {
   );
 }
 
-function SqlTableViewAdd(props: {
-  addOP: (args: any) => Promise<void>;
+let SqlTableViewDataMatch = '';
+
+function SqlTableViewData(props: {
+  handleData: (args: any) => Promise<void>;
   fields: types.Field[];
   initValues?: object;
+  buttonName;
 }) {
-  let { addOP, fields, initValues } = props;
+  let { handleData, fields, initValues, buttonName } = props;
   if (!initValues) {
     initValues = {};
   }
@@ -750,12 +817,22 @@ function SqlTableViewAdd(props: {
       delete initValues[e.field];
     }
   });
+  const [filter, setFilter] = useState(SqlTableViewDataMatch);
+
+  const filterFn = useMemo(() => {
+    SqlTableViewDataMatch = filter;
+    return filter
+      ? wcmatch('*' + filter + '*', { flags: 'i' })
+      : () => {
+          return true;
+        };
+  }, [filter]);
 
   const [loading, setLoading] = useState(false);
   const [args, setArgs] = useState(initValues);
   const { showNotification } = useContext(NotificationContext);
-  const inputDoms = useRef([]);
-  const handleAdd = () => {
+  const inputDoms = useRef({});
+  const handleModify = () => {
     for (let i = 0; i < fields.length; i++) {
       let f = fields[i];
       if (f.is_auto_increment) {
@@ -768,12 +845,12 @@ function SqlTableViewAdd(props: {
       }
     }
     setLoading(true);
-    addOP(args)
+    handleData(args)
       .then(() => {
-        showNotification('success', 'Add OK');
+        showNotification('success', `${buttonName} OK`);
       })
       .catch((e) => {
-        showNotification('error', 'Add failure', e);
+        showNotification('error', `${buttonName} Faulure`, e);
       })
       .finally(() => {
         setLoading(false);
@@ -782,45 +859,62 @@ function SqlTableViewAdd(props: {
 
   return (
     <Stack spacing={1}>
-      {fields.map((f, index) => {
-        if (f.is_auto_increment) {
-          return;
-        }
-        return (
-          <Stack
-            key={f.field}
-            direction="row"
-            spacing={1}
-            sx={{ alignContent: 'center', justifyContent: 'center' }}
-          >
-            <TextField
-              inputRef={(x) => {
-                inputDoms.current[index] = x;
-              }}
-              size="small"
-              value={args[f.field]}
-              helperText={f.typ + ' ' + (f.nullable ? 'null' : 'not null')}
-              required={!f.nullable}
-              label={f.field}
-              multiline={isTypeLargeText(f.typ)}
-              rows={4}
-              fullWidth
-              onChange={(e) => {
-                const value = e.target.value;
-                const v = value ? value : null;
-                let newArgs = { ...args };
-                newArgs[f.field] = v;
-                setArgs(newArgs);
-              }}
-            ></TextField>
-          </Stack>
-        );
-      })}
+      {fields
+        .filter(
+          (f) =>
+            filterFn(f.field) ||
+            (args[f.field] ? filterFn(args[f.field]) : !filter)
+        )
+        .map((f) => {
+          if (f.is_auto_increment) {
+            return;
+          }
+          return (
+            <Stack
+              key={f.field}
+              direction="row"
+              spacing={1}
+              sx={{ alignContent: 'center', justifyContent: 'center' }}
+            >
+              <TextField
+                inputRef={(x) => {
+                  inputDoms.current[f.field] = x;
+                }}
+                size="small"
+                value={args[f.field]}
+                helperText={f.typ + ' ' + (f.nullable ? 'null' : 'not null')}
+                required={!f.nullable}
+                label={f.field}
+                multiline={isTypeLargeText(f.typ)}
+                rows={4}
+                fullWidth
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const v = value ? value : null;
+                  let newArgs = { ...args };
+                  newArgs[f.field] = v;
+                  setArgs(newArgs);
+                }}
+              ></TextField>
+            </Stack>
+          );
+        })}
       <Divider></Divider>
-      <Stack direction="row" spacing={1}>
-        <Button loading={loading} variant="contained" onClick={handleAdd}>
-          add
+      <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+        <Button loading={loading} variant="contained" onClick={handleModify}>
+          {buttonName}
         </Button>
+
+        <TextField
+          size="small"
+          value={filter}
+          onChange={(e) => {
+            setFilter(e.target.value);
+          }}
+          label="filter"
+          fullWidth
+          helperText="can match field name and content"
+        ></TextField>
       </Stack>
     </Stack>
   );
@@ -839,7 +933,8 @@ function Menu(props: {
   row: object;
   fields;
   nullable: boolean;
-  editInModal;
+  editCellInModal;
+  editRowInModal;
 }) {
   const {
     field,
@@ -854,7 +949,8 @@ function Menu(props: {
     row,
     fields,
     nullable,
-    editInModal,
+    editCellInModal,
+    editRowInModal,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
@@ -862,11 +958,12 @@ function Menu(props: {
   const handleClone = () => {
     setTabs((tabs) => {
       let t = (
-        <SqlTableViewAdd
-          addOP={addOP}
+        <SqlTableViewData
+          buttonName="add"
+          handleData={addOP}
           fields={fields}
           initValues={row}
-        ></SqlTableViewAdd>
+        ></SqlTableViewData>
       );
       setSelectTab(tabs.length);
       return [
@@ -880,19 +977,33 @@ function Menu(props: {
       ];
     });
   };
+
   return (
     <Paper>
       <MenuList>
         {addOP && (
           <MenuItem
             onClick={() => {
-              editInModal();
+              editCellInModal();
             }}
           >
             <ListItemIcon>
               <EditIcon></EditIcon>
             </ListItemIcon>
-            <ListItemText> Edit in Modal </ListItemText>
+            <ListItemText> Edit Cell in Modal </ListItemText>
+          </MenuItem>
+        )}
+
+        {addOP && (
+          <MenuItem
+            onClick={() => {
+              editRowInModal();
+            }}
+          >
+            <ListItemIcon>
+              <MdEditNote fontSize="1.7rem"></MdEditNote>
+            </ListItemIcon>
+            <ListItemText> Edit Row in Modal </ListItemText>
           </MenuItem>
         )}
 
@@ -903,7 +1014,7 @@ function Menu(props: {
             }}
           >
             <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
+              <FaCopy fontSize="1.4rem"></FaCopy>
             </ListItemIcon>
             <ListItemText> Copy </ListItemText>
           </MenuItem>
@@ -989,11 +1100,11 @@ function Menu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowFilter(false);
           }}
@@ -1075,4 +1186,4 @@ function FilterOnValue(props: {
     </Stack>
   );
 }
-export { SqlTableView, SqlTableViewAdd };
+export { SqlTableView, SqlTableViewData };

@@ -9,24 +9,28 @@ use bb8::ManageConnection;
 use dashmap::DashMap;
 use libsql::{Connection, Row, ValueType, params};
 
+use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
     Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 use crate::sqlite::{
     encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
     integer_like, numreic_like, real_like, text_like,
 };
+
 #[derive(Clone)]
 pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Connection>>,
+    query_connections_transaction: Arc<DashMap<uuid::Uuid, libsql::Transaction>>,
+    tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
 }
 
@@ -78,6 +82,57 @@ impl ExportQueryResult for LibSqlDB {
 #[async_trait::async_trait]
 
 impl QuerySql for LibSqlDB {
+    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
+        anyhow::Ok(self.tx_execute_times.get(query_id))
+    }
+
+    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+        anyhow::Ok(self.query_connections_transaction.get(&query_id).is_none())
+    }
+
+    async fn set_auto_commit(&self, query_id: uuid::Uuid, c: bool) -> anyhow::Result<()> {
+        if c {
+            anyhow::bail!("libsql use commit or rollback to end transaction");
+        }
+        let conn = self.query_connections.get(&query_id);
+        let conn = match &conn {
+            Some(x) => x.deref(),
+            None => anyhow::bail!("collection closed????"),
+        };
+        let t = conn.transaction().await?;
+        self.query_connections_transaction.insert(query_id, t);
+        anyhow::Ok(())
+    }
+
+    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        let t = self.query_connections_transaction.remove(&query_id);
+
+        match t {
+            Some(x) => {
+                x.1.commit().await?;
+                self.tx_execute_times.reset(query_id);
+                anyhow::Ok(())
+            }
+            None => {
+                anyhow::bail!("transaction not found");
+            }
+        }
+    }
+
+    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        let t = self.query_connections_transaction.remove(&query_id);
+        match t {
+            Some(x) => {
+                x.1.rollback().await?;
+                self.tx_execute_times.reset(query_id);
+                anyhow::Ok(())
+            }
+            None => {
+                anyhow::bail!("transaction not found");
+            }
+        }
+    }
+
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
@@ -89,14 +144,23 @@ impl QuerySql for LibSqlDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
+        if !self.get_auto_commit(query_id).await? {
+            self.tx_execute_times.inc(query_id);
+        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
+        let tr = self.query_connections_transaction.get(&query_id);
         let conn = self.query_connections.get(&query_id);
-        let conn = match &conn {
-            Some(x) => x.deref(),
-            None => anyhow::bail!("collection closed????"),
+        let conn = conn.as_ref().map(|x| x.deref());
+        let conn = match &tr {
+            Some(x) => x.deref().deref(),
+            None => {
+                match &conn {
+                    Some(x) => x,
+                    None => anyhow::bail!("collection closed????"),
+                }
+            }
         };
-
         let ret = match conn.execute(sql, params!()).await {
             Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
             Err(err) => Err(err.to_string()),
@@ -108,20 +172,32 @@ impl QuerySql for LibSqlDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        if !self.get_auto_commit(query_id).await? {
+            self.tx_execute_times.inc(query_id);
+        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
+        let tr = self.query_connections_transaction.get(&query_id);
         let conn = self.query_connections.get(&query_id);
-        let conn = match &conn {
-            Some(x) => x.deref(),
-            None => anyhow::bail!("collection closed????"),
+        let conn = conn.as_ref().map(|x| x.deref());
+        let conn = match &tr {
+            Some(x) => x.deref().deref(),
+            None => {
+                match &conn {
+                    Some(x) => x,
+                    None => anyhow::bail!("collection closed????"),
+                }
+            }
         };
 
         let mut batch_rows = conn.execute_batch(sql).await?;
         let mut ret = Vec::new();
-
+        let mut ml = MemoryLimit::new();
         while let Some(mut rows_) = batch_rows.next_stmt_row().flatten() {
+            ml.exceed_error()?;
             let mut rows = Vec::new();
             while let Some(row) = rows_.next().await? {
+                ml.exceed_error()?;
                 rows.push(row);
             }
             if rows.len() > 0 {
@@ -150,12 +226,16 @@ impl QuerySql for LibSqlDB {
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         let conn = self.connect().await?;
         self.query_connections.insert(id, conn);
+        self.query_connections_transaction.remove(&id);
+        self.tx_execute_times.reset(id);
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_logs.remove(&id);
+        self.query_connections_transaction.remove(&id);
         self.query_connections.remove(&id);
+        self.tx_execute_times.reset(id);
         anyhow::Ok(())
     }
 }
@@ -258,12 +338,14 @@ impl LibSqlDB {
         let manager = PoolManager {
             config: config.clone(),
         };
-        let pool = bb8::Pool::builder().max_size(15).build(manager).await?;
+        let pool = bb8::Pool::builder().build(manager).await?;
         anyhow::Ok(Self {
             config,
             pool,
             query_connections: Default::default(),
+            query_connections_transaction: Default::default(),
             query_logs: Default::default(),
+            tx_execute_times: Default::default(),
         })
     }
 
@@ -1047,6 +1129,72 @@ mod tests {
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
+
+    #[tokio::test]
+    async fn test_transaction() {
+        let db = make_test_object().await;
+
+        let table_name = "test_commit";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+             CREATE TABLE test_commit (
+                ID INTEGER PRIMARY KEY,
+                NAME VARCHAR(50)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.rollback(query_id).await.unwrap();
+
+        // assert_eq!(
+        //     db.show_table(table_name, None, None, 1, 100, None)
+        //         .await
+        //         .unwrap()
+        //         .total,
+        //     0
+        // );
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (2, 'Test1');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.commit(query_id).await.unwrap();
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 1
+        );
+        db.re_connect(query_id).await.unwrap();
+
+        assert!(db.get_auto_commit(query_id).await.unwrap());
+    }
+
     #[tokio::test]
     async fn test_server_select() {
         let db = make_test_object().await;

@@ -15,6 +15,7 @@ import {
   initMonacoLanague,
   SimpleResizeEditor,
   makeAutoComplete,
+  EscDownEvent,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -53,6 +54,7 @@ import {
   ContextMenuContext,
   datagridContainerHeight,
   DataSourceKind,
+  generateRandomString,
   handleCopyToClipboard,
   MatchPatternContext,
   secondConfirm,
@@ -249,6 +251,7 @@ function ViewStructure(props: {
     DataSourceKind.Mysql,
     DataSourceKind.MariaDB,
     DataSourceKind.TiDB,
+    DataSourceKind.Sqlite,
   ].includes(kind);
 
   if (supportStatement) {
@@ -502,68 +505,75 @@ function ViewMenu(props: {
   const { tabs, setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const handleViewData = () => {
-    const id = uuid + '-view-' + view;
-    let index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
-      setSelectTab(index);
-    } else {
-      let list: ReactNode = null;
+    const id = uuid + '-view-' + generateRandomString();
 
-      switch (kind) {
-        case DataSourceKind.MariaDB:
-        case DataSourceKind.Mysql:
-        case DataSourceKind.MsSql:
-        case DataSourceKind.Sqlite:
-        case DataSourceKind.Postgres:
-        case DataSourceKind.Oracle:
-        case DataSourceKind.TiDB:
-        case DataSourceKind.Cassandra:
-        case DataSourceKind.ClickHouse:
-        case DataSourceKind.LibSql:
-        case DataSourceKind.FireBird:
-        case DataSourceKind.DuckDB:
-        case DataSourceKind.Cockroach:
-          list = (
-            <SqlTableView
-              autoCompletion={makeAutoComplete(uuid)}
-              tableName={view}
-              kind={kind}
-              notWarnPri={true}
-              reloadOP={async (
-                where: string,
-                orderBy: string,
-                page: number,
-                pageSize: number,
-                extra
-              ) => {
-                let where_null = where ? where : null;
-                let orderBy_null = orderBy ? orderBy : null;
-                return await invoke<types.MuiDataGridData>('show_view', {
-                  name: uuid,
-                  viewName: view,
-                  whereStr: where_null,
-                  orderBy: orderBy_null,
-                  page,
-                  pageSize,
-                  extra,
-                });
-              }}
-              put_value_in_sql={async (typ, value) => {
-                return invoke('put_value_in_sql', {
-                  name: uuid,
-                  typ,
-                  value: value ? value : null,
-                });
-              }}
-            ></SqlTableView>
-          );
-          break;
+    let list: ReactNode = null;
+    switch (kind) {
+      case DataSourceKind.MariaDB:
+      case DataSourceKind.Mysql:
+      case DataSourceKind.MsSql:
+      case DataSourceKind.Sqlite:
+      case DataSourceKind.Postgres:
+      case DataSourceKind.Oracle:
+      case DataSourceKind.TiDB:
+      case DataSourceKind.Cassandra:
+      case DataSourceKind.ClickHouse:
+      case DataSourceKind.LibSql:
+      case DataSourceKind.FireBird:
+      case DataSourceKind.DuckDB:
+      case DataSourceKind.Cockroach:
+        list = (
+          <SqlTableView
+            autoCompletion={makeAutoComplete(uuid)}
+            tableName={view}
+            kind={kind}
+            notWarnPri={true}
+            reloadOP={async (
+              where: string,
+              orderBy: string,
+              page: number,
+              pageSize: number,
+              extra
+            ) => {
+              let where_null = where ? where : null;
+              let orderBy_null = orderBy ? orderBy : null;
+              return await invoke<types.MuiDataGridData>('show_view', {
+                name: uuid,
+                viewName: view,
+                whereStr: where_null,
+                orderBy: orderBy_null,
+                page,
+                pageSize,
+                extra,
+              });
+            }}
+            put_value_in_sql={async (typ, value) => {
+              return invoke('put_value_in_sql', {
+                name: uuid,
+                typ,
+                value: value ? value : null,
+              });
+            }}
+          ></SqlTableView>
+        );
+        break;
 
-        case DataSourceKind.Mongo:
-          list = (
-            <MongoTable
-              reloadOPTableList={async (filter, sort, page, pageSize) => {
-                return await invoke('mongo_show_collection_table_list', {
+      case DataSourceKind.Mongo:
+        list = (
+          <MongoTable
+            reloadOPTableList={async (filter, sort, page, pageSize) => {
+              return await invoke('mongo_show_collection_table_list', {
+                name: uuid,
+                tableName: view,
+                filter: BSON.serialize(filter),
+                sort: BSON.serialize(sort),
+                page,
+                pageSize,
+              });
+            }}
+            realodOPDocs={async (filter, sort, page, pageSize) => {
+              try {
+                let x = await invoke('mongo_show_collection_docs', {
                   name: uuid,
                   tableName: view,
                   filter: BSON.serialize(filter),
@@ -571,59 +581,44 @@ function ViewMenu(props: {
                   page,
                   pageSize,
                 });
-              }}
-              realodOPDocs={async (filter, sort, page, pageSize) => {
-                try {
-                  let x = await invoke('mongo_show_collection_docs', {
-                    name: uuid,
-                    tableName: view,
-                    filter: BSON.serialize(filter),
-                    sort: BSON.serialize(sort),
-                    page,
-                    pageSize,
-                  });
-                  //@ts-ignore
-                  let docs = x.docs.map((e) =>
-                    BSON.deserialize(new Uint8Array(e))
-                  );
-                  //@ts-ignore
-                  let count = x.count;
-                  return new DocsAndCount(docs, count);
-                } catch (e) {
-                  throw e;
-                }
-              }}
-              loadOne={async (id) => {
-                try {
-                  let x = await invoke<number[]>(
-                    'mongo_get_one_document_by_id',
-                    {
-                      name: uuid,
-                      tableName: view,
-                      id: JSON.stringify(EJSON.serialize(id)),
-                    }
-                  );
-                  return BSON.deserialize(new Uint8Array(x));
-                } catch (e) {
-                  throw e;
-                }
-              }}
-            ></MongoTable>
-          );
-          break;
+                //@ts-ignore
+                let docs = x.docs.map((e) =>
+                  BSON.deserialize(new Uint8Array(e))
+                );
+                //@ts-ignore
+                let count = x.count;
+                return new DocsAndCount(docs, count);
+              } catch (e) {
+                throw e;
+              }
+            }}
+            loadOne={async (id) => {
+              try {
+                let x = await invoke<number[]>('mongo_get_one_document_by_id', {
+                  name: uuid,
+                  tableName: view,
+                  id: JSON.stringify(EJSON.serialize(id)),
+                });
+                return BSON.deserialize(new Uint8Array(x));
+              } catch (e) {
+                throw e;
+              }
+            }}
+          ></MongoTable>
+        );
+        break;
 
-        default:
-          showNotification('error', `datasouce ${kind} need impl view`);
-      }
-
-      setTabs((e) => {
-        setSelectTab(tabs.length);
-        return [
-          ...e,
-          new TabContent(id, view, list, <VisibilityIcon> </VisibilityIcon>),
-        ];
-      });
+      default:
+        showNotification('error', `datasouce ${kind} need impl view`);
     }
+
+    setTabs((e) => {
+      setSelectTab(tabs.length);
+      return [
+        ...e,
+        new TabContent(id, view, list, <VisibilityIcon> </VisibilityIcon>),
+      ];
+    });
   };
 
   const handleSturcture = () => {
@@ -719,11 +714,11 @@ function ViewMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowExport(false);
           }}

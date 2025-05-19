@@ -41,6 +41,7 @@ import {
   makeQueryConnInfo,
   QueryConn,
   SettingContext,
+  EscDownEvent,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -184,18 +185,17 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           onChange={(e) => {
             setMatchPattern(e.target.value.trim());
           }}
-          helperText="name* etc"
+          helperText="name etc"
         ></TextField>
       )}
 
       {showFavoriteSql && (
         <Modal
           open={showFavoriteSql}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowFavoriteSql(false);
           }}
@@ -213,11 +213,10 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {showAddConnection && (
         <Modal
           open={showAddConnection}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowAddConnection(false);
           }}
@@ -234,11 +233,11 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {copyConn && (
         <Modal
           open={!!copyConn}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setCopyConn(null);
           }}
@@ -257,11 +256,10 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       {showCopyConn && (
         <Modal
           open={showCopyConn}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowCopyConn(false);
           }}
@@ -353,8 +351,8 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         },
       },
       { field: 'host' },
-      { field: 'path' },
       { field: 'port' },
+      { field: 'path' },
       {
         field: 'db',
         renderHeader: () => {
@@ -463,7 +461,7 @@ function Left_() {
   });
   const m = useMemo(() => {
     return matchPattern
-      ? wcmatch(matchPattern, { flags: 'i' })
+      ? wcmatch('*' + matchPattern + '*', { flags: 'i' })
       : () => {
           return true;
         };
@@ -508,7 +506,7 @@ const makeConn = async (uuid: string, kind: DataSourceKind) => {
     name: uuid,
   });
   console.log('open connection:', queryId);
-  return new QueryConn(uuid, queryId, kind == DataSourceKind.Oracle);
+  return new QueryConn(uuid, queryId, kind);
 };
 function FavoriteSqlList(props: { handleClose }) {
   const { handleClose } = props;
@@ -1090,11 +1088,10 @@ function DatabaseMenu(props: {
       {showCreateSchema && (
         <Modal
           open={showCreateSchema}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowCreateSchema(false);
           }}
@@ -1157,11 +1154,11 @@ function CatalogMenu(props: {
       {showCreateDB && (
         <Modal
           open={showCreateDB}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowCreateDB(false);
           }}

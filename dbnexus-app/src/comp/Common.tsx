@@ -551,7 +551,7 @@ function MenuConnectionInfo({ uuid }) {
 class UserSettings {
   theme: string = 'light';
   pageSize: number = 100;
-  editorFontSize: number;
+  editorFontSize: number = 16;
   rootFontSize: number = 15;
   datagridRowHeight: number = 24;
   datagridHeaderHeight: number = 30;
@@ -1074,23 +1074,46 @@ interface IQueryConn {
   ) => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
   destroy: () => void;
-  oracleQuerySetAutocommit: (boolean) => Promise<void>;
-  oracleQueryAutocommit: () => Promise<boolean>;
-  oracleQueryCommit: () => Promise<void>;
-  oracleQueryRollback: () => Promise<void>;
-  isOracle: boolean;
+  setAutoCommit: (boolean) => Promise<void>;
+  getAutoCommit: () => Promise<boolean>;
+  commit: () => Promise<void>;
+  rollback: () => Promise<void>;
+  supportTransaction: () => boolean;
+  txExecuteCounts: () => Promise<number>;
 }
 
 class QueryConn implements IQueryConn {
   queryId: string;
   uuid: string;
-  isOracle: boolean;
-
-  constructor(uuid, queryId: string, isOracle = false) {
+  kind: DataSourceKind;
+  constructor(uuid, queryId: string, kind: DataSourceKind) {
     this.queryId = queryId;
     this.uuid = uuid;
-    this.isOracle = isOracle;
+    this.kind = kind;
   }
+
+  txExecuteCounts(): Promise<number> {
+    return invoke<number>('query_tx_execute_counts', {
+      name: this.uuid,
+      queryId: this.queryId,
+    });
+  }
+
+  supportTransaction(): boolean {
+    return [
+      DataSourceKind.Oracle,
+      DataSourceKind.FireBird,
+      DataSourceKind.Sqlite,
+      DataSourceKind.LibSql,
+      DataSourceKind.Mysql,
+      DataSourceKind.MariaDB,
+      DataSourceKind.TiDB,
+      DataSourceKind.Postgres,
+      DataSourceKind.Cockroach,
+      DataSourceKind.MsSql,
+    ].includes(this.kind);
+  }
+
   exportQueryResult(
     sql: string,
     kind: types.ExportKind,
@@ -1104,27 +1127,27 @@ class QueryConn implements IQueryConn {
     });
   }
 
-  oracleQuerySetAutocommit(commit: boolean): Promise<void> {
-    return invoke<void>('oracle_query_set_autocommit', {
+  setAutoCommit(commit: boolean): Promise<void> {
+    return invoke<void>('query_set_autocommit', {
       name: this.uuid,
       queryId: this.queryId,
       commit,
     });
   }
-  oracleQueryAutocommit(): Promise<boolean> {
-    return invoke<boolean>('oracle_query_autocommit', {
+  getAutoCommit(): Promise<boolean> {
+    return invoke<boolean>('query_get_commit', {
       name: this.uuid,
       queryId: this.queryId,
     });
   }
-  oracleQueryCommit(): Promise<void> {
-    return invoke<void>('oracle_query_commit', {
+  commit(): Promise<void> {
+    return invoke<void>('query_commit', {
       name: this.uuid,
       queryId: this.queryId,
     });
   }
-  oracleQueryRollback(): Promise<void> {
-    return invoke<void>('oracle_query_rollback', {
+  rollback(): Promise<void> {
+    return invoke<void>('query_rollback', {
       name: this.uuid,
       queryId: this.queryId,
     });
@@ -1264,6 +1287,8 @@ function LoadStoreFileForQuery(props: {
 type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
 
+type EscDownEvent = { preventDefault: () => void };
+
 export {
   modalStyle,
   DocsAndCount,
@@ -1296,4 +1321,4 @@ export {
   makeAutoComplete,
 };
 
-export type { DefAndMetas, IQueryConn, MakeIQueryConn };
+export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };

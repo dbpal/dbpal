@@ -157,9 +157,11 @@ function ConnPingTime({ uuid }) {
     invoke<string>('check_conn', { name: uuid })
       .then((ping) => {
         setStatus(ping);
+        setErr('');
       })
       .catch((e) => {
         setErr(errToString(e));
+        setStatus('');
       });
   };
 

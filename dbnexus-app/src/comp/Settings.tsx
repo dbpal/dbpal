@@ -21,6 +21,7 @@ import { NotificationContext } from './Notification';
 import {
   appStore,
   AppStoreKey,
+  EscDownEvent,
   modalStyle,
   SettingContext,
   SimpleResizeEditor,
@@ -29,7 +30,7 @@ import {
 import { SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
-function ModifySettings() {
+function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
 
   const [pageSize, setPageSize] = useState(0);
@@ -72,6 +73,7 @@ function ModifySettings() {
       return;
     }
     (await appStore())
+
       .set(
         AppStoreKey.UserSetttings,
         new UserSettings(
@@ -85,6 +87,7 @@ function ModifySettings() {
         )
       )
       .then(() => {
+        handleClose();
         showNotification('success', 'Save Setting OK');
       })
       .catch((e) => {
@@ -116,7 +119,7 @@ function ModifySettings() {
           onClick={() => {
             setTheme('light');
           }}
-          style={{ backgroundColor: 'white', color: 'black' }}
+          color="info"
         ></Chip>
 
         <Chip
@@ -125,7 +128,7 @@ function ModifySettings() {
           onClick={() => {
             setTheme('dark');
           }}
-          style={{ backgroundColor: 'black', color: 'white' }}
+          color="info"
         ></Chip>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -194,7 +197,10 @@ function ModifySettings() {
       </Stack>
       <Stack spacing={1}>
         <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-          <Tooltip title="dbpal use monaco editor as build in editor">
+          <Tooltip
+            title="dbpal use monaco editor as build in editor"
+            placement="top"
+          >
             <Typography width={headerSize} textAlign="right">
               monaco editor options:
             </Typography>
@@ -226,11 +232,11 @@ function ModifySettings() {
       {showEditorOptions && (
         <Modal
           open={showEditorOptions}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowEditorOptions(false);
           }}
@@ -358,13 +364,13 @@ const components: Components<
       },
     },
   },
-  MuiAlert: {
-    styleOverrides: {
-      root: {
-        padding: 0,
-      },
-    },
-  },
+  // MuiAlert: {
+  //   styleOverrides: {
+  //     root: {
+  //       padding: 0,
+  //     },
+  //   },
+  // },
   MuiTabs: {
     styleOverrides: {
       root: {
@@ -384,7 +390,17 @@ const components: Components<
   },
 };
 
-const lightTheme = createTheme({ palette: { mode: 'light' }, components });
+const lightTheme = createTheme({
+  palette: {
+    mode: 'light',
+
+    background: {
+      default: '#f0f0f0',
+      paper: '#f0f0f0',
+    },
+  },
+  components,
+});
 const rowSelected = {
   // '&.Mui-selected': {
   //   backgroundColor: '#1976d2', // 蓝色背景
@@ -406,7 +422,16 @@ lightTheme.components.MuiDataGrid.styleOverrides.row = {
   ...rowSelected,
 };
 
-const darkTheme = createTheme({ palette: { mode: 'dark' }, components });
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    background: {
+      default: '#1f1f1f',
+      paper: '#1f1f1f',
+    },
+  },
+  components,
+});
 //@ts-ignore
 darkTheme.components.MuiDataGrid.styleOverrides.row = {
   // '&:nth-of-type(odd)': {

@@ -6,6 +6,7 @@ import './style/react-split-pane.css';
 import {
   Box,
   Button,
+  Chip,
   IconButton,
   Modal,
   Paper,
@@ -30,6 +31,7 @@ import FastForwardIcon from '@mui/icons-material/FastForward';
 import { editor, Position } from 'monaco-editor';
 import {
   EditorBar,
+  EscDownEvent,
   IQueryConn,
   LoadStoreFileForQuery,
   MakeIQueryConn,
@@ -37,7 +39,8 @@ import {
   msgTimeout,
   SettingContext,
 } from './Common.tsx';
-
+import { FaUpload } from 'react-icons/fa';
+import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -49,56 +52,100 @@ const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
 };
 
-function OracleCommit(props: { conn: IQueryConn }) {
-  const { conn } = props;
+function SqlTransaction(props: { conn: IQueryConn; nonce }) {
+  const { conn, nonce } = props;
   const [commit, setCommit] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+  const [txCount, setTxCount] = useState(0);
+
   const handleQueryCommit = async () => {
     try {
-      setCommit(await conn.oracleQueryAutocommit());
+      let c = await conn.getAutoCommit();
+      setCommit(c);
     } catch (e) {
-      showNotification('error', 'query oracle commit failed', e);
+      showNotification('error', 'query commit failed', e);
     }
   };
+
+  const handleReloadTxCount = async () => {
+    conn
+      .txExecuteCounts()
+      .then((count) => {
+        setTxCount(count);
+      })
+      .catch((e) => {
+        showNotification('error', 'query tx count failed', e);
+      });
+  };
+
   useEffect(() => {
     handleQueryCommit();
   }, []);
+
+  useEffect(() => {
+    handleQueryCommit();
+    handleReloadTxCount();
+  }, [nonce]);
+
   const handleCommit = async () => {
     try {
-      await conn.oracleQueryCommit();
+      await conn.commit();
       showNotification('success', 'commit ok');
+      handleQueryCommit();
+      handleReloadTxCount();
     } catch (e) {
-      showNotification('error', 'oracle commit failed', e);
+      showNotification('error', 'commit failed', e);
     }
   };
+
   const handleRollback = async () => {
     try {
-      await conn.oracleQueryCommit();
+      await conn.rollback();
       showNotification('success', 'rollback ok');
+      handleQueryCommit();
+      handleReloadTxCount();
     } catch (e) {
-      showNotification('error', 'oracle rollback failed', e);
+      showNotification('error', 'rollback failed', e);
     }
   };
   const handleReverse = async () => {
     try {
-      await conn.oracleQuerySetAutocommit(!commit);
+      await conn.setAutoCommit(!commit);
       setCommit((e) => !e);
       showNotification('success', 'set auto commit ok');
     } catch (e) {
-      showNotification('error', 'oracle set commit failed', e);
+      showNotification('error', 'set commit failed', e);
     }
   };
+
   return (
     <>
       <Tooltip title="reverse commit mode">
-        <Button onClick={handleReverse}>
-          {commit ? 'auto' : 'manual'}-commit
-        </Button>
+        <Chip
+          onClick={handleReverse}
+          label={`${commit ? 'auto' : 'manual'}-commit`}
+          size="small"
+          color="info"
+        ></Chip>
       </Tooltip>
+
       {!commit && (
         <>
-          <Button onClick={handleCommit}>commit </Button>
-          <Button onClick={handleRollback}>rollback </Button>
+          <Chip
+            label={`executes:` + txCount}
+            size="small"
+            color="success"
+          ></Chip>
+          <Tooltip title="commit">
+            <IconButton onClick={handleCommit} color="primary">
+              <FaUpload fontSize="1.1rem"></FaUpload>
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="rollback">
+            <IconButton onClick={handleRollback} color="primary">
+              <MdOutlineReply fontSize="1.7rem"></MdOutlineReply>
+            </IconButton>
+          </Tooltip>
         </>
       )}
     </>
@@ -137,6 +184,7 @@ function SqlQuery(props: {
     null
   );
 
+  const [commitNonce, setCommitNonce] = useState(0);
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
@@ -195,6 +243,9 @@ function SqlQuery(props: {
         })
         .catch((e) => {
           showNotification('error', 'Reconnect Failure', e);
+        })
+        .finally(() => {
+          setCommitNonce((e) => e + 1);
         });
     } else {
       makeConn()
@@ -202,9 +253,11 @@ function SqlQuery(props: {
           setConn(conn);
           showNotification('success', 'Reconnect OK');
         })
-
         .catch((e) => {
           showNotification('error', 'Reconnect Failure', e);
+        })
+        .finally(() => {
+          setCommitNonce((e) => e + 1);
         });
     }
   };
@@ -280,6 +333,7 @@ function SqlQuery(props: {
       })
       .finally(() => {
         setLoading(false);
+        setCommitNonce((e) => e + 1);
       });
   };
   const handleQuery = async (append: boolean) => {
@@ -319,6 +373,7 @@ function SqlQuery(props: {
       })
       .finally(() => {
         setLoading(false);
+        setCommitNonce((e) => e + 1);
       });
   };
 
@@ -447,6 +502,9 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
+          {conn && conn.supportTransaction() && (
+            <SqlTransaction nonce={commitNonce} conn={conn} />
+          )}
           <Tooltip
             title={
               showSuggestReconn
@@ -506,7 +564,6 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          {conn && conn.isOracle && <OracleCommit conn={conn} />}
           <LoadStoreFileForQuery
             file={file}
             getQuery={() => {
@@ -558,11 +615,11 @@ function SqlQuery(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowExport(false);
           }}
@@ -590,11 +647,11 @@ function SqlQuery(props: {
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowFavoriteName(false);
           }}

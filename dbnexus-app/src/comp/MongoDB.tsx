@@ -67,12 +67,17 @@ import {
   SettingContext,
   reloadOK,
   keyNotInTable,
+  EscDownEvent,
 } from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
-import { pageSizeOptions, SelectPageSize } from './CommonComp';
+import {
+  MenuResetColumnWidths,
+  pageSizeOptions,
+  SelectPageSize,
+} from './CommonComp';
 import {
   calMenuStyle,
   columnWidths,
@@ -321,7 +326,7 @@ function MongoBsonEditor(props: {
       </div>
 
       <Stack direction="row" justifyContent="space-between">
-        <Stack direction="row" alignContent="center" spacing={1}>
+        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
           {buttons.map((button) => {
             return (
               //@ts-ignore
@@ -519,11 +524,11 @@ function MongoTableListToolBar(props: {
       {showModifyFilter && (
         <Modal
           open={showModifyFilter}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowModifyFilter(false);
           }}
@@ -546,11 +551,11 @@ function MongoTableListToolBar(props: {
       {showModifySort && (
         <Modal
           open={showModifySort}
-          onClose={(_, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowModifySort(false);
           }}
@@ -724,16 +729,16 @@ function MongoTableListContextMenu(props: {
             <ListItemText> Delete </ListItemText>
           </MenuItem>
         )}
+        <MenuResetColumnWidths></MenuResetColumnWidths>
       </MenuList>
 
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={(_, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setShowFilter(false);
           }}
@@ -1009,11 +1014,10 @@ function MongoTableList(props: {
       {selectModifyDoc && (
         <Modal
           open={!!selectModifyDoc}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setSelectModifyDoc(null);
           }}
@@ -1028,6 +1032,7 @@ function MongoTableList(props: {
                       } catch (e) {
                         throw e;
                       }
+                      setSelectModifyDoc(null);
                       handleReload(false);
                     }
                   : undefined

@@ -14,6 +14,7 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
+use crate::MemoryLimit;
 #[cfg(test)]
 use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
@@ -25,7 +26,9 @@ use crate::db::{
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, format_data_time_fix_offset,
     not_support_features,
 };
-use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::helper::{
+    SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
+};
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
@@ -35,6 +38,7 @@ pub struct MsSqlServerDB {
     pub(crate) config: SqlServerDBConfig,
     query_logs: QueryLogMap,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
+    tx_execute_times: TXExecuteTimes,
 }
 
 impl std::fmt::Debug for MsSqlServerDB {
@@ -172,6 +176,7 @@ impl MsSqlServerDB {
             pool,
             query_connections: Default::default(),
             query_logs: Default::default(),
+            tx_execute_times: Default::default(),
         })
     }
 }
@@ -1686,6 +1691,74 @@ impl ExportQueryResult for MsSqlServerDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MsSqlServerDB {
+    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
+        anyhow::Ok(self.tx_execute_times.get(query_id))
+    }
+
+    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
+        let mut steam = conn
+            .simple_query("SELECT @@TRANCOUNT as count ")
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("err:'{}'", e)))?;
+
+        while let Some(item) = steam.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let count: Option<i32> = row.try_get(0)?;
+                    return anyhow::Ok(count.map(|x| x == 0).unwrap_or_default());
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(true)
+    }
+
+    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+        if commit {
+            anyhow::bail!("mssql use commit or rollback to end transaction");
+        }
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        conn.simple_query("BEGIN TRANSACTION;").await?;
+        anyhow::Ok(())
+    }
+
+    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        conn.simple_query("COMMIT TRANSACTION;").await?;
+        self.tx_execute_times.reset(query_id);
+        anyhow::Ok(())
+    }
+
+    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        let conn = match self.query_connections.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        conn.simple_query("ROLLBACK TRANSACTION;").await?;
+        self.tx_execute_times.reset(query_id);
+        anyhow::Ok(())
+    }
+
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
@@ -1707,18 +1780,23 @@ impl QuerySql for MsSqlServerDB {
         let conn = self.new_tcp_conn().await?;
         self.query_connections
             .insert(id.clone(), Arc::new(Mutex::new(conn)));
+        self.tx_execute_times.reset(id);
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_logs.remove(&id);
         self.query_connections.remove(&id);
+        self.tx_execute_times.reset(id);
         anyhow::Ok(())
     }
 
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
+        if !self.get_auto_commit(query_id).await? {
+            self.tx_execute_times.inc(query_id);
+        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -1738,6 +1816,9 @@ impl QuerySql for MsSqlServerDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        if !self.get_auto_commit(query_id).await? {
+            self.tx_execute_times.inc(query_id);
+        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -1751,6 +1832,8 @@ impl QuerySql for MsSqlServerDB {
         let mut stream = conn.simple_query(sql).await?;
         let mut meta_prev = None;
         let mut rows = Vec::new();
+        let mut ml = MemoryLimit::new();
+
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(item) => item,
@@ -1759,7 +1842,7 @@ impl QuerySql for MsSqlServerDB {
                     continue;
                 }
             };
-
+            ml.exceed_error()?;
             match item {
                 tiberius::QueryItem::Row(row) => rows.push(row),
                 tiberius::QueryItem::Metadata(meta) => {
@@ -2091,6 +2174,72 @@ mod tests {
             vec!["abc", "master", "model", "msdb", "tempdb", "test"]
         );
         db.drop_database("abc").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_transaction() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let table_name = "test_commit";
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+             CREATE TABLE test_commit (
+                ID INTEGER PRIMARY KEY,
+                NAME VARCHAR(50)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.rollback(query_id).await.unwrap();
+
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 0
+        );
+
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.commit(query_id).await.unwrap();
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 1
+        );
+        db.re_connect(query_id).await.unwrap();
+
+        assert!(db.get_auto_commit(query_id).await.unwrap());
     }
 
     #[tokio::test]

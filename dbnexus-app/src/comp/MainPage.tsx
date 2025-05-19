@@ -2,7 +2,7 @@ import { NotificationProvider } from './Notification';
 
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
-
+import { platform } from '@tauri-apps/plugin-os';
 import {
   CSSProperties,
   ReactNode,
@@ -13,9 +13,38 @@ import {
 import { SiWelcometothejungle } from 'react-icons/si';
 import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
-import { tabsHasId } from './Common.tsx';
+import { EscDownEvent, modalStyle } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
+
+const keyShortChangetab = {
+  callback: (e: KeyboardEvent) => {
+    if (platform() == 'macos') {
+      if (e.metaKey && e.key == '[') {
+        keyShortChangetab.prev();
+      }
+      if (e.metaKey && e.key == ']') {
+        keyShortChangetab.next();
+      }
+      if (e.metaKey && e.key == ',') {
+        keyShortChangetab.showSetting();
+      }
+    }
+    if (['windows', 'linux'].includes(platform())) {
+      if (e.ctrlKey && e.key == '[') {
+        keyShortChangetab.prev();
+      }
+      if (e.ctrlKey && e.key == ']') {
+        keyShortChangetab.next();
+      }
+    }
+  },
+} as {
+  prev: () => void;
+  next: () => void;
+  callback: (e: KeyboardEvent) => void;
+  showSetting: () => void;
+};
 
 import { ModifySettings, SettingComp } from './Settings.tsx';
 import {
@@ -24,7 +53,9 @@ import {
   ContextMenuContext,
   TabsSetContext,
 } from './helper.ts';
-import { IoMdSettings } from 'react-icons/io';
+
+import { Box, Modal } from '@mui/material';
+
 export default function MainPage() {
   let [tabs, setTabs] = useState([
     new TabContent(
@@ -34,28 +65,31 @@ export default function MainPage() {
       <SiWelcometothejungle> </SiWelcometothejungle>
     ),
   ]);
-  const [selectTab, setSelectTab] = useState(0);
+  const [tab, setTab] = useState(0);
+  const [showSetting, setShowSetting] = useState(false);
+
+  keyShortChangetab.prev = () => {
+    setTab((e) => (e > 0 ? e - 1 : e));
+  };
+
+  keyShortChangetab.next = () => {
+    if (tabs.length - 1 > tab) {
+      setTab((e) => e + 1);
+    }
+  };
+
+  keyShortChangetab.showSetting = () => {
+    setShowSetting(true);
+  };
+
+  // shortcut
+  useEffect(() => {
+    document.addEventListener('keydown', keyShortChangetab.callback);
+  }, []);
 
   useEffect(() => {
     let unlisten = listen('show_settings', () => {
-      let id = 'setting';
-      let index = tabsHasId(tabs, id);
-      if (typeof index == 'number') {
-        setSelectTab(index);
-      } else {
-        setTabs((e) => {
-          setSelectTab(e.length);
-          return [
-            ...e,
-            new TabContent(
-              id,
-              id,
-              <ModifySettings></ModifySettings>,
-              <IoMdSettings> </IoMdSettings>
-            ),
-          ];
-        });
-      }
+      setShowSetting(true);
     });
     return () => {
       unlisten.then((e) => {
@@ -87,13 +121,13 @@ export default function MainPage() {
   );
 
   useEffect(() => {
-    if (selectTab > 0 && selectTab >= tabs.length) {
-      setSelectTab((e) => e - 1);
+    if (tab > 0 && tab >= tabs.length) {
+      setTab((e) => e - 1);
     }
   }, [tabs]);
 
   const changeTab = useCallback((index) => {
-    setSelectTab(index as number);
+    setTab(index as number);
   }, []);
 
   const [leftSize, setLeftSize] = useState(300);
@@ -122,27 +156,54 @@ export default function MainPage() {
         (await appStore()).set(AppStoreKey.LeftSize, newsize);
       }}
     >
-      <Left></Left>
-      <TabsWithContent
-        handleClose={closeTab}
-        tabs={tabs}
-        selectIndex={selectTab}
-        changeTab={changeTab}
-        setTabs={setTabs}
-      ></TabsWithContent>
+      <div style={{ overflow: 'auto', height: '100vh' }}>
+        <Left></Left>
+      </div>
+      <div style={{ overflow: 'auto', height: '100vh' }}>
+        <TabsWithContent
+          handleClose={closeTab}
+          tabs={tabs}
+          selectIndex={tab}
+          changeTab={changeTab}
+          setTabs={setTabs}
+        ></TabsWithContent>
+      </div>
     </SplitPane>
   );
 
   return (
     <SettingComp>
       <ContextMenuContext.Provider value={{ setUpMenu }}>
-        <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab }}>
+        <TabsSetContext.Provider
+          value={{ setTabs, tabs, setSelectTab: setTab }}
+        >
           <NotificationProvider>
             <div> {mainContent} </div>
 
             <div id="menu-div" style={menu && menu.style}>
               {menu && menu.content}
             </div>
+
+            {showSetting && (
+              <Modal
+                open={showSetting}
+                onClose={(e: EscDownEvent, reason) => {
+                  if (reason === 'backdropClick') {
+                    return;
+                  }
+                  e.preventDefault();
+                  setShowSetting(false);
+                }}
+              >
+                <Box sx={modalStyle} width="55%">
+                  <ModifySettings
+                    handleClose={() => {
+                      setShowSetting(false);
+                    }}
+                  ></ModifySettings>
+                </Box>
+              </Modal>
+            )}
           </NotificationProvider>
         </TabsSetContext.Provider>
       </ContextMenuContext.Provider>

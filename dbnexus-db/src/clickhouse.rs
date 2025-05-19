@@ -7,6 +7,7 @@ use r2d2::PooledConnection;
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
 use tokio::task::block_in_place;
 
+use crate::MemoryLimit;
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
@@ -830,11 +831,16 @@ impl QuerySql for ClickHouseDB {
         }]);
         let mut ret = Vec::new();
         let mut query_log = self.query_logs.get_guard(query_id, sql);
+        let mut ml = MemoryLimit::new();
         for sql in sqls.iter() {
+            ml.exceed_error()?;
+
             log::info!("query sql kind:{:?} sql:{}", sql.kind, sql.sql);
             match sql.kind {
                 SqlKind::Query => {
                     let x = self.query_as_json(&sql.sql).await;
+                    ml.exceed_error()?;
+
                     match x {
                         Ok(x) => {
                             let fields = x.infer_fields();

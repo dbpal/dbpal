@@ -20,7 +20,7 @@ use crate::db::{
     SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
     TriggerEvent, TriggerTiming,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
@@ -34,6 +34,7 @@ pub struct SqliteDB {
     read_only: bool,
     path: String,
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
+    tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
 }
 
@@ -1109,6 +1110,7 @@ impl SqliteDB {
             query_connection: Default::default(),
             path,
             query_logs: Default::default(),
+            tx_execute_times: Default::default(),
         })
     }
 
@@ -1196,6 +1198,72 @@ impl ExportQueryResult for SqliteDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
+    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
+        anyhow::Ok(self.tx_execute_times.get(query_id))
+    }
+
+    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+        use sqlx_core::any::AnyConnectionBackend;
+
+        let conn = self.query_connection.get(&query_id);
+        let conn = match conn {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let d = conn.get_transaction_depth();
+        anyhow::Ok(d == 0)
+    }
+
+    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+        if commit {
+            anyhow::bail!("sqlite use  commit or rollback to end transaction");
+        }
+        use sqlx_core::any::AnyConnectionBackend;
+        let conn = self.query_connection.get(&query_id);
+        let conn = match conn {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        conn.begin(None).await?;
+
+        anyhow::Ok(())
+    }
+
+    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        use sqlx_core::any::AnyConnectionBackend;
+
+        let conn = self.query_connection.get(&query_id);
+        let conn = match conn {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        conn.commit().await?;
+        self.tx_execute_times.reset(query_id);
+        anyhow::Ok(())
+    }
+
+    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        use sqlx_core::any::AnyConnectionBackend;
+
+        let conn = self.query_connection.get(&query_id);
+        let conn = match conn {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        conn.rollback().await?;
+        self.tx_execute_times.reset(query_id);
+        anyhow::Ok(())
+    }
+
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
     }
@@ -1203,6 +1271,9 @@ impl QuerySql for SqliteDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
+        if !self.get_auto_commit(query_id).await? {
+            self.tx_execute_times.inc(query_id);
+        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connection.get(&query_id);
@@ -1226,6 +1297,9 @@ impl QuerySql for SqliteDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        if !self.get_auto_commit(query_id).await? {
+            self.tx_execute_times.inc(query_id);
+        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connection.get(&query_id);
@@ -1302,11 +1376,14 @@ impl QuerySql for SqliteDB {
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
+        self.tx_execute_times.reset(id);
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_logs.remove(&id);
+        self.tx_execute_times.reset(id);
+
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
     }
@@ -1512,6 +1589,74 @@ mod tests {
         // println!("{:?}", x);
         println!("time used:{:?}", std::time::Instant::now() - now);
     }
+
+    #[tokio::test]
+    async fn test_transaction() {
+        let db = make_test_object().await;
+
+        let table_name = "test_commit";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+             CREATE TABLE test_commit (
+                ID INTEGER PRIMARY KEY,
+                NAME VARCHAR(50)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.rollback(query_id).await.unwrap();
+
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 0
+        );
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        assert!(!db.get_auto_commit(query_id).await.unwrap());
+
+        db.commit(query_id).await.unwrap();
+        assert!(
+            db.show_table(table_name, None, None, 1, 100, None)
+                .await
+                .unwrap()
+                .total
+                == 1
+        );
+        db.re_connect(query_id).await.unwrap();
+
+        assert!(db.get_auto_commit(query_id).await.unwrap());
+    }
+
     #[ignore = "this test run by hand"]
     #[tokio::test]
     async fn test_do_has_data() {

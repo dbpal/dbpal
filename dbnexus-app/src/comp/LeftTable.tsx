@@ -5,6 +5,7 @@ import {
   tabsHasId,
   DocsAndCount,
   makeAutoComplete,
+  EscDownEvent,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -18,7 +19,7 @@ import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
 import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { IoConstructOutline } from 'react-icons/io5';
-
+import { HiOutlineDuplicate } from 'react-icons/hi';
 import {
   Box,
   Button,
@@ -38,7 +39,7 @@ import {
 } from '@mui/material';
 
 import { TabContent } from './Tabs';
-import { SqlTableView, SqlTableViewAdd } from './SqlTableView';
+import { SqlTableView, SqlTableViewData } from './SqlTableView';
 import { ExportTableOrView } from './Export';
 import AddIcon from '@mui/icons-material/Add';
 import {
@@ -617,8 +618,9 @@ async function makeAddTable(
     case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
       tableList = (
-        <SqlTableViewAdd
-          addOP={async (values) => {
+        <SqlTableViewData
+          buttonName="add"
+          handleData={async (values) => {
             return invoke('insert', {
               name: uuid,
               tableName: table,
@@ -631,7 +633,7 @@ async function makeAddTable(
               tableName: table,
             });
           })()}
-        ></SqlTableViewAdd>
+        ></SqlTableViewData>
       );
       break;
     case DataSourceKind.Redis:
@@ -767,32 +769,21 @@ function TableMenu(props: {
   };
 
   const handleViewData = async () => {
-    const id = uuid + '-table-' + table;
-    let index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
-      setSelectTab(index);
-    } else {
-      let tableList: ReactNode = await makeViewTable(
-        uuid,
-        table,
-        kind,
-        redisTableType,
-        showNotification
-      );
-
-      setTabs((e) => {
-        setSelectTab(tabs.length);
-        return [
-          ...e,
-          new TabContent(
-            id,
-            table,
-            tableList,
-            <TableViewIcon> </TableViewIcon>
-          ),
-        ];
-      });
-    }
+    const id = uuid + '-table-' + generateRandomString(10);
+    let tableList: ReactNode = await makeViewTable(
+      uuid,
+      table,
+      kind,
+      redisTableType,
+      showNotification
+    );
+    setTabs((e) => {
+      setSelectTab(tabs.length);
+      return [
+        ...e,
+        new TabContent(id, table, tableList, <TableViewIcon> </TableViewIcon>),
+      ];
+    });
   };
   const handleAddData = async () => {
     const id = generateRandomString(10);
@@ -918,7 +909,9 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
+            <HiOutlineDuplicate
+              style={{ fontSize: '1.7rem' }}
+            ></HiOutlineDuplicate>
           </ListItemIcon>
           <ListItemText> Duplicate </ListItemText>
         </MenuItem>
@@ -969,11 +962,11 @@ function TableMenu(props: {
       {showDup && (
         <Modal
           open={showDup}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setshowDup(false);
           }}
@@ -993,11 +986,11 @@ function TableMenu(props: {
       {showRename && (
         <Modal
           open={showRename}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowRename(false);
           }}
@@ -1017,11 +1010,11 @@ function TableMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowExport(false);
           }}
@@ -1043,11 +1036,11 @@ function TableMenu(props: {
       {showDrop && (
         <Modal
           open={showDrop}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowDrop(false);
           }}
@@ -1360,11 +1353,11 @@ function RedisTables(prpos: { schema?: string }) {
       {showEditFilter && (
         <Modal
           open={showEditFilter}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
+
             e.preventDefault();
             setShowEditFilter(false);
           }}

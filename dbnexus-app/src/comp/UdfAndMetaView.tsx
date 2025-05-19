@@ -7,9 +7,9 @@ import { MetaValuesView } from './CommonComp';
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
-  uuid: string;
+  language: string;
 }) {
-  let { reloadOP, uuid: language } = props;
+  let { reloadOP, language } = props;
   const titleVariant = 'h6';
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas | null>(null);
@@ -20,6 +20,7 @@ function DefAndMetasView(props: {
     reloadOP()
       .then((detail) => {
         setDetail(detail);
+        showNotification('success', 'reload ok');
       })
       .catch((e) => {
         showNotification('error', 'fetch detail failed', e);
