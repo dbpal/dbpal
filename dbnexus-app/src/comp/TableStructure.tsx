@@ -1473,11 +1473,10 @@ function TriggersStructure(props: {
       {row && (
         <Modal
           open={!!row}
-          onClose={(e, reason) => {
+          onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
-            //@ts-ignore
             e.preventDefault();
             setRow(null);
           }}
@@ -1505,7 +1504,7 @@ function TableStructure(props: {
   const [structure, setStructure] = useState('columns');
   const structures = [{ name: 'columns', color: 'secondary' }, ,];
 
-  const support_statement = [
+  const supportStatement = [
     DataSourceKind.Cassandra,
     DataSourceKind.ClickHouse,
     DataSourceKind.LibSql,
@@ -1515,7 +1514,7 @@ function TableStructure(props: {
     DataSourceKind.MariaDB,
     DataSourceKind.DuckDB,
   ].includes(kind);
-  if (support_statement) {
+  if (supportStatement) {
     structures.push({ name: 'statement', color: 'primary' });
   }
   const supportIndex = [
@@ -1597,7 +1596,6 @@ function TableStructure(props: {
     </Stack>
   );
 }
-
 function StatementStructure(props: {
   uuid: string;
   kind: DataSourceKind;

@@ -13,7 +13,7 @@ import {
 import { SiWelcometothejungle } from 'react-icons/si';
 import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
-import { modalStyle } from './Common.tsx';
+import { EscDownEvent, modalStyle } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 
@@ -187,11 +187,10 @@ export default function MainPage() {
             {showSetting && (
               <Modal
                 open={showSetting}
-                onClose={(e, reason) => {
+                onClose={(e: EscDownEvent, reason) => {
                   if (reason === 'backdropClick') {
                     return;
                   }
-                  //@ts-ignore
                   e.preventDefault();
                   setShowSetting(false);
                 }}

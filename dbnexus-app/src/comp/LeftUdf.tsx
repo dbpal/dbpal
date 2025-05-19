@@ -193,7 +193,7 @@ function UdfMenu(props: {
                     arg,
                   });
                 }}
-                uuid={uuid}
+                language={uuid}
               ></DefAndMetasView>
             ),
             <TbMathFunction></TbMathFunction>
@@ -288,7 +288,7 @@ function CassandraAggregateMenu(props: {
                     }
                   );
                 }}
-                uuid={uuid}
+                language={uuid}
               ></DefAndMetasView>
             ),
             <MdFunctions></MdFunctions>

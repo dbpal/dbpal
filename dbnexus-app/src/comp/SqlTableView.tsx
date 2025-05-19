@@ -152,11 +152,10 @@ function WhereSort(props: {
   return (
     <Modal
       open={open}
-      onClose={(e, reason) => {
+      onClose={(e: EscDownEvent, reason) => {
         if (reason === 'backdropClick') {
           return;
         }
-        //@ts-ignore
         e.preventDefault();
         onClose();
       }}
@@ -693,7 +692,6 @@ function SqlTableView(props: {
             if (reason === 'backdropClick') {
               return;
             }
-
             e.preventDefault();
             setEditInModal(null);
           }}

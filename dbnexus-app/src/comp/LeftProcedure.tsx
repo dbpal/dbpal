@@ -162,7 +162,7 @@ function ProcedureMenu(props: {
                     arg,
                   });
                 }}
-                uuid={uuid}
+                language={uuid}
               ></DefAndMetasView>
             ),
             <SiProcessingfoundation></SiProcessingfoundation>
