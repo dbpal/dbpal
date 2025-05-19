@@ -551,7 +551,7 @@ function MenuConnectionInfo({ uuid }) {
 class UserSettings {
   theme: string = 'light';
   pageSize: number = 100;
-  editorFontSize: number;
+  editorFontSize: number = 16;
   rootFontSize: number = 15;
   datagridRowHeight: number = 24;
   datagridHeaderHeight: number = 30;
