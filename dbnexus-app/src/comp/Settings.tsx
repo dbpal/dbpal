@@ -45,6 +45,9 @@ function ModifySettings({ handleClose }) {
     (await appStore())
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((settings) => {
+        if (!settings) {
+          settings = new UserSettings();
+        }
         setPageSize(settings.pageSize);
         setTheme(settings.theme);
         setEditorFontSize(settings.editorFontSize);
