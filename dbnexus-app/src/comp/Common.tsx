@@ -471,6 +471,7 @@ function SimpleResizeEditor(props: {
         flexDirection: 'column',
         resize: 'vertical',
         overflow: 'auto',
+        minHeight: 150,
         ...style,
       }}
     >

@@ -15,12 +15,14 @@ function DefAndMetasView(props: {
   const [detail, setDetail] = useState<DefAndMetas | null>(null);
   const { showNotification } = useContext(NotificationContext);
 
-  const handleReload = () => {
+  const handleReload = (showok) => {
     setLoading(true);
     reloadOP()
       .then((detail) => {
         setDetail(detail);
-        showNotification('success', 'reload ok');
+        if (showok) {
+          showNotification('success', 'reload ok');
+        }
       })
       .catch((e) => {
         showNotification('error', 'fetch detail failed', e);
@@ -31,7 +33,7 @@ function DefAndMetasView(props: {
   };
 
   useEffect(() => {
-    handleReload();
+    handleReload(false);
   }, []);
 
   return (
@@ -41,7 +43,9 @@ function DefAndMetasView(props: {
           loading={loading}
           variant="contained"
           color="primary"
-          onClick={handleReload}
+          onClick={() => {
+            handleReload(true);
+          }}
         >
           reload
         </Button>
