@@ -438,7 +438,7 @@ function SimpleResizeEditor(props: {
   } = props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
-  let height = editorInitHeight(value, setting.editorFontSize * 1.2);
+  let height = editorInitHeight(value, setting.editorFontSize * 1.5);
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
   }

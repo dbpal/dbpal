@@ -118,6 +118,17 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (!commit && txCount > 0) {
+        showNotification(
+          'error',
+          'You have uncommitted transaction  may lead to database beed locked'
+        );
+      }
+    };
+  }, [txCount]);
+
   return (
     <>
       <Tooltip title="reverse commit mode">
