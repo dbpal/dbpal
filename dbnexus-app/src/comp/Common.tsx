@@ -442,6 +442,9 @@ function SimpleResizeEditor(props: {
   if (minHeigth && height < minHeigth) {
     height = minHeigth;
   }
+
+  const [heightState, _setHeight] = useState(height);
+
   const handleDidMount = useCallback(
     (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
       editor.onDidChangeCursorPosition(() => {
@@ -480,7 +483,7 @@ function SimpleResizeEditor(props: {
           flexGrow: 1,
           flexShrink: 1,
           minHeight: 0,
-          height: height + 'px',
+          height: heightState + 'px',
         }}
       >
         <Editor
