@@ -270,6 +270,7 @@ function MongoBsonEditor(props: {
         setDocHasChange(true);
         try {
           parseMongoBson(text);
+          setErr(null);
         } catch (e) {
           setErr(e);
         }
@@ -359,8 +360,11 @@ function MongoBsonEditor(props: {
             );
           })}
 
-          {err == null && <Alert severity="success">Valid Document</Alert>}
-          {!!err && <Alert severity="error">{err.msgWithLoc}</Alert>}
+          {err ? (
+            <Alert severity="error">{err.msgWithLoc}</Alert>
+          ) : (
+            <Alert severity="success">Valid Document</Alert>
+          )}
         </Stack>
         <Stack width="40%" spacing={1} direction="row" alignContent="center">
           {pos && (
