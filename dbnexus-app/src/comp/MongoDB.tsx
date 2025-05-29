@@ -269,7 +269,7 @@ function MongoBsonEditor(props: {
         let text = ce.getValue();
         setDocHasChange(true);
         try {
-          parseMongoBson(text);
+          parseMongoBson(text).compile();
           setErr(null);
         } catch (e) {
           setErr(e);
