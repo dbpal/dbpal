@@ -152,6 +152,7 @@ export default function MainPage() {
         minHeight: '100vh',
         height: 'auto',
       }}
+      maxSize={700}
       onDragFinished={async (newsize) => {
         (await appStore()).set(AppStoreKey.LeftSize, newsize);
       }}
