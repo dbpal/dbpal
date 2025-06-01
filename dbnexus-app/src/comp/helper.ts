@@ -241,7 +241,7 @@ function calMenuStyle(e, eheigth: number): CSSProperties {
   ret.bottom = 'auto';
   ret.left = 'auto';
   ret.right = 'auto';
-  if (width - x > 150) {
+  if (width - x > 250) {
     // this is click have a lot of space on the right
     ret.left =
       x -
