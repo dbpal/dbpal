@@ -146,7 +146,7 @@ export default function MainPage() {
     //@ts-ignore
     <SplitPane
       split="vertical"
-      minSize={0}
+      minSize={150}
       defaultSize={leftSize}
       style={{
         minHeight: '100vh',
