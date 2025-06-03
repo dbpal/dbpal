@@ -136,7 +136,7 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
           onClick={handleReverse}
           label={`${commit ? 'auto' : 'manual'}-commit`}
           size="small"
-          color="info"
+          color={commit ? 'info' : 'success'}
         ></Chip>
       </Tooltip>
 
