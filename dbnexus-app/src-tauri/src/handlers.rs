@@ -842,13 +842,15 @@ pub async fn query_sql_close_connection(
         Open::DataBase(x) => x.get_auto_commit(query_id).await,
         Open::Schema(x) => x.get_auto_commit(query_id).await,
     }
-    .map_err(|x| ErrorFrontend::from(x))?;
+    .ok()
+    .unwrap_or(true);
     let tx_count = match &db {
         Open::Catalog(x) => x.tx_execute_counts(query_id),
         Open::DataBase(x) => x.tx_execute_counts(query_id),
         Open::Schema(x) => x.tx_execute_counts(query_id),
     }
-    .map_err(|x| ErrorFrontend::from(x))?;
+    .ok()
+    .unwrap_or(0);
 
     if !commit && tx_count > 0 {
         let _ = handle.emit("close_connection_has_uncommit_tx", "");
