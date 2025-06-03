@@ -1,4 +1,4 @@
-import { NotificationProvider } from './Notification';
+import { NotificationContext, NotificationProvider } from './Notification';
 
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
@@ -7,6 +7,7 @@ import {
   CSSProperties,
   ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useState,
 } from 'react';
@@ -96,7 +97,7 @@ export default function MainPage() {
         e();
       });
     };
-  }, [tabs]);
+  }, []);
 
   const [menu, setUpMenu] = useState<{
     content: ReactNode;
@@ -185,6 +186,8 @@ export default function MainPage() {
               {menu && menu.content}
             </div>
 
+            <WarnUnCommitTx></WarnUnCommitTx>
+
             {showSetting && (
               <Modal
                 open={showSetting}
@@ -210,4 +213,23 @@ export default function MainPage() {
       </ContextMenuContext.Provider>
     </SettingComp>
   );
+}
+
+function WarnUnCommitTx() {
+  const { showNotification } = useContext(NotificationContext);
+  useEffect(() => {
+    let unlisten = listen('close_connection_has_uncommit_tx', () => {
+      showNotification(
+        'error',
+        'You have uncommitted transaction  may lead to database beed locked'
+      );
+    });
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, []);
+
+  return <></>;
 }

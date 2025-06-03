@@ -24,6 +24,7 @@ use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::tidb::TiDB;
+use tauri::{AppHandle, Emitter};
 
 use crate::app::{self, App, DBConnectionConfig, Open};
 pub const PASSWORD_KEY: &str = "site.dbpal.dev";
@@ -830,11 +831,29 @@ pub async fn query_sql_re_connection(
 
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>, handle: AppHandle,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+
     let db = app.open(name.as_str()).await.map_err(|e| e.to_string())?;
+    let commit = match &db {
+        Open::Catalog(x) => x.get_auto_commit(query_id).await,
+        Open::DataBase(x) => x.get_auto_commit(query_id).await,
+        Open::Schema(x) => x.get_auto_commit(query_id).await,
+    }
+    .map_err(|x| ErrorFrontend::from(x))?;
+    let tx_count = match &db {
+        Open::Catalog(x) => x.tx_execute_counts(query_id),
+        Open::DataBase(x) => x.tx_execute_counts(query_id),
+        Open::Schema(x) => x.tx_execute_counts(query_id),
+    }
+    .map_err(|x| ErrorFrontend::from(x))?;
+
+    if !commit && tx_count > 0 {
+        let _ = handle.emit("close_connection_has_uncommit_tx", "");
+    }
+
     let result = match db {
         Open::DataBase(x) => x.close_connection(query_id).await,
         Open::Schema(x) => x.close_connection(query_id).await,
