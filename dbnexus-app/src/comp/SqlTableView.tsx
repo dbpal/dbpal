@@ -416,6 +416,7 @@ function SqlTableView(props: {
           'Update OK',
           `sql:${ret.sql} row affected:${ret.changes}`
         );
+        handleReload(false);
       } catch (e) {
         showNotification('error', 'update failed', e);
         throw e;
