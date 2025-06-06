@@ -839,7 +839,7 @@ function SqlTableViewData(props: {
         continue;
       }
       if (!args[f.field] && !f.nullable) {
-        inputDoms.current[i].focus();
+        inputDoms.current[f.field].focus();
         showNotification('error', `filed '${f.field}' need be filled`);
         return;
       }
@@ -850,7 +850,7 @@ function SqlTableViewData(props: {
         showNotification('success', `${buttonName} OK`);
       })
       .catch((e) => {
-        showNotification('error', `${buttonName} Faulure`, e);
+        showNotification('error', `${buttonName} failure`, e);
       })
       .finally(() => {
         setLoading(false);
