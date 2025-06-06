@@ -1069,7 +1069,7 @@ function Menu(props: {
         )}
         <Divider></Divider>
 
-        {content && nullable && setNull && (
+        {nullable && setNull && (
           <MenuItem
             onClick={() => {
               setNull();
