@@ -199,6 +199,7 @@ function WhereSort(props: {
   );
 }
 
+var EditInModalLanguage = 'text';
 function EditInModal(props: { content: string; handleModify }) {
   const { content, handleModify } = props;
   const languages = [
@@ -209,7 +210,7 @@ function EditInModal(props: { content: string; handleModify }) {
     language: string;
     color: string;
   }[];
-  const [language, setLanguage] = useState(languages[0].language);
+  const [language, setLanguage] = useState(EditInModalLanguage);
   const [value, setValue] = useState(content);
   return (
     <Stack spacing={1}>
@@ -224,6 +225,7 @@ function EditInModal(props: { content: string; handleModify }) {
             disabled={language == e.language}
             onClick={() => {
               setLanguage(e.language);
+              EditInModalLanguage = e.language;
             }}
           ></Chip>
         ))}
