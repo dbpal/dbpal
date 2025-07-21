@@ -114,12 +114,10 @@ impl AstCompletionHelper for LibSqlDB {
         let ret = stmt
             .columns()
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.name().to_string().into(),
-                    desc: Some(x.decl_type().unwrap_or_default().to_string().into()),
-                    kind: CompletionKind::Column,
-                }
+            .map(|x| CompletionItem {
+                item: x.name().to_string().into(),
+                desc: Some(x.decl_type().unwrap_or_default().to_string().into()),
+                kind: CompletionKind::Column,
             })
             .collect::<Vec<_>>();
         // check if prepare return the reuslt.
@@ -130,15 +128,13 @@ impl AstCompletionHelper for LibSqlDB {
         let row = stmt.query_row(params!()).await?;
         anyhow::Ok(
             (0..row.column_count())
-                .map(|index| {
-                    CompletionItem {
-                        item: row.column_name(index).unwrap_or_default().to_owned().into(),
-                        kind: CompletionKind::Column,
-                        desc: row
-                            .column_type(index)
-                            .ok()
-                            .map(|x| Cow::Owned(format!("{:?}", x))),
-                    }
+                .map(|index| CompletionItem {
+                    item: row.column_name(index).unwrap_or_default().to_owned().into(),
+                    kind: CompletionKind::Column,
+                    desc: row
+                        .column_type(index)
+                        .ok()
+                        .map(|x| Cow::Owned(format!("{:?}", x))),
                 })
                 .collect(),
         )
@@ -149,12 +145,10 @@ impl AstCompletionHelper for LibSqlDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let vec = SQLITE_FN_AND_DESC
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x[0].into(),
-                    kind: CompletionKind::Function,
-                    desc: Some(x[1].into()),
-                }
+            .map(|x| CompletionItem {
+                item: x[0].into(),
+                kind: CompletionKind::Function,
+                desc: Some(x[1].into()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(vec)

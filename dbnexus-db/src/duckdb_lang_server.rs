@@ -107,12 +107,10 @@ impl AstCompletionHelper for DuckDB {
             .column_names()
             .into_iter()
             .enumerate()
-            .map(|(index, name)| {
-                CompletionItem {
-                    item: name.into(),
-                    desc: Some(stmt.column_type(index).to_string().into()),
-                    kind: CompletionKind::Column,
-                }
+            .map(|(index, name)| CompletionItem {
+                item: name.into(),
+                desc: Some(stmt.column_type(index).to_string().into()),
+                kind: CompletionKind::Column,
             })
             .collect::<Vec<_>>();
         anyhow::Ok(fs)

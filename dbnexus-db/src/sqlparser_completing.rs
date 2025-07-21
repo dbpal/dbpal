@@ -22,6 +22,7 @@ impl Into<CompletionKind> for ObjectType {
             ObjectType::Sequence => CompletionKind::Sequence,
             ObjectType::Stage => CompletionKind::Stage,
             ObjectType::Type => CompletionKind::Type,
+            ObjectType::MaterializedView => CompletionKind::View,
         }
     }
 }
@@ -214,7 +215,7 @@ impl CompletionStatement {
         }
         match typ {
             ObjectType::Table => self.c_on_table(name).await,
-            ObjectType::View => self.c_on_view(name).await,
+            ObjectType::View | ObjectType::MaterializedView => self.c_on_view(name).await,
             ObjectType::Index => self.c_on_index(name).await,
             ObjectType::Schema | ObjectType::Database => {
                 // c_on_db_schema 假设形式是 database.schema.table
@@ -584,7 +585,7 @@ impl CompletionStatement {
                                 }
                             }
                         }
-                        TableConstraint::Check { name, expr } => {
+                        TableConstraint::Check { name, expr, .. } => {
                             //  https://www.w3schools.com/sql/sql_check.asp
                             let _guard =
                                 self.scopes.push(Scope::from_this_table(table_name.clone()));
@@ -835,6 +836,15 @@ impl CompletionStatement {
                 AlterTableOperation::ResumeRecluster => {}
                 AlterTableOperation::Algorithm { .. } => {}
                 AlterTableOperation::AutoIncrement { .. } => {}
+                AlterTableOperation::DropForeignKey { .. } => {
+                    //  TODO support this.
+                }
+                AlterTableOperation::DropIndex { name } => {
+                    self.c_on_index(&ObjectName(vec![ObjectNamePart::Identifier(name.clone())]))
+                        .await;
+                }
+                AlterTableOperation::ReplicaIdentity { .. } => {}
+                AlterTableOperation::Lock { .. } => {}
             }
         }
     }
@@ -1071,6 +1081,9 @@ impl CompletionStatement {
             ColumnOption::Policy(_column_policy) => {}
             ColumnOption::Tags(_tags_column_option) => {}
             ColumnOption::Collation(..) => {}
+            ColumnOption::Srid(expr) => {
+                self.c_on_expr(&expr).await;
+            }
         }
     }
 
@@ -1139,7 +1152,7 @@ impl CompletionStatement {
                 if self.finished() {
                     return;
                 }
-                let _ = Box::pin(self.c_on_query(&subquery))
+                let _ = Box::pin(self.c_on_set_expr(subquery.as_ref()))
                     .await
                     .map(|e| log::error!("a error:{:?}", e))
                     .ok();
@@ -1333,9 +1346,6 @@ impl CompletionStatement {
                 // literal value
                 // nothing to completion
             }
-            Expr::IntroducedString { .. } => {
-                // literal value
-            }
             Expr::TypedString { .. } => {
                 // literal value
             }
@@ -1343,8 +1353,8 @@ impl CompletionStatement {
             Expr::Case {
                 operand,
                 conditions,
-
                 else_result,
+                ..
             } => {
                 if let Some(operand) = operand {
                     Box::pin(self.c_on_expr(&operand)).await;
@@ -1443,19 +1453,25 @@ impl CompletionStatement {
             Expr::MatchAgainst { columns, .. } => {
                 if let Some(this_table) = self.scopes.this_table() {
                     for c in columns.iter() {
-                        match &this_table {
-                            ThisTableEnum::Table { name } => {
-                                self.c_on_column(name, c, false).await;
-                                if self.finished() {
-                                    return;
+                        for col in c.0.iter() {
+                            match col {
+                                ObjectNamePart::Identifier(ident) => {
+                                    match &this_table {
+                                        ThisTableEnum::Table { name } => {
+                                            self.c_on_column(name, ident, false).await;
+                                            if self.finished() {
+                                                return;
+                                            }
+                                        }
+                                        ThisTableEnum::Temp { temp: _temp } => {
+                                            // temp this table only use in table create
+                                            // I think I should never enter here.
+                                            log::error!(
+                                                "temp this table only use in table create , I think I should never enter here."
+                                            );
+                                        }
+                                    }
                                 }
-                            }
-                            ThisTableEnum::Temp { temp: _temp } => {
-                                // temp this table only use in table create
-                                // I think I should never enter here.
-                                log::error!(
-                                    "temp this table only use in table create , I think I should never enter here."
-                                );
                             }
                         }
                     }
@@ -1510,6 +1526,9 @@ impl CompletionStatement {
             }
             Expr::IsNormalized { expr, .. } => {
                 Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::Prefixed { value, .. } => {
+                Box::pin(self.c_on_expr(&value)).await;
             }
         }
     }
@@ -1817,6 +1836,9 @@ impl CompletionStatement {
                 JoinOperator::Right(join_constraint) => {
                     self.c_on_join_constraint(join_constraint).await
                 }
+                JoinOperator::StraightJoin(join_constraint) => {
+                    self.c_on_join_constraint(join_constraint).await
+                }
             }
         }
         return scope;
@@ -2106,12 +2128,32 @@ impl CompletionStatement {
                 }
             }
         }
-        // limit and offset can't filter on column values
-        // so we don't need handle limit and offset
-        // althought it is a expr,But I think it is literal.
-
-        // limit by is not support right now.
-        let _ = &query.limit_by;
+        if let Some(limit) = query.limit_clause.as_ref() {
+            match limit {
+                LimitClause::LimitOffset {
+                    limit,
+                    offset,
+                    limit_by,
+                } => {
+                    if let Some(limit) = limit {
+                        self.c_on_expr(limit).await;
+                    }
+                    if let Some(offset) = offset {
+                        self.c_on_expr(&offset.value).await;
+                    }
+                    for l in limit_by.iter() {
+                        self.c_on_expr(l).await;
+                        if self.finished() {
+                            break;
+                        }
+                    }
+                }
+                LimitClause::OffsetCommaLimit { offset, limit } => {
+                    self.c_on_expr(offset).await;
+                    self.c_on_expr(limit).await;
+                }
+            }
+        }
 
         return Box::pin(self.c_on_set_expr(&query.body)).await;
     }
@@ -2187,6 +2229,9 @@ impl CompletionStatement {
                     .map(TempTableColumn::from)
                     .collect();
                 return anyhow::Ok(cols);
+            }
+            SetExpr::Delete(statement) => {
+                self.completion_on_statement(statement).await;
             }
         }
         anyhow::Ok(vec![])
@@ -2286,7 +2331,6 @@ impl CompletionStatement {
                     self.c_on_expr(h).await;
                 }
             }
-
             TableFactor::Derived {
                 subquery, alias, ..
             } => {
@@ -2347,6 +2391,7 @@ impl CompletionStatement {
             TableFactor::Pivot { .. } => {}
             TableFactor::Unpivot { .. } => {}
             TableFactor::MatchRecognize { .. } => {}
+            TableFactor::XmlTable { .. } => {}
         }
     }
 

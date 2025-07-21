@@ -422,12 +422,10 @@ impl QuerySql for FireBirdDB {
                         Err(err) => ret.push(Err(err.to_string())),
                     }
                 }
-                _ => {
-                    match block_in_place(|| conn.execute(&s.sql, ())) {
-                        Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_owned()))),
-                        Err(err) => ret.push(Err(err.to_string())),
-                    }
-                }
+                _ => match block_in_place(|| conn.execute(&s.sql, ())) {
+                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_owned()))),
+                    Err(err) => ret.push(Err(err.to_string())),
+                },
             }
         }
 
@@ -1003,35 +1001,25 @@ fn put_value_in_sql(
     let typ = typ.to_lowercase();
     log::trace!("encode value '{:?}' on type '{}'", value, typ);
     match typ.as_str() {
-        "text" | "varying" | "date" | "time" | "timestamp" => {
-            anyhow::Ok(
-                value
-                    .map(|x| format!("'{}'", x))
-                    .unwrap_or("null".to_string()),
-            )
-        }
+        "text" | "varying" | "date" | "time" | "timestamp" => anyhow::Ok(
+            value
+                .map(|x| format!("'{}'", x))
+                .unwrap_or("null".to_string()),
+        ),
         // binary is blob
-        "blob" if sub_type_is_text(sub_type) => {
-            anyhow::Ok(
+        "blob" if sub_type_is_text(sub_type) => anyhow::Ok(
+            value
+                .map(|x| format!("'{}'", x))
+                .unwrap_or("null".to_string()),
+        ),
+        "blob" => match sub_type {
+            Some(sub_type) => anyhow::Ok(
                 value
-                    .map(|x| format!("'{}'", x))
+                    .map(|x| format!("CAST(HEX_DECODE('{}') AS BLOB SUB_TYPE {})", x, sub_type))
                     .unwrap_or("null".to_string()),
-            )
-        }
-        "blob" => {
-            match sub_type {
-                Some(sub_type) => {
-                    anyhow::Ok(
-                        value
-                            .map(|x| {
-                                format!("CAST(HEX_DECODE('{}') AS BLOB SUB_TYPE {})", x, sub_type)
-                            })
-                            .unwrap_or("null".to_string()),
-                    )
-                }
-                None => anyhow::bail!("sub type shoule some."),
-            }
-        }
+            ),
+            None => anyhow::bail!("sub type shoule some."),
+        },
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
 }

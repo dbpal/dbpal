@@ -13,6 +13,7 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import CloseIcon from '@mui/icons-material/Close';
@@ -44,7 +45,7 @@ import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { secondConfirm } from './helper.ts';
+import { millisecondsToStr, secondConfirm } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
 import { PiFileSqlFill } from 'react-icons/pi';
@@ -184,6 +185,8 @@ function SqlQuery(props: {
     null
   );
 
+  const executeTimeRef = useRef(null);
+
   const [commitNonce, setCommitNonce] = useState(0);
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
@@ -301,6 +304,27 @@ function SqlQuery(props: {
     }
     return text;
   };
+  const timeExecute = () => {
+    const now = new Date();
+    return setInterval(() => {
+      //@ts-ignore
+      const ms = new Date() - now;
+      function getTime() {
+        let s = Math.floor(ms / 1000);
+        if (s == 0) {
+          return `${ms}ms`;
+        }
+        let r = ms % 1000;
+        if (r == 0) {
+          return `${s}s`;
+        }
+        return `${s}s ${r}ms`;
+      }
+      (
+        executeTimeRef.current as HTMLDivElement
+      ).innerHTML = `execute time: ${getTime()}`;
+    }, 10);
+  };
   const handleExecute = async () => {
     const text = getText();
     if (!text) {
@@ -318,6 +342,7 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
+    const timeExecuteInt = timeExecute();
     conn
       .executeOP(text)
       .then((e) => {
@@ -334,6 +359,7 @@ function SqlQuery(props: {
       .finally(() => {
         setLoading(false);
         setCommitNonce((e) => e + 1);
+        clearInterval(timeExecuteInt);
       });
   };
   const handleQuery = async (append: boolean) => {
@@ -353,6 +379,7 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
+    const timeExecuteInt = timeExecute();
     conn
       .queryOP(text)
       .then((resp) => {
@@ -374,6 +401,7 @@ function SqlQuery(props: {
       .finally(() => {
         setLoading(false);
         setCommitNonce((e) => e + 1);
+        clearInterval(timeExecuteInt);
       });
   };
 
@@ -501,6 +529,13 @@ function SqlQuery(props: {
               <FaExclamation />
             </IconButton>
           </Tooltip>
+          <Chip
+            color="info"
+            ref={executeTimeRef}
+            size="small"
+            label="execute time"
+            sx={{ p: 1 }}
+          ></Chip>
 
           {conn && conn.supportTransaction() && (
             <SqlTransaction nonce={commitNonce} conn={conn} />

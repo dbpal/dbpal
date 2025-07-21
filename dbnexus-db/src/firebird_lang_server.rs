@@ -82,12 +82,10 @@ impl AstCompletionHelper for FireBirdDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         SchemaTrait::show_table_columns(self, name).await.map(|x| {
             x.into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.field.clone().into(),
-                        kind: CompletionKind::Column,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.field.clone().into(),
+                    kind: CompletionKind::Column,
+                    desc: None,
                 })
                 .collect()
         })
@@ -109,12 +107,10 @@ impl AstCompletionHelper for FireBirdDB {
 
         anyhow::Ok(
             rows.into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.0.trim().to_owned().into(),
-                        kind: CompletionKind::Function,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.0.trim().to_owned().into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
                 })
                 .collect(),
         )

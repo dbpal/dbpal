@@ -6,8 +6,9 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 
+
 [dependencies]
-bb8.workspace = true
+bb8 = "0.9"
 anyhow.workspace = true
 serde.workspace = true
 async-trait.workspace = true
@@ -27,34 +28,47 @@ sqlx = { version = "0.8.5", features = [
 ] }
 sqlx-core = { version = "*", features = [] }
 
+redis = { version = "*", features = [
+    "tokio-comp",
+    "aio",
+    "connection-manager",
+] }
 
 dashmap.workspace = true
 hex.workspace = true
-mac_address.workspace = true
-ipnetwork.workspace = true
-chrono.workspace = true
+mac_address = "1.1.5"
+ipnetwork = "0.20"
+chrono = "0.4.34"
 bit-vec = "0.6.3"
 uuid.workspace = true
 serde_json.workspace = true
-sqlparser.workspace = true
+sqlparser = { version = "0.57", features = ["serde"] }
 lazy_static.workspace = true
-line-index.workspace = true
+line-index = "0.1.1"
 log.workspace = true
-redis.workspace = true
+
 futures-util.workspace = true
 futures-core.workspace = true
 mongodb.workspace = true
-tiberius.workspace = true
+tiberius = { version = "0.12.3", default-features = false, features = [
+    "chrono",
+    "rust_decimal",
+    "tds73",
+    "rustls",
+] }
+
+bb8-tiberius = "0.16"
 tokio.workspace = true
 tokio-util.workspace = true
-rust_decimal.workspace = true
-bb8-tiberius = "*"
+rust_decimal = "*"
+
+
 oracle = { version = "0.6.3", features = ["chrono"] }
 pg_interval = "*"
 typescript-type-def = "*"
-sqlformat = "*"
+sqlformat = "=0.3.3"
 fuzzy-matcher = "*"
-bson = "*"
+bson.workspace = true
 humantime = "*"
 humansize = "*"
 memory-stats = "1.2.0"

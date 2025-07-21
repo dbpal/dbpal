@@ -728,12 +728,10 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let arg = match &arg {
-            Some(arg) => {
-                match arg {
-                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                    _ => return Err(arg.wrong_type()),
-                }
-            }
+            Some(arg) => match arg {
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                _ => return Err(arg.wrong_type()),
+            },
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
 
@@ -770,15 +768,13 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => {
-                match x {
-                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                    #[allow(unreachable_patterns)]
-                    _ => {
-                        anyhow::bail!("must be a postgres parameter")
-                    }
+            Some(x) => match x {
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                #[allow(unreachable_patterns)]
+                _ => {
+                    anyhow::bail!("must be a postgres parameter")
                 }
-            }
+            },
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 

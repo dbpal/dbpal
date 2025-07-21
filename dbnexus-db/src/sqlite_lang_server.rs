@@ -134,12 +134,10 @@ impl AstCompletionHelper for SqliteDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.name().to_string().into(),
-                    desc: Some(x.type_info().to_string().into()),
-                    kind: CompletionKind::Column,
-                }
+            .map(|x| CompletionItem {
+                item: x.name().to_string().into(),
+                desc: Some(x.type_info().to_string().into()),
+                kind: CompletionKind::Column,
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -150,12 +148,10 @@ impl AstCompletionHelper for SqliteDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let vec = SQLITE_FN_AND_DESC
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x[0].into(),
-                    kind: CompletionKind::Function,
-                    desc: Some(x[1].into()),
-                }
+            .map(|x| CompletionItem {
+                item: x[0].into(),
+                kind: CompletionKind::Function,
+                desc: Some(x[1].into()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(vec)

@@ -141,12 +141,10 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             Self::KEY_WORDS
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: Cow::Borrowed(*x),
-                        kind: CompletionKind::KeyWord,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: Cow::Borrowed(*x),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -154,51 +152,56 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             Self::TYPES
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: Cow::Borrowed(*x),
-                        kind: CompletionKind::Type,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: Cow::Borrowed(*x),
+                    kind: CompletionKind::Type,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(
             Self::TEXTS
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: Cow::Borrowed(*x),
-                        kind: CompletionKind::Text,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: Cow::Borrowed(*x),
+                    kind: CompletionKind::Text,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(self.extra_completion_item().await.into_iter());
-        ret.extend(self.list_table_or_view().await?.into_iter().map(|x| {
-            CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Table,
-                desc: None,
-            }
-        }));
+        ret.extend(
+            self.list_table_or_view()
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
+                }),
+        );
         ret.extend(self.list_function().await?.into_iter());
 
-        ret.extend(self.list_database().await?.into_iter().map(|x| {
-            CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Database,
-                desc: None,
-            }
-        }));
-        ret.extend(self.list_schema(None).await?.into_iter().map(|x| {
-            CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Schema,
-                desc: None,
-            }
-        }));
+        ret.extend(
+            self.list_database()
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Database,
+                    desc: None,
+                }),
+        );
+        ret.extend(
+            self.list_schema(None)
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Schema,
+                    desc: None,
+                }),
+        );
         anyhow::Ok(ret)
     }
 
