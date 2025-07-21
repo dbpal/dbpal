@@ -731,7 +731,7 @@ pub async fn is_dangerous_sql(
 #[tauri::command]
 pub async fn query_sql(
     name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
-) -> Result<Vec<Result<MuiDataGridData, String>>, ErrorFrontend> {
+) -> Result<Vec<Result<QueryResp, String>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
@@ -743,20 +743,13 @@ pub async fn query_sql(
         Open::Catalog(x) => x.query_sql(query_id, &sql).await,
     };
 
-    result.map_err(ErrorFrontend::from).map(|x| {
-        x.into_iter()
-            .map(|x| match x {
-                Err(e) => Err(e),
-                Ok(x) => Ok(MuiDataGridData::from(x)),
-            })
-            .collect::<Vec<_>>()
-    })
+    result.map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn execute_sql(
     name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
-) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
+) -> Result<Result<QueryResp, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
@@ -768,7 +761,7 @@ pub async fn execute_sql(
         Open::Catalog(x) => x.execute_sql(query_id, &sql).await,
     }
     .map_err(|e| ErrorFrontend::from(e))?;
-    Ok(result.map(|x| MuiDataGridData::from(x)))
+    Ok(result)
 }
 
 #[tauri::command]

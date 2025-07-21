@@ -341,4 +341,10 @@ export namespace types {
         "after": (string | null);
         "default_value": (string | null);
     };
+    export type QueryResp = {
+        "fields": (types.Field)[];
+        "total": types.Usize;
+        "data": (((string | null))[])[];
+        "sql": (string | null);
+    };
 }

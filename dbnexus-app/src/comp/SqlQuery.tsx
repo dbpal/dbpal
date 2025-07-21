@@ -13,8 +13,8 @@ import {
   Stack,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
+
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -45,7 +45,7 @@ import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { millisecondsToStr, secondConfirm } from './helper.ts';
+import { secondConfirm } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
 import { PiFileSqlFill } from 'react-icons/pi';
@@ -323,8 +323,9 @@ function SqlQuery(props: {
       (
         executeTimeRef.current as HTMLDivElement
       ).innerHTML = `execute time: ${getTime()}`;
-    }, 10);
+    }, 3);
   };
+
   const handleExecute = async () => {
     const text = getText();
     if (!text) {
@@ -530,7 +531,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
           <Chip
-            color="info"
+            color="default"
             ref={executeTimeRef}
             size="small"
             label="execute time"
