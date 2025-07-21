@@ -49,6 +49,7 @@ import { secondConfirm } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
 import { PiFileSqlFill } from 'react-icons/pi';
+import { IoIosTime } from 'react-icons/io';
 const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
 };
@@ -306,7 +307,7 @@ function SqlQuery(props: {
   };
   const timeExecute = () => {
     const now = new Date();
-    return setInterval(() => {
+    const setUp = () => {
       //@ts-ignore
       const ms = new Date() - now;
       function getTime() {
@@ -320,10 +321,15 @@ function SqlQuery(props: {
         }
         return `${s}s ${r}ms`;
       }
-      (
-        executeTimeRef.current as HTMLDivElement
-      ).innerHTML = `execute time: ${getTime()}`;
-    }, 3);
+      (executeTimeRef.current as HTMLDivElement).innerHTML = `${getTime()}`;
+    };
+    const int = setInterval(() => {
+      setUp();
+    }, 50);
+    return () => {
+      clearInterval(int);
+      setUp();
+    };
   };
 
   const handleExecute = async () => {
@@ -343,7 +349,7 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
-    const timeExecuteInt = timeExecute();
+    const timeExecuteClean = timeExecute();
     conn
       .executeOP(text)
       .then((e) => {
@@ -360,7 +366,7 @@ function SqlQuery(props: {
       .finally(() => {
         setLoading(false);
         setCommitNonce((e) => e + 1);
-        clearInterval(timeExecuteInt);
+        timeExecuteClean();
       });
   };
   const handleQuery = async (append: boolean) => {
@@ -380,7 +386,7 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
-    const timeExecuteInt = timeExecute();
+    const timeExecuteClean = timeExecute();
     conn
       .queryOP(text)
       .then((resp) => {
@@ -402,7 +408,7 @@ function SqlQuery(props: {
       .finally(() => {
         setLoading(false);
         setCommitNonce((e) => e + 1);
-        clearInterval(timeExecuteInt);
+        timeExecuteClean();
       });
   };
 
@@ -530,13 +536,14 @@ function SqlQuery(props: {
               <FaExclamation />
             </IconButton>
           </Tooltip>
-          <Chip
-            color="default"
-            ref={executeTimeRef}
-            size="small"
-            label="execute time"
-            sx={{ p: 1 }}
-          ></Chip>
+          <Tooltip title="sql execute time">
+            <Chip
+              color="default"
+              size="small"
+              label={<span ref={executeTimeRef}> </span>}
+              icon={<IoIosTime></IoIosTime>}
+            ></Chip>
+          </Tooltip>
 
           {conn && conn.supportTransaction() && (
             <SqlTransaction nonce={commitNonce} conn={conn} />
