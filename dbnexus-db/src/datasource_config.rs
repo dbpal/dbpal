@@ -13,7 +13,7 @@ pub struct MongoDBConfig {
     pub read_only: bool,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct MysqlDBConfig {
     pub host: String,
     pub port: u16,
@@ -26,14 +26,14 @@ pub struct MysqlDBConfig {
     pub ssl: EnableSsl,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct LibSqlDBConfig {
     pub replica: bool,
     #[serde(flatten)]
     pub source: LibSqlDBConfigSouce,
     pub read_only: bool,
 }
-#[derive(Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 #[serde(tag = "source", rename_all = "lowercase")]
 pub enum LibSqlDBConfigSouce {
     Local {
@@ -55,7 +55,7 @@ impl std::fmt::Debug for LibSqlDBConfigSouce {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 
 pub struct ClickHouseConfig {
     pub host: String,
@@ -74,13 +74,13 @@ impl ClickHouseConfig {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct DuckDBConfig {
     pub path: String,
     pub read_only: bool,
@@ -88,7 +88,7 @@ pub struct DuckDBConfig {
     pub schema: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct FireBirdConfig {
     pub host: String,
     pub port: u16,
@@ -111,7 +111,7 @@ impl DuckDBConfig {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct RedisDBConfig {
     pub host: String,
     pub port: Option<u16>,
@@ -221,7 +221,7 @@ fn test_redis_make_conn_string() {
     );
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct PGDBConfig {
     pub host: String,
     pub port: u16,
@@ -235,9 +235,7 @@ pub struct PGDBConfig {
     pub ssl: EnableSsl,
 }
 
-#[derive(
-    Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef, Default,
-)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
 pub struct EnableSsl {
     #[serde(default)]
     pub ssl_enable: bool,
@@ -255,7 +253,7 @@ impl PGDBConfig {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 
 pub struct SqlServerDBConfig {
     pub host: String,
