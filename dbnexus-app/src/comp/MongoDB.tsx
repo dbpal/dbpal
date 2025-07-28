@@ -191,52 +191,57 @@ function mongoBsonAutoCompletion(): languages.CompletionList {
 
 function initMongoBsonLanguage() {
   const language = 'mongoBson';
-  loader.init().then((monaco) => {
-    monaco.languages.register({ id: language });
-    monaco.languages.setMonarchTokensProvider(language, {
-      ignoreCase: true,
-      tokenizer: {
-        root: [
-          [mongoBsonKeywords, 'keyword'],
-          [/\"(?:\\.|[^\\\"])*\"/, 'string'],
-          [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-          [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+  loader
+    .init()
+    .then((monaco) => {
+      monaco.languages.register({ id: language });
+      monaco.languages.setMonarchTokensProvider(language, {
+        ignoreCase: true,
+        tokenizer: {
+          root: [
+            [mongoBsonKeywords, 'keyword'],
+            [/\"(?:\\.|[^\\\"])*\"/, 'string'],
+            [/\'(?:\\.|[^\\\'])*\'/, 'string'],
+            [/\`(?:\\.|[^\\\`])*\`/, 'string'],
+          ],
+        },
+        brackets: [
+          { open: '{', close: '}', token: 'delimiter.curly' },
+          { open: '[', close: ']', token: 'delimiter.parenthesis' },
         ],
-      },
-      brackets: [
-        { open: '{', close: '}', token: 'delimiter.curly' },
-        { open: '[', close: ']', token: 'delimiter.parenthesis' },
-      ],
-    });
+      });
 
-    monaco.languages.registerDocumentFormattingEditProvider(language, {
-      provideDocumentFormattingEdits(model, options, _token) {
-        let text = model.getValue();
-        try {
-          const result = formatMongoBsonStr(text, options.tabSize);
-          return [{ range: model.getFullModelRange(), text: result }];
-        } catch (e) {
-          console.log(e);
-          if (e instanceof MongoBsonError) {
-            alert(e.msgWithLoc);
-          } else {
-            alert(e.toString());
+      monaco.languages.registerDocumentFormattingEditProvider(language, {
+        provideDocumentFormattingEdits(model, options, _token) {
+          let text = model.getValue();
+          try {
+            const result = formatMongoBsonStr(text, options.tabSize);
+            return [{ range: model.getFullModelRange(), text: result }];
+          } catch (e) {
+            console.log(e);
+            if (e instanceof MongoBsonError) {
+              alert(e.msgWithLoc);
+            } else {
+              alert(e.toString());
+            }
           }
-        }
-      },
-    });
+        },
+      });
 
-    monaco.languages.registerCompletionItemProvider(language, {
-      provideCompletionItems: (
-        _model: editor.ITextModel,
-        _position: Position,
-        _context: any,
-        _token: CancellationToken
-      ) => {
-        return mongoBsonAutoCompletion();
-      },
+      monaco.languages.registerCompletionItemProvider(language, {
+        provideCompletionItems: (
+          _model: editor.ITextModel,
+          _position: Position,
+          _context: any,
+          _token: CancellationToken
+        ) => {
+          return mongoBsonAutoCompletion();
+        },
+      });
+    })
+    .catch((e) => {
+      console.log('init monaco language error:', e);
     });
-  });
 }
 
 initMongoBsonLanguage();

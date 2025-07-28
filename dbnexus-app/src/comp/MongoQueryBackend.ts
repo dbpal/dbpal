@@ -462,6 +462,8 @@ class BsonExtraDataType {
   
   
         `);
+  }).catch((e) => {
+    console.log('init monaco language error:', e)
   });
 }
 

@@ -41,6 +41,10 @@ import { TabContent } from './Tabs';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 
+loader.config({
+  paths: { vs: '/monaco-editor/min/vs' },
+});
+
 import InfoIcon from '@mui/icons-material/Info';
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
@@ -734,31 +738,36 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       options: languages.FormattingOptions
     ) => Promise<string>
   ) {
-    loader.init().then((monaco) => {
-      monaco.languages.register({ id: uuid });
-      monaco.languages.setMonarchTokensProvider(uuid, Ilanguage);
-      if (format) {
-        monaco.languages.registerDocumentFormattingEditProvider(uuid, {
-          provideDocumentFormattingEdits(model, options, _token) {
-            return format(model.getValue(), options).then((text) => [
-              { range: model.getFullModelRange(), text },
-            ]);
+    loader
+      .init()
+      .then((monaco) => {
+        monaco.languages.register({ id: uuid });
+        monaco.languages.setMonarchTokensProvider(uuid, Ilanguage);
+        if (format) {
+          monaco.languages.registerDocumentFormattingEditProvider(uuid, {
+            provideDocumentFormattingEdits(model, options, _token) {
+              return format(model.getValue(), options).then((text) => [
+                { range: model.getFullModelRange(), text },
+              ]);
+            },
+          });
+        }
+
+        monaco.languages.registerCompletionItemProvider(uuid, {
+          provideCompletionItems: (
+            model: editor.ITextModel,
+            position: Position,
+            _context: any,
+            _token: CancellationToken
+          ) => {
+            let text = model.getValue();
+            return autoCompletion(text, position);
           },
         });
-      }
-
-      monaco.languages.registerCompletionItemProvider(uuid, {
-        provideCompletionItems: (
-          model: editor.ITextModel,
-          position: Position,
-          _context: any,
-          _token: CancellationToken
-        ) => {
-          let text = model.getValue();
-          return autoCompletion(text, position);
-        },
+      })
+      .catch((e) => {
+        console.log('init monaco language error:', e);
       });
-    });
   }
 
   switch (kind) {
