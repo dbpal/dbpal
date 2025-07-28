@@ -16,6 +16,8 @@ cargo r
 ~~~
 pnpm install monaco-editor
 mkdir public/monaco-editor
+cp -r node_modules/monaco-editor/min public/monaco-editor/min
+
 
 import { loader } from '@monaco-editor/react';
 
