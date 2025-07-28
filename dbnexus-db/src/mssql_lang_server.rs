@@ -202,12 +202,10 @@ impl AstCompletionHelper for MsSqlServerDB {
                         result_metadata
                             .columns()
                             .iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    item: x.name().to_string().into(),
-                                    desc: Some(format!("{:?}", x.column_type()).into()),
-                                    kind: CompletionKind::Column,
-                                }
+                            .map(|x| CompletionItem {
+                                item: x.name().to_string().into(),
+                                desc: Some(format!("{:?}", x.column_type()).into()),
+                                kind: CompletionKind::Column,
                             })
                             .collect(),
                     );
@@ -223,12 +221,10 @@ impl AstCompletionHelper for MsSqlServerDB {
         let mut ret = SchemaTrait::list_udf(self)
             .await
             .map(|x| {
-                x.into_iter().map(|x| {
-                    CompletionItem {
-                        item: x.name.into(),
-                        desc: None,
-                        kind: CompletionKind::Function,
-                    }
+                x.into_iter().map(|x| CompletionItem {
+                    item: x.name.into(),
+                    desc: None,
+                    kind: CompletionKind::Function,
                 })
             })?
             .collect::<Vec<_>>();

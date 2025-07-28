@@ -62,12 +62,10 @@ impl LexerCompletionTrait for CassandraDB {
                     self.list_aggregate_impl(&key_space)
                         .await?
                         .into_iter()
-                        .map(|x| {
-                            CompletionItem {
-                                kind: CompletionKind::Function,
-                                desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
-                                item: x.name.clone().into(),
-                            }
+                        .map(|x| CompletionItem {
+                            kind: CompletionKind::Function,
+                            desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
+                            item: x.name.clone().into(),
                         }),
                 );
             }
@@ -82,12 +80,10 @@ impl LexerCompletionTrait for CassandraDB {
             }
         }
 
-        ret.extend(BUILD_IN_FN.iter().map(|x| {
-            CompletionItem {
-                item: (*x).into(),
-                kind: CompletionKind::Function,
-                desc: None,
-            }
+        ret.extend(BUILD_IN_FN.iter().map(|x| CompletionItem {
+            item: (*x).into(),
+            kind: CompletionKind::Function,
+            desc: None,
         }));
 
         anyhow::Ok(ret)
@@ -134,15 +130,13 @@ impl AstCompletion {
 
         self.result = Some(
             x.into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.name.clone().into(),
-                        kind: CompletionKind::Function,
-                        desc: x
-                            .cassandra_parameters
-                            .clone()
-                            .map(|x| format!("{:?}", x).into()),
-                    }
+                .map(|x| CompletionItem {
+                    item: x.name.clone().into(),
+                    kind: CompletionKind::Function,
+                    desc: x
+                        .cassandra_parameters
+                        .clone()
+                        .map(|x| format!("{:?}", x).into()),
                 })
                 .collect(),
         );
@@ -213,12 +207,10 @@ impl AstCompletion {
             DBTrait::list_schema(&self.db)
                 .await?
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        desc: None,
-                        kind: CompletionKind::Schema,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    desc: None,
+                    kind: CompletionKind::Schema,
                 })
                 .collect(),
         );
@@ -248,12 +240,10 @@ impl AstCompletion {
                 .list_materialized_view_impl(&key_space)
                 .await?
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.name.into(),
-                        desc: None,
-                        kind: CompletionKind::View,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.name.into(),
+                    desc: None,
+                    kind: CompletionKind::View,
                 })
                 .collect()
         };
@@ -288,12 +278,10 @@ impl AstCompletion {
                 .list_table_impl(key_space.as_str())
                 .await?
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.name.into(),
-                        desc: None,
-                        kind: CompletionKind::Table,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.name.into(),
+                    desc: None,
+                    kind: CompletionKind::Table,
                 })
                 .collect()
         };
@@ -303,12 +291,10 @@ impl AstCompletion {
                     .list_materialized_view_impl(&key_space)
                     .await?
                     .into_iter()
-                    .map(|x| {
-                        CompletionItem {
-                            item: x.name.into(),
-                            desc: None,
-                            kind: CompletionKind::View,
-                        }
+                    .map(|x| CompletionItem {
+                        item: x.name.into(),
+                        desc: None,
+                        kind: CompletionKind::View,
                     }),
             );
         }
@@ -325,12 +311,10 @@ impl AstCompletion {
             .list_schema()
             .await?
             .into_iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.into(),
-                    desc: None,
-                    kind: CompletionKind::Schema,
-                }
+            .map(|x| CompletionItem {
+                item: x.into(),
+                desc: None,
+                kind: CompletionKind::Schema,
             })
             .collect();
         anyhow::Ok(ret)
@@ -539,12 +523,10 @@ impl AstCompletion {
                     self.result = Some(
                         x.columns
                             .iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    kind: CompletionKind::Column,
-                                    item: x.name.to_string().into(),
-                                    desc: Some(x.data_type.to_string().into()),
-                                }
+                            .map(|x| CompletionItem {
+                                kind: CompletionKind::Column,
+                                item: x.name.to_string().into(),
+                                desc: Some(x.data_type.to_string().into()),
                             })
                             .collect(),
                     );
@@ -1001,12 +983,10 @@ WHERE keyspace_name = '{key_space}';"#
                                     create_materialized_view
                                         .columns
                                         .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.to_string().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            }
+                                        .map(|x| CompletionItem {
+                                            item: x.to_string().into(),
+                                            kind: CompletionKind::Column,
+                                            desc: None,
                                         })
                                         .collect(),
                                 );
@@ -1049,12 +1029,10 @@ WHERE keyspace_name = '{key_space}';"#
                                 create_table
                                     .columns
                                     .iter()
-                                    .map(|x| {
-                                        CompletionItem {
-                                            item: x.name.to_string().into(),
-                                            desc: None,
-                                            kind: CompletionKind::Column,
-                                        }
+                                    .map(|x| CompletionItem {
+                                        item: x.name.to_string().into(),
+                                        desc: None,
+                                        kind: CompletionKind::Column,
                                     })
                                     .collect(),
                             );
@@ -1071,12 +1049,10 @@ WHERE keyspace_name = '{key_space}';"#
                                     create_table
                                         .columns
                                         .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.name.to_string().into(),
-                                                desc: None,
-                                                kind: CompletionKind::Column,
-                                            }
+                                        .map(|x| CompletionItem {
+                                            item: x.name.to_string().into(),
+                                            desc: None,
+                                            kind: CompletionKind::Column,
                                         })
                                         .collect(),
                                 );

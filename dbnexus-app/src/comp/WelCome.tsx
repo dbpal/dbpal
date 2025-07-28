@@ -43,7 +43,7 @@ function WelCome() {
     },
     {
       name: 'cassandra',
-      img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Cassandra_logo.svg/800px-Cassandra_logo.svg.png',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTYp1cUVJbswwDftaZBUT8_3ttHUSgHENfq7Q&s',
     },
     {
       name: 'clickhouse',

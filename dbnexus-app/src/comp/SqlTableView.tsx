@@ -96,26 +96,31 @@ let whereAutoCompletion: (
   pos: Position
 ) => Promise<languages.CompletionList> = null;
 
-loader.init().then((monaco) => {
-  monaco.languages.register({ id: whereLanguage });
-  monaco.languages.setMonarchTokensProvider(whereLanguage, {
-    ignoreCase: true,
-    tokenizer: {
-      root: [[/\'(?:\\.|[^\\\'])*\'/, 'string']],
-    },
-  });
+loader
+  .init()
+  .then((monaco) => {
+    monaco.languages.register({ id: whereLanguage });
+    monaco.languages.setMonarchTokensProvider(whereLanguage, {
+      ignoreCase: true,
+      tokenizer: {
+        root: [[/\'(?:\\.|[^\\\'])*\'/, 'string']],
+      },
+    });
 
-  monaco.languages.registerCompletionItemProvider(whereLanguage, {
-    provideCompletionItems: (
-      model: editor.ITextModel,
-      position: Position,
-      _context: any,
-      _token: CancellationToken
-    ) => {
-      return whereAutoCompletion(model.getValue(), position);
-    },
+    monaco.languages.registerCompletionItemProvider(whereLanguage, {
+      provideCompletionItems: (
+        model: editor.ITextModel,
+        position: Position,
+        _context: any,
+        _token: CancellationToken
+      ) => {
+        return whereAutoCompletion(model.getValue(), position);
+      },
+    });
+  })
+  .catch((e) => {
+    console.log('init monaco language error:', e);
   });
-});
 
 function WhereSort(props: {
   open: boolean;

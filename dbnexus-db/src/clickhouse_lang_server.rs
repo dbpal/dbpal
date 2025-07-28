@@ -140,12 +140,10 @@ impl AstCompletionHelper for ClickHouseDB {
         anyhow::Ok(
             result
                 .into_iter()
-                .map(|(name, desc)| {
-                    CompletionItem {
-                        item: name.into(),
-                        kind: CompletionKind::Function,
-                        desc: Some(desc.into()),
-                    }
+                .map(|(name, desc)| CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::Function,
+                    desc: Some(desc.into()),
                 })
                 .collect::<Vec<_>>(),
         )
@@ -174,12 +172,10 @@ impl LexerCompletionTrait for ClickHouseDB {
         let ret: Vec<String> = conn.query(sql).fetch_all().await?;
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::KeyWord,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
                 })
                 .collect(),
         )

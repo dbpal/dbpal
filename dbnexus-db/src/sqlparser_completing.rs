@@ -22,6 +22,7 @@ impl Into<CompletionKind> for ObjectType {
             ObjectType::Sequence => CompletionKind::Sequence,
             ObjectType::Stage => CompletionKind::Stage,
             ObjectType::Type => CompletionKind::Type,
+            ObjectType::MaterializedView => CompletionKind::View,
         }
     }
 }
@@ -87,12 +88,10 @@ impl CompletionStatement {
                 })
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        desc: None,
-                        kind: CompletionKind::Role,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    desc: None,
+                    kind: CompletionKind::Role,
                 })
                 .collect(),
         );
@@ -109,12 +108,10 @@ impl CompletionStatement {
                 .map_err(|x| log::error!("list_cluster failed,err:{:?}", x))
                 .unwrap_or_default()
                 .into_iter()
-                .map(|name| {
-                    CompletionItem {
-                        item: name.into(),
-                        kind: CompletionKind::Cluster,
-                        desc: None,
-                    }
+                .map(|name| CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::Cluster,
+                    desc: None,
                 })
                 .collect(),
         );
@@ -182,12 +179,10 @@ impl CompletionStatement {
                 })
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Variable,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Variable,
+                    desc: None,
                 })
                 .collect(),
         );
@@ -205,12 +200,10 @@ impl CompletionStatement {
                 .map_err(|e| log::error!("postgres_table_policy failed,err:{:?}", e))
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Policy,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Policy,
+                    desc: None,
                 })
                 .collect(),
         );
@@ -222,7 +215,7 @@ impl CompletionStatement {
         }
         match typ {
             ObjectType::Table => self.c_on_table(name).await,
-            ObjectType::View => self.c_on_view(name).await,
+            ObjectType::View | ObjectType::MaterializedView => self.c_on_view(name).await,
             ObjectType::Index => self.c_on_index(name).await,
             ObjectType::Schema | ObjectType::Database => {
                 // c_on_db_schema 假设形式是 database.schema.table
@@ -232,20 +225,18 @@ impl CompletionStatement {
                 name.push(ObjectNamePart::Identifier(Ident::new("fake")));
                 self.c_on_db_schema(&ObjectName(name)).await;
             }
-            ObjectType::Role => {
-                match name.0.len() {
-                    1 => {
-                        self.c_on_role(match name.0.first().unwrap() {
-                            ObjectNamePart::Identifier(ident) => ident,
-                        })
-                        .await
-                    }
-
-                    _ => {
-                        log::error!("role name is too long:{:?}", name)
-                    }
+            ObjectType::Role => match name.0.len() {
+                1 => {
+                    self.c_on_role(match name.0.first().unwrap() {
+                        ObjectNamePart::Identifier(ident) => ident,
+                    })
+                    .await
                 }
-            }
+
+                _ => {
+                    log::error!("role name is too long:{:?}", name)
+                }
+            },
             ObjectType::Sequence => {
                 // rule not support
             }
@@ -359,12 +350,10 @@ impl CompletionStatement {
                             .ok()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    item: x.into(),
-                                    kind: CompletionKind::Partition,
-                                    desc: None,
-                                }
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::Partition,
+                                desc: None,
                             })
                             .collect::<Vec<_>>(),
                     );
@@ -403,12 +392,10 @@ impl CompletionStatement {
                 .ok()
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Index,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Index,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -470,12 +457,10 @@ impl CompletionStatement {
                 .ok()
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Rule,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Rule,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -495,12 +480,10 @@ impl CompletionStatement {
                     .ok()
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|x| {
-                        CompletionItem {
-                            item: x.into(),
-                            kind: CompletionKind::Constraint,
-                            desc: None,
-                        }
+                    .map(|x| CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Constraint,
+                        desc: None,
                     })
                     .collect::<Vec<_>>(),
             );
@@ -602,7 +585,7 @@ impl CompletionStatement {
                                 }
                             }
                         }
-                        TableConstraint::Check { name, expr } => {
+                        TableConstraint::Check { name, expr, .. } => {
                             //  https://www.w3schools.com/sql/sql_check.asp
                             let _guard =
                                 self.scopes.push(Scope::from_this_table(table_name.clone()));
@@ -853,6 +836,15 @@ impl CompletionStatement {
                 AlterTableOperation::ResumeRecluster => {}
                 AlterTableOperation::Algorithm { .. } => {}
                 AlterTableOperation::AutoIncrement { .. } => {}
+                AlterTableOperation::DropForeignKey { .. } => {
+                    //  TODO support this.
+                }
+                AlterTableOperation::DropIndex { name } => {
+                    self.c_on_index(&ObjectName(vec![ObjectNamePart::Identifier(name.clone())]))
+                        .await;
+                }
+                AlterTableOperation::ReplicaIdentity { .. } => {}
+                AlterTableOperation::Lock { .. } => {}
             }
         }
     }
@@ -883,12 +875,10 @@ impl CompletionStatement {
                 .ok()
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Table,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -1027,6 +1017,15 @@ impl CompletionStatement {
                     self.result = Some(vec![]);
                 }
                 self.result.as_mut().unwrap().extend(items);
+
+                // 我们也要
+                let fs = self
+                    .helper
+                    .list_function(None, None, true)
+                    .await
+                    .ok()
+                    .unwrap_or_default();
+                self.result.as_mut().unwrap().extend(fs);
             }
         }
     }
@@ -1082,6 +1081,9 @@ impl CompletionStatement {
             ColumnOption::Policy(_column_policy) => {}
             ColumnOption::Tags(_tags_column_option) => {}
             ColumnOption::Collation(..) => {}
+            ColumnOption::Srid(expr) => {
+                self.c_on_expr(&expr).await;
+            }
         }
     }
 
@@ -1150,7 +1152,7 @@ impl CompletionStatement {
                 if self.finished() {
                     return;
                 }
-                let _ = Box::pin(self.c_on_query(&subquery))
+                let _ = Box::pin(self.c_on_set_expr(subquery.as_ref()))
                     .await
                     .map(|e| log::error!("a error:{:?}", e))
                     .ok();
@@ -1344,9 +1346,6 @@ impl CompletionStatement {
                 // literal value
                 // nothing to completion
             }
-            Expr::IntroducedString { .. } => {
-                // literal value
-            }
             Expr::TypedString { .. } => {
                 // literal value
             }
@@ -1354,8 +1353,8 @@ impl CompletionStatement {
             Expr::Case {
                 operand,
                 conditions,
-
                 else_result,
+                ..
             } => {
                 if let Some(operand) = operand {
                     Box::pin(self.c_on_expr(&operand)).await;
@@ -1454,19 +1453,25 @@ impl CompletionStatement {
             Expr::MatchAgainst { columns, .. } => {
                 if let Some(this_table) = self.scopes.this_table() {
                     for c in columns.iter() {
-                        match &this_table {
-                            ThisTableEnum::Table { name } => {
-                                self.c_on_column(name, c, false).await;
-                                if self.finished() {
-                                    return;
+                        for col in c.0.iter() {
+                            match col {
+                                ObjectNamePart::Identifier(ident) => {
+                                    match &this_table {
+                                        ThisTableEnum::Table { name } => {
+                                            self.c_on_column(name, ident, false).await;
+                                            if self.finished() {
+                                                return;
+                                            }
+                                        }
+                                        ThisTableEnum::Temp { temp: _temp } => {
+                                            // temp this table only use in table create
+                                            // I think I should never enter here.
+                                            log::error!(
+                                                "temp this table only use in table create , I think I should never enter here."
+                                            );
+                                        }
+                                    }
                                 }
-                            }
-                            ThisTableEnum::Temp { temp: _temp } => {
-                                // temp this table only use in table create
-                                // I think I should never enter here.
-                                log::error!(
-                                    "temp this table only use in table create , I think I should never enter here."
-                                );
                             }
                         }
                     }
@@ -1496,33 +1501,34 @@ impl CompletionStatement {
                         AccessExpr::Dot(expr) => {
                             Box::pin(self.c_on_expr(&expr)).await;
                         }
-                        AccessExpr::Subscript(subscript) => {
-                            match subscript {
-                                Subscript::Index { index } => {
-                                    Box::pin(self.c_on_expr(&index)).await;
+                        AccessExpr::Subscript(subscript) => match subscript {
+                            Subscript::Index { index } => {
+                                Box::pin(self.c_on_expr(&index)).await;
+                            }
+                            Subscript::Slice {
+                                lower_bound,
+                                upper_bound,
+                                stride,
+                            } => {
+                                if let Some(lower_bound) = lower_bound {
+                                    Box::pin(self.c_on_expr(&lower_bound)).await;
                                 }
-                                Subscript::Slice {
-                                    lower_bound,
-                                    upper_bound,
-                                    stride,
-                                } => {
-                                    if let Some(lower_bound) = lower_bound {
-                                        Box::pin(self.c_on_expr(&lower_bound)).await;
-                                    }
-                                    if let Some(upper_bound) = upper_bound {
-                                        Box::pin(self.c_on_expr(&upper_bound)).await;
-                                    }
-                                    if let Some(stride) = stride {
-                                        Box::pin(self.c_on_expr(&stride)).await;
-                                    }
+                                if let Some(upper_bound) = upper_bound {
+                                    Box::pin(self.c_on_expr(&upper_bound)).await;
+                                }
+                                if let Some(stride) = stride {
+                                    Box::pin(self.c_on_expr(&stride)).await;
                                 }
                             }
-                        }
+                        },
                     }
                 }
             }
             Expr::IsNormalized { expr, .. } => {
                 Box::pin(self.c_on_expr(&expr)).await;
+            }
+            Expr::Prefixed { value, .. } => {
+                Box::pin(self.c_on_expr(&value)).await;
             }
         }
     }
@@ -1575,6 +1581,7 @@ impl CompletionStatement {
                 })
                 .ok()
                 .unwrap_or_default();
+
             self.result.as_mut().unwrap().extend(items);
         }
     }
@@ -1595,12 +1602,10 @@ impl CompletionStatement {
                     .ok()
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|x| {
-                        CompletionItem {
-                            item: x.into(),
-                            kind: CompletionKind::Trigger,
-                            desc: None,
-                        }
+                    .map(|x| CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Trigger,
+                        desc: None,
                     })
                     .collect(),
             );
@@ -1624,12 +1629,10 @@ impl CompletionStatement {
                             .ok()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    kind: CompletionKind::Schema,
-                                    item: x.into(),
-                                    desc: None,
-                                }
+                            .map(|x| CompletionItem {
+                                kind: CompletionKind::Schema,
+                                item: x.into(),
+                                desc: None,
                             })
                             .collect::<Vec<_>>(),
                     );
@@ -1649,12 +1652,10 @@ impl CompletionStatement {
                             .ok()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    kind: CompletionKind::Database,
-                                    item: x.into(),
-                                    desc: None,
-                                }
+                            .map(|x| CompletionItem {
+                                kind: CompletionKind::Database,
+                                item: x.into(),
+                                desc: None,
                             })
                             .collect::<Vec<_>>(),
                     );
@@ -1674,12 +1675,10 @@ impl CompletionStatement {
                             .ok()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    kind: CompletionKind::Schema,
-                                    item: x.into(),
-                                    desc: None,
-                                }
+                            .map(|x| CompletionItem {
+                                kind: CompletionKind::Schema,
+                                item: x.into(),
+                                desc: None,
                             })
                             .collect::<Vec<_>>(),
                     );
@@ -1745,12 +1744,10 @@ impl CompletionStatement {
         items.extend(self.helper.list_schema(None).await.unwrap_or_default());
         let items = items
             .into_iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Table,
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Table,
+                desc: None,
             })
             .collect::<Vec<_>>();
 
@@ -1837,6 +1834,9 @@ impl CompletionStatement {
                     self.c_on_join_constraint(join_constraint).await
                 }
                 JoinOperator::Right(join_constraint) => {
+                    self.c_on_join_constraint(join_constraint).await
+                }
+                JoinOperator::StraightJoin(join_constraint) => {
                     self.c_on_join_constraint(join_constraint).await
                 }
             }
@@ -1994,35 +1994,33 @@ impl CompletionStatement {
                                         });
 
                                     match name {
-                                        Some(x) => {
-                                            match x {
-                                                NearNestTableNamed::Alias { table } => {
-                                                    let (db, schema, table) =
-                                                        self.extract_db_schme_item(&table);
-                                                    let f = self
-                                                        .helper
-                                                        .list_column(db, schema, table)
-                                                        .await
-                                                        .map_err(|e| {
-                                                            log::error!(
-                                                                "list_column failed,err:{:?}",
-                                                                e
-                                                            )
-                                                        })
-                                                        .ok()
-                                                        .unwrap_or_default();
-                                                    ret.extend(f.iter().map(TempTableColumn::from));
-                                                }
-                                                NearNestTableNamed::Temp { table } => {
-                                                    ret.extend(table.columns.iter().map(|x| {
-                                                        TempTableColumn {
-                                                            name: x.name.clone(),
-                                                            typ: None,
-                                                        }
-                                                    }));
-                                                }
+                                        Some(x) => match x {
+                                            NearNestTableNamed::Alias { table } => {
+                                                let (db, schema, table) =
+                                                    self.extract_db_schme_item(&table);
+                                                let f = self
+                                                    .helper
+                                                    .list_column(db, schema, table)
+                                                    .await
+                                                    .map_err(|e| {
+                                                        log::error!(
+                                                            "list_column failed,err:{:?}",
+                                                            e
+                                                        )
+                                                    })
+                                                    .ok()
+                                                    .unwrap_or_default();
+                                                ret.extend(f.iter().map(TempTableColumn::from));
                                             }
-                                        }
+                                            NearNestTableNamed::Temp { table } => {
+                                                ret.extend(table.columns.iter().map(|x| {
+                                                    TempTableColumn {
+                                                        name: x.name.clone(),
+                                                        typ: None,
+                                                    }
+                                                }));
+                                            }
+                                        },
                                         None => {
                                             // can't find maybe a error by user
                                         }
@@ -2130,12 +2128,32 @@ impl CompletionStatement {
                 }
             }
         }
-        // limit and offset can't filter on column values
-        // so we don't need handle limit and offset
-        // althought it is a expr,But I think it is literal.
-
-        // limit by is not support right now.
-        let _ = &query.limit_by;
+        if let Some(limit) = query.limit_clause.as_ref() {
+            match limit {
+                LimitClause::LimitOffset {
+                    limit,
+                    offset,
+                    limit_by,
+                } => {
+                    if let Some(limit) = limit {
+                        self.c_on_expr(limit).await;
+                    }
+                    if let Some(offset) = offset {
+                        self.c_on_expr(&offset.value).await;
+                    }
+                    for l in limit_by.iter() {
+                        self.c_on_expr(l).await;
+                        if self.finished() {
+                            break;
+                        }
+                    }
+                }
+                LimitClause::OffsetCommaLimit { offset, limit } => {
+                    self.c_on_expr(offset).await;
+                    self.c_on_expr(limit).await;
+                }
+            }
+        }
 
         return Box::pin(self.c_on_set_expr(&query.body)).await;
     }
@@ -2169,11 +2187,9 @@ impl CompletionStatement {
                         // last one we will return anyway
                         if index == last {
                             let cols = (0..es.len())
-                                .map(|x| {
-                                    TempTableColumn {
-                                        name: format!("column_{}", x),
-                                        typ: None,
-                                    }
+                                .map(|x| TempTableColumn {
+                                    name: format!("column_{}", x),
+                                    typ: None,
                                 })
                                 .collect::<Vec<_>>();
                             return anyhow::Ok(cols);
@@ -2213,6 +2229,9 @@ impl CompletionStatement {
                     .map(TempTableColumn::from)
                     .collect();
                 return anyhow::Ok(cols);
+            }
+            SetExpr::Delete(statement) => {
+                self.completion_on_statement(statement).await;
             }
         }
         anyhow::Ok(vec![])
@@ -2312,7 +2331,6 @@ impl CompletionStatement {
                     self.c_on_expr(h).await;
                 }
             }
-
             TableFactor::Derived {
                 subquery, alias, ..
             } => {
@@ -2373,6 +2391,7 @@ impl CompletionStatement {
             TableFactor::Pivot { .. } => {}
             TableFactor::Unpivot { .. } => {}
             TableFactor::MatchRecognize { .. } => {}
+            TableFactor::XmlTable { .. } => {}
         }
     }
 
@@ -2396,12 +2415,10 @@ impl CompletionStatement {
                 .ok()
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        kind: CompletionKind::Function,
-                        item: x.into(),
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    kind: CompletionKind::Function,
+                    item: x.into(),
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -2457,14 +2474,12 @@ impl CompletionStatement {
                                 _ => {}
                             };
                         }
-                        FunctionArg::Unnamed(function_arg_expr) => {
-                            match function_arg_expr {
-                                FunctionArgExpr::Expr(expr) => {
-                                    self.c_on_expr(expr).await;
-                                }
-                                _ => {}
+                        FunctionArg::Unnamed(function_arg_expr) => match function_arg_expr {
+                            FunctionArgExpr::Expr(expr) => {
+                                self.c_on_expr(expr).await;
                             }
-                        }
+                            _ => {}
+                        },
                     }
                 }
             }

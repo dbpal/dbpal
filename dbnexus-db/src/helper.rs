@@ -370,6 +370,32 @@ pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOption
     sqlformat::format(sql, &sqlformat::QueryParams::None, &op.unwrap_or_default())
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct TXExecuteTimes {
+    times: Arc<DashMap<uuid::Uuid, usize>>,
+}
+
+impl TXExecuteTimes {
+    pub fn inc(&self, uuid: uuid::Uuid) {
+        match self.times.get_mut(&uuid) {
+            Some(mut x) => {
+                *x += 1;
+            }
+            None => {
+                self.times.insert(uuid, 1);
+            }
+        }
+    }
+
+    pub fn reset(&self, uuid: uuid::Uuid) {
+        self.times.remove(&uuid);
+    }
+
+    pub fn get(&self, uuid: uuid::Uuid) -> usize {
+        self.times.get(&uuid).map(|x| *x).unwrap_or_default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -399,31 +425,5 @@ mod tests {
     fn test_current_timestamp() {
         let x = current_timestamp();
         println!("{}", x);
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct TXExecuteTimes {
-    times: Arc<DashMap<uuid::Uuid, usize>>,
-}
-
-impl TXExecuteTimes {
-    pub fn inc(&self, uuid: uuid::Uuid) {
-        match self.times.get_mut(&uuid) {
-            Some(mut x) => {
-                *x += 1;
-            }
-            None => {
-                self.times.insert(uuid, 1);
-            }
-        }
-    }
-
-    pub fn reset(&self, uuid: uuid::Uuid) {
-        self.times.remove(&uuid);
-    }
-
-    pub fn get(&self, uuid: uuid::Uuid) -> usize {
-        self.times.get(&uuid).map(|x| *x).unwrap_or_default()
     }
 }

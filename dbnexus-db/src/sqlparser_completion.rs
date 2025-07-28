@@ -2,16 +2,18 @@ use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
-use sqlparser::ast::{
-    AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CopySource, CreateFunctionBody,
-    DataType, Declare, DeclareAssignment, GrantObjects, GranteeName, Ident, ObjectName,
-    ObjectNamePart, OneOrManyWithParens, Privileges, SchemaName, SelectItem, SequenceOptions,
-    Spanned, Statement, TableConstraint, TableFactor, TableObject, TriggerEvent,
-    UpdateTableFromKind, UserDefinedTypeRepresentation,
-};
-use sqlparser::tokenizer::{Location, Span};
-
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
+use sqlparser::ast::{
+    AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CaseStatement, CopySource,
+    CreateDomain, CreateFunctionBody, DataType, Declare, DeclareAssignment, DenyStatement,
+    DropDomain, GrantObjects, Grantee, GranteeName, Ident, IfStatement, ObjectName, ObjectNamePart,
+    OneOrManyWithParens, OpenStatement, PrintStatement, Privileges, RaiseStatement,
+    RaiseStatementValue, ReturnStatement, ReturnStatementValue, SchemaName, SelectItem,
+    SequenceOptions, Set, Spanned, Statement, TableConstraint, TableFactor, TableObject,
+    TriggerEvent, UpdateTableFromKind, UserDefinedTypeRepresentation, WhileStatement,
+};
+use sqlparser::ast::{ConditionalStatementBlock, SetSessionParamKind};
+use sqlparser::tokenizer::{Location, Span};
 
 pub struct CompletionStatement {
     pub(crate) loc: Location,
@@ -490,7 +492,6 @@ impl CompletionStatement {
                     TableObject::TableFunction(..) => {}
                 };
             }
-
             Statement::Install { extension_name } => {
                 self.c_on_duck_extension(&extension_name, Some(false)).await;
             }
@@ -577,9 +578,7 @@ impl CompletionStatement {
                                         Box::pin(self.c_on_column(
                                             table,
                                             match object_name.0.last().unwrap() {
-                                                sqlparser::ast::ObjectNamePart::Identifier(
-                                                    ident,
-                                                ) => ident,
+                                                ObjectNamePart::Identifier(ident) => ident,
                                             },
                                             false,
                                         ))
@@ -658,11 +657,9 @@ impl CompletionStatement {
                             create_table
                                 .columns
                                 .iter()
-                                .map(|c| {
-                                    TempTableColumn {
-                                        name: c.name.value.clone(),
-                                        typ: Some(c.data_type.to_string()),
-                                    }
+                                .map(|c| TempTableColumn {
+                                    name: c.name.value.clone(),
+                                    typ: Some(c.data_type.to_string()),
                                 })
                                 .collect(),
                         ),
@@ -738,12 +735,10 @@ impl CompletionStatement {
                                 self.result = Some(
                                     columns
                                         .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            }
+                                        .map(|x| CompletionItem {
+                                            item: x.value.clone().into(),
+                                            kind: CompletionKind::Column,
+                                            desc: None,
                                         })
                                         .collect(),
                                 );
@@ -766,12 +761,10 @@ impl CompletionStatement {
                                 self.result = Some(
                                     columns
                                         .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            }
+                                        .map(|x| CompletionItem {
+                                            item: x.value.clone().into(),
+                                            kind: CompletionKind::Column,
+                                            desc: None,
                                         })
                                         .collect(),
                                 );
@@ -785,7 +778,7 @@ impl CompletionStatement {
                                 }
                             }
                         }
-                        TableConstraint::Check { name, expr } => {
+                        TableConstraint::Check { name, expr, .. } => {
                             if let Some(name) = name {
                                 if self.in_pos(&name.span) {
                                     return;
@@ -806,12 +799,10 @@ impl CompletionStatement {
                                 self.result = Some(
                                     columns
                                         .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            }
+                                        .map(|x| CompletionItem {
+                                            item: x.value.clone().into(),
+                                            kind: CompletionKind::Column,
+                                            desc: None,
                                         })
                                         .collect(),
                                 );
@@ -833,12 +824,10 @@ impl CompletionStatement {
                                 self.result = Some(
                                     columns
                                         .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            }
+                                        .map(|x| CompletionItem {
+                                            item: x.value.clone().into(),
+                                            kind: CompletionKind::Column,
+                                            desc: None,
                                         })
                                         .collect(),
                                 );
@@ -876,7 +865,7 @@ impl CompletionStatement {
                 // B-tree、HASH、GIN 等。示例如下： using 用lexer的自动完成即可
 
                 for c in create_index.columns.iter() {
-                    self.c_on_order_by_expr(c).await;
+                    self.c_on_order_by_expr(&c.column).await;
                     if self.finished() {
                         return;
                     }
@@ -1128,40 +1117,6 @@ impl CompletionStatement {
             Statement::Discard { .. } => {
                 // fallback to lexer
             }
-            Statement::SetRole { role_name, .. } => {
-                // fallback to lexer
-                if let Some(name) = role_name {
-                    self.c_on_role(name).await;
-                }
-            }
-            Statement::SetVariable { variables, .. } => {
-                // fallback to lexer
-
-                for v in variables.iter() {
-                    match v.0.len() {
-                        1 => {
-                            self.c_on_variable(match &v.0[0] {
-                                ObjectNamePart::Identifier(ident) => ident,
-                            })
-                            .await
-                        }
-
-                        _ => {
-                            log::error!("not handled variable name length:{:?}", v);
-                        }
-                    }
-                }
-            }
-            Statement::SetTimeZone { .. } => {
-                // fallback to lexer
-            }
-            Statement::SetNames { .. } => {
-                // this ast have no span info.
-                // so we can't do
-            }
-            Statement::SetNamesDefault {} => {
-                // fallback to lexer
-            }
             Statement::ShowFunctions { .. } => {
                 // Presto-specific
                 // no one can write a sql like this???
@@ -1199,7 +1154,6 @@ impl CompletionStatement {
                 // wo perfer use don't use this statment.
             }
             Statement::StartTransaction { .. } => {}
-            Statement::SetTransaction { .. } => {}
             Statement::Comment {
                 object_type,
                 object_name,
@@ -1288,6 +1242,20 @@ impl CompletionStatement {
                         CreateFunctionBody::Return(expr) => {
                             self.c_on_expr(expr).await;
                         }
+                        CreateFunctionBody::AsBeginEnd(begin_end_statements) => {
+                            for s in begin_end_statements.statements.iter() {
+                                Box::pin(self.completion_on_statement(s)).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                        }
+                        CreateFunctionBody::AsReturnExpr(expr) => {
+                            self.c_on_expr(expr).await;
+                        }
+                        CreateFunctionBody::AsReturnSelect(select) => {
+                            let _ = self.c_on_select(select).await;
+                        }
                     }
                 }
             }
@@ -1345,7 +1313,9 @@ impl CompletionStatement {
                         return;
                     }
                 }
-                self.c_on_trigger_exec_body(exec_body).await;
+                if let Some(exec_body) = exec_body {
+                    self.c_on_trigger_exec_body(exec_body).await;
+                }
             }
             Statement::DropTrigger {
                 trigger_name,
@@ -1369,7 +1339,6 @@ impl CompletionStatement {
                     .await;
                 }
             }
-
             Statement::CreateProcedure {
                 name, params, body, ..
             } => {
@@ -1385,7 +1354,8 @@ impl CompletionStatement {
                         }
                     }
                 }
-                for s in body.iter() {
+
+                for s in body.statements() {
                     Box::pin(self.completion_on_statement(s)).await;
                     if self.finished() {
                         return;
@@ -1450,27 +1420,9 @@ impl CompletionStatement {
                         return;
                     }
                 }
-                let mut tables = None;
+                let mut tables = None as Option<Vec<ObjectName>>;
                 if let Some(objects) = objects {
-                    match objects {
-                        GrantObjects::AllSequencesInSchema { schemas: _schemas } => {}
-                        GrantObjects::AllTablesInSchema { schemas: _schemas } => {}
-                        GrantObjects::Schemas(_vec) => {}
-                        GrantObjects::Sequences(_vec) => {}
-                        GrantObjects::Tables(vec) => {
-                            for table in vec.iter() {
-                                self.c_on_table(table).await;
-                                if self.finished() {
-                                    return;
-                                }
-                            }
-                            tables = Some(vec);
-                        }
-                        GrantObjects::Databases(..) => {}
-                        GrantObjects::Views(..) => {}
-                        GrantObjects::Warehouses(..) => {}
-                        GrantObjects::Integrations(..) => {}
-                    }
+                    self.c_on_grant_objects(objects, &mut tables).await;
                 }
 
                 if let Some(tables) = tables {
@@ -1489,7 +1441,6 @@ impl CompletionStatement {
                     }
                 }
             }
-
             Statement::Deallocate { .. } => {}
             Statement::Execute {
                 parameters, using, ..
@@ -1651,7 +1602,6 @@ impl CompletionStatement {
             }
             Statement::List(..) => {}
             Statement::Remove(..) => {}
-            Statement::SetSessionParam(..) => {}
             Statement::RaisError {
                 message,
                 severity,
@@ -1664,6 +1614,224 @@ impl CompletionStatement {
                 self.c_on_expr(&state).await;
                 for ar in arguments.iter() {
                     self.c_on_expr(&ar).await;
+                }
+            }
+            Statement::Set(set) => self.c_on_set(set).await,
+            Statement::Case(case_statement) => self.c_on_case(case_statement).await,
+            Statement::If(if_statement) => self.c_on_if(if_statement).await,
+            Statement::While(while_statement) => self.c_on_while(while_statement).await,
+            Statement::Raise(raise_statement) => self.c_on_raise(raise_statement).await,
+            Statement::Open(open_statement) => self.c_on_open(open_statement).await,
+            Statement::DropDomain(drop_domain) => self.c_on_drop_domain(drop_domain).await,
+            Statement::Deny(deny_statement) => self.c_on_deny_statement(deny_statement).await,
+            Statement::CreateDomain(create_domain) => self.c_on_create_domain(create_domain).await,
+            Statement::Print(print_statement) => self.c_on_print_statement(print_statement).await,
+            Statement::Return(return_statement) => {
+                self.c_on_return_statement(return_statement).await
+            }
+        }
+    }
+}
+
+impl CompletionStatement {
+    async fn c_on_grant_objects(
+        &mut self, objects: &GrantObjects, tables: &mut Option<Vec<ObjectName>>,
+    ) {
+        match objects {
+            GrantObjects::AllSequencesInSchema { schemas: _schemas } => {}
+            GrantObjects::AllTablesInSchema { schemas: _schemas } => {}
+            GrantObjects::Schemas(_vec) => {}
+            GrantObjects::Sequences(_vec) => {}
+            GrantObjects::Tables(vec) => {
+                for table in vec.iter() {
+                    self.c_on_table(table).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                *tables = Some(vec.clone());
+            }
+            GrantObjects::Databases(..) => {}
+            GrantObjects::Views(..) => {}
+            GrantObjects::Warehouses(..) => {}
+            GrantObjects::Integrations(..) => {}
+            GrantObjects::ResourceMonitors(..) => {}
+            GrantObjects::Users(..) => {}
+            GrantObjects::ComputePools(..) => {}
+            GrantObjects::Connections(..) => {}
+            GrantObjects::FailoverGroup(..) => {}
+            GrantObjects::ReplicationGroup(..) => {}
+            GrantObjects::ExternalVolumes(..) => {}
+        }
+    }
+    async fn c_on_set(&mut self, ast: &Set) {
+        match ast {
+            Set::SingleAssignment {
+                variable, values, ..
+            } => {
+                for var in variable.0.iter() {
+                    match var {
+                        ObjectNamePart::Identifier(ident) => {
+                            self.c_on_variable(ident).await;
+                        }
+                    }
+                }
+                for value in values.iter() {
+                    self.c_on_expr(value).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            Set::ParenthesizedAssignments { variables, values } => {
+                for var in variables.iter() {
+                    for var in var.0.iter() {
+                        match var {
+                            ObjectNamePart::Identifier(ident) => {
+                                self.c_on_variable(ident).await;
+                            }
+                        }
+                    }
+                }
+                for value in values.iter() {
+                    self.c_on_expr(value).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            Set::MultipleAssignments { assignments } => {
+                for ass in assignments.iter() {
+                    for name in ass.name.0.iter() {
+                        match name {
+                            ObjectNamePart::Identifier(ident) => self.c_on_variable(ident).await,
+                        }
+                    }
+
+                    self.c_on_expr(&ass.value).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            Set::SetSessionParam(set_session_param_kind) => match set_session_param_kind {
+                SetSessionParamKind::Generic(..) => {}
+                SetSessionParamKind::IdentityInsert(..) => {}
+                SetSessionParamKind::Offsets(..) => {}
+                SetSessionParamKind::Statistics(..) => {}
+            },
+            Set::SetRole { role_name, .. } => {
+                if let Some(role_name) = role_name {
+                    self.c_on_role(role_name).await;
+                }
+            }
+            Set::SetTimeZone { .. } => {}
+            Set::SetNames { .. } => {}
+            Set::SetNamesDefault {} => {}
+            Set::SetTransaction { .. } => {
+                // fallback to lexer
+            }
+        }
+    }
+
+    async fn c_on_conditional_statement_block(&mut self, s: &ConditionalStatementBlock) {
+        if let Some(condition) = s.condition.as_ref() {
+            self.c_on_expr(condition).await;
+        }
+        for s in s.statements() {
+            Box::pin(self.completion_on_statement(s)).await;
+            if self.finished() {
+                return;
+            }
+        }
+    }
+
+    async fn c_on_case(&mut self, ast: &CaseStatement) {
+        if let Some(match_expr) = ast.match_expr.as_ref() {
+            self.c_on_expr(match_expr).await;
+        }
+        for wb in ast.when_blocks.iter() {
+            self.c_on_conditional_statement_block(wb).await;
+        }
+        if let Some(else_block) = ast.else_block.as_ref() {
+            self.c_on_conditional_statement_block(else_block).await
+        }
+    }
+
+    async fn c_on_if(&mut self, ast: &IfStatement) {
+        self.c_on_conditional_statement_block(&ast.if_block).await;
+        if self.finished() {
+            return;
+        }
+        for e in ast.elseif_blocks.iter() {
+            self.c_on_conditional_statement_block(e).await;
+        }
+        if let Some(e) = ast.else_block.as_ref() {
+            self.c_on_conditional_statement_block(e).await
+        }
+    }
+
+    async fn c_on_while(&mut self, ast: &WhileStatement) {
+        self.c_on_conditional_statement_block(&ast.while_block)
+            .await
+    }
+    async fn c_on_raise(&mut self, ast: &RaiseStatement) {
+        if let Some(value) = ast.value.as_ref() {
+            match value {
+                RaiseStatementValue::UsingMessage(expr) => self.c_on_expr(expr).await,
+                RaiseStatementValue::Expr(expr) => self.c_on_expr(expr).await,
+            }
+        }
+    }
+
+    async fn c_on_open(&mut self, _ast: &OpenStatement) {
+        // nothing to do here
+    }
+    async fn c_on_drop_domain(&mut self, _ast: &DropDomain) {
+        // nothing to do here
+    }
+    async fn c_on_grantee(&mut self, g: &Grantee) {
+        if let Some(name) = g.name.as_ref() {
+            match name {
+                GranteeName::ObjectName(object_name) => {
+                    for name in object_name.0.iter() {
+                        match name {
+                            ObjectNamePart::Identifier(ident) => self.c_on_role(ident).await,
+                        }
+                    }
+                }
+
+                GranteeName::UserHost { .. } => {}
+            }
+        }
+    }
+
+    async fn c_on_deny_statement(&mut self, ast: &DenyStatement) {
+        let mut tables = None;
+        self.c_on_grant_objects(&ast.objects, &mut tables).await;
+        for g in ast.grantees.iter() {
+            self.c_on_grantee(g).await;
+            if self.finished() {
+                return;
+            }
+        }
+        if let Some(g) = ast.granted_by.as_ref() {
+            self.c_on_role(g).await;
+        }
+    }
+
+    async fn c_on_create_domain(&mut self, _ast: &CreateDomain) {
+        // TODO handle this.
+    }
+
+    async fn c_on_print_statement(&mut self, ast: &PrintStatement) {
+        self.c_on_expr(&ast.message).await;
+    }
+    async fn c_on_return_statement(&mut self, ast: &ReturnStatement) {
+        if let Some(r) = ast.value.as_ref() {
+            match r {
+                ReturnStatementValue::Expr(expr) => {
+                    self.c_on_expr(expr).await;
                 }
             }
         }

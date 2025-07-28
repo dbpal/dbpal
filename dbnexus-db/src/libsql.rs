@@ -154,12 +154,10 @@ impl QuerySql for LibSqlDB {
         let conn = conn.as_ref().map(|x| x.deref());
         let conn = match &tr {
             Some(x) => x.deref().deref(),
-            None => {
-                match &conn {
-                    Some(x) => x,
-                    None => anyhow::bail!("collection closed????"),
-                }
-            }
+            None => match &conn {
+                Some(x) => x,
+                None => anyhow::bail!("collection closed????"),
+            },
         };
         let ret = match conn.execute(sql, params!()).await {
             Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
@@ -182,12 +180,10 @@ impl QuerySql for LibSqlDB {
         let conn = conn.as_ref().map(|x| x.deref());
         let conn = match &tr {
             Some(x) => x.deref().deref(),
-            None => {
-                match &conn {
-                    Some(x) => x,
-                    None => anyhow::bail!("collection closed????"),
-                }
-            }
+            None => match &conn {
+                Some(x) => x,
+                None => anyhow::bail!("collection closed????"),
+            },
         };
 
         let mut batch_rows = conn.execute_batch(sql).await?;
@@ -795,18 +791,14 @@ impl SqlBuilder for LibSqlDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => {
-                match value {
-                    Some(x) => format!("'{}'", x),
-                    None => "null".to_string(),
-                }
-            }
-            _ if text_like(typ.as_str()) => {
-                match value {
-                    Some(x) => format!("'{}'", x),
-                    None => "null".to_string(),
-                }
-            }
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
+            _ if text_like(typ.as_str()) => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
                 value.unwrap_or("null").to_string()

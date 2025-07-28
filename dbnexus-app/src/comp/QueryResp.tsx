@@ -25,6 +25,7 @@ import {
 } from './helper.ts';
 import {
   DataGrid,
+  GridColDef,
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
@@ -35,6 +36,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { SettingContext } from './Common.tsx';
@@ -99,32 +101,61 @@ function RespContextMenu(props: { content; field; setSort }) {
   );
 }
 
-function QueryResp_(props: { data: types.MuiDataGridData }) {
+function QueryResp_(props: { data: types.QueryResp }) {
   let { data } = props;
-  data.data.forEach((e) => {
-    if (!('id' in e)) {
-      e.id = uuidv4();
-    }
-  });
-  data.fields.forEach((e) => {
-    const width = columnWidths.getWidth(e.field);
-    if (width) {
-      e['width'] = width;
-    }
-    //@ts-ignore
-    e.renderHeader = (e) => {
-      let def = e.colDef;
-      return (
-        <Tooltip title={def.typ}>
-          <strong> {def.field}</strong>
-        </Tooltip>
-      );
-    };
-  });
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
-  }, []);
+  const [fields, setFields] = useState<GridColDef[]>([]);
+  const [rows, setRows] = useState<object[]>([]);
+  const muiDataField = useRef([]);
+  useEffect(() => {
+    muiDataField.current = [];
+    data.fields.forEach((_) => {
+      muiDataField.current.push(generateRandomString());
+    });
+    setFields(
+      muiDataField.current.map((name, index) => {
+        let def = { ...data.fields[index] } as GridColDef & types.Field;
+        const width = columnWidths.getWidth(def.field);
+        if (width) {
+          def['width'] = width;
+        }
+        // set the field now
+        def.field = name;
+        def.renderHeader = () => {
+          return (
+            <Tooltip title={def.typ}>
+              <span> {data.fields[index].field} </span>
+            </Tooltip>
+          );
+        };
+        return def;
+      })
+    );
+    const rows = data.data.map((row) => {
+      let data = {};
+      row.forEach((value, index) => {
+        data[muiDataField.current[index]] = value;
+      });
+      if (!('id' in data)) {
+        data['id'] = uuidv4();
+      }
+      return data;
+    });
+    setRows(rows);
+  }, [data]);
+
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      let index = 0;
+      for (; index < muiDataField.current.length; index++) {
+        if (muiDataField.current[index] == colDef.field) {
+          break;
+        }
+      }
+      columnWidths.saveColumnWidths(data.fields[index].field, width);
+    },
+    [data]
+  );
   const vis = useContext(VisiableContext);
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const { setUpMenu } = useContext(ContextMenuContext);
@@ -176,8 +207,8 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
             slotProps={slotProps}
             rowHeight={setting.datagridRowHeight}
             columnHeaderHeight={setting.datagridHeaderHeight}
-            columns={data.fields}
-            rows={data.data}
+            columns={fields}
+            rows={rows}
             filterMode="client" // 使用客户端过滤
             onColumnResize={onColumnResize}
           ></DataGrid>
@@ -252,7 +283,6 @@ function MultiQueryResp_(props: { data: any[] }) {
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
   };
-
   let idPrefix = generateRandomString(10);
   const vis = useContext(VisiableContext);
   return (

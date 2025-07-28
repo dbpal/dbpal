@@ -200,12 +200,10 @@ impl AstCompletionHelper for PostGresDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.name().to_string().into(),
-                    desc: Some(x.type_info().to_string().into()),
-                    kind: CompletionKind::Column,
-                }
+            .map(|x| CompletionItem {
+                item: x.name().to_string().into(),
+                desc: Some(x.type_info().to_string().into()),
+                kind: CompletionKind::Column,
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)

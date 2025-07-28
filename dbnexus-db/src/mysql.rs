@@ -577,14 +577,12 @@ impl MysqlDB {
             // tidb return data_length as `BIGINT` no UNSIGNED
             let size: Option<u64> = match r.try_get::<'_, u64, _>(1) {
                 Ok(x) => Some(x),
-                Err(_) => {
-                    match r.try_get::<'_, i64, _>(1) {
-                        Ok(x) => Some(x as u64),
-                        Err(_) => {
-                            anyhow::bail!("extract data_length failed:{:?}", r)
-                        }
+                Err(_) => match r.try_get::<'_, i64, _>(1) {
+                    Ok(x) => Some(x as u64),
+                    Err(_) => {
+                        anyhow::bail!("extract data_length failed:{:?}", r)
                     }
-                }
+                },
             };
 
             ret.push(ListTable::new(table_name, size));
@@ -678,7 +676,7 @@ impl SchemaTrait for MysqlDB {
             }
         );
         if let Some(a) = col.after.as_ref() {
-            sql.push_str(format!("after {}", a).as_str());
+            sql.push_str(format!(" after {}", a).as_str());
         }
         log::info!("sql:{}", sql);
 
@@ -1098,14 +1096,12 @@ impl SchemaTrait for MysqlDB {
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
                 Ok(x) => x,
-                Err(_) => {
-                    match r.try_get::<'_, Vec<u8>, _>(0) {
-                        Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
-                        Err(_err) => {
-                            anyhow::bail!("can get column as string or vec<u8>")
-                        }
+                Err(_) => match r.try_get::<'_, Vec<u8>, _>(0) {
+                    Ok(x) => String::from_utf8_lossy(x.as_slice()).to_string(),
+                    Err(_err) => {
+                        anyhow::bail!("can get column as string or vec<u8>")
                     }
-                }
+                },
             };
             // due to issue https://github.com/launchbadge/sqlx/issues/3390
             // use `try_get_unchecked` to extract

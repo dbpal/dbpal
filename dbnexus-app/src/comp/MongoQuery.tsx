@@ -139,7 +139,10 @@ function MongoQuery(props: {
       console.log('mongo query error:', e);
       return;
     }
-    showNotification('success', 'execute ok');
+    showNotification(
+      'success',
+      'execute ok,but somehow async function or timeout function ... etc may running in background'
+    );
   };
 
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {

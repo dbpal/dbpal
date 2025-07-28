@@ -458,18 +458,14 @@ impl QuerySql for DuckDB {
         let mut ret = Vec::new();
         for s in ss.iter() {
             match s.kind {
-                SqlKind::Query => {
-                    match Self::query_resp(&conn, &s.sql) {
-                        Ok(x) => ret.push(Ok(x)),
-                        Err(err) => ret.push(Err(err.to_string())),
-                    }
-                }
-                _ => {
-                    match conn.execute(&s.sql, []) {
-                        Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_string()))),
-                        Err(err) => ret.push(Err(err.to_string())),
-                    }
-                }
+                SqlKind::Query => match Self::query_resp(&conn, &s.sql) {
+                    Ok(x) => ret.push(Ok(x)),
+                    Err(err) => ret.push(Err(err.to_string())),
+                },
+                _ => match conn.execute(&s.sql, []) {
+                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_string()))),
+                    Err(err) => ret.push(Err(err.to_string())),
+                },
             }
         }
         _log_gurad.set_success(ret.iter().all(|x| x.is_ok()));
@@ -566,11 +562,9 @@ fn encode_value(
     log::trace!("value:{:?} ty:{:?} parse type:{:?}", value, ty, prased_type);
     let is_time = matches!(ty, DataType::Time32(_)) || matches!(ty, DataType::Time64(_));
     let is_bit = prased_type
-        .map(|x| {
-            match x {
-                sqlparser::ast::DataType::Bit(_) => true,
-                _ => false,
-            }
+        .map(|x| match x {
+            sqlparser::ast::DataType::Bit(_) => true,
+            _ => false,
         })
         .unwrap_or(false);
     let r = match value {
@@ -647,23 +641,19 @@ fn encode_value(
                 }
             };
             let parsed_type = match prased_type {
-                Some(x) => {
-                    match x {
-                        sqlparser::ast::DataType::Array(x) => {
-                            match x {
-                                sqlparser::ast::ArrayElemTypeDef::SquareBracket(data_type, _) => {
-                                    Some(data_type.as_ref())
-                                }
-                                _ => {
-                                    anyhow::bail!("not suitable type for duckdb :{:?}", x)
-                                }
-                            }
+                Some(x) => match x {
+                    sqlparser::ast::DataType::Array(x) => match x {
+                        sqlparser::ast::ArrayElemTypeDef::SquareBracket(data_type, _) => {
+                            Some(data_type.as_ref())
                         }
                         _ => {
-                            anyhow::bail!("expect an array type but:{:?}", ty)
+                            anyhow::bail!("not suitable type for duckdb :{:?}", x)
                         }
+                    },
+                    _ => {
+                        anyhow::bail!("expect an array type but:{:?}", ty)
                     }
-                }
+                },
                 None => None,
             };
 
@@ -684,45 +674,39 @@ fn encode_value(
 
             for (k, v) in ordered_map.iter() {
                 let ty = match ty {
-                    DataType::Struct(x) => {
-                        match x.find(&k) {
-                            Some(x) => x.1.data_type(),
-                            None => anyhow::bail!("field {} not found,this should not happen", k),
-                        }
-                    }
+                    DataType::Struct(x) => match x.find(&k) {
+                        Some(x) => x.1.data_type(),
+                        None => anyhow::bail!("field {} not found,this should not happen", k),
+                    },
                     _ => {
                         anyhow::bail!("expect struct type but {:?}", ty)
                     }
                 };
                 let prased_type = match prased_type {
-                    Some(x) => {
-                        match x {
-                            sqlparser::ast::DataType::Struct(x, _) => {
-                                let f = x.iter().find(|x| {
-                                    match &x.field_name {
-                                        Some(x) => x.value.to_string().eq_ignore_ascii_case(k),
-                                        None => false,
-                                    }
-                                });
-                                match f {
-                                    Some(f) => Some(f.field_type.clone()),
-                                    None => {
-                                        anyhow::bail!(
-                                            "field '{}' not found,availables are:{:?}",
-                                            k,
-                                            x.iter()
-                                                .map(|x| x.field_name.as_ref().map(|x| &x.value))
-                                                .flatten()
-                                                .collect::<Vec<_>>()
-                                        )
-                                    }
+                    Some(x) => match x {
+                        sqlparser::ast::DataType::Struct(x, _) => {
+                            let f = x.iter().find(|x| match &x.field_name {
+                                Some(x) => x.value.to_string().eq_ignore_ascii_case(k),
+                                None => false,
+                            });
+                            match f {
+                                Some(f) => Some(f.field_type.clone()),
+                                None => {
+                                    anyhow::bail!(
+                                        "field '{}' not found,availables are:{:?}",
+                                        k,
+                                        x.iter()
+                                            .map(|x| x.field_name.as_ref().map(|x| &x.value))
+                                            .flatten()
+                                            .collect::<Vec<_>>()
+                                    )
                                 }
                             }
-                            _ => {
-                                anyhow::bail!("expect a struct type but {:?}", x)
-                            }
                         }
-                    }
+                        _ => {
+                            anyhow::bail!("expect a struct type but {:?}", x)
+                        }
+                    },
                     None => None,
                 };
                 values.push(format!(
@@ -735,24 +719,22 @@ fn encode_value(
         }
         duckdb::types::Value::Map(ordered_map) => {
             let (kty, vty) = match ty {
-                DataType::Map(k, _) => {
-                    match k.data_type() {
-                        DataType::Struct(fs) => {
-                            let kty = fs.find("key");
-                            let vty = fs.find("value");
+                DataType::Map(k, _) => match k.data_type() {
+                    DataType::Struct(fs) => {
+                        let kty = fs.find("key");
+                        let vty = fs.find("value");
 
-                            match (kty, vty) {
-                                (Some(k), Some(v)) => (k.1.data_type(), v.1.data_type()),
-                                _ => {
-                                    anyhow::bail!("map must have key and value field")
-                                }
+                        match (kty, vty) {
+                            (Some(k), Some(v)) => (k.1.data_type(), v.1.data_type()),
+                            _ => {
+                                anyhow::bail!("map must have key and value field")
                             }
                         }
-                        _ => {
-                            anyhow::bail!("type here should a struct")
-                        }
                     }
-                }
+                    _ => {
+                        anyhow::bail!("type here should a struct")
+                    }
+                },
                 _ => {
                     anyhow::bail!("data should be a map but {:?}", ty)
                 }
@@ -760,32 +742,27 @@ fn encode_value(
 
             let (pkty, pvty) = match prased_type {
                 None => (None, None),
-                Some(prased_type) => {
-                    match prased_type {
-                        sqlparser::ast::DataType::Map(k, v) => {
-                            (Some(k.as_ref().clone()), Some(v.as_ref().clone()))
-                        }
-                        sqlparser::ast::DataType::Custom(x, subtypes) => {
-                            if x.to_string().to_uppercase() == "MAP" {
-                                if subtypes.len() != 2 {
-                                    anyhow::bail!(
-                                        "sub type should have length 2 but {:?}",
-                                        subtypes
-                                    )
-                                }
-                                (
-                                    Some(parse_type(&subtypes[0])?),
-                                    Some(parse_type(&subtypes[1])?),
-                                )
-                            } else {
-                                anyhow::bail!("custon should be map but {:?}", x)
+                Some(prased_type) => match prased_type {
+                    sqlparser::ast::DataType::Map(k, v) => {
+                        (Some(k.as_ref().clone()), Some(v.as_ref().clone()))
+                    }
+                    sqlparser::ast::DataType::Custom(x, subtypes) => {
+                        if x.to_string().to_uppercase() == "MAP" {
+                            if subtypes.len() != 2 {
+                                anyhow::bail!("sub type should have length 2 but {:?}", subtypes)
                             }
-                        }
-                        _ => {
-                            anyhow::bail!("type must be map but {:?}", prased_type)
+                            (
+                                Some(parse_type(&subtypes[0])?),
+                                Some(parse_type(&subtypes[1])?),
+                            )
+                        } else {
+                            anyhow::bail!("custon should be map but {:?}", x)
                         }
                     }
-                }
+                    _ => {
+                        anyhow::bail!("type must be map but {:?}", prased_type)
+                    }
+                },
             };
             let mut keys = Vec::new();
             let mut values = Vec::new();
@@ -1560,13 +1537,11 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
                     .unwrap_or("null".to_string()),
             )
         }
-        _ if typ.ends_with("[]") => {
-            anyhow::Ok(
-                value
-                    .map(|x| format!("{}", x))
-                    .unwrap_or("null".to_string()),
-            )
-        }
+        _ if typ.ends_with("[]") => anyhow::Ok(
+            value
+                .map(|x| format!("{}", x))
+                .unwrap_or("null".to_string()),
+        ),
         _ if typ.starts_with("time")
             || typ.starts_with("date")
             || typ.starts_with("utf8")

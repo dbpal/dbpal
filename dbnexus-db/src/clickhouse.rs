@@ -1079,22 +1079,20 @@ impl JsonResp {
             let mut data = Vec::with_capacity(self.meta.len());
             for meta in self.meta.iter() {
                 let value: Option<String> = match d.get(&meta.name) {
-                    Some(value) => {
-                        match value {
-                            serde_json::Value::Null => None,
-                            serde_json::Value::Bool(x) => Some(x.to_string()),
-                            serde_json::Value::Number(number) => Some(number.to_string()),
-                            serde_json::Value::String(x) => Some(x.clone()),
-                            serde_json::Value::Array(_) => {
-                                let ty = parse_type(&meta.r#type)?;
-                                Some(encode_nested(value, &ty)?)
-                            }
-                            serde_json::Value::Object(_) => {
-                                let ty = parse_type(&meta.r#type)?;
-                                Some(encode_nested(value, &ty)?)
-                            }
+                    Some(value) => match value {
+                        serde_json::Value::Null => None,
+                        serde_json::Value::Bool(x) => Some(x.to_string()),
+                        serde_json::Value::Number(number) => Some(number.to_string()),
+                        serde_json::Value::String(x) => Some(x.clone()),
+                        serde_json::Value::Array(_) => {
+                            let ty = parse_type(&meta.r#type)?;
+                            Some(encode_nested(value, &ty)?)
                         }
-                    }
+                        serde_json::Value::Object(_) => {
+                            let ty = parse_type(&meta.r#type)?;
+                            Some(encode_nested(value, &ty)?)
+                        }
+                    },
                     None => None,
                 };
 

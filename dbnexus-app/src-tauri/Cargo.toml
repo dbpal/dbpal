@@ -13,9 +13,9 @@ tauri-build = { version = "2", features = [] }
 
 
 [dependencies]
-tauri = { version = "2", features = ["devtools"] }
-tauri-plugin-shell = "2"
-tauri-plugin-dialog = "2"
+tauri = { version = "2.7", features = ["devtools"] }
+tauri-plugin-shell = "2.3"
+tauri-plugin-dialog = "2.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dbnexus-db.workspace = true
@@ -30,14 +30,14 @@ log.workspace = true
 uuid.workspace = true
 typescript-type-def = "*"
 bson.workspace = true
-hex = "*"
+hex.workspace = true
 mongodb.workspace = true
 env_logger.workspace = true
 rand = "*"
-tauri-plugin-fs = "2"
+tauri-plugin-fs = "2.4"
 humantime = "*"
-tauri-plugin-store = "2"
-tauri-plugin-http = "2"
+tauri-plugin-store = "2.3"
+tauri-plugin-http = "2.5"
 enum-iterator = "*"
 tauri-plugin-clipboard-manager = "2"
 keyring = { version = "3", features = [
@@ -45,8 +45,8 @@ keyring = { version = "3", features = [
     "windows-native",
     "sync-secret-service",
 ] }
-tauri-plugin-opener = "2"
-tauri-plugin-os = "2"
+tauri-plugin-opener = "2.4"
+tauri-plugin-os = "2.3"
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]

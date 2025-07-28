@@ -30,6 +30,9 @@ const keyShortChangetab = {
       if (e.metaKey && e.key == ',') {
         keyShortChangetab.showSetting();
       }
+      if (e.metaKey && e.key == 'w') {
+        keyShortChangetab.closeCurrentTab();
+      }
     }
     if (['windows', 'linux'].includes(platform())) {
       if (e.ctrlKey && e.key == '[') {
@@ -38,6 +41,9 @@ const keyShortChangetab = {
       if (e.ctrlKey && e.key == ']') {
         keyShortChangetab.next();
       }
+      if (e.ctrlKey && e.key == 'w') {
+        keyShortChangetab.closeCurrentTab();
+      }
     }
   },
 } as {
@@ -45,6 +51,7 @@ const keyShortChangetab = {
   next: () => void;
   callback: (e: KeyboardEvent) => void;
   showSetting: () => void;
+  closeCurrentTab: () => void;
 };
 
 import { ModifySettings, SettingComp } from './Settings.tsx';
@@ -68,6 +75,15 @@ export default function MainPage() {
   ]);
   const [tab, setTab] = useState(0);
   const [showSetting, setShowSetting] = useState(false);
+  const closeTab = useCallback(
+    (index: number) => {
+      let id = tabs[index].id;
+      setTabs((prevTabs) => {
+        return prevTabs.filter((x) => x.id !== id);
+      });
+    },
+    [tabs]
+  );
 
   keyShortChangetab.prev = () => {
     setTab((e) => (e > 0 ? e - 1 : e));
@@ -81,6 +97,9 @@ export default function MainPage() {
 
   keyShortChangetab.showSetting = () => {
     setShowSetting(true);
+  };
+  keyShortChangetab.closeCurrentTab = () => {
+    closeTab(tab);
   };
 
   // shortcut
@@ -110,16 +129,6 @@ export default function MainPage() {
       customMenu.style.display = 'none';
     });
   });
-
-  const closeTab = useCallback(
-    (index: number) => {
-      let id = tabs[index].id;
-      setTabs((prevTabs) => {
-        return prevTabs.filter((x) => x.id !== id);
-      });
-    },
-    [tabs]
-  );
 
   useEffect(() => {
     if (tab > 0 && tab >= tabs.length) {

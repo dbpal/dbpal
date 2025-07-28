@@ -782,18 +782,14 @@ impl SchemaTrait for RedisDB {
             RedisType::String => anyhow::Ok(vec![Field::from_name_type("value", "string")]),
             RedisType::List => anyhow::Ok(vec![Field::from_name_type("list element", "string")]),
             RedisType::Set => anyhow::Ok(vec![Field::from_name_type("set element", "string")]),
-            RedisType::Hash => {
-                anyhow::Ok(vec![
-                    Field::from_name_type("key", "string"),
-                    Field::from_name_type("value", "string"),
-                ])
-            }
-            RedisType::Zset => {
-                anyhow::Ok(vec![
-                    Field::from_name_type("value", "string"),
-                    Field::from_name_type("score", "float64"),
-                ])
-            }
+            RedisType::Hash => anyhow::Ok(vec![
+                Field::from_name_type("key", "string"),
+                Field::from_name_type("value", "string"),
+            ]),
+            RedisType::Zset => anyhow::Ok(vec![
+                Field::from_name_type("value", "string"),
+                Field::from_name_type("score", "float64"),
+            ]),
         }
     }
 
@@ -1216,19 +1212,15 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialet, line).tokenize()?;
         let c = tokens
             .iter()
-            .filter(|x| {
-                match x {
-                    Token::Whitespace(_) => false,
-                    _ => true,
-                }
+            .filter(|x| match x {
+                Token::Whitespace(_) => false,
+                _ => true,
             })
-            .map(|x| {
-                match x {
-                    Token::SingleQuotedString(x) => x.to_string(),
-                    Token::DoubleQuotedString(x) => x.to_string(),
-                    Token::Word(x) if x.quote_style == Some('"') => x.value.to_string(),
-                    _ => x.to_string(),
-                }
+            .map(|x| match x {
+                Token::SingleQuotedString(x) => x.to_string(),
+                Token::DoubleQuotedString(x) => x.to_string(),
+                Token::Word(x) if x.quote_style == Some('"') => x.value.to_string(),
+                _ => x.to_string(),
             })
             .collect();
         commands.push(c);
@@ -1282,12 +1274,10 @@ async fn query_sql(
 fn encode_response_value_to_string(v: &Value) -> String {
     match v {
         Value::Int(v) => v.to_string(),
-        Value::BulkString(x) => {
-            match from_utf8(x.as_slice()) {
-                Ok(x) => x.to_owned(),
-                Err(_) => format!("0x{}", hex::encode(x.as_slice())),
-            }
-        }
+        Value::BulkString(x) => match from_utf8(x.as_slice()) {
+            Ok(x) => x.to_owned(),
+            Err(_) => format!("0x{}", hex::encode(x.as_slice())),
+        },
         Value::SimpleString(x) => x.to_owned(),
         Value::Double(d) => d.to_string(),
         Value::Boolean(x) => x.to_string(),
@@ -1389,13 +1379,11 @@ fn encode_response_value(
         }
 
         Value::SimpleString(x) => QueryResp::result("result", None, vec![Some(x.to_string())]),
-        Value::BulkString(_x) => {
-            QueryResp::result(
-                "result",
-                None,
-                vec![Some(encode_response_value_to_string(v))],
-            )
-        }
+        Value::BulkString(_x) => QueryResp::result(
+            "result",
+            None,
+            vec![Some(encode_response_value_to_string(v))],
+        ),
         Value::Map(x) => {
             let fields = vec![
                 Field::from_name_type("key", "string"),

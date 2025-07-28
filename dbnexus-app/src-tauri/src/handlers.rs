@@ -106,12 +106,10 @@ pub async fn drop_database(
             Ok(())
         }
 
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db catalog",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
     }
 }
 
@@ -136,12 +134,10 @@ pub async fn drop_schema(
                 .map_err(|x| ErrorFrontend::from(x))?;
             Ok(())
         }
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db database",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
     }
 }
 
@@ -179,12 +175,10 @@ pub async fn create_database(
             Ok(())
         }
 
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db catalog",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
     }
 }
 
@@ -214,12 +208,10 @@ pub async fn create_schema(
                 .await;
             Ok(())
         }
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db database",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
     }
 }
 
@@ -276,11 +268,10 @@ pub async fn mongo_list_time_serial_collection(
         .map_err(|x| ErrorFrontend::from(x))?;
 
     let ret = match schema.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => {
-            x.list_time_serial_collection()
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?
-        }
+        Some(x) => x
+            .list_time_serial_collection()
+            .await
+            .map_err(|x| ErrorFrontend::from(x))?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' is not a mongo", name)));
         }
@@ -401,11 +392,10 @@ pub async fn mongo_create_index(
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => {
-            x.create_index(&table_name, index_name, unique, keys)
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?
-        }
+        Some(x) => x
+            .create_index(&table_name, index_name, unique, keys)
+            .await
+            .map_err(|x| ErrorFrontend::from(x))?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' not a mongo", name)));
         }
@@ -741,7 +731,7 @@ pub async fn is_dangerous_sql(
 #[tauri::command]
 pub async fn query_sql(
     name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
-) -> Result<Vec<Result<MuiDataGridData, String>>, ErrorFrontend> {
+) -> Result<Vec<Result<QueryResp, String>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
@@ -753,22 +743,13 @@ pub async fn query_sql(
         Open::Catalog(x) => x.query_sql(query_id, &sql).await,
     };
 
-    result.map_err(ErrorFrontend::from).map(|x| {
-        x.into_iter()
-            .map(|x| {
-                match x {
-                    Err(e) => Err(e),
-                    Ok(x) => Ok(MuiDataGridData::from(x)),
-                }
-            })
-            .collect::<Vec<_>>()
-    })
+    result.map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn execute_sql(
     name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
-) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
+) -> Result<Result<QueryResp, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
@@ -780,7 +761,7 @@ pub async fn execute_sql(
         Open::Catalog(x) => x.execute_sql(query_id, &sql).await,
     }
     .map_err(|e| ErrorFrontend::from(e))?;
-    Ok(result.map(|x| MuiDataGridData::from(x)))
+    Ok(result)
 }
 
 #[tauri::command]
@@ -957,12 +938,10 @@ pub async fn config_list_database_or_schema(
 ) -> Result<Vec<String>, ErrorFrontend> {
     let x = conn.open().await?;
     match x {
-        Open::Catalog(catalog_trait) => {
-            catalog_trait
-                .list_database()
-                .await
-                .map_err(ErrorFrontend::from)
-        }
+        Open::Catalog(catalog_trait) => catalog_trait
+            .list_database()
+            .await
+            .map_err(ErrorFrontend::from),
         Open::DataBase(dbtrait) => dbtrait.list_schema().await.map_err(ErrorFrontend::from),
         Open::Schema(_) => Ok(vec![]),
     }
@@ -2511,11 +2490,10 @@ pub async fn cassandra_show_aggregate(
         .map_err(ErrorFrontend::from)?;
 
     let ret = match schema.as_any().downcast_ref::<CassandraDB>() {
-        Some(x) => {
-            x.show_aggregate(&agg_name, parameters)
-                .await
-                .map_err(ErrorFrontend::from)?
-        }
+        Some(x) => x
+            .show_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra",
@@ -2536,11 +2514,10 @@ pub async fn cassandra_drop_aggregate(
         .map_err(ErrorFrontend::from)?;
 
     match schema.as_any().downcast_ref::<CassandraDB>() {
-        Some(x) => {
-            x.drop_aggregate(&agg_name, parameters)
-                .await
-                .map_err(ErrorFrontend::from)?
-        }
+        Some(x) => x
+            .drop_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra",
@@ -2672,8 +2649,8 @@ async fn random_sleep() {
     {
         let duration = {
             use rand::Rng;
-            let mut rng = rand::thread_rng();
-            let millis = rng.gen_range(500..1700);
+            let mut rng = rand::rng();
+            let millis = rng.random_range(500..1700);
             let duration = std::time::Duration::from_millis(millis);
             duration
         };
@@ -2721,14 +2698,15 @@ impl From<QueryResp> for MuiDataGridData {
             .into_iter()
             .map(|x| {
                 let mut m = HashMap::new();
-                fields.iter().zip(x.into_iter()).for_each(|(f, value)| {
-                    match value {
+                fields
+                    .iter()
+                    .zip(x.into_iter())
+                    .for_each(|(f, value)| match value {
                         Some(value) => {
                             m.insert(f.field.clone(), value);
                         }
                         None => {}
-                    }
-                });
+                    });
                 m
             })
             .collect();

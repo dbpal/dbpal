@@ -4,7 +4,7 @@ pub mod handlers;
 mod tests {
     use dbnexus_db::cassandra::CassandraDB;
     use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce};
-    use dbnexus_db::db::{ColumnType, CreateTableAndIndexSql};
+    use dbnexus_db::db::{ColumnType, CreateTableAndIndexSql, QueryResp};
 
     #[test]
     fn generate_ts_def() {
@@ -66,6 +66,7 @@ mod tests {
                 &CreateTableAndIndexSql::INFO,
                 &EnableSsl::INFO,
                 &ColumnType::INFO,
+                &QueryResp::INFO,
             ];
 
             let mut buf = Vec::new();

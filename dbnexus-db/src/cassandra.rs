@@ -319,14 +319,12 @@ fn encode_rows_as_json(
                 ColType::List => {
                     let x: Option<List> = row.get_by_index(index)?;
                     match x {
-                        Some(list) => {
-                            match list.as_cassandra_type()? {
-                                Some(CassandraType::List(mut vs)) => {
-                                    Some(serde_json::Value::Array(encode_list(&mut vs)?))
-                                }
-                                _ => anyhow::bail!("should be able to cast to list"),
+                        Some(list) => match list.as_cassandra_type()? {
+                            Some(CassandraType::List(mut vs)) => {
+                                Some(serde_json::Value::Array(encode_list(&mut vs)?))
                             }
-                        }
+                            _ => anyhow::bail!("should be able to cast to list"),
+                        },
                         None => None,
                     }
                 }
@@ -334,14 +332,12 @@ fn encode_rows_as_json(
                 ColType::Map => {
                     let x: Option<Map> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => {
-                            match map.as_cassandra_type()? {
-                                Some(CassandraType::Map(mut vs)) => {
-                                    Some(serde_json::Value::Object(encode_map(&mut vs)?))
-                                }
-                                _ => anyhow::bail!("should be able to cast to map"),
+                        Some(map) => match map.as_cassandra_type()? {
+                            Some(CassandraType::Map(mut vs)) => {
+                                Some(serde_json::Value::Object(encode_map(&mut vs)?))
                             }
-                        }
+                            _ => anyhow::bail!("should be able to cast to map"),
+                        },
                         None => None,
                     }
                 }
@@ -349,42 +345,36 @@ fn encode_rows_as_json(
                 ColType::Set => {
                     let x: Option<List> = row.get_by_index(index)?;
                     match x {
-                        Some(list) => {
-                            match list.as_cassandra_type()? {
-                                Some(CassandraType::List(mut vs)) => {
-                                    Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
-                                }
-                                _ => anyhow::bail!("should be able to cast to list"),
+                        Some(list) => match list.as_cassandra_type()? {
+                            Some(CassandraType::List(mut vs)) => {
+                                Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
                             }
-                        }
+                            _ => anyhow::bail!("should be able to cast to list"),
+                        },
                         None => None,
                     }
                 }
                 ColType::Udt => {
                     let x: Option<Udt> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => {
-                            match map.as_cassandra_type()? {
-                                Some(CassandraType::Udt(mut vs)) => {
-                                    Some(serde_json::Value::Object(encode_udf(&mut vs)?))
-                                }
-                                _ => anyhow::bail!("should be able to cast to map"),
+                        Some(map) => match map.as_cassandra_type()? {
+                            Some(CassandraType::Udt(mut vs)) => {
+                                Some(serde_json::Value::Object(encode_udf(&mut vs)?))
                             }
-                        }
+                            _ => anyhow::bail!("should be able to cast to map"),
+                        },
                         None => None,
                     }
                 }
                 ColType::Tuple => {
                     let x: Option<Tuple> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => {
-                            match map.as_cassandra_type()? {
-                                Some(CassandraType::Tuple(mut vs)) => {
-                                    Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
-                                }
-                                _ => anyhow::bail!("should be able to cast to tuple"),
+                        Some(map) => match map.as_cassandra_type()? {
+                            Some(CassandraType::Tuple(mut vs)) => {
+                                Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
                             }
-                        }
+                            _ => anyhow::bail!("should be able to cast to tuple"),
+                        },
                         None => None,
                     }
                 }
@@ -593,12 +583,10 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
                 ColType::List => {
                     let x: Option<List> = row.get_by_index(index)?;
                     match x {
-                        Some(list) => {
-                            match list.as_cassandra_type()? {
-                                Some(CassandraType::List(mut vs)) => Some(encode_list(&mut vs)?),
-                                _ => anyhow::bail!("should be able to cast to list"),
-                            }
-                        }
+                        Some(list) => match list.as_cassandra_type()? {
+                            Some(CassandraType::List(mut vs)) => Some(encode_list(&mut vs)?),
+                            _ => anyhow::bail!("should be able to cast to list"),
+                        },
                         None => None,
                     }
                 }
@@ -606,12 +594,10 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
                 ColType::Map => {
                     let x: Option<Map> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => {
-                            match map.as_cassandra_type()? {
-                                Some(CassandraType::Map(mut vs)) => Some(encode_map(&mut vs)?),
-                                _ => anyhow::bail!("should be able to cast to map"),
-                            }
-                        }
+                        Some(map) => match map.as_cassandra_type()? {
+                            Some(CassandraType::Map(mut vs)) => Some(encode_map(&mut vs)?),
+                            _ => anyhow::bail!("should be able to cast to map"),
+                        },
                         None => None,
                     }
                 }
@@ -619,36 +605,30 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
                 ColType::Set => {
                     let x: Option<List> = row.get_by_index(index)?;
                     match x {
-                        Some(list) => {
-                            match list.as_cassandra_type()? {
-                                Some(CassandraType::List(mut vs)) => Some(encode_tuple(&mut vs)?),
-                                _ => anyhow::bail!("should be able to cast to list"),
-                            }
-                        }
+                        Some(list) => match list.as_cassandra_type()? {
+                            Some(CassandraType::List(mut vs)) => Some(encode_tuple(&mut vs)?),
+                            _ => anyhow::bail!("should be able to cast to list"),
+                        },
                         None => None,
                     }
                 }
                 ColType::Udt => {
                     let x: Option<Udt> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => {
-                            match map.as_cassandra_type()? {
-                                Some(CassandraType::Udt(mut vs)) => Some(encode_udf(&mut vs)?),
-                                _ => anyhow::bail!("should be able to cast to map"),
-                            }
-                        }
+                        Some(map) => match map.as_cassandra_type()? {
+                            Some(CassandraType::Udt(mut vs)) => Some(encode_udf(&mut vs)?),
+                            _ => anyhow::bail!("should be able to cast to map"),
+                        },
                         None => None,
                     }
                 }
                 ColType::Tuple => {
                     let x: Option<Tuple> = row.get_by_index(index)?;
                     match x {
-                        Some(map) => {
-                            match map.as_cassandra_type()? {
-                                Some(CassandraType::Tuple(mut vs)) => Some(encode_tuple(&mut vs)?),
-                                _ => anyhow::bail!("should be able to cast to tuple"),
-                            }
-                        }
+                        Some(map) => match map.as_cassandra_type()? {
+                            Some(CassandraType::Tuple(mut vs)) => Some(encode_tuple(&mut vs)?),
+                            _ => anyhow::bail!("should be able to cast to tuple"),
+                        },
                         None => None,
                     }
                 }
@@ -1016,11 +996,9 @@ impl CassandraDB {
             page_size
         );
         let allow_filtering = match &extra {
-            Some(x) => {
-                match x {
-                    ShowExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
-                }
-            }
+            Some(x) => match x {
+                ShowExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
+            },
             None => false,
         };
         let sql = format!(
@@ -1401,12 +1379,10 @@ impl SchemaTrait for CassandraDB {
         // why `row.get_by_index(3)?` looks cassandra return this value.
         let ret: Option<String> = row.get_by_index(3)?;
         match ret {
-            Some(x) => {
-                anyhow::Ok(CreateTableAndIndexSql {
-                    create_table: x,
-                    indexes: vec![],
-                })
-            }
+            Some(x) => anyhow::Ok(CreateTableAndIndexSql {
+                create_table: x,
+                indexes: vec![],
+            }),
             None => anyhow::bail!("create table sql should not be null"),
         }
     }
@@ -1697,14 +1673,12 @@ impl SchemaTrait for CassandraDB {
         // println!("meta:{:?}", meta);
 
         let parameters = match &extra {
-            Some(extra) => {
-                match &extra {
-                    UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
-                    _ => {
-                        anyhow::bail!("show udf for cassandra need extra parameter.");
-                    }
+            Some(extra) => match &extra {
+                UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
+                _ => {
+                    anyhow::bail!("show udf for cassandra need extra parameter.");
                 }
-            }
+            },
             None => anyhow::bail!("show udf for cassandra need extra parameter."),
         };
 
@@ -1743,14 +1717,12 @@ impl SchemaTrait for CassandraDB {
         &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(extra) => {
-                match &extra {
-                    UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
-                    _ => {
-                        anyhow::bail!("drop udf for cassandra need extra parameter.");
-                    }
+            Some(extra) => match &extra {
+                UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
+                _ => {
+                    anyhow::bail!("drop udf for cassandra need extra parameter.");
                 }
-            }
+            },
             None => anyhow::bail!("drop udf for cassandra need extra parameter."),
         };
 
@@ -1772,13 +1744,11 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let typ = typ.to_lowercase();
     log::trace!("encode value '{:?}' on type '{}'", value, typ);
     match typ.as_str() {
-        "ascii" | "varchar" | "timestamp" | "text" | "date" | "time" | "inet" => {
-            anyhow::Ok(
-                value
-                    .map(|x| format!("'{}'", x))
-                    .unwrap_or("null".to_string()),
-            )
-        }
+        "ascii" | "varchar" | "timestamp" | "text" | "date" | "time" | "inet" => anyhow::Ok(
+            value
+                .map(|x| format!("'{}'", x))
+                .unwrap_or("null".to_string()),
+        ),
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
 }

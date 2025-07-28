@@ -18,46 +18,24 @@ dbnexus-db = { path = "dbnexus-db" }
 serde_json = "1.0"
 async-trait = "0.1"
 
-redis = { version = "*", features = [
-    "tokio-comp",
-    "aio",
-    "connection-manager",
-] }
-
 dashmap = "6.1.0"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 serde = "1.0"
 hex = "0.4.3"
-mac_address = "1.1.5"
-ipnetwork = "0.20"
-chrono = "0.4.34"
-bit-vec = "*"
 
-sqlparser = { version = "0.55.0", features = ["serde"] }
 lazy_static = "1.5.0"
-line-index = "0.1.1"
 log = "0.4.22"
-
-
 futures-util = "*"
 futures-core = "*"
 mongodb = { version = "3.2.3", features = [] }
-tiberius = { version = "0.12.3", default-features = false, features = [
-    "chrono",
-    "rust_decimal",
-    "tds73",
-    "rustls",
-] }
+
 tokio-util = "*"
-rust_decimal = "*"
-bb8-tiberius = "0.16"
-bb8 = "0.9"
-fuzzy-matcher = "*"
-pg_interval = "*"
+
+
 uuid = { version = "*", features = ["v4"] }
 typescript-type-def = "0.5.11"
-sqlformat = "0.3.5"
+
 bson = { version = "*", features = ["chrono"] }
 
 env_logger = "0.11.6"
