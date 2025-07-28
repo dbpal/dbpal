@@ -38,7 +38,7 @@ tauri-plugin-fs = "2.4"
 humantime = "*"
 tauri-plugin-store = "2.3"
 tauri-plugin-http = "2.5"
-enum-iterator = "*"
+ 
 tauri-plugin-clipboard-manager = "2"
 keyring = { version = "3", features = [
     "apple-native",

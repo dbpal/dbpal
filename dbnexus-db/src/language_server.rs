@@ -29,7 +29,7 @@ pub struct CompletionItem {
     pub desc: Option<Cow<'static, str>>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef, enum_iterator::Sequence)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
 pub enum CompletionKind {
     // commnad right now use by redis
     Command,
