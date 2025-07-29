@@ -44,6 +44,9 @@ const keyShortChangetab = {
       if (e.ctrlKey && e.key == 'w') {
         keyShortChangetab.closeCurrentTab();
       }
+      if (e.ctrlKey && e.key == ',') {
+        keyShortChangetab.showSetting();
+      }
     }
   },
 } as {
