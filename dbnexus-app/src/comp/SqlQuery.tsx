@@ -482,7 +482,7 @@ function SqlQuery(props: {
               width: '65%',
             }}
           >
-            <Stack direction="row" sx={{ justifyContent: 'felx-start' }}>
+            <Stack direction="row">
               <Button
                 onClick={() => {
                   setShowQueryLog(false);

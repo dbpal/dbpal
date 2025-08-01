@@ -3,7 +3,13 @@ import { types } from './ApiStruct.ts';
 import { DataGrid, GridPaginationModel } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
-import { useCallback, useContext, useMemo, useState } from 'react';
+import {
+  CSSProperties,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react';
 import {
   EscDownEvent,
   modalStyle,
@@ -13,6 +19,8 @@ import {
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import { VisiableContext } from './helper.ts';
+
+const pageSizeOptions = [10, 15];
 
 const initialState: object = {
   sorting: { sortModel: [{ field: 'time', sort: 'desc' }] },
@@ -66,10 +74,16 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
   }, []);
   let vis = useContext(VisiableContext);
   const setting = useContext(SettingContext);
+
   return (
     <Stack>
       {vis && (
-        <div style={{ display: 'grid' }}>
+        <div
+          style={{
+            display: 'grid',
+            maxHeight: '40vh',
+          }}
+        >
           <DataGrid
             showCellVerticalBorder
             showColumnVerticalBorder
@@ -78,7 +92,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
             rows={logs}
             rowHeight={setting.datagridRowHeight}
             columnHeaderHeight={setting.datagridHeaderHeight}
-            pageSizeOptions={[10, 15]}
+            pageSizeOptions={pageSizeOptions}
             paginationModel={paginationModel}
             onPaginationModelChange={onPaginationModelChange}
             initialState={initialState}

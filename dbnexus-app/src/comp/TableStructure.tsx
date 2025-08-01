@@ -1502,7 +1502,7 @@ function TableStructure(props: {
 }) {
   const { table, uuid, kind } = props;
   const [structure, setStructure] = useState('columns');
-  const structures = [{ name: 'columns', color: 'secondary' }, ,];
+  const structures = [{ name: 'columns' }];
 
   const supportStatement = [
     DataSourceKind.Cassandra,
@@ -1515,7 +1515,7 @@ function TableStructure(props: {
     DataSourceKind.DuckDB,
   ].includes(kind);
   if (supportStatement) {
-    structures.push({ name: 'statement', color: 'primary' });
+    structures.push({ name: 'statement' });
   }
   const supportIndex = [
     DataSourceKind.MariaDB,
@@ -1535,7 +1535,7 @@ function TableStructure(props: {
   ].includes(kind);
 
   if (supportIndex) {
-    structures.push({ name: 'indexes', color: 'success' });
+    structures.push({ name: 'indexes' });
   }
   const supportTrigger = [
     DataSourceKind.MariaDB,
@@ -1546,7 +1546,7 @@ function TableStructure(props: {
     DataSourceKind.Postgres,
   ].includes(kind);
   if (supportTrigger) {
-    structures.push({ name: 'triggers', color: 'info' });
+    structures.push({ name: 'triggers' });
   }
 
   return (
@@ -1558,8 +1558,7 @@ function TableStructure(props: {
               setStructure(e.name);
             }}
             key={e.name}
-            //@ts-ignore
-            color={e.name == structure ? e.color : 'default'}
+            color={e.name == structure ? 'primary' : 'default'}
             label={e.name}
           ></Chip>
         ))}

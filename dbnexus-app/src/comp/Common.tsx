@@ -463,6 +463,7 @@ function SimpleResizeEditor(props: {
       //@ts-ignore
       wordWrap: wordWrap,
       readOnly,
+
       ...setting.editorOption,
     };
   }, [setting]);

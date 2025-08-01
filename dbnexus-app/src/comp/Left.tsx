@@ -127,7 +127,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ padding: '4px 12px' }}>
       <Stack>
         {show ? (
           <IconButton onClick={toggerShow}>

@@ -647,7 +647,8 @@ function SqlTableView(props: {
                     cursor: 'pointer',
                     fontSize: '0.9rem',
                     fontStyle: 'italic',
-                    color: 'info',
+                    color: 'green',
+                    fontWeight: '600',
                   }}
                   variant="body1"
                   onClick={() => {
