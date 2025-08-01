@@ -42,6 +42,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification.tsx';
+import { MenuResetColumnWidths } from './CommonComp.tsx';
 
 function RespContextMenu(props: { content; field; setSort }) {
   const { content, field, setSort } = props;
@@ -93,6 +94,7 @@ function RespContextMenu(props: { content; field; setSort }) {
           </ListItemIcon>
           <ListItemText> {field} DESC </ListItemText>
         </MenuItem>
+        <MenuResetColumnWidths></MenuResetColumnWidths>
       </MenuList>
     </Paper>
   );

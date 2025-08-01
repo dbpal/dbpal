@@ -367,21 +367,7 @@ const components: Components<
       },
     },
   },
-  // MuiAlert: {
-  //   styleOverrides: {
-  //     root: {
-  //       padding: 0,
-  //     },
-  //   },
-  // },
-  MuiTabs: {
-    styleOverrides: {
-      root: {
-        height: '2.6rem',
-        minHeight: '1rem',
-      },
-    },
-  },
+
   MuiTab: {
     styleOverrides: {
       root: {

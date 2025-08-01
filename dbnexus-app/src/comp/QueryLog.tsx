@@ -75,7 +75,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
   let vis = useContext(VisiableContext);
   const setting = useContext(SettingContext);
   const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+    return { height: 'auto', maxHeight: '50vh' } as CSSProperties;
   }, []);
   return (
     <Stack>
