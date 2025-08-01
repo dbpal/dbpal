@@ -1368,7 +1368,7 @@ function RedisTables(prpos: { schema?: string }) {
               value={filter}
               fullWidth
               label="filer"
-              helperText="can be *key or key* etc..."
+              helperText="key filter , can be '*key' or 'key*' etc..."
               onChange={(e) => {
                 setFilter(e.target.value);
               }}

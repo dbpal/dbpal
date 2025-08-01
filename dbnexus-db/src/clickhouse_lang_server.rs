@@ -86,6 +86,21 @@ impl AstCompletionHelper for ClickHouseDB {
         let ret: Vec<String> = conn.query(sql).fetch_all().await?;
         anyhow::Ok(ret)
     }
+    async fn list_clickhouse_table_projects(
+        &self, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let conn = self.get_conn()?;
+        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
+        let sql = format!(
+            r#"
+            SELECT name 
+                FROM system.projections 
+                WHERE "table"  = '{table}' and database = '{db}'
+        "#
+        );
+        let result: Vec<String> = conn.query(&sql).fetch_all().await?;
+        anyhow::Ok(result)
+    }
 
     async fn list_table(
         &self, _db: Option<&str>, schema: Option<&str>,
@@ -266,6 +281,25 @@ mod tests {
             .await
             .unwrap();
 
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+                 ALTER TABLE employees 
+                    ADD PROJECTION employee_salary_projection 
+                    (
+                        SELECT 
+                            department, 
+                            AVG(salary) AS avg_salary, 
+                            COUNT(*) AS employee_count 
+                        GROUP BY 
+                            department
+                    );
+         "#,
+            )
+            .await
+            .unwrap();
+
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
@@ -279,8 +313,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object();
         test_file_auto_completion(
-            r#"CREATE TABLE example_table(id UInt32, name String,event_date Date,value Float32) ENGINE = MergeTree() PARTITION BY toYYYYMM(event_date) ORDER BY (event_date, id);
-135 event_date"#,
+            r#"ALTER TABLE employees ADD PROJECTION employee_salary_projection(SELECT department, AVG(salary) AS avg_salary, COUNT(*) AS employee_count GROUP BY department);
+82 department "#,
             &db,
             false,
         )

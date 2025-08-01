@@ -10,3 +10,5 @@ DELETE FROM  employees WHERE employee_id = 1
 23 employees ; 41 employee_id
 CREATE VIEW employee_salaries AS SELECT employee_id ADD FROM employees;
 51 employee_id
+ALTER TABLE employees DROP PROJECTION employee_salary_projection;
+22 employees

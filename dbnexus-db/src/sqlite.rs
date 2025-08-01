@@ -1746,7 +1746,7 @@ mod tests {
         )
         .await
         .unwrap();
-        db.rename_table("test_duplicate", "test_duplicate2")
+        db.duplicate_table("test_duplicate", "test_duplicate2")
             .await
             .unwrap();
 

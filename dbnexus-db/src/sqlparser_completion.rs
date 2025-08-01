@@ -213,6 +213,11 @@ impl From<ObjectName> for ThisTableEnum {
         Self::Table { name: value }
     }
 }
+impl From<TempTable> for ThisTableEnum {
+    fn from(value: TempTable) -> Self {
+        Self::Temp { temp: value }
+    }
+}
 
 #[derive(Clone, Default, Debug)]
 pub struct Scope {
@@ -280,6 +285,12 @@ impl Scope {
     }
 
     pub(crate) fn from_this_table(this_table: ObjectName) -> Self {
+        Self {
+            this_table: Some(ThisTableEnum::from(this_table)),
+            ..Default::default()
+        }
+    }
+    pub(crate) fn from_temp_table(this_table: TempTable) -> Self {
         Self {
             this_table: Some(ThisTableEnum::from(this_table)),
             ..Default::default()
@@ -527,7 +538,7 @@ impl CompletionStatement {
                 };
             }
             Statement::CopyIntoSnowflake { .. } => {
-                // snow flake not support at all
+                // snowflake not support at all
             }
             Statement::Close { .. } => {
                 //
@@ -1002,10 +1013,10 @@ impl CompletionStatement {
                         // I think they are literal.
                     }
                     AlterRoleOperation::Set { .. } => {
-                        // TODO what is this.
+                        // no completion on this.
                     }
                     AlterRoleOperation::Reset { .. } => {
-                        // TODO what is this.
+                        // no completion on this.
                     }
                 }
             }
@@ -1023,10 +1034,10 @@ impl CompletionStatement {
                 // this SQLite-specific
             }
             Statement::AttachDuckDBDatabase { .. } => {
-                // duckdb not supported
+                // no support on this
             }
             Statement::DetachDuckDBDatabase { .. } => {
-                // duckdb not supported
+                // no support on this
             }
             Statement::Drop {
                 object_type, names, ..
@@ -1136,8 +1147,7 @@ impl CompletionStatement {
                 //
             }
             Statement::ShowVariables { .. } => {
-                // this is show all variable
-                // no need to completion.
+                // 给我的语法结构不好做自动完成
             }
             Statement::ShowCreate { obj_type, obj_name } => {
                 self.c_on_mysql_show_create(obj_type.clone(), obj_name)
@@ -1153,7 +1163,26 @@ impl CompletionStatement {
                 // TODO maybe can auto completion.
                 // wo perfer use don't use this statment.
             }
-            Statement::StartTransaction { .. } => {}
+            Statement::StartTransaction {
+                statements,
+                exception_statements,
+                ..
+            } => {
+                for s in statements.iter() {
+                    Box::pin(self.completion_on_statement(s)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(s) = exception_statements.as_ref() {
+                    for s in s.iter() {
+                        Box::pin(self.completion_on_statement(s)).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
             Statement::Comment {
                 object_type,
                 object_name,
@@ -1164,10 +1193,10 @@ impl CompletionStatement {
                     .await;
             }
             Statement::Commit { .. } => {
-                //
+                // fallback to lexer
             }
             Statement::Rollback { .. } => {
-                //
+                // fallback to lexer
             }
             Statement::CreateSchema { schema_name, .. } => {
                 // no need to completion.
@@ -1229,7 +1258,6 @@ impl CompletionStatement {
                     }
                 }
                 let _gurad = self.scopes.push(Scope::from_vars(vars));
-                // TODO why just a expr.
                 // due to this https://github.com/apache/datafusion-sqlparser-rs/issues/1356
                 if let Some(x) = &create_f.function_body {
                     match x {

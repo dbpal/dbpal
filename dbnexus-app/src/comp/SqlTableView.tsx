@@ -596,25 +596,30 @@ function SqlTableView(props: {
           reload
         </Button>
         {/* <Typography color="info"> select * from {tableName} where </Typography> */}
-        <Chip
-          label={where}
-          onClick={() => {
-            setShowSetWhere(true);
-          }}
-          color="primary"
-          icon={<FilterAltIcon />}
-          style={{ ...filterStyle.style }}
-        ></Chip>
+
+        <Tooltip title="filter something like 'age=18'">
+          <Chip
+            label={where}
+            onClick={() => {
+              setShowSetWhere(true);
+            }}
+            color="primary"
+            icon={<FilterAltIcon />}
+            style={{ ...filterStyle.style }}
+          ></Chip>
+        </Tooltip>
         {/* <Typography color="info"> order by </Typography> */}
-        <Chip
-          label={sort}
-          onClick={() => {
-            setShowSetSort(true);
-          }}
-          color="secondary"
-          icon={<FaArrowsAltV />}
-          style={{ ...filterStyle.style }}
-        ></Chip>
+        <Tooltip title="sort something like 'age asc'">
+          <Chip
+            label={sort}
+            onClick={() => {
+              setShowSetSort(true);
+            }}
+            color="secondary"
+            icon={<FaArrowsAltV />}
+            style={{ ...filterStyle.style }}
+          ></Chip>
+        </Tooltip>
         {kind == DataSourceKind.Cassandra && (
           <FormControlLabel
             control={

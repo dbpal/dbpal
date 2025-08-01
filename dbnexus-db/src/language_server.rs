@@ -59,6 +59,7 @@ pub enum CompletionKind {
     Variable,
     Rule,
     Cluster,
+    ClickHouseTableProjection,
 }
 
 impl Into<u32> for CompletionKind {
@@ -274,6 +275,11 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName + LangServerC
 
     async fn list_procedure(
         &self, _db: Option<&str>, _schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_features(self.backend_name())
+    }
+    async fn list_clickhouse_table_projects(
+        &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_features(self.backend_name())
     }

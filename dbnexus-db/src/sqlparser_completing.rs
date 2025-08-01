@@ -260,6 +260,10 @@ impl CompletionStatement {
                         // we simple suggest all column lies in talbe.
                         let mut cols = Vec::new();
                         for table in tables.iter() {
+                            self.c_on_table(table).await;
+                            if self.finished() {
+                                return;
+                            }
                             let (db, schema, table) = self.extract_db_schme_item(table);
                             let cs = self
                                 .helper
@@ -359,6 +363,9 @@ impl CompletionStatement {
                     );
                 }
             }
+            Expr::CompoundIdentifier(xs) => {
+                self.c_on_expr_compund_identifier(&xs[..]).await;
+            }
             _ => {
                 log::error!("unhandled partation type:{:?}", p);
             }
@@ -432,10 +439,9 @@ impl CompletionStatement {
                     ObjectNamePart::Identifier(ident) => ident.value.as_str(),
                 };
             }
-
             _ => {
                 self.set_has_err();
-                log::error!("empty ObjectName:{:?}", item_name);
+                log::error!("wrong ObjectName:{:?}", item_name);
             }
         };
         return (db, schema, table);
@@ -511,6 +517,32 @@ impl CompletionStatement {
                 }
             }
         }
+    }
+
+    pub(crate) async fn c_on_clickhouse_table_projection(
+        &mut self, table_name: &ObjectName, name: &Ident,
+    ) {
+        if self.in_pos(&name.span) {
+            return;
+        }
+        // hit pos
+
+        let (_, schema, table) = self.extract_db_schme_item(table_name);
+
+        self.result = Some(
+            self.helper
+                .list_clickhouse_table_projects(schema, table)
+                .await
+                .map_err(|err| log::error!("list_clickhouse_table_projects failed ,err:{}", err))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|name| CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::ClickHouseTableProjection,
+                    desc: None,
+                })
+                .collect(),
+        );
     }
 
     pub(crate) async fn c_on_alert_table(
@@ -644,21 +676,74 @@ impl CompletionStatement {
                     self.c_on_column_mysql_position(table_name, column_position.as_ref())
                         .await;
                 }
-                AlterTableOperation::AddProjection { .. } => {
-                    // this is a ClickHouse-specific operation.
+                AlterTableOperation::AddProjection { name, select, .. } => {
+                    if self.in_pos(&name.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                    let columns = self
+                        .c_on_select_item(&select.projection[..])
+                        .await
+                        .map_err(|err| log::error!("c_on_select_item failed,err:{}", err))
+                        .unwrap_or_default();
+
+                    let _gurad = self.scopes.push(Scope::from_temp_table(TempTable {
+                        columns: Arc::new(columns),
+                    }));
+                    if let Some(x) = select.group_by.as_ref() {
+                        match x {
+                            GroupByExpr::All(group_by_with_modifiers) => {
+                                for g in group_by_with_modifiers.iter() {
+                                    match g {
+                                        GroupByWithModifier::Rollup => {}
+                                        GroupByWithModifier::Cube => {}
+                                        GroupByWithModifier::Totals => {}
+                                        GroupByWithModifier::GroupingSets(expr) => {
+                                            self.c_on_expr(expr).await;
+                                            if self.finished() {
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            GroupByExpr::Expressions(exprs, group_by_with_modifiers) => {
+                                for g in group_by_with_modifiers.iter() {
+                                    match g {
+                                        GroupByWithModifier::Rollup => {}
+                                        GroupByWithModifier::Cube => {}
+                                        GroupByWithModifier::Totals => {}
+                                        GroupByWithModifier::GroupingSets(expr) => {
+                                            self.c_on_expr(expr).await;
+                                            if self.finished() {
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                                for e in exprs.iter() {
+                                    self.c_on_expr(e).await;
+                                    if self.finished() {
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-                AlterTableOperation::DropProjection { .. } => {
-                    // this is a ClickHouse-specific operation.
+                AlterTableOperation::DropProjection { name, .. } => {
+                    self.c_on_clickhouse_table_projection(table_name, name)
+                        .await;
                 }
-                AlterTableOperation::MaterializeProjection { .. } => {
-                    // this is a ClickHouse-specific operation.
+                AlterTableOperation::MaterializeProjection { name, .. } => {
+                    self.c_on_clickhouse_table_projection(table_name, name)
+                        .await;
                 }
-                AlterTableOperation::ClearProjection { .. } => {
-                    // this is a ClickHouse-specific operation.
+                AlterTableOperation::ClearProjection { name, .. } => {
+                    self.c_on_clickhouse_table_projection(table_name, name)
+                        .await;
                 }
-                AlterTableOperation::DisableRowLevelSecurity => {
-                    // nothing to here
-                }
+                AlterTableOperation::DisableRowLevelSecurity => {}
                 AlterTableOperation::DisableRule { name } => {
                     self.c_on_postgres_rule(table_name, name).await
                 }
@@ -1006,9 +1091,9 @@ impl CompletionStatement {
                     }
                 }
 
-                // keep result
-
+                // save  results
                 let items = self.result.take().unwrap_or_default();
+                // this line will rewrite the results.
                 self.c_on_table_or_view(&ObjectName(vec![ObjectNamePart::Identifier(
                     ident.clone(),
                 )]))
@@ -1018,13 +1103,14 @@ impl CompletionStatement {
                 }
                 self.result.as_mut().unwrap().extend(items);
 
-                // 我们也要
+                // 我们也要函数
                 let fs = self
                     .helper
                     .list_function(None, None, true)
                     .await
                     .ok()
                     .unwrap_or_default();
+
                 self.result.as_mut().unwrap().extend(fs);
             }
         }
@@ -1428,10 +1514,10 @@ impl CompletionStatement {
                 }
             }
             Expr::Struct { .. } => {
-                // bitquery not support
+                // bigquery not support
             }
             Expr::Named { .. } => {
-                // bitquery not support
+                // bigquery not support
             }
             Expr::Dictionary(_) => {
                 // literal value
@@ -1699,6 +1785,7 @@ impl CompletionStatement {
         let mut x1 = self.result.take().unwrap_or_default();
         self.c_on_table(name).await;
         x1.extend(self.result.take().unwrap_or_default().into_iter());
+
         self.result = Some(x1);
     }
 
