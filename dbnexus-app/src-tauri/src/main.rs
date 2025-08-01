@@ -55,6 +55,14 @@ fn main() {
     })
 }
 
+// is this a macbook computer
+fn is_mac() -> bool {
+    #[cfg(target_os = "macos")]
+    return true;
+    #[cfg(not(target_os = "macos"))]
+    return false;
+}
+
 fn main_() {
     {
         use env_logger::{Builder, Env};
@@ -142,7 +150,7 @@ fn main_() {
                                 "show_settings",
                                 "settings",
                                 true,
-                                None as Option<&'static str>,
+                                Some(if is_mac() {"command+,"}else {"control+,"} ),
                             )?,
                             #[cfg(any(target_os = "windows", target_os = "macos"))]
                             &PredefinedMenuItem::close_window(handle, None)?,

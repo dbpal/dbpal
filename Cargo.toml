@@ -32,7 +32,6 @@ mongodb = { version = "3.2.3", features = [] }
 
 tokio-util = "*"
 
-
 uuid = { version = "*", features = ["v4"] }
 typescript-type-def = "0.5.11"
 

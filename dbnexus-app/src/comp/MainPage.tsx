@@ -160,13 +160,13 @@ export default function MainPage() {
     //@ts-ignore
     <SplitPane
       split="vertical"
-      minSize={150}
+      minSize={200}
       defaultSize={leftSize}
       style={{
         minHeight: '100vh',
         height: 'auto',
       }}
-      maxSize={700}
+      maxSize={800}
       onDragFinished={async (newsize) => {
         (await appStore()).set(AppStoreKey.LeftSize, newsize);
       }}
