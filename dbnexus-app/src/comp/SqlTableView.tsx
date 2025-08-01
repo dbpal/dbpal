@@ -1,4 +1,5 @@
 import {
+  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -54,7 +55,6 @@ import {
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
-  datagridContainerHeight,
   DataSourceKind,
   filterStyle,
   generateRandomString,
@@ -577,7 +577,9 @@ function SqlTableView(props: {
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
-
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack
@@ -668,10 +670,10 @@ function SqlTableView(props: {
             <div
               style={{
                 display: 'grid',
-                height: datagridContainerHeight(resp.data.length),
               }}
             >
               <DataGrid
+                style={gridStyle}
                 loading={loading}
                 showCellVerticalBorder
                 showColumnVerticalBorder

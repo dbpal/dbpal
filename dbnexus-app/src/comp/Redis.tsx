@@ -1,4 +1,5 @@
 import {
+  CSSProperties,
   ReactNode,
   useCallback,
   useContext,
@@ -50,7 +51,6 @@ import {
 import {
   calMenuStyle,
   ContextMenuContext,
-  datagridContainerHeight,
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
@@ -826,6 +826,9 @@ function RedisSetTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   const settings = useContext(SettingContext);
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="center">
@@ -856,10 +859,10 @@ function RedisSetTable(props: {
         <div
           style={{
             display: 'grid',
-            height: datagridContainerHeight(resp.data.length),
           }}
         >
           <DataGrid
+            style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
@@ -1120,6 +1123,9 @@ function RedisListTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   const setting = useContext(SettingContext);
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -1139,11 +1145,11 @@ function RedisListTable(props: {
         <div
           style={{
             display: 'grid',
-            height: datagridContainerHeight(resp.data.length),
           }}
         >
           <DataGrid
             loading={loading}
+            style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
@@ -1345,6 +1351,9 @@ function RedisZsetTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   const setting = useContext(SettingContext);
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -1405,10 +1414,10 @@ function RedisZsetTable(props: {
         <div
           style={{
             display: 'grid',
-            height: datagridContainerHeight(resp.data.length),
           }}
         >
           <DataGrid
+            style={gridStyle}
             loading={loading}
             showCellVerticalBorder
             showColumnVerticalBorder
@@ -1589,6 +1598,9 @@ function RedisHashTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   const setting = useContext(SettingContext);
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="center">
@@ -1619,11 +1631,11 @@ function RedisHashTable(props: {
         <div
           style={{
             display: 'grid',
-            height: datagridContainerHeight(resp.data.length),
           }}
         >
           <DataGrid
             loading={loading}
+            style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}

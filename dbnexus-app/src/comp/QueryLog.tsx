@@ -74,17 +74,19 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
   }, []);
   let vis = useContext(VisiableContext);
   const setting = useContext(SettingContext);
-
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack>
       {vis && (
         <div
           style={{
             display: 'grid',
-            maxHeight: '40vh',
           }}
         >
           <DataGrid
+            style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
             onRowDoubleClick={onRowDoubleClick}

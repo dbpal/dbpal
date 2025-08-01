@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 
 import {
+  CSSProperties,
   memo,
   useCallback,
   useContext,
@@ -63,7 +64,6 @@ import {
   ConnTypeContext,
   connTypeToDataSourceKind,
   ContextMenuContext,
-  datagridContainerHeight,
   DataSourceKind,
   extractConfigNameFromUuid,
   FavoriteSql,
@@ -390,7 +390,9 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   useEffect(() => {
     handleReload();
   }, []);
-
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row">
@@ -412,10 +414,10 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
       <div
         style={{
           display: 'grid',
-          height: datagridContainerHeight(conns.length),
         }}
       >
         <DataGrid
+          style={gridStyle}
           getRowId={getRowId}
           sortModel={sortModel}
           onSortModelChange={onSortModelChange}
@@ -725,7 +727,9 @@ function FavoriteSqlList(props: { handleClose }) {
     FavoriteSql.clear(showNotification);
     handleClose();
   };
-
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -755,10 +759,10 @@ function FavoriteSqlList(props: { handleClose }) {
       <div
         style={{
           display: 'grid',
-          height: datagridContainerHeight(sqls.length),
         }}
       >
         <DataGrid
+          style={gridStyle}
           getRowId={getRowId}
           sortModel={sortModel}
           onSortModelChange={onSortModelChange}

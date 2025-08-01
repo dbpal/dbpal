@@ -32,6 +32,7 @@ import {
 } from './MongoBsonCompiler';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -82,7 +83,6 @@ import {
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
-  datagridContainerHeight,
   filterStyle,
   handleCopyToClipboard,
   VisiableContext,
@@ -1018,6 +1018,9 @@ function MongoTableList(props: {
     columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
   const setting = useContext(SettingContext);
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <>
       {selectModifyDoc && (
@@ -1059,10 +1062,10 @@ function MongoTableList(props: {
             <div
               style={{
                 display: 'grid',
-                height: datagridContainerHeight(resp.data.length),
               }}
             >
               <DataGrid
+                style={gridStyle}
                 loading={loading}
                 showCellVerticalBorder
                 showColumnVerticalBorder

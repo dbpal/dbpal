@@ -16,7 +16,6 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import {
   calMenuStyle,
-  datagridContainerHeight,
   generateRandomString,
   handleCopyToClipboard,
   columnWidths,
@@ -157,7 +156,9 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
-
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       {data.sql && <Typography color="info">sql: {data.sql} </Typography>}
@@ -165,10 +166,10 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
         <div
           style={{
             display: 'grid',
-            height: datagridContainerHeight(data.data.length),
           }}
         >
           <DataGrid
+            style={gridStyle}
             sortModel={sortModel}
             onSortModelChange={onSortModelChange}
             showCellVerticalBorder

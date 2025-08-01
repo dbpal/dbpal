@@ -1,4 +1,5 @@
 import {
+  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -18,7 +19,6 @@ import {
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
-  datagridContainerHeight,
   DataSourceKind,
   handleCopyToClipboard,
   secondConfirm,
@@ -256,6 +256,10 @@ function ColumnsStructure(props: {
   const onRowDoubleClick = useCallback((row) => {
     setRow(row.row);
   }, []);
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -281,10 +285,10 @@ function ColumnsStructure(props: {
         <div
           style={{
             display: 'grid',
-            height: datagridContainerHeight(fields.length),
           }}
         >
           <DataGrid
+            style={gridStyle}
             getRowId={getRowId}
             slotProps={slotProps}
             onColumnResize={onColumnResize}
@@ -592,7 +596,9 @@ function IndexesStructure(props: {
         ></AddIndex>
       );
   }
-
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -614,10 +620,10 @@ function IndexesStructure(props: {
         <div
           style={{
             display: 'grid',
-            height: datagridContainerHeight(indexes.length),
           }}
         >
           <DataGrid
+            style={gridStyle}
             getRowId={getRowId}
             slotProps={slotProps}
             onColumnResize={onColumnResize}
@@ -1436,7 +1442,9 @@ function TriggersStructure(props: {
   const onRowDoubleClick = useCallback((row) => {
     setRow(row.row);
   }, []);
-
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -1452,10 +1460,10 @@ function TriggersStructure(props: {
         <div
           style={{
             display: 'grid',
-            height: datagridContainerHeight(triggers.length),
           }}
         >
           <DataGrid
+            style={gridStyle}
             getRowId={getRowId}
             slotProps={slotProps}
             onColumnResize={onColumnResize}

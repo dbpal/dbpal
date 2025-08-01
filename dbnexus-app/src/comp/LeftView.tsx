@@ -1,4 +1,5 @@
 import {
+  CSSProperties,
   ReactNode,
   useCallback,
   useContext,
@@ -52,7 +53,6 @@ import {
   columnWidths,
   ConnTypeContext,
   ContextMenuContext,
-  datagridContainerHeight,
   DataSourceKind,
   generateRandomString,
   handleCopyToClipboard,
@@ -380,7 +380,9 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const getRowId = useCallback((e) => {
     return e['field'];
   }, []);
-
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -393,10 +395,10 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         <div
           style={{
             display: 'grid',
-            height: datagridContainerHeight(fields.length),
           }}
         >
           <DataGrid
+            style={gridStyle}
             getRowId={getRowId}
             slotProps={slotProps}
             onColumnResize={onColumnResize}

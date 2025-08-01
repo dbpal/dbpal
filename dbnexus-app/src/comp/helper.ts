@@ -30,10 +30,6 @@ async function secondConfirm({
   });
 }
 
-function datagridContainerHeight(length, height = '78vh') {
-  return length < 20 ? undefined : height;
-}
-
 async function randomTestThrowFunction() {
   await delayedReturn(undefined, Math.random() * 900);
   const v = Math.random();
@@ -515,7 +511,7 @@ export {
   AppStoreKey,
   columnWidths,
   handleCopyToClipboard,
-  datagridContainerHeight,
+
   uint8ArrayToUtf8,
   filterStyle,
   VisiableContext,

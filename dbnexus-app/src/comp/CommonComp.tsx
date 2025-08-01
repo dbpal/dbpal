@@ -10,7 +10,14 @@ import {
   Divider,
   Chip,
 } from '@mui/material';
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  CSSProperties,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { types } from './ApiStruct';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
@@ -36,7 +43,6 @@ import {
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
-  datagridContainerHeight,
   DataSourceKind,
   errToString,
   FavoriteSql,
@@ -408,15 +414,18 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
+  const gridStyle = useMemo(() => {
+    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
+  }, []);
 
   return (
     <div
       style={{
         display: 'grid',
-        height: datagridContainerHeight(values.length),
       }}
     >
       <DataGrid
+        style={gridStyle}
         sortModel={sortModel}
         onSortModelChange={onSortModelChange}
         showCellVerticalBorder
