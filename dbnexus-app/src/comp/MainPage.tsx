@@ -18,34 +18,36 @@ import { EscDownEvent, modalStyle } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 
-const keyShortChangetab = {
+const shortCuts = {
   callback: (e: KeyboardEvent) => {
     if (platform() == 'macos') {
       if (e.metaKey && e.key == '[') {
-        keyShortChangetab.prev();
+        shortCuts.prev();
       }
       if (e.metaKey && e.key == ']') {
-        keyShortChangetab.next();
+        shortCuts.next();
       }
       if (e.metaKey && e.key == ',') {
-        keyShortChangetab.showSetting();
+        shortCuts.showSetting();
       }
       if (e.metaKey && e.key == 'w') {
-        keyShortChangetab.closeCurrentTab();
+        shortCuts.closeCurrentTab();
       }
     }
     if (['windows', 'linux'].includes(platform())) {
+      console.log('shortcut', e.ctrlKey, e.key);
       if (e.ctrlKey && e.key == '[') {
-        keyShortChangetab.prev();
+        shortCuts.prev();
       }
       if (e.ctrlKey && e.key == ']') {
-        keyShortChangetab.next();
+        shortCuts.next();
       }
       if (e.ctrlKey && e.key == 'w') {
-        keyShortChangetab.closeCurrentTab();
+        shortCuts.closeCurrentTab();
       }
+
       if (e.ctrlKey && e.key == ',') {
-        keyShortChangetab.showSetting();
+        shortCuts.showSetting();
       }
     }
   },
@@ -88,26 +90,26 @@ export default function MainPage() {
     [tabs]
   );
 
-  keyShortChangetab.prev = () => {
+  shortCuts.prev = () => {
     setTab((e) => (e > 0 ? e - 1 : e));
   };
 
-  keyShortChangetab.next = () => {
+  shortCuts.next = () => {
     if (tabs.length - 1 > tab) {
       setTab((e) => e + 1);
     }
   };
 
-  keyShortChangetab.showSetting = () => {
+  shortCuts.showSetting = () => {
     setShowSetting(true);
   };
-  keyShortChangetab.closeCurrentTab = () => {
+  shortCuts.closeCurrentTab = () => {
     closeTab(tab);
   };
 
   // shortcut
   useEffect(() => {
-    document.addEventListener('keydown', keyShortChangetab.callback);
+    document.addEventListener('keydown', shortCuts.callback);
   }, []);
 
   useEffect(() => {
