@@ -645,10 +645,9 @@ function SqlTableView(props: {
                 <Typography
                   sx={{
                     cursor: 'pointer',
-
                     fontSize: '0.9rem',
                     fontStyle: 'italic',
-                    color: 'green',
+                    color: 'info',
                   }}
                   variant="body1"
                   onClick={() => {

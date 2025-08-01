@@ -12,10 +12,9 @@ import {
 } from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
-import { GridInitialStateCommunity } from '@mui/x-data-grid/models/gridStateCommunity';
 import { VisiableContext } from './helper.ts';
 
-const initialState: GridInitialStateCommunity = {
+const initialState: object = {
   sorting: { sortModel: [{ field: 'time', sort: 'desc' }] },
 };
 function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {

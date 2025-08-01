@@ -896,7 +896,9 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center' }}
+        sx={{
+          alignItems: 'center',
+        }}
       >
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>

@@ -323,7 +323,6 @@ function MongoQuery(props: {
             if (reason === 'backdropClick') {
               return;
             }
-
             e.preventDefault();
             setShowFavoriteName(false);
           }}

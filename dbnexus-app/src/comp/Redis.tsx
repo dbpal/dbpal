@@ -849,6 +849,7 @@ function RedisSetTable(props: {
         >
           reload
         </Button>
+        <DoubleClickToModify></DoubleClickToModify>
       </Stack>
 
       {resp && vis && (
@@ -1132,6 +1133,7 @@ function RedisListTable(props: {
         >
           reload
         </Button>
+        <DoubleClickToModify></DoubleClickToModify>
       </Stack>
       {resp && vis && (
         <div
@@ -1371,7 +1373,6 @@ function RedisZsetTable(props: {
             setMin(event.target.value);
           }}
         />
-
         <TextField
           size="small"
           label="maxiumn value(float64)"
@@ -1397,6 +1398,7 @@ function RedisZsetTable(props: {
         >
           reload
         </Button>
+        <DoubleClickToModify></DoubleClickToModify>
       </Stack>
 
       {resp && vis && (
@@ -1610,6 +1612,7 @@ function RedisHashTable(props: {
         >
           reload
         </Button>
+        <DoubleClickToModify></DoubleClickToModify>
       </Stack>
 
       {resp && vis && (
@@ -1723,6 +1726,14 @@ function RedisModifyKeyName(props: {
         </Button>
       </Stack>
     </Stack>
+  );
+}
+
+function DoubleClickToModify() {
+  return (
+    <Typography color="info" variant="subtitle1">
+      double click a row to modify.
+    </Typography>
   );
 }
 

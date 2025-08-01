@@ -199,6 +199,8 @@ function backendCompletionItemToEditor(
         return languages.CompletionItemKind.Variable;
       case 'Rule':
         return languages.CompletionItemKind.Operator;
+      case 'ClickHouseTableProjection':
+        return languages.CompletionItemKind.Property;
     }
   }
   return {

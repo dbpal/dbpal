@@ -170,7 +170,12 @@ export default function MainPage() {
         (await appStore()).set(AppStoreKey.LeftSize, newsize);
       }}
     >
-      <div style={{ overflow: 'auto', height: '100vh' }}>
+      <div
+        style={{
+          overflow: 'auto',
+          height: '100vh',
+        }}
+      >
         <Left></Left>
       </div>
       <div style={{ overflow: 'auto', height: '100vh' }}>

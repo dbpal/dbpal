@@ -41,10 +41,6 @@ import { TabContent } from './Tabs';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
 
-loader.config({
-  paths: { vs: '/monaco-editor/min/vs' },
-});
-
 import InfoIcon from '@mui/icons-material/Info';
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
