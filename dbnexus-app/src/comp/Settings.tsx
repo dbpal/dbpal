@@ -319,7 +319,7 @@ const components: Components<
     styleOverrides: {
       root: {
         fontSize: '1rem',
-        padding: '2px 4px',
+        padding: '2px',
         textTransform: 'none',
       },
     },

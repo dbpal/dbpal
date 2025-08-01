@@ -56,6 +56,7 @@ fn main() {
 }
 
 // is this a macbook computer
+#[inline(always)]
 fn is_mac() -> bool {
     #[cfg(target_os = "macos")]
     return true;
