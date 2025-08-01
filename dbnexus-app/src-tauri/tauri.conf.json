@@ -1,6 +1,6 @@
 {
   "productName": "dbpal",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "identifier": "site.dbpal.dev",
   "build": {
     "beforeDevCommand": "yarn dev",
