@@ -297,9 +297,6 @@ enum DataSourceKind {
 }
 
 
-
-
-
 function connTypeToDataSourceKind(name: string): DataSourceKind {
   return name as DataSourceKind
 }
@@ -329,13 +326,13 @@ class FavoriteSql {
   static key = AppStoreKey.FavoriteSql;
   static async save(x: FavoriteSql, showNotification) {
     try {
-      const store = appStore;
-      let logs = await store.get<object>(FavoriteSql.key);
+
+      let logs = await appStore.get<object>(FavoriteSql.key);
       if (!logs) {
         logs = {};
       }
       logs[FavoriteSql.formatKey(x.uuid, x.name)] = x;
-      await store.set(FavoriteSql.key, logs)
+      await appStore.set(FavoriteSql.key, logs)
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
@@ -348,13 +345,12 @@ class FavoriteSql {
 
   static async delete(key: string, showNotification) {
     try {
-      const store = appStore;
-      let logs = await store.get<object>(FavoriteSql.key);
-      if (logs) {
+      let logs = await appStore.get<object>(FavoriteSql.key);
+      if (!logs) {
         logs = {};
       }
       delete logs[key];
-      await store.set(FavoriteSql.key, logs)
+      await appStore.set(FavoriteSql.key, logs)
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
