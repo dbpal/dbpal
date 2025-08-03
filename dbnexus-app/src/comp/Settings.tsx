@@ -42,7 +42,7 @@ function ModifySettings({ handleClose }) {
   const [editorOptions, setEditorOptions] = useState('{\n}');
   const [showEditorOptions, setShowEditorOptions] = useState(false);
   const reload = async () => {
-    (await appStore())
+    appStore
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((settings) => {
         if (!settings) {
@@ -75,8 +75,7 @@ function ModifySettings({ handleClose }) {
       showNotification('error', 'not a valid json', e);
       return;
     }
-    (await appStore())
-
+    appStore
       .set(
         AppStoreKey.UserSetttings,
         new UserSettings(
@@ -436,7 +435,7 @@ function SettingComp(props: { children }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSettings>(null);
   const reload = async () => {
-    (await appStore())
+    appStore
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((setting) => {
         if (!setting) {
@@ -470,13 +469,13 @@ function SettingComp(props: { children }) {
     }
     return setting.theme == 'dark';
   };
-  appStore().then((appStore) => {
-    appStore.onChange((key) => {
-      if (key == AppStoreKey.UserSetttings) {
-        reload();
-      }
-    });
+
+  appStore.onChange((key) => {
+    if (key == AppStoreKey.UserSetttings) {
+      reload();
+    }
   });
+
   useEffect(() => {
     reload();
   }, []);

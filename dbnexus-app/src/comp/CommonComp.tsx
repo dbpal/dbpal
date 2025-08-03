@@ -301,11 +301,11 @@ function MenuDeleteConfig({ name }) {
       console.log('delete password err:', e);
     }
     try {
-      let old = await (
-        await appStore()
-      ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
+      let old = await appStore.get<types.DBConnectionConfig[]>(
+        AppStoreKey.ConnectionConfig
+      );
       let newdata = old.filter((e) => e.name != name);
-      await (await appStore()).set(AppStoreKey.ConnectionConfig, newdata);
+      await appStore.set(AppStoreKey.ConnectionConfig, newdata);
       await invoke('close_conn', { name });
       await FavoriteSql.deleteByUuid(name);
     } catch (e) {

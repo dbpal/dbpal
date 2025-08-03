@@ -92,9 +92,9 @@ import { MetaValuesView } from './CommonComp';
 const getNamedConfig = async (
   name: string
 ): Promise<types.DBConnectionConfig> => {
-  let x = await (
-    await appStore()
-  ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
+  let x = await appStore.get<types.DBConnectionConfig[]>(
+    AppStoreKey.ConnectionConfig
+  );
   if (!x) {
     return undefined;
   }

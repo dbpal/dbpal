@@ -311,9 +311,9 @@ function isTypeLargeText(s: string): boolean {
   return false;
 }
 
-const appStore = async () => {
-  return await load('store.json');
-};
+const appStore = await load('store.json');
+
+
 
 enum AppStoreKey {
   UserSetttings = 'user_settings',
@@ -329,7 +329,7 @@ class FavoriteSql {
   static key = AppStoreKey.FavoriteSql;
   static async save(x: FavoriteSql, showNotification) {
     try {
-      const store = await appStore();
+      const store = appStore;
       let logs = await store.get<object>(FavoriteSql.key);
       if (!logs) {
         logs = {};
@@ -348,7 +348,7 @@ class FavoriteSql {
 
   static async delete(key: string, showNotification) {
     try {
-      const store = await appStore();
+      const store = appStore;
       let logs = await store.get<object>(FavoriteSql.key);
       if (logs) {
         logs = {};
@@ -364,8 +364,8 @@ class FavoriteSql {
 
   static async deleteByUuid(uuid: string) {
     try {
-      const store = await appStore();
-      let logs = await store.get<object>(FavoriteSql.key);
+
+      let logs = await appStore.get<object>(FavoriteSql.key);
       if (logs) {
         logs = {};
       }
@@ -376,7 +376,7 @@ class FavoriteSql {
           delete logs[key]
         }
       }
-      await store.set(FavoriteSql.key, logs)
+      await appStore.set(FavoriteSql.key, logs)
     } catch (e) {
       console.log("delete all logs belong to a key failed", e);
       return
@@ -384,8 +384,7 @@ class FavoriteSql {
   }
   static async clear(showNotification) {
     try {
-      const store = await appStore();
-      await store.set(FavoriteSql.key, {});
+      await appStore.set(FavoriteSql.key, {});
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
@@ -397,14 +396,12 @@ class FavoriteSql {
 class ColumnWidths {
   widths = {};
   constructor() {
-
-    appStore().then(e => {
-      e.get(AppStoreKey.ColumnWithd).then(e => {
-        if (e) {
-          this.widths = e;
-        }
-      })
+    appStore.get(AppStoreKey.ColumnWithd).then(e => {
+      if (e) {
+        this.widths = e;
+      }
     })
+
   }
 
   saveColumnWidths(name: string, width: number) {
@@ -413,14 +410,9 @@ class ColumnWidths {
 
   }
   save() {
-    appStore().then(e => {
-      e.set(AppStoreKey.ColumnWithd, this.widths).catch(e => {
-        console.log('save column width failed', e);
-      });
-    }).catch(e => {
+    appStore.set(AppStoreKey.ColumnWithd, this.widths).catch(e => {
       console.log('save column width failed', e);
     });
-
   }
   getWidth(key) {
     return this.widths[key]

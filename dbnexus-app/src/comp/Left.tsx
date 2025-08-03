@@ -379,9 +379,9 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
 
   const handleReload = async () => {
     try {
-      let conns = await (
-        await appStore()
-      ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
+      let conns = await appStore.get<types.DBConnectionConfig[]>(
+        AppStoreKey.ConnectionConfig
+      );
       setConns(conns);
     } catch (e) {
       showNotification('error', 'get connections failed', e);
@@ -441,7 +441,7 @@ function Left_() {
   const { showNotification } = useContext(NotificationContext);
   const [matchPattern, setMatchPattern] = useState('');
   const handleReload = async () => {
-    (await appStore())
+    appStore
       .get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig)
       .then((e) => {
         if (!e) {
@@ -456,10 +456,9 @@ function Left_() {
   useEffect(() => {
     handleReload();
   }, []);
-  appStore().then((appstore) => {
-    appstore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
-      handleReload();
-    });
+
+  appStore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
+    handleReload();
   });
   const m = useMemo(() => {
     return matchPattern
@@ -519,8 +518,7 @@ function FavoriteSqlList(props: { handleClose }) {
   ]);
   const handleReload = async (showOK) => {
     try {
-      const store = await appStore();
-      let obj = await store.get<object>(FavoriteSql.key);
+      let obj = await appStore.get<object>(FavoriteSql.key);
       if (!obj) {
         obj = {};
       }

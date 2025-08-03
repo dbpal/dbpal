@@ -147,7 +147,7 @@ export default function MainPage() {
   const [leftSize, setLeftSize] = useState(300);
   useEffect(() => {
     let a = async () => {
-      let size = await (await appStore()).get<number>(AppStoreKey.LeftSize);
+      let size = await appStore.get<number>(AppStoreKey.LeftSize);
       if (!size) {
         size = 300;
       }
@@ -168,7 +168,7 @@ export default function MainPage() {
       }}
       maxSize={800}
       onDragFinished={async (newsize) => {
-        (await appStore()).set(AppStoreKey.LeftSize, newsize);
+        appStore.set(AppStoreKey.LeftSize, newsize);
       }}
     >
       <div

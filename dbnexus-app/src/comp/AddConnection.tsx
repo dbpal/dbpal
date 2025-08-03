@@ -678,9 +678,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       return;
     }
 
-    let connections = await (
-      await appStore()
-    ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
+    let connections = await appStore.get<types.DBConnectionConfig[]>(
+      AppStoreKey.ConnectionConfig
+    );
     if (!connections) {
       connections = [];
     }
@@ -721,7 +721,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     }
 
     connections = [config, ...connections];
-    (await appStore())
+    appStore
       .set(AppStoreKey.ConnectionConfig, connections)
       .then((_) => {
         showNotification('success', 'Add Connection OK');
