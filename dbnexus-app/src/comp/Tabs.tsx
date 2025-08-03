@@ -116,7 +116,7 @@ function TabsWithContent_(props: {
         <Tabs
           value={selectIndex}
           variant="scrollable"
-          scrollButtons
+          scrollButtons="auto"
           allowScrollButtonsMobile
           onChange={(_, newValue) => {
             changeTab(newValue);

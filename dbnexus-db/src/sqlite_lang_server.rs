@@ -1124,14 +1124,14 @@ mod tests {
         test_file_auto_completion(&content, &db, false).await;
     }
 
-    #[ignore = "xxx"]
+    #[ignore = "手动跑跑的测试"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"SELECT e.id AS EmployeeID,  e.name AS EmployeeName,  d.name AS DepartmentName FROM employees AS e JOIN departments AS d ON e.department_id = d.id;
-9 e"#,
+            r#"SELECT * from has_data_0 ORDER BY co 
+37 col1"#,
             &db,
             false,
         )

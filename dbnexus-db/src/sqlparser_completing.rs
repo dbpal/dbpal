@@ -1238,7 +1238,8 @@ impl CompletionStatement {
                 if self.finished() {
                     return;
                 }
-                let _ = Box::pin(self.c_on_set_expr(subquery.as_ref()))
+                let mut s = Vec::new();
+                let _ = Box::pin(self.c_on_set_expr(subquery.as_ref(), &mut s))
                     .await
                     .map(|e| log::error!("a error:{:?}", e))
                     .ok();
@@ -1976,9 +1977,11 @@ impl CompletionStatement {
     }
 
     pub(crate) async fn c_on_select(
-        &mut self, selection: &Select,
+        &mut self, selection: &Select, s: &mut Vec<Scope>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let _gurad = self.c_on_table_with_joins(&selection.from[..]).await;
+        // 这个复制一下scope可以在上层的结构中使用
+        _gurad.copy(s);
         if self.finished() {
             return anyhow::Ok(vec![]);
         }
@@ -2195,6 +2198,9 @@ impl CompletionStatement {
         }
         let s = Scope::from_temp_tables(with_temp_tables);
         let _with_temp_table_guard = self.scopes.push(s);
+        let mut s_on_set_expr: Vec<Scope> = vec![];
+        let result = Box::pin(self.c_on_set_expr(&query.body, &mut s_on_set_expr)).await?;
+        let _gurad = self.scopes.pushs(s_on_set_expr);
 
         if let Some(orderby) = query.order_by.as_ref() {
             match &orderby.kind {
@@ -2242,15 +2248,15 @@ impl CompletionStatement {
             }
         }
 
-        return Box::pin(self.c_on_set_expr(&query.body)).await;
+        return anyhow::Ok(result);
     }
 
     pub(crate) async fn c_on_set_expr(
-        &mut self, set: &SetExpr,
+        &mut self, set: &SetExpr, s: &mut Vec<Scope>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         match set {
             SetExpr::Select(select) => {
-                return self.c_on_select(select).await;
+                return self.c_on_select(select, s).await;
             }
             SetExpr::Query(query) => {
                 return Box::pin(self.c_on_query(&query)).await;
@@ -2258,8 +2264,8 @@ impl CompletionStatement {
             SetExpr::SetOperation { left, right, .. } => {
                 // left and right must have same structure so we can i ignore left
 
-                let _ = Box::pin(self.c_on_set_expr(&left)).await?;
-                return Box::pin(self.c_on_set_expr(&right)).await;
+                let _ = Box::pin(self.c_on_set_expr(&left, s)).await?;
+                return Box::pin(self.c_on_set_expr(&right, s)).await;
             }
             SetExpr::Values(values) => {
                 if values.rows.len() > 0 {

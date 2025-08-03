@@ -34,6 +34,17 @@ pub(crate) struct ScopesDropGuard {
     n: usize,
 }
 
+impl ScopesDropGuard {
+    pub(crate) fn copy(&self, s: &mut Vec<Scope>) {
+        let lock = self.ss.lock().unwrap();
+        let length = lock.len();
+
+        for index in (length - self.n)..length {
+            s.push(lock.get(index).unwrap().clone());
+        }
+    }
+}
+
 impl Drop for ScopesDropGuard {
     fn drop(&mut self) {
         let n = self.n;
@@ -112,6 +123,15 @@ impl Scopes {
         ScopesDropGuard {
             ss: self.ss.clone(),
             n: 1,
+        }
+    }
+    pub(crate) fn pushs(&self, scopes: Vec<Scope>) -> ScopesDropGuard {
+        let length = scopes.len();
+
+        self.ss.lock().unwrap().extend(scopes.into_iter());
+        ScopesDropGuard {
+            ss: self.ss.clone(),
+            n: length,
         }
     }
 
@@ -1282,7 +1302,8 @@ impl CompletionStatement {
                             self.c_on_expr(expr).await;
                         }
                         CreateFunctionBody::AsReturnSelect(select) => {
-                            let _ = self.c_on_select(select).await;
+                            let mut s = Vec::new();
+                            let _ = self.c_on_select(select, &mut s).await;
                         }
                     }
                 }
