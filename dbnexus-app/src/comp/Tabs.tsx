@@ -1,12 +1,12 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext } from 'react';
 import {
   Stack,
-  Button,
   Paper,
   MenuItem,
   MenuList,
-  Divider,
   Chip,
+  Tabs,
+  Tab,
 } from '@mui/material';
 
 import {
@@ -24,17 +24,9 @@ function TabsMenu(props: {
   changeTab;
   tabsLength;
   selectIndex;
-  setHideAll;
 }) {
-  const {
-    index,
-    handleClose,
-    setTabs,
-    changeTab,
-    tabsLength,
-    selectIndex,
-    setHideAll,
-  } = props;
+  const { index, handleClose, setTabs, changeTab, tabsLength, selectIndex } =
+    props;
 
   return (
     <Paper>
@@ -103,14 +95,6 @@ function TabsMenu(props: {
         >
           close all
         </MenuItem>
-
-        <MenuItem
-          onClick={() => {
-            setHideAll(true);
-          }}
-        >
-          hide all
-        </MenuItem>
       </MenuList>
     </Paper>
   );
@@ -125,79 +109,53 @@ function TabsWithContent_(props: {
 }) {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
-  const [hideAll, setHideAll] = useState(false);
 
   return (
-    <Stack spacing={1}>
-      {hideAll && (
-        <Stack>
-          <Button
-            onClick={() => {
-              setHideAll(false);
-            }}
-          >
-            all tabs
-          </Button>
-        </Stack>
-      )}
-
-      {!hideAll && (
-        <Stack
-          direction="row"
-          style={{
-            flexWrap: 'wrap',
+    <Stack spacing={1} style={{ width: '100%' }}>
+      <div style={{ display: 'grid' }}>
+        <Tabs
+          value={selectIndex}
+          variant="scrollable"
+          scrollButtons
+          allowScrollButtonsMobile
+          onChange={(_, newValue) => {
+            changeTab(newValue);
           }}
         >
           {tabs.map((tab, index) => {
             return (
-              <Chip
-                label={tab.header}
-                onDelete={() => {
-                  handleClose(index);
-                }}
+              <Tab
                 key={tab.id}
-                size="small"
-                icon={tab.icon}
-                clickable
-                color={index == selectIndex ? 'primary' : 'default'}
-                onContextMenu={(e) => {
-                  setUpMenu({
-                    content: (
-                      <TabsMenu
-                        index={index}
-                        handleClose={handleClose}
-                        setTabs={setTabs}
-                        tabsLength={tabs.length}
-                        changeTab={changeTab}
-                        selectIndex={selectIndex}
-                        setHideAll={setHideAll}
-                      ></TabsMenu>
-                    ),
-                    style: calMenuStyle(e, 100),
-                  });
-                }}
-                onClick={() => {
-                  changeTab(index);
-                }}
-                sx={
-                  index != selectIndex
-                    ? {
-                        margin: '2px',
-                        '& .MuiChip-deleteIcon': {
-                          visibility: 'hidden', // 默认隐藏删除按钮
-                        },
-                        '&:hover .MuiChip-deleteIcon': {
-                          visibility: 'visible', // hover 时显示删除按钮
-                        },
-                      }
-                    : { margin: '2px' }
-                }
-              ></Chip>
+                label=<Chip
+                  label={tab.header}
+                  onDelete={() => {
+                    handleClose(index);
+                  }}
+                  icon={tab.icon}
+                  size="small"
+                  color={index == selectIndex ? 'primary' : 'default'}
+                  onContextMenu={(e) => {
+                    setUpMenu({
+                      content: (
+                        <TabsMenu
+                          index={index}
+                          handleClose={handleClose}
+                          setTabs={setTabs}
+                          tabsLength={tabs.length}
+                          changeTab={changeTab}
+                          selectIndex={selectIndex}
+                        ></TabsMenu>
+                      ),
+                      style: calMenuStyle(e, 100),
+                    });
+                  }}
+                ></Chip>
+              ></Tab>
             );
           })}
-        </Stack>
-      )}
-      {tabs.length > 0 && <Divider style={{ borderWidth: '2px' }}></Divider>}
+        </Tabs>
+      </div>
+
       <div style={{ paddingRight: '18px' }}>
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
