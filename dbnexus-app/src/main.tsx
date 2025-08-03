@@ -52,10 +52,12 @@ if (!debugBuild) {
     }
   });
 }
-// call every time maybe use refresh this app some what.
-window.addEventListener('load', (_event) => {
-  invoke('page_init_callback');
-});
+
+if (debugBuild) {
+  window.addEventListener('load', (_event) => {
+    invoke('page_init_callback');
+  });
+}
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
