@@ -302,7 +302,7 @@ mod tests {
         enable_test_log();
         let query_id = db.open_connection().await.unwrap();
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE departments (

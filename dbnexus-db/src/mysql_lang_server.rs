@@ -374,7 +374,7 @@ mod tests {
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),
-            port: 3307, // use mariadb to test mysql have bugs.
+            port: 3306, // use mariadb to test mysql have bugs.
             db: Some("test".to_string()),
             read_only: false,
             save_password: true,
@@ -389,7 +389,7 @@ mod tests {
         enable_test_log();
         let query_id = db.open_connection().await.unwrap();
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE departments (

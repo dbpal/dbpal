@@ -978,6 +978,29 @@ impl CompletionStatement {
             }
             2 => {
                 let table = &idents[0];
+
+                // try match for schema
+                if self
+                    .helper
+                    .list_schema(None)
+                    .await
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|x| x.eq_ignore_ascii_case(&table.value))
+                {
+                    // matched a schema
+                    // this is very likely a `select * from sys.xxx`   on mysql
+                    // treat this expr as table
+
+                    self.c_on_table_or_view(&ObjectName(
+                        idents
+                            .iter()
+                            .map(|x| ObjectNamePart::Identifier(x.clone()))
+                            .collect(),
+                    ))
+                    .await;
+                    return;
+                }
                 if self.in_pos(&table.span) {
                     // handle name
                     self.c_on_table_or_view(&ObjectName(vec![ObjectNamePart::Identifier(
@@ -1110,8 +1133,23 @@ impl CompletionStatement {
                     .await
                     .ok()
                     .unwrap_or_default();
-
                 self.result.as_mut().unwrap().extend(fs);
+
+                //也要schema
+                let schemas: Vec<_> = self
+                    .helper
+                    .list_schema(None)
+                    .await
+                    .ok()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|x| CompletionItem {
+                        item: x.into(),
+                        kind: CompletionKind::Schema,
+                        desc: None,
+                    })
+                    .collect();
+                self.result.as_mut().unwrap().extend(schemas);
             }
         }
     }

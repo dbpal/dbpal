@@ -50,3 +50,7 @@ FLUSH TABLES employees;
 23 employees
 explain  select * from employees
 33 employees
+SELECT test.employees from employees
+22 employees
+SELECT test from employees
+12 test
