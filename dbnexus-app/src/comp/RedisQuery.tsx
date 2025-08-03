@@ -75,6 +75,7 @@ function RedisQuery(props: {
     if (!cmd) {
       return;
     }
+    cmd = cmd.toLowerCase();
     let url = getURL(cmd);
 
     validURL(url)

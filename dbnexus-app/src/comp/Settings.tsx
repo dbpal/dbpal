@@ -103,7 +103,7 @@ function ModifySettings({ handleClose }) {
     <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
-          page size:
+          default page size:
         </Typography>
         <SelectPageSize
           pageSize={pageSize}
