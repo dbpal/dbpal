@@ -359,19 +359,8 @@ impl App {
 type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
 impl App {
-    pub async fn insert_open(&self, name: impl Into<String>, open: Open, notice: &str) {
+    pub async fn insert_open(&self, name: impl Into<String>, open: Open) {
         let name = name.into();
-        match &open {
-            Open::Catalog(x) => {
-                log::info!("name '{}' is catalog,notice:{} trait{:?}", name, notice, x)
-            }
-            Open::DataBase(x) => {
-                log::info!("name '{}' is database,notice:{} trait{:?}", name, notice, x)
-            }
-            Open::Schema(x) => {
-                log::info!("name '{}' is schema,notice:{} trait{:?}", name, notice, x)
-            }
-        }
         self.opens.lock().await.insert(name, open);
     }
 
@@ -396,12 +385,7 @@ impl App {
                             log::info!("enter child named:{}", name);
                             let dbtrait = catalog_trait.open_db(&database).await?;
 
-                            self.insert_open(
-                                name.clone(),
-                                dbtrait.clone().into(),
-                                "enter_open_child enter",
-                            )
-                            .await;
+                            self.insert_open(name.clone(), dbtrait.clone().into()).await;
 
                             dbtrait.clone()
                         }
@@ -415,8 +399,7 @@ impl App {
                             Err(_) => {
                                 log::info!("enter child named:{}", name);
                                 let s = dbtrait.open_schema(&schema).await?;
-                                self.insert_open(name, s.clone().into(), "enter_open_child enter")
-                                    .await;
+                                self.insert_open(name, s.clone().into()).await;
                             }
                         }
                     }
@@ -431,8 +414,7 @@ impl App {
                         Err(_) => {
                             log::info!("enter child named:{}", name);
                             let s = dbtrait.open_schema(&schema).await?;
-                            self.insert_open(name, s.clone().into(), "enter_open_child enter")
-                                .await;
+                            self.insert_open(name, s.clone().into()).await;
                         }
                     }
                 }
@@ -462,8 +444,7 @@ impl App {
             }
         }
         self.enter_open_child(name, &db).await?;
-        self.insert_open(name.to_string(), db.clone(), "open enter")
-            .await;
+        self.insert_open(name.to_string(), db.clone()).await;
         anyhow::Ok(db)
     }
 

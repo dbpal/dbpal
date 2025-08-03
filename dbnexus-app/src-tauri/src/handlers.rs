@@ -169,8 +169,7 @@ pub async fn create_database(
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            app.insert_open(key, db.into(), "crate databse insert")
-                .await;
+            app.insert_open(key, db.into()).await;
 
             Ok(())
         }
@@ -204,8 +203,7 @@ pub async fn create_schema(
                 .await
                 .map_err(|x| ErrorFrontend::from(x))?;
 
-            app.insert_open(key, schema.into(), "create schema insert")
-                .await;
+            app.insert_open(key, schema.into()).await;
             Ok(())
         }
         _ => Err(ErrorFrontend::from(format!(
