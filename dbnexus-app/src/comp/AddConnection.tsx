@@ -356,6 +356,7 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
 
 function AddConnection(props: { handleClose: () => void; config?: object }) {
   let { handleClose, config } = props;
+  const isCopy = !!config;
   if (!config) {
     config = {};
   }
@@ -627,6 +628,9 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   };
 
   useEffect(() => {
+    if (isCopy) {
+      return;
+    }
     switch (connectionType) {
       case DataSourceKind.MariaDB:
       case DataSourceKind.Mysql:
