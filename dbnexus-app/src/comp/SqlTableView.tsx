@@ -1,5 +1,6 @@
 import {
   CSSProperties,
+  memo,
   useCallback,
   useContext,
   useEffect,
@@ -60,6 +61,7 @@ import {
   generateRandomString,
   handleCopyToClipboard,
   isTypeLargeText,
+  resetMuiDataRespWidth,
   secondConfirm,
   TabContent,
   TabsSetContext,
@@ -293,7 +295,7 @@ class EditInModalCellData {
   ) {}
 }
 
-function SqlTableView(props: {
+function SqlTableView_(props: {
   reloadOP: (
     where: string,
     orderBy: string,
@@ -593,14 +595,7 @@ function SqlTableView(props: {
                 }
                 resetColunmWidthCallBack={() => {
                   setResp((old) => {
-                    return {
-                      sql: old.sql,
-                      data: old.data,
-                      fields: old.fields.map((e) => {
-                        return { width: undefined, ...e } as types.Field;
-                      }),
-                      total: old.total,
-                    };
+                    return resetMuiDataRespWidth(old);
                   });
                 }}
               ></Menu>
@@ -1266,4 +1261,7 @@ function FilterOnValue(props: {
     </Stack>
   );
 }
+
+const SqlTableView = memo(SqlTableView_);
+
 export { SqlTableView, SqlTableViewData };
