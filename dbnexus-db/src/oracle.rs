@@ -1373,7 +1373,7 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(ret.into_iter().map(|(_, v)| v).collect())
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -1392,7 +1392,7 @@ impl SchemaTrait for OracleDB {
         })
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -1419,7 +1419,7 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -2279,7 +2279,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         values.insert("NCHAR_COL".to_string(), Some("测试nchar".to_string()));
         values.insert("RAW_COL".to_string(), Some("0A0B0C0D0E0F".to_string()));
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         let resp = db
             .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
@@ -2363,7 +2363,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         values.insert("NUM".to_string(), Some("100".to_string()));
         values.insert("FLOAT_COL".to_string(), Some("2.71".to_string()));
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         let resp = db
             .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
@@ -2448,7 +2448,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         );
         values.insert("BLOB_COL".to_string(), Some("010203".to_string()));
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         let resp = db
             .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
@@ -2529,7 +2529,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         values.insert("COL2".to_string(), Some("123".to_string()));
         values.insert("COL3".to_string(), Some("456".to_string()));
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         let resp = db
             .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)

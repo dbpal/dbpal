@@ -1546,7 +1546,7 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(ret)
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -1561,7 +1561,7 @@ impl SchemaTrait for CassandraDB {
         })
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -1590,7 +1590,7 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(())
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -2357,7 +2357,7 @@ mod tests {
         values.insert("decimal_column".to_string(), Some("123.45".to_string()));
         values.insert("double_column".to_string(), Some("3.14159".to_string()));
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2449,7 +2449,7 @@ mod tests {
         values.insert("decimal_column".to_string(), Some("[123.45]".to_string()));
         values.insert("double_column".to_string(), Some("[3.14159]".to_string()));
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2543,7 +2543,7 @@ mod tests {
             Some("123456789012345678901234567890".to_string()),
         );
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2640,7 +2640,7 @@ mod tests {
             Some("[123456789012345678901234567890]".to_string()),
         );
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2737,7 +2737,7 @@ mod tests {
         values.insert("smallint_value".to_string(), Some("123".to_string()));
         values.insert("tinyint_value".to_string(), Some("5".to_string()));
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2837,7 +2837,7 @@ mod tests {
         values.insert("smallint_value".to_string(), Some("[123]".to_string()));
         values.insert("tinyint_value".to_string(), Some("[5]".to_string()));
 
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2920,7 +2920,7 @@ mod tests {
             Some("{first_name : 'yu' ,last_name : 'yang' , email : 'xxx',age : 100}".to_string()),
         );
         values.insert("tuple_field".to_string(), Some("(1,100)".to_string()));
-        db.insert(&table_name, values).await.unwrap();
+        db.table_insert(&table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -3048,7 +3048,7 @@ mod tests {
         let mut wheres = HashMap::new();
         values.insert("view_count".to_string(), Some("view_count + 1".to_string()));
         wheres.insert("page_id".to_string(), Some("uuid()".to_string()));
-        db.update(table_name, values, wheres).await.unwrap();
+        db.table_update(table_name, values, wheres).await.unwrap();
 
         let resp = db
             .show_table(

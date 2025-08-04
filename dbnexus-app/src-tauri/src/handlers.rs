@@ -435,7 +435,7 @@ pub async fn drop_index(
 }
 
 #[tauri::command]
-pub async fn insert(
+pub async fn table_insert(
     name: String, table_name: String, values: HashMap<String, Option<String>>,
     app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, ErrorFrontend> {
@@ -447,13 +447,13 @@ pub async fn insert(
 }
 
 #[tauri::command]
-pub async fn update(
+pub async fn table_update(
     name: String, table_name: String, values: HashMap<String, Option<String>>,
     wheres: HashMap<String, Option<String>>, app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.update(name.as_str(), &table_name, values, wheres)
+    app.table_update(name.as_str(), &table_name, values, wheres)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -535,13 +535,13 @@ pub async fn list_data_types(
 }
 
 #[tauri::command]
-pub async fn delete(
+pub async fn table_delete(
     name: String, table_name: String, wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, App>,
 ) -> Result<SqlExecuteRet, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.delete(name.as_str(), &table_name, wheres)
+    app.table_delete(name.as_str(), &table_name, wheres)
         .await
         .map_err(ErrorFrontend::from)
 }

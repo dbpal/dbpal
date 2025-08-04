@@ -888,13 +888,13 @@ impl SchemaTrait for RedisDB {
         }
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, _table_name: &str, _values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         anyhow::bail!("call query sql instread")
     }
 
-    async fn update(
+    async fn table_update(
         &self, _table_name: &str, _values: HashMap<String, Option<String>>,
         _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -928,7 +928,7 @@ impl SchemaTrait for RedisDB {
         anyhow::Ok(())
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, _key: &str, _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;

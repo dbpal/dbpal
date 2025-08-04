@@ -1006,7 +1006,7 @@ impl SchemaTrait for MysqlDB {
         self.list_view_impl(self.config.db.as_ref().unwrap()).await
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -1033,7 +1033,7 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -1049,7 +1049,7 @@ impl SchemaTrait for MysqlDB {
         })
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -2193,7 +2193,7 @@ pub(crate) mod test_fns {
         values.insert("int_col".to_string(), Some("4".to_string()));
         values.insert("bigint_col".to_string(), Some("5".to_string()));
 
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
             .show_table(table_name, None, None, 1, 100, None)
@@ -2238,7 +2238,7 @@ pub(crate) mod test_fns {
         values.insert("f32_col".to_string(), Some("4".to_string()));
         values.insert("f64_col".to_string(), Some("5".to_string()));
 
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
             .show_table(table_name, None, None, 1, 100, None)
@@ -2284,7 +2284,7 @@ pub(crate) mod test_fns {
         values.insert("binary_col".to_string(), Some("0x0102030405".to_string()));
         values.insert("blob_col".to_string(), Some("0x01020304".to_string()));
 
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
             .show_table(table_name, None, None, 1, 100, None)
@@ -2324,7 +2324,7 @@ pub(crate) mod test_fns {
         values.insert("date_column".to_string(), Some("2024-06-29".to_string()));
         values.insert("time_column`".to_string(), Some("10:00:00".to_string()));
 
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
             .show_table(table_name, None, None, 1, 100, None)

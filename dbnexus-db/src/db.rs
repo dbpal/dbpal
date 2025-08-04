@@ -56,17 +56,17 @@ pub trait SchemaTrait:
         page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp>;
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet>;
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet>;
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()>;
 
-    async fn delete(
+    async fn table_delete(
         &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet>;
 

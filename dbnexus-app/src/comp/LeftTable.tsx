@@ -332,7 +332,7 @@ async function makeViewTable(
             });
           }}
           updateOP={async (wheres, values) => {
-            return await invoke<types.SqlExecuteRet>('update', {
+            return await invoke<types.SqlExecuteRet>('table_update', {
               name: uuid,
               tableName: table,
               values,
@@ -340,7 +340,7 @@ async function makeViewTable(
             });
           }}
           deleteOP={async (wheres) => {
-            return await invoke<types.SqlExecuteRet>('delete', {
+            return await invoke<types.SqlExecuteRet>('table_delete', {
               name: uuid,
               tableName: table,
               wheres,
@@ -354,7 +354,7 @@ async function makeViewTable(
             });
           }}
           addOP={async (values) => {
-            return invoke('insert', {
+            return invoke('table_insert', {
               name: uuid,
               tableName: table,
               values,
@@ -621,7 +621,7 @@ async function makeAddTable(
         <SqlTableViewData
           buttonName="add"
           handleData={async (values) => {
-            return invoke('insert', {
+            return invoke('table_insert', {
               name: uuid,
               tableName: table,
               values,

@@ -602,7 +602,7 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(())
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -631,7 +631,7 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(())
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -648,7 +648,7 @@ impl SchemaTrait for LibSqlDB {
         })
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -1519,11 +1519,14 @@ mod tests {
         values.insert("time_col".to_string(), Some("12:00:00".to_string()));
         values.insert("date_col".to_string(), Some("2024-01-01".to_string()));
 
-        db.insert(table_name, values.clone()).await.unwrap();
+        db.table_insert(table_name, values.clone()).await.unwrap();
         let mut wheres = HashMap::new();
         wheres.insert("id".to_string(), Some(1.to_string()));
 
-        let r = db.update(table_name, values.clone(), wheres).await.unwrap();
+        let r = db
+            .table_update(table_name, values.clone(), wheres)
+            .await
+            .unwrap();
 
         println!("{:?}", r);
 

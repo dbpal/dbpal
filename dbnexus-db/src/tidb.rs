@@ -144,17 +144,17 @@ impl SchemaTrait for TiDB {
         self.db.create_index(&table, name, kind, &fields).await
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.db.insert(&table_name, values).await
+        self.db.table_insert(&table_name, values).await
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.db.update(table_name, values, wheres).await
+        self.db.table_update(table_name, values, wheres).await
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
@@ -184,10 +184,10 @@ impl SchemaTrait for TiDB {
         self.db.truncate_table(table_name).await
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.db.delete(table_name, wheres).await
+        self.db.table_delete(table_name, wheres).await
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {

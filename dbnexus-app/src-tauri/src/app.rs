@@ -491,15 +491,15 @@ impl App {
         &self, name: &str, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let db = self.get_schema(name).await?;
-        db.insert(table_name, values).await
+        db.table_insert(table_name, values).await
     }
 
-    pub async fn update(
+    pub async fn table_update(
         &self, name: &str, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let db = self.get_schema(name).await?;
-        db.update(table_name, values, wheres).await
+        db.table_update(table_name, values, wheres).await
     }
 
     pub async fn truncate_table(&self, name: &str, table_name: &str) -> anyhow::Result<()> {
@@ -507,11 +507,11 @@ impl App {
         db.truncate_table(table_name).await
     }
 
-    pub async fn delete(
+    pub async fn table_delete(
         &self, name: &str, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let db = self.get_schema(name).await?;
-        db.delete(table_name, wheres).await
+        db.table_delete(table_name, wheres).await
     }
 
     pub async fn list_view(&self, name: &str) -> anyhow::Result<Vec<NamedStaff>> {

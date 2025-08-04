@@ -958,7 +958,7 @@ impl SchemaTrait for MsSqlServerDB {
         anyhow::Ok(ret.into_iter().map(|(_, v)| v).collect())
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -982,7 +982,7 @@ impl SchemaTrait for MsSqlServerDB {
         })
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -1015,7 +1015,7 @@ impl SchemaTrait for MsSqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -2704,8 +2704,8 @@ mod tests {
         values.insert("col_bigint".to_string(), Some("10000".to_string()));
         values.insert("col_float".to_string(), Some("3.14".to_string()));
         values.insert("col_double".to_string(), Some("3.14159".to_string()));
-        db.insert(table_name, values.clone()).await.unwrap();
-        db.update(table_name, values, {
+        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_update(table_name, values, {
             let mut wheres = HashMap::new();
             wheres.insert("id".to_string(), Some("1".to_string()));
             wheres
@@ -2760,8 +2760,8 @@ mod tests {
         values.insert("ntext_column".to_string(), Some("f".to_string()));
         values.insert("text_column".to_string(), Some("g".to_string()));
 
-        db.insert(table_name, values.clone()).await.unwrap();
-        db.update(table_name, values, {
+        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_update(table_name, values, {
             let mut wheres = HashMap::new();
             wheres.insert("id".to_string(), Some("1".to_string()));
             wheres
@@ -2818,8 +2818,8 @@ mod tests {
         );
         values.insert("NumericColumn".to_string(), Some("123.45".to_string()));
         values.insert("DecimalColumn".to_string(), Some("12.3456".to_string()));
-        db.insert(table_name, values.clone()).await.unwrap();
-        db.update(table_name, values, {
+        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_update(table_name, values, {
             let mut wheres = HashMap::new();
             wheres.insert("id".to_string(), Some("1".to_string()));
             wheres
@@ -2888,8 +2888,8 @@ mod tests {
             "DateTimeOffsetData".to_string(),
             Some("2022-01-01 12:34:56.1234567 +01:00".to_string()),
         );
-        db.insert(table_name, values.clone()).await.unwrap();
-        db.update(table_name, values, {
+        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_update(table_name, values, {
             let mut wheres = HashMap::new();
             wheres.insert("id".to_string(), Some("1".to_string()));
             wheres

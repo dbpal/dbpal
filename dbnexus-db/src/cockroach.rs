@@ -310,27 +310,27 @@ impl SchemaTrait for CockRoachDB {
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.pg.insert(table_name, values).await
+        self.pg.table_insert(table_name, values).await
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.pg.update(table_name, values, wheres).await
+        self.pg.table_update(table_name, values, wheres).await
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.pg.truncate_table(table_name).await
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.pg.delete(table_name, wheres).await
+        self.pg.table_delete(table_name, wheres).await
     }
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
@@ -967,7 +967,7 @@ mod tests {
         values.insert("int2_column".to_string(), Some("2".to_string()));
         values.insert("int4_column".to_string(), Some("100".to_string()));
         values.insert("rowid".to_string(), Some("unique_rowid()".to_string()));
-        db.insert(table_name, values.clone()).await.unwrap();
+        db.table_insert(table_name, values.clone()).await.unwrap();
         let mut wheres = values.clone();
         wheres.insert("id".to_string(), Some("1".to_string()));
 

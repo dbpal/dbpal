@@ -1065,7 +1065,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -1098,7 +1098,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -1120,7 +1120,7 @@ impl SchemaTrait for PostGresDB {
         })
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -2554,7 +2554,7 @@ mod tests {
         values.insert("int8_column".to_string(), Some("1".to_string()));
         values.insert("int2_column".to_string(), Some("2".to_string()));
         values.insert("int4_column".to_string(), Some("100".to_string()));
-        pg.insert(table_name, values.clone()).await.unwrap();
+        pg.table_insert(table_name, values.clone()).await.unwrap();
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
             .await
@@ -2665,7 +2665,7 @@ mod tests {
             Some("{08:00:2b:01:02:03:04:06, 08:00:2b:01:02:03:04:07}".to_string()),
         );
 
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
@@ -2824,7 +2824,7 @@ mod tests {
             Some("{ a  , b }".to_string()),
         );
 
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
@@ -2920,7 +2920,7 @@ mod tests {
         );
         values.insert("int8_array_column".to_string(), Some("{1,100}".to_string()));
 
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
@@ -3038,7 +3038,7 @@ mod tests {
 
         values.insert("date_column".to_string(), Some("2022-01-01".to_string()));
 
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
@@ -3151,7 +3151,7 @@ mod tests {
             Some("{\"2024-03-01 10:00:00+00\",\"2024-03-02 12:00:00+00\"}".to_string()),
         );
 
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
@@ -3248,7 +3248,7 @@ mod tests {
             "timetz_array_col".to_string(),
             Some("{10:00:00+03,15:30:00+03}".to_string()),
         );
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
             .await
@@ -3337,7 +3337,7 @@ mod tests {
         );
 
         values.insert("numeric_column".to_string(), Some("123.45".to_string()));
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
             .await
@@ -3445,7 +3445,7 @@ mod tests {
             Some("{\"[30,40)\",\"[50,60)\"}".to_string()),
         );
 
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
             .await
@@ -3545,7 +3545,7 @@ mod tests {
         );
         values.insert("tstz_range_array".to_string(), Some("{}".to_string()));
 
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
             .await
@@ -3654,7 +3654,7 @@ mod tests {
             "money_value_array".to_string(),
             Some("{$5.00,$15.75}".to_string()),
         );
-        pg.insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, values).await.unwrap();
         let x = pg
             .show_table(table_name, None, None, 1, 100, None)
             .await

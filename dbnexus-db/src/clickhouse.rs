@@ -254,7 +254,7 @@ impl SchemaTrait for ClickHouseDB {
         Box::new(Clone::clone(self))
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -483,7 +483,7 @@ impl SchemaTrait for ClickHouseDB {
         })
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
@@ -501,7 +501,7 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -1598,7 +1598,7 @@ mod tests {
             values.insert("value_uint32".to_string(), Some(3.to_string()));
             values.insert("value_uint64".to_string(), Some(4.to_string()));
             values.insert("value_uint128".to_string(), Some(5.to_string()));
-            db.insert(&table_name, values).await.unwrap();
+            db.table_insert(&table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -1681,7 +1681,7 @@ mod tests {
             values.insert("value_int32".to_string(), Some(3.to_string()));
             values.insert("value_int64".to_string(), Some(4.to_string()));
             values.insert("value_int128".to_string(), Some(5.to_string()));
-            db.insert(&table_name, values).await.unwrap();
+            db.table_insert(&table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -1793,7 +1793,7 @@ mod tests {
             values.insert("decimal64_field".to_string(), Some(4.to_string()));
             values.insert("decimal128_field".to_string(), Some(5.to_string()));
             values.insert("boolean_field".to_string(), Some(true.to_string()));
-            db.insert(&table_name, values).await.unwrap();
+            db.table_insert(&table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -1891,7 +1891,7 @@ mod tests {
             );
             values.insert("ipv4_field".to_string(), Some("192.168.1.1".to_string()));
             values.insert("date_field".to_string(), Some("2025-03-06".to_string()));
-            db.insert(&table_name, values).await.unwrap();
+            db.table_insert(&table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -1992,7 +1992,7 @@ mod tests {
                 "map_field".to_string(),
                 Some("map('key1', 10, 'key2', 20)".to_string()),
             );
-            db.insert(&table_name, values).await.unwrap();
+            db.table_insert(&table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -2072,7 +2072,7 @@ mod tests {
             values.insert("common_value".to_string(), Some("common_value".to_string()));
             values.insert("some_string".to_string(), Some("hello world".to_string()));
 
-            db.insert(&table_name, values).await.unwrap();
+            db.table_insert(&table_name, values).await.unwrap();
         }
         {
             let resp = db

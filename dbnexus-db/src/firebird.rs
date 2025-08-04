@@ -761,7 +761,7 @@ impl SchemaTrait for FireBirdDB {
         })
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
@@ -777,7 +777,7 @@ impl SchemaTrait for FireBirdDB {
         })
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -799,7 +799,7 @@ impl SchemaTrait for FireBirdDB {
         anyhow::Ok(())
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
@@ -1382,7 +1382,7 @@ mod tests {
 
         values.insert("COL_DECIMAL".to_string(), Some("123.45".to_string()));
         values.insert("COL_NUMERIC".to_string(), Some("678.90".to_string()));
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db
@@ -1483,7 +1483,7 @@ mod tests {
             Some("2025-03-17 14:30:00".to_string()),
         );
         values.insert("COL_BOOLEAN".to_string(), Some("TRUE".to_string()));
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db
