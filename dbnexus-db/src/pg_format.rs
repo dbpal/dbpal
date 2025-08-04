@@ -4,7 +4,7 @@ use sqlx::postgres::{PgRow, PgValueRef};
 use sqlx::types::BigDecimal;
 use sqlx::{Column, Row, ValueRef};
 
-use crate::db::format_data_time_fix_offset;
+use crate::db::{escape_sql_str, format_data_time_fix_offset};
 
 /// right now sqlx not implement macaddr8
 /// impl it myself.
@@ -944,7 +944,7 @@ pub(crate) fn encode_rows(rows: &Vec<PgRow>) -> anyhow::Result<Vec<Vec<Option<St
 pub(crate) fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
     let single_quote_str = value
-        .map(|x| format!("'{}'", x))
+        .map(|x| format!("'{}'", escape_sql_str(x)))
         .unwrap_or("null".to_string());
     let err =
         Err(anyhow::Error::msg(format!("type '{}' not supported", typ))) as anyhow::Result<String>;

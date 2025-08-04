@@ -1320,3 +1320,7 @@ pub(crate) fn ty_is_float(x: &sqlparser::ast::DataType) -> bool {
         _ => false,
     }
 }
+
+pub(crate) fn escape_sql_str(s: &str) -> String {
+    s.replace("'", "''")
+}

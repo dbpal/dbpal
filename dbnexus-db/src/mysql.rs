@@ -20,7 +20,7 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
     ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter,
+    UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, TimeSome, create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -1630,7 +1630,7 @@ impl SqlBuilder for MysqlDB {
     ) -> anyhow::Result<String> {
         let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote_str = value
-            .map(|x| format!("'{}'", x))
+            .map(|x| format!("'{}'", escape_sql_str(x)))
             .unwrap_or("null".to_string());
         let ty = f.to_uppercase();
 

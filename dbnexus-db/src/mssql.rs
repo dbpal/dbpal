@@ -23,8 +23,8 @@ use crate::db::{
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
     NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
     ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, format_data_time_fix_offset,
-    not_support_features,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
+    format_data_time_fix_offset, not_support_features,
 };
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
@@ -1243,7 +1243,7 @@ impl SqlBuilder for MsSqlServerDB {
     ) -> anyhow::Result<String> {
         let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote = value
-            .map(|x| format!("'{}'", x))
+            .map(|x| format!("'{}'", escape_sql_str(x)))
             .unwrap_or("null".to_string());
         let v = match typ.to_uppercase().as_str() {
             "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"

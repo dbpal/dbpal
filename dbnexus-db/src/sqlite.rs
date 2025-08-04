@@ -18,7 +18,7 @@ use crate::db::{
     BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
     Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEvent, TriggerTiming,
+    TriggerEvent, TriggerTiming, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -873,11 +873,11 @@ impl SqlBuilder for SqliteDB {
 
         let v = match typ.as_str() {
             "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
-                Some(x) => format!("'{}'", x),
+                Some(x) => format!("'{}'", escape_sql_str(x)),
                 None => "null".to_string(),
             },
             _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", x),
+                Some(x) => format!("'{}'", escape_sql_str(x)),
                 None => "null".to_string(),
             },
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),

@@ -20,7 +20,7 @@ use crate::db::{
     ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    not_support_features,
+    escape_sql_str, not_support_features,
 };
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
@@ -491,19 +491,19 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
 
     match typ.as_str() {
         "VARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
+            Some(x) => format!("'{}'", escape_sql_str(x)),
             None => null_string,
         }),
         _ if typ.starts_with("VARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
+            Some(x) => format!("'{}'", escape_sql_str(x)),
             None => null_string,
         }),
         "NVARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
+            Some(x) => format!("N'{}'", escape_sql_str(x)),
             None => null_string,
         }),
         _ if typ.starts_with("NVARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
+            Some(x) => format!("N'{}'", escape_sql_str(x)),
             None => null_string,
         }),
 
@@ -512,15 +512,15 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
             None => null_string,
         }),
         _ if typ.starts_with("CHAR") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
+            Some(x) => format!("'{}'", escape_sql_str(x)),
             None => null_string,
         }),
         "NCHAR" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
+            Some(x) => format!("N'{}'", escape_sql_str(x)),
             None => null_string,
         }),
         _ if typ.starts_with("NCHAR") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
+            Some(x) => format!("N'{}'", escape_sql_str(x)),
             None => null_string,
         }),
         "RAW" => anyhow::Ok(match value {

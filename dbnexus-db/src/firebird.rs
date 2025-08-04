@@ -19,7 +19,7 @@ use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendName, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
     NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_features,
 };
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
@@ -1001,9 +1001,14 @@ fn put_value_in_sql(
     let typ = typ.to_lowercase();
     log::trace!("encode value '{:?}' on type '{}'", value, typ);
     match typ.as_str() {
-        "text" | "varying" | "date" | "time" | "timestamp" => anyhow::Ok(
+        "text" | "varying" => anyhow::Ok(
             value
-                .map(|x| format!("'{}'", x))
+                .map(|x| format!("'{}'", escape_sql_str(x)))
+                .unwrap_or("null".to_string()),
+        ),
+        "date" | "time" | "timestamp" => anyhow::Ok(
+            value
+                .map(|x| format!("'{}'", escape_sql_str(x)))
                 .unwrap_or("null".to_string()),
         ),
         // binary is blob

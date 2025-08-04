@@ -59,7 +59,7 @@ use crate::db::{
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind,
     ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-    UdfOrProcedureExtraParameter,
+    UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use crate::helper::create_csv;
 use crate::language_server::{LangServerCommon, LexerCompletionTrait};
@@ -1744,7 +1744,12 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let typ = typ.to_lowercase();
     log::trace!("encode value '{:?}' on type '{}'", value, typ);
     match typ.as_str() {
-        "ascii" | "varchar" | "timestamp" | "text" | "date" | "time" | "inet" => anyhow::Ok(
+        "ascii" | "varchar" | "text" => anyhow::Ok(
+            value
+                .map(|x| format!("'{}'", escape_sql_str(x)))
+                .unwrap_or("null".to_string()),
+        ),
+        "timestamp" | "date" | "time" | "inet" => anyhow::Ok(
             value
                 .map(|x| format!("'{}'", x))
                 .unwrap_or("null".to_string()),

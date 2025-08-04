@@ -13,7 +13,7 @@ use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     ExportKind, ExportQueryResult, Field, ListMaterializedView, ListTable, NamedStaff, QueryResp,
     QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
-    SqlExecuteRet, ty_is_float, ty_is_int,
+    SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -630,7 +630,7 @@ fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: Option<&str>) -> Stri
 
     let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
     let single_quote_str = value
-        .map(|x| format!("'{}'", x))
+        .map(|x| format!("'{}'", escape_sql_str(x)))
         .unwrap_or("null".to_string());
 
     fn custon_need_quote(x: &ObjectName) -> bool {
