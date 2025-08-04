@@ -2715,9 +2715,8 @@ impl From<QueryResp> for MuiDataGridData {
             fn get_index(&mut self, name: &String) -> Option<usize> {
                 match self.indexes.get_mut(name) {
                     Some(x) => {
-                        let r = *x;
                         *x += 1;
-                        Some(r)
+                        Some(*x)
                     }
                     None => {
                         self.indexes.insert(name.clone(), 1);
