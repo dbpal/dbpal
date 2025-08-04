@@ -18,7 +18,7 @@ use crate::db::{
     Field, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail,
     QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
     SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, not_support_features,
+    UdfOrProcedureExtraParameter, not_support_feature,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -443,7 +443,7 @@ impl QuoteStyle for PostGresDB {
 impl SchemaTrait for PostGresDB {
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
         // TODO
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {

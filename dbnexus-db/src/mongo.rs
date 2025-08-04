@@ -16,7 +16,7 @@ use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
     Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlExecuteRet, not_support_features,
+    ServerMetas, ShowExtraArgs, SqlExecuteRet, not_support_feature,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -74,7 +74,7 @@ impl LanguageServer for MongoDB {
     async fn auto_completion(
         &self, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 }
 impl ReadOnlyTrait for MongoDB {
@@ -813,31 +813,31 @@ impl SchemaTrait for MongoDB {
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
     fn get_query_log(&self, _id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn execute_sql(
         &self, _query_id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn re_connect(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn close_connection(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 }
 

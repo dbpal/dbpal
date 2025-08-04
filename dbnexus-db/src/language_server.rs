@@ -8,7 +8,7 @@ use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
-use crate::db::{BackendName, FormatSqlOpts, monaco_editor_keyword_regexp, not_support_features};
+use crate::db::{BackendName, FormatSqlOpts, monaco_editor_keyword_regexp, not_support_feature};
 use crate::sqlparser_completion::CompletionStatement;
 
 #[async_trait::async_trait]
@@ -18,7 +18,7 @@ pub trait LanguageServer: BackendName {
     ) -> anyhow::Result<Vec<CompletionItem>>;
 
     fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 }
 
@@ -276,12 +276,12 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName + LangServerC
     async fn list_procedure(
         &self, _db: Option<&str>, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn list_clickhouse_table_projects(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -296,40 +296,40 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName + LangServerC
     // mysql use `show variables`
     // to query all variables
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn list_partition(
         &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn postgres_table_policy(
         &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn list_postgres_rule(
         &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn list_constraint(
         &self, _db: Option<&str>, _schema: Option<&str>, _table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn list_table_trigger(
         &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn list_prepare_name(&self, _query_id: uuid::Uuid) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     fn sqlite_pragma(&self) -> Vec<CompletionItem> {
         vec![]

@@ -71,73 +71,73 @@ pub trait SchemaTrait:
     ) -> anyhow::Result<SqlExecuteRet>;
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
 
     fn clone(&self) -> Box<dyn SchemaTrait>;
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn modify_table_column(
         &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn add_table_column(
         &self, _table: &str, _name: &str, _col: ColumnType,
     ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn rename_index(
         &self, _table_name: &str, _oldname: &str, _newname: &str,
     ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn create_index(
         &self, _table: &str, _name: &str, _kind: IndexKind, _fileds: &[String],
     ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn export_table_or_view(
         &self, _name: &str, _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -179,60 +179,60 @@ pub trait SchemaTrait:
     async fn create_table_and_index_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn create_view_sql(
         &self, _view_name: &str, _materialized: bool,
     ) -> anyhow::Result<String> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn show_udf(
         &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn drop_udf(
         &self, _name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn show_procedure(
         &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn drop_procedure(
         &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -244,10 +244,10 @@ pub trait SchemaTrait:
         anyhow::Ok(e)
     }
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn drop_created_type(&self, _typ: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn export_table_to_string(
@@ -293,7 +293,7 @@ pub trait SqlBuilder: BackendName + QuoteStyle {
     fn put_value_in_sql(
         &self, _typ: &str, _: Option<i64>, _value: Option<&str>,
     ) -> anyhow::Result<String> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     fn make_where(
@@ -515,7 +515,7 @@ impl UdfOrProcedureExtraParameter {
     }
 }
 
-pub(crate) fn not_support_features<T>(name: &str) -> anyhow::Result<T> {
+pub(crate) fn not_support_feature<T>(name: &str) -> anyhow::Result<T> {
     anyhow::bail!(format!("'{}' don't support this feature", name))
 }
 
@@ -681,7 +681,7 @@ pub trait ExportQueryResult: BackendName + Send + Sync + 'static {
     async fn export_query_result(
         &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn export_query_result_to_string(
         &self, sql: &str, kind: ExportKind,
@@ -733,20 +733,20 @@ pub trait ExportQueryResult: BackendName + Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
     fn tx_execute_counts(&self, _query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn get_auto_commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<bool> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn set_auto_commit(&self, _query_id: uuid::Uuid, _commit: bool) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
     async fn rollback(&self, _query_id: uuid::Uuid) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn query_sql(
@@ -766,7 +766,7 @@ pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>>;
 
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 }
 

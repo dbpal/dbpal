@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use sqlx::Row;
 
-use crate::db::{BackendName, FormatSqlOpts, not_support_features};
+use crate::db::{BackendName, FormatSqlOpts, not_support_feature};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -308,7 +308,7 @@ impl AstCompletionHelper for MysqlDB {
 
     // TODO sqlpaser支持解析mysql 的role语句吗
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn list_constraint(

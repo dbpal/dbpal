@@ -24,7 +24,7 @@ use crate::db::{
     NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
     ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable,
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
-    format_data_time_fix_offset, not_support_features,
+    format_data_time_fix_offset, not_support_feature,
 };
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
@@ -1922,11 +1922,11 @@ impl crate::db::DBTrait for MsSqlServerDB {
     }
 
     async fn create_schema(&self, _name: &str, _: Option<CreateSchemaExtra>) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 }
 

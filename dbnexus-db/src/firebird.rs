@@ -19,7 +19,7 @@ use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendName, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
     NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_features,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_feature,
 };
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
@@ -620,7 +620,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
