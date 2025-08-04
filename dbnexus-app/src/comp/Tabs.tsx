@@ -121,6 +121,12 @@ function TabsWithContent_(props: {
           onChange={(_, newValue) => {
             changeTab(newValue);
           }}
+          sx={{
+            // 1. Tab 之间缝隙
+            '& .MuiTabs-flexContainer': { columnGap: 0 }, // 4px
+            // 2. Tab 内边距
+            '& .MuiTab-root': { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
+          }}
         >
           {tabs.map((tab, index) => {
             return (
@@ -131,6 +137,7 @@ function TabsWithContent_(props: {
                   onDelete={() => {
                     handleClose(index);
                   }}
+                  style={{ padding: '0px' }}
                   icon={tab.icon}
                   size="small"
                   color={index == selectIndex ? 'primary' : 'default'}
