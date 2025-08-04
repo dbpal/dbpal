@@ -2699,11 +2699,45 @@ impl From<QueryResp> for MuiDataGridData {
             total,
             sql,
         } = value;
+        #[derive(Default)]
+        struct NameIndex {
+            indexes: HashMap<String, usize>,
+        }
+        impl NameIndex {
+            fn get_index(&mut self, name: &String) -> Option<usize> {
+                match self.indexes.get_mut(name) {
+                    Some(x) => {
+                        let r = *x;
+                        *x += 1;
+                        Some(r)
+                    }
+                    None => {
+                        self.indexes.insert(name.clone(), 1);
+                        None
+                    }
+                }
+            }
+        }
+
+        let fields_renamed = {
+            let mut indexes = NameIndex::default();
+            fields
+                .into_iter()
+                .map(|mut x| match indexes.get_index(&x.field) {
+                    Some(index) => {
+                        x.field = format!("{}#{}", x.field, index);
+                        x
+                    }
+                    None => x,
+                })
+                .collect::<Vec<_>>()
+        };
+
         let data: Vec<_> = data
             .into_iter()
             .map(|x| {
                 let mut m = HashMap::new();
-                fields
+                fields_renamed
                     .iter()
                     .zip(x.into_iter())
                     .for_each(|(f, value)| match value {
@@ -2716,7 +2750,7 @@ impl From<QueryResp> for MuiDataGridData {
             })
             .collect();
         Self {
-            fields,
+            fields: fields_renamed,
             data,
             sql,
             total,

@@ -133,11 +133,10 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
 
       {!commit && (
         <>
-          <Chip
-            label={`executes:` + txCount}
-            size="small"
-            color="success"
-          ></Chip>
+          <Tooltip title="executes after begin transaction">
+            <Chip label={txCount} size="small" color="info"></Chip>
+          </Tooltip>
+
           <Tooltip title="commit">
             <IconButton onClick={handleCommit} color="primary">
               <FaUpload fontSize="1.1rem"></FaUpload>
