@@ -992,20 +992,24 @@ impl CompletionStatement {
                     // this is very likely a `select * from sys.xxx`   on mysql
                     // treat this expr as table
 
-                    self.c_on_table_or_view(&ObjectName(
-                        idents
-                            .iter()
-                            .map(|x| ObjectNamePart::Identifier(x.clone()))
-                            .collect(),
-                    ))
+                    self.c_on_select_target(
+                        &ObjectName(
+                            idents
+                                .iter()
+                                .map(|x| ObjectNamePart::Identifier(x.clone()))
+                                .collect(),
+                        ),
+                        Some(&idents[0].value),
+                    )
                     .await;
                     return;
                 }
                 if self.in_pos(&table.span) {
                     // handle name
-                    self.c_on_table_or_view(&ObjectName(vec![ObjectNamePart::Identifier(
-                        table.clone(),
-                    )]))
+                    self.c_on_select_target(
+                        &ObjectName(vec![ObjectNamePart::Identifier(table.clone())]),
+                        None,
+                    )
                     .await;
                     return;
                 }
@@ -1113,13 +1117,13 @@ impl CompletionStatement {
                         self.result = Some(old);
                     }
                 }
-
                 // save  results
                 let items = self.result.take().unwrap_or_default();
                 // this line will rewrite the results.
-                self.c_on_table_or_view(&ObjectName(vec![ObjectNamePart::Identifier(
-                    ident.clone(),
-                )]))
+                self.c_on_select_target(
+                    &ObjectName(vec![ObjectNamePart::Identifier(ident.clone())]),
+                    None,
+                )
                 .await;
                 if self.result.is_none() {
                     self.result = Some(vec![]);
@@ -1821,11 +1825,24 @@ impl CompletionStatement {
     // completion on table or view.
     pub(crate) async fn c_on_table_or_view(&mut self, name: &ObjectName) {
         self.c_on_view(name).await;
-        let mut x1 = self.result.take().unwrap_or_default();
+        let mut items = self.result.take().unwrap_or_default();
         self.c_on_table(name).await;
-        x1.extend(self.result.take().unwrap_or_default().into_iter());
+        items.extend(self.result.take().unwrap_or_default().into_iter());
+        self.result = Some(items);
+    }
 
-        self.result = Some(x1);
+    pub(crate) async fn c_on_select_target(&mut self, name: &ObjectName, schema: Option<&str>) {
+        self.c_on_table_or_view(name).await;
+        let mut items = self.result.take().unwrap_or_default();
+        let f = self
+            .helper
+            .list_function(None, schema, true)
+            .await
+            .map_err(|e| log::error!("list function failed , e:{}", e))
+            .ok()
+            .unwrap_or_default();
+        items.extend(f.into_iter());
+        self.result = Some(items);
     }
 
     pub(crate) async fn c_on_table(&mut self, table_name: &ObjectName) {
@@ -1853,17 +1870,7 @@ impl CompletionStatement {
             })
             .ok()
             .unwrap_or_default();
-        items.extend(
-            self.helper
-                .list_view(db, schema)
-                .await
-                .map_err(|e| {
-                    log::error!("list view failed,err:{:?}", e);
-                    self.set_has_err();
-                })
-                .ok()
-                .unwrap_or_default(),
-        );
+
         items.extend(self.scopes.tables().into_iter());
         // here maybe we are suggest database all schemas.
         items.extend(self.helper.list_database().await.unwrap_or_default());

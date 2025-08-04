@@ -22,7 +22,8 @@ use crate::db::{
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, escape_sql_str,
 };
-use crate::helper::{TXExecuteTimes, TimeSome, create_csv, is_dangerous_sql_by_parser};
+
+use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
@@ -1565,7 +1566,6 @@ impl QuerySql for MysqlDB {
 
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let _xxx = TimeSome::new(format!("query_sql:{}", sql));
         let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
         let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
         let mut rows = Vec::new();

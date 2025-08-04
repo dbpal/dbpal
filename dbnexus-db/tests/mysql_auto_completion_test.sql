@@ -54,3 +54,7 @@ SELECT test.employees from employees
 22 employees
 SELECT test from employees
 12 test
+SELECT sys.xxx from sys_config
+15 format_bytes
+SELECT sys.xxx from sys.format_bytes
+37 format_bytes

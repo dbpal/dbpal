@@ -341,6 +341,7 @@ impl<T: std::ops::Add + std::ops::AddAssign + Copy + std::cmp::Ord> Iterator
     }
 }
 
+#[allow(unused)]
 pub struct TimeSome {
     some: String,
     start: std::time::Instant,
