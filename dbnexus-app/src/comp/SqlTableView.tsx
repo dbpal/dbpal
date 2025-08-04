@@ -10,7 +10,6 @@ import {
 import CancelIcon from '@mui/icons-material/Cancel';
 import types from './ApiStruct';
 import {
-  Alert,
   Box,
   Button,
   Chip,
@@ -345,7 +344,6 @@ function SqlTableView(props: {
     resp.data.forEach((data) => {
       data[keyNotInTable] = uuidv4();
     });
-
     for (let i = 0; i < resp.fields.length; i++) {
       let field = resp.fields[i];
       //@ts-ignore
@@ -401,10 +399,10 @@ function SqlTableView(props: {
         extra
       );
       await handleResp(resp);
-      resp.fields.forEach((e) => {
-        const width = columnWidths.getWidth(e.field);
+      resp.fields.forEach((field) => {
+        const width = columnWidths.getWidth(field.field);
         if (width) {
-          e['width'] = width;
+          field['width'] = width;
         }
       });
       setLoading(false);
@@ -593,6 +591,18 @@ function SqlTableView(props: {
                       }
                     : undefined
                 }
+                resetColunmWidthCallBack={() => {
+                  setResp((old) => {
+                    return {
+                      sql: old.sql,
+                      data: old.data,
+                      fields: old.fields.map((e) => {
+                        return { width: undefined, ...e } as types.Field;
+                      }),
+                      total: old.total,
+                    };
+                  });
+                }}
               ></Menu>
             ),
             style: calMenuStyle(e, 300),
@@ -976,6 +986,7 @@ function Menu(props: {
   nullable: boolean;
   editCellInModal;
   editRowInModal;
+  resetColunmWidthCallBack;
 }) {
   const {
     field,
@@ -992,6 +1003,7 @@ function Menu(props: {
     nullable,
     editCellInModal,
     editRowInModal,
+    resetColunmWidthCallBack,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
@@ -1045,6 +1057,19 @@ function Menu(props: {
               <MdEditNote fontSize="1.7rem"></MdEditNote>
             </ListItemIcon>
             <ListItemText> Edit Row in Modal </ListItemText>
+          </MenuItem>
+        )}
+
+        {nullable && setNull && (
+          <MenuItem
+            onClick={() => {
+              setNull();
+            }}
+          >
+            <ListItemIcon>
+              <CancelIcon></CancelIcon>
+            </ListItemIcon>
+            <ListItemText> Set as Null </ListItemText>
           </MenuItem>
         )}
 
@@ -1107,18 +1132,6 @@ function Menu(props: {
         )}
         <Divider></Divider>
 
-        {nullable && setNull && (
-          <MenuItem
-            onClick={() => {
-              setNull();
-            }}
-          >
-            <ListItemIcon>
-              <CancelIcon></CancelIcon>
-            </ListItemIcon>
-            <ListItemText> Set as Null </ListItemText>
-          </MenuItem>
-        )}
         {addOP && (
           <MenuItem onClick={handleClone}>
             <ListItemIcon>
@@ -1135,7 +1148,9 @@ function Menu(props: {
             <ListItemText> Delete Row</ListItemText>
           </MenuItem>
         )}
-        <MenuResetColumnWidths></MenuResetColumnWidths>
+        <MenuResetColumnWidths
+          reset={resetColunmWidthCallBack}
+        ></MenuResetColumnWidths>
       </MenuList>
 
       {showFilter && (
@@ -1181,6 +1196,7 @@ function FilterOnValue(props: {
   const [compare, setCompare] = useState(compares[0]);
   const { showNotification } = useContext(NotificationContext);
   const [formatValue, setFormatValue] = useState('');
+
   useEffect(() => {
     put_value_in_sql(content)
       .then((value) => {
@@ -1192,28 +1208,47 @@ function FilterOnValue(props: {
   }, []);
 
   const where = () => {
+    if (compare == 'null') {
+      return `${field} IS NULL`;
+    }
+    if (compare == 'not null') {
+      return `${field} IS NOT NULL`;
+    }
+
     return `${field} ${compare} ${formatValue}`;
   };
   return (
-    <Stack spacing={1}>
+    <Stack spacing={2}>
       <Stack direction="row" spacing={1}>
         {compares.map((x) => (
-          <Button
+          <Chip
             key={x}
             onClick={() => {
               setCompare(x);
             }}
-          >
-            {x}
-          </Button>
+            label={x}
+            color="primary"
+            size="small"
+            disabled={compare == x}
+          ></Chip>
+        ))}
+      </Stack>
+      <Stack direction="row" spacing={1}>
+        {['null', 'not null'].map((e) => (
+          <Chip
+            label={e}
+            disabled={compare == e}
+            onClick={() => {
+              setCompare(e);
+            }}
+            size="small"
+            color="primary"
+          />
         ))}
       </Stack>
 
-      <Typography>
-        on: <em> {where()} </em>
-      </Typography>
       <Divider></Divider>
-      <Stack direction="row">
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
           variant="contained"
           onClick={() => {
@@ -1223,6 +1258,10 @@ function FilterOnValue(props: {
         >
           set
         </Button>
+
+        <Typography>
+          on: <em> {where()} </em>
+        </Typography>
       </Stack>
     </Stack>
   );

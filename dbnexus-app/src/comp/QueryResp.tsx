@@ -21,6 +21,7 @@ import {
   columnWidths,
   ContextMenuContext,
   VisiableContext,
+  resetMuiDataRespWidth,
 } from './helper.ts';
 import {
   DataGrid,
@@ -44,8 +45,13 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification.tsx';
 import { MenuResetColumnWidths } from './CommonComp.tsx';
 
-function RespContextMenu(props: { content; field; setSort }) {
-  const { content, field, setSort } = props;
+function RespContextMenu(props: {
+  content;
+  field;
+  setSort;
+  resetColunmWidthCallBack;
+}) {
+  const { content, field, setSort, resetColunmWidthCallBack } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
     <Paper>
@@ -94,34 +100,40 @@ function RespContextMenu(props: { content; field; setSort }) {
           </ListItemIcon>
           <ListItemText> {field} DESC </ListItemText>
         </MenuItem>
-        <MenuResetColumnWidths></MenuResetColumnWidths>
+        <MenuResetColumnWidths
+          reset={resetColunmWidthCallBack}
+        ></MenuResetColumnWidths>
       </MenuList>
     </Paper>
   );
 }
 
 function QueryResp_(props: { data: types.MuiDataGridData }) {
-  let { data } = props;
-  data.data.forEach((e) => {
-    if (!('id' in e)) {
-      e.id = uuidv4();
-    }
-  });
-  data.fields.forEach((e) => {
-    const width = columnWidths.getWidth(e.field);
-    if (width) {
-      e['width'] = width;
-    }
-    //@ts-ignore
-    e.renderHeader = (e) => {
-      let def = e.colDef;
-      return (
-        <Tooltip title={def.typ}>
-          <strong> {def.field}</strong>
-        </Tooltip>
-      );
-    };
-  });
+  let { data: oldData } = props;
+  const [data, setData] = useState<types.MuiDataGridData>(null);
+  useEffect(() => {
+    oldData.data.forEach((e) => {
+      if (!('id' in e)) {
+        e.id = uuidv4();
+      }
+    });
+    oldData.fields.forEach((e) => {
+      const width = columnWidths.getWidth(e.field);
+      if (width) {
+        e['width'] = width;
+      }
+      //@ts-ignore
+      e.renderHeader = (e) => {
+        let def = e.colDef;
+        return (
+          <Tooltip title={def.typ}>
+            <strong> {def.field}</strong>
+          </Tooltip>
+        );
+      };
+    });
+    setData(oldData);
+  }, [oldData]);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
@@ -145,6 +157,11 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
                 content={content}
                 field={field}
                 setSort={setSortModel}
+                resetColunmWidthCallBack={() => {
+                  setData((e) => {
+                    return resetMuiDataRespWidth(e);
+                  });
+                }}
               ></RespContextMenu>
             ),
             style: calMenuStyle(e, 200),
@@ -158,35 +175,38 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
+
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
   return (
-    <Stack spacing={1}>
-      {data.sql && <Typography color="info">sql: {data.sql} </Typography>}
-      {vis && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
-          <DataGrid
-            style={gridStyle}
-            sortModel={sortModel}
-            onSortModelChange={onSortModelChange}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={setting.datagridRowHeight}
-            columnHeaderHeight={setting.datagridHeaderHeight}
-            columns={data.fields}
-            rows={data.data}
-            filterMode="client" // 使用客户端过滤
-            onColumnResize={onColumnResize}
-          ></DataGrid>
-        </div>
-      )}
-    </Stack>
+    data && (
+      <Stack spacing={1}>
+        {data.sql && <Typography color="info">sql: {data.sql} </Typography>}
+        {vis && (
+          <div
+            style={{
+              display: 'grid',
+            }}
+          >
+            <DataGrid
+              style={gridStyle}
+              sortModel={sortModel}
+              onSortModelChange={onSortModelChange}
+              showCellVerticalBorder
+              showColumnVerticalBorder
+              slotProps={slotProps}
+              rowHeight={setting.datagridRowHeight}
+              columnHeaderHeight={setting.datagridHeaderHeight}
+              columns={data.fields}
+              rows={data.data}
+              filterMode="client" // 使用客户端过滤
+              onColumnResize={onColumnResize}
+            ></DataGrid>
+          </div>
+        )}
+      </Stack>
+    )
   );
 }
 

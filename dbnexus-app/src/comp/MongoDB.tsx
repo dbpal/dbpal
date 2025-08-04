@@ -1,6 +1,5 @@
 import Editor from '@monaco-editor/react';
 import {
-  Alert,
   Box,
   Button,
   ButtonGroup,
@@ -85,6 +84,7 @@ import {
   ContextMenuContext,
   filterStyle,
   handleCopyToClipboard,
+  resetMuiDataRespWidth,
   VisiableContext,
 } from './helper';
 
@@ -660,8 +660,17 @@ function MongoTableListContextMenu(props: {
   setFilter;
   loadDoc: () => Promise<BSON.Document>;
   setSort;
+  resetColunmWidthCallBack;
 }) {
-  const { delOP, content, field, setFilter, loadDoc, setSort } = props;
+  const {
+    delOP,
+    content,
+    field,
+    setFilter,
+    loadDoc,
+    setSort,
+    resetColunmWidthCallBack,
+  } = props;
   const [showFilter, setShowFilter] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   return (
@@ -738,7 +747,9 @@ function MongoTableListContextMenu(props: {
             <ListItemText> Delete </ListItemText>
           </MenuItem>
         )}
-        <MenuResetColumnWidths></MenuResetColumnWidths>
+        <MenuResetColumnWidths
+          reset={resetColunmWidthCallBack}
+        ></MenuResetColumnWidths>
       </MenuList>
 
       {showFilter && (
@@ -1004,6 +1015,11 @@ function MongoTableList(props: {
                   return await loadOne(doc['_id']);
                 }}
                 setSort={setSort}
+                resetColunmWidthCallBack={() => {
+                  setResp((old) => {
+                    return resetMuiDataRespWidth(old);
+                  });
+                }}
               ></MongoTableListContextMenu>
             ),
             style: calMenuStyle(e, 200),

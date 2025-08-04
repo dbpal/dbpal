@@ -1,7 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 
 import {
-  Alert,
   Box,
   Button,
   Chip,
@@ -271,7 +270,7 @@ function EditorOptions(props: {
   const [jsonErr, setJsonErr] = useState<string | null>(null);
   useEffect(() => {
     valid_json(value)
-      .then((e) => {
+      .then(() => {
         setJsonErr(null);
       })
       .catch((e) => {

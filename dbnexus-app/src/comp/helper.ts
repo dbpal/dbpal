@@ -481,6 +481,17 @@ function valid_json(s: string): Promise<void> {
 }
 
 
+function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridData {
+  return {
+    sql: old.sql,
+    data: old.data,
+    fields: old.fields.map((e) => {
+      return { width: undefined, ...e } as types.Field;
+    }),
+    total: old.total,
+  };
+}
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -513,5 +524,6 @@ export {
   filterStyle,
   VisiableContext,
   FavoriteSql,
-  MatchPatternContext
+  MatchPatternContext,
+  resetMuiDataRespWidth,
 };

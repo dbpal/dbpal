@@ -440,10 +440,13 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
   );
 }
 
-function MenuResetColumnWidths() {
+function MenuResetColumnWidths(props: { reset: () => void }) {
   const { showNotification } = useContext(NotificationContext);
+  const { reset } = props;
+
   const handleReset = async () => {
     columnWidths.reset();
+    reset();
     showNotification('success', 'reset column width successfully');
   };
   return (
