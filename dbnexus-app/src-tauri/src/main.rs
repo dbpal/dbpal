@@ -37,7 +37,7 @@ use handlers::{
     redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
     rename_table, save_entered_password, save_password, server_metas, show_indexes, show_procedure,
     show_table, show_table_columns, show_trigger, show_udf, show_view, show_view_columns,
-    test_connection, truncate_table, update,
+    test_connection, truncate_table, update, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -352,7 +352,8 @@ fn main_() {
             query_set_autocommit,
             query_commit,
             query_rollback,
-            query_tx_execute_counts
+            query_tx_execute_counts,
+            valid_json,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

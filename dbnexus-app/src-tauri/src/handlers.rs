@@ -2533,6 +2533,15 @@ pub async fn cassandra_drop_aggregate(
     Ok(())
 }
 
+#[tauri::command]
+pub fn valid_json(json_str: String) -> Result<(), String> {
+    use serde_json::Value;
+    match serde_json::from_str::<Value>(&json_str) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("{}", e)),
+    }
+}
+
 #[derive(serde::Serialize)]
 pub struct DocsAndCount {
     count: u64,
@@ -2683,7 +2692,6 @@ fn random_error() -> Result<(), ErrorFrontend> {
 }
 
 #[derive(Clone, Debug, serde::Serialize, typescript_type_def::TypeDef)]
-
 pub struct MuiDataGridData {
     fields: Vec<Field>,
     data: Vec<HashMap<String, String>>,
@@ -2736,17 +2744,17 @@ impl From<QueryResp> for MuiDataGridData {
         let data: Vec<_> = data
             .into_iter()
             .map(|x| {
-                let mut m = HashMap::new();
+                let mut values = HashMap::new();
                 fields_renamed
                     .iter()
                     .zip(x.into_iter())
                     .for_each(|(f, value)| match value {
                         Some(value) => {
-                            m.insert(f.field.clone(), value);
+                            values.insert(f.field.clone(), value);
                         }
                         None => {}
                     });
-                m
+                values
             })
             .collect();
         Self {
@@ -2808,5 +2816,22 @@ mod tests {
         ];
         let x = serde_json::to_string_pretty(&x).unwrap();
         println!("{}", x)
+    }
+
+    #[test]
+    fn test_json_valid_error_has_line() {
+        use serde_json::Value;
+
+        let bad = r#"{
+        "name": "Rust"
+        "age": 12    // ← 少逗号
+    }"#;
+
+        match serde_json::from_str::<Value>(bad) {
+            Ok(_) => println!("合法 JSON"),
+            Err(e) => {
+                println!("{}:{}", e.line(), e.column());
+            }
+        }
     }
 }

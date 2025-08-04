@@ -26,6 +26,7 @@ import {
   Radio,
   FormControlLabel,
   Chip,
+  Alert,
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -55,6 +56,7 @@ import {
   hexToString,
   hexTryToString,
   stringToHex,
+  valid_json,
   VisiableContext,
 } from './helper.ts';
 import { pageSizeOptions } from './CommonComp.tsx';
@@ -512,6 +514,8 @@ function RedisValueEditor(props: {
   const [editModel, setEditModel] = useState<RedisEditorMode>(
     RedisEditorMode.Text
   );
+
+  const [jsonErr, setJsonErr] = useState<string | null>(null);
   useEffect(() => {
     let value = hexTryToString(oldValue);
     if (typeof value === 'string') {
@@ -539,6 +543,20 @@ function RedisValueEditor(props: {
         handleValue(stringToHex(newValue));
     }
   }, [newValue]);
+
+  useEffect(() => {
+    if (editModel != RedisEditorMode.Json) {
+      setJsonErr(null);
+      return;
+    }
+    valid_json(newValue)
+      .then(() => {
+        setJsonErr(null);
+      })
+      .catch((e) => {
+        setJsonErr(e);
+      });
+  }, [newValue, editModel]);
 
   return (
     <Stack spacing={1}>
@@ -590,6 +608,13 @@ function RedisValueEditor(props: {
         }}
         wordWrap="on"
         style={{ height: editorHeight }}
+        barLeft={
+          jsonErr ? (
+            <Typography color="error" variant="body1">
+              {jsonErr}
+            </Typography>
+          ) : undefined
+        }
       ></SimpleResizeEditor>
     </Stack>
   );

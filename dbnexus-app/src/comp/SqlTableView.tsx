@@ -10,6 +10,7 @@ import {
 import CancelIcon from '@mui/icons-material/Cancel';
 import types from './ApiStruct';
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -63,6 +64,7 @@ import {
   secondConfirm,
   TabContent,
   TabsSetContext,
+  valid_json,
   VisiableContext,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
@@ -215,8 +217,25 @@ function EditInModal(props: { content: string; handleModify }) {
     language: string;
     color: string;
   }[];
+
+  const [jsonErr, setJsonErr] = useState<string | null>(null);
+
   const [language, setLanguage] = useState(EditInModalLanguage);
   const [value, setValue] = useState(content);
+
+  useEffect(() => {
+    if (language != 'json') {
+      setJsonErr(null);
+      return;
+    }
+    valid_json(value)
+      .then(() => {
+        setJsonErr(null);
+      })
+      .catch((e) => {
+        setJsonErr(e);
+      });
+  }, [value, language]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -244,6 +263,13 @@ function EditInModal(props: { content: string; handleModify }) {
           });
         }}
         minHeigth={350}
+        barLeft={
+          jsonErr ? (
+            <Typography color="error" variant="body1">
+              {jsonErr}
+            </Typography>
+          ) : undefined
+        }
       ></SimpleResizeEditor>
       <Divider></Divider>
       <Stack spacing={1} direction="row">

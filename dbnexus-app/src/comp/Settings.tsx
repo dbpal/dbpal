@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -29,6 +30,7 @@ import {
 } from './Common';
 import { SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { valid_json } from './helper';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -266,6 +268,16 @@ function EditorOptions(props: {
   const { showNotification } = useContext(NotificationContext);
   const { editorOptions, setEditorOptions, handleClose } = props;
   const [value, setValue] = useState(editorOptions);
+  const [jsonErr, setJsonErr] = useState<string | null>(null);
+  useEffect(() => {
+    valid_json(value)
+      .then((e) => {
+        setJsonErr(null);
+      })
+      .catch((e) => {
+        setJsonErr(e);
+      });
+  }, [value]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -288,6 +300,13 @@ function EditorOptions(props: {
             setValue(editor.getValue());
           });
         }}
+        barLeft={
+          jsonErr ? (
+            <Typography color="error" variant="body1">
+              {jsonErr}
+            </Typography>
+          ) : null
+        }
       ></SimpleResizeEditor>
       <Divider></Divider>
       <Stack direction="row" spacing={1}>

@@ -8,6 +8,7 @@ import { createContext, CSSProperties, ReactElement, ReactNode } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { invoke } from "@tauri-apps/api/core";
 
 interface ConfirmOptions {
   title: string;
@@ -472,6 +473,14 @@ const filterStyle = {
   } as CSSProperties,
 };
 
+
+
+
+function valid_json(s: string): Promise<void> {
+  return invoke<void>("valid_json", { jsonStr: s })
+}
+
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -499,7 +508,7 @@ export {
   AppStoreKey,
   columnWidths,
   handleCopyToClipboard,
-
+  valid_json,
   uint8ArrayToUtf8,
   filterStyle,
   VisiableContext,

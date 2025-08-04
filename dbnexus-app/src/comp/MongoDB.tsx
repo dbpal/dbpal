@@ -366,9 +366,9 @@ function MongoBsonEditor(props: {
           })}
 
           {err ? (
-            <Alert severity="error">{err.msgWithLoc}</Alert>
+            <Typography color="error">{err.msgWithLoc}</Typography>
           ) : (
-            <Alert severity="success">Valid Document</Alert>
+            <></>
           )}
         </Stack>
         <Stack width="40%" spacing={1} direction="row" alignContent="center">
