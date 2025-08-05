@@ -454,6 +454,11 @@ function SqlQuery(props: {
       );
     }
   }, [conn]);
+
+  useEffect(() => {
+    console.log('!!!!!!!!!!!!!! change resp : ', resp);
+  }, [resp]);
+
   return (
     //@ts-ignore
     <SplitPane
@@ -564,7 +569,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="export  query result to a file">
+          <Tooltip title="export query result to a file">
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -654,83 +659,84 @@ function SqlQuery(props: {
         ></EditorBar>
       </div>
 
-      {showExport && (
-        <Modal
-          open={showExport}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
-            e.preventDefault();
-            setShowExport(false);
-          }}
-        >
-          <Box sx={modalStyle} width="45%">
-            <ExportView
-              handleClose={() => {
-                setShowExport(false);
-              }}
-              supportKind={['csv', 'json', 'jsonline']}
-              exportOP={async (kind, file) => {
-                try {
-                  const sql = getText();
-                  await conn.exportQueryResult(sql, kind, file);
-                  showNotification('success', 'export OK');
-                } catch (e) {
-                  showNotification('error', 'export failure', e);
-                }
-              }}
-              supportCsvHeader={true}
-            ></ExportView>
-          </Box>
-        </Modal>
-      )}
-      {showSetFavoriteName && (
-        <Modal
-          open={showSetFavoriteName}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
-            e.preventDefault();
-            setShowFavoriteName(false);
-          }}
-        >
-          <Box sx={modalStyle} width="40%">
-            <Stack spacing={1}>
-              <TextField
-                fullWidth
-                label="name"
-                value={favoriteName}
-                onChange={(e) => {
-                  setFavoriteName(e.target.value);
-                }}
-                size="small"
-                required
-              ></TextField>
-              <Stack direction="row">
-                <IconButton
-                  color="primary"
-                  onClick={() => {
-                    if (!favoriteName) {
-                      showNotification('error', "name can't be empty");
-                      return;
-                    }
-                    saveFavoriteSql(favoriteName, editor.current.getValue());
-                    setShowFavoriteName(false);
-                  }}
-                >
-                  <FavoriteIcon> </FavoriteIcon>
-                </IconButton>
-              </Stack>
-            </Stack>
-          </Box>
-        </Modal>
-      )}
       <div>
         <MultiQueryResp data={resp}></MultiQueryResp>
+
+        {showExport && (
+          <Modal
+            open={showExport}
+            onClose={(e: EscDownEvent, reason) => {
+              if (reason === 'backdropClick') {
+                return;
+              }
+
+              e.preventDefault();
+              setShowExport(false);
+            }}
+          >
+            <Box sx={modalStyle} width="45%">
+              <ExportView
+                handleClose={() => {
+                  setShowExport(false);
+                }}
+                supportKind={['csv', 'json', 'jsonline']}
+                exportOP={async (kind, file) => {
+                  try {
+                    const sql = getText();
+                    await conn.exportQueryResult(sql, kind, file);
+                    showNotification('success', 'export OK');
+                  } catch (e) {
+                    showNotification('error', 'export failure', e);
+                  }
+                }}
+                supportCsvHeader={true}
+              ></ExportView>
+            </Box>
+          </Modal>
+        )}
+        {showSetFavoriteName && (
+          <Modal
+            open={showSetFavoriteName}
+            onClose={(e: EscDownEvent, reason) => {
+              if (reason === 'backdropClick') {
+                return;
+              }
+
+              e.preventDefault();
+              setShowFavoriteName(false);
+            }}
+          >
+            <Box sx={modalStyle} width="40%">
+              <Stack spacing={1}>
+                <TextField
+                  fullWidth
+                  label="name"
+                  value={favoriteName}
+                  onChange={(e) => {
+                    setFavoriteName(e.target.value);
+                  }}
+                  size="small"
+                  required
+                ></TextField>
+                <Stack direction="row">
+                  <IconButton
+                    color="primary"
+                    onClick={() => {
+                      if (!favoriteName) {
+                        showNotification('error', "name can't be empty");
+                        return;
+                      }
+                      saveFavoriteSql(favoriteName, editor.current.getValue());
+                      setShowFavoriteName(false);
+                    }}
+                  >
+                    <FavoriteIcon> </FavoriteIcon>
+                  </IconButton>
+                </Stack>
+              </Stack>
+            </Box>
+          </Modal>
+        )}
       </div>
     </SplitPane>
   );
