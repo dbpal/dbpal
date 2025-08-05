@@ -5,7 +5,6 @@ import EventNoteIcon from '@mui/icons-material/EventNote';
 import './style/react-split-pane.css';
 import {
   Box,
-  Button,
   Chip,
   IconButton,
   Modal,
@@ -481,6 +480,7 @@ function SqlQuery(props: {
               zIndex: 13,
               width: '65%',
             }}
+            elevation={16}
           >
             <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
               <IconButton

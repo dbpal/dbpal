@@ -66,7 +66,7 @@ import {
   TabsSetContext,
 } from './helper.ts';
 
-import { Box, Modal } from '@mui/material';
+import { Box, Modal, Paper } from '@mui/material';
 
 export default function MainPage() {
   let [tabs, setTabs] = useState([
@@ -201,7 +201,7 @@ export default function MainPage() {
             <div> {mainContent} </div>
 
             <div id="menu-div" style={menu && menu.style}>
-              {menu && menu.content}
+              <Paper elevation={24}> {menu && menu.content}</Paper>
             </div>
 
             <WarnUnCommitTx></WarnUnCommitTx>

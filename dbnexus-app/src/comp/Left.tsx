@@ -9,7 +9,6 @@ import {
   MenuItem,
   MenuList,
   Modal,
-  Paper,
   Stack,
   TextField,
   Tooltip,
@@ -298,22 +297,20 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   function Menu(props: { content: string }) {
     const { content } = props;
     return (
-      <Paper>
-        <MenuList>
-          {content && (
-            <MenuItem
-              onClick={() => {
-                handleCopyToClipboard(content, showNotification);
-              }}
-            >
-              <ListItemIcon>
-                <ContentCopyIcon></ContentCopyIcon>
-              </ListItemIcon>
-              <ListItemText> Copy </ListItemText>
-            </MenuItem>
-          )}
-        </MenuList>
-      </Paper>
+      <MenuList>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
+      </MenuList>
     );
   }
 
@@ -478,7 +475,7 @@ function Left_() {
         setMatchPattern={setMatchPattern}
       ></LeftTop>
       <Divider></Divider>
-      <Stack>
+      <Stack spacing={0.3}>
         {configs.map((e) => {
           return (
             <MatchPatternContext.Provider value={m} key={e.name}>
@@ -490,7 +487,7 @@ function Left_() {
                     uuid: e.name,
                   }}
                 >
-                  <OneConfig key={e.name} config={e}></OneConfig>
+                  <OneConnection key={e.name} config={e}></OneConnection>
                 </UuidContext.Provider>
               </ConnTypeContext.Provider>
             </MatchPatternContext.Provider>
@@ -629,34 +626,32 @@ function FavoriteSqlList(props: { handleClose }) {
   function Menu(props: { content: string; id: string }) {
     const { content, id } = props;
     return (
-      <Paper>
-        <MenuList>
-          {content && (
-            <MenuItem
-              onClick={() => {
-                handleCopyToClipboard(content, showNotification);
-              }}
-            >
-              <ListItemIcon>
-                <ContentCopyIcon></ContentCopyIcon>
-              </ListItemIcon>
-              <ListItemText> Copy </ListItemText>
-            </MenuItem>
-          )}
-
+      <MenuList>
+        {content && (
           <MenuItem
-            onClick={async () => {
-              await FavoriteSql.delete(id, showNotification);
-              handleReload(false);
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
             }}
           >
             <ListItemIcon>
-              <DeleteForeverIcon></DeleteForeverIcon>
+              <ContentCopyIcon></ContentCopyIcon>
             </ListItemIcon>
-            <ListItemText> delete </ListItemText>
+            <ListItemText> Copy </ListItemText>
           </MenuItem>
-        </MenuList>
-      </Paper>
+        )}
+
+        <MenuItem
+          onClick={async () => {
+            await FavoriteSql.delete(id, showNotification);
+            handleReload(false);
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText> delete </ListItemText>
+        </MenuItem>
+      </MenuList>
     );
   }
   const slotProps = useMemo(() => {
@@ -779,7 +774,7 @@ function FavoriteSqlList(props: { handleClose }) {
   );
 }
 
-const OneConfig = memo(OneConfig_);
+const OneConnection = memo(OneConfig_);
 function OneConfig_(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
   const [opened, setOpened] = useState();
@@ -1030,8 +1025,16 @@ function DatabaseMenu(props: {
   const [showCreateSchema, setShowCreateSchema] = useState(false);
   const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
-    <Paper>
+    <div>
       <MenuList>
+        {opened && kind != DataSourceKind.Mongo && (
+          <MenuNewQuery
+            handle={() => {
+              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
+            }}
+          ></MenuNewQuery>
+        )}
+
         {opened && kind != DataSourceKind.Oracle && (
           <MenuCreateSchema
             handleCreate={() => {
@@ -1045,13 +1048,6 @@ function DatabaseMenu(props: {
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
         )}
 
-        {opened && kind != DataSourceKind.Mongo && (
-          <MenuNewQuery
-            handle={() => {
-              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
-            }}
-          ></MenuNewQuery>
-        )}
         {opened && <MenuRefresh reload={reload}></MenuRefresh>}
         {opened && !database && (
           <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>
@@ -1114,7 +1110,7 @@ function DatabaseMenu(props: {
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 
@@ -1129,7 +1125,7 @@ function CatalogMenu(props: {
   const { uuid, reload, handleOpend, opened, handleCloseConn, kind } = props;
   const [showCreateDB, setShowCreateDB] = useState(false);
   return (
-    <Paper>
+    <div>
       <MenuList>
         {!opened && (
           <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
@@ -1179,7 +1175,7 @@ function CatalogMenu(props: {
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 
@@ -1293,54 +1289,52 @@ function SchemaMenu(props: {
   const { showNotification } = useContext(NotificationContext);
   const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
-    <Paper>
-      <MenuList>
-        {!schema && !opened && (
-          <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
-        )}
+    <MenuList>
+      {!schema && !opened && (
+        <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
+      )}
 
-        {opened && (
-          <MenuNewQuery
-            handle={() => {
-              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
-            }}
-          ></MenuNewQuery>
-        )}
-        {opened && !schema && (
-          <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>
-        )}
+      {opened && (
+        <MenuNewQuery
+          handle={() => {
+            openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
+          }}
+        ></MenuNewQuery>
+      )}
+      {opened && !schema && (
+        <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>
+      )}
 
-        {!schema && opened && (
-          <MenuCloseConn
-            name={uuid}
-            handleClose={handleCloseConn}
-          ></MenuCloseConn>
-        )}
-        {schema && kind != DataSourceKind.Oracle && (
-          <MenuItem
-            onClick={() => {
-              // we are in database context uuid contains the databse name
-              // we need remove that
-              let index = uuid.lastIndexOf('/');
-              dropSchema({
-                uuid: uuid.substring(0, index),
-                schema,
-                showNotification,
-                okCallback: () => {
-                  reloadSchemas(true);
-                },
-              });
-            }}
-          >
-            <ListItemIcon>
-              <DeleteForeverIcon color="error"></DeleteForeverIcon>
-            </ListItemIcon>
-            <ListItemText color="error"> drop </ListItemText>
-          </MenuItem>
-        )}
-        {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
-      </MenuList>
-    </Paper>
+      {!schema && opened && (
+        <MenuCloseConn
+          name={uuid}
+          handleClose={handleCloseConn}
+        ></MenuCloseConn>
+      )}
+      {schema && kind != DataSourceKind.Oracle && (
+        <MenuItem
+          onClick={() => {
+            // we are in database context uuid contains the databse name
+            // we need remove that
+            let index = uuid.lastIndexOf('/');
+            dropSchema({
+              uuid: uuid.substring(0, index),
+              schema,
+              showNotification,
+              okCallback: () => {
+                reloadSchemas(true);
+              },
+            });
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon color="error"></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText color="error"> drop </ListItemText>
+        </MenuItem>
+      )}
+      {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
+    </MenuList>
   );
 }
 

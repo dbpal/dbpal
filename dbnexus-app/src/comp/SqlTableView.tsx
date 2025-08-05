@@ -21,7 +21,6 @@ import {
   MenuItem,
   MenuList,
   Modal,
-  Paper,
   Stack,
   Switch,
   TextField,
@@ -1028,7 +1027,7 @@ function Menu(props: {
   };
 
   return (
-    <Paper>
+    <div>
       <MenuList>
         {addOP && (
           <MenuItem
@@ -1176,7 +1175,7 @@ function Menu(props: {
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 

@@ -4,7 +4,6 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
-  Paper,
   Stack,
 } from '@mui/material';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
@@ -87,11 +86,9 @@ function UdfsTree() {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={reload}></MenuRefresh>
-                </MenuList>
-              </Paper>
+              <MenuList>
+                <MenuRefresh reload={reload}></MenuRefresh>
+              </MenuList>
             ),
             style: calMenuStyle(e, 70),
           });
@@ -223,32 +220,30 @@ function UdfMenu(props: {
   };
 
   return (
-    <Paper>
-      <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleOpenDetails();
-          }}
-        >
-          <ListItemIcon>
-            <InfoIcon></InfoIcon>
-          </ListItemIcon>
-          <ListItemText> Detail </ListItemText>
-        </MenuItem>
-        <Divider></Divider>
-        <MenuItem
-          sx={{ color: 'error.main' }}
-          onClick={() => {
-            handleDrop();
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon color="error"></DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText>Drop</ListItemText>
-        </MenuItem>
-      </MenuList>
-    </Paper>
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleOpenDetails();
+        }}
+      >
+        <ListItemIcon>
+          <InfoIcon></InfoIcon>
+        </ListItemIcon>
+        <ListItemText> Detail </ListItemText>
+      </MenuItem>
+      <Divider></Divider>
+      <MenuItem
+        sx={{ color: 'error.main' }}
+        onClick={() => {
+          handleDrop();
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon color="error"></DeleteForeverIcon>
+        </ListItemIcon>
+        <ListItemText>Drop</ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
@@ -322,7 +317,7 @@ function CassandraAggregateMenu(props: {
   };
 
   return (
-    <Paper>
+    <div>
       <MenuList>
         <MenuItem
           onClick={() => {
@@ -348,7 +343,7 @@ function CassandraAggregateMenu(props: {
           <ListItemText>Drop</ListItemText>
         </MenuItem>
       </MenuList>
-    </Paper>
+    </div>
   );
 }
 
@@ -386,11 +381,9 @@ function CassaandraAggregatesTree() {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={reload}></MenuRefresh>
-                </MenuList>
-              </Paper>
+              <MenuList>
+                <MenuRefresh reload={reload}></MenuRefresh>
+              </MenuList>
             ),
             style: calMenuStyle(e, 70),
           });

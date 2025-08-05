@@ -4,7 +4,6 @@ import {
   ListItemText,
   Tooltip,
   Typography,
-  Paper,
   MenuList,
   Stack,
   Divider,
@@ -345,41 +344,39 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
 
     const { showNotification } = useContext(NotificationContext);
     return (
-      <Paper>
-        <MenuList>
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-          <Divider></Divider>
-          <MenuItem
-            onClick={() => {
-              setSort([{ field, sort: 'asc' }] as GridSortModel);
-            }}
-          >
-            <ListItemIcon>
-              <ArrowUpwardIcon></ArrowUpwardIcon>
-            </ListItemIcon>
-            <ListItemText> {field} ASC </ListItemText>
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              setSort([{ field, sort: 'desc' }] as GridSortModel);
-            }}
-          >
-            <ListItemIcon>
-              <ArrowDownwardIcon></ArrowDownwardIcon>
-            </ListItemIcon>
-            <ListItemText> {field} DESC </ListItemText>
-          </MenuItem>
-        </MenuList>
-      </Paper>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+        <Divider></Divider>
+        <MenuItem
+          onClick={() => {
+            setSort([{ field, sort: 'asc' }] as GridSortModel);
+          }}
+        >
+          <ListItemIcon>
+            <ArrowUpwardIcon></ArrowUpwardIcon>
+          </ListItemIcon>
+          <ListItemText> {field} ASC </ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setSort([{ field, sort: 'desc' }] as GridSortModel);
+          }}
+        >
+          <ListItemIcon>
+            <ArrowDownwardIcon></ArrowDownwardIcon>
+          </ListItemIcon>
+          <ListItemText> {field} DESC </ListItemText>
+        </MenuItem>
+      </MenuList>
     );
   }
   const { setUpMenu } = useContext(ContextMenuContext);

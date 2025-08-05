@@ -31,7 +31,6 @@ import {
   MenuItem,
   MenuList,
   Modal,
-  Paper,
   Stack,
   Switch,
   TextField,
@@ -132,11 +131,9 @@ function TablesTree(props: { typ: TablesType }) {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={handleReload}></MenuRefresh>
-                </MenuList>
-              </Paper>
+              <MenuList>
+                <MenuRefresh reload={handleReload}></MenuRefresh>
+              </MenuList>
             ),
             style: calMenuStyle(e, 70),
           });
@@ -843,7 +840,7 @@ function TableMenu(props: {
   };
 
   return (
-    <Paper>
+    <div>
       <MenuList>
         <MenuItem
           onClick={() => {
@@ -1058,7 +1055,7 @@ function TableMenu(props: {
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 
@@ -1258,11 +1255,9 @@ function RedisTables(prpos: { schema?: string }) {
           onContextMenu={(e) => {
             setUpMenu({
               content: (
-                <Paper>
-                  <MenuList>
-                    <MenuRefresh reload={handleReload}></MenuRefresh>
-                  </MenuList>
-                </Paper>
+                <MenuList>
+                  <MenuRefresh reload={handleReload}></MenuRefresh>
+                </MenuList>
               ),
               style: calMenuStyle(e, 70),
             });

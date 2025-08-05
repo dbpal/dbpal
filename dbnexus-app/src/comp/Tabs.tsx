@@ -1,13 +1,5 @@
 import React, { useContext } from 'react';
-import {
-  Stack,
-  Paper,
-  MenuItem,
-  MenuList,
-  Chip,
-  Tabs,
-  Tab,
-} from '@mui/material';
+import { Stack, MenuItem, MenuList, Chip, Tabs, Tab } from '@mui/material';
 
 import {
   calMenuStyle,
@@ -29,74 +21,72 @@ function TabsMenu(props: {
     props;
 
   return (
-    <Paper>
-      <MenuList>
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleClose(index);
+        }}
+      >
+        close
+      </MenuItem>
+      {index != 0 && (
         <MenuItem
           onClick={() => {
-            handleClose(index);
-          }}
-        >
-          close
-        </MenuItem>
-        {index != 0 && (
-          <MenuItem
-            onClick={() => {
-              setTabs((e) => {
-                changeTab(0);
-                return e.slice(index);
-              });
-            }}
-          >
-            close to left
-          </MenuItem>
-        )}
-        {index != tabsLength - 1 && (
-          <MenuItem
-            onClick={() => {
-              setTabs((e) => {
-                let x = e.slice(0, index + 1);
-                if (selectIndex > index) {
-                  changeTab(index);
-                }
-                return x;
-              });
-            }}
-          >
-            close to right
-          </MenuItem>
-        )}
-        {tabsLength > 1 && (
-          <MenuItem
-            onClick={() => {
-              setTabs((e) => {
-                let x = [e[selectIndex]];
-                changeTab(0);
-                return x;
-              });
-            }}
-          >
-            close others
-          </MenuItem>
-        )}
-
-        <MenuItem
-          onClick={async () => {
-            const confirm = await secondConfirm({
-              title: 'close all tab',
-              content: 'are u sure',
-              confirmText: 'Close',
+            setTabs((e) => {
+              changeTab(0);
+              return e.slice(index);
             });
-            if (!confirm) {
-              return;
-            }
-            setTabs([]);
-            changeTab(0);
           }}
         >
-          close all
+          close to left
         </MenuItem>
-      </MenuList>
-    </Paper>
+      )}
+      {index != tabsLength - 1 && (
+        <MenuItem
+          onClick={() => {
+            setTabs((e) => {
+              let x = e.slice(0, index + 1);
+              if (selectIndex > index) {
+                changeTab(index);
+              }
+              return x;
+            });
+          }}
+        >
+          close to right
+        </MenuItem>
+      )}
+      {tabsLength > 1 && (
+        <MenuItem
+          onClick={() => {
+            setTabs((e) => {
+              let x = [e[selectIndex]];
+              changeTab(0);
+              return x;
+            });
+          }}
+        >
+          close others
+        </MenuItem>
+      )}
+
+      <MenuItem
+        onClick={async () => {
+          const confirm = await secondConfirm({
+            title: 'close all tab',
+            content: 'are u sure',
+            confirmText: 'Close',
+          });
+          if (!confirm) {
+            return;
+          }
+          setTabs([]);
+          changeTab(0);
+        }}
+      >
+        close all
+      </MenuItem>
+    </MenuList>
   );
 }
 

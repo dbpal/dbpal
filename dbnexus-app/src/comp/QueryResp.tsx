@@ -6,7 +6,6 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
-  Paper,
   Stack,
   Tab,
   Tabs,
@@ -54,57 +53,55 @@ function RespContextMenu(props: {
   const { content, field, setSort, resetColunmWidthCallBack } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-
+    <MenuList>
+      {content && (
         <MenuItem
           onClick={() => {
-            handleCopyToClipboard(field, showNotification);
+            handleCopyToClipboard(content, showNotification);
           }}
         >
           <ListItemIcon>
             <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> Copy Field </ListItemText>
+          <ListItemText> Copy </ListItemText>
         </MenuItem>
-        <Divider></Divider>
-        <MenuItem
-          onClick={() => {
-            setSort([{ field, sort: 'asc' }] as GridSortModel);
-          }}
-        >
-          <ListItemIcon>
-            <ArrowUpwardIcon></ArrowUpwardIcon>
-          </ListItemIcon>
-          <ListItemText> {field} ASC </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setSort([{ field, sort: 'desc' }] as GridSortModel);
-          }}
-        >
-          <ListItemIcon>
-            <ArrowDownwardIcon></ArrowDownwardIcon>
-          </ListItemIcon>
-          <ListItemText> {field} DESC </ListItemText>
-        </MenuItem>
-        <MenuResetColumnWidths
-          reset={resetColunmWidthCallBack}
-        ></MenuResetColumnWidths>
-      </MenuList>
-    </Paper>
+      )}
+
+      <MenuItem
+        onClick={() => {
+          handleCopyToClipboard(field, showNotification);
+        }}
+      >
+        <ListItemIcon>
+          <ContentCopyIcon></ContentCopyIcon>
+        </ListItemIcon>
+        <ListItemText> Copy Field </ListItemText>
+      </MenuItem>
+      <Divider></Divider>
+      <MenuItem
+        onClick={() => {
+          setSort([{ field, sort: 'asc' }] as GridSortModel);
+        }}
+      >
+        <ListItemIcon>
+          <ArrowUpwardIcon></ArrowUpwardIcon>
+        </ListItemIcon>
+        <ListItemText> {field} ASC </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setSort([{ field, sort: 'desc' }] as GridSortModel);
+        }}
+      >
+        <ListItemIcon>
+          <ArrowDownwardIcon></ArrowDownwardIcon>
+        </ListItemIcon>
+        <ListItemText> {field} DESC </ListItemText>
+      </MenuItem>
+      <MenuResetColumnWidths
+        reset={resetColunmWidthCallBack}
+      ></MenuResetColumnWidths>
+    </MenuList>
   );
 }
 

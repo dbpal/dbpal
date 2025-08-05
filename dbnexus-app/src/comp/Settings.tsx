@@ -69,7 +69,6 @@ function ModifySettings({ handleClose }) {
   }, []);
 
   const handleSave = async () => {
-    let eo;
     try {
       await valid_json(editorOptions);
     } catch (e) {

@@ -12,7 +12,6 @@ import {
   MenuList,
   Modal,
   Pagination,
-  Paper,
   Stack,
   Typography,
 } from '@mui/material';
@@ -674,7 +673,7 @@ function MongoTableListContextMenu(props: {
   const [showFilter, setShowFilter] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
+    <div>
       <MenuList>
         {content && (
           <MenuItem
@@ -777,7 +776,7 @@ function MongoTableListContextMenu(props: {
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 

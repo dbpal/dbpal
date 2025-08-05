@@ -18,7 +18,6 @@ import {
   Select,
   Typography,
   Modal,
-  Paper,
   MenuList,
   ListItemIcon,
   ListItemText,
@@ -735,33 +734,31 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
   const { delOP, content } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-
+    <MenuList>
+      {content && (
         <MenuItem
           onClick={() => {
-            delOP();
+            handleCopyToClipboard(content, showNotification);
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> Delete </ListItemText>
+          <ListItemText> Copy </ListItemText>
         </MenuItem>
-      </MenuList>
-    </Paper>
+      )}
+
+      <MenuItem
+        onClick={() => {
+          delOP();
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon></DeleteForeverIcon>
+        </ListItemIcon>
+        <ListItemText> Delete </ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
@@ -950,7 +947,7 @@ function RedisListTableContextMenu(props: {
   const [showDel, setShowDel] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
+    <div>
       <MenuList>
         {content && (
           <MenuItem
@@ -1022,7 +1019,7 @@ function RedisListTableContextMenu(props: {
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 
@@ -1236,33 +1233,31 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
   const { delOP, content } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-
+    <MenuList>
+      {content && (
         <MenuItem
           onClick={() => {
-            delOP();
+            handleCopyToClipboard(content, showNotification);
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <ContentCopyIcon></ContentCopyIcon>
           </ListItemIcon>
-          <ListItemText> Delete </ListItemText>
+          <ListItemText> Copy </ListItemText>
         </MenuItem>
-      </MenuList>
-    </Paper>
+      )}
+
+      <MenuItem
+        onClick={() => {
+          delOP();
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon></DeleteForeverIcon>
+        </ListItemIcon>
+        <ListItemText> Delete </ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
@@ -1499,7 +1494,7 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
 
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
+    <div>
       <MenuList>
         {content && (
           <MenuItem
@@ -1525,7 +1520,7 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
           <ListItemText> Delete </ListItemText>
         </MenuItem>
       </MenuList>
-    </Paper>
+    </div>
   );
 }
 

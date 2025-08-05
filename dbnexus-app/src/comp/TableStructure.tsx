@@ -49,7 +49,6 @@ import {
   MenuItem,
   MenuList,
   Modal,
-  Paper,
   Radio,
   RadioGroup,
   Select,
@@ -195,34 +194,32 @@ function ColumnsStructure(props: {
   function Menu(props: { col: string; content: string }) {
     const { col, content } = props;
     return (
-      <Paper>
-        <MenuList>
-          {content && (
-            <MenuItem
-              onClick={() => {
-                handleCopyToClipboard(content, showNotification);
-              }}
-            >
-              <ListItemIcon>
-                <ContentCopyIcon></ContentCopyIcon>
-              </ListItemIcon>
-              <ListItemText> Copy </ListItemText>
-            </MenuItem>
-          )}
-          {supportModifyColumn && (
-            <MenuItem
-              onClick={() => {
-                handleDrop(col);
-              }}
-            >
-              <ListItemIcon>
-                <DeleteForeverIcon></DeleteForeverIcon>
-              </ListItemIcon>
-              <ListItemText> drop </ListItemText>
-            </MenuItem>
-          )}
-        </MenuList>
-      </Paper>
+      <MenuList>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
+        {supportModifyColumn && (
+          <MenuItem
+            onClick={() => {
+              handleDrop(col);
+            }}
+          >
+            <ListItemIcon>
+              <DeleteForeverIcon></DeleteForeverIcon>
+            </ListItemIcon>
+            <ListItemText> drop </ListItemText>
+          </MenuItem>
+        )}
+      </MenuList>
     );
   }
 
@@ -499,42 +496,40 @@ function IndexesStructure(props: {
     const { content, indexName } = props;
 
     return (
-      <Paper>
-        <MenuList>
-          {content && (
-            <MenuItem
-              onClick={() => {
-                handleCopyToClipboard(content, showNotification);
-              }}
-            >
-              <ListItemIcon>
-                <ContentCopyIcon></ContentCopyIcon>
-              </ListItemIcon>
-              <ListItemText> Copy </ListItemText>
-            </MenuItem>
-          )}
+      <MenuList>
+        {content && (
           <MenuItem
             onClick={() => {
-              setRenameIndexName(indexName);
+              handleCopyToClipboard(content, showNotification);
             }}
           >
             <ListItemIcon>
-              <EditIcon></EditIcon>
+              <ContentCopyIcon></ContentCopyIcon>
             </ListItemIcon>
-            <ListItemText> rename </ListItemText>
+            <ListItemText> Copy </ListItemText>
           </MenuItem>
-          <MenuItem
-            onClick={() => {
-              handleDrop(indexName);
-            }}
-          >
-            <ListItemIcon>
-              <DeleteForeverIcon></DeleteForeverIcon>
-            </ListItemIcon>
-            <ListItemText> drop </ListItemText>
-          </MenuItem>
-        </MenuList>
-      </Paper>
+        )}
+        <MenuItem
+          onClick={() => {
+            setRenameIndexName(indexName);
+          }}
+        >
+          <ListItemIcon>
+            <EditIcon></EditIcon>
+          </ListItemIcon>
+          <ListItemText> rename </ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            handleDrop(indexName);
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText> drop </ListItemText>
+        </MenuItem>
+      </MenuList>
     );
   }
 
@@ -1379,34 +1374,32 @@ function TriggersStructure(props: {
     }
 
     return (
-      <Paper>
-        <MenuList>
-          {content && (
-            <MenuItem
-              onClick={() => {
-                handleCopyToClipboard(content, showNotification);
-              }}
-            >
-              <ListItemIcon>
-                <ContentCopyIcon></ContentCopyIcon>
-              </ListItemIcon>
-              <ListItemText> Copy </ListItemText>
-            </MenuItem>
-          )}
-
-          {enable}
+      <MenuList>
+        {content && (
           <MenuItem
             onClick={() => {
-              handleDrop(detail.name);
+              handleCopyToClipboard(content, showNotification);
             }}
           >
             <ListItemIcon>
-              <DeleteForeverIcon></DeleteForeverIcon>
+              <ContentCopyIcon></ContentCopyIcon>
             </ListItemIcon>
-            <ListItemText> drop </ListItemText>
+            <ListItemText> Copy </ListItemText>
           </MenuItem>
-        </MenuList>
-      </Paper>
+        )}
+
+        {enable}
+        <MenuItem
+          onClick={() => {
+            handleDrop(detail.name);
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon></DeleteForeverIcon>
+          </ListItemIcon>
+          <ListItemText> drop </ListItemText>
+        </MenuItem>
+      </MenuList>
     );
   }
 

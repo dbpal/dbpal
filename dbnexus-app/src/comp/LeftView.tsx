@@ -34,7 +34,6 @@ import {
   MenuItem,
   MenuList,
   Modal,
-  Paper,
   Stack,
   Typography,
 } from '@mui/material';
@@ -145,11 +144,9 @@ function ViewsTree(props: { viewkind: ViewKind }) {
         onContextMenu={(e) => {
           setUpMenu({
             content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={handleReload}></MenuRefresh>
-                </MenuList>
-              </Paper>
+              <MenuList>
+                <MenuRefresh reload={handleReload}></MenuRefresh>
+              </MenuList>
             ),
             style: calMenuStyle(e, 70),
           });
@@ -336,22 +333,20 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     const { content } = props;
 
     return (
-      <Paper>
-        <MenuList>
-          {content && (
-            <MenuItem
-              onClick={() => {
-                handleCopyToClipboard(content, showNotification);
-              }}
-            >
-              <ListItemIcon>
-                <ContentCopyIcon></ContentCopyIcon>
-              </ListItemIcon>
-              <ListItemText> Copy </ListItemText>
-            </MenuItem>
-          )}
-        </MenuList>
-      </Paper>
+      <MenuList>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              handleCopyToClipboard(content, showNotification);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> Copy </ListItemText>
+          </MenuItem>
+        )}
+      </MenuList>
     );
   }
 
@@ -652,7 +647,7 @@ function ViewMenu(props: {
   };
 
   return (
-    <Paper>
+    <div>
       <MenuList>
         <MenuItem onClick={handleViewData}>
           <ListItemIcon>
@@ -738,7 +733,7 @@ function ViewMenu(props: {
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 
