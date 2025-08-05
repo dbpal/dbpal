@@ -71,7 +71,7 @@ function ModifySettings({ handleClose }) {
   const handleSave = async () => {
     let eo;
     try {
-      eo = await valid_json(editorOptions);
+      await valid_json(editorOptions);
     } catch (e) {
       showNotification('error', 'not a valid json', e);
       return;
@@ -86,7 +86,7 @@ function ModifySettings({ handleClose }) {
           rootFontSize,
           datagridRowHeight,
           datagridHeaderHeight,
-          eo
+          JSON.parse(editorOptions)
         )
       )
       .then(() => {
