@@ -1,6 +1,5 @@
 import { Editor, Monaco } from '@monaco-editor/react';
 import {
-  Alert,
   Box,
   Chip,
   IconButton,
@@ -8,6 +7,7 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position, Range } from 'monaco-editor';
@@ -254,13 +254,7 @@ function MongoQuery(props: {
         </div>
 
         <EditorBar
-          left={
-            err && (
-              <Alert color="error" severity="error">
-                {err.toString()}
-              </Alert>
-            )
-          }
+          left={err && <Typography color="error">{err.toString()}</Typography>}
           pos={pos}
         ></EditorBar>
       </div>

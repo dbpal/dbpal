@@ -71,7 +71,7 @@ function ModifySettings({ handleClose }) {
   const handleSave = async () => {
     let eo;
     try {
-      eo = JSON.parse(editorOptions);
+      eo = await valid_json(editorOptions);
     } catch (e) {
       showNotification('error', 'not a valid json', e);
       return;
@@ -311,9 +311,9 @@ function EditorOptions(props: {
       <Stack direction="row" spacing={1}>
         <Button
           variant="contained"
-          onClick={() => {
+          onClick={async () => {
             try {
-              JSON.parse(value);
+              await valid_json(value);
             } catch (e) {
               showNotification('error', 'not a valid json', e);
               return;

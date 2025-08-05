@@ -20,7 +20,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { FaExclamation } from 'react-icons/fa';
 import {
-  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -157,7 +156,7 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
 function SqlQuery(props: {
   language: string;
   handelTextAndPositionChange?: (text: string, pos: Position) => void;
-  connectInfo?: ReactNode;
+
   makeConn: MakeIQueryConn;
   value?: string;
   saveFavoriteSql: (name: string, sql: string) => void;
@@ -166,7 +165,6 @@ function SqlQuery(props: {
   let {
     handelTextAndPositionChange,
     language,
-    connectInfo,
     makeConn,
     value,
     saveFavoriteSql,
@@ -495,7 +493,7 @@ function SqlQuery(props: {
             <QueryLog uuid={language} logs={queryLogs}></QueryLog>
           </Paper>
         )}
-        {connectInfo}
+
         <Stack
           direction="row"
           spacing={1}

@@ -39,7 +39,6 @@ import {
   CreateSchema,
   dropSchema,
   initMonacoLanague,
-  makeQueryConnInfo,
   QueryConn,
   SettingContext,
   EscDownEvent,
@@ -1184,7 +1183,7 @@ function CatalogMenu(props: {
   );
 }
 
-async function openNewQuery(
+function openNewQuery(
   setSelectTab,
   setTabs,
   uuid: string,
@@ -1195,7 +1194,6 @@ async function openNewQuery(
 
   let id = uuid + '-query-' + generateRandomString();
   let content;
-  let connInfo = await makeQueryConnInfo(uuid);
 
   switch (kind) {
     case DataSourceKind.MsSql:
@@ -1217,7 +1215,6 @@ async function openNewQuery(
           makeConn={async () => {
             return makeConn(uuid, kind);
           }}
-          connectInfo={connInfo}
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
               new FavoriteSql(uuid, name, kind, sql),
@@ -1234,7 +1231,6 @@ async function openNewQuery(
           makeConn={async () => {
             return makeConn(uuid, kind);
           }}
-          connectInfo={connInfo}
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
               new FavoriteSql(uuid, name, kind, sql),

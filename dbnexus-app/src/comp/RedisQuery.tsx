@@ -8,7 +8,6 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { MakeIQueryConn } from './Common.tsx';
 function RedisQuery(props: {
   makeConn: MakeIQueryConn;
-  connectInfo?;
   language;
   saveFavoriteSql: (name, sql: string) => void;
   favoriteName?: string;
@@ -17,7 +16,7 @@ function RedisQuery(props: {
   const {
     language,
     makeConn,
-    connectInfo,
+
     saveFavoriteSql,
     favoriteName,
     value,
@@ -116,7 +115,6 @@ function RedisQuery(props: {
           tryUpdateCommand(text, pos);
         }}
         language={language}
-        connectInfo={connectInfo}
         makeConn={makeConn}
         favoriteName={favoriteName}
         saveFavoriteSql={saveFavoriteSql}

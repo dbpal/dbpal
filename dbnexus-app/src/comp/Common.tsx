@@ -82,7 +82,6 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
-  extractConfigNameFromUuid,
   getViewportSize,
   secondConfirm,
   TabsSetContext,
@@ -1016,62 +1015,6 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
   }
 }
 
-async function makeQueryConnInfo(uuid: string) {
-  const name = extractConfigNameFromUuid(uuid);
-  const config = await getNamedConfig(name);
-  if (!config) {
-    return;
-  }
-  let content;
-  let s = {
-    fontSize: '0.9rem',
-    color: 'gray',
-  } as CSSProperties;
-
-  switch (config.conn_type) {
-    case DataSourceKind.Mysql:
-    case DataSourceKind.MariaDB:
-    case DataSourceKind.Postgres:
-    case DataSourceKind.MsSql:
-    case DataSourceKind.Cassandra:
-    case DataSourceKind.ClickHouse:
-    case DataSourceKind.Cockroach:
-      content = (
-        <div style={s}>
-          <strong>{config.conn_type}</strong>&nbsp;
-          <span>
-            {config.username}@{config.host}:{config.port}/
-          </span>
-        </div>
-      );
-      break;
-    case DataSourceKind.Sqlite:
-      content = (
-        <div style={s}>
-          <strong>sqlite</strong>&nbsp;
-          <span> {config.path}</span>
-        </div>
-      );
-      break;
-    case DataSourceKind.Redis:
-      content = (
-        <div style={s}>
-          <strong>{config.conn_type}</strong>&nbsp;
-          <span>
-            {config.username} {config.username && '@'}
-            {config.host}:{config.port}
-          </span>
-        </div>
-      );
-      break;
-  }
-  return (
-    <Stack direction="row" spacing={1}>
-      {content}
-    </Stack>
-  );
-}
-
 interface IQueryConn {
   queryOP: (text: string) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
@@ -1322,7 +1265,6 @@ export {
   reloadOK,
   registeredLanguage,
   initMonacoLanague,
-  makeQueryConnInfo,
   QueryConn,
   AppStoreKey,
   LoadStoreFileForQuery,
