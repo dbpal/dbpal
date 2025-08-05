@@ -40,6 +40,7 @@ import {
   msgTimeout,
   SettingContext,
 } from './Common.tsx';
+import { FaBookmark } from 'react-icons/fa';
 import { FaUpload } from 'react-icons/fa';
 import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
@@ -48,7 +49,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { secondConfirm } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
-import { PiFileSqlFill } from 'react-icons/pi';
+
 import { IoIosTime } from 'react-icons/io';
 const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
@@ -455,10 +456,6 @@ function SqlQuery(props: {
     }
   }, [conn]);
 
-  useEffect(() => {
-    console.log('!!!!!!!!!!!!!! change resp : ', resp);
-  }, [resp]);
-
   return (
     //@ts-ignore
     <SplitPane
@@ -607,7 +604,7 @@ function SqlQuery(props: {
               }}
               color="primary"
             >
-              <PiFileSqlFill style={{ fontSize: '1.6rem' }} />
+              <FaBookmark style={{ fontSize: '1.2rem' }} />
             </IconButton>
           </Tooltip>
 

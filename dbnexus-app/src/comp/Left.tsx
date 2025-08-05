@@ -46,7 +46,7 @@ import {
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
-import { PiFileSqlFill } from 'react-icons/pi';
+
 import { FaCopy } from 'react-icons/fa';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
@@ -103,6 +103,7 @@ import {
 } from '@mui/x-data-grid';
 import { listen } from '@tauri-apps/api/event';
 import { AddConnection } from './AddConnection.tsx';
+import { FaBookmark } from 'react-icons/fa';
 
 function LeftTop(props: { matchPattern: string; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
@@ -161,7 +162,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
                 setShowFavoriteSql(true);
               }}
             >
-              <PiFileSqlFill style={{ fontSize: '2.8rem' }}> </PiFileSqlFill>
+              <FaBookmark style={{ fontSize: '2.1rem' }}> </FaBookmark>
             </IconButton>
           </Tooltip>
 
