@@ -13,6 +13,7 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Typography,
 } from '@mui/material';
 
 import FavoriteIcon from '@mui/icons-material/Favorite';
@@ -48,8 +49,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { secondConfirm } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
+import { CiTimer } from 'react-icons/ci';
 
-import { IoIosTime } from 'react-icons/io';
 const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
 };
@@ -481,14 +482,17 @@ function SqlQuery(props: {
               width: '65%',
             }}
           >
-            <Stack direction="row">
-              <Button
+            <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+              <IconButton
                 onClick={() => {
                   setShowQueryLog(false);
                 }}
               >
                 <CloseIcon></CloseIcon>
-              </Button>
+              </IconButton>
+              <Typography color="info">
+                double click to open code editor
+              </Typography>
             </Stack>
             <QueryLog uuid={language} logs={queryLogs}></QueryLog>
           </Paper>
@@ -540,7 +544,7 @@ function SqlQuery(props: {
               color="default"
               size="small"
               label={<span ref={executeTimeRef}> </span>}
-              icon={<IoIosTime></IoIosTime>}
+              icon={<CiTimer />}
             ></Chip>
           </Tooltip>
 
