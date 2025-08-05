@@ -353,7 +353,8 @@ function SqlTableView_(props: {
         let def = e.colDef;
         const makeTitle = (): string => {
           let f = def as types.Field;
-          let ret = f.typ;
+          let ret = f.field + ' ';
+          ret += f.typ;
           if (f.nullable) {
             ret += ' null';
           } else {

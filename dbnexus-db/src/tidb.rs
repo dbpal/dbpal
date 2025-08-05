@@ -1,8 +1,3 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
-
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
@@ -13,6 +8,10 @@ use crate::db::{
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
 use crate::query_log::QueryLogEvent;
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct TiDB {
@@ -62,6 +61,23 @@ impl ExportQueryResult for TiDB {
 
 #[async_trait::async_trait]
 impl QuerySql for TiDB {
+    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
+        self.db.tx_execute_counts(query_id)
+    }
+
+    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+        self.db.get_auto_commit(query_id).await
+    }
+    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+        self.db.set_auto_commit(query_id, commit).await
+    }
+    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        self.db.commit(query_id).await
+    }
+    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+        self.db.rollback(query_id).await
+    }
+
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         self.db.get_query_log(id)
     }
@@ -314,6 +330,7 @@ impl ReadOnlyTrait for TiDB {
         self.db.read_only()
     }
 }
+
 #[async_trait::async_trait]
 impl DBTrait for TiDB {
     fn as_any(&self) -> &dyn std::any::Any {
