@@ -126,12 +126,14 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
       e.renderHeader = (e) => {
         let def = e.colDef;
         return (
-          <Tooltip title={def.typ}>
+          <Tooltip title={`${def.field} ${def.typ}`}>
             <strong> {def.field}</strong>
           </Tooltip>
         );
       };
     });
+
+    console.log(oldData);
     setData(oldData);
   }, [oldData]);
 

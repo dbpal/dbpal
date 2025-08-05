@@ -266,7 +266,7 @@ impl MysqlDB {
         while let Some(rows) = stream.next().await {
             let rows = rows?;
 
-            let data = encode_rows(&rows, true)?;
+            let data = encode_rows(&rows)?;
             for d in data.into_iter() {
                 let mut m = HashMap::new();
                 for (d, f) in d.into_iter().zip(cols.iter()) {
@@ -378,7 +378,7 @@ impl MysqlDB {
                 first = false
             }
 
-            let data = encode_rows(&rows, true)?;
+            let data = encode_rows(&rows)?;
             sender
                 .send(Cow::Owned(create_csv(&data, delimiter)))
                 .await?;
@@ -976,7 +976,7 @@ impl SchemaTrait for MysqlDB {
             return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
 
-        let data = encode_rows(&rows, true)?;
+        let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows);
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
@@ -1136,7 +1136,7 @@ impl SchemaTrait for MysqlDB {
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
-        let data = encode_rows(&row, false)?;
+        let data = encode_rows(&row)?;
         let fields = self.show_table_columns(table_name).await?;
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
@@ -1174,9 +1174,7 @@ impl SchemaTrait for MysqlDB {
     }
 }
 
-fn encode_rows(
-    rows: &Vec<MySqlRow>, try_blob_to_str: bool,
-) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = Vec::with_capacity(rows.len());
     for r in rows.iter() {
         let mut values = Vec::with_capacity(r.len());
@@ -1236,16 +1234,8 @@ fn encode_rows(
                 }
 
                 _ if type_is_blob(ty) => {
-                    //
-                    let x: Result<Option<String>, _> = r.try_get_unchecked(c);
-
-                    if try_blob_to_str && x.is_ok() {
-                        let value = x.unwrap();
-                        value.map(|x| format!("{}", x))
-                    } else {
-                        let value: Option<Vec<u8>> = r.try_get(c)?;
-                        value.map(|x| format!("0x{}", hex::encode_upper(x.as_slice())))
-                    }
+                    let x: Option<Vec<u8>> = r.try_get(c)?;
+                    x.map(|x| format!("0x{}", hex::encode_upper(x.as_slice())))
                 }
                 "TIMESTAMP" => {
                     let value: Option<chrono::DateTime<Utc>> = r.try_get(c)?;
@@ -1586,7 +1576,7 @@ impl QuerySql for MysqlDB {
                 sqlx::Either::Left(row_aff) => {
                     if rows.len() > 0 {
                         let fields = get_rows_types(&rows);
-                        let data = encode_rows(&rows, true)?;
+                        let data = encode_rows(&rows)?;
                         ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
                         rows.clear();
                     };
