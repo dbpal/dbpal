@@ -273,7 +273,7 @@ impl MysqlDB {
         while let Some(rows) = stream.next().await {
             let rows = rows?;
 
-            let data = encode_rows(&rows)?;
+            let data = encode_rows(&rows, true)?;
             for d in data.into_iter() {
                 let mut m = HashMap::new();
                 for (d, f) in d.into_iter().zip(cols.iter()) {
@@ -387,7 +387,7 @@ impl MysqlDB {
                 first = false
             }
 
-            let data = encode_rows(&rows)?;
+            let data = encode_rows(&rows, true)?;
             sender
                 .send(Cow::Owned(create_csv(&data, delimiter)))
                 .await?;
@@ -577,6 +577,10 @@ impl BackendName for MysqlDB {
     }
 }
 
+fn schema_is_information_schema(x: &str) -> bool {
+    x.eq_ignore_ascii_case("information_schema")
+}
+
 impl MysqlDB {
     pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
         let mut conn = self.get_conn().await?;
@@ -608,11 +612,29 @@ impl MysqlDB {
         anyhow::Ok(ret)
     }
 
+    /*
+        在 information_schema.tables 这张元数据表里，
+        列 table_type 用来标识“这张表到底是什么类型”。MySQL 目前（8.0 及以后）只会出现下面 3 种取值：
+
+            BASE TABLE
+            普通表（包括系统表、用户表、分区表、临时表中的内部临时表等），一句话：磁盘上真实存在的表。
+            VIEW
+            逻辑视图。
+            SYSTEM VIEW
+            从 MySQL 8.0 开始，information_schema 里的所有“表” 官方都归到这一类，因为它们并不是磁盘文件，而是运行时动态生成的内存/性能_schema 视图。
+            在 5.7 及更早版本，这些对象仍被标为 VIEW；8.0 以后为了与普通用户 VIEW 区分，统一改成 SYSTEM VIEW。
+    */
+
     pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
-        SELECT table_name FROM information_schema.tables WHERE table_type = 'VIEW' AND table_schema = '{}';
+        SELECT table_name FROM information_schema.tables WHERE table_type = '{}' AND table_schema = '{}';
         "#,
+            if schema_is_information_schema(schema) {
+                "SYSTEM VIEW"
+            } else {
+                "VIEW"
+            },
             schema
         );
         log::info!("sql:{}", sql);
@@ -1028,7 +1050,7 @@ impl SchemaTrait for MysqlDB {
             return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
 
-        let data = encode_rows(&rows)?;
+        let data = encode_rows(&rows, true)?;
         let fields = get_rows_types(&rows);
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
@@ -1202,7 +1224,7 @@ impl SchemaTrait for MysqlDB {
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
-        let data = encode_rows(&row)?;
+        let data = encode_rows(&row, false)?;
         let fields = self.show_table_columns(table_name).await?;
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
@@ -1242,19 +1264,15 @@ impl SchemaTrait for MysqlDB {
     }
 }
 
-fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+fn encode_rows(
+    rows: &Vec<MySqlRow>, try_blob_to_str: bool,
+) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = Vec::with_capacity(rows.len());
     for r in rows.iter() {
         let mut values = Vec::with_capacity(r.len());
         for c in 0..r.len() {
             let col = r.column(c);
             let ty = col.type_info().name();
-
-            println!(
-                "!!!!!!!!!!!!!!!!:{:?}  {}",
-                col.type_info(),
-                col.type_info().name()
-            );
 
             let v = match ty.to_uppercase().as_str() {
                 "BOOLEAN" | "BOOL" => {
@@ -1312,7 +1330,15 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
                 }
                 _ if type_is_blob(ty) => {
                     let x: Option<Vec<u8>> = r.try_get(c)?;
-                    x.map(|x| format!("0x{}", hex::encode_upper(x.as_slice())))
+                    let str_value: sqlx::Result<Option<String>> = r.try_get(c);
+                    let str_value = str_value.ok().flatten();
+                    x.map(|x| {
+                        if try_blob_to_str && str_value.is_some() {
+                            str_value.unwrap()
+                        } else {
+                            format!("0x{}", hex::encode_upper(x.as_slice()))
+                        }
+                    })
                 }
                 "TIMESTAMP" => {
                     let value: Option<chrono::DateTime<Utc>> = r.try_get(c)?;
@@ -1653,7 +1679,7 @@ impl QuerySql for MysqlDB {
                 sqlx::Either::Left(row_aff) => {
                     if rows.len() > 0 {
                         let fields = get_rows_types(&rows);
-                        let data = encode_rows(&rows)?;
+                        let data = encode_rows(&rows, true)?;
                         ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
                         rows.clear();
                     };
@@ -2542,6 +2568,29 @@ mod tests {
                 query_id,
                 r#"
                 show TABLES 
+        "#,
+            )
+            .await
+            .unwrap()[0]
+            .clone()
+            .unwrap();
+
+        println!("{:?}", resp);
+    }
+
+    #[tokio::test]
+    async fn test_xxx2() {
+        let mut config = make_config();
+        config.db = Some("test".to_string());
+        let db = make_test_object(config).await;
+
+        let query_id = db.open_connection().await.unwrap();
+
+        let resp = db
+            .query_sql(
+                query_id,
+                r#"
+                select * from test_type3
         "#,
             )
             .await

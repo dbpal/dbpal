@@ -18,4 +18,6 @@ cargo r
 这个错误提示不对呢 
 
 
+
+mysql mariadb都可以keywords表 可以直接从里面都不需要手动配置写死
 ~~~

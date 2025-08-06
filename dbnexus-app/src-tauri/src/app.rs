@@ -205,8 +205,6 @@ impl DBConnectionConfig {
                 None => {
                     let db: Arc<dyn DBTrait> = Arc::new({
                         let x = dbnexus_db::mariadb::MariaDB::new(conn.clone()).await?;
-                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!:{:?}", x);
-
                         x
                     });
                     anyhow::Ok(Open::DataBase(db))

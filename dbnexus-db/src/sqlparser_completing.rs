@@ -992,24 +992,20 @@ impl CompletionStatement {
                     // this is very likely a `select * from sys.xxx`   on mysql
                     // treat this expr as table
 
-                    self.c_on_select_target(
-                        &ObjectName(
-                            idents
-                                .iter()
-                                .map(|x| ObjectNamePart::Identifier(x.clone()))
-                                .collect(),
-                        ),
-                        Some(&idents[0].value),
-                    )
+                    self.c_on_select_target(&ObjectName(
+                        idents
+                            .iter()
+                            .map(|x| ObjectNamePart::Identifier(x.clone()))
+                            .collect(),
+                    ))
                     .await;
                     return;
                 }
                 if self.in_pos(&table.span) {
                     // handle name
-                    self.c_on_select_target(
-                        &ObjectName(vec![ObjectNamePart::Identifier(table.clone())]),
-                        None,
-                    )
+                    self.c_on_select_target(&ObjectName(vec![ObjectNamePart::Identifier(
+                        table.clone(),
+                    )]))
                     .await;
                     return;
                 }
@@ -1120,10 +1116,9 @@ impl CompletionStatement {
                 // save  results
                 let items = self.result.take().unwrap_or_default();
                 // this line will rewrite the results.
-                self.c_on_select_target(
-                    &ObjectName(vec![ObjectNamePart::Identifier(ident.clone())]),
-                    None,
-                )
+                self.c_on_select_target(&ObjectName(vec![ObjectNamePart::Identifier(
+                    ident.clone(),
+                )]))
                 .await;
                 if self.result.is_none() {
                     self.result = Some(vec![]);
@@ -1831,8 +1826,9 @@ impl CompletionStatement {
         self.result = Some(items);
     }
 
-    pub(crate) async fn c_on_select_target(&mut self, name: &ObjectName, schema: Option<&str>) {
+    pub(crate) async fn c_on_select_target(&mut self, name: &ObjectName) {
         self.c_on_table_or_view(name).await;
+        let (_, schema, _) = self.extract_db_schme_item(name);
         let mut items = self.result.take().unwrap_or_default();
         let f = self
             .helper
@@ -2395,29 +2391,15 @@ impl CompletionStatement {
                 partitions,
                 ..
             } => {
-                self.c_on_table(name).await;
-
-                if name
-                    .0
-                    .last()
-                    .map(|x| self.in_pos(&x.span()))
-                    .unwrap_or(false)
-                {
-                    // match table
-                    if self.result.is_none() {
-                        self.result = Some(vec![]);
-                    }
-                    // extend function this is query
-                    self.result.as_mut().unwrap().extend(
-                        self.helper
-                            .list_function(None, None, true)
-                            .await
-                            .unwrap_or_default(),
-                    );
-                }
-
+                self.c_on_db_schema(name).await;
                 if self.finished() {
                     return;
+                }
+                if self.last_name_in_pos(name) {
+                    self.c_on_select_target(name).await;
+                    if self.finished() {
+                        return;
+                    }
                 }
                 s.from_tables.push(FromTableOrTemp::from(name.clone()));
                 if let Some(alias) = alias {
