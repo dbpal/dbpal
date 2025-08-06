@@ -11,7 +11,6 @@ import {
   Select,
   MenuItem,
   Stack,
-  Alert,
   Divider,
   RadioGroup,
   Radio,
@@ -1077,7 +1076,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
               );
             }}
           >
-            oracle need extra driver{' '}
+            oracle need extra driver
           </Typography>
           <HostAndPort
             onBlur={toggleTriggerReload}
@@ -1147,7 +1146,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         />
       </Stack>
       <Divider></Divider>
-      <Stack direction="row" spacing={1} alignContent="center">
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
           variant="contained"
           color="primary"
@@ -1165,7 +1164,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         >
           test
         </Button>
-        {testOk && <Alert severity="success"> Test OK </Alert>}
+        {testOk && (
+          <Typography color="success" style={{ fontWeight: '600' }}>
+            Test OK
+          </Typography>
+        )}
       </Stack>
     </Stack>
   );

@@ -102,6 +102,8 @@ import {
 import { listen } from '@tauri-apps/api/event';
 import { AddConnection } from './AddConnection.tsx';
 import { FaBookmark } from 'react-icons/fa';
+import { SequenceTree } from './LeftSequence.tsx';
+// import { openUrl } from '@tauri-apps/plugin-opener';
 
 function LeftTop(props: { matchPattern: string; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
@@ -144,6 +146,14 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           direction="row"
           style={{ justifyContent: 'center', flexWrap: 'wrap' }}
         >
+          {/* <img
+            src="https://dbpal.site/images/icon.png"
+            style={{ width: '3.5rem', cursor: 'pointer' }}
+            onClick={() => {
+              openUrl('https://dbpal.site/');
+            }}
+            alt="logo"
+          ></img> */}
           <Tooltip title="make a connection">
             <IconButton
               onClick={() => {
@@ -864,6 +874,10 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     kind == DataSourceKind.Oracle ||
     kind == DataSourceKind.Cassandra ||
     kind == DataSourceKind.Cockroach;
+  let support_sequence = [
+    DataSourceKind.MariaDB,
+    DataSourceKind.Postgres,
+  ].includes(kind);
   let { setUpMenu } = useContext(ContextMenuContext);
 
   return (
@@ -908,7 +922,6 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           <ViewsTree viewkind={ViewKind.Normal} />
         </>
       )}
-
       {opened && kind == DataSourceKind.DuckDB && (
         <>
           <TablesTree typ={TablesType.Normal} />
@@ -989,6 +1002,8 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           {support_udf && <UdfsTree></UdfsTree>}
         </>
       )}
+      {opened && <>{support_sequence && <SequenceTree />}</>}
+
       {opened && kind == DataSourceKind.Cassandra && (
         <CassaandraAggregatesTree />
       )}

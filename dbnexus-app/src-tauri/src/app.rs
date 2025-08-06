@@ -173,6 +173,7 @@ impl DBConnectionConfig {
         }
     }
 }
+
 impl DBConnectionConfig {
     pub async fn open(&self) -> anyhow::Result<Open> {
         match self {
@@ -183,17 +184,31 @@ impl DBConnectionConfig {
 
                 anyhow::Ok(Open::Schema(db))
             }
-            DBConnectionConfig::Mysql { conn, name: _ }
-            | DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
+            DBConnectionConfig::Mysql { conn, name: _ } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
-
                     anyhow::Ok(Open::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
                         Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
+                    anyhow::Ok(Open::DataBase(db))
+                }
+            },
+            DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(dbnexus_db::mariadb::MariaDB::new(conn.clone()).await?);
+                    anyhow::Ok(Open::Schema(db))
+                }
+                None => {
+                    let db: Arc<dyn DBTrait> = Arc::new({
+                        let x = dbnexus_db::mariadb::MariaDB::new(conn.clone()).await?;
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!:{:?}", x);
+
+                        x
+                    });
                     anyhow::Ok(Open::DataBase(db))
                 }
             },

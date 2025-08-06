@@ -8,8 +8,9 @@ import { MetaValuesView } from './CommonComp';
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
   language: string;
+  showReload?: boolean;
 }) {
-  let { reloadOP, language } = props;
+  let { reloadOP, language, showReload } = props;
   const titleVariant = 'h6';
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas | null>(null);
@@ -39,16 +40,18 @@ function DefAndMetasView(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          variant="contained"
-          color="primary"
-          onClick={() => {
-            handleReload(true);
-          }}
-        >
-          reload
-        </Button>
+        {showReload && (
+          <Button
+            loading={loading}
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              handleReload(true);
+            }}
+          >
+            reload
+          </Button>
+        )}
       </Stack>
       {detail && (
         <div style={{ display: 'grid' }}>

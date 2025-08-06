@@ -8,7 +8,7 @@ use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
     DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, ShowExtraArgs, SqlExecuteRet, TriggerDetail,
+    ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs, SqlExecuteRet, TriggerDetail,
     UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::firebird::FireBirdDB;
@@ -2298,6 +2298,53 @@ pub async fn list_udf(
     // null
     check_named_staff_unique(&sx[..])?;
     Ok(sx)
+}
+
+#[tauri::command]
+pub async fn list_sequences(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<SequenceDetail>, ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+    let sx = schema
+        .list_sequences()
+        .await
+        .map_err(|x| ErrorFrontend::from(x))?;
+
+    Ok(sx)
+}
+
+#[tauri::command]
+pub async fn drop_sequence(
+    name: String, app: tauri::State<'_, App>, seq: String, cascade: bool,
+) -> Result<(), ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+    schema
+        .drop_sequence(&seq, cascade)
+        .await
+        .map_err(|x| ErrorFrontend::from(x))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn rename_sequnce(
+    name: String, app: tauri::State<'_, App>, old: String, new: String,
+) -> Result<(), ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+    schema
+        .rename_sequnce(&old, &new)
+        .await
+        .map_err(|x| ErrorFrontend::from(x))?;
+
+    Ok(())
 }
 
 fn check_named_staff_unique(named: &[NamedStaff]) -> Result<(), ErrorFrontend> {

@@ -160,6 +160,13 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
                     .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
+            "ENUM" => {
+                let value: Option<String> = row.try_get(c)?;
+                value
+                    .map(serde_json::Value::from)
+                    .unwrap_or(null_value.clone())
+            }
+
             _ if type_is_blob(ty) => {
                 let string_value = row.try_get::<String, _>(c);
                 if try_blob_to_str && string_value.is_ok() {
@@ -753,7 +760,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Procedure
-            .query_list(conn.deref_mut(), self.config.db.as_ref().unwrap())
+            .query_list(conn.deref_mut(), self.config.db_str())
             .await?;
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
@@ -814,8 +821,9 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Function
-            .query_list(conn.deref_mut(), self.config.db.as_ref().unwrap())
+            .query_list(conn.deref_mut(), self.config.db_str())
             .await?;
+
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
@@ -885,7 +893,7 @@ impl SchemaTrait for MysqlDB {
                 WHERE EVENT_OBJECT_TABLE = '{table_name}'
                 AND TRIGGER_SCHEMA = '{}';
         "#,
-            self.config.db.as_ref().unwrap()
+            self.config.db_str()
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1004,7 +1012,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_view_impl(self.config.db.as_ref().unwrap()).await
+        self.list_view_impl(self.config.db_str()).await
     }
 
     async fn table_delete(
@@ -1232,7 +1240,10 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
                     let value: Option<String> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
-
+                "ENUM" => {
+                    let value: Option<String> = r.try_get(c)?;
+                    value.map(|x| format!("{}", x))
+                }
                 _ if type_is_blob(ty) => {
                     let x: Option<Vec<u8>> = r.try_get(c)?;
                     x.map(|x| format!("0x{}", hex::encode_upper(x.as_slice())))
@@ -1324,9 +1335,7 @@ impl MysqlDB {
 }
 
 impl MysqlDB {
-    pub(crate) async fn list_schema_impl(
-        &self, skip_internal: bool,
-    ) -> anyhow::Result<Vec<String>> {
+    pub(crate) async fn list_schema_impl(&self) -> anyhow::Result<Vec<String>> {
         let mut conn: PoolConnection<sqlx::MySql> = self.get_conn().await?;
         let rows = sqlx::query("show databases")
             .fetch_all(conn.deref_mut())
@@ -1335,13 +1344,8 @@ impl MysqlDB {
         let mut ret = Vec::new();
         for r in rows.iter() {
             let name: String = r.try_get_unchecked(0)?;
-            if skip_internal {
-                if name.eq_ignore_ascii_case("information_schema")
-                    || name.eq_ignore_ascii_case("mysql")
-                    || name.eq_ignore_ascii_case("performance_schema")
-                {
-                    continue;
-                }
+            if name.eq_ignore_ascii_case("information_schema") {
+                continue;
             }
             ret.push(name);
         }
@@ -1349,6 +1353,7 @@ impl MysqlDB {
         anyhow::Ok(ret)
     }
 }
+
 #[async_trait::async_trait]
 impl DBTrait for MysqlDB {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1356,7 +1361,7 @@ impl DBTrait for MysqlDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret = self.list_schema_impl(true).await?;
+        let mut ret = self.list_schema_impl().await?;
         ret.sort();
         anyhow::Ok(ret)
     }
@@ -1648,6 +1653,7 @@ impl SqlBuilder for MysqlDB {
             "DATETIME" => single_quote_str,
             "DATE" => single_quote_str,
             "TIME" => single_quote_str,
+            _ if ty.starts_with("ENUM") => single_quote_str,
             _ => {
                 log::error!("mysql type '{}' not handled", ty);
                 default_str
@@ -2284,6 +2290,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_types4(db: MysqlDB) {
+        enable_test_log();
         let table_name = "test_types4";
 
         let _ = db.drop_table(table_name, false).await;
@@ -2295,7 +2302,8 @@ pub(crate) mod test_fns {
                     timestamp_column TIMESTAMP,
                     datetime_column DATETIME,
                     date_column DATE,
-                    time_column TIME
+                    time_column TIME,
+                    status ENUM('pending', 'completed', 'canceled') NOT NULL
                 );
         "#,
         )
@@ -2312,7 +2320,8 @@ pub(crate) mod test_fns {
             Some("2024-06-29 10:00:00".to_string()),
         );
         values.insert("date_column".to_string(), Some("2024-06-29".to_string()));
-        values.insert("time_column`".to_string(), Some("10:00:00".to_string()));
+        values.insert("time_column".to_string(), Some("10:00:00".to_string()));
+        values.insert("status".to_string(), Some("completed".to_string()));
 
         db.table_insert(table_name, values).await.unwrap();
 

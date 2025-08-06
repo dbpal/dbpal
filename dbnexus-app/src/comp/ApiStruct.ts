@@ -224,7 +224,7 @@ export namespace types {
     export type MetaValue = {
         "name": string;
         "value": (string | null);
-        "desc": (string | null);
+        "desc"?: (string | null);
     };
 
     /**
@@ -284,7 +284,7 @@ export namespace types {
     export type CompletionItem = {
         "item": string;
         "kind": CompletionKind;
-        "desc": (string | null);
+        "desc"?: (string | null);
     };
     export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster" | "ClickHouseTableProjection");
     export type DefAndMetas = {
@@ -346,5 +346,15 @@ export namespace types {
         "total": types.Usize;
         "data": (((string | null))[])[];
         "sql": (string | null);
+    };
+    export type SequenceDetail = {
+        "start_value": string;
+        "min_value": string;
+        "max_value": string;
+        "increment_by": string;
+        "last_value": (string | null);
+        "name": string;
+        "sql": string;
+        "data_type": string;
     };
 }

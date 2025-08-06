@@ -42,9 +42,10 @@ impl CheckConn for TiDB {
 
 impl std::fmt::Debug for TiDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.db)
+        write!(f, "tidb on{:?}", self.db.config)
     }
 }
+
 #[async_trait::async_trait]
 
 impl ExportQueryResult for TiDB {
@@ -344,7 +345,7 @@ impl DBTrait for TiDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let db = self.db.open_schema(&name).await?;
         let db = Clone::clone(db.as_any().downcast_ref::<MysqlDB>().unwrap());
-        anyhow::Ok(Arc::new(db))
+        anyhow::Ok(Arc::new(Self { db: Arc::new(db) }))
     }
 
     async fn create_schema(
@@ -444,10 +445,7 @@ mod tests {
     async fn test_types4() {
         test_fns::test_types4(make_test_object(make_config()).await).await;
     }
-    // #[tokio::test]
-    // async fn test_triggers() {
-    //     test_fns::test_triggers(make_test_object(make_config()).await).await;
-    // }
+
     #[tokio::test]
     async fn test_list_database() {
         test_fns::test_list_database(make_test_object(make_config()).await).await;

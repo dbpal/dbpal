@@ -275,6 +275,17 @@ pub trait SchemaTrait:
         h1.await??;
         h2.await?
     }
+
+    async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+        not_support_feature(self.backend_name())
+    }
+    async fn rename_sequnce(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
+        not_support_feature(self.backend_name())
+    }
+
+    async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<()> {
+        not_support_feature(self.backend_name())
+    }
 }
 
 pub trait QuoteStyle {
@@ -672,6 +683,18 @@ pub enum CreateSchemaExtra {
         replication_strategy: String,
         replication_factor: u32,
     },
+}
+
+#[derive(Clone, Debug, TypeDef, serde::Serialize)]
+pub struct SequenceDetail {
+    pub start_value: String,
+    pub min_value: String,
+    pub max_value: String,
+    pub increment_by: String,
+    pub last_value: Option<String>,
+    pub name: String,
+    pub sql: String,
+    pub data_type: String,
 }
 
 #[async_trait::async_trait]

@@ -291,7 +291,7 @@ impl SchemaTrait for CockRoachDB {
         let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
         let total = self.pg.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(
-            self.pg.must_schema(),
+            self.pg.config.schema_str(),
             table_name,
             &cols[..],
             where_str,
@@ -376,8 +376,8 @@ impl SchemaTrait for CockRoachDB {
             FROM 
                 pg_matviews where schemaname = '{}' ) 
         "#,
-            self.pg.must_schema(),
-            self.pg.must_schema(),
+            self.pg.config.schema_str(),
+            self.pg.config.schema_str(),
         );
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;

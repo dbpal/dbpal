@@ -183,6 +183,7 @@ function UdfMenu(props: {
             udf,
             (
               <DefAndMetasView
+                showReload
                 reloadOP={async () => {
                   return await invoke<types.DefAndMetas>('show_udf', {
                     name: uuid,
@@ -273,6 +274,7 @@ function CassandraAggregateMenu(props: {
             agg,
             (
               <DefAndMetasView
+                showReload
                 reloadOP={async () => {
                   return await invoke<types.DefAndMetas>(
                     'cassandra_show_aggregate',

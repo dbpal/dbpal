@@ -152,6 +152,7 @@ function ProcedureMenu(props: {
             procedure,
             (
               <DefAndMetasView
+                showReload
                 reloadOP={async () => {
                   return await invoke<types.ProcedureDetail>('show_procedure', {
                     name: uuid,

@@ -25,6 +25,7 @@ pub mod helper;
 pub mod libsql;
 pub mod libsql_lang_server;
 pub mod mariadb;
+pub mod mariadb_lang_server;
 pub mod mongo;
 pub mod mongo_lang_server;
 pub mod mssql;

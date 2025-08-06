@@ -16,8 +16,8 @@ use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail,
-    QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, not_support_feature,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
@@ -60,7 +60,7 @@ impl PostGresDB {
                 r#"
         SELECT schema_name 
             FROM information_schema.schemata
-            WHERE schema_name NOT IN ('information_schema', 'pg_catalog' , 'pg_toast') and 
+            WHERE 
             schemata.catalog_name ='{}' order by schema_name
     "#,
                 self.config.db_str()
@@ -147,7 +147,7 @@ impl PostGresDB {
 
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!("SELECT * from {}.{}", self.must_schema(), table_name);
+        let sql = format!("SELECT * from {}.{}", self.config.schema_str(), table_name);
         log::info!("sql:{}", sql);
         let mut stream = sqlx::query(sql.as_str())
             .fetch(conn.deref_mut())
@@ -199,7 +199,7 @@ impl PostGresDB {
     ) -> anyhow::Result<()> {
         let sql = format!(
             "SELECT * from \"{}\".\"{}\"",
-            self.must_schema(),
+            self.config.schema_str(),
             table_name
         );
         log::info!("sql:{}", sql);
@@ -243,7 +243,7 @@ impl PostGresDB {
     ) -> anyhow::Result<()> {
         let sql = format!(
             "SELECT * from \"{}\".\"{}\"",
-            self.must_schema(),
+            self.config.schema_str(),
             table_name
         );
         log::info!("sql:{}", sql);
@@ -288,7 +288,11 @@ impl PostGresDB {
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from "{}"."{}""#, self.must_schema(), table_name);
+        let sql = format!(
+            r#"SELECT * from "{}"."{}""#,
+            self.config.schema_str(),
+            table_name
+        );
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
             .await
@@ -373,12 +377,6 @@ fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTimin
     anyhow::bail!(format!("unknown tgtype:{}", tgtype))
 }
 
-impl PostGresDB {
-    pub(crate) fn must_schema(&self) -> &String {
-        self.config.schema.as_ref().expect("must be some")
-    }
-}
-
 fn type_support_compare(typ: &str) -> bool {
     match typ.to_uppercase().as_str() {
         "JSON" | "JSON[]" => false,
@@ -441,13 +439,110 @@ impl QuoteStyle for PostGresDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+        let sql = format!(
+            r#"
+        SELECT  
+        sequence_name , data_type     FROM information_schema.sequences 
+        where sequence_catalog = '{}' and sequence_schema ='{}'      "#,
+            self.config.db_str(),
+            self.config.schema_str(),
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            let data_type: String = row.try_get(1)?;
+
+            let create_sql = {
+                let sql = format!(
+                    r#"
+
+                SELECT format(
+                    'CREATE SEQUENCE %I.%I\n'||
+                    '    START WITH %s\n'||
+                    '    INCREMENT BY %s\n'||
+                    '    MINVALUE %s\n'||
+                    '    MAXVALUE %s\n'||
+                    '    CACHE %s%s;',
+                    schemaname, sequencename,
+                    start_value, increment_by,
+                    min_value, max_value,
+                    cache_size,
+                    CASE WHEN cycle THEN '\n    CYCLE' ELSE '' END
+                ) AS create_sql
+                FROM pg_sequences
+                WHERE schemaname = '{}'
+                AND sequencename = '{}';
+
+            "#,
+                    self.config.schema_str(),
+                    name
+                );
+
+                let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+
+                let create_sql: String = row.try_get(0)?;
+                create_sql
+            };
+
+            let (start_value, min_value, max_value, increment_by, last_value) = {
+                let sql = format!(
+                    r#"
+                    select start_value, min_value , max_value , increment_by ,  last_value 
+                    FROM pg_sequences where schemaname = '{}'
+                "#,
+                    self.config.schema_str()
+                );
+                let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+                let start_value: i64 = row.try_get(0)?;
+                let min_value: i64 = row.try_get(1)?;
+                let max_value: i64 = row.try_get(2)?;
+                let increment_by: i64 = row.try_get(3)?;
+                let last_value: Option<i64> = row.try_get(4)?;
+
+                (start_value, min_value, max_value, increment_by, last_value)
+            };
+            ret.push(SequenceDetail {
+                start_value: start_value.to_string(),
+                min_value: min_value.to_string(),
+                max_value: max_value.to_string(),
+                increment_by: increment_by.to_string(),
+                last_value: last_value.map(|x| x.to_string()),
+                name,
+                sql: create_sql,
+                data_type,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn rename_sequnce(&self, old: &str, new: &str) -> anyhow::Result<()> {
+        let sql = format!("ALTER SEQUENCE {old} RENAME TO {new};");
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
+    async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<()> {
+        let sql = format!(
+            "DROP SEQUENCE IF EXISTS {name} {};",
+            if cascade { "CASCADE" } else { "" }
+        );
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        anyhow::Ok(())
+    }
+
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
         // TODO
         not_support_feature(self.backend_name())
     }
 
     async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
-        let sql = format!(r#"DROP TYPE  "{}"."{typ}" "#, self.must_schema());
+        let sql = format!(r#"DROP TYPE  "{}"."{typ}" "#, self.config.schema_str());
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
 
@@ -609,7 +704,7 @@ impl SchemaTrait for PostGresDB {
         WHERE n.nspname = '{}'  -- 替换为目标模式名称
         AND p.prokind = 'p'  -- 仅选择存储过程
         ORDER BY p.proname;"#,
-            self.must_schema()
+            self.config.schema_str()
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -653,7 +748,7 @@ impl SchemaTrait for PostGresDB {
                 AND p.proname = '{}'  -- 指定存储过程名称
                 AND p.prokind = 'p'
                 AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'  -- 指定参数类型"#,
-            self.must_schema(),
+            self.config.schema_str(),
             name,
             parameters,
         );
@@ -703,7 +798,7 @@ impl SchemaTrait for PostGresDB {
             AND p.prokind = 'f'  -- 只选择普通函数
             ORDER BY p.proname;
         "#,
-            self.must_schema()
+            self.config.schema_str()
         );
         log::info!("sql:{}", sql);
         log::info!("sql:{}", sql);
@@ -746,7 +841,7 @@ impl SchemaTrait for PostGresDB {
             WHERE p.proname = '{name}' and n.nspname ='{}'  -- 替换为您要查询的函数名称
                  AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'
        "#,
-            self.must_schema(),
+            self.config.schema_str(),
             arg
         );
         log::info!("sql:{}", sql);
@@ -780,7 +875,7 @@ impl SchemaTrait for PostGresDB {
 
         let sql = format!(
             "DROP FUNCTION IF EXISTS {}.{}({})",
-            self.must_schema(),
+            self.config.schema_str(),
             name,
             parameters
         );
@@ -810,7 +905,7 @@ impl SchemaTrait for PostGresDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
 
         let sql = format!(r#"CREATE TABLE {schema}.{dup} AS TABLE "{schema}"."{table}""#);
         log::info!("sql:{}", sql);
@@ -820,7 +915,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
         let sql = format!(r#"ALTER TABLE "{schema}"."{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
 
@@ -885,7 +980,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
         let sql = format!(
             r#"
          DROP TRIGGER "{name}" ON "{schema}"."{table}" 
@@ -993,7 +1088,7 @@ impl SchemaTrait for PostGresDB {
         let total = self.query_count(view_name, where_str).await?;
 
         let sql = gen_show_sql(
-            self.must_schema(),
+            self.config.schema_str(),
             view_name,
             where_str,
             order_by,
@@ -1019,7 +1114,7 @@ impl SchemaTrait for PostGresDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let mut conn = self.get_conn().await?;
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
 
         let sql = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
         log::info!("sql:{}", sql);
@@ -1029,7 +1124,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
         let mut conn = self.get_conn().await?;
         let sql = format!(
             r#"DROP TABLE "{schema}"."{table}" {}"#,
@@ -1042,7 +1137,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
         let rows = sqlx::query(
             format!(
                 r#"
@@ -1087,7 +1182,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
         let s = format!(
             r#"
             TRUNCATE TABLE {schema}.{table_name};
@@ -1146,7 +1241,7 @@ impl SchemaTrait for PostGresDB {
              FROM information_schema.tables
              WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}' ORDER BY table_name
      "#,
-            self.must_schema(),
+            self.config.schema_str(),
             &self.config.db_str()
         );
         log::info!("sql:{}", sql);
@@ -1176,7 +1271,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
 
         let sql = format!(
             r#"
@@ -1207,7 +1302,7 @@ impl SchemaTrait for PostGresDB {
             FROM information_schema.columns where table_catalog='{}' and table_schema='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
             &self.config.db_str(),
-            self.must_schema(),
+            self.config.schema_str(),
             table_name
         );
 
@@ -1281,7 +1376,7 @@ impl SchemaTrait for PostGresDB {
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
         let sql = gen_show_sql(
-            self.must_schema(),
+            self.config.schema_str(),
             table_name,
             where_str,
             order_by,
@@ -1300,7 +1395,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
         let sql = format!(
             r#"DROP MATERIALIZED VIEW  "{}"."{}" RESTRICT"#,
             schema, name
@@ -1367,7 +1462,7 @@ impl PostGresDB {
         &self, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let schema = self.must_schema();
+        let schema = self.config.schema_str();
 
         let mut sql = format!(r#"SELECT count(1) from "{schema}"."{name}" "#);
         if let Some(where_str) = where_str {
@@ -2406,6 +2501,34 @@ mod tests {
         db.re_connect(query_id).await.unwrap();
 
         assert!(db.get_auto_commit(query_id).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_sequence() {
+        enable_test_log();
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        let name = "test_seq";
+        let _ = db.drop_sequence(name, true).await;
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE SEQUENCE test_seq AS integer START 1;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let name2 = format!("{}2", name);
+
+        let seqs = db.list_sequences().await.unwrap();
+        for seq in seqs.iter() {
+            if seq.name.eq(name) {
+                println!("seq:{:?}", seq);
+            }
+        }
+        db.rename_sequnce(name, &name2).await.unwrap();
+        db.rename_sequnce(&name2, name).await.unwrap();
     }
 
     #[tokio::test]

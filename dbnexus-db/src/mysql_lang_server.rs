@@ -112,7 +112,7 @@ impl LanguageServer for MysqlDB {
 }
 
 impl MysqlDB {
-    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
+    pub(crate) fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
     where
         'b: 'a,
     {
@@ -137,7 +137,7 @@ impl LangServerCommon for MysqlDB {
     }
 
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        MysqlDB::list_schema_impl(self, false).await
+        MysqlDB::list_schema_impl(self).await
     }
 }
 

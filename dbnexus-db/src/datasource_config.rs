@@ -26,6 +26,12 @@ pub struct MysqlDBConfig {
     pub ssl: EnableSsl,
 }
 
+impl MysqlDBConfig {
+    pub(crate) fn db_str(&self) -> &str {
+        self.db.as_ref().map(|x| x.as_str()).expect("must be some")
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct LibSqlDBConfig {
     pub replica: bool,
@@ -250,6 +256,9 @@ pub struct EnableSsl {
 impl PGDBConfig {
     pub(crate) fn db_str(&self) -> &str {
         self.db.as_ref().unwrap().as_str()
+    }
+    pub(crate) fn schema_str(&self) -> &String {
+        self.schema.as_ref().expect("must be some")
     }
 }
 

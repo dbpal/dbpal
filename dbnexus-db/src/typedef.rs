@@ -43,7 +43,7 @@ impl TypeDef for CompletionItem {
                             docs: None,
                             value: "desc",
                         },
-                        optional: false,
+                        optional: true,
                         r#type: TypeExpr::Union(TypeUnion {
                             docs: None,
                             members: &[
@@ -100,7 +100,7 @@ impl TypeDef for MetaValue {
                             docs: None,
                             value: "desc",
                         },
-                        optional: false,
+                        optional: true,
                         r#type: TypeExpr::Union(TypeUnion {
                             docs: None,
                             members: &[
