@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use sqlx::Row;
+use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 
 use crate::db::{FormatSqlOpts, SchemaTrait};
 use crate::helper::sqlformat_format_sql;
@@ -95,7 +95,9 @@ impl SqliteDB {
             WHERE type = 'index';"#;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name = r.get(0);
@@ -130,7 +132,10 @@ impl AstCompletionHelper for SqliteDB {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from "{name}" limit 1"#);
         log::info!("sql:{}", sql);
-        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+        let s = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+            .await?;
         let ret = s
             .columns()
             .iter()

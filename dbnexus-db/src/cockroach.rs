@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use sqlx::pool::PoolConnection;
-use sqlx::{Postgres, Row};
+use sqlx::{AssertSqlSafe, Postgres, Row};
 
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
@@ -301,7 +301,7 @@ impl SchemaTrait for CockRoachDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(sql.as_str())
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
@@ -380,7 +380,9 @@ impl SchemaTrait for CockRoachDB {
             self.pg.config.schema_str(),
         );
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::new();
         for row in rows.iter() {
             let name: String = row.try_get(0)?;

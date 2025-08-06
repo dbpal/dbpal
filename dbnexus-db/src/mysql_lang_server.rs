@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use sqlx::Row;
+use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 
 use crate::db::{BackendName, FormatSqlOpts, not_support_feature};
 use crate::helper::sqlformat_format_sql;
@@ -34,7 +34,9 @@ impl LexerCompletionTrait for MysqlDB {
         "#;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get_unchecked(0)?;
@@ -163,7 +165,9 @@ impl AstCompletionHelper for MysqlDB {
             schema
         );
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
 
         for row in rows.iter() {
@@ -195,7 +199,10 @@ impl AstCompletionHelper for MysqlDB {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from `{schema}`.`{name}` limit 1"#);
         log::info!("sql:{}", sql);
-        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+        let s = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql.as_str()).into_sql_str(), &[])
+            .await?;
         let ret = s
             .columns()
             .iter()
@@ -263,7 +270,9 @@ impl AstCompletionHelper for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -275,7 +284,9 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         let sql = "show variables";
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -297,7 +308,9 @@ impl AstCompletionHelper for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -324,7 +337,9 @@ impl AstCompletionHelper for MysqlDB {
         log::info!("sql:{}", sql);
 
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -345,7 +360,9 @@ impl AstCompletionHelper for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;

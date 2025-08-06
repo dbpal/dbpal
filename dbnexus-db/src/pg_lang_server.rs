@@ -1,7 +1,7 @@
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use sqlx::Row;
+use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 
 use crate::db::{CatalogTrait, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
@@ -66,7 +66,9 @@ impl PostGresDB {
             ORDER BY p.proname;"#;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -97,7 +99,9 @@ impl AstCompletionHelper for PostGresDB {
             sql.push_str(format!(" AND table_schema = '{}'", schema).as_str());
         }
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -144,7 +148,9 @@ impl AstCompletionHelper for PostGresDB {
         };
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -170,7 +176,9 @@ impl AstCompletionHelper for PostGresDB {
         }
 
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -196,7 +204,10 @@ impl AstCompletionHelper for PostGresDB {
         let sql = format!(r#"select * from "{}"."{}"."{}""#, db, schema, name);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+        let s = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql.as_str()).into_sql_str(), &[])
+            .await?;
         let ret = s
             .columns()
             .iter()
@@ -241,7 +252,9 @@ impl AstCompletionHelper for PostGresDB {
         }
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -276,7 +289,9 @@ impl AstCompletionHelper for PostGresDB {
         };
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -288,7 +303,9 @@ impl AstCompletionHelper for PostGresDB {
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         let sql = "show all";
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -317,7 +334,9 @@ impl AstCompletionHelper for PostGresDB {
         };
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -333,7 +352,9 @@ impl AstCompletionHelper for PostGresDB {
         "#;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -360,7 +381,9 @@ impl AstCompletionHelper for PostGresDB {
         };
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -395,7 +418,9 @@ impl AstCompletionHelper for PostGresDB {
         }
         sql.push_str(format!(" table_name='{}'", table_name).as_str());
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -416,7 +441,9 @@ impl AstCompletionHelper for PostGresDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -454,7 +481,9 @@ impl AstCompletionHelper for PostGresDB {
         };
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -486,7 +515,9 @@ impl LangServerCommon for PostGresDB {
             db.unwrap_or_default(),
         );
         log::info!("sql:{}", sql);
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;

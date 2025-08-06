@@ -8,7 +8,7 @@ use crate::language_server::{
 };
 use crate::mariadb::MariaDB;
 use crate::mysql::MysqlDB;
-use sqlx::Row;
+use sqlx::{AssertSqlSafe, Row};
 
 #[async_trait::async_trait]
 impl LanguageServer for MariaDB {
@@ -60,7 +60,9 @@ impl AstCompletionHelper for MariaDB {
                 .ok()
                 .unwrap_or("")
         );
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
             result.push(name);

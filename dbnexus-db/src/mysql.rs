@@ -10,7 +10,7 @@ use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::{MySqlRow, MySqlSslMode};
 use sqlx::pool::PoolConnection;
 use sqlx::types::BigDecimal;
-use sqlx::{Column, Executor, MySqlConnection, Row, TypeInfo};
+use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, TypeInfo};
 use tokio::sync::Mutex;
 
 use crate::MemoryLimit;
@@ -267,7 +267,7 @@ impl MysqlDB {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!(r#"SELECT * from `{}`"#, table_name);
         log::info!("sql:{}", sql);
-        let mut stream = sqlx::query(sql.as_str())
+        let mut stream = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch(conn.deref_mut())
             .try_chunks(100);
         while let Some(rows) = stream.next().await {
@@ -292,7 +292,7 @@ impl MysqlDB {
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
+        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
             let row = row?;
             let value = encode_row_as_json(&row, true)?;
@@ -320,7 +320,7 @@ impl MysqlDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let mut stream = sqlx::query(sql).fetch(conn.deref_mut());
+        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
 
         sender.send("[".into()).await?;
         let mut first = true;
@@ -365,7 +365,9 @@ impl MysqlDB {
         let mut conn = self.get_conn().await?;
         let mut first = true;
 
-        let mut stream = sqlx::query(sql).fetch(conn.deref_mut()).try_chunks(100);
+        let mut stream = sqlx::query(AssertSqlSafe(sql))
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
 
         while let Some(rows) = stream.next().await {
             let rows = rows?;
@@ -421,7 +423,9 @@ WHERE
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name = r.try_get(0)?;
@@ -437,7 +441,9 @@ async fn query_trigger_detail(
 ) -> anyhow::Result<(TriggerEvent, TriggerTiming, Vec<MetaValue>)> {
     let sql = format!("SHOW TRIGGERS WHERE `Trigger`='{name}'");
     log::info!("sql:{}", sql);
-    let row = sqlx::query(&sql).fetch_one(conn).await?;
+    let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+        .fetch_one(conn)
+        .await?;
     let event: String = row.try_get_unchecked(1)?;
 
     let timing: String = row.try_get_unchecked(4)?;
@@ -482,7 +488,9 @@ impl FunctionOrProcedure {
         );
         log::info!("sql:{}", sql);
 
-        let rows = sqlx::query(&sql).fetch_all(conn).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn)
+            .await?;
         let mut ret = Vec::new();
 
         for r in rows.iter() {
@@ -513,7 +521,7 @@ impl ServerMetas for MysqlDB {
             SELECT @@version_compile_machine; -- 4 
             SELECT @@default_storage_engine; -- 5 
         "#;
-        let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         let mut metas = Vec::with_capacity(8);
 
         while let Some(item) = stream.next().await {
@@ -578,7 +586,9 @@ impl MysqlDB {
         WHERE table_schema = '{}' AND  table_type = 'BASE TABLE'  ORDER BY  table_name;"#,
             schema
         );
-        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(s.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let table_name: String = r.try_get_unchecked(0)?;
@@ -607,7 +617,7 @@ impl MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(sql.as_str())
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -651,7 +661,9 @@ impl SchemaTrait for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -659,7 +671,9 @@ impl SchemaTrait for MysqlDB {
         let sql = format!(r#"ALTER TABLE `{table_name}` DROP INDEX `{index}`"#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -689,7 +703,9 @@ impl SchemaTrait for MysqlDB {
         log::info!("sql:{}", sql);
 
         let mut conn = self.get_conn().await?;
-        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -709,7 +725,9 @@ impl SchemaTrait for MysqlDB {
             "#
             );
             log::info!("sql:{}", sql);
-            sqlx::query(&sql).execute(conn.deref_mut()).await?;
+            sqlx::query(AssertSqlSafe(sql.as_str()))
+                .execute(conn.deref_mut())
+                .await?;
         }
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
@@ -725,7 +743,9 @@ impl SchemaTrait for MysqlDB {
                 }
             );
             log::info!("sql:{}", sql);
-            sqlx::query(&sql).execute(conn.deref_mut()).await?;
+            sqlx::query(AssertSqlSafe(sql.as_str()))
+                .execute(conn.deref_mut())
+                .await?;
         }
         anyhow::Ok(())
     }
@@ -738,7 +758,9 @@ impl SchemaTrait for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -747,7 +769,10 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
         let sql = format!("select * from `{view_name}` limit 1");
         log::info!("sql:{}", sql);
-        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+        let s = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql.as_str()).into_sql_str(), &[])
+            .await?;
         let ret = s
             .columns()
             .iter()
@@ -772,7 +797,9 @@ impl SchemaTrait for MysqlDB {
 
         let sql = format!("SHOW CREATE PROCEDURE {name};");
 
-        let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_one(conn.deref_mut())
+            .await?;
         let sql_mode: Option<String> = row.try_get(1)?;
         let sql: String = row.try_get(2)?;
         anyhow::Ok(ProcedureDetail::new(
@@ -787,7 +814,8 @@ impl SchemaTrait for MysqlDB {
         let sql = format!("DROP PROCEDURE `{name}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        conn.execute(sqlx::raw_sql(&sql)).await?;
+        conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
+            .await?;
         anyhow::Ok(())
     }
 
@@ -798,7 +826,9 @@ impl SchemaTrait for MysqlDB {
 
         let sql = format!("SHOW CREATE FUNCTION {name};");
 
-        let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_one(conn.deref_mut())
+            .await?;
         let sql_mode: Option<String> = row.try_get(1)?;
         let sql: String = row.try_get(2)?;
         anyhow::Ok(DefAndMetas::new(
@@ -813,7 +843,8 @@ impl SchemaTrait for MysqlDB {
         let sql = format!("DROP FUNCTION `{name}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        conn.execute(sqlx::raw_sql(&sql)).await?;
+        conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
+            .await?;
         anyhow::Ok(())
     }
 
@@ -834,7 +865,9 @@ impl SchemaTrait for MysqlDB {
         let sql = format!("CREATE TABLE `{dup}` AS SELECT * FROM {table}");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -844,7 +877,9 @@ impl SchemaTrait for MysqlDB {
         let sql = format!("ALTER TABLE {table_name} RENAME INDEX {oldname} TO {newname}");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -852,7 +887,9 @@ impl SchemaTrait for MysqlDB {
         let sql = format!("RENAME TABLE `{old}` TO `{new}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -862,7 +899,9 @@ impl SchemaTrait for MysqlDB {
 
         let create_stmt = {
             let sql = format!("show CREATE TRIGGER `{}`", name);
-            let row = sqlx::query(&sql).fetch_one(conn.deref_mut()).await?;
+            let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+                .fetch_one(conn.deref_mut())
+                .await?;
             let create_stmt = row.try_get::<String, _>(2)?;
             create_stmt
         };
@@ -880,7 +919,8 @@ impl SchemaTrait for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        conn.execute(sqlx::raw_sql(&sql)).await?;
+        conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
+            .await?;
 
         anyhow::Ok(())
     }
@@ -897,7 +937,7 @@ impl SchemaTrait for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(sql.as_str())
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
 
@@ -935,9 +975,11 @@ impl SchemaTrait for MysqlDB {
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(format!("SHOW CREATE TABLE `{table_name}`;").as_str())
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = sqlx::query(AssertSqlSafe(
+            format!("SHOW CREATE TABLE `{table_name}`;").as_str(),
+        ))
+        .fetch_one(conn.deref_mut())
+        .await?;
 
         let s: String = row.try_get(1)?;
 
@@ -950,9 +992,11 @@ impl SchemaTrait for MysqlDB {
 
     async fn create_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(format!("SHOW CREATE VIEW `{view_name}`;").as_str())
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = sqlx::query(AssertSqlSafe(
+            format!("SHOW CREATE VIEW `{view_name}`;").as_str(),
+        ))
+        .fetch_one(conn.deref_mut())
+        .await?;
 
         let s: String = row.try_get(1)?;
 
@@ -976,7 +1020,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str).await?;
 
-        let rows = sqlx::query(sql.as_str())
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         if rows.len() == 0 {
@@ -995,7 +1039,9 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
         let sql = format!("DROP VIEW `{view_name}`");
         log::info!("sql:{}", sql);
-        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -1007,7 +1053,9 @@ impl SchemaTrait for MysqlDB {
             if cascade { " CASCADE " } else { "" }
         );
         log::info!("sql:{}", sql);
-        sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -1023,7 +1071,9 @@ impl SchemaTrait for MysqlDB {
         let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let r = sqlx::query(sql.as_str()).execute(conn.deref_mut()).await?;
+        let r = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(r.rows_affected()),
@@ -1038,7 +1088,9 @@ impl SchemaTrait for MysqlDB {
         "#
         );
         let mut conn = self.get_conn().await?;
-        sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(s.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -1051,7 +1103,9 @@ impl SchemaTrait for MysqlDB {
 
         let mut conn = self.get_conn().await?;
 
-        let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
+        let r = sqlx::query(AssertSqlSafe(s.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(SqlExecuteRet {
             sql: s,
             changes: Some(r.rows_affected()),
@@ -1067,7 +1121,9 @@ impl SchemaTrait for MysqlDB {
         let s = self.update_sql(None, table_name, &fs, &values, &wheres)?;
         let mut conn = self.get_conn().await?;
 
-        let r = sqlx::query(s.as_str()).execute(conn.deref_mut()).await?;
+        let r = sqlx::query(AssertSqlSafe(s.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(SqlExecuteRet {
             sql: s,
             changes: Some(r.rows_affected()),
@@ -1100,7 +1156,9 @@ impl SchemaTrait for MysqlDB {
 
         let s = format!("describe `{}`", table_name);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(s.as_str()).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(s.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name = match r.try_get::<'_, String, _>(0) {
@@ -1140,7 +1198,7 @@ impl SchemaTrait for MysqlDB {
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(sql.as_str())
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
@@ -1153,7 +1211,9 @@ impl SchemaTrait for MysqlDB {
         let sql = format!("SHOW INDEX FROM `{table_name}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut map: HashMap<String, Index> = HashMap::new();
         for r in rows.iter() {
             let non_unique: Option<i32> = r.get(1);
@@ -1189,6 +1249,12 @@ fn encode_rows(rows: &Vec<MySqlRow>) -> anyhow::Result<Vec<Vec<Option<String>>>>
         for c in 0..r.len() {
             let col = r.column(c);
             let ty = col.type_info().name();
+
+            println!(
+                "!!!!!!!!!!!!!!!!:{:?}  {}",
+                col.type_info(),
+                col.type_info().name()
+            );
 
             let v = match ty.to_uppercase().as_str() {
                 "BOOLEAN" | "BOOL" => {
@@ -1323,7 +1389,9 @@ impl MysqlDB {
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
-        let row = sqlx::query(s.as_str()).fetch_one(conn.deref_mut()).await?;
+        let row = sqlx::query(AssertSqlSafe(s.as_str()))
+            .fetch_one(conn.deref_mut())
+            .await?;
         let count: i64 = row.get(0);
         anyhow::Ok(count as usize)
     }
@@ -1344,9 +1412,9 @@ impl MysqlDB {
         let mut ret = Vec::new();
         for r in rows.iter() {
             let name: String = r.try_get_unchecked(0)?;
-            if name.eq_ignore_ascii_case("information_schema") {
-                continue;
-            }
+            // if name.eq_ignore_ascii_case("information_schema") {
+            //     continue;
+            // }
             ret.push(name);
         }
         ret.sort();
@@ -1380,7 +1448,9 @@ impl DBTrait for MysqlDB {
         let sql = format!("CREATE DATABASE {name}");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 
@@ -1389,7 +1459,9 @@ impl DBTrait for MysqlDB {
         let sql = format!("DROP DATABASE {name}");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(&sql).execute(conn.deref_mut()).await?;
+        sqlx::query(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
         anyhow::Ok(())
     }
 }
@@ -1537,7 +1609,7 @@ impl QuerySql for MysqlDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
 
-        let ret = match conn.execute(sqlx::raw_sql(sql)).await {
+        let ret = match conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await {
             Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
@@ -1562,7 +1634,7 @@ impl QuerySql for MysqlDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
-        let mut stream = sqlx::raw_sql(sql).fetch_many(conn.deref_mut());
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         let mut rows = Vec::new();
         log::info!("execute sql:{}", sql);
         let mut ml = MemoryLimit::new();
@@ -1597,7 +1669,10 @@ impl QuerySql for MysqlDB {
         drop(stream);
         if ret.len() == 0 {
             use sqlx::Statement;
-            let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
+            let s = conn
+                .deref_mut()
+                .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+                .await?;
             let field = s
                 .columns()
                 .iter()
@@ -2155,14 +2230,13 @@ pub(crate) mod test_fns {
 
     pub(crate) async fn test_types1(db: MysqlDB) {
         enable_test_log();
-
         let table_name = "test_types1";
 
-        let mut conn = db.get_conn().await.unwrap();
-        let _ = sqlx::query(&format!("drop table {table_name}"))
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = db.open_connection().await.unwrap();
+
+        db.execute_sql(
+            query_id,
             format!(
                 r#"
             CREATE TABLE {table_name} (
@@ -2177,8 +2251,8 @@ pub(crate) mod test_fns {
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
+        .unwrap()
         .unwrap();
 
         let mut values: HashMap<String, Option<String>> = HashMap::new();
@@ -2200,14 +2274,11 @@ pub(crate) mod test_fns {
 
     pub(crate) async fn test_types2(db: MysqlDB) {
         enable_test_log();
-
         let table_name = "test_types2";
-
-        let mut conn = db.get_conn().await.unwrap();
-        let _ = sqlx::query(&format!("drop table {table_name}"))
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
             format!(
                 r#"
                 CREATE TABLE {table_name} (
@@ -2222,8 +2293,8 @@ pub(crate) mod test_fns {
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
+        .unwrap()
         .unwrap();
 
         let mut values: HashMap<String, Option<String>> = HashMap::new();
@@ -2245,14 +2316,11 @@ pub(crate) mod test_fns {
 
     pub(crate) async fn test_types3(db: MysqlDB) {
         enable_test_log();
-
         let table_name = "test_types3";
-
-        let mut conn = db.get_conn().await.unwrap();
-        let _ = sqlx::query(&format!("drop table {table_name}"))
-            .execute(conn.deref_mut())
-            .await;
-        sqlx::query(
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
             format!(
                 r#"
                 CREATE TABLE {table_name} (
@@ -2268,8 +2336,8 @@ pub(crate) mod test_fns {
             )
             .as_str(),
         )
-        .execute(conn.deref_mut())
         .await
+        .unwrap()
         .unwrap();
 
         let mut values: HashMap<String, Option<String>> = HashMap::new();
@@ -2446,6 +2514,7 @@ mod tests {
     use super::test_fns::{self, make_test_object};
     use crate::TEST_HOST;
     use crate::datasource_config::MysqlDBConfig;
+    use crate::db::QuerySql;
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
@@ -2459,6 +2528,30 @@ mod tests {
             ssl: Default::default(),
         }
     }
+
+    #[tokio::test]
+    async fn test_xxx() {
+        let mut config = make_config();
+        config.db = Some("information_schema".to_string());
+        let db = make_test_object(config).await;
+
+        let query_id = db.open_connection().await.unwrap();
+
+        let resp = db
+            .query_sql(
+                query_id,
+                r#"
+                show TABLES 
+        "#,
+            )
+            .await
+            .unwrap()[0]
+            .clone()
+            .unwrap();
+
+        println!("{:?}", resp);
+    }
+
     #[tokio::test]
     async fn test_duplicate() {
         test_fns::test_duplicate(make_test_object(make_config()).await).await;

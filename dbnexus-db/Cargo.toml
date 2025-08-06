@@ -8,11 +8,7 @@ license.workspace = true
 
 
 [dependencies]
-bb8 = "0.9"
-anyhow.workspace = true
-serde.workspace = true
-async-trait.workspace = true
-sqlx = { version = "0.8.5", features = [
+sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "main", features = [
     "runtime-tokio",
     "postgres",
     "sqlite",
@@ -26,7 +22,13 @@ sqlx = { version = "0.8.5", features = [
     "json",
     "tls-rustls",
 ] }
-sqlx-core = { version = "*", features = [] }
+bb8 = "0.9"
+anyhow.workspace = true
+serde.workspace = true
+async-trait.workspace = true
+sqlx-core = { git = "https://github.com/launchbadge/sqlx", branch = "main", features = [
+    "any",
+] }
 
 redis = { version = "*", features = [
     "tokio-comp",
