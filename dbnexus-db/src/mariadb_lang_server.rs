@@ -147,4 +147,8 @@ impl LexerCompletionTrait for MariaDB {
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         self.db.list_table_or_view().await
     }
+
+    async fn get_key_words_from_query(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        self.db.get_key_words_from_query().await
+    }
 }

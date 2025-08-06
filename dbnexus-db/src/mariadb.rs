@@ -439,7 +439,8 @@ mod tests {
 
     use crate::TEST_HOST;
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::{QuerySql, SchemaTrait};
+    use crate::db::{QuerySql, SchemaTrait, monaco_editor_keyword_regexp};
+    use crate::language_server::LexerCompletionTrait;
     use crate::mariadb::MariaDB;
     use crate::mysql::test_fns::{self, make_test_object};
 
@@ -486,6 +487,23 @@ mod tests {
         let name2 = format!("{name}2");
         db.rename_sequnce(name, &name2).await.unwrap();
         db.rename_sequnce(&name2, name).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn print_key_words() {
+        let db = make_test_object_mariadb(make_config()).await;
+
+        let keywords = <MariaDB as LexerCompletionTrait>::get_key_words_from_query(&db)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|x| x.item.to_string())
+            .collect::<Vec<_>>();
+
+        let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
+
+        let s = monaco_editor_keyword_regexp(&keywords[..]);
+        println!("{}", s);
     }
 
     #[tokio::test]

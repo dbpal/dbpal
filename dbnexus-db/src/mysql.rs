@@ -22,6 +22,7 @@ use crate::db::{
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, escape_sql_str,
 };
+use crate::language_server::CompletionItem;
 
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
@@ -34,6 +35,7 @@ pub struct MysqlDB {
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
     query_logs: QueryLogMap,
     tx_execute_times: TXExecuteTimes,
+    pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
@@ -51,7 +53,7 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
             is_primary: false,
             is_auto_increment: false,
             sortable: true,
-            firebird_binary_sub_type: None,
+            firebird_binary_sub_type: Default::default(),
         });
     }
     ret
@@ -1406,6 +1408,7 @@ impl MysqlDB {
             query_connection: Default::default(),
             query_logs: Default::default(),
             tx_execute_times: Default::default(),
+            key_word_completion: Default::default(),
         })
     }
 

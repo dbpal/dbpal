@@ -95,7 +95,6 @@ mod tests {
         use dbnexus_db::firebird::FireBirdDB;
         use dbnexus_db::language_server::LexerCompletionTrait;
         use dbnexus_db::mssql::MsSqlServerDB;
-        use dbnexus_db::mysql::MysqlDB;
         use dbnexus_db::oracle::OracleDB;
         use dbnexus_db::pg::PostGresDB;
         use dbnexus_db::redis_lang_server::REDIS_COMMANDS;
@@ -127,13 +126,6 @@ mod tests {
         {
             let content = monaco_editor_keyword_regexp(REDIS_COMMANDS);
             file.write(compose("redisKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
-        }
-        // mysql
-        {
-            let content = MysqlDB::monaco_editor_keyword_regexp();
-            file.write(compose("mysqlKeywords", &content).as_bytes())
                 .unwrap();
             file.write("\n".as_bytes()).unwrap();
         }
@@ -192,7 +184,7 @@ mod tests {
 
         // TODO add more
         file.write(
-        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords ,tidbKeywords , cassandraKeywords  , firebirdKeywords }"#.as_bytes(),
+        r#"export { redisKeywords ,  mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords ,tidbKeywords , cassandraKeywords  , firebirdKeywords }"#.as_bytes(),
     )
     .unwrap();
     }
