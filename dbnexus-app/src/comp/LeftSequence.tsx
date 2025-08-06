@@ -152,6 +152,7 @@ function SequenceMenu(props: {
 
   const handleOpenDetails = () => {
     initMonacoLanague(uuid, kind);
+
     const id = uuid + '-' + '-sequence-' + seq;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
