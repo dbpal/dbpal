@@ -16,11 +16,6 @@ use dbnexus_db::redis::{RedisDB, RedisListTable};
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
-pub struct DBNexusConfigs {
-    connection_configs: Vec<DBConnectionConfig>,
-}
-
 impl DBConnectionConfig {
     pub fn get_name(&self) -> &str {
         match self {

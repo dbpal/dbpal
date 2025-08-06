@@ -30,7 +30,7 @@ import {
 import { NotificationContext } from './Notification';
 import { LogLevelSelection } from './CommonComp';
 import * as esprima from 'esprima';
-import { PiFileSqlFill } from 'react-icons/pi';
+import { FaBookmark } from 'react-icons/fa';
 initMongoQueryGlobals();
 
 function makeLog(level, ...msg: any[]): string {
@@ -213,7 +213,7 @@ function MongoQuery(props: {
             }}
             color="primary"
           >
-            <PiFileSqlFill style={{ fontSize: '1.6rem' }} />
+            <FaBookmark style={{ fontSize: '1.3rem' }} />
           </IconButton>
         </Tooltip>
 
