@@ -21,6 +21,7 @@ use crate::db::{
     UdfOrProcedureExtraParameter, not_support_feature,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
+use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
@@ -33,7 +34,7 @@ pub struct PostGresDB {
     pub(crate) query_connection:
         Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     query_logs: QueryLogMap,
-
+    pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
     tx_execute_times: TXExecuteTimes,
 }
 
@@ -1593,6 +1594,7 @@ impl PostGresDB {
             query_connection: Default::default(),
             query_logs: Default::default(),
             tx_execute_times: Default::default(),
+            key_word_completion: Default::default(),
         })
     }
 

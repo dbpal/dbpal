@@ -493,7 +493,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object_mariadb(make_config()).await;
 
-        let keywords = <MariaDB as LexerCompletionTrait>::get_key_words_from_query(&db)
+        let keywords = <MariaDB as LexerCompletionTrait>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()

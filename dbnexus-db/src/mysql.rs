@@ -1441,9 +1441,6 @@ impl MysqlDB {
         let mut ret = Vec::new();
         for r in rows.iter() {
             let name: String = r.try_get_unchecked(0)?;
-            // if name.eq_ignore_ascii_case("information_schema") {
-            //     continue;
-            // }
             ret.push(name);
         }
         ret.sort();

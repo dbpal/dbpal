@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::ops::{Deref, DerefMut};
+use std::ops::DerefMut;
 use std::sync::Arc;
 
 use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
@@ -23,10 +23,10 @@ impl LexerCompletionTrait for MysqlDB {
         self.build_fn_completion_items().await.unwrap_or(vec![])
     }
 
-    async fn get_key_words_from_query(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.key_word_completion.lock().await;
         if lock.len() > 0 {
-            return anyhow::Ok(lock.deref().clone());
+            return anyhow::Ok(lock.clone());
         }
         let mut conn = self.get_conn().await?;
         let rows = sqlx::query("SELECT  * from information_schema.KEYWORDS")
@@ -41,7 +41,7 @@ impl LexerCompletionTrait for MysqlDB {
                 desc: None,
             });
         }
-        return anyhow::Ok(lock.deref().clone());
+        return anyhow::Ok(lock.clone());
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
@@ -425,7 +425,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object(make_config()).await;
 
-        let keywords = <MysqlDB as LexerCompletionTrait>::get_key_words_from_query(&db)
+        let keywords = <MysqlDB as LexerCompletionTrait>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()
@@ -498,10 +498,13 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_completion_xxx() {
         enable_test_log();
-        let db = make_test_object(make_config()).await;
+        let mut config = make_config();
+        config.db = None;
+
+        let db = make_test_object(config).await;
         test_file_auto_completion(
-            r#"select * from test.dbo.employees
-19 test "#,
+            r#"SELECT * from test
+19 test"#,
             &db,
             false,
         )

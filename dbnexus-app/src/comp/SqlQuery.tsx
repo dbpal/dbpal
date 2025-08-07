@@ -15,7 +15,6 @@ import {
   Typography,
 } from '@mui/material';
 
-import FavoriteIcon from '@mui/icons-material/Favorite';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { FaExclamation } from 'react-icons/fa';
@@ -729,7 +728,7 @@ function SqlQuery(props: {
                       setShowFavoriteName(false);
                     }}
                   >
-                    <FavoriteIcon> </FavoriteIcon>
+                    <FaBookmark> </FaBookmark>
                   </IconButton>
                 </Stack>
               </Stack>

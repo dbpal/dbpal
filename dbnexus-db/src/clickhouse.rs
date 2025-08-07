@@ -16,6 +16,7 @@ use crate::db::{
     SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
@@ -900,6 +901,7 @@ pub struct ClickHouseDB {
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
     query_logs: QueryLogMap,
+    pub(crate) key_word_completion: Arc<tokio::sync::Mutex<Vec<CompletionItem>>>,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {
@@ -935,6 +937,7 @@ impl ClickHouseDB {
             pool,
             client,
             query_logs: Default::default(),
+            key_word_completion: Default::default(),
         })
     }
 

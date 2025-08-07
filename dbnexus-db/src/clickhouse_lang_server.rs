@@ -26,7 +26,7 @@ impl LanguageServer for ClickHouseDB {
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
-                log::error!("completion on ast failed,err:{:?}", err);
+                log::error!("completion on ast failed,err:{}", err);
             }
         };
         if !use_lexer {
@@ -181,19 +181,21 @@ impl LexerCompletionTrait for ClickHouseDB {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
 
-    async fn get_key_words_from_query(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.key_word_completion.lock().await;
+        if lock.len() > 0 {
+            return anyhow::Ok(lock.clone());
+        }
+
         let sql = "select * from system.keywords";
         let conn = self.get_conn()?;
         let ret: Vec<String> = conn.query(sql).fetch_all().await?;
-        anyhow::Ok(
-            ret.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
-                })
-                .collect(),
-        )
+        lock.extend(ret.into_iter().map(|x| CompletionItem {
+            item: x.into(),
+            kind: CompletionKind::KeyWord,
+            desc: None,
+        }));
+        return anyhow::Ok(lock.clone());
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
@@ -327,7 +329,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object();
 
-        let keywords = <ClickHouseDB as LexerCompletionTrait>::get_key_words_from_query(&db)
+        let keywords = <ClickHouseDB as LexerCompletionTrait>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()

@@ -129,8 +129,6 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
         );
       };
     });
-
-    console.log(oldData);
     setData(oldData);
   }, [oldData]);
 

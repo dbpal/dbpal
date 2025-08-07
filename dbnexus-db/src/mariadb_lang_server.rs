@@ -136,7 +136,7 @@ impl LangServerCommon for MariaDB {
 impl LexerCompletionTrait for MariaDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
 
-    const KEY_WORDS: &'static [&'static str] = MysqlDB::KEY_WORDS;
+    const KEY_WORDS: &'static [&'static str] = &[];
     const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
     const TYPES: &'static [&'static str] = MysqlDB::TYPES;
 
@@ -148,7 +148,7 @@ impl LexerCompletionTrait for MariaDB {
         self.db.list_table_or_view().await
     }
 
-    async fn get_key_words_from_query(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        self.db.get_key_words_from_query().await
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        self.db.get_key_words_fn().await
     }
 }

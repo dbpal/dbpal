@@ -6,7 +6,6 @@ use crate::language_server::{
     AstCompletionHelper, CompletionItem, LangServerCommon, LanguageServer, LexerCompletionTrait,
     try_completion_on_syntax,
 };
-use crate::pg_lang_server::PG_KEYWORDS;
 
 #[async_trait::async_trait]
 
@@ -64,8 +63,12 @@ impl LangServerCommon for CockRoachDB {
 impl LexerCompletionTrait for CockRoachDB {
     type Dialect = sqlparser::dialect::PostgreSqlDialect;
 
-    const KEY_WORDS: &'static [&'static str] = PG_KEYWORDS;
+    const KEY_WORDS: &'static [&'static str] = &[];
     const TYPES: &'static [&'static str] = COCKROACH_DATA_TYPES;
+
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        self.pg.get_key_words_fn().await
+    }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         let mut ret = AstCompletionHelper::list_table(self.pg.as_ref(), None, None).await?;
@@ -79,5 +82,31 @@ impl LexerCompletionTrait for CockRoachDB {
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::list_function(self.pg.as_ref(), None, None, true).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        cockroach::{CockRoachDB, make_test_object},
+        db::monaco_editor_keyword_regexp,
+        language_server::LexerCompletionTrait,
+    };
+
+    #[tokio::test]
+    async fn print_key_words() {
+        let db = make_test_object().await;
+
+        let keywords = <CockRoachDB as LexerCompletionTrait>::get_key_words_fn(&db)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|x| x.item.to_string())
+            .collect::<Vec<_>>();
+
+        let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
+
+        let s = monaco_editor_keyword_regexp(&keywords[..]);
+        println!("{}", s);
     }
 }

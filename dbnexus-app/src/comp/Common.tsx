@@ -62,6 +62,7 @@ const modalStyle: SxProps = {
 import {
   cassandraKeywords,
   clickhouseKeyWords,
+  cockroachKeywords,
   duckdbKeyWords,
   firebirdKeywords,
   mariadbKeyWords,
@@ -779,9 +780,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             root: [
               [mariadbKeyWords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
               [/\/\*[^]*?\*\//g, 'comment'], // not working why
               [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
@@ -804,9 +803,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             root: [
               [mysqlKeywords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
               [/\/\*[^]*?\*\//g, 'comment'], // not working why
               [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
@@ -829,9 +826,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             root: [
               [clickhouseKeyWords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
               [/\/\*[^]*?\*\//g, 'comment'], // not working why
               [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
@@ -855,9 +850,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             root: [
               [tidbKeywords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
               [/\/\*[^]*?\*\//g, 'comment'], // not working why
               [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
@@ -881,9 +874,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             root: [
               [sqliteKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
               [/\/\*[^]*?\*\//g, 'comment'], // not working why
               [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
@@ -903,9 +894,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             root: [
               [firebirdKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
               [/\/\*[^]*?\*\//g, 'comment'], // not working why
               [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
@@ -938,7 +927,6 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       break;
 
     case DataSourceKind.Postgres:
-    case DataSourceKind.Cockroach:
       initLanguageXXX(
         uuid,
         {
@@ -946,6 +934,25 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           tokenizer: {
             root: [
               [postgresKeywords, 'keyword'],
+              [/[_a-z][_a-z0-9]*/i, 'identifier'],
+              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
+              [/\/\*[^]*?\*\//g, 'comment'], // not working why
+              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+            ],
+          },
+        } as languages.IMonarchLanguage,
+        autoCompletion,
+        format
+      );
+      break;
+    case DataSourceKind.Cockroach:
+      initLanguageXXX(
+        uuid,
+        {
+          ignoreCase: true,
+          tokenizer: {
+            root: [
+              [cockroachKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\"(?:\\.|[^\"\"])*\"/, 'string'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],

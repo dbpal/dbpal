@@ -21,6 +21,7 @@ use crate::db::{
     TriggerEvent, TriggerTiming, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
+use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
@@ -36,6 +37,7 @@ pub struct SqliteDB {
     query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
     tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
+    pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 impl SqliteDB {
@@ -1142,6 +1144,7 @@ impl SqliteDB {
             path,
             query_logs: Default::default(),
             tx_execute_times: Default::default(),
+            build_fn_cache: Default::default(),
         })
     }
 

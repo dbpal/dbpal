@@ -92,7 +92,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
     }
 
     // some backend can use a query to query this.
-    async fn get_key_words_from_query(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
     }
 
@@ -149,7 +149,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 })
                 .collect::<Vec<_>>(),
         );
-        ret.extend(self.get_key_words_from_query().await?.into_iter());
+        ret.extend(self.get_key_words_fn().await?.into_iter());
         ret.extend(
             Self::TYPES
                 .iter()

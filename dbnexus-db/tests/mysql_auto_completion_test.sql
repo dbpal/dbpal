@@ -60,3 +60,5 @@ SELECT sys.xxx from sys.format_bytes
 37 format_bytes
 SELECT ENGINE from information_schema.ENGINES
 14 ENGINE ; 46 ENGINES
+SELECT * from test
+19 test

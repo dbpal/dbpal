@@ -21,7 +21,6 @@ pub struct CompletionStatement {
     pub(crate) helper: Arc<dyn AstCompletionHelper>,
     pub(crate) scopes: Scopes,
     pub(crate) on_def: bool,
-    pub(crate) has_err: bool,
 }
 
 #[derive(Clone)]
@@ -333,7 +332,6 @@ impl CompletionStatement {
             result: None,
             scopes: Scopes::new(),
             on_def: false,
-            has_err: false,
         }
     }
 
@@ -341,12 +339,8 @@ impl CompletionStatement {
         self.on_def = true
     }
 
-    pub(crate) fn set_has_err(&mut self) {
-        self.has_err = true
-    }
-
     pub(crate) fn finished(&self) -> bool {
-        self.result.is_some() || self.on_def || self.has_err
+        self.result.is_some() || self.on_def
     }
 
     pub(crate) fn in_pos(&self, span: &Span) -> bool {
@@ -1893,20 +1887,13 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-            SHOW Databa
+            select * from "has"
         "#;
-
-        let dialect = sqlparser::dialect::MySqlDialect {};
+        let dialect = sqlparser::dialect::SQLiteDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
         let mut p = p.try_with_sql(sql).unwrap();
         let statement = p.parse_statement().unwrap();
-        // let s = serde_json::to_string(match &statement {
-        //     Statement::Delete(x) => &x.from,
-        //     _ => {
-        //         unreachable!()
-        //     }
-        // })
-        // .unwrap();
+
         let s = serde_json::to_string(&statement).unwrap();
 
         println!("{}", s);

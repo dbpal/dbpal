@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -83,8 +83,7 @@ impl CompletionStatement {
                 .list_role()
                 .await
                 .map_err(|e| {
-                    log::error!("list_role failed,err:{:?}", e);
-                    self.set_has_err();
+                    log::error!("list_role failed,err:{}", e);
                 })
                 .unwrap_or_default()
                 .into_iter()
@@ -105,7 +104,7 @@ impl CompletionStatement {
             self.helper
                 .list_cluster()
                 .await
-                .map_err(|x| log::error!("list_cluster failed,err:{:?}", x))
+                .map_err(|x| log::error!("list_cluster failed,err:{}", x))
                 .unwrap_or_default()
                 .into_iter()
                 .map(|name| CompletionItem {
@@ -175,7 +174,6 @@ impl CompletionStatement {
                 .await
                 .map_err(|e| {
                     log::error!("list_variable failed,err:{:?}", e);
-                    self.set_has_err();
                 })
                 .unwrap_or_default()
                 .into_iter()
@@ -270,8 +268,7 @@ impl CompletionStatement {
                                 .list_column(db, schema, table)
                                 .await
                                 .map_err(|e| {
-                                    log::error!("list_column failed,err:{:?}", e);
-                                    self.set_has_err();
+                                    log::error!("list_column failed,err:{}", e);
                                 })
                                 .ok()
                                 .unwrap_or_default();
@@ -348,8 +345,7 @@ impl CompletionStatement {
                             .list_partition(db, schema, table)
                             .await
                             .map_err(|e| {
-                                log::error!("list partition failed,err:{:?}", e);
-                                self.set_has_err();
+                                log::error!("list partition failed,err:{}", e);
                             })
                             .ok()
                             .unwrap_or_default()
@@ -394,7 +390,6 @@ impl CompletionStatement {
                 .await
                 .map_err(|err| {
                     log::error!("list index failed,err:{}", err);
-                    self.set_has_err();
                 })
                 .ok()
                 .unwrap_or_default()
@@ -440,7 +435,6 @@ impl CompletionStatement {
                 };
             }
             _ => {
-                self.set_has_err();
                 log::error!("wrong ObjectName:{:?}", item_name);
             }
         };
@@ -458,7 +452,6 @@ impl CompletionStatement {
                 .await
                 .map_err(|err| {
                     log::error!("list_postgres_rule,err:{}", err);
-                    self.set_has_err();
                 })
                 .ok()
                 .unwrap_or_default()
@@ -480,8 +473,7 @@ impl CompletionStatement {
                     .list_constraint(db, schema, table_name)
                     .await
                     .map_err(|err| {
-                        log::error!("list_constraint failed,err:{:?}", err);
-                        self.set_has_err()
+                        log::error!("list_constraint failed,err:{}", err);
                     })
                     .ok()
                     .unwrap_or_default()
@@ -954,8 +946,7 @@ impl CompletionStatement {
                 .list_view(db, schema)
                 .await
                 .map_err(|e| {
-                    log::error!("list table failed,err:{:?}", e);
-                    self.set_has_err();
+                    log::error!("list view failed,err:{}", e);
                 })
                 .ok()
                 .unwrap_or_default()
@@ -1093,7 +1084,6 @@ impl CompletionStatement {
                             .await
                             .map_err(|e| {
                                 log::error!("list_column failed,err:{}", e);
-                                self.set_has_err();
                             })
                             .ok()
                             .unwrap_or_default();
@@ -1125,15 +1115,16 @@ impl CompletionStatement {
                 }
                 self.result.as_mut().unwrap().extend(items);
 
-                // 我们也要函数
-                let fs = self
-                    .helper
-                    .list_function(None, None, true)
-                    .await
-                    .ok()
-                    .unwrap_or_default();
-                self.result.as_mut().unwrap().extend(fs);
-
+                if ident.quote_style.is_none() {
+                    // 我们也要函数
+                    let fs = self
+                        .helper
+                        .list_function(None, None, true)
+                        .await
+                        .ok()
+                        .unwrap_or_default();
+                    self.result.as_mut().unwrap().extend(fs);
+                }
                 //也要schema
                 let schemas: Vec<_> = self
                     .helper
@@ -1504,13 +1495,13 @@ impl CompletionStatement {
             Expr::Exists { subquery, .. } => {
                 let _ = Box::pin(self.c_on_query(&subquery))
                     .await
-                    .map_err(|e| log::error!("a error:{:?}", e))
+                    .map_err(|e| log::error!("a error:{}", e))
                     .ok();
             }
             Expr::Subquery(query) => {
                 let _ = Box::pin(self.c_on_query(&query))
                     .await
-                    .map_err(|e| log::error!("a error:{:?}", e))
+                    .map_err(|e| log::error!("a error:{}", e))
                     .ok();
             }
             Expr::GroupingSets(vec) => {
@@ -1701,7 +1692,6 @@ impl CompletionStatement {
                 .await
                 .map_err(|e| {
                     log::error!("list column error:{:?}", e);
-                    self.set_has_err();
                 })
                 .ok()
                 .unwrap_or_default();
@@ -1721,7 +1711,6 @@ impl CompletionStatement {
                     .await
                     .map_err(|e| {
                         log::error!("list_table_trigger failed,err:{:?}", e);
-                        self.set_has_err();
                     })
                     .ok()
                     .unwrap_or_default()
@@ -1748,7 +1737,6 @@ impl CompletionStatement {
                             .await
                             .map_err(|e| {
                                 log::error!("list schema error:{:?}", e);
-                                self.set_has_err();
                             })
                             .ok()
                             .unwrap_or_default()
@@ -1771,7 +1759,6 @@ impl CompletionStatement {
                             .await
                             .map_err(|e| {
                                 log::error!("list db error:{:?}", e);
-                                self.set_has_err();
                             })
                             .ok()
                             .unwrap_or_default()
@@ -1794,7 +1781,6 @@ impl CompletionStatement {
                             .await
                             .map_err(|e| {
                                 log::error!("list schema error:{:?}", e);
-                                self.set_has_err();
                             })
                             .ok()
                             .unwrap_or_default()
@@ -1862,7 +1848,6 @@ impl CompletionStatement {
             .await
             .map_err(|e| {
                 log::error!("list table failed,err:{:?}", e);
-                self.set_has_err();
             })
             .ok()
             .unwrap_or_default();
@@ -1871,6 +1856,20 @@ impl CompletionStatement {
         // here maybe we are suggest database all schemas.
         items.extend(self.helper.list_database().await.unwrap_or_default());
         items.extend(self.helper.list_schema(None).await.unwrap_or_default());
+
+        // remove dupliate we have entered table and tables in database
+        let items = {
+            let mut names = HashSet::new();
+            let mut items2 = Vec::new();
+            for item in items {
+                if names.contains(&item) {
+                    continue;
+                }
+                names.insert(item.clone());
+                items2.push(item);
+            }
+            items2
+        };
         let items = items
             .into_iter()
             .map(|x| CompletionItem {
@@ -1995,7 +1994,6 @@ impl CompletionStatement {
                                         .await
                                         .map_err(|e| {
                                             log::error!("list_column failed,err:{}", e);
-                                            self.set_has_err();
                                         })
                                         .unwrap_or_default()
                                         .into_iter(),
@@ -2355,7 +2353,6 @@ impl CompletionStatement {
                     .await
                     .map_err(|e| {
                         log::error!("list_column failed,err:{:?}", e);
-                        self.set_has_err();
                     })
                     .ok()
                     .unwrap_or_default()
@@ -2530,7 +2527,6 @@ impl CompletionStatement {
                 .await
                 .map_err(|e| {
                     log::error!("list_procedure error:{:?}", e);
-                    self.set_has_err();
                 })
                 .ok()
                 .unwrap_or_default()
@@ -2621,7 +2617,6 @@ impl CompletionStatement {
                 .await
                 .map_err(|e| {
                     log::error!("list function error:{:?}", e);
-                    self.set_has_err();
                 })
                 .ok()
                 .unwrap_or_default(),
@@ -2643,7 +2638,6 @@ impl CompletionStatement {
                 .await
                 .map_err(|e| {
                     log::error!("list function error:{:?}", e);
-                    self.set_has_err();
                 })
                 .ok()
                 .unwrap_or_default(),

@@ -8,6 +8,7 @@ use std::time::Duration;
 use bb8::ManageConnection;
 use dashmap::DashMap;
 use libsql::{Connection, Row, ValueType, params};
+use tokio::sync::Mutex;
 
 use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
@@ -18,6 +19,7 @@ use crate::db::{
     escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
+use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 use crate::sqlite::{
@@ -33,6 +35,7 @@ pub struct LibSqlDB {
     query_connections_transaction: Arc<DashMap<uuid::Uuid, libsql::Transaction>>,
     tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
+    pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 impl BackendName for LibSqlDB {
@@ -343,6 +346,7 @@ impl LibSqlDB {
             query_connections_transaction: Default::default(),
             query_logs: Default::default(),
             tx_execute_times: Default::default(),
+            build_fn_cache: Default::default(),
         })
     }
 

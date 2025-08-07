@@ -9,9 +9,7 @@ use crate::language_server::{
     LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::libsql::LibSqlDB;
-use crate::sqlite_lang_server::{
-    SQLITE_FN_AND_DESC, SQLITE_KEY_WORDS, SQLITE_TYPES, sqlite_pragma,
-};
+use crate::sqlite_lang_server::{SQLITE_KEY_WORDS, SQLITE_TYPES, sqlite_pragma};
 
 #[async_trait::async_trait]
 
@@ -143,15 +141,27 @@ impl AstCompletionHelper for LibSqlDB {
     async fn list_function(
         &self, _catelog: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let vec = SQLITE_FN_AND_DESC
-            .iter()
-            .map(|x| CompletionItem {
-                item: x[0].into(),
+        let mut lock = self.build_fn_cache.lock().await;
+        if lock.len() > 0 {
+            return anyhow::Ok(lock.clone());
+        }
+
+        let sql = r#"
+            SELECT name 
+            FROM pragma_function_list()
+            ORDER BY name;
+        "#;
+        let conn = self.get_conn().await?;
+        let mut rows = conn.query(sql, params!()).await?;
+        while let Some(row) = rows.next().await? {
+            let name: String = row.get(0)?;
+            lock.push(CompletionItem {
+                item: name.into(),
                 kind: CompletionKind::Function,
-                desc: Some(x[1].into()),
-            })
-            .collect::<Vec<_>>();
-        anyhow::Ok(vec)
+                desc: None,
+            });
+        }
+        return anyhow::Ok(lock.clone());
     }
 
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
