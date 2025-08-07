@@ -30,11 +30,18 @@ function BackendCrash(props: { msg: string }) {
         </Button>
       </Stack>
 
-      <Paper elevation={8}>
-        <pre style={{ color: 'red', fontWeight: 'bold', overflow: 'scorll' }}>
-          {msg}
-        </pre>
-      </Paper>
+      <div style={{ display: 'grid' }}>
+        <Paper
+          elevation={8}
+          style={{
+            overflow: 'scroll',
+            maxWidth: '99%',
+            maxHeight: '80vh',
+          }}
+        >
+          <pre style={{ color: 'red', fontWeight: 'bold' }}>{msg}</pre>
+        </Paper>
+      </div>
     </Stack>
   );
 }
