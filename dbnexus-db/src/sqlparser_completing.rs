@@ -2236,7 +2236,7 @@ impl CompletionStatement {
         let _with_temp_table_guard = self.scopes.push(s);
         let mut s_on_set_expr: Vec<Scope> = vec![];
         let result = Box::pin(self.c_on_set_expr(&query.body, &mut s_on_set_expr)).await?;
-        let _gurad = self.scopes.pushs(s_on_set_expr);
+        let _gurad = self.scopes.push_scopes(s_on_set_expr);
 
         if let Some(orderby) = query.order_by.as_ref() {
             match &orderby.kind {
@@ -2411,10 +2411,7 @@ impl CompletionStatement {
                             .ok()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| TempTableColumn {
-                                name: x.item.to_string(),
-                                typ: x.desc.map(|x| x.to_string()),
-                            })
+                            .map(TempTableColumn::from)
                             .collect::<Vec<_>>();
 
                         if columns.len() > 0 {
@@ -2546,13 +2543,7 @@ impl CompletionStatement {
                     .map_err(|e| log::error!("list column failed,e:{}", e))
                     .ok()
                     .unwrap_or_default();
-                let columns: Vec<_> = columns
-                    .into_iter()
-                    .map(|x| TempTableColumn {
-                        name: x.item.to_string(),
-                        typ: x.desc.map(|x| x.to_string()),
-                    })
-                    .collect();
+                let columns: Vec<_> = columns.into_iter().map(TempTableColumn::from).collect();
 
                 if let Some(alias) = alias {
                     s.enter_temp_table(

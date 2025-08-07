@@ -124,7 +124,8 @@ impl Scopes {
             n: 1,
         }
     }
-    pub(crate) fn pushs(&self, scopes: Vec<Scope>) -> ScopesDropGuard {
+
+    pub(crate) fn push_scopes(&self, scopes: Vec<Scope>) -> ScopesDropGuard {
         let length = scopes.len();
 
         self.ss.lock().unwrap().extend(scopes.into_iter());
