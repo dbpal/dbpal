@@ -15,7 +15,7 @@ function BackendCrash(props: { msg: string }) {
           onClick={() => {
             openUrl('https://github.com/dbpal/docs/issues');
           }}
-          color="error"
+          color="info"
           variant="contained"
         >
           report

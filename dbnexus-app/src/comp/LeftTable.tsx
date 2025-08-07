@@ -65,6 +65,7 @@ import {
   TabsSetContext,
   UuidContext,
   handleCopyToClipboard,
+  quoteStyle,
 } from './helper';
 import { MenuRefresh } from './CommonComp';
 import { TableStructure } from './TableStructure';
@@ -306,6 +307,7 @@ async function makeViewTable(
     case DataSourceKind.Cockroach:
       tableList = (
         <SqlTableView
+          quoteStyle={quoteStyle(kind)}
           autoCompletion={makeAutoComplete(uuid)}
           tableName={table}
           kind={kind}

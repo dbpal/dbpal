@@ -56,6 +56,7 @@ import {
   generateRandomString,
   handleCopyToClipboard,
   MatchPatternContext,
+  quoteStyle,
   secondConfirm,
   TabsSetContext,
   UuidContext,
@@ -521,6 +522,7 @@ function ViewMenu(props: {
       case DataSourceKind.Cockroach:
         list = (
           <SqlTableView
+            quoteStyle={quoteStyle(kind)}
             autoCompletion={makeAutoComplete(uuid)}
             tableName={view}
             kind={kind}

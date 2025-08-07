@@ -313,6 +313,7 @@ function SqlTableView_(props: {
     sql: string,
     pos: Position
   ) => Promise<languages.CompletionList>;
+  quoteStyle: string;
 }) {
   let {
     reloadOP,
@@ -324,6 +325,7 @@ function SqlTableView_(props: {
     tableName,
     addOP,
     autoCompletion,
+    quoteStyle,
   } = props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -574,6 +576,7 @@ function SqlTableView_(props: {
                     value
                   );
                 }}
+                quoteStyle={quoteStyle}
                 setNull={
                   updateOP
                     ? async () => {
@@ -982,6 +985,7 @@ function Menu(props: {
   editCellInModal;
   editRowInModal;
   resetColunmWidthCallBack;
+  quoteStyle;
 }) {
   const {
     field,
@@ -999,6 +1003,7 @@ function Menu(props: {
     editCellInModal,
     editRowInModal,
     resetColunmWidthCallBack,
+    quoteStyle,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
@@ -1094,7 +1099,7 @@ function Menu(props: {
         <Divider></Divider>
         <MenuItem
           onClick={() => {
-            setSort(`${field} ASC`);
+            setSort(`${quoteStyle}${field}${quoteStyle} ASC`);
           }}
         >
           <ListItemIcon>
@@ -1104,7 +1109,7 @@ function Menu(props: {
         </MenuItem>
         <MenuItem
           onClick={() => {
-            setSort(`${field} DESC`);
+            setSort(`${quoteStyle}${field}${quoteStyle} DESC`);
           }}
         >
           <ListItemIcon>
@@ -1162,6 +1167,7 @@ function Menu(props: {
         >
           <Box sx={modalStyle} width="50%">
             <FilterOnValue
+              quoteStyle={quoteStyle}
               content={content}
               setWhere={setWhere}
               field={field}
@@ -1184,9 +1190,17 @@ function FilterOnValue(props: {
   setWhere;
   field: string;
   handleClose;
+  quoteStyle: string;
   put_value_in_sql: (x: string) => Promise<string>;
 }) {
-  const { content, setWhere, field, handleClose, put_value_in_sql } = props;
+  const {
+    content,
+    setWhere,
+    field,
+    handleClose,
+    put_value_in_sql,
+    quoteStyle,
+  } = props;
   const compares = ['=', '<>', '>', '>=', '<', '<='];
   const [compare, setCompare] = useState(compares[0]);
   const { showNotification } = useContext(NotificationContext);
@@ -1204,13 +1218,13 @@ function FilterOnValue(props: {
 
   const where = () => {
     if (compare == 'null') {
-      return `${field} IS NULL`;
+      return `${quoteStyle}${field}${quoteStyle} IS NULL`;
     }
     if (compare == 'not null') {
-      return `${field} IS NOT NULL`;
+      return `${quoteStyle}${field}${quoteStyle} IS NOT NULL`;
     }
 
-    return `${field} ${compare} ${formatValue}`;
+    return `${quoteStyle}${field}${quoteStyle} ${compare} ${formatValue}`;
   };
   return (
     <Stack spacing={2}>

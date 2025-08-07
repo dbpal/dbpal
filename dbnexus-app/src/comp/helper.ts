@@ -297,6 +297,17 @@ enum DataSourceKind {
   Cockroach = "cockroach"
 }
 
+function quoteStyle(x: DataSourceKind): string {
+  switch (x) {
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.TiDB:
+    case DataSourceKind.Mysql:
+      return '`'
+    default:
+      return '"'
+  }
+}
+
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
   return name as DataSourceKind
@@ -527,4 +538,5 @@ export {
   FavoriteSql,
   MatchPatternContext,
   resetMuiDataRespWidth,
+  quoteStyle
 };
