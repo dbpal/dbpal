@@ -318,7 +318,8 @@ enum AppStoreKey {
   ConnectionConfig = 'connection_config',
   ColumnWithd = 'column_widths',
   LeftSize = 'left_size',
-  FavoriteSql = "favorite_sql"
+  FavoriteSql = "favorite_sql",
+  RedisQuerySize = "redis_query_size",
 }
 
 

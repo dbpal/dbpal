@@ -37,6 +37,7 @@ function BackendCrash(props: { msg: string }) {
             overflow: 'scroll',
             maxWidth: '99%',
             maxHeight: '80vh',
+            padding: '2px 8px',
           }}
         >
           <pre style={{ color: 'red', fontWeight: 'bold' }}>{msg}</pre>

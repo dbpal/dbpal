@@ -11,7 +11,6 @@ import {
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position, Range } from 'monaco-editor';
-import FavoriteIcon from '@mui/icons-material/Favorite';
 import * as loglevel from 'loglevel';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -321,7 +320,7 @@ function MongoQuery(props: {
             setShowFavoriteName(false);
           }}
         >
-          <Box sx={modalStyle} width="55%">
+          <Box sx={modalStyle} width="45%">
             <Stack spacing={1}>
               <TextField
                 fullWidth
@@ -345,7 +344,7 @@ function MongoQuery(props: {
                     setShowFavoriteName(false);
                   }}
                 >
-                  <FavoriteIcon> </FavoriteIcon>
+                  <FaBookmark> </FaBookmark>
                 </IconButton>
               </Stack>
             </Stack>

@@ -115,7 +115,12 @@ function EditorBar(props: {
 }) {
   let { left, pos, style } = props;
   return (
-    <Stack justifyContent="space-between" direction="row" style={style}>
+    <Stack
+      justifyContent="space-between"
+      direction="row"
+      style={style}
+      alignItems="center"
+    >
       <div style={{ width: '40%' }}> {left}</div>
       <Stack width="40%" direction="row" spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>

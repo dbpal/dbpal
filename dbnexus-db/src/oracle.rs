@@ -307,6 +307,7 @@ impl QuerySql for OracleDB {
                 }
             }
         }
+
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }

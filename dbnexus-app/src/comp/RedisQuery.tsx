@@ -5,7 +5,7 @@ import { Position } from 'monaco-editor';
 
 import { SqlQuery } from './SqlQuery.tsx';
 import { fetch } from '@tauri-apps/plugin-http';
-import { MakeIQueryConn } from './Common.tsx';
+import { appStore, AppStoreKey, MakeIQueryConn } from './Common.tsx';
 function RedisQuery(props: {
   makeConn: MakeIQueryConn;
   language;
@@ -87,13 +87,21 @@ function RedisQuery(props: {
         console.log('not valid url error:', e);
       });
   };
+  const [size, SetSize] = useState<string | number>('40vw');
+  useEffect(() => {
+    appStore.get(AppStoreKey.RedisQuerySize).then((size) => {
+      if (size) {
+        SetSize(size);
+      }
+    });
+  }, []);
 
   return (
     //@ts-ignore
     <SplitPane
       split="vertical"
       minSize={50}
-      defaultSize="40vw"
+      defaultSize={size}
       step={5}
       onDragStarted={() => {
         setIsDragging(true);
@@ -103,6 +111,9 @@ function RedisQuery(props: {
         setIsDragging(false);
       }} // 拖动结束
       style={{ position: 'relative' }}
+      onChange={(newsize) => {
+        appStore.set(AppStoreKey.RedisQuerySize, newsize);
+      }}
     >
       <SqlQuery
         handelTextAndPositionChange={(text, pos) => {

@@ -34,12 +34,22 @@ impl LexerCompletionTrait for MysqlDB {
             .await?;
 
         for row in rows.iter() {
-            let c: String = row.try_get(0)?;
-            lock.push(CompletionItem {
-                item: c.into(),
-                kind: CompletionKind::KeyWord,
-                desc: None,
-            });
+            let name: Option<String> = row.try_get(0)?;
+            if let Some(name) = name {
+                if !name
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_alphabetic())
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+                lock.push(CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
+                });
+            }
         }
         return anyhow::Ok(lock.clone());
     }
