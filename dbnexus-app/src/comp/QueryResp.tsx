@@ -15,7 +15,6 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import {
   calMenuStyle,
-  generateRandomString,
   handleCopyToClipboard,
   columnWidths,
   ContextMenuContext,
@@ -207,27 +206,6 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   );
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-  idPrefix: string;
-}
-
-function CustomTabPanel(props: TabPanelProps) {
-  const { children, value, index, idPrefix, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`${idPrefix}-tabpanel-${index}`}
-      {...other}
-    >
-      {value === index && <div>{children}</div>}
-    </div>
-  );
-}
-
 let styleForTrans: CSSProperties = {
   transition: 'all 0.3s ease',
   position: 'relative',
@@ -273,7 +251,6 @@ function MultiQueryResp_(props: { data: any[] }) {
     setValue(newValue);
   };
 
-  let idPrefix = generateRandomString(10);
   const vis = useContext(VisiableContext);
   return (
     <div style={{ top, opacity, left: top, ...styleForTrans }}>
@@ -292,17 +269,14 @@ function MultiQueryResp_(props: { data: any[] }) {
 
       {data.map((e, index) => {
         return (
-          <VisiableContext.Provider
-            value={vis && index == value}
-            key={`panel${index}`}
-          >
-            <CustomTabPanel idPrefix={idPrefix} value={value} index={index}>
+          <VisiableContext.Provider value={vis && index == value} key={index}>
+            <div hidden={value != index}>
               {e.Err ? (
                 <Alert severity="error">{e.Err}</Alert>
               ) : (
                 <QueryResp data={e.Ok}></QueryResp>
               )}
-            </CustomTabPanel>
+            </div>
           </VisiableContext.Provider>
         );
       })}
