@@ -128,8 +128,14 @@ impl AstCompletionHelper for ClickHouseDB {
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
-        let sql = format!(r#"select * from "{}"."{}"  limit 0 "#, db, name);
+        let sql = format!(
+            r#"select * from {}"{}"  limit 1 "#,
+            match schema {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            name
+        );
         let meta = self.query_as_json(&sql).await?.meta;
         anyhow::Ok(
             meta.into_iter()

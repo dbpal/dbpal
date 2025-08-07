@@ -25,6 +25,7 @@ use crate::db::{
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
 };
+use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
@@ -36,6 +37,7 @@ pub struct OracleDB {
     pub(crate) config: OracleDBConfig,
     query_logs: QueryLogMap,
     tx_execute_times: TXExecuteTimes,
+    pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 #[async_trait::async_trait]
@@ -82,6 +84,7 @@ impl OracleDB {
             config,
             query_logs: Default::default(),
             tx_execute_times: Default::default(),
+            key_word_completion: Default::default(),
         })
     }
 }
@@ -1766,28 +1769,30 @@ impl OracleDB {
 }
 
 #[cfg(test)]
+pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
+    let x = OracleDB::new(
+        OracleDBConfig {
+            username: "system".to_string(),
+            password: "welcome123".to_string(),
+            schema,
+            read_only: false,
+            host: crate::TEST_HOST.to_string(),
+            port: 1521,
+            call_timeout: None,
+            db: "XE".to_string(),
+            save_password: true,
+        },
+        Some(2),
+    )
+    .unwrap();
+    x
+}
+
+#[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::{TEST_HOST, enable_test_log};
-    fn make_test_object(schema: Option<String>) -> OracleDB {
-        let x = OracleDB::new(
-            OracleDBConfig {
-                username: "system".to_string(),
-                password: "welcome123".to_string(),
-                schema,
-                read_only: false,
-                host: TEST_HOST.to_string(),
-                port: 1521,
-                call_timeout: None,
-                db: "XE".to_string(),
-                save_password: true,
-            },
-            Some(2),
-        )
-        .unwrap();
-        x
-    }
+    use crate::enable_test_log;
 
     // when I test via `cargo test`
     // sometimes I have this error

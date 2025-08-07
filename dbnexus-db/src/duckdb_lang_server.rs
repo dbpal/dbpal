@@ -96,9 +96,8 @@ impl AstCompletionHelper for DuckDB {
     async fn list_column(
         &self, db: Option<&str>, schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
         let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
-        let sql = format!(r#"select * from "{}"."{}" limit 1"#, schema, name);
+        let sql = format!(r#"select * from "{}" limit 1"#, schema, name);
         let conn = self.get_conn()?;
         use_database(&conn, db)?;
         let mut stmt = block_in_place(|| conn.prepare(&sql))?;

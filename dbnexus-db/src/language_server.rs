@@ -382,6 +382,8 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
 #[cfg(test)]
 pub(crate) mod completion_test {
 
+    use std::ops::Deref;
+
     use super::{CompletionItem, LanguageServer};
 
     /// test if completion items contains a centains string
@@ -392,10 +394,9 @@ pub(crate) mod completion_test {
             items.iter().any(|x| x.item.eq_ignore_ascii_case(name)),
             "line:{} items:{:?},expect:{:?}",
             line,
-            if items.len() > 10 {
-                &items[0..10]
-            } else {
-                items
+            {
+                let items = items.iter().map(|x| x.item.deref()).collect::<Vec<_>>();
+                items.join(",")
             },
             name
         )

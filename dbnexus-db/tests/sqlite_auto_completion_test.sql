@@ -13,7 +13,7 @@ insert into employees (id) select id from employees
 insert into employees (id) values (1)
 26 name
 select count(*) from employees
-11 count ; 11 abs ; 11 sin
+11 count ; 11 abs
 update employees set name = 1 where id = 10000
 25 name ; 25 id ; 39 name
 delete from employees where id = 1000

@@ -215,10 +215,15 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
         use sqlx::{Column, Executor, Statement};
         let mut conn = self.get_conn().await?;
-        let sql = format!(r#"select * from `{schema}`.`{name}` limit 1"#);
+        let sql = format!(
+            r#"select * from {}`{name}` limit 1"#,
+            match schema {
+                Some(x) => format!("`{}`.", x),
+                None => "".to_string(),
+            }
+        );
         log::info!("sql:{}", sql);
         let s = conn
             .deref_mut()

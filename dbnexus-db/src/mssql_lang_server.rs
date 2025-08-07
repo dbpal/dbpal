@@ -1,8 +1,7 @@
+use futures_util::StreamExt;
 use std::borrow::Cow;
 use std::ops::DerefMut;
 use std::sync::Arc;
-
-use futures_util::StreamExt;
 use tiberius::QueryItem;
 
 use crate::db::{CatalogTrait, FormatSqlOpts, SchemaTrait};
@@ -181,15 +180,21 @@ impl AstCompletionHelper for MsSqlServerDB {
     }
 
     async fn list_column(
-        &self, db: Option<&str>, _schema: Option<&str>, name: &str,
+        &self, db: Option<&str>, schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
         let sql = format!(
-            r#"  select TOP 1 * from  "{}"."{}"."{}" "#,
-            db,
-            Self::ONLY_SCHEMA,
+            r#"  select TOP 1 * from  {}{}"{}" "#,
+            match db {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            match schema {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
             name
         );
+
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let mut s = conn.simple_query(&sql).await?;

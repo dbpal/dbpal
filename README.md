@@ -19,6 +19,10 @@ cargo r
 
 
  
+ SELECT *
+FROM V$RESERVED_WORDS;
+
+怎么去获取这么多内置的可以查询的对象
  
 
  

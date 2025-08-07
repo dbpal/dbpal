@@ -1887,9 +1887,10 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-            select * from "has"
+             SELECT *
+                FROM V$RESERVED_WORDS;
         "#;
-        let dialect = sqlparser::dialect::SQLiteDialect {};
+        let dialect = sqlparser::dialect::GenericDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
         let mut p = p.try_with_sql(sql).unwrap();
         let statement = p.parse_statement().unwrap();

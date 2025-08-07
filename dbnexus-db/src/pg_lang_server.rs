@@ -213,16 +213,19 @@ impl AstCompletionHelper for PostGresDB {
         &self, db: Option<&str>, schema: Option<&str>, name: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         use sqlx::{Column, Executor, Statement};
-        let db = self.db_merge_config(db);
-        let schema = self.schema_merge_config(schema);
 
-        if db.is_none() || schema.is_none() {
-            anyhow::bail!("need database and schema config");
-        }
-        let db = db.unwrap();
-        let schema = schema.unwrap();
-
-        let sql = format!(r#"select * from "{}"."{}"."{}""#, db, schema, name);
+        let sql = format!(
+            r#"select * from {}{}"{}""#,
+            match db {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            match schema {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            name
+        );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let s = conn
