@@ -13,12 +13,12 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    BackendKind, GetBackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateSchemaExtra, CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind,
-    ExportQueryResult, Field, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, SequenceDetail,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, not_support_feature,
+    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
+    ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, not_support_feature,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -441,11 +441,6 @@ impl ServerMetas for PostGresDB {
     }
 }
 
-impl QuoteStyle for PostGresDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
-    }
-}
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
     async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {

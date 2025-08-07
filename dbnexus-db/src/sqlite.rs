@@ -15,9 +15,9 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, T
 
 use crate::MemoryLimit;
 use crate::db::{
-    BackendKind, GetBackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
-    ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
-    QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEvent, TriggerTiming, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
@@ -424,11 +424,6 @@ impl GetBackendKind for SqliteDB {
     }
 }
 
-impl QuoteStyle for SqliteDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
-    }
-}
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
     async fn create_index(

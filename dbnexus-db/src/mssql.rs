@@ -19,12 +19,12 @@ use crate::MemoryLimit;
 use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
-    BackendKind, GetBackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateSchemaExtra, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index,
-    IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
-    ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder,
-    SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, escape_sql_str, format_data_time_fix_offset, not_support_feature,
+    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
+    ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
+    format_data_time_fix_offset, not_support_feature,
 };
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
@@ -445,12 +445,6 @@ impl GetBackendKind for MsSqlServerDB {
 
 fn type_support_compare(_tpe: &str) -> bool {
     true
-}
-
-impl QuoteStyle for MsSqlServerDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
-    }
 }
 
 #[async_trait::async_trait]

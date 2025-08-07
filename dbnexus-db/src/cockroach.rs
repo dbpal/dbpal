@@ -9,10 +9,10 @@ use sqlx::{AssertSqlSafe, Postgres, Row};
 
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    BackendKind, GetBackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateSchemaExtra, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index,
-    IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter,
 };
 use crate::helper::is_dangerous_sql_by_parser;
@@ -152,12 +152,6 @@ impl ServerMetas for CockRoachDB {
 impl std::fmt::Debug for CockRoachDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "cochroach on:{:?}", self.pg.config)
-    }
-}
-
-impl QuoteStyle for CockRoachDB {
-    fn quote_style(&self) -> &'static str {
-        self.pg.quote_style()
     }
 }
 

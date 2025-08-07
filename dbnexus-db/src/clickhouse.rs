@@ -12,8 +12,8 @@ use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     ExportKind, ExportQueryResult, Field, GetBackendKind, ListMaterializedView, ListTable,
-    NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
+    NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    SqlBuilder, SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::language_server::CompletionItem;
@@ -605,12 +605,6 @@ impl SchemaTrait for ClickHouseDB {
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
         anyhow::Ok(())
-    }
-}
-
-impl QuoteStyle for ClickHouseDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
     }
 }
 

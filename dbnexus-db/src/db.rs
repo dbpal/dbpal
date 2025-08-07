@@ -52,6 +52,10 @@ impl BackendKind {
             _ => false,
         }
     }
+
+    pub(crate) fn quote_style(self) -> &'static str {
+        if self.mysql_like() { "`" } else { "\"" }
+    }
 }
 
 impl std::fmt::Display for BackendKind {
@@ -334,15 +338,13 @@ pub trait SchemaTrait:
     }
 }
 
-pub trait QuoteStyle {
-    fn quote_style(&self) -> &'static str {
-        ""
-    }
-}
-
-pub trait SqlBuilder: GetBackendKind + QuoteStyle {
+pub trait SqlBuilder: GetBackendKind {
     fn type_support_compare(&self, _typ: &str) -> bool {
         true
+    }
+
+    fn quote_style(&self) -> &'static str {
+        self.backend_name().quote_style()
     }
 
     /// format a value make it suitable for insert into sql.

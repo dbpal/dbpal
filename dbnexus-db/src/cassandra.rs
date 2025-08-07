@@ -57,9 +57,9 @@ use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-    UdfOrProcedureExtraParameter, escape_sql_str,
+    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter,
+    escape_sql_str,
 };
 use crate::helper::create_csv;
 use crate::language_server::{LangServerCommon, LexerCompletionTrait};
@@ -2056,12 +2056,6 @@ impl CassandraDB {
         log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
-    }
-}
-
-impl QuoteStyle for CassandraDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
     }
 }
 

@@ -1,10 +1,9 @@
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
-    BackendKind, GetBackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    UdfOrProcedureExtraParameter,
+    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
@@ -110,12 +109,6 @@ impl QuerySql for TiDB {
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         self.db.is_dangerous_sql(sql)
-    }
-}
-
-impl QuoteStyle for TiDB {
-    fn quote_style(&self) -> &'static str {
-        self.db.quote_style()
     }
 }
 

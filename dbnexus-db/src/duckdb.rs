@@ -15,9 +15,9 @@ use tokio::task::block_in_place;
 
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
-    GetBackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
+    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    IndexKind, ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
@@ -380,11 +380,6 @@ impl DuckDB {
     }
 }
 
-impl QuoteStyle for DuckDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
-    }
-}
 impl SqlBuilder for DuckDB {
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,

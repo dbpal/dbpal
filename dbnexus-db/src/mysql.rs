@@ -18,9 +18,9 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use crate::language_server::CompletionItem;
 
@@ -658,12 +658,6 @@ fn type_support_compare(_tpe: &str) -> bool {
 impl std::fmt::Debug for MysqlDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "mysql on:{:?}", self.config)
-    }
-}
-
-impl QuoteStyle for MysqlDB {
-    fn quote_style(&self) -> &'static str {
-        "`"
     }
 }
 

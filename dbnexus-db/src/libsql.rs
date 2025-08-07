@@ -13,9 +13,9 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
 use crate::db::{
-    BackendKind, GetBackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
-    ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
-    QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
@@ -387,12 +387,6 @@ impl ServerMetas for LibSqlDB {
         let row = conn.prepare(sql).await?.query_row(params!()).await?;
         let version: String = row.get(0)?;
         anyhow::Ok(vec![MetaValue::new("version", version)])
-    }
-}
-
-impl QuoteStyle for LibSqlDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
     }
 }
 

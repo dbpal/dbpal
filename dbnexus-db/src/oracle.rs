@@ -15,9 +15,9 @@ use tokio::task::block_in_place;
 use crate::MemoryLimit;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
-    BackendKind, GetBackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, HumanSize, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
+    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, HumanSize, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     escape_sql_str, not_support_feature,
@@ -1662,11 +1662,6 @@ impl OracleDB {
     }
 }
 
-impl QuoteStyle for OracleDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
-    }
-}
 impl SqlBuilder for OracleDB {
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.

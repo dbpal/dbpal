@@ -17,9 +17,9 @@ use tokio::task::block_in_place;
 use crate::MemoryLimit;
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
-    BackendKind, GetBackendKind, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_feature,
+    BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
+    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_feature,
 };
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
@@ -954,12 +954,6 @@ impl SchemaTrait for FireBirdDB {
             data,
             sql: Some(sql),
         })
-    }
-}
-
-impl QuoteStyle for FireBirdDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
     }
 }
 
