@@ -198,7 +198,7 @@ function SqlQuery(props: {
   ].includes(kind);
 
   const executeTimeRef = useRef(null);
-
+  const timeExecuteClean = useRef<() => void>(null);
   const [commitNonce, setCommitNonce] = useState(0);
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
@@ -222,6 +222,12 @@ function SqlQuery(props: {
     },
     []
   );
+  const tryExecuteTimeClean = () => {
+    if (timeExecuteClean.current) {
+      timeExecuteClean.current();
+      timeExecuteClean.current = null;
+    }
+  };
 
   const handleLoadQueryLog = () => {
     conn
@@ -260,7 +266,9 @@ function SqlQuery(props: {
           showNotification('error', 'Reconnect Failure', e);
         })
         .finally(() => {
+          setLoading(false);
           setCommitNonce((e) => e + 1);
+          tryExecuteTimeClean();
         });
     } else {
       makeConn()
@@ -272,7 +280,9 @@ function SqlQuery(props: {
           showNotification('error', 'Reconnect Failure', e);
         })
         .finally(() => {
+          setLoading(false);
           setCommitNonce((e) => e + 1);
+          tryExecuteTimeClean();
         });
     }
   };
@@ -317,6 +327,7 @@ function SqlQuery(props: {
     return text;
   };
   const timeExecute = () => {
+    tryExecuteTimeClean();
     const now = new Date();
     const setUp = () => {
       //@ts-ignore
@@ -337,7 +348,7 @@ function SqlQuery(props: {
     const int = setInterval(() => {
       setUp();
     }, 50);
-    return () => {
+    timeExecuteClean.current = () => {
       clearInterval(int);
       setUp();
     };
@@ -360,7 +371,8 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
-    const timeExecuteClean = timeExecute();
+    timeExecute();
+
     conn
       .executeOP(text)
       .then((e) => {
@@ -377,7 +389,7 @@ function SqlQuery(props: {
       .finally(() => {
         setLoading(false);
         setCommitNonce((e) => e + 1);
-        timeExecuteClean();
+        tryExecuteTimeClean();
       });
   };
   const handleQuery = async (append: boolean, explain: boolean = false) => {
@@ -401,7 +413,8 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
-    const timeExecuteClean = timeExecute();
+    timeExecute();
+
     conn
       .queryOP(text)
       .then((resp) => {
@@ -423,7 +436,7 @@ function SqlQuery(props: {
       .finally(() => {
         setLoading(false);
         setCommitNonce((e) => e + 1);
-        timeExecuteClean();
+        tryExecuteTimeClean();
       });
   };
 

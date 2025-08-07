@@ -1515,7 +1515,7 @@ impl CompletionStatement {
                 if self.helper.backend_name().mysql_like() {
                     //
                     self.c_on_table(table_name).await;
-                    if self.last_name_in_pos(table_name) {
+                    if self.last_name_in_pos(table_name) && table_name.0.len() == 1 {
                         let mut r = self.result.take().unwrap_or_default();
                         let words = self
                             .helper
