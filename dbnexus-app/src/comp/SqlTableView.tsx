@@ -187,7 +187,7 @@ function WhereSort(props: {
                 onClose();
               }}
             >
-              set {`'${label}'`}
+              set {label}
             </Button>
             {newValue && (
               <Button
@@ -521,7 +521,9 @@ function SqlTableView_(props: {
       setSort('');
       return;
     }
-    setSort(`${sort.field} ${sort.sort.toUpperCase()}`);
+    setSort(
+      `${quoteStyle}${sort.field}${quoteStyle} ${sort.sort.toUpperCase()}`
+    );
   }, []);
 
   const onProcessRowUpdateError = useCallback((e) => {
