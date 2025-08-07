@@ -556,18 +556,20 @@ function SqlQuery(props: {
               <FaExclamation />
             </IconButton>
           </Tooltip>
-          <Tooltip title="explain sql">
-            <IconButton
-              loading={loading}
-              disabled={loading || conn == null}
-              onClick={() => {
-                handleQuery(false, true);
-              }}
-              color="primary"
-            >
-              <BsFillLightbulbFill />
-            </IconButton>
-          </Tooltip>
+          {supportExplain && (
+            <Tooltip title="explain sql">
+              <IconButton
+                loading={loading}
+                disabled={loading || conn == null}
+                onClick={() => {
+                  handleQuery(false, true);
+                }}
+                color="primary"
+              >
+                <BsFillLightbulbFill />
+              </IconButton>
+            </Tooltip>
+          )}
 
           <Tooltip title="sql execute time">
             <Chip
