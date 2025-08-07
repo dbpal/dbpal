@@ -1542,6 +1542,7 @@ function TableStructure(props: {
     DataSourceKind.MariaDB,
     DataSourceKind.Mysql,
     DataSourceKind.Sqlite,
+    DataSourceKind.LibSql,
     DataSourceKind.Oracle,
     DataSourceKind.MsSql,
     DataSourceKind.Postgres,
