@@ -1,12 +1,15 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use std::backtrace::Backtrace;
+use std::panic;
 mod app;
 mod handlers;
 
 use app::{App, DBConnectionConfig};
 use handlers::{
     PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
-    cassandra_list_aggregate, cassandra_show_aggregate, check_conn, close_conn,
+    cassandra_list_aggregate, cassandra_show_aggregate, check_conn, close_conn, command_panic,
     config_list_database_or_schema, conn_opend, create_database, create_index, create_schema,
     create_table_and_index_sql, create_view_sql, delete_password, disable_trigger, drop_database,
     drop_index, drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
@@ -76,6 +79,64 @@ fn main_() {
     let app = App::new();
     let saved_password = app.saved_password.clone();
 
+    let setup = |app: &mut tauri::App| {
+        {
+            let handler = app.handle().clone();
+            let old = panic::take_hook();
+            panic::set_hook(Box::new(move |info| {
+                let backtrace = Backtrace::capture();
+
+                if let Err(err) = handler.emit("backend-crash", format!("{}\n{}", info, backtrace))
+                {
+                    log::error!("emit to frontend failed,err:{}", err);
+                }
+                old(info);
+            }));
+        }
+        #[cfg(debug_assertions)] // only include this code on debug builds
+        {
+            let window = app.get_webview_window("main").unwrap();
+            window.open_devtools();
+        }
+        let store = app.store("store.json").unwrap();
+        *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
+            let configs: Vec<DBConnectionConfig> = serde_json::from_value(
+                store
+                    .get("connection_config")
+                    .unwrap_or(serde_json::Value::Array(vec![])),
+            )?;
+
+            for mut c in configs.into_iter() {
+                if c.get_name() != name {
+                    continue;
+                }
+                if c.need_password() {
+                    if let Some(pass) = saved_password.get(&c.get_name().to_string()) {
+                        c.set_password(pass.clone());
+                    } else {
+                        match keyring::Entry::new(PASSWORD_KEY, name) {
+                            Ok(en) => match en.get_password() {
+                                Ok(pass) => c.set_password(pass),
+                                Err(err) => {
+                                    log::error!("get password for '{}' failed,err:{}", name, err)
+                                }
+                            },
+                            Err(err) => {
+                                log::error!(
+                                    "get password entry failed:{} maybe user don't set a password should be fine",
+                                    err
+                                )
+                            }
+                        };
+                    }
+                }
+                return anyhow::Ok(c);
+            }
+            anyhow::bail!(format!("config named '{}' not found", name))
+        }));
+        Ok(())
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
@@ -87,50 +148,7 @@ fn main_() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .manage(app)
-        .setup(|app| {
-            #[cfg(debug_assertions)] // only include this code on debug builds
-            {
-                let window = app.get_webview_window("main").unwrap();
-                window.open_devtools();
-            }
-            let store = app.store("store.json").unwrap();
-            *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
-                let configs: Vec<DBConnectionConfig> = serde_json::from_value(
-                    store
-                        .get("connection_config")
-                        .unwrap_or(serde_json::Value::Array(vec![])),
-                )?;
-
-                for mut c in configs.into_iter() {
-                    if c.get_name() != name {
-                        continue;
-                    }
-                    if c.need_password() {
-                        if let Some(pass) = saved_password.get(&c.get_name().to_string()) {
-                            c.set_password(pass.clone());
-                        }else {
-                            match keyring::Entry::new(PASSWORD_KEY, name) {
-                                Ok(en) => match en.get_password() {
-                                    Ok(pass) => c.set_password(pass),
-                                    Err(err) => {
-                                        log::error!("get password for '{}' failed,err:{}", name, err)
-                                    }
-                                },
-                                Err(err) => {
-                                    log::error!(
-                                        "get password entry failed:{} maybe user don't set a password should be fine",
-                                        err
-                                    )
-                                }
-                            };
-                        }
-                    }
-                    return anyhow::Ok(c);
-                }
-                anyhow::bail!(format!("config named '{}' not found", name))
-            }));
-            Ok(())
-        })
+        .setup(setup)
         .menu(|handle| {
             Menu::with_items(
                 handle,
@@ -152,7 +170,7 @@ fn main_() {
                                 "show_settings",
                                 "settings",
                                 true,
-                                Some(if is_mac() {"command+,"}else {"control+,"} ),
+                                Some(if is_mac() { "command+," } else { "control+," }),
                             )?,
                             #[cfg(any(target_os = "windows", target_os = "macos"))]
                             &PredefinedMenuItem::close_window(handle, None)?,
@@ -199,14 +217,20 @@ fn main_() {
                                 true,
                                 None as Option<&'static str>,
                             )?,
-                            &PredefinedMenuItem::about(handle, Some("make database management easy."),Some({
-                                let mut meta = AboutMetadata ::default();
-                                meta.website  = Some("https://dbpal.site".to_string());
-                                meta.name = Some("dbpal".to_string());
-                                meta.authors = Some(vec!["756445638@qq.com".to_string()]);
-                                meta.copyright = Some("Copyright © yuyang 2025 All rights reserved.".to_string());
-                                meta
-                            }))?,
+                            &PredefinedMenuItem::about(
+                                handle,
+                                Some("make database management easy."),
+                                Some({
+                                    let mut meta = AboutMetadata::default();
+                                    meta.website = Some("https://dbpal.site".to_string());
+                                    meta.name = Some("dbpal".to_string());
+                                    meta.authors = Some(vec!["756445638@qq.com".to_string()]);
+                                    meta.copyright = Some(
+                                        "Copyright © yuyang 2025 All rights reserved.".to_string(),
+                                    );
+                                    meta
+                                }),
+                            )?,
                         ],
                     )?,
                 ],
@@ -357,8 +381,9 @@ fn main_() {
             valid_json,
             list_sequences,
             drop_sequence,
-            rename_sequnce
-            ])
+            rename_sequnce,
+            command_panic
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

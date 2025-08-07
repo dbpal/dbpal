@@ -213,7 +213,7 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str,
+        &self, _db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         use sqlx::{Column, Executor, Statement};
         let mut conn = self.get_conn().await?;

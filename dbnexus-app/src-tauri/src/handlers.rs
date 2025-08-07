@@ -2582,6 +2582,11 @@ pub async fn cassandra_drop_aggregate(
 }
 
 #[tauri::command]
+pub async fn command_panic() -> Result<(), ErrorFrontend> {
+    todo!("this is a panic.")
+}
+
+#[tauri::command]
 pub fn valid_json(json_str: String) -> Result<(), String> {
     use serde_json::Value;
     match serde_json::from_str::<Value>(&json_str) {

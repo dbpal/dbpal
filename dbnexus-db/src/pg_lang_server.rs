@@ -210,12 +210,11 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, name: &str,
+        &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         use sqlx::{Column, Executor, Statement};
-
         let sql = format!(
-            r#"select * from {}{}"{}""#,
+            r#"select * from {}{}"{}"{}"#,
             match db {
                 Some(x) => format!("\"{}\".", x),
                 None => "".to_string(),
@@ -224,7 +223,8 @@ impl AstCompletionHelper for PostGresDB {
                 Some(x) => format!("\"{}\".", x),
                 None => "".to_string(),
             },
-            name
+            name,
+            if is_call { "()" } else { "" }
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -660,16 +660,13 @@ mod tests {
     #[tokio::test]
     async fn print_key_words() {
         let db = make_test_object().await;
-
         let keywords = <PostGresDB as LexerCompletionTrait>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()
             .map(|x| x.item.to_string())
             .collect::<Vec<_>>();
-
         let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
-
         let s = monaco_editor_keyword_regexp(&keywords[..]);
         println!("{}", s);
     }
@@ -680,8 +677,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"DROP PROCEDURE procedure_name() 
-30 test_procedure"#,
+            r#"select word from pg_get_keywords() where word 
+46 word"#,
             &db,
             false,
         )

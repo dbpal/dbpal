@@ -259,7 +259,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName + LangServerC
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>>;
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, name: &str,
+        &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn list_function(
         &self, db: Option<&str>, schema: Option<&str>, include_build_in: bool,

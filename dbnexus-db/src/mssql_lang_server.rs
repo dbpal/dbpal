@@ -180,7 +180,7 @@ impl AstCompletionHelper for MsSqlServerDB {
     }
 
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, name: &str,
+        &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let sql = format!(
             r#"  select TOP 1 * from  {}{}"{}" "#,
@@ -332,6 +332,7 @@ mod tests {
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         test_file_auto_completion(&content, &db, false).await;
     }
+
     #[ignore = "手动跑跑的测试"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_completion_xxx() {
@@ -346,6 +347,8 @@ mod tests {
         .await;
     }
 }
+
+// https://www.dofactory.com/sql/keywords
 
 const KEYWORDS: &'static [&'static str] = &[
     "ABSOLUTE",

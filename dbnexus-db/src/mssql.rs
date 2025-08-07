@@ -22,8 +22,8 @@ use crate::db::{
     BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
     NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
+    SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
     format_data_time_fix_offset, not_support_feature,
 };
 use crate::helper::{
@@ -1232,6 +1232,17 @@ impl SchemaTrait for MsSqlServerDB {
         let conn = conn.deref_mut();
         conn.execute(&sql, &[]).await?;
         anyhow::Ok(())
+    }
+
+    async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+        unimplemented!()
+    }
+    async fn rename_sequnce(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+
+    async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<()> {
+        unimplemented!()
     }
 }
 
@@ -2611,6 +2622,29 @@ mod tests {
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
     }
+
+    #[tokio::test]
+    async fn test_table_xxxx() {
+        enable_test_log();
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        let r = db
+            .query_sql(
+                query_id,
+                r#"
+            SELECT   *
+FROM sys.sequences;
+
+
+        "#,
+            )
+            .await
+            .unwrap();
+        for x in r.iter() {
+            println!("{:?}", x);
+        }
+    }
+
     #[tokio::test]
     async fn test_table_column() {
         enable_test_log();

@@ -265,7 +265,7 @@ impl CompletionStatement {
                             let (db, schema, table) = self.extract_db_schme_item(table);
                             let cs = self
                                 .helper
-                                .list_column(db, schema, table)
+                                .list_column(db, schema, table, false)
                                 .await
                                 .map_err(|e| {
                                     log::error!("list_column failed,err:{}", e);
@@ -1055,92 +1055,89 @@ impl CompletionStatement {
                     self.result = Some(temp.columns.iter().map(CompletionItem::from).collect());
                 }
             }
-        } else {
-            // another completion
-            let tables = self.scopes.nearest_from_tables();
-            log::trace!("from tables:{:?}", tables);
-            for from in tables.iter() {
-                let mut old = self.result.take().unwrap_or_default();
-                match from {
-                    // we only looking for unnamed
-                    // because named need access by `table.column`
-                    FromTableOrTemp::Unnamed { table } => {
-                        old.extend(
-                            table
-                                .columns
-                                .to_vec()
-                                .into_iter()
-                                .map(CompletionItem::from)
-                                .collect::<Vec<_>>()
-                                .into_iter(),
-                        );
-                        self.result = Some(old);
-                    }
-                    FromTableOrTemp::FromTable { table } => {
-                        let (db, schema, table) = self.extract_db_schme_item(table);
-                        let m = self
-                            .helper
-                            .list_column(db, schema, table)
-                            .await
-                            .map_err(|e| {
-                                log::error!("list_column failed,err:{}", e);
-                            })
-                            .ok()
-                            .unwrap_or_default();
-                        old.extend(m.into_iter());
-                        self.result = Some(old);
-                    }
-                    FromTableOrTemp::Temp { table } => {
-                        old.extend(
-                            table
-                                .columns
-                                .to_vec()
-                                .into_iter()
-                                .map(CompletionItem::from)
-                                .collect::<Vec<_>>()
-                                .into_iter(),
-                        );
-                        self.result = Some(old);
-                    }
+        }
+        // another completion
+        let tables = self.scopes.nearest_from_tables();
+        log::trace!("from tables:{:?}", tables);
+        for from in tables.iter() {
+            let mut old = self.result.take().unwrap_or_default();
+            match from {
+                // we only looking for unnamed
+                // because named need access by `table.column`
+                FromTableOrTemp::Unnamed { table } => {
+                    old.extend(
+                        table
+                            .columns
+                            .to_vec()
+                            .into_iter()
+                            .map(CompletionItem::from)
+                            .collect::<Vec<_>>()
+                            .into_iter(),
+                    );
+                    self.result = Some(old);
                 }
-                // save  results
-                let items = self.result.take().unwrap_or_default();
-                // this line will rewrite the results.
-                self.c_on_select_target(&ObjectName(vec![ObjectNamePart::Identifier(
-                    ident.clone(),
-                )]))
-                .await;
-                if self.result.is_none() {
-                    self.result = Some(vec![]);
-                }
-                self.result.as_mut().unwrap().extend(items);
-
-                if ident.quote_style.is_none() {
-                    // 我们也要函数
-                    let fs = self
+                FromTableOrTemp::FromTable { table } => {
+                    let (db, schema, table) = self.extract_db_schme_item(table);
+                    let m = self
                         .helper
-                        .list_function(None, None, true)
+                        .list_column(db, schema, table, false)
                         .await
+                        .map_err(|e| {
+                            log::error!("list_column failed,err:{}", e);
+                        })
                         .ok()
                         .unwrap_or_default();
-                    self.result.as_mut().unwrap().extend(fs);
+                    old.extend(m.into_iter());
+                    self.result = Some(old);
                 }
-                //也要schema
-                let schemas: Vec<_> = self
+                FromTableOrTemp::Temp { table } => {
+                    old.extend(
+                        table
+                            .columns
+                            .to_vec()
+                            .into_iter()
+                            .map(CompletionItem::from)
+                            .collect::<Vec<_>>()
+                            .into_iter(),
+                    );
+                    self.result = Some(old);
+                }
+            }
+            // save  results
+            let items = self.result.take().unwrap_or_default();
+            // this line will rewrite the results.
+            self.c_on_select_target(&ObjectName(vec![ObjectNamePart::Identifier(ident.clone())]))
+                .await;
+            if self.result.is_none() {
+                self.result = Some(vec![]);
+            }
+            self.result.as_mut().unwrap().extend(items);
+
+            if ident.quote_style.is_none() {
+                // 我们也要函数
+                let fs = self
                     .helper
-                    .list_schema(None)
+                    .list_function(None, None, true)
                     .await
                     .ok()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Schema,
-                        desc: None,
-                    })
-                    .collect();
-                self.result.as_mut().unwrap().extend(schemas);
+                    .unwrap_or_default();
+                self.result.as_mut().unwrap().extend(fs);
             }
+            //也要schema
+            let schemas: Vec<_> = self
+                .helper
+                .list_schema(None)
+                .await
+                .ok()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Schema,
+                    desc: None,
+                })
+                .collect();
+            self.result.as_mut().unwrap().extend(schemas);
         }
     }
 
@@ -1688,7 +1685,7 @@ impl CompletionStatement {
             }
             let items = self
                 .helper
-                .list_column(db, schema, table_name)
+                .list_column(db, schema, table_name, false)
                 .await
                 .map_err(|e| {
                     log::error!("list column error:{:?}", e);
@@ -1990,7 +1987,7 @@ impl CompletionStatement {
 
                                 cs.extend(
                                     self.helper
-                                        .list_column(db, schema, table)
+                                        .list_column(db, schema, table, false)
                                         .await
                                         .map_err(|e| {
                                             log::error!("list_column failed,err:{}", e);
@@ -2129,7 +2126,7 @@ impl CompletionStatement {
                                                     self.extract_db_schme_item(&table);
                                                 let f = self
                                                     .helper
-                                                    .list_column(db, schema, table)
+                                                    .list_column(db, schema, table, false)
                                                     .await
                                                     .map_err(|e| {
                                                         log::error!(
@@ -2160,7 +2157,7 @@ impl CompletionStatement {
                                         self.extract_db_schme_item(object_name);
                                     let f = self
                                         .helper
-                                        .list_column(db, schema, table)
+                                        .list_column(db, schema, table, false)
                                         .await
                                         .map_err(|e| log::error!("list_column failed,err:{:?}", e))
                                         .ok()
@@ -2192,7 +2189,7 @@ impl CompletionStatement {
 
                                 let cols = self
                                     .helper
-                                    .list_column(db, schema, table)
+                                    .list_column(db, schema, table, false)
                                     .await
                                     .map_err(|e| {
                                         log::error!("list_column failed,err:{:?}", e);
@@ -2349,6 +2346,7 @@ impl CompletionStatement {
                             .as_ref()
                             .map(|x| x.as_str())
                             .unwrap_or_default(),
+                        false,
                     )
                     .await
                     .map_err(|e| {
@@ -2399,24 +2397,74 @@ impl CompletionStatement {
                     }
                 }
                 s.from_tables.push(FromTableOrTemp::from(name.clone()));
-                if let Some(alias) = alias {
-                    // this is a alias but we often end in situation like this
-                    // `select * from test ...`
-                    // here we need completion on where order etc lexer elements
-                    // if self.in_pos(&alias.name.span) {
-                    //     self.set_on_def();
-                    //     return;
-                    // }
-                    // TODO alias have column definition.
-                    s.enter_table(alias.name.clone(), name.clone());
-                } else {
-                    s.enter_table(
-                        match name.0.last().unwrap() {
-                            ObjectNamePart::Identifier(ident) => ident.clone(),
-                        },
-                        name.clone(),
-                    );
+                let columns = match args {
+                    Some(_) => {
+                        // this maybe a function get is a try
+                        let (db, schema, name) = self.extract_db_schme_item(name);
+
+                        // TODO how to handle this case
+                        let columns = self
+                            .helper
+                            .list_column(db, schema, &name, true)
+                            .await
+                            .map_err(|e| log::error!("list column failed,e:{}", e))
+                            .ok()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| TempTableColumn {
+                                name: x.item.to_string(),
+                                typ: x.desc.map(|x| x.to_string()),
+                            })
+                            .collect::<Vec<_>>();
+
+                        if columns.len() > 0 {
+                            Some(columns)
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                };
+
+                match columns {
+                    Some(columns) => {
+                        if let Some(alias) = alias {
+                            s.enter_temp_table(
+                                alias.name.clone(),
+                                TempTable {
+                                    columns: Arc::new(columns),
+                                },
+                            );
+                        } else {
+                            s.this_table = Some(ThisTableEnum::Temp {
+                                temp: TempTable {
+                                    columns: Arc::new(columns),
+                                },
+                            });
+                        }
+                    }
+                    None => {
+                        if let Some(alias) = alias {
+                            // this is a alias but we often end in situation like this
+                            // `select * from test ...`
+                            // here we need completion on where order etc lexer elements
+                            // if self.in_pos(&alias.name.span) {
+                            //     self.set_on_def();
+                            //     return;
+                            // }
+                            // TODO alias have column definition.
+                            s.enter_table(alias.name.clone(), name.clone());
+                        } else {
+                            s.enter_table(
+                                match name.0.last().unwrap() {
+                                    ObjectNamePart::Identifier(ident) => ident.clone(),
+                                },
+                                name.clone(),
+                            );
+                        }
+                    }
                 }
+
                 for p in partitions.iter() {
                     self.c_on_partition_expr(name, &Expr::Identifier(p.clone()))
                         .await;
@@ -2477,28 +2525,48 @@ impl CompletionStatement {
                     });
                 }
             }
-            TableFactor::TableFunction { expr: _, alias } => {
-                if let Some(alias) = alias {
+            TableFactor::TableFunction { expr, alias } => {
+                self.c_on_expr(expr).await;
+                if let Some(alias) = alias.as_ref() {
                     s.enter_temp_table(
                         alias.name.clone(),
                         TempTable {
                             columns: Arc::new(vec![]),
                         },
                     );
-                } else {
-                    // TODO how to handle this case
                 }
             }
-            TableFactor::Function { alias, .. } => {
+            TableFactor::Function { alias, name, .. } => {
+                let (db, schema, name) = self.extract_db_schme_item(name);
+                // TODO how to handle this case
+                let columns = self
+                    .helper
+                    .list_column(db, schema, &name, true)
+                    .await
+                    .map_err(|e| log::error!("list column failed,e:{}", e))
+                    .ok()
+                    .unwrap_or_default();
+                let columns: Vec<_> = columns
+                    .into_iter()
+                    .map(|x| TempTableColumn {
+                        name: x.item.to_string(),
+                        typ: x.desc.map(|x| x.to_string()),
+                    })
+                    .collect();
+
                 if let Some(alias) = alias {
                     s.enter_temp_table(
                         alias.name.clone(),
                         TempTable {
-                            columns: Arc::new(vec![]),
+                            columns: Arc::new(columns),
                         },
                     );
                 } else {
-                    // TODO how to handle this case
+                    s.this_table = Some(ThisTableEnum::Temp {
+                        temp: TempTable {
+                            columns: Arc::new(columns),
+                        },
+                    });
                 }
             }
             TableFactor::UNNEST { .. } => {}

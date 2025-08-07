@@ -241,7 +241,7 @@ impl From<TempTable> for ThisTableEnum {
 #[derive(Clone, Default, Debug)]
 pub struct Scope {
     table_entered: HashMap<Ident, ObjectName>,
-    this_table: Option<ThisTableEnum>,
+    pub(crate) this_table: Option<ThisTableEnum>,
     temp_tables: HashMap<Ident, TempTable>,
     // https://www.postgresql.org/docs/current/plpgsql-declarations.html
 
@@ -1887,8 +1887,7 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-             SELECT *
-                FROM V$RESERVED_WORDS;
+             select    pg_get_keywords() 
         "#;
         let dialect = sqlparser::dialect::GenericDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);

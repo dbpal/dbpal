@@ -78,7 +78,7 @@ impl AstCompletionHelper for FireBirdDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, name: &str,
+        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         SchemaTrait::show_table_columns(self, name).await.map(|x| {
             x.into_iter()

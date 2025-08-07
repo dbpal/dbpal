@@ -135,10 +135,16 @@ impl AstCompletionHelper for OracleDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str,
+        &self, _db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-        let sql = format!(r#"select * from "{}"."{}""#, schema, name);
+        let sql = format!(
+            r#"select * from {}"{}""#,
+            match schema {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            name
+        );
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
 

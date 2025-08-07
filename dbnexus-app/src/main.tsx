@@ -64,3 +64,11 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <MainPage></MainPage>
   </React.StrictMode>
 );
+
+invoke('command_panic', {})
+  .then(() => {
+    console.log('after command_panic');
+  })
+  .catch(() => {
+    console.log('!!!!!!!!!!!!!!command panic catched');
+  });

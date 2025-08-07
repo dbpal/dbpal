@@ -103,7 +103,7 @@ impl AstCompletionHelper for LibSqlDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, name: &str,
+        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let conn = self.get_conn().await?;
         let sql = format!(r#"select * from "{name}" limit 1"#);

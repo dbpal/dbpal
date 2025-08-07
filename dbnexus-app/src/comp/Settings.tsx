@@ -335,7 +335,7 @@ const components: Components<
     styleOverrides: {
       root: {
         fontSize: '1rem',
-        padding: '2px',
+        padding: '2px  4px',
         textTransform: 'none',
       },
     },

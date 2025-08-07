@@ -11,13 +11,14 @@ import {
   useEffect,
   useState,
 } from 'react';
+import { MdError } from 'react-icons/md';
 import { SiWelcometothejungle } from 'react-icons/si';
 import { TabContent, TabsWithContent } from './Tabs';
 import { WelCome } from './WelCome';
 import { EscDownEvent, modalStyle } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
-
+import { event } from '@tauri-apps/api';
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
     if (platform() == 'macos') {
@@ -63,13 +64,15 @@ import {
   appStore,
   AppStoreKey,
   ContextMenuContext,
+  generateRandomString,
   TabsSetContext,
 } from './helper.ts';
 
 import { Box, Modal, Paper } from '@mui/material';
+import { BackendCrash } from './BackendCrash.tsx';
 
 export default function MainPage() {
-  let [tabs, setTabs] = useState([
+  let [tabs, setTabs] = useState<TabContent[]>([
     new TabContent(
       'welcome',
       'welcome',
@@ -109,6 +112,32 @@ export default function MainPage() {
   // shortcut
   useEffect(() => {
     document.addEventListener('keydown', shortCuts.callback);
+  }, []);
+
+  useEffect(() => {
+    let unlisten = listen<string>(
+      'backend-crash',
+      (msg: event.Event<string>) => {
+        setTabs((tabs) => {
+          let length = tabs.length;
+          setTab(length);
+          return [
+            ...tabs,
+            new TabContent(
+              generateRandomString(15),
+              'backend-crash',
+              <BackendCrash msg={msg.payload}></BackendCrash>,
+              <MdError> </MdError>
+            ),
+          ];
+        });
+      }
+    );
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
   }, []);
 
   useEffect(() => {
