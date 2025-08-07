@@ -6,6 +6,7 @@ import { Position } from 'monaco-editor';
 import { SqlQuery } from './SqlQuery.tsx';
 import { fetch } from '@tauri-apps/plugin-http';
 import { appStore, AppStoreKey, MakeIQueryConn } from './Common.tsx';
+import { DataSourceKind } from './helper.ts';
 function RedisQuery(props: {
   makeConn: MakeIQueryConn;
   language;
@@ -91,7 +92,7 @@ function RedisQuery(props: {
   useEffect(() => {
     appStore.get(AppStoreKey.RedisQuerySize).then((size) => {
       if (size) {
-        SetSize(size);
+        SetSize(size as number);
       }
     });
   }, []);
@@ -130,6 +131,7 @@ function RedisQuery(props: {
         favoriteName={favoriteName}
         saveFavoriteSql={saveFavoriteSql}
         value={value}
+        kind={DataSourceKind.Redis}
       ></SqlQuery>
 
       <div

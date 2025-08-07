@@ -606,6 +606,7 @@ function FavoriteSqlList(props: { handleClose }) {
                   );
                 }}
                 favoriteName={row.name}
+                kind={row.kind}
               ></SqlQuery>
             );
         }
@@ -1232,6 +1233,7 @@ function openNewQuery(
               showNotification
             );
           }}
+          kind={kind}
         ></SqlQuery>
       );
       break;

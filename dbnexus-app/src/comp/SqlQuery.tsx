@@ -38,13 +38,14 @@ import {
   msgTimeout,
   SettingContext,
 } from './Common.tsx';
+import { BsFillLightbulbFill } from 'react-icons/bs';
 import { FaBookmark } from 'react-icons/fa';
 import { FaUpload } from 'react-icons/fa';
 import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { secondConfirm } from './helper.ts';
+import { DataSourceKind, secondConfirm } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
 import { CiTimer } from 'react-icons/ci';
@@ -155,11 +156,11 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
 function SqlQuery(props: {
   language: string;
   handelTextAndPositionChange?: (text: string, pos: Position) => void;
-
   makeConn: MakeIQueryConn;
   value?: string;
   saveFavoriteSql: (name: string, sql: string) => void;
   favoriteName?: string;
+  kind: DataSourceKind;
 }) {
   let {
     handelTextAndPositionChange,
@@ -168,6 +169,7 @@ function SqlQuery(props: {
     value,
     saveFavoriteSql,
     favoriteName: oldFavoriteName,
+    kind,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
@@ -182,6 +184,18 @@ function SqlQuery(props: {
   const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
     null
   );
+  const supportExplain = [
+    DataSourceKind.Sqlite,
+    DataSourceKind.LibSql,
+    DataSourceKind.MariaDB,
+    DataSourceKind.TiDB,
+    DataSourceKind.Mysql,
+    DataSourceKind.Oracle,
+    DataSourceKind.MsSql,
+    DataSourceKind.Postgres,
+    DataSourceKind.ClickHouse,
+    DataSourceKind.FireBird,
+  ].includes(kind);
 
   const executeTimeRef = useRef(null);
 
@@ -366,11 +380,15 @@ function SqlQuery(props: {
         timeExecuteClean();
       });
   };
-  const handleQuery = async (append: boolean) => {
+  const handleQuery = async (append: boolean, explain: boolean = false) => {
     let text = getText();
     if (!text) {
       return;
     }
+    if (explain) {
+      text = `EXPLAIN ${text}`;
+    }
+
     let confirm;
     try {
       confirm = await warnDangerousSql(text);
@@ -538,6 +556,19 @@ function SqlQuery(props: {
               <FaExclamation />
             </IconButton>
           </Tooltip>
+          <Tooltip title="explain sql">
+            <IconButton
+              loading={loading}
+              disabled={loading || conn == null}
+              onClick={() => {
+                handleQuery(false, true);
+              }}
+              color="primary"
+            >
+              <BsFillLightbulbFill />
+            </IconButton>
+          </Tooltip>
+
           <Tooltip title="sql execute time">
             <Chip
               color="default"

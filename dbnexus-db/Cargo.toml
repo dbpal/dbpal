@@ -22,13 +22,14 @@ sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "main", features 
     "json",
     "tls-rustls",
 ] }
+sqlx-core = { git = "https://github.com/launchbadge/sqlx", branch = "main", features = [
+    "any",
+] }
 bb8 = "0.9"
 anyhow.workspace = true
 serde.workspace = true
 async-trait.workspace = true
-sqlx-core = { git = "https://github.com/launchbadge/sqlx", branch = "main", features = [
-    "any",
-] }
+
 
 redis = { version = "*", features = [
     "tokio-comp",

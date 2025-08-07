@@ -1254,8 +1254,8 @@ function FilterOnValue(props: {
           set
         </Button>
 
-        <Typography>
-          on: <em> {where()} </em>
+        <Typography color="info">
+          <em> {where()} </em>
         </Typography>
       </Stack>
     </Stack>
