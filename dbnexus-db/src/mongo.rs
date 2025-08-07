@@ -14,9 +14,9 @@ use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResu
 use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlExecuteRet, not_support_feature,
+    BackendKind, GetBackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult,
+    Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, not_support_feature,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -64,9 +64,9 @@ impl MongoDB {
     }
 }
 
-impl BackendName for MongoDB {
-    fn backend_name(&self) -> &str {
-        "mongo"
+impl GetBackendKind for MongoDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::Mongo
     }
 }
 #[async_trait::async_trait]

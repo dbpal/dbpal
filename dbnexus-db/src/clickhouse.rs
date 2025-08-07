@@ -10,19 +10,19 @@ use tokio::task::block_in_place;
 use crate::MemoryLimit;
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    ExportKind, ExportQueryResult, Field, ListMaterializedView, ListTable, NamedStaff, QueryResp,
-    QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
-    SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
+    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    ExportKind, ExportQueryResult, Field, GetBackendKind, ListMaterializedView, ListTable,
+    NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
-impl BackendName for ClickHouseDB {
-    fn backend_name(&self) -> &str {
-        "clickhouse"
+impl GetBackendKind for ClickHouseDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::ClickHouse
     }
 }
 

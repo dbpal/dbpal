@@ -55,8 +55,8 @@ use num_bigint::{BigInt, ToBigInt};
 use crate::MemoryLimit;
 use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind,
+    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter, escape_sql_str,
@@ -189,9 +189,9 @@ impl std::fmt::Debug for CassandraDB {
     }
 }
 
-impl BackendName for CassandraDB {
-    fn backend_name(&self) -> &str {
-        "cassandra"
+impl GetBackendKind for CassandraDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::Cassandra
     }
 }
 

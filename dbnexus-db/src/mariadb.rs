@@ -1,9 +1,9 @@
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, SequenceDetail,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    BackendKind, GetBackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
     UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
@@ -23,9 +23,9 @@ pub struct MariaDB {
     pub(crate) db: Arc<MysqlDB>,
 }
 
-impl BackendName for MariaDB {
-    fn backend_name(&self) -> &str {
-        "mariadb"
+impl GetBackendKind for MariaDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::Mariadb
     }
 }
 

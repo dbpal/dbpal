@@ -14,8 +14,54 @@ use crate::language_server::LanguageServer;
 use crate::meta_value::MetaValue;
 use crate::query_log::QueryLogEvent;
 
-pub trait BackendName {
-    fn backend_name(&self) -> &str;
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BackendKind {
+    Mysql,
+    Tidb,
+    Mariadb,
+    LibSql,
+    PostGres,
+    CockRoach,
+    SqlServer,
+    Mongo,
+    Redis,
+    Sqlite,
+    Cassandra,
+    ClickHouse,
+    Firebird,
+    Oracle,
+}
+
+#[allow(dead_code)]
+impl BackendKind {
+    pub(crate) fn mysql_like(self) -> bool {
+        match self {
+            Self::Mariadb | Self::Tidb | Self::Mysql => true,
+            _ => false,
+        }
+    }
+    pub(crate) fn postgres_like(self) -> bool {
+        match self {
+            Self::PostGres | Self::CockRoach => true,
+            _ => false,
+        }
+    }
+    pub(crate) fn sqlite_like(self) -> bool {
+        match self {
+            Self::Sqlite | Self::LibSql => true,
+            _ => false,
+        }
+    }
+}
+
+impl std::fmt::Display for BackendKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+pub trait GetBackendKind {
+    fn backend_name(&self) -> BackendKind;
 }
 pub trait ReadOnlyTrait {
     fn read_only(&self) -> bool;
@@ -294,7 +340,7 @@ pub trait QuoteStyle {
     }
 }
 
-pub trait SqlBuilder: BackendName + QuoteStyle {
+pub trait SqlBuilder: GetBackendKind + QuoteStyle {
     fn type_support_compare(&self, _typ: &str) -> bool {
         true
     }
@@ -526,7 +572,7 @@ impl UdfOrProcedureExtraParameter {
     }
 }
 
-pub(crate) fn not_support_feature<T>(name: &str) -> anyhow::Result<T> {
+pub(crate) fn not_support_feature<T>(name: BackendKind) -> anyhow::Result<T> {
     anyhow::bail!(format!("'{}' don't support this feature", name))
 }
 
@@ -698,7 +744,7 @@ pub struct SequenceDetail {
 }
 
 #[async_trait::async_trait]
-pub trait ExportQueryResult: BackendName + Send + Sync + 'static {
+pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
     fn clone(&self) -> Box<dyn ExportQueryResult>;
 
     async fn export_query_result(
@@ -754,7 +800,7 @@ pub trait ExportQueryResult: BackendName + Send + Sync + 'static {
 }
 
 #[async_trait::async_trait]
-pub trait QuerySql: BackendName + Send + Sync + 'static + LanguageServer {
+pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     fn tx_execute_counts(&self, _query_id: uuid::Uuid) -> anyhow::Result<usize> {
         not_support_feature(self.backend_name())
     }

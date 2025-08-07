@@ -48,6 +48,10 @@ impl LanguageServer for MariaDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for MariaDB {
+    async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        LexerCompletionTrait::get_key_words_fn(self).await
+    }
+
     async fn list_table(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {

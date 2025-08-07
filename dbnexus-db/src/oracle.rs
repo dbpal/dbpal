@@ -15,8 +15,8 @@ use tokio::task::block_in_place;
 use crate::MemoryLimit;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, Field, HumanSize, Index, IndexKind,
+    BackendKind, GetBackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, HumanSize, Index, IndexKind,
     ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
@@ -1705,9 +1705,9 @@ impl OracleDB {
     }
 }
 
-impl BackendName for OracleDB {
-    fn backend_name(&self) -> &str {
-        "oracle"
+impl GetBackendKind for OracleDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::Oracle
     }
 }
 

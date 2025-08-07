@@ -1,9 +1,10 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, LangServerCommon, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mysql::MysqlDB;
 use crate::tidb::TiDB;
@@ -46,6 +47,10 @@ impl LanguageServer for TiDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for TiDB {
+    async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        LexerCompletionTrait::get_key_words_fn(self).await
+    }
+
     async fn list_table(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
@@ -136,7 +141,19 @@ impl LexerCompletionTrait for TiDB {
         。
         你当前的 8.0.11-TiDB-v7.5.1 恰好是 7.5.1，版本号里前面只是伪装成 MySQL 8.0 的“兼容前缀”，实际内核仍是 7.5.1，因此 表不存在。
          */
-        anyhow::Ok(self.db.get_key_words_fn().await.ok().unwrap_or_default())
+        let r = self.db.get_key_words_fn().await.ok().unwrap_or_default();
+        if r.len() > 0 {
+            return anyhow::Ok(r);
+        }
+        let r = <Self as LexerCompletionTrait>::KEY_WORDS
+            .iter()
+            .map(|x| CompletionItem {
+                item: Cow::Owned(x.to_string()),
+                desc: None,
+                kind: CompletionKind::KeyWord,
+            })
+            .collect::<Vec<_>>();
+        anyhow::Ok(r)
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {

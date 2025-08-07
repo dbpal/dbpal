@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 
-use crate::db::{BackendName, FormatSqlOpts, not_support_feature};
+use crate::db::{FormatSqlOpts, GetBackendKind, not_support_feature};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -176,6 +176,9 @@ impl LangServerCommon for MysqlDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for MysqlDB {
+    async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        LexerCompletionTrait::get_key_words_fn(self).await
+    }
     async fn list_table(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {

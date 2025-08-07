@@ -62,3 +62,5 @@ SELECT ENGINE from information_schema.ENGINES
 14 ENGINE ; 46 ENGINES
 SELECT * from test
 19 test
+EXPLAIN test
+13 test ; 13 SELECT

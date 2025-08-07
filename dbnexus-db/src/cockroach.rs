@@ -9,10 +9,10 @@ use sqlx::{AssertSqlSafe, Postgres, Row};
 
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    BackendKind, GetBackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
+    CreateSchemaExtra, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index,
+    IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
+    QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter,
 };
 use crate::helper::is_dangerous_sql_by_parser;
@@ -21,9 +21,9 @@ use crate::pg::PostGresDB;
 use crate::pg_format::encode_rows;
 use crate::query_log::QueryLogEvent;
 
-impl BackendName for CockRoachDB {
-    fn backend_name(&self) -> &str {
-        "cockroachdb"
+impl GetBackendKind for CockRoachDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::CockRoach
     }
 }
 #[derive(Clone)]

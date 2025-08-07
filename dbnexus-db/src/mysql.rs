@@ -16,11 +16,11 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, escape_sql_str,
+    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use crate::language_server::CompletionItem;
 
@@ -573,9 +573,9 @@ impl ServerMetas for MysqlDB {
     }
 }
 
-impl BackendName for MysqlDB {
-    fn backend_name(&self) -> &str {
-        "mysql"
+impl GetBackendKind for MysqlDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::Mysql
     }
 }
 

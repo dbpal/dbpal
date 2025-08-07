@@ -1148,7 +1148,7 @@ impl CompletionStatement {
             }
             Statement::ShowVariable { variable } => {
                 let name = self.helper.backend_name();
-                if name == "postgres" {
+                if name.postgres_like() {
                     for var in variable {
                         self.c_on_variable(var).await;
                         if self.finished() {
@@ -1512,7 +1512,23 @@ impl CompletionStatement {
             }
             Statement::Kill { .. } => {}
             Statement::ExplainTable { table_name, .. } => {
-                self.c_on_table(table_name).await;
+                if self.helper.backend_name().mysql_like() {
+                    //
+                    self.c_on_table(table_name).await;
+                    if self.last_name_in_pos(table_name) {
+                        let mut r = self.result.take().unwrap_or_default();
+                        let words = self
+                            .helper
+                            .keywords()
+                            .await
+                            .map_err(|e| log::error!("get keywords failed,e:{}", e))
+                            .unwrap_or_default();
+
+                        r.extend(words.into_iter());
+
+                        self.result = Some(r);
+                    }
+                }
             }
             Statement::Explain { statement, .. } => {
                 Box::pin(self.completion_on_statement(statement)).await;
@@ -1887,7 +1903,7 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-             select    pg_get_keywords() 
+            explain sel
         "#;
         let dialect = sqlparser::dialect::GenericDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);

@@ -15,10 +15,10 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, T
 
 use crate::MemoryLimit;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-    Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEvent, TriggerTiming, escape_sql_str,
+    BackendKind, GetBackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
+    ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
+    QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    TriggerDetail, TriggerEvent, TriggerTiming, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -418,9 +418,9 @@ impl std::fmt::Debug for SqliteDB {
     }
 }
 
-impl BackendName for SqliteDB {
-    fn backend_name(&self) -> &str {
-        "sqlite"
+impl GetBackendKind for SqliteDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::Sqlite
     }
 }
 

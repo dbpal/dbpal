@@ -1,9 +1,10 @@
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+    BackendKind, GetBackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
@@ -18,9 +19,9 @@ pub struct TiDB {
     pub(crate) db: Arc<MysqlDB>,
 }
 
-impl BackendName for TiDB {
-    fn backend_name(&self) -> &str {
-        "tidb"
+impl GetBackendKind for TiDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::Tidb
     }
 }
 

@@ -15,8 +15,8 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
-    BackendName, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
+    BackendKind, GetBackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult,
+    Field, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
     SqlExecuteRet,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
@@ -621,9 +621,9 @@ impl CheckConn for RedisDB {
     }
 }
 
-impl BackendName for RedisDB {
-    fn backend_name(&self) -> &str {
-        "redis"
+impl GetBackendKind for RedisDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::Redis
     }
 }
 

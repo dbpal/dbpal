@@ -13,10 +13,10 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
 use crate::db::{
-    BackendName, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-    Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    escape_sql_str,
+    BackendKind, GetBackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
+    ExportQueryResult, Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
+    QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    TriggerDetail, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -38,9 +38,9 @@ pub struct LibSqlDB {
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
-impl BackendName for LibSqlDB {
-    fn backend_name(&self) -> &str {
-        "libsql"
+impl GetBackendKind for LibSqlDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::LibSql
     }
 }
 

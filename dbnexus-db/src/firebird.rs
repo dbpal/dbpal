@@ -17,9 +17,9 @@ use tokio::task::block_in_place;
 use crate::MemoryLimit;
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
-    BackendName, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
-    NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_feature,
+    BackendKind, GetBackendKind, CheckConn, ExportKind, ExportQueryResult, Field, Index, IndexKind,
+    ListTable, NamedStaff, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_feature,
 };
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
@@ -63,9 +63,9 @@ impl ReadOnlyTrait for FireBirdDB {
     }
 }
 
-impl BackendName for FireBirdDB {
-    fn backend_name(&self) -> &str {
-        "firebird"
+impl GetBackendKind for FireBirdDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::Firebird
     }
 }
 fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {

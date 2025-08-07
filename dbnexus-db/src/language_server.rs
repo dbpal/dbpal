@@ -8,11 +8,11 @@ use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
-use crate::db::{BackendName, FormatSqlOpts, monaco_editor_keyword_regexp, not_support_feature};
+use crate::db::{FormatSqlOpts, GetBackendKind, monaco_editor_keyword_regexp, not_support_feature};
 use crate::sqlparser_completion::CompletionStatement;
 
 #[async_trait::async_trait]
-pub trait LanguageServer: BackendName {
+pub trait LanguageServer: GetBackendKind {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
@@ -241,7 +241,7 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
 }
 #[async_trait::async_trait]
 
-pub trait LangServerCommon: BackendName {
+pub trait LangServerCommon: GetBackendKind {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -251,7 +251,7 @@ pub trait LangServerCommon: BackendName {
 }
 
 #[async_trait::async_trait]
-pub trait AstCompletionHelper: Send + Sync + 'static + BackendName + LangServerCommon {
+pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServerCommon {
     async fn list_table(
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>>;
@@ -281,6 +281,10 @@ pub trait AstCompletionHelper: Send + Sync + 'static + BackendName + LangServerC
     async fn list_clickhouse_table_projects(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
+
+    async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
         not_support_feature(self.backend_name())
     }
 

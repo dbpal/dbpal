@@ -19,12 +19,12 @@ use crate::MemoryLimit;
 use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
-    format_data_time_fix_offset, not_support_feature,
+    BackendKind, GetBackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
+    CreateSchemaExtra, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index,
+    IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle,
+    ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder,
+    SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, escape_sql_str, format_data_time_fix_offset, not_support_feature,
 };
 use crate::helper::{
     SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
@@ -437,9 +437,9 @@ impl MsSqlServerDB {
     }
 }
 
-impl BackendName for MsSqlServerDB {
-    fn backend_name(&self) -> &str {
-        "sqlserver"
+impl GetBackendKind for MsSqlServerDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::SqlServer
     }
 }
 
