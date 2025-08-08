@@ -6,8 +6,7 @@ use sqlparser::ast::{ColumnOption, *};
 
 use crate::language_server::{CompletionItem, CompletionKind};
 use crate::sqlparser_completion::{
-    CompletionStatement, FromTableOrTemp, NearNestTableNamed, Scope, ScopesDropGuard, TempTable,
-    TempTableColumn, ThisTableEnum,
+    CompletionStatement, Scope, ScopesDropGuard, TableEntered, TempTable, TempTableColumn,
 };
 
 impl Into<CompletionKind> for ObjectType {
@@ -25,6 +24,20 @@ impl Into<CompletionKind> for ObjectType {
             ObjectType::MaterializedView => CompletionKind::View,
         }
     }
+}
+
+fn remove_dupliate(items: Vec<CompletionItem>) -> Vec<CompletionItem> {
+    let mut names = HashSet::new();
+    let mut items2 = Vec::new();
+    for item in items {
+        let name = item.item.to_string();
+        if names.contains(&name) {
+            continue;
+        }
+        names.insert(name);
+        items2.push(item);
+    }
+    items2
 }
 
 impl Into<CompletionKind> for ShowCreateObject {
@@ -1001,11 +1014,11 @@ impl CompletionStatement {
                     return;
                 }
                 if let Some(table) = self.scopes.nearest_table_named(&table) {
-                    match table {
-                        NearNestTableNamed::Alias { table } => {
+                    match &table {
+                        TableEntered::FromTable { table, .. } => {
                             self.c_on_column(&table, &idents[1], false).await;
                         }
-                        NearNestTableNamed::Temp { table } => {
+                        TableEntered::Temp { table, .. } => {
                             self.result =
                                 Some(table.columns.iter().map(CompletionItem::from).collect());
                         }
@@ -1045,38 +1058,11 @@ impl CompletionStatement {
             return;
         }
         log::trace!("hit idenfier:{:?}", ident);
-        if let Some(this_table) = self.scopes.this_table() {
-            log::trace!("this table found:{:?}", this_table);
-            match this_table {
-                ThisTableEnum::Table { name } => {
-                    self.c_on_column(&name, ident, true).await;
-                }
-                ThisTableEnum::Temp { temp } => {
-                    self.result = Some(temp.columns.iter().map(CompletionItem::from).collect());
-                }
-            }
-        }
-        // another completion
-        let tables = self.scopes.nearest_from_tables();
-        log::trace!("from tables:{:?}", tables);
-        for from in tables.iter() {
-            let mut old = self.result.take().unwrap_or_default();
-            match from {
-                // we only looking for unnamed
-                // because named need access by `table.column`
-                FromTableOrTemp::Unnamed { table } => {
-                    old.extend(
-                        table
-                            .columns
-                            .to_vec()
-                            .into_iter()
-                            .map(CompletionItem::from)
-                            .collect::<Vec<_>>()
-                            .into_iter(),
-                    );
-                    self.result = Some(old);
-                }
-                FromTableOrTemp::FromTable { table } => {
+        let mut results = vec![];
+        let tables = self.scopes.tables();
+        for t in tables.iter() {
+            match t {
+                TableEntered::FromTable { table, .. } => {
                     let (db, schema, table) = self.extract_db_schme_item(table);
                     let m = self
                         .helper
@@ -1087,11 +1073,10 @@ impl CompletionStatement {
                         })
                         .ok()
                         .unwrap_or_default();
-                    old.extend(m.into_iter());
-                    self.result = Some(old);
+                    results.extend(m.into_iter());
                 }
-                FromTableOrTemp::Temp { table } => {
-                    old.extend(
+                TableEntered::Temp { table, .. } => {
+                    results.extend(
                         table
                             .columns
                             .to_vec()
@@ -1100,45 +1085,42 @@ impl CompletionStatement {
                             .collect::<Vec<_>>()
                             .into_iter(),
                     );
-                    self.result = Some(old);
                 }
             }
-            // save  results
-            let items = self.result.take().unwrap_or_default();
-            // this line will rewrite the results.
-            self.c_on_select_target(&ObjectName(vec![ObjectNamePart::Identifier(ident.clone())]))
-                .await;
-            if self.result.is_none() {
-                self.result = Some(vec![]);
-            }
-            self.result.as_mut().unwrap().extend(items);
+        }
+        // this line will rewrite the results.
+        self.c_on_select_target(&ObjectName(vec![ObjectNamePart::Identifier(ident.clone())]))
+            .await;
 
-            if ident.quote_style.is_none() {
-                // 我们也要函数
-                let fs = self
-                    .helper
-                    .list_function(None, None, true)
-                    .await
-                    .ok()
-                    .unwrap_or_default();
-                self.result.as_mut().unwrap().extend(fs);
-            }
-            //也要schema
-            let schemas: Vec<_> = self
+        results.extend(self.result.take().unwrap_or_default().into_iter());
+
+        if ident.quote_style.is_none() {
+            // 我们也要函数
+            let fs = self
                 .helper
-                .list_schema(None)
+                .list_function(None, None, true)
                 .await
                 .ok()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Schema,
-                    desc: None,
-                })
-                .collect();
-            self.result.as_mut().unwrap().extend(schemas);
+                .unwrap_or_default();
+            results.extend(fs);
         }
+        //也要schema
+        let schemas: Vec<_> = self
+            .helper
+            .list_schema(None)
+            .await
+            .ok()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Schema,
+                desc: None,
+            })
+            .collect();
+        results.extend(schemas.into_iter());
+        results = remove_dupliate(results);
+        self.result = Some(results);
     }
 
     pub(crate) async fn c_on_column_option_def(&mut self, def: &ColumnOptionDef) {
@@ -1563,29 +1545,27 @@ impl CompletionStatement {
                 Box::pin(self.c_on_expr(&interval.value)).await;
             }
             Expr::MatchAgainst { columns, .. } => {
-                if let Some(this_table) = self.scopes.this_table() {
-                    for c in columns.iter() {
-                        for col in c.0.iter() {
-                            match col {
-                                ObjectNamePart::Identifier(ident) => {
-                                    match &this_table {
-                                        ThisTableEnum::Table { name } => {
-                                            self.c_on_column(name, ident, false).await;
-                                            if self.finished() {
-                                                return;
-                                            }
-                                        }
-                                        ThisTableEnum::Temp { temp: _temp } => {
-                                            // temp this table only use in table create
-                                            // I think I should never enter here.
-                                            log::error!(
-                                                "temp this table only use in table create , I think I should never enter here."
-                                            );
-                                        }
-                                    }
-                                }
-                            }
+                for c in columns.iter() {
+                    match c.0.len() {
+                        1 => match c.0.get(0).unwrap() {
+                            ObjectNamePart::Identifier(ident) => self.c_on_expr_ident(ident).await,
+                        },
+                        _ => {
+                            let idents =
+                                c.0.iter()
+                                    .filter(|x| match x {
+                                        ObjectNamePart::Identifier(_) => true,
+                                    })
+                                    .map(|x| match x {
+                                        ObjectNamePart::Identifier(ident) => ident.clone(),
+                                    })
+                                    .collect::<Vec<_>>();
+
+                            self.c_on_expr_compund_identifier(&idents[..]).await;
                         }
+                    }
+                    if self.finished() {
+                        return;
                     }
                 }
             }
@@ -1849,24 +1829,15 @@ impl CompletionStatement {
             .ok()
             .unwrap_or_default();
 
-        items.extend(self.scopes.tables().into_iter());
+        for x in self.scopes.tables() {
+            if let Some(name) = x.get_name() {
+                items.push(name.to_string());
+            }
+        }
         // here maybe we are suggest database all schemas.
         items.extend(self.helper.list_database().await.unwrap_or_default());
         items.extend(self.helper.list_schema(None).await.unwrap_or_default());
 
-        // remove dupliate we have entered table and tables in database
-        let items = {
-            let mut names = HashSet::new();
-            let mut items2 = Vec::new();
-            for item in items {
-                if names.contains(&item) {
-                    continue;
-                }
-                names.insert(item.clone());
-                items2.push(item);
-            }
-            items2
-        };
         let items = items
             .into_iter()
             .map(|x| CompletionItem {
@@ -1875,6 +1846,9 @@ impl CompletionStatement {
                 desc: None,
             })
             .collect::<Vec<_>>();
+
+        // remove dupliate we have entered table and tables in database
+        let items = remove_dupliate(items);
 
         self.result = Some(items);
     }
@@ -1978,11 +1952,11 @@ impl CompletionStatement {
                 // TODO need handle this.
                 let in_pos = vec.iter().any(|x| self.in_pos(&x.span()));
                 if in_pos {
-                    let tables = self.scopes.nearest_from_tables();
+                    let tables = self.scopes.tables();
                     let mut cs = vec![];
                     for table in tables.iter() {
                         match table {
-                            FromTableOrTemp::FromTable { table } => {
+                            TableEntered::FromTable { table, .. } => {
                                 let (db, schema, table) = self.extract_db_schme_item(table);
 
                                 cs.extend(
@@ -1996,10 +1970,7 @@ impl CompletionStatement {
                                         .into_iter(),
                                 );
                             }
-                            FromTableOrTemp::Temp { table } => {
-                                cs.extend(table.columns.iter().map(CompletionItem::from));
-                            }
-                            FromTableOrTemp::Unnamed { table } => {
+                            TableEntered::Temp { table, .. } => {
                                 cs.extend(table.columns.iter().map(CompletionItem::from));
                             }
                         }
@@ -2121,7 +2092,7 @@ impl CompletionStatement {
 
                                     match name {
                                         Some(x) => match x {
-                                            NearNestTableNamed::Alias { table } => {
+                                            TableEntered::FromTable { table, .. } => {
                                                 let (db, schema, table) =
                                                     self.extract_db_schme_item(&table);
                                                 let f = self
@@ -2138,7 +2109,7 @@ impl CompletionStatement {
                                                     .unwrap_or_default();
                                                 ret.extend(f.iter().map(TempTableColumn::from));
                                             }
-                                            NearNestTableNamed::Temp { table } => {
+                                            TableEntered::Temp { table, .. } => {
                                                 ret.extend(table.columns.iter().map(|x| {
                                                     TempTableColumn {
                                                         name: x.name.clone(),
@@ -2181,12 +2152,11 @@ impl CompletionStatement {
                     }
                 }
                 SelectItem::Wildcard(_) => {
-                    let tables = self.scopes.nearest_from_tables();
+                    let tables = self.scopes.tables();
                     for table in tables.iter() {
                         match table {
-                            FromTableOrTemp::FromTable { table } => {
+                            TableEntered::FromTable { table, .. } => {
                                 let (db, schema, table) = self.extract_db_schme_item(table);
-
                                 let cols = self
                                     .helper
                                     .list_column(db, schema, table, false)
@@ -2202,10 +2172,7 @@ impl CompletionStatement {
                                     .collect::<Vec<_>>();
                                 ret.extend(cols.into_iter());
                             }
-                            FromTableOrTemp::Temp { table } => {
-                                ret.extend(table.columns.to_vec());
-                            }
-                            FromTableOrTemp::Unnamed { table } => {
+                            TableEntered::Temp { table, .. } => {
                                 ret.extend(table.columns.to_vec());
                             }
                         }
@@ -2396,7 +2363,7 @@ impl CompletionStatement {
                         return;
                     }
                 }
-                s.from_tables.push(FromTableOrTemp::from(name.clone()));
+                s.enter_table(None, name.clone());
                 let columns = match args {
                     Some(_) => {
                         // this maybe a function get is a try
@@ -2427,17 +2394,18 @@ impl CompletionStatement {
                     Some(columns) => {
                         if let Some(alias) = alias {
                             s.enter_temp_table(
-                                alias.name.clone(),
+                                Some(alias.name.clone()),
                                 TempTable {
                                     columns: Arc::new(columns),
                                 },
                             );
                         } else {
-                            s.this_table = Some(ThisTableEnum::Temp {
-                                temp: TempTable {
+                            s.enter_temp_table(
+                                None,
+                                TempTable {
                                     columns: Arc::new(columns),
                                 },
-                            });
+                            );
                         }
                     }
                     None => {
@@ -2450,14 +2418,9 @@ impl CompletionStatement {
                             //     return;
                             // }
                             // TODO alias have column definition.
-                            s.enter_table(alias.name.clone(), name.clone());
+                            s.enter_table(Some(alias.name.clone()), name.clone());
                         } else {
-                            s.enter_table(
-                                match name.0.last().unwrap() {
-                                    ObjectNamePart::Identifier(ident) => ident.clone(),
-                                },
-                                name.clone(),
-                            );
+                            s.enter_table(None, name.clone());
                         }
                     }
                 }
@@ -2504,30 +2467,33 @@ impl CompletionStatement {
 
                 if let Some(alias) = alias {
                     s.enter_temp_table(
-                        alias.name.clone(),
+                        Some(alias.name.clone()),
                         TempTable {
                             columns: Arc::new(cols.clone()),
                         },
                     );
-                    s.from_tables.push(FromTableOrTemp::Unnamed {
-                        table: TempTable {
+                    s.enter_temp_table(
+                        None,
+                        TempTable {
                             columns: Arc::new(cols),
                         },
-                    });
+                    );
                 } else {
-                    s.from_tables.push(FromTableOrTemp::Unnamed {
-                        table: TempTable {
+                    s.enter_temp_table(
+                        None,
+                        TempTable {
                             columns: Arc::new(cols),
                         },
-                    });
+                    );
                 }
             }
             TableFactor::TableFunction { expr, alias } => {
                 self.c_on_expr(expr).await;
                 if let Some(alias) = alias.as_ref() {
                     s.enter_temp_table(
-                        alias.name.clone(),
+                        Some(alias.name.clone()),
                         TempTable {
+                            // TODO get columns.
                             columns: Arc::new(vec![]),
                         },
                     );
@@ -2547,17 +2513,18 @@ impl CompletionStatement {
 
                 if let Some(alias) = alias {
                     s.enter_temp_table(
-                        alias.name.clone(),
+                        Some(alias.name.clone()),
                         TempTable {
                             columns: Arc::new(columns),
                         },
                     );
                 } else {
-                    s.this_table = Some(ThisTableEnum::Temp {
-                        temp: TempTable {
+                    s.enter_temp_table(
+                        None,
+                        TempTable {
                             columns: Arc::new(columns),
                         },
-                    });
+                    );
                 }
             }
             TableFactor::UNNEST { .. } => {}

@@ -126,7 +126,7 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, is_call: bool,
+        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         use sqlx::{Column, Executor, Statement};
         let mut conn = self.get_conn().await?;

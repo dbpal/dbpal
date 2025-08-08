@@ -1,7 +1,3 @@
-use std::collections::{HashMap, HashSet};
-use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
-
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
 use sqlparser::ast::{
     AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CaseStatement, CopySource,
@@ -14,6 +10,9 @@ use sqlparser::ast::{
 };
 use sqlparser::ast::{ConditionalStatementBlock, SetSessionParamKind};
 use sqlparser::tokenizer::{Location, Span};
+use std::collections::HashMap;
+use std::ops::DerefMut;
+use std::sync::{Arc, Mutex};
 
 pub struct CompletionStatement {
     pub(crate) loc: Location,
@@ -37,7 +36,6 @@ impl ScopesDropGuard {
     pub(crate) fn copy(&self, s: &mut Vec<Scope>) {
         let lock = self.ss.lock().unwrap();
         let length = lock.len();
-
         for index in (length - self.n)..length {
             s.push(lock.get(index).unwrap().clone());
         }
@@ -56,16 +54,6 @@ impl Drop for ScopesDropGuard {
 }
 
 impl Scopes {
-    pub(crate) fn nearest_from_tables(&self) -> Vec<FromTableOrTemp> {
-        let x = self.ss.lock().unwrap();
-        for s in x.deref().iter().rev() {
-            if s.from_tables.len() > 0 {
-                return s.from_tables.clone();
-            }
-        }
-        vec![]
-    }
-
     pub(crate) fn drop_n(&self, n: usize) -> ScopesDropGuard {
         ScopesDropGuard {
             ss: self.ss.clone(),
@@ -88,33 +76,14 @@ impl Scopes {
         }
     }
 
-    pub(crate) fn tables(&self) -> Vec<String> {
-        let mut names: HashSet<String> = HashSet::new();
-        self.inner_first(|scope| {
-            if let Some(table) = &scope.this_table {
-                match table {
-                    ThisTableEnum::Table { name } => {
-                        let name = name.0.last().unwrap();
-                        let name_str = name.to_string();
-                        names.insert(name_str);
-                    }
-                    ThisTableEnum::Temp { temp: _ } => {
-                        // nothing to here.
-                    }
-                }
-            }
-            for name in scope.table_entered.keys() {
-                let name_str = name.to_string();
-                names.insert(name_str);
-            }
-            for temp in scope.temp_tables.keys() {
-                let name_str = temp.to_string();
-                names.insert(name_str);
-            }
-            // this clouse need return a option.
-            return None as Option<()>;
-        });
-        names.into_iter().collect()
+    pub(crate) fn tables(&self) -> Vec<TableEntered> {
+        let mut ret = vec![];
+
+        let lock = self.ss.lock().unwrap();
+        for s in lock.iter().rev() {
+            ret.extend(s.tables.clone().into_iter());
+        }
+        ret
     }
 
     pub(crate) fn push(&self, scope: Scope) -> ScopesDropGuard {
@@ -149,37 +118,16 @@ impl Scopes {
         None
     }
 
-    pub(crate) fn nearest_table_named(&self, name: &Ident) -> Option<NearNestTableNamed> {
-        let name = name.to_owned();
-        self.inner_first(|scope| -> Option<NearNestTableNamed> {
-            let alias = scope.table_entered.get(&name).map(|x| x.clone());
-            if alias.is_some() {
-                return alias.map(|alias| NearNestTableNamed::Alias { table: alias });
-            }
-
-            let temp_table = scope.temp_tables.get(&name).map(|x| x.clone());
-            if temp_table.is_some() {
-                return temp_table.map(|temp_table| NearNestTableNamed::Temp { table: temp_table });
+    pub(crate) fn nearest_table_named(&self, name: &Ident) -> Option<TableEntered> {
+        self.inner_first(|scope| -> Option<TableEntered> {
+            for t in scope.tables.iter().rev() {
+                if t.equal_name(name) {
+                    return Some(t.clone());
+                }
             }
             None
         })
     }
-
-    pub(crate) fn this_table(&self) -> Option<ThisTableEnum> {
-        let m = self.ss.lock().unwrap();
-        let m = m.deref();
-        for x in m.iter().rev() {
-            if x.this_table.is_some() {
-                return x.this_table.clone();
-            }
-        }
-        None
-    }
-}
-
-pub(crate) enum NearNestTableNamed {
-    Alias { table: ObjectName },
-    Temp { table: TempTable },
 }
 
 #[derive(Clone, Debug)]
@@ -217,33 +165,15 @@ impl From<CompletionItem> for TempTableColumn {
         Self::from(&value)
     }
 }
+
 #[derive(Clone, Debug)]
 pub struct TempTable {
     pub(crate) columns: Arc<Vec<TempTableColumn>>,
 }
 
-#[derive(Debug, Clone)]
-pub enum ThisTableEnum {
-    Table { name: ObjectName },
-    Temp { temp: TempTable },
-}
-
-impl From<ObjectName> for ThisTableEnum {
-    fn from(value: ObjectName) -> Self {
-        Self::Table { name: value }
-    }
-}
-impl From<TempTable> for ThisTableEnum {
-    fn from(value: TempTable) -> Self {
-        Self::Temp { temp: value }
-    }
-}
-
 #[derive(Clone, Default, Debug)]
 pub struct Scope {
-    table_entered: HashMap<Ident, ObjectName>,
-    pub(crate) this_table: Option<ThisTableEnum>,
-    temp_tables: HashMap<Ident, TempTable>,
+    tables: Vec<TableEntered>,
     // https://www.postgresql.org/docs/current/plpgsql-declarations.html
 
     // right sqlparse have problem to parse function or precedure body
@@ -253,26 +183,54 @@ pub struct Scope {
     //
     #[allow(unused)]
     vars: HashMap<String, Var>,
-
-    pub(crate) from_tables: Vec<FromTableOrTemp>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum FromTableOrTemp {
-    FromTable { table: ObjectName },
-    Temp { table: TempTable },
-    Unnamed { table: TempTable },
+pub(crate) enum TableEntered {
+    FromTable {
+        table: ObjectName,
+        alias: Option<Ident>,
+    },
+    Temp {
+        table: TempTable,
+        alias: Option<Ident>,
+    },
 }
 
-impl From<ObjectName> for FromTableOrTemp {
-    fn from(value: ObjectName) -> Self {
-        Self::FromTable { table: value }
+impl TableEntered {
+    pub(crate) fn get_name(&self) -> Option<&Ident> {
+        match self {
+            TableEntered::FromTable { alias, table } => {
+                if let Some(alias) = alias {
+                    Some(alias)
+                } else {
+                    match table.0.last().unwrap() {
+                        ObjectNamePart::Identifier(ident) => Some(ident),
+                    }
+                }
+            }
+            TableEntered::Temp { alias, .. } => alias.as_ref(),
+        }
+    }
+
+    fn equal_name(&self, name: &Ident) -> bool {
+        self.get_name()
+            .map(
+                |x: &Ident| match (x.quote_style.is_some(), name.quote_style.is_some()) {
+                    (false, false) => name.value.eq_ignore_ascii_case(&x.value),
+                    _ => &x.value == &name.value,
+                },
+            )
+            .unwrap_or(false)
     }
 }
 
-impl From<TempTable> for FromTableOrTemp {
-    fn from(value: TempTable) -> Self {
-        Self::Temp { table: value }
+impl From<ObjectName> for TableEntered {
+    fn from(value: ObjectName) -> Self {
+        Self::FromTable {
+            table: value,
+            alias: None,
+        }
     }
 }
 
@@ -283,12 +241,15 @@ pub struct Var {
 }
 
 impl Scope {
-    pub(crate) fn enter_table(&mut self, alias: Ident, table_name: ObjectName) {
-        self.table_entered.insert(alias, table_name);
+    pub(crate) fn enter_table(&mut self, alias: Option<Ident>, table_name: ObjectName) {
+        self.tables.push(TableEntered::FromTable {
+            table: table_name,
+            alias,
+        });
     }
 
-    pub(crate) fn enter_temp_table(&mut self, name: Ident, table_name: TempTable) {
-        self.temp_tables.insert(name, table_name);
+    pub(crate) fn enter_temp_table(&mut self, alias: Option<Ident>, temp: TempTable) {
+        self.tables.push(TableEntered::Temp { table: temp, alias });
     }
 
     pub(crate) fn enter_declare(&mut self, d: Arc<Declare>) {
@@ -296,23 +257,35 @@ impl Scope {
             self.declares.insert(name.value.clone(), d.clone());
         }
     }
-
     pub(crate) fn from_temp_tables(temp_tables: HashMap<Ident, TempTable>) -> Self {
+        let mut x = vec![];
+        for (k, v) in temp_tables {
+            x.push(TableEntered::Temp {
+                table: v,
+                alias: Some(k),
+            });
+        }
         Self {
-            temp_tables,
+            tables: x,
             ..Default::default()
         }
     }
 
     pub(crate) fn from_this_table(this_table: ObjectName) -> Self {
         Self {
-            this_table: Some(ThisTableEnum::from(this_table)),
+            tables: vec![TableEntered::FromTable {
+                table: this_table,
+                alias: None,
+            }],
             ..Default::default()
         }
     }
     pub(crate) fn from_temp_table(this_table: TempTable) -> Self {
         Self {
-            this_table: Some(ThisTableEnum::from(this_table)),
+            tables: vec![TableEntered::Temp {
+                table: this_table,
+                alias: None,
+            }],
             ..Default::default()
         }
     }
@@ -677,21 +650,19 @@ impl CompletionStatement {
                     return;
                 }
                 let mut scope = Scope::default();
-                let this_table = ThisTableEnum::Temp {
-                    temp: TempTable {
-                        columns: Arc::new(
-                            create_table
-                                .columns
-                                .iter()
-                                .map(|c| TempTableColumn {
-                                    name: c.name.value.clone(),
-                                    typ: Some(c.data_type.to_string()),
-                                })
-                                .collect(),
-                        ),
-                    },
+                let this_table = TempTable {
+                    columns: Arc::new(
+                        create_table
+                            .columns
+                            .iter()
+                            .map(|c| TempTableColumn {
+                                name: c.name.value.clone(),
+                                typ: Some(c.data_type.to_string()),
+                            })
+                            .collect(),
+                    ),
                 };
-                scope.this_table = Some(this_table);
+                scope.enter_temp_table(None, this_table);
                 let _guard = self.scopes.push(scope);
                 for c in create_table.columns.iter() {
                     if self.in_pos(&c.name.span) {
@@ -1348,8 +1319,8 @@ impl CompletionStatement {
                 let mut scope = Scope::default();
                 // TODO `NEW` and `OLD` is suitable for all database we
                 // support right now????
-                scope.enter_table(Ident::new("NEW"), table_name.clone());
-                scope.enter_table(Ident::new("OLD"), table_name.clone());
+                scope.enter_table(Some(Ident::new("NEW")), table_name.clone());
+                scope.enter_table(Some(Ident::new("OLD")), table_name.clone());
                 let _gurad = self.scopes.push(scope);
                 if let Some(c) = condition {
                     self.c_on_expr(c).await;

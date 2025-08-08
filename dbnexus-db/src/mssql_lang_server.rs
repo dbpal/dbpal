@@ -180,7 +180,7 @@ impl AstCompletionHelper for MsSqlServerDB {
     }
 
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
+        &self, db: Option<&str>, schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let sql = format!(
             r#"  select TOP 1 * from  {}{}"{}" "#,
