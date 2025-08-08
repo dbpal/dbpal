@@ -10,7 +10,10 @@ use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
     LexerCompletionTrait, try_completion_on_syntax,
 };
+use sqlx::{Column, Executor, Statement};
+
 use crate::sqlite::SqliteDB;
+use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LangServerCommon for SqliteDB {}
@@ -125,12 +128,8 @@ impl AstCompletionHelper for SqliteDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        use sqlx::{Column, Executor, Statement};
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut conn = self.get_conn().await?;
-        let sql = format!(r#"select * from "{name}" limit 1"#);
         log::info!("sql:{}", sql);
         let s = conn
             .deref_mut()
@@ -139,13 +138,20 @@ impl AstCompletionHelper for SqliteDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| CompletionItem {
-                item: x.name().to_string().into(),
-                desc: Some(x.type_info().to_string().into()),
-                kind: CompletionKind::Column,
+            .map(|x| TempTableColumn {
+                name: x.name().to_string().into(),
+                typ: Some(x.type_info().to_string().into()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
+    }
+
+    async fn list_column(
+        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, _is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!(r#"select * from "{name}" limit 1"#);
+        log::info!("sql:{}", sql);
+        self.get_query_columns(&sql).await
     }
 
     async fn list_function(

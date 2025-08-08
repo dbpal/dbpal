@@ -11,6 +11,7 @@ use std::time::Duration;
 use dashmap::{DashMap, DashSet};
 use r2d2::PooledConnection;
 use rsfbclient::{Execute, FbError, Queryable, Row, SqlType, builder_pure_rust};
+use rsfbclient_rust::RustFbClient;
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
@@ -30,7 +31,7 @@ pub struct PoolManager {
     config: FireBirdConfig,
 }
 
-pub type Connection = rsfbclient::Connection<rsfbclient_rust::RustFbClient>;
+pub type Connection = rsfbclient::Connection<RustFbClient>;
 
 impl r2d2::ManageConnection for PoolManager {
     type Connection = Connection;

@@ -282,7 +282,9 @@ impl CompletionStatement {
                                 .unwrap_or_default();
                             cols.extend(cs.into_iter());
                         }
-                        self.result = Some(cols);
+
+                        self.result =
+                            Some(cols.into_iter().map(|x| CompletionItem::from(x)).collect());
                     }
                 }
             }
@@ -1068,7 +1070,12 @@ impl CompletionStatement {
                         })
                         .ok()
                         .unwrap_or_default();
-                    results.extend(items.into_iter());
+                    results.extend(
+                        items
+                            .into_iter()
+                            .into_iter()
+                            .map(|x| CompletionItem::from(x)),
+                    );
                 }
                 TableEntered::Temp { table, .. } => {
                     results.extend(
@@ -1077,8 +1084,7 @@ impl CompletionStatement {
                             .to_vec()
                             .into_iter()
                             .map(CompletionItem::from)
-                            .collect::<Vec<_>>()
-                            .into_iter(),
+                            .collect::<Vec<_>>(),
                     );
                 }
             }
@@ -1666,8 +1672,10 @@ impl CompletionStatement {
                     log::error!("list column error:{:?}", e);
                 })
                 .ok()
-                .unwrap_or_default();
-
+                .unwrap_or_default()
+                .into_iter()
+                .map(CompletionItem::from)
+                .collect::<Vec<_>>();
             self.result.as_mut().unwrap().extend(items);
         }
     }
@@ -1957,7 +1965,8 @@ impl CompletionStatement {
                                             log::error!("list_column failed,err:{}", e);
                                         })
                                         .unwrap_or_default()
-                                        .into_iter(),
+                                        .into_iter()
+                                        .map(|x| CompletionItem::from(x)),
                                 );
                             }
                             TableEntered::Temp { table, .. } => {
@@ -2037,7 +2046,8 @@ impl CompletionStatement {
                 return anyhow::Ok(vec![]);
             }
         }
-        self.c_on_select_item(&selection.projection).await
+        let _ = self.c_on_select_item(&selection.projection).await;
+        self.helper.get_query_columns(&selection.to_string()).await
     }
 
     pub(crate) async fn c_on_select_item(
@@ -2097,17 +2107,15 @@ impl CompletionStatement {
                                                     })
                                                     .ok()
                                                     .unwrap_or_default();
-                                                ret.extend(f.iter().map(TempTableColumn::from));
+                                                ret.extend(f.into_iter());
                                             }
                                             TableEntered::Temp { table, .. } => {
-                                                ret.extend(table.columns.iter().map(|x| {
-                                                    TempTableColumn {
-                                                        name: x.name.clone(),
-                                                        typ: None,
-                                                    }
-                                                }));
+                                                ret.extend(
+                                                    table.columns.as_ref().clone().into_iter(),
+                                                );
                                             }
                                         },
+
                                         None => {
                                             // can't find maybe a error by user
                                         }
@@ -2123,7 +2131,7 @@ impl CompletionStatement {
                                         .map_err(|e| log::error!("list_column failed,err:{:?}", e))
                                         .ok()
                                         .unwrap_or_default();
-                                    ret.extend(f.iter().map(TempTableColumn::from));
+                                    ret.extend(f.into_iter());
                                 }
                                 _ => {
                                     log::error!(
@@ -2192,7 +2200,7 @@ impl CompletionStatement {
         let s = Scope::from_temp_tables(with_temp_tables);
         let _with_temp_table_guard = self.scopes.push(s);
         let mut s_on_set_expr: Vec<Scope> = vec![];
-        let result = Box::pin(self.c_on_set_expr(&query.body, &mut s_on_set_expr)).await?;
+        let _ = Box::pin(self.c_on_set_expr(&query.body, &mut s_on_set_expr)).await?;
         let _gurad = self.scopes.push_scopes(s_on_set_expr);
 
         if let Some(orderby) = query.order_by.as_ref() {
@@ -2240,8 +2248,7 @@ impl CompletionStatement {
                 }
             }
         }
-
-        return anyhow::Ok(result);
+        return self.helper.get_query_columns(&query.to_string()).await;
     }
 
     pub(crate) async fn c_on_set_expr(
@@ -2255,33 +2262,11 @@ impl CompletionStatement {
                 return Box::pin(self.c_on_query(&query)).await;
             }
             SetExpr::SetOperation { left, right, .. } => {
-                // left and right must have same structure so we can i ignore left
-
                 let _ = Box::pin(self.c_on_set_expr(&left, s)).await?;
                 return Box::pin(self.c_on_set_expr(&right, s)).await;
             }
-            SetExpr::Values(values) => {
-                if values.rows.len() > 0 {
-                    let last = values.rows.len() - 1;
-                    for (index, es) in values.rows.iter().enumerate() {
-                        for e in es.iter() {
-                            self.c_on_expr(e).await;
-                            if self.finished() {
-                                return anyhow::Ok(vec![]);
-                            }
-                        }
-                        // last one we will return anyway
-                        if index == last {
-                            let cols = (0..es.len())
-                                .map(|x| TempTableColumn {
-                                    name: format!("column_{}", x),
-                                    typ: None,
-                                })
-                                .collect::<Vec<_>>();
-                            return anyhow::Ok(cols);
-                        }
-                    }
-                }
+            SetExpr::Values(_values) => {
+                unimplemented!()
             }
             SetExpr::Insert(statement) => {
                 self.completion_on_statement(statement).await;

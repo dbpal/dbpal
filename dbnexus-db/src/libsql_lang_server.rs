@@ -1,8 +1,3 @@
-use std::borrow::Cow;
-use std::sync::Arc;
-
-use libsql::params;
-
 use crate::db::SchemaTrait;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -10,9 +5,11 @@ use crate::language_server::{
 };
 use crate::libsql::LibSqlDB;
 use crate::sqlite_lang_server::{SQLITE_KEY_WORDS, SQLITE_TYPES, sqlite_pragma};
+use crate::sqlparser_completion::TempTableColumn;
+use libsql::params;
+use std::sync::Arc;
 
 #[async_trait::async_trait]
-
 impl LanguageServer for LibSqlDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
@@ -102,20 +99,16 @@ impl AstCompletionHelper for LibSqlDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let conn = self.get_conn().await?;
-        let sql = format!(r#"select * from "{name}" limit 1"#);
         log::info!("sql:{}", sql);
         let mut stmt = conn.prepare(&sql).await?;
         let ret = stmt
             .columns()
             .iter()
-            .map(|x| CompletionItem {
-                item: x.name().to_string().into(),
-                desc: Some(x.decl_type().unwrap_or_default().to_string().into()),
-                kind: CompletionKind::Column,
+            .map(|x| TempTableColumn {
+                name: x.name().to_string().into(),
+                typ: Some(x.decl_type().unwrap_or_default().to_string().into()),
             })
             .collect::<Vec<_>>();
         // check if prepare return the reuslt.
@@ -126,16 +119,19 @@ impl AstCompletionHelper for LibSqlDB {
         let row = stmt.query_row(params!()).await?;
         anyhow::Ok(
             (0..row.column_count())
-                .map(|index| CompletionItem {
-                    item: row.column_name(index).unwrap_or_default().to_owned().into(),
-                    kind: CompletionKind::Column,
-                    desc: row
-                        .column_type(index)
-                        .ok()
-                        .map(|x| Cow::Owned(format!("{:?}", x))),
+                .map(|index| TempTableColumn {
+                    name: row.column_name(index).unwrap_or_default().to_owned().into(),
+                    typ: row.column_type(index).ok().map(|x| format!("{:?}", x)),
                 })
                 .collect(),
         )
+    }
+
+    async fn list_column(
+        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, _is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!(r#"select * from "{name}" limit 1"#);
+        self.get_query_columns(&sql).await
     }
 
     async fn list_function(

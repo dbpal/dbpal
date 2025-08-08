@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rsfbclient::Queryable;
+use rsfbclient::{Queryable, Row};
 
 use crate::db::SchemaTrait;
 use crate::firebird::FireBirdDB;
@@ -8,6 +8,7 @@ use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
     LexerCompletionTrait, try_completion_on_syntax,
 };
+use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LanguageServer for FireBirdDB {
@@ -77,15 +78,33 @@ impl AstCompletionHelper for FireBirdDB {
         anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
     }
 
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let mut conn = self.get_conn()?;
+        let row: Option<Row> = conn.query_first(&sql, ())?;
+        if let Some(row) = row {
+            let ret: Vec<_> = row
+                .cols
+                .iter()
+                .map(|x| TempTableColumn {
+                    name: x.name.clone(),
+                    typ: None,
+                })
+                .collect();
+            anyhow::Ok(ret)
+        } else {
+            log::error!("no results");
+            anyhow::Ok(vec![])
+        }
+    }
+
     async fn list_column(
         &self, _db: Option<&str>, _schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
         SchemaTrait::show_table_columns(self, name).await.map(|x| {
             x.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.field.clone().into(),
-                    kind: CompletionKind::Column,
-                    desc: None,
+                .map(|x| TempTableColumn {
+                    name: x.field.clone(),
+                    typ: Some(x.typ.clone()),
                 })
                 .collect()
         })
@@ -100,11 +119,8 @@ impl AstCompletionHelper for FireBirdDB {
             FROM 
             RDB$FUNCTIONS
         "#;
-
         let mut conn = self.get_conn()?;
-
         let rows: Vec<(String,)> = conn.query(sql, ())?;
-
         anyhow::Ok(
             rows.into_iter()
                 .map(|x| CompletionItem {

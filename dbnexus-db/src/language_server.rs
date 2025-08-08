@@ -9,7 +9,7 @@ use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
 use crate::db::{FormatSqlOpts, GetBackendKind, monaco_editor_keyword_regexp, not_support_feature};
-use crate::sqlparser_completion::CompletionStatement;
+use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
 #[async_trait::async_trait]
 pub trait LanguageServer: GetBackendKind {
@@ -260,12 +260,15 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     ) -> anyhow::Result<Vec<String>>;
     async fn list_column(
         &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>>;
+    ) -> anyhow::Result<Vec<TempTableColumn>>;
+
     async fn list_function(
         &self, db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
+
+    async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>>;
 
     async fn duckdb_extensions(
         &self, _installed: Option<bool>,

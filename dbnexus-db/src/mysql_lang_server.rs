@@ -11,7 +11,9 @@ use crate::language_server::{
     LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mysql::MysqlDB;
+use crate::sqlparser_completion::TempTableColumn;
 
+use sqlx::{Column, Executor, Statement};
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MysqlDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
@@ -225,11 +227,25 @@ impl AstCompletionHelper for MysqlDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let mut conn = self.get_conn().await?;
+        let s = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+            .await?;
+        let ret = s
+            .columns()
+            .iter()
+            .map(|x| TempTableColumn {
+                name: x.name().to_string().into(),
+                typ: Some(x.type_info().to_string().into()),
+            })
+            .collect::<Vec<_>>();
+        anyhow::Ok(ret)
+    }
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        use sqlx::{Column, Executor, Statement};
-        let mut conn = self.get_conn().await?;
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from {}`{name}` limit 1"#,
             match schema {
@@ -238,20 +254,7 @@ impl AstCompletionHelper for MysqlDB {
             }
         );
         log::info!("sql:{}", sql);
-        let s = conn
-            .deref_mut()
-            .prepare_with(AssertSqlSafe(sql.as_str()).into_sql_str(), &[])
-            .await?;
-        let ret = s
-            .columns()
-            .iter()
-            .map(|x| CompletionItem {
-                item: x.name().to_string().into(),
-                desc: Some(x.type_info().to_string().into()),
-                kind: CompletionKind::Column,
-            })
-            .collect::<Vec<_>>();
-        anyhow::Ok(ret)
+        self.get_query_columns(&sql).await
     }
 
     async fn list_function(

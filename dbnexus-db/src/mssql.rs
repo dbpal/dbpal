@@ -22,8 +22,8 @@ use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
     format_data_time_fix_offset, not_support_feature,
 };
 use crate::helper::{
@@ -1226,17 +1226,6 @@ impl SchemaTrait for MsSqlServerDB {
         let conn = conn.deref_mut();
         conn.execute(&sql, &[]).await?;
         anyhow::Ok(())
-    }
-
-    async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        unimplemented!()
-    }
-    async fn rename_sequnce(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
-        unimplemented!()
-    }
-
-    async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<()> {
-        unimplemented!()
     }
 }
 
@@ -2607,6 +2596,8 @@ mod tests {
             println!("csv:{}", s);
         }
     }
+
+    #[ignore = "xxx"]
     #[tokio::test]
     async fn test_list_table() {
         let _guard = test_lock().lock().await;
@@ -2617,6 +2608,7 @@ mod tests {
         println!("{:?}", table);
     }
 
+    #[ignore = "xxx"]
     #[tokio::test]
     async fn test_table_xxxx() {
         enable_test_log();

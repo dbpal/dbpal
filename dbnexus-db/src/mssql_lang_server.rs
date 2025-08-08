@@ -11,6 +11,7 @@ use crate::language_server::{
     LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mssql::MsSqlServerDB;
+use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MsSqlServerDB {
@@ -179,9 +180,34 @@ impl AstCompletionHelper for MsSqlServerDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let mut conn = self.get_conn().await?;
+        let mut s = conn.simple_query(sql).await?;
+        while let Some(s) = s.next().await {
+            let s = s?;
+            match s {
+                QueryItem::Row(_) => {}
+                QueryItem::Metadata(result_metadata) => {
+                    return anyhow::Ok(
+                        result_metadata
+                            .columns()
+                            .iter()
+                            .map(|x| TempTableColumn {
+                                name: x.name().to_string().into(),
+                                typ: Some(format!("{:?}", x.column_type()).into()),
+                            })
+                            .collect(),
+                    );
+                }
+            }
+        }
+        log::error!("no reuslt found");
+        anyhow::Ok(vec![])
+    }
+
     async fn list_column(
         &self, db: Option<&str>, schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"  select TOP 1 * from  {}{}"{}" "#,
             match db {
@@ -194,30 +220,7 @@ impl AstCompletionHelper for MsSqlServerDB {
             },
             name
         );
-
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let mut s = conn.simple_query(&sql).await?;
-        while let Some(s) = s.next().await {
-            let s = s?;
-            match s {
-                QueryItem::Row(_) => {}
-                QueryItem::Metadata(result_metadata) => {
-                    return anyhow::Ok(
-                        result_metadata
-                            .columns()
-                            .iter()
-                            .map(|x| CompletionItem {
-                                item: x.name().to_string().into(),
-                                desc: Some(format!("{:?}", x.column_type()).into()),
-                                kind: CompletionKind::Column,
-                            })
-                            .collect(),
-                    );
-                }
-            }
-        }
-        anyhow::Ok(vec![])
+        self.get_query_columns(&sql).await
     }
 
     async fn list_function(

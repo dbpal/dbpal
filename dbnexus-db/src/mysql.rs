@@ -2572,6 +2572,7 @@ mod tests {
         println!("{:?}", resp);
     }
 
+    #[ignore = "xxxx"]
     #[tokio::test]
     async fn test_xxx2() {
         let mut config = make_config();

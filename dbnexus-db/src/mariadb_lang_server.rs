@@ -8,6 +8,7 @@ use crate::language_server::{
 };
 use crate::mariadb::MariaDB;
 use crate::mysql::MysqlDB;
+use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{AssertSqlSafe, Row};
 
 #[async_trait::async_trait]
@@ -82,10 +83,13 @@ impl AstCompletionHelper for MariaDB {
 
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::list_column(self.db.as_ref(), None, schema, &name, is_call).await
     }
 
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::get_query_columns(self, sql).await
+    }
     async fn list_function(
         &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

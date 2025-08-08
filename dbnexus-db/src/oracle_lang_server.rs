@@ -8,6 +8,7 @@ use crate::language_server::{
     LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::oracle::OracleDB;
+use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for OracleDB {
@@ -134,9 +135,24 @@ impl AstCompletionHelper for OracleDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let conn = self.get_conn()?;
+
+        let row = conn.query_row(sql, &[])?;
+
+        anyhow::Ok(
+            row.column_info()
+                .iter()
+                .map(|x| TempTableColumn {
+                    name: x.name().to_string().into(),
+                    typ: Some(x.oracle_type().to_string().into()),
+                })
+                .collect(),
+        )
+    }
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from {}"{}""#,
             match schema {
@@ -146,20 +162,7 @@ impl AstCompletionHelper for OracleDB {
             name
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-
-        let row = conn.query_row(&sql, &[])?;
-
-        anyhow::Ok(
-            row.column_info()
-                .iter()
-                .map(|x| CompletionItem {
-                    item: x.name().to_string().into(),
-                    desc: Some(x.oracle_type().to_string().into()),
-                    kind: CompletionKind::Column,
-                })
-                .collect(),
-        )
+        self.get_query_columns(&sql).await
     }
 
     async fn list_function(

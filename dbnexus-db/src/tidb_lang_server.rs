@@ -7,6 +7,7 @@ use crate::language_server::{
     LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mysql::MysqlDB;
+use crate::sqlparser_completion::TempTableColumn;
 use crate::tidb::TiDB;
 
 #[async_trait::async_trait]
@@ -65,10 +66,13 @@ impl AstCompletionHelper for TiDB {
 
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::list_column(self.db.as_ref(), None, schema, &name, is_call).await
     }
 
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::get_query_columns(self.db.as_ref(), sql).await
+    }
     async fn list_function(
         &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

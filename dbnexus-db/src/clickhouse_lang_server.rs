@@ -7,6 +7,7 @@ use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
     LexerCompletionTrait, try_completion_on_syntax,
 };
+use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 
@@ -125,30 +126,34 @@ impl AstCompletionHelper for ClickHouseDB {
         anyhow::Ok(ret)
     }
 
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!("select * from({}) limit 1", sql);
+        let meta = self.query_as_json(&sql).await?.meta;
+        anyhow::Ok(
+            meta.into_iter()
+                .map(|x| {
+                    let JsonRespMeta { name, r#type } = x;
+                    TempTableColumn {
+                        name: name.into(),
+                        typ: Some(r#type),
+                    }
+                })
+                .collect(),
+        )
+    }
+
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
-            r#"select * from {}"{}"  limit 1 "#,
+            r#"select * from {}"{}""#,
             match schema {
                 Some(x) => format!("\"{}\".", x),
                 None => "".to_string(),
             },
             name
         );
-        let meta = self.query_as_json(&sql).await?.meta;
-        anyhow::Ok(
-            meta.into_iter()
-                .map(|x| {
-                    let JsonRespMeta { name, r#type } = x;
-                    CompletionItem {
-                        item: name.into(),
-                        kind: CompletionKind::Column,
-                        desc: Some(r#type.into()),
-                    }
-                })
-                .collect(),
-        )
+        self.get_query_columns(&sql).await
     }
 
     async fn list_function(
