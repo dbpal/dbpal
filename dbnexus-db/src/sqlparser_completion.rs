@@ -1,14 +1,15 @@
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
+use sqlparser::ast::CopyOption;
 use sqlparser::ast::{
-    AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CaseStatement, CopySource,
-    CreateDomain, CreateFunctionBody, DataType, Declare, DeclareAssignment, DenyStatement,
-    DropDomain, GrantObjects, Grantee, GranteeName, Ident, IfStatement, ObjectName, ObjectNamePart,
-    OneOrManyWithParens, OpenStatement, PrintStatement, Privileges, RaiseStatement,
-    RaiseStatementValue, ReturnStatement, ReturnStatementValue, SchemaName, SelectItem,
-    SequenceOptions, Set, Spanned, Statement, TableConstraint, TableFactor, TableObject,
-    TriggerEvent, UpdateTableFromKind, UserDefinedTypeRepresentation, WhileStatement,
+    AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CaseStatement,
+    ConditionalStatementBlock, CopySource, CreateDomain, CreateFunctionBody, DataType, Declare,
+    DeclareAssignment, DenyStatement, DropDomain, GrantObjects, Grantee, GranteeName, Ident,
+    IfStatement, ObjectName, ObjectNamePart, OneOrManyWithParens, OpenStatement, PrintStatement,
+    Privileges, RaiseStatement, RaiseStatementValue, ReturnStatement, ReturnStatementValue,
+    SchemaName, SelectItem, SequenceOptions, Set, SetSessionParamKind, Spanned, Statement,
+    TableConstraint, TableFactor, TableObject, TriggerEvent, UpdateTableFromKind,
+    UserDefinedTypeRepresentation, WhileStatement,
 };
-use sqlparser::ast::{ConditionalStatementBlock, SetSessionParamKind};
 use sqlparser::tokenizer::{Location, Span};
 use std::collections::HashMap;
 use std::ops::DerefMut;
@@ -225,15 +226,6 @@ impl TableEntered {
     }
 }
 
-impl From<ObjectName> for TableEntered {
-    fn from(value: ObjectName) -> Self {
-        Self::FromTable {
-            table: value,
-            alias: None,
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Var {
     #[allow(dead_code)]
@@ -258,19 +250,19 @@ impl Scope {
         }
     }
     pub(crate) fn from_temp_tables(temp_tables: HashMap<Ident, TempTable>) -> Self {
-        let mut x = vec![];
-        for (k, v) in temp_tables {
-            x.push(TableEntered::Temp {
-                table: v,
-                alias: Some(k),
+        let mut tables = vec![];
+        for (name, temp) in temp_tables {
+            tables.push(TableEntered::Temp {
+                table: temp,
+                alias: Some(name),
             });
         }
         Self {
-            tables: x,
+            tables,
             ..Default::default()
         }
     }
-
+    // we know we are dealing with this table.
     pub(crate) fn from_this_table(this_table: ObjectName) -> Self {
         Self {
             tables: vec![TableEntered::FromTable {
@@ -280,6 +272,7 @@ impl Scope {
             ..Default::default()
         }
     }
+
     pub(crate) fn from_temp_table(this_table: TempTable) -> Self {
         Self {
             tables: vec![TableEntered::Temp {
@@ -320,10 +313,6 @@ impl CompletionStatement {
     pub(crate) fn in_pos(&self, span: &Span) -> bool {
         (self.loc.line >= span.start.line && self.loc.line <= span.end.line)
             && (self.loc.column >= span.start.column && self.loc.column <= span.end.column)
-    }
-
-    pub(crate) fn in_pos_optinal(&self, span: Option<&Span>) -> bool {
-        span.map(|span| self.in_pos(span)).unwrap_or_default()
     }
 }
 impl CompletionStatement {
@@ -386,24 +375,12 @@ impl CompletionStatement {
                         if self.finished() {
                             return;
                         }
-                    }
-                    TableObject::TableFunction(..) => {}
-                }
-
-                match &insert.table {
-                    TableObject::TableName(object_name) => {
                         for c in insert.columns.iter() {
                             self.c_on_column(object_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
                         }
-                    }
-                    TableObject::TableFunction(..) => {}
-                }
-                match &insert.table {
-                    TableObject::TableName(object_name) => {
-                        // I don't understand this,But we can still suggest table column
                         for c in insert.after_columns.iter() {
                             self.c_on_column(object_name, c, false).await;
                             if self.finished() {
@@ -411,7 +388,6 @@ impl CompletionStatement {
                             }
                         }
                     }
-
                     TableObject::TableFunction(..) => {}
                 }
 
@@ -497,13 +473,15 @@ impl CompletionStatement {
             Statement::Load { extension_name } => {
                 self.c_on_duck_extension(&extension_name, Some(true)).await;
             }
-            Statement::Directory { .. } => {
-                // TODO maybe dump some data to a file.
+            Statement::Directory { source, .. } => {
+                let _ = self.c_on_query(&source).await;
             }
             Statement::Call(function) => {
                 Box::pin(self.c_on_function_call(function)).await;
             }
-            Statement::Copy { source, .. } => {
+            Statement::Copy {
+                source, options, ..
+            } => {
                 match source {
                     CopySource::Table {
                         table_name,
@@ -519,9 +497,44 @@ impl CompletionStatement {
                                 return;
                             }
                         }
+                        for op in options.iter() {
+                            match op {
+                                CopyOption::ForceQuote(idents)
+                                | CopyOption::ForceNotNull(idents)
+                                | CopyOption::ForceNull(idents) => {
+                                    for col in idents.iter() {
+                                        self.c_on_column(table_name, col, false).await;
+                                        if self.finished() {
+                                            return;
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
                     }
+
                     CopySource::Query(query) => {
-                        let _ = self.c_on_query(&query).await;
+                        let columns = self.c_on_query(&query).await.ok().unwrap_or_default();
+                        for op in options.iter() {
+                            match op {
+                                CopyOption::ForceQuote(idents)
+                                | CopyOption::ForceNotNull(idents)
+                                | CopyOption::ForceNull(idents) => {
+                                    for col in idents.iter() {
+                                        if self.in_pos(&col.span) {
+                                            self.result = Some(
+                                                columns
+                                                    .iter()
+                                                    .map(|x| CompletionItem::from(x))
+                                                    .collect::<Vec<_>>(),
+                                            );
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
                     }
                 };
             }

@@ -134,12 +134,7 @@ impl CompletionStatement {
         if self.finished() {
             return;
         }
-        if !object_name
-            .0
-            .last()
-            .map(|x| self.in_pos_optinal(x.as_ident().map(|x| &x.span)))
-            .unwrap_or(false)
-        {
+        if !self.last_name_in_pos(object_name) {
             return;
         }
 
@@ -992,10 +987,9 @@ impl CompletionStatement {
                     .iter()
                     .any(|x| x.eq_ignore_ascii_case(&table.value))
                 {
-                    // matched a schema
+                    // matched  schema
                     // this is very likely a `select * from sys.xxx`   on mysql
                     // treat this expr as table
-
                     self.c_on_select_target(&ObjectName(
                         idents
                             .iter()
@@ -1005,6 +999,7 @@ impl CompletionStatement {
                     .await;
                     return;
                 }
+
                 if self.in_pos(&table.span) {
                     // handle name
                     self.c_on_select_target(&ObjectName(vec![ObjectNamePart::Identifier(

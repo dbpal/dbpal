@@ -1270,7 +1270,7 @@ impl SchemaTrait for OracleDB {
         }
         if let Some(typ) = typ {
             let sql = format!("ALTER TABLE {table} MODIFY {new_name} {}", typ.typ);
-            conn.execute(&sql, &[])?;
+            block_in_place(|| conn.execute(&sql, &[]))?;
             log::info!("sql:{}", sql);
             if let Some(nullness) = typ.nullness.as_ref() {
                 let sql = format!("ALTER TABLE {table} MODIFY {new_name} {nullness}");
