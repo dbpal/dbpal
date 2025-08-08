@@ -153,7 +153,7 @@ function MongoQuery(props: {
   const editorDom = useRef(null);
   const loggerDom = useRef(null);
   useEffect(() => {
-    function saveAndReset(dom, key) {
+    function saveAndSet(dom, key) {
       let e = new ResizeObserver((en) => {
         const height = en[0].target.clientHeight;
         appStore.set(key, height);
@@ -168,11 +168,11 @@ function MongoQuery(props: {
         e.unobserve(dom);
       };
     }
-    const x1 = saveAndReset(
+    const x1 = saveAndSet(
       editorDom.current,
       AppStoreKey.MongoQueryEditorHeight
     );
-    const x2 = saveAndReset(
+    const x2 = saveAndSet(
       loggerDom.current,
       AppStoreKey.MongoQueryLoggerHeight
     );

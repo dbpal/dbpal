@@ -502,7 +502,7 @@ function SqlQuery(props: {
     <SplitPane
       split="horizontal"
       defaultSize={500}
-      minSize={50}
+      minSize={200}
       size={size}
       style={{ position: 'relative' }}
       onChange={(newvalue) => {
