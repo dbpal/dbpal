@@ -1064,7 +1064,7 @@ impl CompletionStatement {
             match t {
                 TableEntered::FromTable { table, .. } => {
                     let (db, schema, table) = self.extract_db_schme_item(table);
-                    let m = self
+                    let items = self
                         .helper
                         .list_column(db, schema, table, false)
                         .await
@@ -1073,7 +1073,7 @@ impl CompletionStatement {
                         })
                         .ok()
                         .unwrap_or_default();
-                    results.extend(m.into_iter());
+                    results.extend(items.into_iter());
                 }
                 TableEntered::Temp { table, .. } => {
                     results.extend(
@@ -1809,35 +1809,31 @@ impl CompletionStatement {
         if self.finished() {
             return;
         }
-        if !table_name
-            .0
-            .last()
-            .map(|x| self.in_pos(&x.span()))
-            .unwrap_or(false)
-        {
+        if !self.last_name_in_pos(table_name) {
             return;
+        }
+        let mut items = vec![];
+        for x in self.scopes.tables() {
+            if let Some(name) = x.get_name() {
+                items.push(name.value.to_string());
+            }
         }
         // here match
         let (db, schema, _table_name) = self.extract_db_schme_item(table_name);
-        let mut items = self
-            .helper
-            .list_table(db, schema)
-            .await
-            .map_err(|e| {
-                log::error!("list table failed,err:{:?}", e);
-            })
-            .ok()
-            .unwrap_or_default();
-
-        for x in self.scopes.tables() {
-            if let Some(name) = x.get_name() {
-                items.push(name.to_string());
-            }
+        items.extend(
+            self.helper
+                .list_table(db, schema)
+                .await
+                .map_err(|e| {
+                    log::error!("list table failed,err:{:?}", e);
+                })
+                .ok()
+                .unwrap_or_default(),
+        );
+        if table_name.0.len() == 1 {
+            items.extend(self.helper.list_database().await.unwrap_or_default());
+            items.extend(self.helper.list_schema(None).await.unwrap_or_default());
         }
-        // here maybe we are suggest database all schemas.
-        items.extend(self.helper.list_database().await.unwrap_or_default());
-        items.extend(self.helper.list_schema(None).await.unwrap_or_default());
-
         let items = items
             .into_iter()
             .map(|x| CompletionItem {
@@ -1846,7 +1842,6 @@ impl CompletionStatement {
                 desc: None,
             })
             .collect::<Vec<_>>();
-
         // remove dupliate we have entered table and tables in database
         let items = remove_dupliate(items);
 
