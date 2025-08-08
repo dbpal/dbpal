@@ -207,6 +207,7 @@ function WhereSort(props: {
 }
 
 var EditInModalLanguage = 'text';
+
 function EditInModal(props: { content: string; handleModify }) {
   const { content, handleModify } = props;
   const languages = [
@@ -262,7 +263,6 @@ function EditInModal(props: { content: string; handleModify }) {
             setValue(editor.getValue());
           });
         }}
-        minHeigth={350}
         barLeft={
           jsonErr ? (
             <Typography color="error" variant="body1">
@@ -751,9 +751,7 @@ function SqlTableView_(props: {
             <EditInModal
               content={editInModal.content}
               handleModify={async (value) => {
-                // clone
                 let newRow = { ...editInModal.row };
-                // modify
                 newRow[editInModal.field] = value;
                 await handleProcessRowUpdate(newRow, editInModal.row);
                 handleReload(false);
@@ -789,34 +787,7 @@ function SqlTableView_(props: {
           </Box>
         </Modal>
       )}
-      {editInModal && (
-        <Modal
-          open={!!editInModal}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
 
-            e.preventDefault();
-            setEditInModal(null);
-          }}
-        >
-          <Box sx={modalStyle} width="80%">
-            <EditInModal
-              content={editInModal.content}
-              handleModify={async (value) => {
-                // clone
-                let newRow = { ...editInModal.row };
-                // modify
-                newRow[editInModal.field] = value;
-                await handleProcessRowUpdate(newRow, editInModal.row);
-                handleReload(false);
-                setEditInModal(null);
-              }}
-            ></EditInModal>
-          </Box>
-        </Modal>
-      )}
       {showSetWhere && (
         <WhereSort
           open={showSetWhere}
