@@ -18,7 +18,7 @@ import {
   MongoDBQuery,
   BsonExtraDataType,
 } from './MongoQueryBackend';
-import { generateRandomString } from './helper';
+import { appStore, AppStoreKey, generateRandomString } from './helper';
 import {
   EditorBar,
   EscDownEvent,
@@ -150,19 +150,36 @@ function MongoQuery(props: {
       ...setting.editorOption,
     };
   }, [setting]);
-  const editorDivDom = useRef(null);
+  const editorDom = useRef(null);
+  const loggerDom = useRef(null);
   useEffect(() => {
-    if (editorDivDom.current) {
-      (editorDivDom.current as HTMLDivElement).addEventListener(
-        'keydown',
-        function (event) {
-          if (event.ctrlKey && event.key.toLowerCase() === 'e') {
-            event.preventDefault();
-            handleExecute();
-          }
+    function saveAndReset(dom, key) {
+      let e = new ResizeObserver((en) => {
+        const height = en[0].target.clientHeight;
+        appStore.set(key, height);
+      });
+      e.observe(dom);
+      appStore.get(key).then((height) => {
+        if (height) {
+          (dom as HTMLDivElement).style.height = height + 'px';
         }
-      );
+      });
+      return () => {
+        e.unobserve(dom);
+      };
     }
+    const x1 = saveAndReset(
+      editorDom.current,
+      AppStoreKey.MongoQueryEditorHeight
+    );
+    const x2 = saveAndReset(
+      loggerDom.current,
+      AppStoreKey.MongoQueryLoggerHeight
+    );
+    return () => {
+      x1();
+      x2();
+    };
   }, []);
 
   return (
@@ -229,6 +246,7 @@ function MongoQuery(props: {
           }}
         ></LoadStoreFileForQuery>
       </Stack>
+
       <div
         style={{
           minHeight: '200px',
@@ -239,7 +257,7 @@ function MongoQuery(props: {
           overflow: 'hidden',
           width: '100%',
         }}
-        ref={editorDivDom}
+        ref={editorDom}
       >
         <div style={{ height: '100px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
@@ -257,7 +275,6 @@ function MongoQuery(props: {
           pos={pos}
         ></EditorBar>
       </div>
-
       <Chip
         color="info"
         label=" logger"
@@ -273,6 +290,7 @@ function MongoQuery(props: {
           flexDirection: 'column',
           overflow: 'hidden',
         }}
+        ref={loggerDom}
       >
         <div style={{ height: '100px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
@@ -308,7 +326,6 @@ function MongoQuery(props: {
           </Box>
         </Modal>
       )}
-
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}

@@ -319,10 +319,7 @@ function isTypeLargeText(s: string): boolean {
   }
   return false;
 }
-
 const appStore = await load('store.json');
-
-
 
 enum AppStoreKey {
   UserSetttings = 'user_settings',
@@ -331,8 +328,10 @@ enum AppStoreKey {
   LeftSize = 'left_size',
   FavoriteSql = "favorite_sql",
   RedisQuerySize = "redis_query_size",
+  QuerySize = "query_size",
+  MongoQueryEditorHeight = "mongo_query_editor_height",
+  MongoQueryLoggerHeight = "mongo_query_logger_height",
 }
-
 
 class FavoriteSql {
   constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public lastModified: Date = new Date()) { }
