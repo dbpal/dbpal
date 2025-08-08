@@ -148,9 +148,21 @@ impl AstCompletionHelper for FireBirdDB {
 impl LexerCompletionTrait for FireBirdDB {
     type Dialect = sqlparser::dialect::GenericDialect;
 
-    const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
+
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(
+            KEY_WORDS
+                .iter()
+                .map(|x| CompletionItem {
+                    item: x.to_string().into(),
+                    desc: None,
+                    kind: CompletionKind::KeyWord,
+                })
+                .collect(),
+        )
+    }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         let mut ret: Vec<_> = AstCompletionHelper::list_table(self, None, None).await?;

@@ -17,8 +17,20 @@ use crate::sqlparser_completion::TempTableColumn;
 impl LexerCompletionTrait for MsSqlServerDB {
     type Dialect = sqlparser::dialect::MsSqlDialect;
 
-    const KEY_WORDS: &'static [&'static str] = KEYWORDS;
     const TYPES: &'static [&'static str] = TYPES;
+
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(
+            KEYWORDS
+                .iter()
+                .map(|x| CompletionItem {
+                    item: x.to_string().into(),
+                    desc: None,
+                    kind: CompletionKind::KeyWord,
+                })
+                .collect(),
+        )
+    }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         // TODO select maybe allow empty database and schema
@@ -302,10 +314,11 @@ mod tests {
     use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::mssql::make_test_object;
+    use crate::mssql::{make_test_object, test_lock};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         enable_test_log();
         let query_id = db.open_connection().await.unwrap();
@@ -339,6 +352,7 @@ mod tests {
     #[ignore = "手动跑跑的测试"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_completion_xxx() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(

@@ -18,7 +18,6 @@ use sqlx::{Column, Executor, Statement};
 impl LexerCompletionTrait for MysqlDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
 
-    const KEY_WORDS: &'static [&'static str] = &[];
     const TYPES: &'static [&'static str] = TYPES;
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {

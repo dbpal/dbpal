@@ -184,7 +184,6 @@ impl AstCompletionHelper for ClickHouseDB {
 impl LexerCompletionTrait for ClickHouseDB {
     type Dialect = sqlparser::dialect::ClickHouseDialect;
 
-    const KEY_WORDS: &'static [&'static str] = &[];
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
 

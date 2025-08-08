@@ -52,12 +52,26 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
     type Dialect = sqlparser::dialect::SQLiteDialect;
 
     // https://sqlite.org/lang_keywords.html
-    const KEY_WORDS: &'static [&'static str] = SQLITE_KEY_WORDS;
+
     const TEXTS: &'static [&'static str] = &["true"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         AstCompletionHelper::sqlite_pragma(self)
+    }
+
+    // some backend can use a query to query this.
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(
+            SQLITE_KEY_WORDS
+                .iter()
+                .map(|x| CompletionItem {
+                    item: x.to_string().into(),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
+                })
+                .collect(),
+        )
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {

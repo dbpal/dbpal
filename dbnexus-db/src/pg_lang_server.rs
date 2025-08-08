@@ -16,7 +16,6 @@ use sqlx::{Column, Executor, Statement};
 impl LexerCompletionTrait for PostGresDB {
     type Dialect = sqlparser::dialect::PostgreSqlDialect;
 
-    const KEY_WORDS: &'static [&'static str] = &[];
     const TYPES: &'static [&'static str] = TYPES;
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {

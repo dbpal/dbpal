@@ -127,7 +127,6 @@ impl LangServerCommon for TiDB {
 impl LexerCompletionTrait for TiDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
 
-    const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
     const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
     const TYPES: &'static [&'static str] = MysqlDB::TYPES;
 
@@ -149,7 +148,7 @@ impl LexerCompletionTrait for TiDB {
         if r.len() > 0 {
             return anyhow::Ok(r);
         }
-        let r = <Self as LexerCompletionTrait>::KEY_WORDS
+        let r = KEY_WORDS
             .iter()
             .map(|x| CompletionItem {
                 item: Cow::Owned(x.to_string()),

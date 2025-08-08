@@ -49,9 +49,20 @@ impl LanguageServer for CassandraDB {
 impl LexerCompletionTrait for CassandraDB {
     type Dialect = sqlparser::dialect::GenericDialect;
 
-    const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
+
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let r = KEY_WORDS
+            .iter()
+            .map(|x| CompletionItem {
+                item: x.to_string().into(),
+                kind: CompletionKind::KeyWord,
+                desc: None,
+            })
+            .collect::<Vec<_>>();
+        anyhow::Ok(r)
+    }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();

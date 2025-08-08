@@ -8,7 +8,7 @@ use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token};
 use typescript_type_def::TypeDef;
 
-use crate::db::{FormatSqlOpts, GetBackendKind, monaco_editor_keyword_regexp, not_support_feature};
+use crate::db::{FormatSqlOpts, GetBackendKind, not_support_feature};
 use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
 #[async_trait::async_trait]
@@ -83,7 +83,7 @@ pub fn in_pos(
 #[async_trait::async_trait]
 pub trait LexerCompletionTrait: LangServerCommon {
     type Dialect: sqlparser::dialect::Dialect + Sync + Send + 'static;
-    const KEY_WORDS: &'static [&'static str];
+
     const TYPES: &'static [&'static str];
     const TEXTS: &'static [&'static str] = &[];
 
@@ -94,15 +94,6 @@ pub trait LexerCompletionTrait: LangServerCommon {
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
-    }
-
-    fn consider_keywords() -> HashSet<String> {
-        Self::KEY_WORDS
-            .iter()
-            .chain(Self::TYPES.iter())
-            .chain(Self::TEXTS.iter())
-            .map(|x| x.to_uppercase())
-            .collect()
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>>;
@@ -139,16 +130,6 @@ pub trait LexerCompletionTrait: LangServerCommon {
 
     async fn all_completion_items(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();
-        ret.extend(
-            Self::KEY_WORDS
-                .iter()
-                .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
-                })
-                .collect::<Vec<_>>(),
-        );
         ret.extend(self.get_key_words_fn().await?.into_iter());
         ret.extend(
             Self::TYPES
@@ -204,12 +185,6 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 }),
         );
         anyhow::Ok(ret)
-    }
-
-    fn monaco_editor_keyword_regexp() -> String {
-        let combined: Vec<&'static str> = [Self::KEY_WORDS, Self::TYPES, Self::TEXTS].concat();
-        let s = monaco_editor_keyword_regexp(&combined[..]);
-        return s;
     }
 }
 

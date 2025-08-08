@@ -2004,6 +2004,17 @@ impl ReadOnlyTrait for MsSqlServerDB {
     }
 }
 
+// when I test via `cargo test`
+// sometimes I have this error
+// ERROR - Transaction (Process ID 76) was deadlocked on lock resources with
+// another process and has been chosen as the deadlock victim. Rerun the
+// transaction. code=1205 maybe I need mutex to run one test a time.
+#[cfg(test)]
+pub(crate) fn test_lock() -> &'static Mutex<()> {
+    static MUTEX: Mutex<()> = Mutex::const_new(());
+    &MUTEX
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -2119,16 +2130,6 @@ mod tests {
             .unwrap();
             assert_eq!(x, TriggerEvent::Insert);
         }
-    }
-
-    // when I test via `cargo test`
-    // sometimes I have this error
-    // ERROR - Transaction (Process ID 76) was deadlocked on lock resources with
-    // another process and has been chosen as the deadlock victim. Rerun the
-    // transaction. code=1205 maybe I need mutex to run one test a time.
-    fn test_lock() -> &'static Mutex<()> {
-        static MUTEX: Mutex<()> = Mutex::const_new(());
-        &MUTEX
     }
 
     #[tokio::test]
@@ -2611,6 +2612,7 @@ mod tests {
     #[ignore = "xxx"]
     #[tokio::test]
     async fn test_table_xxxx() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
@@ -2633,6 +2635,7 @@ FROM sys.sequences;
 
     #[tokio::test]
     async fn test_table_column() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
 

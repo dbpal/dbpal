@@ -144,7 +144,6 @@ impl LangServerCommon for MariaDB {
 impl LexerCompletionTrait for MariaDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
 
-    const KEY_WORDS: &'static [&'static str] = &[];
     const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
     const TYPES: &'static [&'static str] = MysqlDB::TYPES;
 

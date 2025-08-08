@@ -63,7 +63,6 @@ impl LangServerCommon for CockRoachDB {
 impl LexerCompletionTrait for CockRoachDB {
     type Dialect = sqlparser::dialect::PostgreSqlDialect;
 
-    const KEY_WORDS: &'static [&'static str] = &[];
     const TYPES: &'static [&'static str] = COCKROACH_DATA_TYPES;
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
