@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use libsql::params;
+
 use crate::db::SchemaTrait;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -6,8 +10,6 @@ use crate::language_server::{
 use crate::libsql::LibSqlDB;
 use crate::sqlite_lang_server::{SQLITE_KEY_WORDS, SQLITE_TYPES, sqlite_pragma};
 use crate::sqlparser_completion::TempTableColumn;
-use libsql::params;
-use std::sync::Arc;
 
 #[async_trait::async_trait]
 impl LanguageServer for LibSqlDB {
@@ -62,16 +64,23 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
 
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(
+        let mut lock = self.keywords_completion.lock().await;
+        if lock.len() > 0 {
+            return anyhow::Ok(lock.clone());
+        }
+        lock.extend(
             SQLITE_KEY_WORDS
                 .iter()
-                .map(|x| CompletionItem {
-                    item: x.to_string().into(),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
+                .map(|x| {
+                    CompletionItem {
+                        item: x.to_string().into(),
+                        kind: CompletionKind::KeyWord,
+                        desc: None,
+                    }
                 })
-                .collect(),
-        )
+                .collect::<Vec<_>>(),
+        );
+        return anyhow::Ok(lock.clone());
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
@@ -120,9 +129,11 @@ impl AstCompletionHelper for LibSqlDB {
         let ret = stmt
             .columns()
             .iter()
-            .map(|x| TempTableColumn {
-                name: x.name().to_string().into(),
-                typ: Some(x.decl_type().unwrap_or_default().to_string().into()),
+            .map(|x| {
+                TempTableColumn {
+                    name: x.name().to_string().into(),
+                    typ: Some(x.decl_type().unwrap_or_default().to_string().into()),
+                }
             })
             .collect::<Vec<_>>();
         // check if prepare return the reuslt.
@@ -133,9 +144,11 @@ impl AstCompletionHelper for LibSqlDB {
         let row = stmt.query_row(params!()).await?;
         anyhow::Ok(
             (0..row.column_count())
-                .map(|index| TempTableColumn {
-                    name: row.column_name(index).unwrap_or_default().to_owned().into(),
-                    typ: row.column_type(index).ok().map(|x| format!("{:?}", x)),
+                .map(|index| {
+                    TempTableColumn {
+                        name: row.column_name(index).unwrap_or_default().to_owned().into(),
+                        typ: row.column_type(index).ok().map(|x| format!("{:?}", x)),
+                    }
                 })
                 .collect(),
         )

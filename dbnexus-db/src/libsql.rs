@@ -36,6 +36,7 @@ pub struct LibSqlDB {
     tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 impl GetBackendKind for LibSqlDB {
@@ -158,10 +159,12 @@ impl QuerySql for LibSqlDB {
         let conn = conn.as_ref().map(|x| x.deref());
         let conn = match &tr {
             Some(x) => x.deref().deref(),
-            None => match &conn {
-                Some(x) => x,
-                None => anyhow::bail!("collection closed????"),
-            },
+            None => {
+                match &conn {
+                    Some(x) => x,
+                    None => anyhow::bail!("collection closed????"),
+                }
+            }
         };
         let ret = match conn.execute(sql, params!()).await {
             Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
@@ -184,10 +187,12 @@ impl QuerySql for LibSqlDB {
         let conn = conn.as_ref().map(|x| x.deref());
         let conn = match &tr {
             Some(x) => x.deref().deref(),
-            None => match &conn {
-                Some(x) => x,
-                None => anyhow::bail!("collection closed????"),
-            },
+            None => {
+                match &conn {
+                    Some(x) => x,
+                    None => anyhow::bail!("collection closed????"),
+                }
+            }
         };
 
         let mut batch_rows = conn.execute_batch(sql).await?;
@@ -347,6 +352,7 @@ impl LibSqlDB {
             query_logs: Default::default(),
             tx_execute_times: Default::default(),
             build_fn_cache: Default::default(),
+            keywords_completion: Default::default(),
         })
     }
 
@@ -790,18 +796,24 @@ impl SqlBuilder for LibSqlDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "NULL" => match value {
-                Some(x) => format!("'{}'", escape_sql_str(x)),
-                None => "null".to_string(),
-            },
-            "DATE" | "TIME" | "DATETIME" => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", escape_sql_str(x)),
-                None => "null".to_string(),
-            },
+            "" | "TEXT" | "NULL" => {
+                match value {
+                    Some(x) => format!("'{}'", escape_sql_str(x)),
+                    None => "null".to_string(),
+                }
+            }
+            "DATE" | "TIME" | "DATETIME" => {
+                match value {
+                    Some(x) => format!("'{}'", x),
+                    None => "null".to_string(),
+                }
+            }
+            _ if text_like(typ.as_str()) => {
+                match value {
+                    Some(x) => format!("'{}'", escape_sql_str(x)),
+                    None => "null".to_string(),
+                }
+            }
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
                 value.unwrap_or("null").to_string()

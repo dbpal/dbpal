@@ -115,12 +115,18 @@ fn main_() {
                         c.set_password(pass.clone());
                     } else {
                         match keyring::Entry::new(PASSWORD_KEY, name) {
-                            Ok(en) => match en.get_password() {
-                                Ok(pass) => c.set_password(pass),
-                                Err(err) => {
-                                    log::error!("get password for '{}' failed,err:{}", name, err)
+                            Ok(en) => {
+                                match en.get_password() {
+                                    Ok(pass) => c.set_password(pass),
+                                    Err(err) => {
+                                        log::error!(
+                                            "get password for '{}' failed,err:{}",
+                                            name,
+                                            err
+                                        )
+                                    }
                                 }
-                            },
+                            }
                             Err(err) => {
                                 log::error!(
                                     "get password entry failed:{} maybe user don't set a password should be fine",

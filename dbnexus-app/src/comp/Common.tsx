@@ -40,9 +40,7 @@ import { Editor, loader, Monaco, OnMount } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
-
 import InfoIcon from '@mui/icons-material/Info';
-
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 const modalStyle: SxProps = {
   position: 'absolute',

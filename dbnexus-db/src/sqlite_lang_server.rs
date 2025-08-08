@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
+use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 
 use crate::db::{FormatSqlOpts, SchemaTrait};
 use crate::helper::sqlformat_format_sql;
@@ -10,8 +10,6 @@ use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
     LexerCompletionTrait, try_completion_on_syntax,
 };
-use sqlx::{Column, Executor, Statement};
-
 use crate::sqlite::SqliteDB;
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -22,26 +20,31 @@ impl LangServerCommon for SqliteDB {}
 impl crate::language_server::LexerCompletionTrait for SqliteDB {
     type Dialect = sqlparser::dialect::SQLiteDialect;
 
-    // https://sqlite.org/lang_keywords.html
-
     const TEXTS: &'static [&'static str] = &["true"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         AstCompletionHelper::sqlite_pragma(self)
     }
+
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(
-            SQLITE_KEY_WORDS
-                .iter()
-                .map(|x| CompletionItem {
+        let mut lock = self.keywords_completion.lock().await;
+        if lock.len() > 0 {
+            return anyhow::Ok(lock.clone());
+        }
+        let ret: Vec<_> = SQLITE_KEY_WORDS
+            .iter()
+            .map(|x| {
+                CompletionItem {
                     item: x.to_string().into(),
                     kind: CompletionKind::KeyWord,
                     desc: None,
-                })
-                .collect(),
-        )
+                }
+            })
+            .collect();
+        *lock = ret.clone();
+        anyhow::Ok(ret)
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
@@ -151,9 +154,11 @@ impl AstCompletionHelper for SqliteDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| TempTableColumn {
-                name: x.name().to_string().into(),
-                typ: Some(x.type_info().to_string().into()),
+            .map(|x| {
+                TempTableColumn {
+                    name: x.name().to_string().into(),
+                    typ: Some(x.type_info().to_string().into()),
+                }
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
