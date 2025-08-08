@@ -53,7 +53,7 @@ const modalStyle: SxProps = {
   border: '2px solid skyblue',
   boxShadow: 24,
   margin: 0,
-  borderRadius: '5px',
+  borderRadius: '10px',
   p: 1,
   maxHeight: '85vh',
   overflowY: 'auto',

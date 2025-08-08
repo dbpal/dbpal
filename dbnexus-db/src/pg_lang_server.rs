@@ -1,7 +1,7 @@
 use std::ops::DerefMut;
 use std::sync::Arc;
 
-use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
+use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 
 use crate::db::{CatalogTrait, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
@@ -11,7 +11,6 @@ use crate::language_server::{
 };
 use crate::pg::PostGresDB;
 use crate::sqlparser_completion::TempTableColumn;
-use sqlx::{Column, Executor, Statement};
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
     type Dialect = sqlparser::dialect::PostgreSqlDialect;
@@ -78,6 +77,10 @@ impl PostGresDB {
 
 impl PostGresDB {
     async fn list_build_functions(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.build_in_fn.lock().await;
+        if lock.len() > 0 {
+            return anyhow::Ok(lock.clone());
+        }
         let sql = r#"SELECT p.proname AS function_name,
              d.description AS function_description
             FROM pg_catalog.pg_proc p
@@ -100,6 +103,7 @@ impl PostGresDB {
                 desc: desc.map(|x| x.into()),
             });
         }
+        *lock = ret.clone();
         anyhow::Ok(ret)
     }
 }
@@ -218,13 +222,16 @@ impl AstCompletionHelper for PostGresDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| TempTableColumn {
-                name: x.name().to_string().into(),
-                typ: Some(x.type_info().to_string().into()),
+            .map(|x| {
+                TempTableColumn {
+                    name: x.name().to_string().into(),
+                    typ: Some(x.type_info().to_string().into()),
+                }
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
     }
+
     async fn list_column(
         &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
@@ -256,7 +263,8 @@ impl AstCompletionHelper for PostGresDB {
             sql = format!(
                 r#"
             SELECT  
-                p.proname AS function_name
+                p.proname AS function_name,
+                d.description AS function_description
             FROM pg_catalog.pg_proc p
             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname = '{}'  -- 替换为你的模式名
@@ -268,7 +276,8 @@ impl AstCompletionHelper for PostGresDB {
             sql = format!(
                 r#"
             SELECT 
-                p.proname AS function_name
+                p.proname AS function_name,
+                d.description AS function_description
             FROM pg_catalog.pg_proc p
             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             ORDER BY p.proname;
@@ -283,9 +292,10 @@ impl AstCompletionHelper for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
+            let desc: Option<String> = r.try_get(1)?;
             ret.push(CompletionItem {
                 item: name.into(),
-                desc: None,
+                desc: desc.map(|x| x.into()),
                 kind: CompletionKind::Function,
             });
         }
