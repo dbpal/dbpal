@@ -13,9 +13,6 @@ import {
   Box,
   TextField,
   MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
   Typography,
   Modal,
   MenuList,
@@ -68,9 +65,9 @@ class RedisZsetHashModifyReq {
 }
 
 enum RedisEditorMode {
-  Hex,
-  Text,
-  Json,
+  Hex = 'hex',
+  Text = 'text',
+  Json = 'json',
 }
 
 function RedisAddList(props: {
@@ -483,21 +480,22 @@ function RedisEditModeSelect(props: {
 }) {
   const { mode, handleChange } = props;
   return (
-    <FormControl fullWidth>
-      <InputLabel id="simple-select-label">viewer</InputLabel>
-      <Select
-        size="small"
-        value={mode}
-        onChange={(e) => {
-          handleChange(e.target.value as RedisEditorMode);
-        }}
-        label="viewer"
-      >
-        <MenuItem value={RedisEditorMode.Text}>text</MenuItem>
-        <MenuItem value={RedisEditorMode.Json}>json</MenuItem>
-        <MenuItem value={RedisEditorMode.Hex}>hex</MenuItem>
-      </Select>
-    </FormControl>
+    <>
+      {[RedisEditorMode.Text, RedisEditorMode.Json, RedisEditorMode.Hex].map(
+        (e) => {
+          return (
+            <Chip
+              label={e}
+              onClick={() => {
+                handleChange(e);
+              }}
+              size="small"
+              color={mode == e ? 'primary' : 'default'}
+            ></Chip>
+          );
+        }
+      )}
+    </>
   );
 }
 
@@ -559,21 +557,6 @@ function RedisValueEditor(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        {header}
-        {editModel == RedisEditorMode.Hex && (
-          <>
-            <span style={{ width: '18rem', textAlign: 'center' }}>
-              looking for hex editor???
-            </span>
-            <Chip
-              label="try hexed.it"
-              onClick={() => {
-                openUrl('https://hexed.it/');
-              }}
-              size="small"
-            ></Chip>
-          </>
-        )}
         <RedisEditModeSelect
           mode={editModel}
           handleChange={(mode) => {
@@ -592,6 +575,19 @@ function RedisValueEditor(props: {
             setEditModel(mode);
           }}
         ></RedisEditModeSelect>
+        {header}
+        {editModel == RedisEditorMode.Hex && (
+          <>
+            <span>looking for hex editor???</span>
+            <Chip
+              label="try hexed.it"
+              onClick={() => {
+                openUrl('https://hexed.it/');
+              }}
+              size="small"
+            ></Chip>
+          </>
+        )}
       </Stack>
 
       <SimpleResizeEditor
