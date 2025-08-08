@@ -258,9 +258,8 @@ pub async fn list_table(
     random_sleep().await;
     random_error()?;
     log::info!("show table_name db:{}", name);
-    app.list_table(name.as_str())
-        .await
-        .map_err(ErrorFrontend::from)
+    let db = app.get_schema(&name).await?;
+    db.list_table().await.map_err(ErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn mongo_list_time_serial_collection(
@@ -293,9 +292,18 @@ pub async fn redis_list_table(
 ) -> Result<RedisListTable, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.redis_list_table(&name, filter.as_ref().map(|x| x.as_str()), max)
+    let db = app
+        .get_schema(&name)
         .await
-        .map_err(ErrorFrontend::from)
+        .map_err(|x| ErrorFrontend::from(x))?;
+    match db.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => {
+            x.redis_list_table(filter.as_ref().map(|x| x.as_str()), max)
+                .await
+        }
+        None => return Err(ErrorFrontend::from(format!("'{}' not a redis", name))),
+    }
+    .map_err(ErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn redis_zset_show_table(
@@ -327,7 +335,8 @@ pub async fn show_table_columns(
 ) -> Result<Vec<Field>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.show_table_columns(name.as_str(), &table_name)
+    let db = app.get_schema(&name).await?;
+    db.show_table_columns(&table_name)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -339,16 +348,9 @@ pub async fn show_table(
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let x = app
-        .show_table(
-            name.as_str(),
-            &table_name,
-            where_str,
-            order_by,
-            page,
-            page_size,
-            extra,
-        )
+    let db = app.get_schema(&name).await?;
+    let x = db
+        .show_table(&table_name, where_str, order_by, page, page_size, extra)
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -361,7 +363,8 @@ pub async fn show_indexes(
 ) -> Result<Vec<Index>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.show_indexes(name.as_str(), &table_name)
+    let db = app.get_schema(&name).await?;
+    db.show_indexes(&table_name)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -451,7 +454,8 @@ pub async fn table_insert(
 ) -> Result<SqlExecuteRet, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.insert(name.as_str(), &table_name, values)
+    let db = app.get_schema(&name).await?;
+    db.table_insert(&table_name, values)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -463,7 +467,8 @@ pub async fn table_update(
 ) -> Result<SqlExecuteRet, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.table_update(name.as_str(), &table_name, values, wheres)
+    let db = app.get_schema(&name).await?;
+    db.table_update(&table_name, values, wheres)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -473,7 +478,8 @@ pub async fn truncate_table(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.truncate_table(name.as_str(), &table_name)
+    let db = app.get_schema(&name).await?;
+    db.truncate_table(&table_name)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -551,7 +557,8 @@ pub async fn table_delete(
 ) -> Result<SqlExecuteRet, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.table_delete(name.as_str(), &table_name, wheres)
+    let db = app.get_schema(&name).await?;
+    db.table_delete(&table_name, wheres)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -562,9 +569,8 @@ pub async fn list_view(
 ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.list_view(name.as_str())
-        .await
-        .map_err(ErrorFrontend::from)
+    let db = app.get_schema(&name).await?;
+    db.list_view().await.map_err(ErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn server_metas(
@@ -604,9 +610,8 @@ pub async fn drop_view(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.drop_view(name.as_str(), &view_name)
-        .await
-        .map_err(ErrorFrontend::from)
+    let db = app.get_schema(&name).await?;
+    db.drop_view(&view_name).await.map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -632,7 +637,8 @@ pub async fn drop_table(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.drop_table(name.as_str(), &table_name, cascade)
+    let db = app.get_schema(&name).await?;
+    db.drop_table(&table_name, cascade)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -643,18 +649,11 @@ pub async fn show_view(
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    app.show_view(
-        name.as_str(),
-        &view_name,
-        where_str,
-        order_by,
-        page,
-        page_size,
-        extra,
-    )
-    .await
-    .map_err(ErrorFrontend::from)
-    .map(MuiDataGridData::from)
+    let db = app.get_schema(&name).await?;
+    db.show_view(&view_name, where_str, order_by, page, page_size, extra)
+        .await
+        .map_err(ErrorFrontend::from)
+        .map(MuiDataGridData::from)
 }
 #[tauri::command]
 pub async fn show_view_columns(

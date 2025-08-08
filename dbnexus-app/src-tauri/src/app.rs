@@ -7,12 +7,8 @@ use dbnexus_db::datasource_config::{
     MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
     SqliteDBConfig,
 };
-use dbnexus_db::db::{
-    CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, QueryResp, SchemaTrait,
-    ShowExtraArgs, SqlExecuteRet,
-};
+use dbnexus_db::db::{CatalogTrait, DBTrait, SchemaTrait};
 use dbnexus_db::mongo::MongoDB;
-use dbnexus_db::redis::{RedisDB, RedisListTable};
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -406,9 +402,7 @@ impl App {
                         Err(_) => {
                             log::info!("enter child named:{}", name);
                             let dbtrait = catalog_trait.open_db(&database).await?;
-
                             self.insert_open(name.clone(), dbtrait.clone().into()).await;
-
                             dbtrait.clone()
                         }
                     };
@@ -483,85 +477,6 @@ impl App {
         }
     }
 
-    pub async fn list_table(&self, name: &str) -> anyhow::Result<Vec<ListTable>> {
-        let db = self.get_schema(name).await?;
-        db.list_table().await
-    }
-
-    pub async fn show_table_columns(
-        &self, name: &str, table_name: &str,
-    ) -> anyhow::Result<Vec<Field>> {
-        let db = self.get_schema(name).await?;
-        db.show_table_columns(table_name).await
-    }
-
-    pub async fn show_table(
-        &self, name: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>,
-        page: usize, page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<QueryResp> {
-        let db = self.get_schema(name).await?;
-        db.show_table(table_name, where_str, order_by, page, page_size, extra)
-            .await
-    }
-
-    pub async fn show_indexes(&self, name: &str, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let db = self.get_schema(name).await?;
-        db.show_indexes(table_name).await
-    }
-
-    pub async fn insert(
-        &self, name: &str, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_schema(name).await?;
-        db.table_insert(table_name, values).await
-    }
-
-    pub async fn table_update(
-        &self, name: &str, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_schema(name).await?;
-        db.table_update(table_name, values, wheres).await
-    }
-
-    pub async fn truncate_table(&self, name: &str, table_name: &str) -> anyhow::Result<()> {
-        let db = self.get_schema(name).await?;
-        db.truncate_table(table_name).await
-    }
-
-    pub async fn table_delete(
-        &self, name: &str, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_schema(name).await?;
-        db.table_delete(table_name, wheres).await
-    }
-
-    pub async fn list_view(&self, name: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        let db = self.get_schema(name).await?;
-        db.list_view().await
-    }
-
-    pub async fn drop_view(&self, name: &str, view_name: &str) -> anyhow::Result<()> {
-        let db = self.get_schema(name).await?;
-        db.drop_view(view_name).await
-    }
-
-    pub async fn drop_table(
-        &self, name: &str, table_name: &str, cascade: bool,
-    ) -> anyhow::Result<()> {
-        let db = self.get_schema(name).await?;
-        db.drop_table(table_name, cascade).await
-    }
-
-    pub async fn show_view(
-        &self, name: &str, view_name: &str, where_str: Option<&str>, order_by: Option<&str>,
-        page: usize, page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<QueryResp> {
-        let db = self.get_schema(name).await?;
-        db.show_view(view_name, where_str, order_by, page, page_size, _extra)
-            .await
-    }
-
     pub async fn get_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         match self.get_opened(name).await? {
             Open::Schema(x) => anyhow::Ok(x.clone()),
@@ -576,15 +491,5 @@ impl App {
             None => anyhow::bail!("'{}' not found,the connection maybe closed???", name),
         };
         anyhow::Ok(x)
-    }
-
-    pub async fn redis_list_table(
-        &self, name: &str, filter: Option<&str>, max: usize,
-    ) -> anyhow::Result<RedisListTable> {
-        let db = self.get_schema(name).await?;
-        match db.as_any().downcast_ref::<RedisDB>() {
-            Some(x) => x.redis_list_table(filter, max).await,
-            None => anyhow::bail!(format!("'{}' not a redis", name)),
-        }
     }
 }
