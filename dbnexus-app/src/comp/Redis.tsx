@@ -505,7 +505,7 @@ function RedisValueEditor(props: {
   editorHeight: string;
   header?: ReactNode;
 }) {
-  let { oldValue, handleValue, editorHeight, header } = props;
+  let { oldValue, handleValue, header } = props;
   const [newValue, setNewValue] = useState<string>('');
   const [editModel, setEditModel] = useState<RedisEditorMode>(
     RedisEditorMode.Text
@@ -600,8 +600,8 @@ function RedisValueEditor(props: {
             setNewValue(value);
           });
         }}
+        heightName="redis-value-editor"
         wordWrap="on"
-        style={{ height: editorHeight }}
         barLeft={
           jsonErr ? (
             <Typography color="error" variant="body1">

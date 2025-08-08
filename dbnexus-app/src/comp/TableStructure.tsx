@@ -1661,6 +1661,7 @@ function StatementStructure(props: {
           language={uuid}
           value={getValue()}
           readOnly={true}
+          heightName="table-sql"
         ></SimpleResizeEditor>
       )}
     </Stack>

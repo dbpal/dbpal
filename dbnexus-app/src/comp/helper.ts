@@ -331,6 +331,7 @@ enum AppStoreKey {
   QuerySize = "query_size",
   MongoQueryEditorHeight = "mongo_query_editor_height",
   MongoQueryLoggerHeight = "mongo_query_logger_height",
+  SimpleQueryEditorHeight = "simple_query_editor_height",
 }
 
 class FavoriteSql {
@@ -502,7 +503,21 @@ function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridDat
     total: old.total,
   };
 }
-
+function saveAndSetHeight(dom: Element, key) {
+  let e = new ResizeObserver((en) => {
+    const height = en[0].target.clientHeight;
+    appStore.set(key, height);
+  });
+  e.observe(dom);
+  appStore.get(key).then((height) => {
+    if (height) {
+      (dom as HTMLDivElement).style.height = height + 'px';
+    }
+  });
+  return () => {
+    e.unobserve(dom);
+  };
+}
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -537,5 +552,6 @@ export {
   FavoriteSql,
   MatchPatternContext,
   resetMuiDataRespWidth,
-  quoteStyle
+  quoteStyle,
+  saveAndSetHeight
 };

@@ -48,7 +48,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4.3.4",
     "internal-ip": "^8.0.0",
-    "typescript": "^5.7.2",
+    "typescript": "^5.9.2",
     "vite": "^7",
     "vite-plugin-top-level-await": "^1.4.4"
   }

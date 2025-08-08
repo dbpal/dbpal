@@ -86,7 +86,7 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
-  getViewportSize,
+  saveAndSetHeight,
   secondConfirm,
   TabsSetContext,
 } from './helper';
@@ -394,64 +394,20 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
     });
 }
 
-function countLines(str): number | undefined {
-  if (!str) return undefined; // 如果字符串为空，返回 0
-  return str.split('\n').length; // 按换行符分割并计算长度
-}
-
-function editorInitHeight(
-  str,
-  lineHeigth,
-  minHeight = 200,
-  maxPrecent = 0.5
-): number {
-  let lines = countLines(str);
-  if (!lines) {
-    lines = 10;
-  } else {
-    lines += 2;
-  }
-
-  let height = lines * lineHeigth;
-  let viewHeigth = getViewportSize().height;
-  let maxHeigth = viewHeigth * maxPrecent;
-  if (height > maxHeigth) {
-    height = maxHeigth;
-  }
-  if (height < minHeight) {
-    height = minHeight;
-  }
-  return height;
-}
-
 function SimpleResizeEditor(props: {
   language: string;
   value?: string;
   onMount?: OnMount;
   minHeigth?: number;
   barLeft?: ReactNode;
-  style?: CSSProperties;
   wordWrap?: string;
   readOnly?: boolean;
+  heightName: string;
 }) {
-  let {
-    language,
-    value,
-    onMount,
-    minHeigth,
-    barLeft,
-    style,
-    wordWrap,
-    readOnly,
-  } = props;
+  let { language, value, onMount, barLeft, wordWrap, readOnly, heightName } =
+    props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
-  let height = editorInitHeight(value, setting.editorFontSize * 1.5);
-  if (minHeigth && height < minHeigth) {
-    height = minHeigth;
-  }
-
-  const [heightState, _setHeight] = useState(height);
 
   const handleDidMount = useCallback(
     (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
@@ -476,6 +432,15 @@ function SimpleResizeEditor(props: {
     };
   }, [setting]);
 
+  const divDom = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const key = AppStoreKey.SimpleQueryEditorHeight + '-' + heightName;
+    let x1 = saveAndSetHeight(divDom.current, key);
+    return () => {
+      x1();
+    };
+  }, []);
+
   return (
     <div
       style={{
@@ -483,16 +448,15 @@ function SimpleResizeEditor(props: {
         flexDirection: 'column',
         resize: 'vertical',
         overflow: 'auto',
-        minHeight: 150,
-        ...style,
+        minHeight: 150 + 'px',
       }}
+      ref={divDom}
     >
       <div
         style={{
           flexGrow: 1,
           flexShrink: 1,
           minHeight: 0,
-          height: heightState + 'px',
         }}
       >
         <Editor
@@ -1280,7 +1244,6 @@ export {
   DocsAndCount,
   EditorBar,
   SimpleResizeEditor,
-  editorInitHeight,
   tabsHasId,
   msgTimeout,
   progressBarSize,

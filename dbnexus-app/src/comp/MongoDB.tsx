@@ -62,7 +62,6 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import {
   DocsAndCount,
   modalStyle,
-  editorInitHeight,
   SettingContext,
   reloadOK,
   keyNotInTable,
@@ -258,7 +257,7 @@ function MongoBsonEditor(props: {
   buttons: MongoBsonEditorCallback[];
   height?: string;
 }) {
-  let { doc, buttons, height } = props;
+  let { doc, buttons } = props;
   let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
@@ -286,16 +285,7 @@ function MongoBsonEditor(props: {
     []
   );
   const content = useRef(bsonValue2MongoBson(doc).format());
-  const settings = useContext(SettingContext);
-
   const { showNotification } = useContext(NotificationContext);
-  const initHeigth = useRef(
-    height
-      ? height
-      : editorInitHeight(content.current, settings.editorFontSize * 1.2, 150) +
-          'px'
-  );
-
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.editorFontSize,
@@ -310,7 +300,7 @@ function MongoBsonEditor(props: {
         flexDirection: 'column',
         resize: 'vertical',
         overflow: 'auto',
-        height: initHeigth.current,
+        minHeight: '200px',
       }}
     >
       <div

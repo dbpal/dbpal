@@ -118,6 +118,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
               language={language}
               value={selectSql}
               minHeigth={200}
+              heightName="query-log"
             ></SimpleResizeEditor>
           </Box>
         </Modal>

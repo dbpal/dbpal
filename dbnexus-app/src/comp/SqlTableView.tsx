@@ -176,6 +176,7 @@ function WhereSort(props: {
                 setNewValue(e.getValue());
               });
             }}
+            heightName="where-sort-editor"
             language={whereLanguage}
           ></SimpleResizeEditor>
 
@@ -263,6 +264,7 @@ function EditInModal(props: { content: string; handleModify }) {
             setValue(editor.getValue());
           });
         }}
+        heightName="edit-in-modal"
         barLeft={
           jsonErr ? (
             <Typography color="error" variant="body1">

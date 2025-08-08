@@ -298,6 +298,7 @@ function EditorOptions(props: {
             setValue(editor.getValue());
           });
         }}
+        heightName="editor-options"
         barLeft={
           jsonErr ? (
             <Typography color="error" variant="body1">

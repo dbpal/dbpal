@@ -57,10 +57,10 @@ function DefAndMetasView(props: {
         <div style={{ display: 'grid' }}>
           <Typography variant={titleVariant}> Statement </Typography>
           <SimpleResizeEditor
-            style={{ minHeight: '200px' }}
             language={language}
             value={detail.def}
             readOnly={true}
+            heightName="udf-and-metas"
           ></SimpleResizeEditor>
           {detail.metas.length > 0 && (
             <>
