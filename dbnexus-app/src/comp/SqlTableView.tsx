@@ -727,29 +727,24 @@ function SqlTableView_(props: {
             sx={{ alignItems: 'center', justifyContent: 'space-between' }}
           >
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-              {resp && (
-                <Typography
-                  sx={{
-                    cursor: 'pointer',
-                    fontSize: '0.9rem',
-                    fontStyle: 'italic',
-                    color: 'green',
-                    fontWeight: '600',
-                  }}
-                  variant="body1"
-                  onClick={() => {
-                    handleCopyToClipboard(resp.sql, showNotification);
-                  }}
-                >
-                  {resp.sql}
-                </Typography>
-              )}
+              <Typography
+                sx={{
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontStyle: 'italic',
+                  color: 'green',
+                  fontWeight: '600',
+                }}
+                variant="body1"
+                onClick={() => {
+                  handleCopyToClipboard(resp.sql, showNotification);
+                }}
+              >
+                {resp.sql}
+              </Typography>
             </Stack>
-            {resp && (
-              <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
-            )}
+            <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
           </Stack>
-
           {visiable && (
             <div
               style={{
