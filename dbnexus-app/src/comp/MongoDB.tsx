@@ -77,7 +77,6 @@ import {
   SelectPageSize,
 } from './CommonComp';
 import {
-  AppStoreKey,
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
@@ -298,7 +297,7 @@ function MongoBsonEditor(props: {
   useEffect(() => {
     const x1 = saveAndSetHeight(
       divDom.current,
-      `${AppStoreKey.MongoBsonEditorHeightXxx}-${heightName}`
+      `mongobsonEditor-${heightName}`
     );
     return () => {
       x1();

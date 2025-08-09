@@ -45,12 +45,7 @@ import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import {
-  appStore,
-  AppStoreKey,
-  DataSourceKind,
-  secondConfirm,
-} from './helper.ts';
+import { DataSourceKind, SaveSizesToStore, secondConfirm } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
 import { CiTimer } from 'react-icons/ci';
@@ -490,13 +485,12 @@ function SqlQuery(props: {
   }, [conn]);
 
   const [size, setSize] = useState(400);
-  useEffect(() => {
-    appStore.get<number | null>(AppStoreKey.QuerySize).then((e) => {
-      if (e) {
-        setSize(e);
-      }
-    });
-  }, []);
+  const sizeKey = 'query_size';
+  useEffect(() => {}, [
+    SaveSizesToStore.getSize(sizeKey).then((size) => {
+      setSize(size);
+    }),
+  ]);
   return (
     //@ts-ignore
     <SplitPane
@@ -506,7 +500,7 @@ function SqlQuery(props: {
       size={size}
       style={{ position: 'relative' }}
       onChange={(newvalue) => {
-        appStore.set(AppStoreKey.QuerySize, newvalue);
+        SaveSizesToStore.saveSize(sizeKey, newvalue);
       }}
     >
       <div

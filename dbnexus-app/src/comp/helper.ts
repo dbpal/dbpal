@@ -10,6 +10,7 @@ import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 
+
 interface ConfirmOptions {
   title: string;
   content?: string;
@@ -321,18 +322,33 @@ function isTypeLargeText(s: string): boolean {
 }
 const appStore = await load('store.json');
 
+class SaveSizesToStore {
+  static async saveSize(key: string, size: number) {
+    let sizes = await appStore.get(AppStoreKey.Sizes);
+    if (!sizes) {
+      sizes = {};
+    }
+    sizes[key] = size;
+    await appStore.set(AppStoreKey.Sizes, sizes);
+  }
+
+  static async getSize(key: string): Promise<number> {
+    let sizes = await appStore.get(AppStoreKey.Sizes);
+    if (!sizes) {
+      sizes = {};
+    }
+    return sizes[key] || 300;
+  }
+
+}
+
+
 enum AppStoreKey {
   UserSetttings = 'user_settings',
   ConnectionConfig = 'connection_config',
   ColumnWithd = 'column_widths',
-  LeftSize = 'left_size',
   FavoriteSql = "favorite_sql",
-  RedisQuerySize = "redis_query_size",
-  QuerySize = "query_size",
-  MongoQueryEditorHeight = "mongo_query_editor_height",
-  MongoQueryLoggerHeight = "mongo_query_logger_height",
-  SimpleQueryEditorHeight = "simple_query_editor_height",
-  MongoBsonEditorHeightXxx = "mongo_bson_editor_height",
+  Sizes = "sizes",
 }
 
 
@@ -508,18 +524,17 @@ function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridDat
 function saveAndSetHeight(dom: Element, key) {
   let e = new ResizeObserver((en) => {
     const height = en[0].target.clientHeight;
-    appStore.set(key, height);
+    SaveSizesToStore.saveSize(key, height);
   });
   e.observe(dom);
-  appStore.get(key).then((height) => {
-    if (height) {
-      (dom as HTMLDivElement).style.height = height + 'px';
-    }
+  SaveSizesToStore.getSize(key).then(height => {
+    (dom as HTMLDivElement).style.height = height + 'px';
   });
   return () => {
     e.unobserve(dom);
   };
 }
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -555,5 +570,6 @@ export {
   MatchPatternContext,
   resetMuiDataRespWidth,
   quoteStyle,
-  saveAndSetHeight
+  saveAndSetHeight,
+  SaveSizesToStore
 };

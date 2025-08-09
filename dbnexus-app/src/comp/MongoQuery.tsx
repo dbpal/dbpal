@@ -18,7 +18,7 @@ import {
   MongoDBQuery,
   BsonExtraDataType,
 } from './MongoQueryBackend';
-import { AppStoreKey, saveAndSetHeight, generateRandomString } from './helper';
+import { saveAndSetHeight, generateRandomString } from './helper';
 import {
   EditorBar,
   EscDownEvent,
@@ -153,14 +153,8 @@ function MongoQuery(props: {
   const editorDom = useRef(null);
   const loggerDom = useRef(null);
   useEffect(() => {
-    const x1 = saveAndSetHeight(
-      editorDom.current,
-      AppStoreKey.MongoQueryEditorHeight
-    );
-    const x2 = saveAndSetHeight(
-      loggerDom.current,
-      AppStoreKey.MongoQueryLoggerHeight
-    );
+    const x1 = saveAndSetHeight(editorDom.current, 'mongo_query');
+    const x2 = saveAndSetHeight(loggerDom.current, 'mongo_logger');
     return () => {
       x1();
       x2();

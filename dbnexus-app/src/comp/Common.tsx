@@ -431,7 +431,7 @@ function SimpleResizeEditor(props: {
 
   const divDom = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const key = AppStoreKey.SimpleQueryEditorHeight + '-' + heightName;
+    const key = 'MongoBsonEditor' + '-' + heightName;
     let x1 = saveAndSetHeight(divDom.current, key);
     return () => {
       x1();

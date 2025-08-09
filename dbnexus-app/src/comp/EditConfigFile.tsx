@@ -1,11 +1,13 @@
-import { Stack, Typography } from '@mui/material';
+import { Button, Stack, Typography } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 
 import { appStore, valid_json } from './helper';
 import { NotificationContext } from './Notification';
 import { SimpleResizeEditor } from './Common';
 
-function EditConfigFile() {
+function EditConfigFile(props: { handleClose }) {
+  const { handleClose } = props;
+
   const [config, setConfig] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
 
@@ -31,8 +33,23 @@ function EditConfigFile() {
       });
   }, [config]);
 
+  const handleSave = async () => {
+    if (jsonError) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(config);
+      for (const key in parsed) {
+        appStore.set(key, parsed[key]);
+      }
+      showNotification('success', 'Success', 'Config file saved successfully');
+      handleClose();
+    } catch (e) {
+      showNotification('error', 'Error', 'Failed to save config file: ' + e);
+    }
+  };
   return (
-    <Stack>
+    <Stack spacing={1}>
       <SimpleResizeEditor
         value={config}
         onMount={(editor) => {
@@ -48,7 +65,11 @@ function EditConfigFile() {
           ) : undefined
         }
       ></SimpleResizeEditor>
-      <Stack direction="row"> </Stack>
+      <Stack direction="row">
+        <Button variant="contained" onClick={handleSave}>
+          save
+        </Button>
+      </Stack>
     </Stack>
   );
 }

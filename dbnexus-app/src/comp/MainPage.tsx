@@ -61,16 +61,15 @@ const shortCuts = {
 
 import { ModifySettings, SettingComp } from './Settings.tsx';
 import {
-  appStore,
-  AppStoreKey,
   ContextMenuContext,
   generateRandomString,
+  SaveSizesToStore,
   TabsSetContext,
 } from './helper.ts';
 
 import { Box, Modal, Paper } from '@mui/material';
 import { BackendCrash } from './BackendCrash.tsx';
-import { EditConfigFile } from './EditConfigFIle.tsx';
+import { EditConfigFile } from './EditConfigFile.tsx';
 
 export default function MainPage() {
   let [tabs, setTabs] = useState<TabContent[]>([
@@ -185,15 +184,13 @@ export default function MainPage() {
   const changeTab = useCallback((index) => {
     setTab(index as number);
   }, []);
-
+  const leftSizeKey = 'left_size';
   const [leftSize, setLeftSize] = useState(300);
   useEffect(() => {
     let a = async () => {
-      let size = await appStore.get<number>(AppStoreKey.LeftSize);
-      if (!size) {
-        size = 300;
-      }
-      setLeftSize(size);
+      SaveSizesToStore.getSize(leftSizeKey).then((size) => {
+        setLeftSize(size);
+      });
     };
     a();
   }, []);
@@ -210,7 +207,7 @@ export default function MainPage() {
       }}
       maxSize={800}
       onDragFinished={async (newsize) => {
-        appStore.set(AppStoreKey.LeftSize, newsize);
+        SaveSizesToStore.saveSize(leftSizeKey, newsize);
       }}
     >
       <div
@@ -260,7 +257,11 @@ export default function MainPage() {
                 }}
               >
                 <Box sx={modalStyle} width="75%">
-                  <EditConfigFile> </EditConfigFile>
+                  <EditConfigFile
+                    handleClose={() => {
+                      setShowEditConfig(false);
+                    }}
+                  />
                 </Box>
               </Modal>
             )}
