@@ -710,6 +710,14 @@ function SqlTableView_(props: {
             label="allow filtering"
           />
         )}
+        <Tooltip title="execute time">
+          <Chip
+            color="default"
+            size="small"
+            label={<span ref={executeTimeRef}> </span>}
+            icon={<CiTimer />}
+          ></Chip>
+        </Tooltip>
       </Stack>
       {resp && (
         <>
@@ -738,19 +746,7 @@ function SqlTableView_(props: {
               )}
             </Stack>
             {resp && (
-              <Stack direction="row" spacing={1}>
-                <Tooltip title="execute time">
-                  <Chip
-                    color="default"
-                    size="small"
-                    label={<span ref={executeTimeRef}> </span>}
-                    icon={<CiTimer />}
-                  ></Chip>
-                </Tooltip>
-                <Typography>
-                  loaded at:{lastLoadTime.toLocaleString()}
-                </Typography>
-              </Stack>
+              <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
             )}
           </Stack>
 
