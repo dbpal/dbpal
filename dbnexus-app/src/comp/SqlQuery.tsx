@@ -199,6 +199,12 @@ function SqlQuery(props: {
 
   const executeTimeRef = useRef(null);
   const timeExecuteClean = useRef<() => void>(null);
+  const tryExecuteTimeClean = () => {
+    if (timeExecuteClean.current) {
+      timeExecuteClean.current();
+      timeExecuteClean.current = null;
+    }
+  };
   const [commitNonce, setCommitNonce] = useState(0);
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
@@ -222,12 +228,6 @@ function SqlQuery(props: {
     },
     []
   );
-  const tryExecuteTimeClean = () => {
-    if (timeExecuteClean.current) {
-      timeExecuteClean.current();
-      timeExecuteClean.current = null;
-    }
-  };
 
   const handleLoadQueryLog = () => {
     conn

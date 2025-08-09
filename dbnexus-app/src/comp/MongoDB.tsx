@@ -817,14 +817,15 @@ function MongoTableListMenuFilter(props: {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
         {compares.map((x) => (
-          <Button
+          <Chip
             key={x}
             onClick={() => {
               setCompare(x);
             }}
-          >
-            {x}
-          </Button>
+            label={x}
+            size="small"
+            color={compare === x ? 'primary' : 'default'}
+          ></Chip>
         ))}
       </Stack>
       {bsonValue2MongoBson(doc).format()}

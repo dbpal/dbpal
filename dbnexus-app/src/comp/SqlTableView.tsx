@@ -35,6 +35,7 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
+import { CiTimer } from 'react-icons/ci';
 import { v4 as uuidv4 } from 'uuid';
 import {
   EscDownEvent,
@@ -344,7 +345,14 @@ function SqlTableView_(props: {
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editInModal, setEditInModal] = useState<EditInModalCellData>(null);
   const [editInModalRow, setEditInModalRow] = useState<object>(null);
-
+  const executeTimeRef = useRef(null);
+  const timeExecuteClean = useRef<() => void>(null);
+  const tryExecuteTimeClean = () => {
+    if (timeExecuteClean.current) {
+      timeExecuteClean.current();
+      timeExecuteClean.current = null;
+    }
+  };
   const handleResp = (resp: types.MuiDataGridData) => {
     resp.data.forEach((data) => {
       data[keyNotInTable] = uuidv4();
@@ -387,9 +395,37 @@ function SqlTableView_(props: {
       }
     }
   };
+  const timeExecute = () => {
+    tryExecuteTimeClean();
+    const now = new Date();
+    const setUp = () => {
+      //@ts-ignore
+      const ms = new Date() - now;
+      function getTime() {
+        let s = Math.floor(ms / 1000);
+        if (s == 0) {
+          return `${ms}ms`;
+        }
+        let r = ms % 1000;
+        if (r == 0) {
+          return `${s}s`;
+        }
+        return `${s}s ${r}ms`;
+      }
+      (executeTimeRef.current as HTMLDivElement).innerHTML = `${getTime()}`;
+    };
+    const int = setInterval(() => {
+      setUp();
+    }, 50);
+    timeExecuteClean.current = () => {
+      clearInterval(int);
+      setUp();
+    };
+  };
 
   const handleReload = async (showOK: boolean) => {
     setLoading(true);
+    timeExecute();
     try {
       let extra = null;
       switch (kind) {
@@ -416,7 +452,9 @@ function SqlTableView_(props: {
       if (showOK) {
         reloadOK(showNotification);
       }
+      tryExecuteTimeClean();
     } catch (e) {
+      tryExecuteTimeClean();
       setLoading(false);
       showNotification('error', 'query data failed', e);
       return;
@@ -700,7 +738,19 @@ function SqlTableView_(props: {
               )}
             </Stack>
             {resp && (
-              <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
+              <Stack direction="row" spacing={1}>
+                <Tooltip title="execute time">
+                  <Chip
+                    color="default"
+                    size="small"
+                    label={<span ref={executeTimeRef}> </span>}
+                    icon={<CiTimer />}
+                  ></Chip>
+                </Tooltip>
+                <Typography>
+                  loaded at:{lastLoadTime.toLocaleString()}
+                </Typography>
+              </Stack>
             )}
           </Stack>
 

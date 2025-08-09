@@ -499,7 +499,7 @@ const ContextMenuContext = createContext<{
 const filterStyle = {
   style: {
     fontSize: '1.1rem',
-
+    fontWeight: "bold"
   } as CSSProperties,
 };
 

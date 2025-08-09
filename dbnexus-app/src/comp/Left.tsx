@@ -44,7 +44,6 @@ import {
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
-
 import { FaCopy } from 'react-icons/fa';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
