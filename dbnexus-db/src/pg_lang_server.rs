@@ -262,8 +262,7 @@ impl AstCompletionHelper for PostGresDB {
             sql = format!(
                 r#"
             SELECT  
-                p.proname AS function_name,
-                d.description AS function_description
+                p.proname AS function_name
             FROM pg_catalog.pg_proc p
             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname = '{}'  -- 替换为你的模式名
@@ -275,8 +274,7 @@ impl AstCompletionHelper for PostGresDB {
             sql = format!(
                 r#"
             SELECT 
-                p.proname AS function_name,
-                d.description AS function_description
+                p.proname AS function_name
             FROM pg_catalog.pg_proc p
             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             ORDER BY p.proname;
@@ -291,10 +289,9 @@ impl AstCompletionHelper for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
-            let desc: Option<String> = r.try_get(1)?;
             ret.push(CompletionItem {
                 item: name.into(),
-                desc: desc.map(|x| x.into()),
+                desc: None,
                 kind: CompletionKind::Function,
             });
         }
