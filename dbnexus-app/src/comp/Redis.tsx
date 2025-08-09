@@ -252,7 +252,7 @@ function RedisAddHash(props: {
           setKey(e);
         }}
         editorHeight="40vh"
-        header=<span color="info"> key </span>
+        header="key"
       ></RedisValueEditor>
 
       <RedisValueEditor
@@ -261,7 +261,7 @@ function RedisAddHash(props: {
           setValue(e);
         }}
         editorHeight="40vh"
-        header=<span color="info"> value </span>
+        header="value"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -375,7 +375,7 @@ function RedisEditHash(props: {
           setNewKey(e);
         }}
         editorHeight="29vh"
-        header=<span color="info"> key </span>
+        header="key"
       ></RedisValueEditor>
 
       <RedisValueEditor
@@ -384,7 +384,7 @@ function RedisEditHash(props: {
           setNewValue(e);
         }}
         editorHeight="29vh"
-        header=<span color="info"> value </span>
+        header="value"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -503,7 +503,7 @@ function RedisValueEditor(props: {
   oldValue?: string;
   handleValue: (a: string) => void;
   editorHeight: string;
-  header?: ReactNode;
+  header?: string;
 }) {
   let { oldValue, handleValue, header } = props;
   const [newValue, setNewValue] = useState<string>('');
@@ -557,6 +557,9 @@ function RedisValueEditor(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Typography variant="h6" color="info" style={{ fontWeight: 'bold' }}>
+          {header}
+        </Typography>
         <RedisEditModeSelect
           mode={editModel}
           handleChange={(mode) => {
@@ -575,7 +578,7 @@ function RedisValueEditor(props: {
             setEditModel(mode);
           }}
         ></RedisEditModeSelect>
-        {header}
+
         {editModel == RedisEditorMode.Hex && (
           <>
             <span>looking for hex editor???</span>
