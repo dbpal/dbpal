@@ -338,7 +338,12 @@ function SqlTableView_(props: {
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
   const [pageSize, setPageSize] = useState(setting.pageSize);
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<types.MuiDataGridData | null>({
+    sql: '',
+    fields: [],
+    data: [],
+    total: 0,
+  });
   const { showNotification } = useContext(NotificationContext);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
   const visiable = useContext(VisiableContext);
@@ -710,73 +715,72 @@ function SqlTableView_(props: {
             label="allow filtering"
           />
         )}
-        <Tooltip title="execute time">
-          <Chip
-            color="default"
-            size="small"
-            label={<span ref={executeTimeRef}> </span>}
-            icon={<CiTimer />}
-          ></Chip>
-        </Tooltip>
       </Stack>
-      {resp && (
-        <>
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: 'center', justifyContent: 'space-between' }}
+
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: 'center', justifyContent: 'space-between' }}
+      >
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <Typography
+            sx={{
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              fontStyle: 'italic',
+              color: 'green',
+              fontWeight: '600',
+            }}
+            variant="body1"
+            onClick={() => {
+              handleCopyToClipboard(resp.sql, showNotification);
+            }}
           >
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-              <Typography
-                sx={{
-                  cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  fontStyle: 'italic',
-                  color: 'green',
-                  fontWeight: '600',
-                }}
-                variant="body1"
-                onClick={() => {
-                  handleCopyToClipboard(resp.sql, showNotification);
-                }}
-              >
-                {resp.sql}
-              </Typography>
-            </Stack>
-            <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
-          </Stack>
-          {visiable && (
-            <div
-              style={{
-                display: 'grid',
-              }}
-            >
-              <DataGrid
-                style={gridStyle}
-                loading={loading}
-                showCellVerticalBorder
-                showColumnVerticalBorder
-                slotProps={slotProps}
-                rowHeight={setting.datagridRowHeight}
-                columnHeaderHeight={setting.datagridHeaderHeight}
-                getRowId={getRowId}
-                paginationModel={paginationModel}
-                pageSizeOptions={pageSizeOptions}
-                paginationMode="server"
-                onPaginationModelChange={onPaginationModelChange}
-                checkboxSelection={false}
-                rowCount={resp.total}
-                sortingMode="server"
-                onSortModelChange={onSortModelChange}
-                columns={resp.fields}
-                rows={resp.data}
-                onColumnResize={onColumnResize}
-                processRowUpdate={handleProcessRowUpdate}
-                onProcessRowUpdateError={onProcessRowUpdateError}
-              ></DataGrid>
-            </div>
-          )}
-        </>
+            {resp.sql}
+          </Typography>
+        </Stack>
+        <Stack direction="row" spacing={1}>
+          <Tooltip title="execute time">
+            <Chip
+              color="default"
+              size="small"
+              label={<span ref={executeTimeRef}> </span>}
+              icon={<CiTimer />}
+            ></Chip>
+          </Tooltip>
+          <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
+        </Stack>
+      </Stack>
+      {visiable && (
+        <div
+          style={{
+            display: 'grid',
+          }}
+        >
+          <DataGrid
+            style={gridStyle}
+            loading={loading}
+            showCellVerticalBorder
+            showColumnVerticalBorder
+            slotProps={slotProps}
+            rowHeight={setting.datagridRowHeight}
+            columnHeaderHeight={setting.datagridHeaderHeight}
+            getRowId={getRowId}
+            paginationModel={paginationModel}
+            pageSizeOptions={pageSizeOptions}
+            paginationMode="server"
+            onPaginationModelChange={onPaginationModelChange}
+            checkboxSelection={false}
+            rowCount={resp.total}
+            sortingMode="server"
+            onSortModelChange={onSortModelChange}
+            columns={resp.fields}
+            rows={resp.data}
+            onColumnResize={onColumnResize}
+            processRowUpdate={handleProcessRowUpdate}
+            onProcessRowUpdateError={onProcessRowUpdateError}
+          ></DataGrid>
+        </div>
       )}
 
       {editInModal && (
