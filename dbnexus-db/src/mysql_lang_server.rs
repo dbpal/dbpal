@@ -33,7 +33,7 @@ impl LexerCompletionTrait for MysqlDB {
         let rows = sqlx::query("SELECT  * from information_schema.KEYWORDS")
             .fetch_all(conn.deref_mut())
             .await?;
-
+        let mut ret = vec![];
         for row in rows.iter() {
             let name: Option<String> = row.try_get(0)?;
             if let Some(name) = name {
@@ -45,13 +45,14 @@ impl LexerCompletionTrait for MysqlDB {
                 {
                     continue;
                 }
-                lock.push(CompletionItem {
+                ret.push(CompletionItem {
                     item: name.into(),
                     kind: CompletionKind::KeyWord,
                     desc: None,
                 });
             }
         }
+        *lock = ret;
         return anyhow::Ok(lock.clone());
     }
 

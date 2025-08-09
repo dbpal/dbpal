@@ -92,9 +92,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
     }
 
     // some backend can use a query to query this.
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(vec![])
-    }
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>>;
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>>;
 

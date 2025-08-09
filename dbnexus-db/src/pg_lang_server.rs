@@ -36,15 +36,16 @@ impl LexerCompletionTrait for PostGresDB {
         let rows = sqlx::query("select word from pg_get_keywords()")
             .fetch_all(conn.deref_mut())
             .await?;
-
+        let mut ret = vec![];
         for row in rows.iter() {
             let c: String = row.get_unchecked(0);
-            lock.push(CompletionItem {
+            ret.push(CompletionItem {
                 item: c.to_uppercase().into(),
                 kind: CompletionKind::KeyWord,
                 desc: None,
             });
         }
+        *lock = ret;
         return anyhow::Ok(lock.clone());
     }
 
@@ -222,11 +223,9 @@ impl AstCompletionHelper for PostGresDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| {
-                TempTableColumn {
-                    name: x.name().to_string().into(),
-                    typ: Some(x.type_info().to_string().into()),
-                }
+            .map(|x| TempTableColumn {
+                name: x.name().to_string().into(),
+                typ: Some(x.type_info().to_string().into()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
