@@ -34,7 +34,7 @@ pub enum BackendKind {
 
 #[allow(dead_code)]
 impl BackendKind {
-    pub(crate) fn mysql_like(self) -> bool {
+    pub fn mysql_like(self) -> bool {
         match self {
             Self::Mariadb | Self::Tidb | Self::Mysql => true,
             _ => false,
@@ -1392,6 +1392,6 @@ pub(crate) fn ty_is_float(x: &sqlparser::ast::DataType) -> bool {
     }
 }
 
-pub(crate) fn escape_sql_str(s: &str) -> String {
+pub fn escape_sql_str(s: &str) -> String {
     s.replace("'", "''")
 }

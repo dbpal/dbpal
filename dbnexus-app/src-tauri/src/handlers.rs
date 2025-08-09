@@ -9,7 +9,7 @@ use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
     DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
     ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs, SqlExecuteRet, TriggerDetail,
-    UdfOrProcedureExtraParameter,
+    UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::CompletionItem;
@@ -17,13 +17,11 @@ use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mssql::MsSqlServerDB;
-use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use dbnexus_db::sqlite::SqliteDB;
-use dbnexus_db::tidb::TiDB;
 use tauri::{AppHandle, Emitter};
 
 use crate::app::{self, App, DBConnectionConfig, Open};
@@ -106,12 +104,10 @@ pub async fn drop_database(
             Ok(())
         }
 
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db catalog",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
     }
 }
 
@@ -136,12 +132,10 @@ pub async fn drop_schema(
                 .map_err(|x| ErrorFrontend::from(x))?;
             Ok(())
         }
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db database",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
     }
 }
 
@@ -178,12 +172,10 @@ pub async fn create_database(
             Ok(())
         }
 
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db catalog",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
     }
 }
 
@@ -212,12 +204,10 @@ pub async fn create_schema(
             app.insert_open(key, schema.into()).await;
             Ok(())
         }
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db database",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
     }
 }
 
@@ -273,11 +263,10 @@ pub async fn mongo_list_time_serial_collection(
         .map_err(|x| ErrorFrontend::from(x))?;
 
     let ret = match schema.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => {
-            x.list_time_serial_collection()
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?
-        }
+        Some(x) => x
+            .list_time_serial_collection()
+            .await
+            .map_err(|x| ErrorFrontend::from(x))?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' is not a mongo", name)));
         }
@@ -402,11 +391,10 @@ pub async fn mongo_create_index(
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => {
-            x.create_index(&table_name, index_name, unique, keys)
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?
-        }
+        Some(x) => x
+            .create_index(&table_name, index_name, unique, keys)
+            .await
+            .map_err(|x| ErrorFrontend::from(x))?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' not a mongo", name)));
         }
@@ -752,11 +740,9 @@ pub async fn query_sql(
 
     result.map_err(ErrorFrontend::from).map(|x| {
         x.into_iter()
-            .map(|x| {
-                match x {
-                    Err(e) => Err(e),
-                    Ok(x) => Ok(MuiDataGridData::from(x)),
-                }
+            .map(|x| match x {
+                Err(e) => Err(e),
+                Ok(x) => Ok(MuiDataGridData::from(x)),
             })
             .collect::<Vec<_>>()
     })
@@ -954,12 +940,10 @@ pub async fn config_list_database_or_schema(
 ) -> Result<Vec<String>, ErrorFrontend> {
     let x = conn.open().await?;
     match x {
-        Open::Catalog(catalog_trait) => {
-            catalog_trait
-                .list_database()
-                .await
-                .map_err(ErrorFrontend::from)
-        }
+        Open::Catalog(catalog_trait) => catalog_trait
+            .list_database()
+            .await
+            .map_err(ErrorFrontend::from),
         Open::DataBase(dbtrait) => dbtrait.list_schema().await.map_err(ErrorFrontend::from),
         Open::Schema(_) => Ok(vec![]),
     }
@@ -2478,18 +2462,30 @@ pub async fn put_value_in_sql(
         }
         Err(ErrorFrontend::from("type not match"))
     }
-    let value = value.as_ref().map(|x| x.as_str());
+    // due to this error mysql sometime confuse about the real type.
+    // special case
+    // https://github.com/launchbadge/sqlx/issues/3390
+    {
+        let x = schema.backend_name();
 
+        if x.mysql_like() {
+            return Ok(match value {
+                Some(x) => {
+                    if x.starts_with("0x") {
+                        x
+                    } else {
+                        format!("'{}'", escape_sql_str(&x))
+                    }
+                }
+                None => "null".to_string(),
+            });
+        }
+    }
+    let value = value.as_ref().map(|x| x.as_str());
     if let Ok(e) = xxx::<SqliteDB>(a, &typ, value) {
         return Ok(e);
     }
     if let Ok(e) = xxx::<LibSqlDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<MysqlDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<TiDB>(a, &typ, value) {
         return Ok(e);
     }
     if let Ok(e) = xxx::<PostGresDB>(a, &typ, value) {
@@ -2556,11 +2552,10 @@ pub async fn cassandra_show_aggregate(
         .map_err(ErrorFrontend::from)?;
 
     let ret = match schema.as_any().downcast_ref::<CassandraDB>() {
-        Some(x) => {
-            x.show_aggregate(&agg_name, parameters)
-                .await
-                .map_err(ErrorFrontend::from)?
-        }
+        Some(x) => x
+            .show_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra",
@@ -2581,11 +2576,10 @@ pub async fn cassandra_drop_aggregate(
         .map_err(ErrorFrontend::from)?;
 
     match schema.as_any().downcast_ref::<CassandraDB>() {
-        Some(x) => {
-            x.drop_aggregate(&agg_name, parameters)
-                .await
-                .map_err(ErrorFrontend::from)?
-        }
+        Some(x) => x
+            .drop_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra",
@@ -2798,14 +2792,12 @@ impl From<QueryResp> for MuiDataGridData {
             let mut indexes = NameIndex::default();
             fields
                 .into_iter()
-                .map(|mut x| {
-                    match indexes.get_index(&x.field) {
-                        Some(index) => {
-                            x.field = format!("{}#{}", x.field, index);
-                            x
-                        }
-                        None => x,
+                .map(|mut x| match indexes.get_index(&x.field) {
+                    Some(index) => {
+                        x.field = format!("{}#{}", x.field, index);
+                        x
                     }
+                    None => x,
                 })
                 .collect::<Vec<_>>()
         };
@@ -2817,13 +2809,11 @@ impl From<QueryResp> for MuiDataGridData {
                 fields_renamed
                     .iter()
                     .zip(x.into_iter())
-                    .for_each(|(f, value)| {
-                        match value {
-                            Some(value) => {
-                                values.insert(f.field.clone(), value);
-                            }
-                            None => {}
+                    .for_each(|(f, value)| match value {
+                        Some(value) => {
+                            values.insert(f.field.clone(), value);
                         }
+                        None => {}
                     });
                 values
             })
