@@ -1050,7 +1050,7 @@ function Menu(props: {
       ];
     });
   };
-
+  let quoteField = `${quoteStyle}${field}${quoteStyle}`;
   return (
     <div>
       <MenuList>
@@ -1119,7 +1119,7 @@ function Menu(props: {
         <Divider></Divider>
         <MenuItem
           onClick={() => {
-            setSort(`${quoteStyle}${field}${quoteStyle} ASC`);
+            setSort(`${quoteField} ASC`);
           }}
         >
           <ListItemIcon>
@@ -1129,7 +1129,7 @@ function Menu(props: {
         </MenuItem>
         <MenuItem
           onClick={() => {
-            setSort(`${quoteStyle}${field}${quoteStyle} DESC`);
+            setSort(`${quoteField} DESC`);
           }}
         >
           <ListItemIcon>
@@ -1237,14 +1237,15 @@ function FilterOnValue(props: {
   }, []);
 
   const where = () => {
+    let quoteField = `${quoteStyle}${field}${quoteStyle}`;
     if (compare == 'null') {
-      return `${quoteStyle}${field}${quoteStyle} IS NULL`;
+      return `${quoteField} IS NULL`;
     }
     if (compare == 'not null') {
-      return `${quoteStyle}${field}${quoteStyle} IS NOT NULL`;
+      return `${quoteField} IS NOT NULL`;
     }
 
-    return `${quoteStyle}${field}${quoteStyle} ${compare} ${formatValue}`;
+    return `${quoteField} ${compare} ${formatValue}`;
   };
   return (
     <Stack spacing={2}>

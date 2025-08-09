@@ -39,6 +39,7 @@ function EditConfigFile(props: { handleClose }) {
     }
     try {
       const parsed = JSON.parse(config);
+      appStore.clear();
       for (const key in parsed) {
         appStore.set(key, parsed[key]);
       }
