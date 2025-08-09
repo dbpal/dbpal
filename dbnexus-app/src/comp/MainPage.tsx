@@ -70,6 +70,7 @@ import {
 
 import { Box, Modal, Paper } from '@mui/material';
 import { BackendCrash } from './BackendCrash.tsx';
+import { EditConfigFile } from './EditConfigFIle.tsx';
 
 export default function MainPage() {
   let [tabs, setTabs] = useState<TabContent[]>([
@@ -143,6 +144,18 @@ export default function MainPage() {
   useEffect(() => {
     let unlisten = listen('show_settings', () => {
       setShowSetting(true);
+    });
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, []);
+
+  const [showEditConfig, setShowEditConfig] = useState(false);
+  useEffect(() => {
+    let unlisten = listen('edit_config_file', () => {
+      setShowEditConfig(true);
     });
     return () => {
       unlisten.then((e) => {
@@ -235,6 +248,22 @@ export default function MainPage() {
 
             <WarnUnCommitTx></WarnUnCommitTx>
 
+            {showEditConfig && (
+              <Modal
+                open={showEditConfig}
+                onClose={(e: EscDownEvent, reason) => {
+                  if (reason === 'backdropClick') {
+                    return;
+                  }
+                  e.preventDefault();
+                  setShowEditConfig(false);
+                }}
+              >
+                <Box sx={modalStyle} width="75%">
+                  <EditConfigFile> </EditConfigFile>
+                </Box>
+              </Modal>
+            )}
             {showSetting && (
               <Modal
                 open={showSetting}

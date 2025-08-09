@@ -77,12 +77,14 @@ import {
   SelectPageSize,
 } from './CommonComp';
 import {
+  AppStoreKey,
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
   filterStyle,
   handleCopyToClipboard,
   resetMuiDataRespWidth,
+  saveAndSetHeight,
   VisiableContext,
 } from './helper';
 
@@ -255,9 +257,9 @@ interface MongoBsonEditorCallback {
 function MongoBsonEditor(props: {
   doc: BSON.Document;
   buttons: MongoBsonEditorCallback[];
-  height?: string;
+  heightName: string;
 }) {
-  let { doc, buttons } = props;
+  let { doc, buttons, heightName } = props;
   let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
@@ -292,6 +294,16 @@ function MongoBsonEditor(props: {
       ...setting.editorOption,
     };
   }, [setting]);
+  const divDom = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const x1 = saveAndSetHeight(
+      divDom.current,
+      `${AppStoreKey.MongoBsonEditorHeightXxx}-${heightName}`
+    );
+    return () => {
+      x1();
+    };
+  }, []);
 
   return (
     <div
@@ -300,14 +312,15 @@ function MongoBsonEditor(props: {
         flexDirection: 'column',
         resize: 'vertical',
         overflow: 'auto',
-        minHeight: '200px',
+        minHeight: '150px',
       }}
+      ref={divDom}
     >
       <div
         style={{
-          height: '100px',
           flexGrow: 1,
           flexShrink: 1,
+          minHeight: 0,
         }}
       >
         <Editor
@@ -401,6 +414,7 @@ function MongoDBModify(props: {
     <Stack spacing={1}>
       <MongoBsonEditor
         doc={doc}
+        heightName="modify"
         buttons={
           setOP
             ? [
@@ -1153,6 +1167,7 @@ function MongoTableObject(props: {
           {docs.docs.map((doc) => {
             return (
               <MongoBsonEditor
+                heightName={doc._id}
                 key={doc._id}
                 doc={doc}
                 buttons={
@@ -1305,7 +1320,7 @@ function MongoTableAdd(props: {
   return (
     <MongoBsonEditor
       doc={{}}
-      height={'80vh'}
+      heightName="add"
       buttons={[
         {
           buttonText: 'add',

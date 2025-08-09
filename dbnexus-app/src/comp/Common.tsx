@@ -396,7 +396,6 @@ function SimpleResizeEditor(props: {
   language: string;
   value?: string;
   onMount?: OnMount;
-  minHeigth?: number;
   barLeft?: ReactNode;
   wordWrap?: string;
   readOnly?: boolean;
@@ -446,7 +445,7 @@ function SimpleResizeEditor(props: {
         flexDirection: 'column',
         resize: 'vertical',
         overflow: 'auto',
-        minHeight: 150 + 'px',
+        minHeight: '150px',
       }}
       ref={divDom}
     >

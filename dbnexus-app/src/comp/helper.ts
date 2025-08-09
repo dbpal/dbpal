@@ -332,7 +332,9 @@ enum AppStoreKey {
   MongoQueryEditorHeight = "mongo_query_editor_height",
   MongoQueryLoggerHeight = "mongo_query_logger_height",
   SimpleQueryEditorHeight = "simple_query_editor_height",
+  MongoBsonEditorHeightXxx = "mongo_bson_editor_height",
 }
+
 
 class FavoriteSql {
   constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public lastModified: Date = new Date()) { }

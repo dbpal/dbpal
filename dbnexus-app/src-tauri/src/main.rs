@@ -178,6 +178,13 @@ fn main_() {
                                 true,
                                 Some(if is_mac() { "command+," } else { "control+," }),
                             )?,
+                            &MenuItem::with_id(
+                                handle,
+                                "edit_config_file",
+                                "edit config file",
+                                true,
+                                None as Option<&'static str>,
+                            )?,
                             #[cfg(any(target_os = "windows", target_os = "macos"))]
                             &PredefinedMenuItem::close_window(handle, None)?,
                             #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -250,7 +257,9 @@ fn main_() {
             if event.id.0 == "show_settings" {
                 handle.emit("show_settings", "").unwrap();
             }
-
+            if event.id.0 == "edit_config_file" {
+                handle.emit("edit_config_file", "").unwrap();
+            }
             if event.id.0 == "open_dev_tools" {
                 let windows = handle.webview_windows();
                 for w in windows.values() {

@@ -732,8 +732,8 @@ function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
         ))}
       </RadioGroup>
       <MongoBsonEditor
+        heightName="create-index"
         doc={{}}
-        height="250px"
         buttons={[
           {
             buttonText: 'create index',
