@@ -82,10 +82,10 @@ impl SqliteDB {
         if include_table_schema {
             let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
-            sender.send("\n".into()).await?;
+            sender.send(";\n".into()).await?;
             for index in ss.indexes.into_iter() {
                 sender.send(Cow::Owned(index)).await?;
-                sender.send("\n".into()).await?;
+                sender.send(";\n".into()).await?;
             }
         }
         let mut conn = self.get_conn().await?;
@@ -905,18 +905,14 @@ impl SqlBuilder for SqliteDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => {
-                match value {
-                    Some(x) => format!("'{}'", escape_sql_str(x)),
-                    None => "null".to_string(),
-                }
-            }
-            _ if text_like(typ.as_str()) => {
-                match value {
-                    Some(x) => format!("'{}'", escape_sql_str(x)),
-                    None => "null".to_string(),
-                }
-            }
+            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
+                Some(x) => format!("'{}'", escape_sql_str(x)),
+                None => "null".to_string(),
+            },
+            _ if text_like(typ.as_str()) => match value {
+                Some(x) => format!("'{}'", escape_sql_str(x)),
+                None => "null".to_string(),
+            },
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) => {
                 value.unwrap_or("null").to_string()
@@ -1179,21 +1175,15 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
-                if c.options.iter().any(|x| {
-                    match &x.option {
-                        ColumnOption::DialectSpecific(x) => {
-                            x.iter().any(|x| {
-                                match x {
-                                    Token::Word(w) => {
-                                        let x = w.value.to_uppercase();
-                                        x == "AUTOINCREMENT"
-                                    }
-                                    _ => false,
-                                }
-                            })
+                if c.options.iter().any(|x| match &x.option {
+                    ColumnOption::DialectSpecific(x) => x.iter().any(|x| match x {
+                        Token::Word(w) => {
+                            let x = w.value.to_uppercase();
+                            x == "AUTOINCREMENT"
                         }
                         _ => false,
-                    }
+                    }),
+                    _ => false,
                 }) {
                     return anyhow::Ok(Some(c.name.to_string()));
                 }
@@ -1901,27 +1891,29 @@ mod tests {
     #[tokio::test]
     async fn test_export_table() {
         let db = make_test_object().await;
-
-        let mut conn = db.get_conn().await.unwrap();
         let table_name = "Persons";
         let _ = db.drop_table(table_name, false).await;
-        sqlx::query(
+        let query_id = db.open_connection().await.unwrap();
+        db.execute_sql(
+            query_id,
             r#"
-        -- 创建表
-        CREATE TABLE Persons (
-            ID INTEGER PRIMARY KEY,
-            Name TEXT,
-            Age INTEGER
-        );
-        -- 插入测试数据
-        INSERT INTO Persons (Name, Age) VALUES ('John', 25);
-        INSERT INTO Persons (Name, Age) VALUES ('Jane', 30);
-        INSERT INTO Persons (Name, Age) VALUES ('Mike', 35);
-        "#,
+            -- 创建表
+            CREATE TABLE Persons (
+                ID INTEGER PRIMARY KEY,
+                Name TEXT,
+                Age INTEGER
+            );
+            CREATE INDEX persons_idx_age ON Persons (Age);
+            -- 插入测试数据
+            INSERT INTO Persons (Name, Age) VALUES ('John', 25);
+            INSERT INTO Persons (Name, Age) VALUES ('Jane', 30);
+            INSERT INTO Persons (Name, Age) VALUES ('Mike', 35);
+            "#,
         )
-        .execute(conn.deref_mut())
         .await
+        .unwrap()
         .unwrap();
+
         let db = db;
         {
             let s = db

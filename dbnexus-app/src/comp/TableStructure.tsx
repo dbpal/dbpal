@@ -737,6 +737,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
         buttons={[
           {
             buttonText: 'create index',
+            variant: 'contained',
             callBack: (keys) => {
               handleAdd(keys);
             },
@@ -889,7 +890,7 @@ function AddIndex(props: {
       <Divider></Divider>
       <Stack direction="row">
         <Button onClick={handleAdd} variant="contained" color="primary">
-          add
+          create index
         </Button>
       </Stack>
     </Stack>

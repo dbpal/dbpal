@@ -159,12 +159,10 @@ impl QuerySql for LibSqlDB {
         let conn = conn.as_ref().map(|x| x.deref());
         let conn = match &tr {
             Some(x) => x.deref().deref(),
-            None => {
-                match &conn {
-                    Some(x) => x,
-                    None => anyhow::bail!("collection closed????"),
-                }
-            }
+            None => match &conn {
+                Some(x) => x,
+                None => anyhow::bail!("collection closed????"),
+            },
         };
         let ret = match conn.execute(sql, params!()).await {
             Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
@@ -187,12 +185,10 @@ impl QuerySql for LibSqlDB {
         let conn = conn.as_ref().map(|x| x.deref());
         let conn = match &tr {
             Some(x) => x.deref().deref(),
-            None => {
-                match &conn {
-                    Some(x) => x,
-                    None => anyhow::bail!("collection closed????"),
-                }
-            }
+            None => match &conn {
+                Some(x) => x,
+                None => anyhow::bail!("collection closed????"),
+            },
         };
 
         let mut batch_rows = conn.execute_batch(sql).await?;
@@ -796,24 +792,18 @@ impl SqlBuilder for LibSqlDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "NULL" => {
-                match value {
-                    Some(x) => format!("'{}'", escape_sql_str(x)),
-                    None => "null".to_string(),
-                }
-            }
-            "DATE" | "TIME" | "DATETIME" => {
-                match value {
-                    Some(x) => format!("'{}'", x),
-                    None => "null".to_string(),
-                }
-            }
-            _ if text_like(typ.as_str()) => {
-                match value {
-                    Some(x) => format!("'{}'", escape_sql_str(x)),
-                    None => "null".to_string(),
-                }
-            }
+            "" | "TEXT" | "NULL" => match value {
+                Some(x) => format!("'{}'", escape_sql_str(x)),
+                None => "null".to_string(),
+            },
+            "DATE" | "TIME" | "DATETIME" => match value {
+                Some(x) => format!("'{}'", x),
+                None => "null".to_string(),
+            },
+            _ if text_like(typ.as_str()) => match value {
+                Some(x) => format!("'{}'", escape_sql_str(x)),
+                None => "null".to_string(),
+            },
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
             _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
                 value.unwrap_or("null").to_string()
@@ -866,10 +856,10 @@ impl LibSqlDB {
         if include_table_schema {
             let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
             sender.send(Cow::Owned(ss.create_table.clone())).await?;
-            sender.send("\n".into()).await?;
+            sender.send(";\n".into()).await?;
             for index in ss.indexes.into_iter() {
                 sender.send(Cow::Owned(index)).await?;
-                sender.send("\n".into()).await?;
+                sender.send(";\n".into()).await?;
             }
         }
         let conn = self.get_conn().await?;
@@ -1386,17 +1376,18 @@ mod tests {
         db.query_sql(
             query_id,
             r#"
-        -- 创建表
-        CREATE TABLE Persons (
-            ID INTEGER PRIMARY KEY,
-            Name TEXT,
-            Age INTEGER
-        );
-        -- 插入测试数据
-        INSERT INTO Persons (Name, Age) VALUES ('John', 25);
-        INSERT INTO Persons (Name, Age) VALUES ('Jane', 30);
-        INSERT INTO Persons (Name, Age) VALUES ('Mike', 35);
-        "#,
+            -- 创建表
+            CREATE TABLE Persons (
+                ID INTEGER PRIMARY KEY,
+                Name TEXT,
+                Age INTEGER
+            );
+            CREATE INDEX persons_idx_age ON Persons (Age);
+            -- 插入测试数据
+            INSERT INTO Persons (Name, Age) VALUES ('John', 25);
+            INSERT INTO Persons (Name, Age) VALUES ('Jane', 30);
+            INSERT INTO Persons (Name, Age) VALUES ('Mike', 35);
+            "#,
         )
         .await
         .unwrap();
