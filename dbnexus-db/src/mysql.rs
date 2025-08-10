@@ -87,8 +87,8 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
     for c in 0..row.columns().len() {
         let col = row.column(c);
         let ty = col.type_info().name();
-
-        let v = match ty.to_uppercase().as_str() {
+        let ty = ty.to_uppercase();
+        let v = match ty.as_str() {
             "BOOLEAN" | "BOOL" => {
                 let value: Option<bool> = row.try_get(c)?;
                 value
@@ -156,7 +156,7 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
                     .unwrap_or(null_value.clone())
             }
 
-            _ if type_is_string(ty) => {
+            _ if type_is_string(&ty) => {
                 let value: Option<String> = row.try_get(c)?;
                 value
                     .map(serde_json::Value::from)
@@ -169,7 +169,7 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
                     .unwrap_or(null_value.clone())
             }
 
-            _ if type_is_blob(ty) => {
+            _ if type_is_blob(&ty) => {
                 let string_value = row.try_get::<String, _>(c);
                 if try_blob_to_str && string_value.is_ok() {
                     serde_json::Value::from(string_value.unwrap())
@@ -235,7 +235,6 @@ fn type_is_string(ty: &str) -> bool {
     match ty {
         "VARCHAR" | "CHAR" | "TEXT" | "TINYTEXT" | "MEDIUMTEXT" | "LONGTEXT" => true,
         _ if ty.starts_with("VARCHAR") || ty.starts_with("CHAR") || ty.starts_with("TEXT") => true,
-
         _ => false,
     }
 }
@@ -1220,7 +1219,7 @@ impl SchemaTrait for MysqlDB {
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
-        let data = encode_rows(&row, false)?;
+        let data = encode_rows(&row, true)?;
         let fields = self.show_table_columns(table_name).await?;
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
@@ -1269,8 +1268,8 @@ fn encode_rows(
         for c in 0..r.len() {
             let col = r.column(c);
             let ty = col.type_info().name();
-
-            let v = match ty.to_uppercase().as_str() {
+            let ty = ty.to_uppercase();
+            let v = match ty.as_str() {
                 "BOOLEAN" | "BOOL" => {
                     let value: Option<bool> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
@@ -1316,7 +1315,7 @@ fn encode_rows(
                     value.map(|x| format!("{}", x))
                 }
 
-                _ if type_is_string(ty) => {
+                _ if type_is_string(&ty) => {
                     let value: Option<String> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
@@ -1324,7 +1323,7 @@ fn encode_rows(
                     let value: Option<String> = r.try_get(c)?;
                     value.map(|x| format!("{}", x))
                 }
-                _ if type_is_blob(ty) => {
+                _ if type_is_blob(&ty) => {
                     let x: Option<Vec<u8>> = r.try_get(c)?;
                     let str_value: sqlx::Result<Option<String>> = r.try_get(c);
                     let str_value = str_value.ok().flatten();
@@ -2534,7 +2533,7 @@ mod tests {
     use super::test_fns::{self, make_test_object};
     use crate::TEST_HOST;
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::QuerySql;
+    use crate::db::{QuerySql, SchemaTrait};
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
@@ -2572,6 +2571,21 @@ mod tests {
         println!("{:?}", resp);
     }
 
+    #[ignore = "xxxx"]
+    #[tokio::test]
+    async fn test_xxx_yyyy() {
+        let mut config = make_config();
+        config.db = Some("mysql".to_string());
+        let db = make_test_object(config).await;
+
+        // SELECT * FROM `innodb_index_stats` LIMIT 100 OFFSET 0
+        let resp = db
+            .show_table("innodb_index_stats", None, None, 1, 1, None)
+            .await
+            .unwrap();
+
+        println!("{:?}", resp);
+    }
     #[ignore = "xxxx"]
     #[tokio::test]
     async fn test_xxx2() {

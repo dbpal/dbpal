@@ -399,10 +399,9 @@ const components: Components<
 const lightTheme = createTheme({
   palette: {
     mode: 'light',
-
     background: {
-      default: '#f0f0f0',
-      paper: '#f0f0f0',
+      default: '#d0d0d0',
+      paper: '#d0d0d0',
     },
   },
   components,
@@ -432,8 +431,8 @@ const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     background: {
-      default: '#1f1f1f',
-      paper: '#1f1f1f',
+      default: '#2f2f2f',
+      paper: '#2f2f2f',
     },
   },
   components,
