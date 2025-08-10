@@ -1231,7 +1231,7 @@ function LoadStoreFileForQuery(props: {
   );
 }
 type MakeIQueryConn = () => Promise<IQueryConn>;
-const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnm';
+const keyNotInTable = 'qwertyuioplkjhgfdsazxcvbnmxwererewrewrew';
 
 type EscDownEvent = { preventDefault: () => void };
 

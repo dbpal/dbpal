@@ -35,7 +35,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { SettingContext } from './Common.tsx';
+import { keyNotInTable, SettingContext } from './Common.tsx';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
@@ -109,9 +109,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   const [data, setData] = useState<types.MuiDataGridData>(null);
   useEffect(() => {
     oldData.data.forEach((e) => {
-      if (!('id' in e)) {
-        e.id = uuidv4();
-      }
+      e[keyNotInTable] = uuidv4();
     });
     oldData.fields.forEach((e) => {
       const width = columnWidths.getWidth(e.field);
@@ -186,6 +184,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
             }}
           >
             <DataGrid
+              getRowId={getRowId}
               style={gridStyle}
               sortModel={sortModel}
               onSortModelChange={onSortModelChange}
@@ -204,6 +203,10 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
       </Stack>
     )
   );
+}
+
+function getRowId(row) {
+  return row[keyNotInTable];
 }
 
 let styleForTrans: CSSProperties = {
