@@ -67,7 +67,7 @@ import {
   handleCopyToClipboard,
   quoteStyle,
 } from './helper';
-import { MenuRefresh } from './CommonComp';
+import { MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
 
 enum TablesType {
@@ -128,7 +128,7 @@ function TablesTree(props: { typ: TablesType }) {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', fontWeight: 'bold' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -180,6 +180,7 @@ function TableTree(props: {
         <Stack
           direction="row"
           spacing={1}
+          style={{ fontWeight: 'bold' }}
           justifyContent="space-between"
           onContextMenu={(e) => {
             setUpMenu({
@@ -971,6 +972,7 @@ function TableMenu(props: {
           }}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader title="Duplicate"></ModalHeader>
             <DupTable
               table={table}
               uuid={uuid}
@@ -995,6 +997,7 @@ function TableMenu(props: {
           }}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader title="Rename"></ModalHeader>
             <RenameTable
               uuid={uuid}
               table={table}
@@ -1045,6 +1048,7 @@ function TableMenu(props: {
           }}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader title="Drop Table"></ModalHeader>
             <DropTable
               uuid={uuid}
               table={table}
@@ -1253,7 +1257,7 @@ function RedisTables(prpos: { schema?: string }) {
         label=<Stack
           spacing={1}
           direction="row"
-          sx={{ alignItems: 'center' }}
+          sx={{ alignItems: 'center', fontWeight: 'bold' }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -1274,6 +1278,7 @@ function RedisTables(prpos: { schema?: string }) {
             itemId={idPrefix + table}
             label=<Stack
               direction="row"
+              style={{ fontWeight: 'bold' }}
               onContextMenu={(e) => {
                 setUpMenu({
                   content: (
@@ -1304,7 +1309,7 @@ function RedisTables(prpos: { schema?: string }) {
         itemId={filterTreeID}
         label=<Stack
           direction="row"
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'pointer', fontWeight: 'bold' }}
           onClick={() => {
             setShowEditFilter(true);
           }}
@@ -1360,6 +1365,7 @@ function RedisTables(prpos: { schema?: string }) {
           }}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader title="Edit key match string"></ModalHeader>
             <TextField
               size="small"
               value={filter}

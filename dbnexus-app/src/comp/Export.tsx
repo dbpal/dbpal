@@ -15,6 +15,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';
 import { DataSourceKind } from './helper';
+import { ModalHeader } from './CommonComp';
 function ExportView(props: {
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
   supportKind: string[];
@@ -77,6 +78,7 @@ function ExportView(props: {
 
   return (
     <Stack spacing={1}>
+      <ModalHeader title="Export"></ModalHeader>
       <Stack direction="row" spacing={1}>
         {supportKind.map((e) => (
           <Chip

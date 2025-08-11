@@ -55,6 +55,12 @@ impl Drop for ScopesDropGuard {
 }
 
 impl Scopes {
+    pub(crate) fn new() -> Self {
+        Self {
+            // at lease one scope.
+            ss: Arc::new(Mutex::new(vec![Scope::default()])),
+        }
+    }
     pub(crate) fn drop_n(&self, n: usize) -> ScopesDropGuard {
         ScopesDropGuard {
             ss: self.ss.clone(),
@@ -70,16 +76,8 @@ impl Scopes {
         f(self.ss.lock().unwrap().last_mut().unwrap())
     }
 
-    pub(crate) fn new() -> Self {
-        Self {
-            // at lease one scope.
-            ss: Arc::new(Mutex::new(vec![Scope::default()])),
-        }
-    }
-
     pub(crate) fn tables(&self) -> Vec<TableEntered> {
         let mut ret = vec![];
-
         let lock = self.ss.lock().unwrap();
         for s in lock.iter().rev() {
             ret.extend(s.tables.clone().into_iter());
@@ -426,11 +424,13 @@ impl CompletionStatement {
                                         }
                                         self.c_on_expr(expr).await;
                                     }
-                                    SelectItem::QualifiedWildcard(..) => {
-                                        // nothing here
+                                    SelectItem::QualifiedWildcard(kind, add) => {
+                                        self.c_on_select_item_qualified_wildcardkind(kind).await;
+                                        self.c_on_wildcard_additional_options(add).await;
                                     }
-                                    SelectItem::Wildcard(..) => {
-                                        // nothing here
+
+                                    SelectItem::Wildcard(add) => {
+                                        self.c_on_wildcard_additional_options(add).await;
                                     }
                                 }
                             }
@@ -454,11 +454,12 @@ impl CompletionStatement {
                                         }
                                         self.c_on_expr(expr).await;
                                     }
-                                    SelectItem::QualifiedWildcard(..) => {
-                                        // nothing here
+                                    SelectItem::QualifiedWildcard(kind, add) => {
+                                        self.c_on_select_item_qualified_wildcardkind(kind).await;
+                                        self.c_on_wildcard_additional_options(add).await;
                                     }
-                                    SelectItem::Wildcard(..) => {
-                                        // nothing here
+                                    SelectItem::Wildcard(add) => {
+                                        self.c_on_wildcard_additional_options(add).await;
                                     }
                                 }
                             }
@@ -467,6 +468,7 @@ impl CompletionStatement {
                     TableObject::TableFunction(..) => {}
                 };
             }
+
             Statement::Install { extension_name } => {
                 self.c_on_duck_extension(&extension_name, Some(false)).await;
             }
@@ -562,7 +564,6 @@ impl CompletionStatement {
                         .into_iter(),
                     );
                 }
-
                 let _guard = self.c_on_table_with_joins(&joins[..]).await;
                 let table = match &table.relation {
                     TableFactor::Table { name, .. } => Some(name.clone()),

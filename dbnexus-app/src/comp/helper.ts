@@ -346,11 +346,10 @@ class SaveSizesToStore {
 enum AppStoreKey {
   UserSetttings = 'user_settings',
   ConnectionConfig = 'connection_config',
-  ColumnWithd = 'column_widths',
+  ColumnWidths = 'column_widths',
   FavoriteSql = "favorite_sql",
   Sizes = "sizes",
 }
-
 
 class FavoriteSql {
   constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public lastModified: Date = new Date()) { }
@@ -423,7 +422,7 @@ class FavoriteSql {
 class ColumnWidths {
   widths = {};
   constructor() {
-    appStore.get(AppStoreKey.ColumnWithd).then(e => {
+    appStore.get(AppStoreKey.ColumnWidths).then(e => {
       if (e) {
         this.widths = e;
       }
@@ -437,7 +436,7 @@ class ColumnWidths {
 
   }
   save() {
-    appStore.set(AppStoreKey.ColumnWithd, this.widths).catch(e => {
+    appStore.set(AppStoreKey.ColumnWidths, this.widths).catch(e => {
       console.log('save column width failed', e);
     });
   }
@@ -499,12 +498,8 @@ const ContextMenuContext = createContext<{
 const filterStyle = {
   style: {
     fontSize: '1.1rem',
-    fontWeight: "bold"
   } as CSSProperties,
 };
-
-
-
 
 function valid_json(s: string): Promise<void> {
   return invoke<void>("valid_json", { jsonStr: s })

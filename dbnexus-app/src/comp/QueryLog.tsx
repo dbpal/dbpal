@@ -19,6 +19,7 @@ import {
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import { VisiableContext } from './helper.ts';
+import { ModalHeader } from './CommonComp.tsx';
 
 const pageSizeOptions = [10, 15];
 
@@ -114,6 +115,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
           }}
         >
           <Box sx={modalStyle} width="60%">
+            <ModalHeader title="View SQL"></ModalHeader>
             <SimpleResizeEditor
               language={language}
               value={selectSql}

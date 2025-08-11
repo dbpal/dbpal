@@ -73,7 +73,7 @@ function SequenceTree() {
       label=<Stack
         direction="row"
         spacing={1}
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', fontWeight: 'bold' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -112,7 +112,7 @@ function SequenceTree() {
                   style: calMenuStyle(e, 100),
                 });
               }}
-              sx={{ alignItems: 'center' }}
+              sx={{ alignItems: 'center', fontWeight: 'bold' }}
             >
               <GiProgression></GiProgression>
               <span>{seq.name}</span>

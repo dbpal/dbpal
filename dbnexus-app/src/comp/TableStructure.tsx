@@ -63,7 +63,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { BSON } from 'bson';
 import { MongoBsonEditor } from './MongoDB';
 import { TriggerDetail } from './TriggerDetail';
-import { TrueOrFalse } from './CommonComp';
+import { ModalHeader, TrueOrFalse } from './CommonComp';
 
 function ColumnsStructure(props: {
   uuid: string;
@@ -312,6 +312,7 @@ function ColumnsStructure(props: {
           }}
         >
           <Box sx={modalStyle} width="60%">
+            <ModalHeader title="Add Column"></ModalHeader>
             <TableAddColumn
               table={table}
               uuid={uuid}
@@ -338,6 +339,7 @@ function ColumnsStructure(props: {
           }}
         >
           <Box sx={modalStyle} width="60%">
+            <ModalHeader title="Modify Column"></ModalHeader>
             <ModifyTableColumn
               table={table}
               uuid={uuid}
@@ -439,8 +441,8 @@ function IndexesStructure(props: {
       name: uuid,
       tableName: table,
     })
-      .then((fs) => {
-        setIndexes(fs);
+      .then((indexes) => {
+        setIndexes(indexes);
       })
       .catch((e) => {
         showNotification('error', 'list indexes failed', e);
@@ -561,9 +563,7 @@ function IndexesStructure(props: {
   const getRowId = useCallback((e) => {
     return e['name'];
   }, []);
-
   let addIndex;
-
   switch (kind) {
     case DataSourceKind.Mongo:
       addIndex = (
@@ -644,6 +644,7 @@ function IndexesStructure(props: {
           }}
         >
           <Box sx={modalStyle} width="60%">
+            <ModalHeader title="create index"></ModalHeader>
             {addIndex}
           </Box>
         </Modal>
@@ -660,6 +661,7 @@ function IndexesStructure(props: {
           }}
         >
           <Box sx={modalStyle} width="60%">
+            <ModalHeader title={`Rename Index`}></ModalHeader>
             <RenameIndex
               uuid={uuid}
               table={table}
@@ -736,7 +738,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
         doc={{}}
         buttons={[
           {
-            buttonText: 'create index',
+            buttonText: 'create',
             variant: 'contained',
             callBack: (keys) => {
               handleAdd(keys);
@@ -851,7 +853,9 @@ function AddIndex(props: {
         style={{ flexWrap: 'wrap', alignItems: 'center' }}
         spacing={1}
       >
-        <Typography> includes: </Typography>
+        <Typography color="info" fontWeight="bold">
+          includes:
+        </Typography>
         {includes.map((x) => (
           <Chip
             onClick={() => {
@@ -885,12 +889,11 @@ function AddIndex(props: {
             ></Chip>
           ))}
       </Stack>
-
       {indexTypeJsx}
       <Divider></Divider>
       <Stack direction="row">
         <Button onClick={handleAdd} variant="contained" color="primary">
-          create index
+          create
         </Button>
       </Stack>
     </Stack>
@@ -1484,6 +1487,7 @@ function TriggersStructure(props: {
           }}
         >
           <Box sx={modalStyle} width="80%">
+            <ModalHeader title={`Trigger Detail`}></ModalHeader>
             <TriggerDetail
               reloadOP={async () => {
                 return Promise.resolve(row);

@@ -70,6 +70,7 @@ import {
 import { Box, Modal, Paper } from '@mui/material';
 import { BackendCrash } from './BackendCrash.tsx';
 import { EditConfigFile } from './EditConfigFile.tsx';
+import { ModalHeader } from './CommonComp.tsx';
 
 export default function MainPage() {
   let [tabs, setTabs] = useState<TabContent[]>([
@@ -257,6 +258,7 @@ export default function MainPage() {
                 }}
               >
                 <Box sx={modalStyle} width="75%">
+                  <ModalHeader title="Edit Config File"></ModalHeader>
                   <EditConfigFile
                     handleClose={() => {
                       setShowEditConfig(false);
@@ -277,6 +279,7 @@ export default function MainPage() {
                 }}
               >
                 <Box sx={modalStyle} width="55%">
+                  <ModalHeader title="Modify Settings"></ModalHeader>
                   <ModifySettings
                     handleClose={() => {
                       setShowSetting(false);

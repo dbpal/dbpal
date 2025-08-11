@@ -776,7 +776,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
 
   return (
     <Stack spacing={1}>
-      <Typography variant="h6">New Connection</Typography>
       <FormControl fullWidth>
         <InputLabel>Connection Type</InputLabel>
         <Select

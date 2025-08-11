@@ -73,6 +73,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import {
   MenuResetColumnWidths,
+  ModalHeader,
   pageSizeOptions,
   SelectPageSize,
 } from './CommonComp';
@@ -545,6 +546,7 @@ function MongoTableListToolBar(props: {
           }}
         >
           <Box sx={modalStyle} width="65%">
+            <ModalHeader title="Modify Filter"></ModalHeader>
             <MongoDBModify
               buttonName="set"
               setOP={async (doc) => {
@@ -572,6 +574,7 @@ function MongoTableListToolBar(props: {
           }}
         >
           <Box sx={modalStyle} width="65%">
+            <ModalHeader title="Modify Sort"></ModalHeader>
             <MongoDBModify
               buttonName="set"
               setOP={async (doc) => {
@@ -766,6 +769,7 @@ function MongoTableListContextMenu(props: {
           }}
         >
           <Box sx={modalStyle} width="75%">
+            <ModalHeader title="Quick Filter"></ModalHeader>
             <MongoTableListMenuFilter
               loadValue={async () => {
                 return loadDoc().then((x) => x[field]);
@@ -1167,7 +1171,7 @@ function MongoTableObject(props: {
           {docs.docs.map((doc) => {
             return (
               <MongoBsonEditor
-                heightName={doc._id}
+                heightName="object-view"
                 key={doc._id}
                 doc={doc}
                 buttons={
@@ -1227,6 +1231,7 @@ function MongoTableObject(props: {
   );
 }
 
+let cacheViewModel = MongoDataViewModel.Object;
 function MongoTable(props: {
   reloadOPTableList: (
     filter: BSON.Document,
@@ -1248,8 +1253,11 @@ function MongoTable(props: {
     props;
   const [filter, setFilter] = useState<BSON.Document>({});
   const [sort, setSort] = useState<BSON.Document>({});
-  const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
+  const [viewModel, setViewModel] = useState(cacheViewModel);
   const [nonse, setNonse] = useState(0);
+  useEffect(() => {
+    cacheViewModel = viewModel;
+  }, [viewModel]);
   return (
     <Stack spacing={1}>
       <MongoTableListToolBar

@@ -85,6 +85,7 @@ import {
   MenuNewQuery,
   MenuOpenConn,
   MenuRefresh,
+  ModalHeader,
 } from './CommonComp.tsx';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
@@ -209,6 +210,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           }}
         >
           <Box sx={modalStyle} width="75%">
+            <ModalHeader title="Favorite SQL Statements"></ModalHeader>
             <FavoriteSqlList
               handleClose={() => {
                 setShowFavoriteSql(false);
@@ -230,6 +232,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           }}
         >
           <Box sx={modalStyle} width="55%">
+            <ModalHeader title="Add Connection"></ModalHeader>
             <AddConnection
               handleClose={() => {
                 setShowAddConnection(false);
@@ -251,6 +254,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           }}
         >
           <Box sx={modalStyle} width="55%">
+            <ModalHeader title="Copy Connection"></ModalHeader>
             <AddConnection
               handleClose={() => {
                 setCopyConn(null);
@@ -273,6 +277,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           }}
         >
           <Box sx={modalStyle} width="65%">
+            <ModalHeader title="Copy Connection"></ModalHeader>
             <CopyConnection
               handleClose={() => {
                 setShowCopyConn(false);
@@ -909,6 +914,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         }}
         sx={{
           alignItems: 'center',
+          fontWeight: 'bold',
         }}
       >
         {schema && <LuDatabase></LuDatabase>}
@@ -1093,7 +1099,7 @@ function DatabaseMenu(props: {
             <ListItemIcon>
               <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </ListItemIcon>
-            <ListItemText color="error"> drop </ListItemText>
+            <ListItemText color="error">drop</ListItemText>
           </MenuItem>
         )}
 
@@ -1179,6 +1185,7 @@ function CatalogMenu(props: {
           }}
         >
           <Box sx={modalStyle} width="50%">
+            <ModalHeader title="Create Database"></ModalHeader>
             <CreateDatabase
               uuid={uuid}
               handleClose={() => {
@@ -1346,7 +1353,7 @@ function SchemaMenu(props: {
           <ListItemIcon>
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
-          <ListItemText color="error"> drop </ListItemText>
+          <ListItemText color="error">drop</ListItemText>
         </MenuItem>
       )}
       {!schema && <MenuDeleteConfig name={uuid}></MenuDeleteConfig>}
@@ -1388,6 +1395,7 @@ function CatalogTree(_props: {}) {
       label=<Stack
         direction="row"
         spacing={1}
+        style={{ fontWeight: 'bold' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -1492,7 +1500,7 @@ function DatabaseTree(props: {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', fontWeight: 'bold' }}
       >
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>

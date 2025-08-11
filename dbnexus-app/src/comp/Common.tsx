@@ -55,6 +55,7 @@ const modalStyle: SxProps = {
   p: 1,
   maxHeight: '85vh',
   overflowY: 'auto',
+  opacity: 0.9,
 };
 
 import {
@@ -520,7 +521,6 @@ function MenuConnectionInfo({ uuid }) {
     </MenuItem>
   );
 }
-
 class UserSettings {
   theme: string = 'light';
   pageSize: number = 100;

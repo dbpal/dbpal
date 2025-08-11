@@ -27,7 +27,7 @@ import {
   SimpleResizeEditor,
   UserSettings,
 } from './Common';
-import { SelectPageSize } from './CommonComp';
+import { ModalHeader, SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { valid_json } from './helper';
 
@@ -244,6 +244,7 @@ function ModifySettings({ handleClose }) {
           }}
         >
           <Box sx={modalStyle} width="75%">
+            <ModalHeader title="Editor Options"></ModalHeader>
             <EditorOptions
               handleClose={() => {
                 setShowEditorOptions(false);
@@ -338,6 +339,7 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px  4px',
         textTransform: 'none',
+        fontWeight: '550',
       },
     },
   },
@@ -350,7 +352,6 @@ const components: Components<
       },
     },
   },
-
   MuiMenuItem: {
     styleOverrides: {
       root: {
@@ -364,6 +365,7 @@ const components: Components<
     styleOverrides: {
       cell: {
         fontSize: '1rem',
+        fontWeight: 'bold',
       },
       columnHeaders: {
         fontSize: '0.8rem', // 调整表头字体大小
@@ -377,14 +379,23 @@ const components: Components<
       },
     },
   },
+  MuiTextField: {
+    styleOverrides: {
+      root: {
+        '& .MuiInputBase-input': {
+          fontWeight: '570',
+        },
+      },
+    },
+  },
   MuiChip: {
     styleOverrides: {
       root: {
         fontSize: '1rem',
+        fontWeight: 'bold',
       },
     },
   },
-
   MuiTab: {
     styleOverrides: {
       root: {
@@ -397,11 +408,16 @@ const components: Components<
 };
 
 const lightTheme = createTheme({
+  typography: {
+    allVariants: {
+      fontWeight: '580',
+    },
+  },
   palette: {
     mode: 'light',
     background: {
-      default: '#d0d0d0',
-      paper: '#d0d0d0',
+      default: '#f0f0f0',
+      paper: '#f0f0f0',
     },
   },
   components,
@@ -431,8 +447,8 @@ const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     background: {
-      default: '#2f2f2f',
-      paper: '#2f2f2f',
+      default: '#1f1f1f',
+      paper: '#1f1f1f',
     },
   },
   components,

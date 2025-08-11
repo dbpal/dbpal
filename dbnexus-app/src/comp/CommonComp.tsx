@@ -321,7 +321,7 @@ function MenuDeleteConfig({ name }) {
       <ListItemIcon>
         <DeleteForeverIcon color="error"></DeleteForeverIcon>
       </ListItemIcon>
-      <ListItemText color="error"> Drop Connection </ListItemText>
+      <ListItemText color="error">Drop Connection</ListItemText>
     </MenuItem>
   );
 }
@@ -461,6 +461,24 @@ function TrueOrFalse(props: { b: boolean }) {
   return b ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
 }
 
+function ModalHeader(props: { title: string }) {
+  const { title } = props;
+  return (
+    <div>
+      <Typography
+        variant="h6"
+        style={{
+          textTransform: 'capitalize',
+          paddingBottom: '0.3rem',
+          fontWeight: 'bold',
+        }}
+      >
+        {title}
+      </Typography>
+    </div>
+  );
+}
+
 export {
   LogLevelSelection,
   MetaValuesView,
@@ -476,4 +494,5 @@ export {
   MenuDeleteConfig,
   MenuResetColumnWidths,
   TrueOrFalse,
+  ModalHeader,
 };

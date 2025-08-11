@@ -53,7 +53,7 @@ import {
   valid_json,
   VisiableContext,
 } from './helper.ts';
-import { pageSizeOptions } from './CommonComp.tsx';
+import { ModalHeader, pageSizeOptions } from './CommonComp.tsx';
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -910,6 +910,7 @@ function RedisSetTable(props: {
           }}
         >
           <Box sx={modalStyle} width="80%">
+            <ModalHeader title="Edit Set value"></ModalHeader>
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
                 try {
@@ -985,6 +986,7 @@ function RedisListTableContextMenu(props: {
           }}
         >
           <Box sx={modalStyle} width="40%">
+            <ModalHeader title="Delete Redis List"></ModalHeader>
             <Stack spacing={1}>
               <TextField
                 size="small"
@@ -1203,6 +1205,7 @@ function RedisListTable(props: {
           }}
         >
           <Box sx={modalStyle} width="80%">
+            <ModalHeader title="Edit List value"></ModalHeader>
             <RedisEditList
               modifyOP={async (index, newValue) => {
                 try {
@@ -1464,6 +1467,7 @@ function RedisZsetTable(props: {
           }}
         >
           <Box sx={modalStyle} width="80%">
+            <ModalHeader title="Edit  Zset Value"></ModalHeader>
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
                 try {
@@ -1681,6 +1685,7 @@ function RedisHashTable(props: {
           }}
         >
           <Box sx={modalStyle} width="80%">
+            <ModalHeader title="Edit Hash Value"></ModalHeader>
             <RedisEditHash
               modifyOP={async (req) => {
                 try {

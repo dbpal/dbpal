@@ -27,7 +27,7 @@ import {
   SettingContext,
 } from './Common';
 import { NotificationContext } from './Notification';
-import { LogLevelSelection } from './CommonComp';
+import { LogLevelSelection, ModalHeader } from './CommonComp';
 import * as esprima from 'esprima';
 import { FaBookmark } from 'react-icons/fa';
 initMongoQueryGlobals();
@@ -295,6 +295,7 @@ function MongoQuery(props: {
           }}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader title="Set Logger Level"></ModalHeader>
             <LogLevelSelection
               level={loggerlevel}
               handleChange={(level) => {
@@ -317,6 +318,7 @@ function MongoQuery(props: {
           }}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader title="Set Favorite Name"></ModalHeader>
             <Stack spacing={1}>
               <TextField
                 fullWidth

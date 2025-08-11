@@ -70,7 +70,11 @@ import {
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
-import { MenuResetColumnWidths, pageSizeOptions } from './CommonComp';
+import {
+  MenuResetColumnWidths,
+  ModalHeader,
+  pageSizeOptions,
+} from './CommonComp';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
 import { loader } from '@monaco-editor/react';
 import wcmatch from 'wildcard-match';
@@ -169,6 +173,7 @@ function WhereSort(props: {
       }}
     >
       <Box sx={modalStyle} width="75%">
+        <ModalHeader title={`set ${label}`}></ModalHeader>
         <Stack spacing={1}>
           <SimpleResizeEditor
             value={newValue}
@@ -728,7 +733,7 @@ function SqlTableView_(props: {
               cursor: 'pointer',
               fontSize: '0.9rem',
               fontStyle: 'italic',
-              color: 'green',
+              color: 'success',
               fontWeight: '600',
             }}
             variant="body1"
@@ -795,6 +800,7 @@ function SqlTableView_(props: {
           }}
         >
           <Box sx={modalStyle} width="80%">
+            <ModalHeader title="edit cell"></ModalHeader>
             <EditInModal
               content={editInModal.content}
               handleModify={async (value) => {
@@ -821,6 +827,7 @@ function SqlTableView_(props: {
           }}
         >
           <Box sx={modalStyle} width="80%">
+            <ModalHeader title="edit row"></ModalHeader>
             <SqlTableViewData
               initValues={editInModalRow}
               buttonName="modify"
@@ -1053,7 +1060,7 @@ function Menu(props: {
   let quoteField = `${quoteStyle}${field}${quoteStyle}`;
   return (
     <div>
-      <MenuList>
+      <MenuList style={{ fontWeight: 'bold' }}>
         {addOP && (
           <MenuItem
             onClick={() => {
@@ -1186,6 +1193,7 @@ function Menu(props: {
           }}
         >
           <Box sx={modalStyle} width="50%">
+            <ModalHeader title="Quick Filter"></ModalHeader>
             <FilterOnValue
               quoteStyle={quoteStyle}
               content={content}
@@ -1259,6 +1267,7 @@ function FilterOnValue(props: {
             label={x}
             color="primary"
             size="small"
+            style={{ minWidth: '3rem' }}
             disabled={compare == x}
           ></Chip>
         ))}
@@ -1288,8 +1297,7 @@ function FilterOnValue(props: {
         >
           set
         </Button>
-
-        <Typography color="info">
+        <Typography color="success" fontWeight="bold">
           <em> {where()} </em>
         </Typography>
       </Stack>

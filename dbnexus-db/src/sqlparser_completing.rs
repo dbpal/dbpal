@@ -1,3 +1,4 @@
+use core::str;
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::Arc;
@@ -2076,78 +2077,10 @@ impl CompletionStatement {
                         typ: None,
                     });
                 }
-                SelectItem::QualifiedWildcard(select, _wildcard_additional_options) => {
-                    match select {
-                        SelectItemQualifiedWildcardKind::ObjectName(object_name) => {
-                            self.c_on_table(object_name).await;
-                            if self.finished() {
-                                return anyhow::Ok(vec![]);
-                            }
-                            match object_name.0.len() {
-                                1 => {
-                                    let name =
-                                        self.scopes.nearest_table_named(match &object_name.0[0] {
-                                            ObjectNamePart::Identifier(ident) => ident,
-                                        });
-
-                                    match name {
-                                        Some(x) => match x {
-                                            TableEntered::FromTable { table, .. } => {
-                                                let (db, schema, table) =
-                                                    self.extract_db_schme_item(&table);
-                                                let f = self
-                                                    .helper
-                                                    .list_column(db, schema, table, false)
-                                                    .await
-                                                    .map_err(|e| {
-                                                        log::error!(
-                                                            "list_column failed,err:{:?}",
-                                                            e
-                                                        )
-                                                    })
-                                                    .ok()
-                                                    .unwrap_or_default();
-                                                ret.extend(f.into_iter());
-                                            }
-                                            TableEntered::Temp { table, .. } => {
-                                                ret.extend(
-                                                    table.columns.as_ref().clone().into_iter(),
-                                                );
-                                            }
-                                        },
-
-                                        None => {
-                                            // can't find maybe a error by user
-                                        }
-                                    }
-                                }
-                                2 | 3 => {
-                                    let (db, schema, table) =
-                                        self.extract_db_schme_item(object_name);
-                                    let f = self
-                                        .helper
-                                        .list_column(db, schema, table, false)
-                                        .await
-                                        .map_err(|e| log::error!("list_column failed,err:{:?}", e))
-                                        .ok()
-                                        .unwrap_or_default();
-                                    ret.extend(f.into_iter());
-                                }
-                                _ => {
-                                    log::error!(
-                                        "SelectItem QualifiedWildcard object name too long,I can't handle:{:?}",
-                                        select
-                                    )
-                                }
-                            }
-                        }
-                        SelectItemQualifiedWildcardKind::Expr(expr) => {
-                            self.c_on_expr(expr).await;
-                            if self.finished() {
-                                return anyhow::Ok(vec![]);
-                            }
-                        }
-                    }
+                SelectItem::QualifiedWildcard(select, wildcard_additional_options) => {
+                    self.c_on_select_item_qualified_wildcardkind(select).await;
+                    self.c_on_wildcard_additional_options(wildcard_additional_options)
+                        .await;
                 }
                 SelectItem::Wildcard(_) => {
                     let tables = self.scopes.tables();
@@ -2182,6 +2115,80 @@ impl CompletionStatement {
         anyhow::Ok(ret)
     }
 
+    pub(crate) async fn c_on_select_item_qualified_wildcardkind(
+        &mut self, ast: &SelectItemQualifiedWildcardKind,
+    ) {
+        match ast {
+            SelectItemQualifiedWildcardKind::ObjectName(object_name) => {
+                self.c_on_table(object_name).await
+            }
+            SelectItemQualifiedWildcardKind::Expr(expr) => {
+                self.c_on_expr(expr).await;
+            }
+        }
+    }
+    pub(crate) async fn c_on_wildcard_additional_options(
+        &mut self, ast: &WildcardAdditionalOptions,
+    ) {
+        if let Some(x) = ast.opt_except.as_ref() {
+            for col in x
+                .additional_elements
+                .iter()
+                .chain(std::iter::once(&x.first_element))
+            {
+                self.c_on_expr_ident(col).await;
+                if self.finished() {
+                    return;
+                }
+            }
+        }
+        if let Some(x) = ast.opt_except.as_ref() {
+            for col in x
+                .additional_elements
+                .iter()
+                .chain(std::iter::once(&x.first_element))
+            {
+                self.c_on_expr_ident(col).await;
+                if self.finished() {
+                    return;
+                }
+            }
+        }
+        if let Some(x) = ast.opt_replace.as_ref() {
+            for item in x.items.iter() {
+                self.c_on_expr_ident(&item.column_name).await;
+                if self.finished() {
+                    return;
+                }
+                self.c_on_expr(&item.expr).await;
+            }
+        }
+        if let Some(x) = ast.opt_rename.as_ref() {
+            match x {
+                RenameSelectItem::Single(ident_with_alias) => {
+                    self.c_on_ident_with_alias(ident_with_alias).await;
+                }
+                RenameSelectItem::Multiple(items) => {
+                    for item in items.iter() {
+                        self.c_on_ident_with_alias(item).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) async fn c_on_ident_with_alias(&mut self, ast: &IdentWithAlias) {
+        self.c_on_expr_ident(&ast.ident).await;
+        if self.finished() {
+            return;
+        }
+        if self.in_pos(&ast.alias.span) {
+            self.set_on_def();
+        }
+    }
     pub(crate) async fn c_on_query(
         &mut self, query: &Query,
     ) -> anyhow::Result<Vec<TempTableColumn>> {

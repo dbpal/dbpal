@@ -65,7 +65,7 @@ function ProceduresTree() {
       label=<Stack
         direction="row"
         spacing={1}
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: 'center', fontWeight: 'bold' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -87,7 +87,7 @@ function ProceduresTree() {
           <TreeItem
             key={p.name + '-' + p.parameters}
             itemId={getItemId(p)}
-            style={{ alignItems: 'center' }}
+            style={{ alignItems: 'center', fontWeight: 'bold' }}
             label=<Stack
               spacing={1}
               direction="row"
