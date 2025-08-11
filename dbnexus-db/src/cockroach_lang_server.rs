@@ -37,10 +37,6 @@ impl LanguageServer for CockRoachDB {
             self,
             sql,
             &sqlparser::dialect::PostgreSqlDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
         )
         .await;
     }

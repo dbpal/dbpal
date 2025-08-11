@@ -100,10 +100,6 @@ impl LanguageServer for MsSqlServerDB {
             self,
             sql,
             &sqlparser::dialect::MsSqlDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
         )
         .await;
     }

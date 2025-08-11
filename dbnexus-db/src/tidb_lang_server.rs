@@ -37,10 +37,6 @@ impl LanguageServer for TiDB {
             self,
             sql,
             &sqlparser::dialect::MySqlDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
         )
         .await;
     }

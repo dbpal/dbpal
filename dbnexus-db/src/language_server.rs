@@ -2,8 +2,6 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use fuzzy_matcher::FuzzyMatcher;
-use fuzzy_matcher::skim::SkimMatcherV2;
 use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 use tokio::task::block_in_place;
@@ -141,26 +139,13 @@ pub trait LexerCompletionTrait: LangServerCommon {
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>>;
 
     async fn do_auto_completion(
-        &self, sql: &str, dialect: &Self::Dialect, pos: sqlparser::tokenizer::Location,
+        &self, sql: &str, dialect: &Self::Dialect,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
             .tokenize_with_location()
             .unwrap_or(vec![]);
         let mut all_item = self.all_completion_items().await?;
         all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
-        for t in tokens.iter() {
-            match &t.token {
-                Token::Word(x) => {
-                    if in_pos(pos, t.span.start, x.value.len() as u64) {
-                        // matched
-                        return anyhow::Ok(match_pattern_and_sort(all_item, x.value.as_str()));
-                    }
-                }
-                _ => {
-                    continue;
-                }
-            }
-        }
         return anyhow::Ok(all_item);
     }
 
@@ -261,23 +246,6 @@ pub trait LexerCompletionTrait: LangServerCommon {
     }
 }
 
-pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<CompletionItem> {
-    pub struct AndScore {
-        item: CompletionItem,
-        score: i64,
-    }
-    let matcher = SkimMatcherV2::default();
-    let mut matched = Vec::new();
-    for item in items.into_iter() {
-        let m = matcher.fuzzy_match(&item.item, pattern);
-        if let Some(s) = m {
-            matched.push(AndScore { item, score: s });
-        }
-    }
-    // desc order
-    matched.sort_by(|a, b| b.score.cmp(&a.score));
-    matched.into_iter().map(|x| x.item).collect()
-}
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {

@@ -38,10 +38,6 @@ impl LanguageServer for ClickHouseDB {
             self,
             sql,
             &sqlparser::dialect::ClickHouseDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
         )
         .await;
     }

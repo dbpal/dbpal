@@ -38,10 +38,6 @@ impl LanguageServer for CassandraDB {
             self,
             sql,
             &sqlparser::dialect::GenericDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
         )
         .await;
     }

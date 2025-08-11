@@ -39,10 +39,6 @@ impl LanguageServer for LibSqlDB {
             self,
             sql,
             &sqlparser::dialect::SQLiteDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
         )
         .await;
     }

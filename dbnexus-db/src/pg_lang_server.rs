@@ -589,10 +589,6 @@ impl LanguageServer for PostGresDB {
             self,
             sql,
             &sqlparser::dialect::PostgreSqlDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
         )
         .await;
     }

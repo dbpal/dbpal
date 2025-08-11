@@ -9,9 +9,7 @@ use redis::AsyncCommands;
 use sqlparser::tokenizer::Token;
 use tokio::sync::Mutex;
 
-use crate::language_server::{
-    CompletionItem, CompletionKind, LanguageServer, in_pos, match_pattern_and_sort,
-};
+use crate::language_server::{CompletionItem, CompletionKind, LanguageServer, in_pos};
 use crate::redis::{RedisDB, RedisType};
 impl RedisDB {
     async fn completion_keys(
@@ -1436,11 +1434,7 @@ impl LanguageServer for RedisDB {
                 Token::Word(word) => {
                     if in_pos(pos, tokens[0].span.start, word.value.len() as u64) {
                         // we are auto completion on command.
-                        let x = match_pattern_and_sort(
-                            static_redis_command_completion_items(),
-                            &word.value,
-                        );
-                        return anyhow::Ok(x);
+                        return anyhow::Ok(static_redis_command_completion_items());
                     }
                     word.value.clone()
                 }
@@ -1463,7 +1457,7 @@ impl LanguageServer for RedisDB {
                     Token::Word(word) => {
                         if in_pos(pos, token.span.start, word.value.len() as u64) {
                             let item = f.await;
-                            return item.map(|item| match_pattern_and_sort(item, &word.value));
+                            return item;
                         }
                     }
                     _ => {

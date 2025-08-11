@@ -1444,7 +1444,6 @@ async fn test_auto_completion() {
             &s,
             "sel  * from",
             &sqlparser::dialect::SQLiteDialect {},
-            sqlparser::tokenizer::Location { line: 1, column: 4 },
         )
         .await
         .unwrap();
@@ -1456,7 +1455,6 @@ async fn test_auto_completion() {
             &s,
             "cou  xxxx",
             &sqlparser::dialect::SQLiteDialect {},
-            sqlparser::tokenizer::Location { line: 1, column: 4 },
         )
         .await
         .unwrap();
@@ -1467,7 +1465,6 @@ async fn test_auto_completion() {
             &s,
             "nul",
             &sqlparser::dialect::SQLiteDialect {},
-            sqlparser::tokenizer::Location { line: 1, column: 4 },
         )
         .await
         .unwrap();
@@ -1478,7 +1475,6 @@ async fn test_auto_completion() {
             &s,
             "emai  dddd",
             &sqlparser::dialect::SQLiteDialect {},
-            sqlparser::tokenizer::Location { line: 1, column: 4 },
         )
         .await
         .unwrap();
@@ -1489,7 +1485,6 @@ async fn test_auto_completion() {
             &s,
             "use 1111",
             &sqlparser::dialect::SQLiteDialect {},
-            sqlparser::tokenizer::Location { line: 1, column: 4 },
         )
         .await
         .unwrap();
