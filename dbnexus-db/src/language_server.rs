@@ -149,18 +149,16 @@ pub trait LexerCompletionTrait: LangServerCommon {
         let mut all_item = self.all_completion_items().await?;
         all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
         for t in tokens.iter() {
-            let pattern = t.token.to_string();
-            match t.token {
-                Token::Word(_) => {
-                    // we only completion on word.
+            match &t.token {
+                Token::Word(x) => {
+                    if in_pos(pos, t.span.start, x.value.len() as u64) {
+                        // matched
+                        return anyhow::Ok(match_pattern_and_sort(all_item, x.value.as_str()));
+                    }
                 }
                 _ => {
                     continue;
                 }
-            }
-            if in_pos(pos, t.span.start, pattern.len() as u64) {
-                // matched
-                return anyhow::Ok(match_pattern_and_sort(all_item, pattern.as_str()));
             }
         }
         return anyhow::Ok(all_item);
