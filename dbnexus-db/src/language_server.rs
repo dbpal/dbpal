@@ -80,8 +80,23 @@ pub fn in_pos(
     pos.line == t.line && (pos.column >= t.column && pos.column <= (t.column + len.into()))
 }
 
+pub(crate) fn remove_dupliate(items: Vec<CompletionItem>) -> Vec<CompletionItem> {
+    items
+        .into_iter()
+        .map(CompletionItemNameHasher::from)
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .map(|x| x.into())
+        .collect::<Vec<_>>()
+}
+
 pub struct CompletionItemNameHasher {
-    item: CompletionItem,
+    pub(crate) item: CompletionItem,
+}
+impl From<CompletionItemNameHasher> for CompletionItem {
+    fn from(value: CompletionItemNameHasher) -> Self {
+        value.item
+    }
 }
 impl std::hash::Hash for CompletionItemNameHasher {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -244,13 +259,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
             ret.extend(columns.into_iter().map(CompletionItem::from));
         }
 
-        // remove duplicate
-        ret.into_iter()
-            .map(CompletionItemNameHasher::from)
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .map(|x| x.item)
-            .collect()
+        remove_dupliate(ret)
     }
 }
 

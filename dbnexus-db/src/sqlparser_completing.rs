@@ -1,11 +1,11 @@
 use core::str;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
 use sqlparser::ast::{ColumnOption, *};
 
-use crate::language_server::{CompletionItem, CompletionKind};
+use crate::language_server::{CompletionItem, CompletionKind, remove_dupliate};
 use crate::sqlparser_completion::{
     CompletionStatement, Scope, ScopesDropGuard, TableEntered, TempTable, TempTableColumn,
 };
@@ -25,20 +25,6 @@ impl Into<CompletionKind> for ObjectType {
             ObjectType::MaterializedView => CompletionKind::View,
         }
     }
-}
-
-fn remove_dupliate(items: Vec<CompletionItem>) -> Vec<CompletionItem> {
-    let mut names = HashSet::new();
-    let mut items2 = Vec::new();
-    for item in items {
-        let name = item.item.to_string();
-        if names.contains(&name) {
-            continue;
-        }
-        names.insert(name);
-        items2.push(item);
-    }
-    items2
 }
 
 impl Into<CompletionKind> for ShowCreateObject {
