@@ -1014,9 +1014,7 @@ impl SchemaTrait for MysqlDB {
         ))
         .fetch_one(conn.deref_mut())
         .await?;
-
         let s: String = row.try_get(1)?;
-
         anyhow::Ok(s)
     }
 

@@ -399,8 +399,8 @@ const components: Components<
   MuiTab: {
     styleOverrides: {
       root: {
-        fontSize: '1rem',
-        height: '1.2rem',
+        // fontSize: '1rem',
+        // height: '1.2rem',
         textTransform: 'none',
       },
     },
