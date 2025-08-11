@@ -55,7 +55,10 @@ const modalStyle: SxProps = {
   p: 1,
   maxHeight: '85vh',
   overflowY: 'auto',
-  opacity: 0.9,
+  resize: 'horizontal',
+  minWidth: '200px',
+  maxWidth: '80vw',
+  overflowX: 'auto',
 };
 
 import {

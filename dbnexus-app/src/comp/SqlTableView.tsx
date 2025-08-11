@@ -62,6 +62,7 @@ import {
   handleCopyToClipboard,
   isTypeLargeText,
   resetMuiDataRespWidth,
+  saveAndSetWidth,
   secondConfirm,
   TabContent,
   TabsSetContext,
@@ -160,7 +161,15 @@ function WhereSort(props: {
       return list;
     });
   };
-
+  const [modalBox, setModalBox] = useState(null);
+  useEffect(() => {
+    if (modalBox) {
+      let x1 = saveAndSetWidth(modalBox, 'filter');
+      return () => {
+        x1();
+      };
+    }
+  }, [modalBox]);
   return (
     <Modal
       open={open}
@@ -172,7 +181,13 @@ function WhereSort(props: {
         onClose();
       }}
     >
-      <Box sx={modalStyle} width="75%">
+      <Box
+        sx={modalStyle}
+        ref={(dom) => {
+          setModalBox(dom);
+        }}
+        width="75%"
+      >
         <ModalHeader title={`set ${label}`}></ModalHeader>
         <Stack spacing={1}>
           <SimpleResizeEditor
@@ -230,7 +245,6 @@ function EditInModal(props: { content: string; handleModify }) {
 
   const [language, setLanguage] = useState(EditInModalLanguage);
   const [value, setValue] = useState(content);
-
   useEffect(() => {
     if (language != 'json') {
       setJsonErr(null);
@@ -244,6 +258,7 @@ function EditInModal(props: { content: string; handleModify }) {
         setJsonErr(e);
       });
   }, [value, language]);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -593,9 +608,9 @@ function SqlTableView_(props: {
           if (!field) {
             return;
           }
-          let content = (target as HTMLDivElement).innerHTML;
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
+          let content = row[field];
           delete row[keyNotInTable];
           let nullable = resp.fields.find((e) => e.field == field).nullable;
 
@@ -666,6 +681,26 @@ function SqlTableView_(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
+
+  const [editInModalBox, setEditInMoalBox] = useState(null);
+  useEffect(() => {
+    if (editInModalBox) {
+      let x1 = saveAndSetWidth(editInModalBox, 'edit-cell');
+      return () => {
+        x1();
+      };
+    }
+  }, [editInModalBox]);
+  const [editRowInModalBox, setEditRowInMoalBox] = useState(null);
+  useEffect(() => {
+    if (editRowInModalBox) {
+      let x1 = saveAndSetWidth(editRowInModalBox, 'edit-row');
+      return () => {
+        x1();
+      };
+    }
+  }, [editRowInModalBox]);
+
   return (
     <Stack spacing={1}>
       <Stack
@@ -745,7 +780,7 @@ function SqlTableView_(props: {
           </Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
-          <Tooltip title="execute time">
+          <Tooltip title="query time">
             <Chip
               color="default"
               size="small"
@@ -799,7 +834,13 @@ function SqlTableView_(props: {
             setEditInModal(null);
           }}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={modalStyle}
+            ref={(dom) => {
+              setEditInMoalBox(dom);
+            }}
+            width="80%"
+          >
             <ModalHeader title="edit cell"></ModalHeader>
             <EditInModal
               content={editInModal.content}
@@ -826,7 +867,13 @@ function SqlTableView_(props: {
             setEditInModalRow(null);
           }}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={modalStyle}
+            ref={(dom) => {
+              setEditRowInMoalBox(dom);
+            }}
+            width="80%"
+          >
             <ModalHeader title="edit row"></ModalHeader>
             <SqlTableViewData
               initValues={editInModalRow}

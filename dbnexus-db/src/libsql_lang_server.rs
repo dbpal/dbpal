@@ -55,8 +55,12 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
 
     // https://sqlite.org/lang_keywords.html
 
-    const TEXTS: &'static [&'static str] = &["true"];
+    const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
+
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+    }
 
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         AstCompletionHelper::sqlite_pragma(self)
@@ -71,12 +75,10 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
         lock.extend(
             SQLITE_KEY_WORDS
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.to_string().into(),
-                        kind: CompletionKind::KeyWord,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.to_string().into(),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -129,11 +131,9 @@ impl AstCompletionHelper for LibSqlDB {
         let ret = stmt
             .columns()
             .iter()
-            .map(|x| {
-                TempTableColumn {
-                    name: x.name().to_string().into(),
-                    typ: Some(x.decl_type().unwrap_or_default().to_string().into()),
-                }
+            .map(|x| TempTableColumn {
+                name: x.name().to_string().into(),
+                typ: Some(x.decl_type().unwrap_or_default().to_string().into()),
             })
             .collect::<Vec<_>>();
         // check if prepare return the reuslt.
@@ -144,11 +144,9 @@ impl AstCompletionHelper for LibSqlDB {
         let row = stmt.query_row(params!()).await?;
         anyhow::Ok(
             (0..row.column_count())
-                .map(|index| {
-                    TempTableColumn {
-                        name: row.column_name(index).unwrap_or_default().to_owned().into(),
-                        typ: row.column_type(index).ok().map(|x| format!("{:?}", x)),
-                    }
+                .map(|index| TempTableColumn {
+                    name: row.column_name(index).unwrap_or_default().to_owned().into(),
+                    typ: row.column_type(index).ok().map(|x| format!("{:?}", x)),
                 })
                 .collect(),
         )

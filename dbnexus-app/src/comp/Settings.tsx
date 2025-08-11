@@ -368,7 +368,8 @@ const components: Components<
         fontWeight: 'bold',
       },
       columnHeaders: {
-        fontSize: '0.8rem', // 调整表头字体大小
+        fontSize: '0.9rem', // 调整表头字体大小
+        boxShadow: '0 2px 4px',
       },
     },
   },

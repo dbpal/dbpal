@@ -189,7 +189,7 @@ export default function MainPage() {
   const [leftSize, setLeftSize] = useState(300);
   useEffect(() => {
     let a = async () => {
-      SaveSizesToStore.getSize(leftSizeKey).then((size) => {
+      SaveSizesToStore.getSize(leftSizeKey, 300).then((size) => {
         setLeftSize(size);
       });
     };

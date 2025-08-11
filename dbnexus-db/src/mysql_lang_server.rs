@@ -20,6 +20,10 @@ impl LexerCompletionTrait for MysqlDB {
 
     const TYPES: &'static [&'static str] = TYPES;
 
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+    }
+
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         self.build_fn_completion_items().await.unwrap_or(vec![])
     }

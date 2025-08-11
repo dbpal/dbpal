@@ -684,15 +684,8 @@ impl CompletionStatement {
                         self.set_on_def();
                         return;
                     }
-                    let columns = self
-                        .c_on_select_item(&select.projection[..])
-                        .await
-                        .map_err(|err| log::error!("c_on_select_item failed,err:{}", err))
-                        .unwrap_or_default();
-
-                    let _gurad = self.scopes.push(Scope::from_temp_table(TempTable {
-                        columns: Arc::new(columns),
-                    }));
+                    self.c_on_select_item(&select.projection[..]).await;
+                    let _gurad = self.scopes.push(Scope::from_this_table(table_name.clone()));
                     if let Some(x) = select.group_by.as_ref() {
                         match x {
                             GroupByExpr::All(group_by_with_modifiers) => {
@@ -2047,72 +2040,38 @@ impl CompletionStatement {
                 return anyhow::Ok(vec![]);
             }
         }
-        let _ = self.c_on_select_item(&selection.projection).await;
+        self.c_on_select_item(&selection.projection).await;
         self.helper.get_query_columns(&selection.to_string()).await
     }
 
-    pub(crate) async fn c_on_select_item(
-        &mut self, projection: &[SelectItem],
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let mut ret = Vec::new();
+    pub(crate) async fn c_on_select_item(&mut self, projection: &[SelectItem]) {
         for p in projection.iter() {
             match p {
                 SelectItem::UnnamedExpr(expr) => {
                     self.c_on_expr(expr).await;
                     if self.finished() {
-                        return anyhow::Ok(vec![]);
+                        return;
                     }
-                    ret.push(TempTableColumn {
-                        name: expr.to_string(),
-                        typ: None,
-                    });
                 }
                 SelectItem::ExprWithAlias { expr, alias } => {
                     self.c_on_expr(expr).await;
                     if self.finished() {
-                        return anyhow::Ok(vec![]);
+                        return;
                     }
-                    ret.push(TempTableColumn {
-                        name: alias.to_string(),
-                        typ: None,
-                    });
+                    if self.in_pos(&alias.span) {
+                        self.set_on_def();
+                    }
                 }
                 SelectItem::QualifiedWildcard(select, wildcard_additional_options) => {
                     self.c_on_select_item_qualified_wildcardkind(select).await;
                     self.c_on_wildcard_additional_options(wildcard_additional_options)
                         .await;
                 }
-                SelectItem::Wildcard(_) => {
-                    let tables = self.scopes.tables();
-                    for table in tables.iter() {
-                        match table {
-                            TableEntered::FromTable { table, .. } => {
-                                let (db, schema, table) = self.extract_db_schme_item(table);
-                                let cols = self
-                                    .helper
-                                    .list_column(db, schema, table, false)
-                                    .await
-                                    .map_err(|e| {
-                                        log::error!("list_column failed,err:{:?}", e);
-                                        self.set_on_def();
-                                    })
-                                    .ok()
-                                    .unwrap_or_default()
-                                    .into_iter()
-                                    .map(TempTableColumn::from)
-                                    .collect::<Vec<_>>();
-                                ret.extend(cols.into_iter());
-                            }
-                            TableEntered::Temp { table, .. } => {
-                                ret.extend(table.columns.to_vec());
-                            }
-                        }
-                    }
+                SelectItem::Wildcard(add) => {
+                    self.c_on_wildcard_additional_options(add).await;
                 }
             }
         }
-
-        anyhow::Ok(ret)
     }
 
     pub(crate) async fn c_on_select_item_qualified_wildcardkind(

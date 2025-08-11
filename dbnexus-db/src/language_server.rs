@@ -5,7 +5,8 @@ use std::sync::Arc;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use sqlparser::ast::Statement;
-use sqlparser::tokenizer::{Location, Token};
+use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
+use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
 use crate::db::{FormatSqlOpts, GetBackendKind, not_support_feature};
@@ -31,8 +32,7 @@ pub struct CompletionItem {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
 pub enum CompletionKind {
-    // commnad right now use by redis
-    Command,
+    Command, // commnad right now use by redis
     KeyWord,
     Function,
     Database,
@@ -80,6 +80,28 @@ pub fn in_pos(
     pos.line == t.line && (pos.column >= t.column && pos.column <= (t.column + len.into()))
 }
 
+pub struct CompletionItemNameHasher {
+    item: CompletionItem,
+}
+impl std::hash::Hash for CompletionItemNameHasher {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.item.item.hash(state);
+    }
+}
+
+impl std::cmp::Eq for CompletionItemNameHasher {}
+impl std::cmp::PartialEq for CompletionItemNameHasher {
+    fn eq(&self, other: &Self) -> bool {
+        self.item.item == other.item.item
+    }
+}
+
+impl From<CompletionItem> for CompletionItemNameHasher {
+    fn from(item: CompletionItem) -> Self {
+        Self { item }
+    }
+}
+
 #[async_trait::async_trait]
 pub trait LexerCompletionTrait: LangServerCommon {
     type Dialect: sqlparser::dialect::Dialect + Sync + Send + 'static;
@@ -90,6 +112,8 @@ pub trait LexerCompletionTrait: LangServerCommon {
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         vec![]
     }
+
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>>;
 
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>>;
@@ -107,7 +131,8 @@ pub trait LexerCompletionTrait: LangServerCommon {
         let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
             .tokenize_with_location()
             .unwrap_or(vec![]);
-        let all_item = self.all_completion_items().await?;
+        let mut all_item = self.all_completion_items().await?;
+        all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
         for t in tokens.iter() {
             let pattern = t.token.to_string();
             match t.token {
@@ -184,6 +209,49 @@ pub trait LexerCompletionTrait: LangServerCommon {
         );
         anyhow::Ok(ret)
     }
+
+    async fn get_table_columns_if_possible(&self, tokens: &[TokenWithSpan]) -> Vec<CompletionItem> {
+        let tables = self
+            .list_table_or_view()
+            .await
+            .map_err(|e| log::error!("list table or view failed,err:{}", e))
+            .ok()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x: String| x.to_lowercase())
+            .collect::<HashSet<_>>();
+        let mut table_hits = HashSet::new();
+        for t in tokens.iter() {
+            match &t.token {
+                Token::Word(x) => {
+                    // lowcase match is ok for me
+                    // we just need make sure this table is in the database(not exactly)
+                    let name = x.value.to_lowercase();
+                    if tables.contains(&name) {
+                        table_hits.insert(x.value.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut ret = vec![];
+        for t in table_hits.iter() {
+            let columns = self
+                .list_columns(t)
+                .await
+                .map_err(|e| log::error!("list columns failed,err:{}", e))
+                .unwrap_or_default();
+            ret.extend(columns.into_iter().map(CompletionItem::from));
+        }
+
+        // remove duplicate
+        ret.into_iter()
+            .map(CompletionItemNameHasher::from)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .map(|x| x.item)
+            .collect()
+    }
 }
 
 pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<CompletionItem> {
@@ -193,18 +261,9 @@ pub fn match_pattern_and_sort(items: Vec<CompletionItem>, pattern: &str) -> Vec<
     }
     let matcher = SkimMatcherV2::default();
     let mut matched = Vec::new();
-    let mut names = HashSet::new();
-
     for item in items.into_iter() {
-        if names.contains(&item.item.to_lowercase()) {
-            // don't handle already handled.
-            continue;
-        }
-
         let m = matcher.fuzzy_match(&item.item, pattern);
         if let Some(s) = m {
-            names.insert(item.item.to_lowercase());
-
             matched.push(AndScore { item, score: s });
         }
     }
@@ -222,7 +281,6 @@ pub trait LangServerCommon: GetBackendKind {
         anyhow::Ok(vec![])
     }
 }
-
 #[async_trait::async_trait]
 pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServerCommon {
     async fn list_table(
@@ -323,8 +381,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
         line: line as u64,
         column: col as u64,
     };
-
-    let statements = tokio::task::block_in_place(|| -> anyhow::Result<Vec<Statement>> {
+    let statements = block_in_place(|| -> anyhow::Result<Vec<Statement>> {
         let parser = sqlparser::parser::Parser::new(&dialet);
         let mut parser = parser.try_with_sql(sql)?;
         let mut statements = Vec::new();

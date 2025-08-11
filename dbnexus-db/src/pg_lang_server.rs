@@ -27,6 +27,10 @@ impl LexerCompletionTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+    }
+
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.key_word_completion.lock().await;
         if lock.len() > 0 {

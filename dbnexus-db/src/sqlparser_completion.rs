@@ -271,6 +271,7 @@ impl Scope {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn from_temp_table(this_table: TempTable) -> Self {
         Self {
             tables: vec![TableEntered::Temp {
@@ -584,32 +585,38 @@ impl CompletionStatement {
                         return;
                     }
                     if let Some(table) = &table {
+                        let _gurad = self.scopes.push(Scope::from_this_table(table.clone()));
                         match &ass.target {
-                            AssignmentTarget::ColumnName(object_name) => {
-                                match object_name.0.len() {
-                                    1 => {
-                                        Box::pin(self.c_on_column(
-                                            table,
-                                            match object_name.0.last().unwrap() {
-                                                ObjectNamePart::Identifier(ident) => ident,
-                                            },
-                                            false,
-                                        ))
-                                        .await;
-                                    }
-                                    2 | 3 | 4 => {}
-                                    _ => {
-                                        log::error!("unhandled object name for column target")
+                            AssignmentTarget::ColumnName(column) => {
+                                let idents: Vec<_> = column
+                                    .0
+                                    .iter()
+                                    .map(|x| match x {
+                                        ObjectNamePart::Identifier(ident) => ident.clone(),
+                                    })
+                                    .collect();
+                                self.c_on_expr_compund_identifier(&idents[..]).await;
+                            }
+                            AssignmentTarget::Tuple(vec) => {
+                                for column in vec.iter() {
+                                    let idents: Vec<_> = column
+                                        .0
+                                        .iter()
+                                        .map(|x| match x {
+                                            ObjectNamePart::Identifier(ident) => ident.clone(),
+                                        })
+                                        .collect();
+                                    self.c_on_expr_compund_identifier(&idents[..]).await;
+                                    if self.finished() {
+                                        return;
                                     }
                                 }
                             }
-
-                            AssignmentTarget::Tuple(_vec) => todo!(),
                         }
                     }
                 }
                 if let Some(p) = returning {
-                    let _ = self.c_on_select_item(&p).await;
+                    self.c_on_select_item(&p).await;
                 }
             }
             Statement::Delete(delete) => {
@@ -647,7 +654,7 @@ impl CompletionStatement {
                     }
                 }
                 if let Some(r) = &delete.returning {
-                    let _ = self.c_on_select_item(&r[..]).await;
+                    self.c_on_select_item(&r[..]).await;
                 }
             }
             Statement::CreateView { query, name, .. } => {
@@ -1899,5 +1906,35 @@ mod tests {
         let s = serde_json::to_string(&statement).unwrap();
 
         println!("{}", s);
+    }
+
+    #[ignore = "this is just a test for me"]
+    #[test]
+    fn test_sql_lexer() {
+        let sql = r#"
+            `abc`
+        "#;
+        let dialect = sqlparser::dialect::MySqlDialect {};
+        let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
+            .tokenize_with_location()
+            .unwrap_or(vec![]);
+        for t in tokens.iter() {
+            println!("{:?}", t);
+        }
+    }
+
+    #[ignore = "this is just a test for me"]
+    #[test]
+    fn test_sql_lexer111() {
+        let sql = r#"
+            "abc"
+        "#;
+        let dialect = sqlparser::dialect::PostgreSqlDialect {};
+        let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
+            .tokenize_with_location()
+            .unwrap_or(vec![]);
+        for t in tokens.iter() {
+            println!("{:?}", t);
+        }
     }
 }

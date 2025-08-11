@@ -182,6 +182,9 @@ impl AstCompletionHelper for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for ClickHouseDB {
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+    }
     type Dialect = sqlparser::dialect::ClickHouseDialect;
 
     const TEXTS: &'static [&'static str] = &["true", "false"];

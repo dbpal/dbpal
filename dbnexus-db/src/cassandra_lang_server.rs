@@ -16,6 +16,8 @@ use crate::language_server::{
     CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
 };
 
+use crate::sqlparser_completion::TempTableColumn;
+
 #[async_trait::async_trait]
 impl LanguageServer for CassandraDB {
     async fn auto_completion(
@@ -51,6 +53,41 @@ impl LexerCompletionTrait for CassandraDB {
 
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
+
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let key_space = self.config.db.as_ref();
+        if key_space.is_none() {
+            return Err(anyhow::anyhow!("keyspace is not set"));
+        }
+        let sql = format!(
+            "SELECT column_name 
+                            FROM system_schema.columns 
+                            WHERE keyspace_name = '{}' 
+                            AND table_name = '{}';",
+            key_space.unwrap(),
+            table_name,
+        );
+        log::info!("sql:{}", sql);
+
+        let rows = self
+            .session
+            .query(sql)
+            .await?
+            .response_body()?
+            .into_rows()
+            .unwrap_or_default();
+        let mut result: Vec<TempTableColumn> = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: Option<String> = r.get_by_index(0)?;
+            if let Some(name) = name {
+                result.push(TempTableColumn {
+                    name,
+                    typ: None, // Cassandra does not provide data type in this query
+                });
+            }
+        }
+        anyhow::Ok(result)
+    }
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let r = KEY_WORDS

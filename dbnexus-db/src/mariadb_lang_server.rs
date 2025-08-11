@@ -142,6 +142,9 @@ impl LangServerCommon for MariaDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MariaDB {
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+    }
     type Dialect = sqlparser::dialect::MySqlDialect;
 
     const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;

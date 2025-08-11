@@ -139,12 +139,14 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
     return {
       row: {
         onContextMenu: (e) => {
-          const { target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
+          const { target, currentTarget } = e;
           let field = (target as HTMLDivElement).getAttribute('data-field');
           if (!field) {
             return;
           }
+          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          let row = { ...data.data.find((e) => e[keyNotInTable] == id) };
+          let content = row[field];
           setUpMenu({
             content: (
               <RespContextMenu
@@ -164,7 +166,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
         style: { cursor: 'context-menu' },
       },
     } as GridSlotsComponentsProps;
-  }, []);
+  }, [data]);
   const setting = useContext(SettingContext);
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);

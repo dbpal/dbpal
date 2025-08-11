@@ -17,6 +17,10 @@ use crate::sqlparser_completion::TempTableColumn;
 impl LexerCompletionTrait for MsSqlServerDB {
     type Dialect = sqlparser::dialect::MsSqlDialect;
 
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+    }
+
     const TYPES: &'static [&'static str] = TYPES;
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {

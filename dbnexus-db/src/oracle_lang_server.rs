@@ -16,6 +16,9 @@ impl LexerCompletionTrait for OracleDB {
 
     const TYPES: &'static [&'static str] = ORACLE_TYPES;
 
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+    }
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         let sql = format!(r#"SELECT TABLE_NAME FROM DBA_TABLES"#);
         log::info!("sql:{}", sql);

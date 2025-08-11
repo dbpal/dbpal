@@ -487,7 +487,7 @@ function SqlQuery(props: {
   const [size, setSize] = useState(400);
   const sizeKey = 'query_size';
   useEffect(() => {}, [
-    SaveSizesToStore.getSize(sizeKey).then((size) => {
+    SaveSizesToStore.getSize(sizeKey, 300).then((size) => {
       setSize(size);
     }),
   ]);

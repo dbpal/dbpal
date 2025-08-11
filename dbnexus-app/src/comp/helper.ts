@@ -332,14 +332,13 @@ class SaveSizesToStore {
     await appStore.set(AppStoreKey.Sizes, sizes);
   }
 
-  static async getSize(key: string): Promise<number> {
+  static async getSize(key: string, defaultSize = 300): Promise<number> {
     let sizes = await appStore.get(AppStoreKey.Sizes);
     if (!sizes) {
       sizes = {};
     }
-    return sizes[key] || 300;
+    return sizes[key] || defaultSize;
   }
-
 }
 
 
@@ -516,19 +515,46 @@ function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridDat
     total: old.total,
   };
 }
-function saveAndSetHeight(dom: Element, key) {
+
+
+function saveAndSetHeight(dom: Element, key: string): () => void {
+  key = `height-${key}`;
   let e = new ResizeObserver((en) => {
     const height = en[0].target.clientHeight;
     SaveSizesToStore.saveSize(key, height);
   });
   e.observe(dom);
-  SaveSizesToStore.getSize(key).then(height => {
-    (dom as HTMLDivElement).style.height = height + 'px';
+
+  SaveSizesToStore.getSize(key, 300).then(height => {
+    if (height) {
+      (dom as HTMLDivElement).style.height = height + 'px';
+    }
   });
   return () => {
     e.unobserve(dom);
   };
 }
+
+function saveAndSetWidth(dom: Element, key: string): () => void {
+  key = `width-${key}`;
+  console.log('xxxxxxxxxxxxx', dom);
+
+  let e = new ResizeObserver((en) => {
+    const width = en[0].target.clientWidth;
+    console.log("!!!!!!!!!!!!!!!!!!!", width);
+    SaveSizesToStore.saveSize(key, width);
+  });
+  e.observe(dom);
+  SaveSizesToStore.getSize(key).then(width => {
+    if (width) {
+      (dom as HTMLDivElement).style.width = width + 'px';
+    }
+  });
+  return () => {
+    e.unobserve(dom);
+  };
+}
+
 
 export {
   TabsSetContext,
@@ -566,5 +592,6 @@ export {
   resetMuiDataRespWidth,
   quoteStyle,
   saveAndSetHeight,
-  SaveSizesToStore
+  SaveSizesToStore,
+  saveAndSetWidth
 };

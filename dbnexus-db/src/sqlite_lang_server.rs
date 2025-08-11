@@ -23,6 +23,10 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
     const TEXTS: &'static [&'static str] = &["true"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
+    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+    }
+
     async fn extra_completion_item(&self) -> Vec<CompletionItem> {
         AstCompletionHelper::sqlite_pragma(self)
     }
@@ -35,12 +39,10 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
         }
         let ret: Vec<_> = SQLITE_KEY_WORDS
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.to_string().into(),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                item: x.to_string().into(),
+                kind: CompletionKind::KeyWord,
+                desc: None,
             })
             .collect();
         *lock = ret.clone();
@@ -154,11 +156,9 @@ impl AstCompletionHelper for SqliteDB {
         let ret = s
             .columns()
             .iter()
-            .map(|x| {
-                TempTableColumn {
-                    name: x.name().to_string().into(),
-                    typ: Some(x.type_info().to_string().into()),
-                }
+            .map(|x| TempTableColumn {
+                name: x.name().to_string().into(),
+                typ: Some(x.type_info().to_string().into()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)

@@ -91,7 +91,7 @@ function RedisQuery(props: {
   const [size, SetSize] = useState<string | number>('40vw');
   const sizeKey = 'reids_query_size';
   useEffect(() => {
-    SaveSizesToStore.getSize(sizeKey).then((size) => {
+    SaveSizesToStore.getSize(sizeKey, 300).then((size) => {
       SetSize(size);
     });
   }, []);
