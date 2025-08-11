@@ -161,15 +161,6 @@ function WhereSort(props: {
       return list;
     });
   };
-  const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      let x1 = saveAndSetWidth(modalBox, 'filter');
-      return () => {
-        x1();
-      };
-    }
-  }, [modalBox]);
   return (
     <Modal
       open={open}
@@ -181,47 +172,38 @@ function WhereSort(props: {
         onClose();
       }}
     >
-      <Box
-        sx={modalStyle}
-        ref={(dom) => {
-          setModalBox(dom);
-        }}
-        width="75%"
-      >
+      <Box sx={modalStyle} width="75%" height="30vh">
         <ModalHeader title={`set ${label}`}></ModalHeader>
-        <Stack spacing={1}>
-          <SimpleResizeEditor
-            value={newValue}
-            onMount={(e) => {
-              e.onDidChangeModelContent(() => {
-                setNewValue(e.getValue());
-              });
-            }}
-            heightName="where-sort-editor"
-            language={whereLanguage}
-          ></SimpleResizeEditor>
+        <SimpleResizeEditor
+          value={newValue}
+          onMount={(e) => {
+            e.onDidChangeModelContent(() => {
+              setNewValue(e.getValue());
+            });
+          }}
+          language={whereLanguage}
+        ></SimpleResizeEditor>
 
-          <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setValue(newValue);
+              onClose();
+            }}
+          >
+            set {label}
+          </Button>
+          {newValue && (
             <Button
               variant="contained"
               onClick={() => {
-                setValue(newValue);
-                onClose();
+                setNewValue('');
               }}
             >
-              set {label}
+              clear
             </Button>
-            {newValue && (
-              <Button
-                variant="contained"
-                onClick={() => {
-                  setNewValue('');
-                }}
-              >
-                clear
-              </Button>
-            )}
-          </Stack>
+          )}
         </Stack>
       </Box>
     </Modal>
@@ -260,7 +242,7 @@ function EditInModal(props: { content: string; handleModify }) {
   }, [value, language]);
 
   return (
-    <Stack spacing={1}>
+    <Stack flex={1}>
       <Stack direction="row" spacing={1}>
         {languages.map((e) => (
           <Chip
@@ -285,7 +267,6 @@ function EditInModal(props: { content: string; handleModify }) {
             setValue(editor.getValue());
           });
         }}
-        heightName="edit-in-modal"
         barLeft={
           jsonErr ? (
             <Typography color="error" variant="body1">
@@ -840,6 +821,7 @@ function SqlTableView_(props: {
               setEditInMoalBox(dom);
             }}
             width="80%"
+            height="30vh"
           >
             <ModalHeader title="edit cell"></ModalHeader>
             <EditInModal
@@ -855,7 +837,6 @@ function SqlTableView_(props: {
           </Box>
         </Modal>
       )}
-
       {editInModalRow && (
         <Modal
           open={!!editInModalRow}

@@ -114,12 +114,11 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
             setSelectSql('');
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="60%" height="40vh">
             <ModalHeader title="View SQL"></ModalHeader>
             <SimpleResizeEditor
               language={language}
               value={selectSql}
-              heightName="query-log"
             ></SimpleResizeEditor>
           </Box>
         </Modal>

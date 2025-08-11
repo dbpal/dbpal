@@ -55,10 +55,12 @@ const modalStyle: SxProps = {
   p: 1,
   maxHeight: '85vh',
   overflowY: 'auto',
-  resize: 'horizontal',
+  resize: 'both',
   minWidth: '33vw',
   maxWidth: '80vw',
   overflowX: 'auto',
+  display: 'flex',
+  flexDirection: 'column',
 };
 
 import {
@@ -88,7 +90,6 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
-  saveAndSetHeight,
   secondConfirm,
   TabsSetContext,
 } from './helper';
@@ -403,10 +404,8 @@ function SimpleResizeEditor(props: {
   barLeft?: ReactNode;
   wordWrap?: string;
   readOnly?: boolean;
-  heightName: string;
 }) {
-  let { language, value, onMount, barLeft, wordWrap, readOnly, heightName } =
-    props;
+  let { language, value, onMount, barLeft, wordWrap, readOnly } = props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
 
@@ -421,46 +420,29 @@ function SimpleResizeEditor(props: {
     },
     [onMount]
   );
-
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.editorFontSize,
       //@ts-ignore
       wordWrap: wordWrap,
       readOnly,
-
       ...setting.editorOption,
     };
   }, [setting]);
-
-  const divDom = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let x1 = saveAndSetHeight(divDom.current, heightName);
-    return () => {
-      x1();
-    };
-  }, []);
 
   return (
     <div
       style={{
         display: 'flex',
         flexDirection: 'column',
-        resize: 'vertical',
-        overflow: 'auto',
-        minHeight: '150px',
+        flex: 1,
+        minHeight: 0,
       }}
-      ref={divDom}
     >
-      <div
-        style={{
-          flexGrow: 1,
-          flexShrink: 1,
-          minHeight: 0,
-        }}
-      >
+      <div style={{ flex: 1 }}>
         <Editor
-          width="99.5%"
+          width="99%"
+          height="99%"
           onMount={handleDidMount}
           language={language}
           value={value}
@@ -468,6 +450,7 @@ function SimpleResizeEditor(props: {
           options={options}
         ></Editor>
       </div>
+
       <EditorBar left={barLeft} pos={pos}></EditorBar>
     </div>
   );

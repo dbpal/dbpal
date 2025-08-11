@@ -20,9 +20,11 @@ import TableViewIcon from '@mui/icons-material/TableView';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { IoConstructOutline } from 'react-icons/io5';
 import { HiOutlineDuplicate } from 'react-icons/hi';
+import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import {
   Box,
   Button,
+  Chip,
   CircularProgress,
   Divider,
   FormControlLabel,
@@ -1316,10 +1318,15 @@ function RedisTables(prpos: { schema?: string }) {
         >
           {tables && tables.has_more ? (
             <Tooltip title={`result exceed ${max},some result are omited`}>
-              <em style={{ color: 'red' }}> filter:{filter} </em>
+              <Chip
+                size="small"
+                color="error"
+                icon={<FilterAltIcon />}
+                label={`${filter}`}
+              />
             </Tooltip>
           ) : (
-            <em> filter:{filter} </em>
+            <Chip size="small" icon={<FilterAltIcon />} label={`${filter}`} />
           )}
           {loading && (
             <CircularProgress size={progressBarSizeSmall}></CircularProgress>

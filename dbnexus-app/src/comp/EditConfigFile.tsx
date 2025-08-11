@@ -50,7 +50,7 @@ function EditConfigFile(props: { handleClose }) {
     }
   };
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1}>
       <SimpleResizeEditor
         value={config}
         onMount={(editor) => {
@@ -58,7 +58,6 @@ function EditConfigFile(props: { handleClose }) {
             setConfig(editor.getValue());
           });
         }}
-        heightName="edit-config-file"
         language="json"
         barLeft={
           jsonError ? (

@@ -210,7 +210,7 @@ function StatementStructure(props: {
 
   initMonacoLanague(uuid, kind);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1}>
       <Stack direction="row">
         <Button
           loading={loading}
@@ -227,7 +227,6 @@ function StatementStructure(props: {
           readOnly={true}
           language={uuid}
           value={sql}
-          heightName="statement-structure"
         ></SimpleResizeEditor>
       )}
     </Stack>

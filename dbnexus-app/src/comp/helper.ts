@@ -322,26 +322,6 @@ function isTypeLargeText(s: string): boolean {
 }
 const appStore = await load('store.json');
 
-class SaveSizesToStore {
-  static async saveSize(key: string, size: number) {
-    let sizes = await appStore.get(AppStoreKey.Sizes);
-    if (!sizes) {
-      sizes = {};
-    }
-    sizes[key] = size;
-    await appStore.set(AppStoreKey.Sizes, sizes);
-  }
-
-  static async getSize(key: string, defaultSize = 300): Promise<number> {
-    let sizes = await appStore.get(AppStoreKey.Sizes);
-    if (!sizes) {
-      sizes = {};
-    }
-    return sizes[key] || defaultSize;
-  }
-}
-
-
 enum AppStoreKey {
   UserSetttings = 'user_settings',
   ConnectionConfig = 'connection_config',
@@ -349,6 +329,28 @@ enum AppStoreKey {
   FavoriteSql = "favorite_sql",
   Sizes = "sizes",
 }
+
+
+appStore.get(AppStoreKey.Sizes).then(e => {
+  if (e) {
+    SaveSizesToStore.sizes = e;
+  }
+})
+
+
+
+class SaveSizesToStore {
+  static async saveSize(key: string, size: number) {
+    let sizes = await appStore.get<object>(AppStoreKey.Sizes);
+    sizes[key] = size;
+    await appStore.set(AppStoreKey.Sizes, sizes);
+  }
+  static sizes = {};
+  static getSize(key: string, defaultSize = 300): number {
+    return this.sizes[key] || defaultSize
+  }
+}
+
 
 class FavoriteSql {
   constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public lastModified: Date = new Date()) { }
@@ -517,39 +519,35 @@ function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridDat
 }
 
 
-function saveAndSetHeight(dom: Element, key: string): () => void {
+function saveAndSetHeight(dom: Element, key: string) {
   key = `height-${key}`;
+  let height = SaveSizesToStore.getSize(key);
+  if (height) {
+    (dom as HTMLDivElement).style.height = height + 'px';
+  }
   let e = new ResizeObserver((en) => {
     const height = en[0].target.clientHeight;
+    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ", height, key);
     SaveSizesToStore.saveSize(key, height);
   });
   e.observe(dom);
-
-  SaveSizesToStore.getSize(key, 300).then(height => {
-    if (height) {
-      (dom as HTMLDivElement).style.height = height + 'px';
-    }
-  });
   return () => {
     e.unobserve(dom);
   };
 }
 
-function saveAndSetWidth(dom: Element, key: string): () => void {
+function saveAndSetWidth(dom: Element, key: string) {
   key = `width-${key}`;
-  console.log('xxxxxxxxxxxxx', dom);
-
+  let width = SaveSizesToStore.getSize(key);
+  if (width) {
+    (dom as HTMLDivElement).style.width = width + 'px';
+  }
   let e = new ResizeObserver((en) => {
     const width = en[0].target.clientWidth;
-    console.log("!!!!!!!!!!!!!!!!!!!", width);
     SaveSizesToStore.saveSize(key, width);
   });
   e.observe(dom);
-  SaveSizesToStore.getSize(key).then(width => {
-    if (width) {
-      (dom as HTMLDivElement).style.width = width + 'px';
-    }
-  });
+
   return () => {
     e.unobserve(dom);
   };

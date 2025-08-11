@@ -60,7 +60,6 @@ function DefAndMetasView(props: {
             language={language}
             value={detail.def}
             readOnly={true}
-            heightName="udf-and-metas"
           ></SimpleResizeEditor>
           {detail.metas.length > 0 && (
             <>

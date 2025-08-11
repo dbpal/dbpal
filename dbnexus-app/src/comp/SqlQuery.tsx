@@ -485,12 +485,11 @@ function SqlQuery(props: {
   }, [conn]);
 
   const [size, setSize] = useState(400);
-  const sizeKey = 'query_size';
-  useEffect(() => {}, [
-    SaveSizesToStore.getSize(sizeKey, 300).then((size) => {
-      setSize(size);
-    }),
-  ]);
+  const sizeKey = 'query-size';
+  useEffect(() => {
+    let s = SaveSizesToStore.getSize(sizeKey, 300);
+    setSize(s);
+  }, []);
   return (
     //@ts-ignore
     <SplitPane

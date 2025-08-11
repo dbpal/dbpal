@@ -153,8 +153,8 @@ function MongoQuery(props: {
   const editorDom = useRef(null);
   const loggerDom = useRef(null);
   useEffect(() => {
-    const x1 = saveAndSetHeight(editorDom.current, 'mongo_query');
-    const x2 = saveAndSetHeight(loggerDom.current, 'mongo_logger');
+    const x1 = saveAndSetHeight(editorDom.current, 'mongo-query');
+    const x2 = saveAndSetHeight(loggerDom.current, 'mongo-logger');
     return () => {
       x1();
       x2();

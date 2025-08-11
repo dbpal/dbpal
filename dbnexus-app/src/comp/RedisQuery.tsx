@@ -88,12 +88,11 @@ function RedisQuery(props: {
         console.log('not valid url error:', e);
       });
   };
-  const [size, SetSize] = useState<string | number>('40vw');
+  const [size, setSize] = useState<string | number>('40vw');
   const sizeKey = 'reids_query_size';
   useEffect(() => {
-    SaveSizesToStore.getSize(sizeKey, 300).then((size) => {
-      SetSize(size);
-    });
+    let size = SaveSizesToStore.getSize(sizeKey, 300);
+    setSize(size);
   }, []);
 
   return (

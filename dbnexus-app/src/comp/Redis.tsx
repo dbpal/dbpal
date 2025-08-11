@@ -49,7 +49,6 @@ import {
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
-  saveAndSetWidth,
   stringToHex,
   valid_json,
   VisiableContext,
@@ -110,10 +109,7 @@ function RedisAddList(props: {
         </RadioGroup>
       </Stack>
 
-      <RedisValueEditor
-        handleValue={(e) => setKey(e)}
-        editorHeight="60vh"
-      ></RedisValueEditor>
+      <RedisValueEditor handleValue={(e) => setKey(e)}></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
         <Button
@@ -158,7 +154,6 @@ function RedisStringTable(props: {
         handleValue={(e) => {
           setNewConent(e);
         }}
-        editorHeight="60vh"
       ></RedisValueEditor>
 
       <Stack width="100px" direction="row" spacing={1}>
@@ -203,7 +198,6 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
         handleValue={(e) => {
           setKey(e);
         }}
-        editorHeight="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -251,7 +245,6 @@ function RedisAddHash(props: {
         handleValue={(e) => {
           setKey(e);
         }}
-        editorHeight="40vh"
         header="key"
       ></RedisValueEditor>
 
@@ -260,7 +253,6 @@ function RedisAddHash(props: {
         handleValue={(e) => {
           setValue(e);
         }}
-        editorHeight="40vh"
         header="value"
       ></RedisValueEditor>
 
@@ -321,7 +313,6 @@ function RedisAddZset(props: {
         handleValue={(e) => {
           setKey(e);
         }}
-        editorHeight="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -368,13 +359,12 @@ function RedisEditHash(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1}>
       <RedisValueEditor
         oldValue={newKey}
         handleValue={(e) => {
           setNewKey(e);
         }}
-        editorHeight="29vh"
         header="key"
       ></RedisValueEditor>
 
@@ -383,7 +373,6 @@ function RedisEditHash(props: {
         handleValue={(e) => {
           setNewValue(e);
         }}
-        editorHeight="29vh"
         header="value"
       ></RedisValueEditor>
 
@@ -436,7 +425,7 @@ function RedisEditZset(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1}>
       <TextField
         size="small"
         value={newValue}
@@ -457,7 +446,6 @@ function RedisEditZset(props: {
         handleValue={(e) => {
           setNewKey(e);
         }}
-        editorHeight="60vh"
       ></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
@@ -502,7 +490,6 @@ function RedisEditModeSelect(props: {
 function RedisValueEditor(props: {
   oldValue?: string;
   handleValue: (a: string) => void;
-  editorHeight: string;
   header?: string;
 }) {
   let { oldValue, handleValue, header } = props;
@@ -555,7 +542,7 @@ function RedisValueEditor(props: {
   }, [newValue, editModel]);
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1} style={{ background: '1px solod red' }}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Typography variant="h6" color="info" style={{ fontWeight: 'bold' }}>
           {header}
@@ -603,7 +590,6 @@ function RedisValueEditor(props: {
             setNewValue(value);
           });
         }}
-        heightName="redis-value-editor"
         wordWrap="on"
         barLeft={
           jsonErr ? (
@@ -652,7 +638,6 @@ function RedisEditList(props: {
         handleValue={(e) => {
           setNewValue(e);
         }}
-        editorHeight="60vh"
       ></RedisValueEditor>
       <Stack direction="row" spacing={1}>
         <Button
@@ -697,13 +682,12 @@ function RedisEditSet(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1} style={{ background: '1px solid red' }}>
       <RedisValueEditor
         oldValue={oldValue}
         handleValue={(e) => {
           setNewValue(e);
         }}
-        editorHeight="60vh"
       ></RedisValueEditor>
       <Stack direction="row" spacing={1}>
         <Button
@@ -849,13 +833,6 @@ function RedisSetTable(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
-  const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      let x1 = saveAndSetWidth(modalBox, 'redis-edit');
-      return x1;
-    }
-  }, [modalBox]);
 
   return (
     <Stack spacing={1}>
@@ -913,18 +890,11 @@ function RedisSetTable(props: {
             if (reason === 'backdropClick') {
               return;
             }
-
             e.preventDefault();
             setSelectRow(null);
           }}
         >
-          <Box
-            sx={modalStyle}
-            ref={(dom) => {
-              setModalBox(dom);
-            }}
-            width="80%"
-          >
+          <Box sx={modalStyle} width="80%">
             <ModalHeader title="Edit Set value"></ModalHeader>
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
@@ -1162,13 +1132,6 @@ function RedisListTable(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
-  const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      let x1 = saveAndSetWidth(modalBox, 'redis-edit');
-      return x1;
-    }
-  }, [modalBox]);
 
   return (
     <Stack spacing={1}>
@@ -1227,13 +1190,7 @@ function RedisListTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box
-            sx={modalStyle}
-            ref={(dom) => {
-              setModalBox(dom);
-            }}
-            width="80%"
-          >
+          <Box sx={modalStyle} width="80%">
             <ModalHeader title="Edit List value"></ModalHeader>
             <RedisEditList
               modifyOP={async (index, newValue) => {
@@ -1403,13 +1360,6 @@ function RedisZsetTable(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
-  const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      let x1 = saveAndSetWidth(modalBox, 'redis-edit');
-      return x1;
-    }
-  }, [modalBox]);
 
   return (
     <Stack spacing={1}>
@@ -1503,13 +1453,7 @@ function RedisZsetTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box
-            sx={modalStyle}
-            width="80%"
-            ref={(dom) => {
-              setModalBox(dom);
-            }}
-          >
+          <Box sx={modalStyle} width="80%">
             <ModalHeader title="Edit Zset Value"></ModalHeader>
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
@@ -1665,13 +1609,7 @@ function RedisHashTable(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
-  const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      let x1 = saveAndSetWidth(modalBox, 'redis-edit');
-      return x1;
-    }
-  }, [modalBox]);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="center">
@@ -1734,13 +1672,7 @@ function RedisHashTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box
-            sx={modalStyle}
-            width="80%"
-            ref={(dom) => {
-              setModalBox(dom);
-            }}
-          >
+          <Box sx={modalStyle} width="80%">
             <ModalHeader title="Edit Hash Value"></ModalHeader>
             <RedisEditHash
               modifyOP={async (req) => {

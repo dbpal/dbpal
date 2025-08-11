@@ -185,13 +185,12 @@ export default function MainPage() {
   const changeTab = useCallback((index) => {
     setTab(index as number);
   }, []);
-  const leftSizeKey = 'left_size';
+  const leftSizeKey = 'left-size';
   const [leftSize, setLeftSize] = useState(300);
   useEffect(() => {
     let a = async () => {
-      SaveSizesToStore.getSize(leftSizeKey, 300).then((size) => {
-        setLeftSize(size);
-      });
+      let size = SaveSizesToStore.getSize(leftSizeKey);
+      setLeftSize(size);
     };
     a();
   }, []);
