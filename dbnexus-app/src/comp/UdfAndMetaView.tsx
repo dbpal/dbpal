@@ -54,7 +54,7 @@ function DefAndMetasView(props: {
     }
   }, [dom]);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ minHeight: '18vh' }}>
       <Stack direction="row" spacing={1}>
         {showReload && (
           <Button
@@ -76,9 +76,9 @@ function DefAndMetasView(props: {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'auto',
-          height: '300px',
-          minHeight: '20vh',
+          minHeight: '15vh',
           resize: 'vertical',
+          height: '18vh',
         }}
       >
         <SimpleFlexSizeEditor

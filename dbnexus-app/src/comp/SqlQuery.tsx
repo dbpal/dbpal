@@ -711,10 +711,7 @@ function SqlQuery(props: {
             theme={setting.editorTheme()}
           ></Editor>
         </div>
-        <EditorBar
-          style={{ paddingBottom: '10px', flexGrow: 0, flexShrink: 0 }}
-          pos={pos}
-        ></EditorBar>
+        <EditorBar pos={pos}></EditorBar>
       </div>
 
       <div>

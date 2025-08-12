@@ -12,6 +12,9 @@ use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for OracleDB {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_procedure(self, None, None).await
+    }
     type Dialect = sqlparser::dialect::GenericDialect;
 
     const TYPES: &'static [&'static str] = ORACLE_TYPES;

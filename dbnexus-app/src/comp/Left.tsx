@@ -1116,7 +1116,7 @@ function DatabaseMenu(props: {
             setShowCreateSchema(false);
           }}
         >
-          <Box sx={modalStyle} width="50%">
+          <Box sx={modalStyle} width="40%">
             <CreateSchema
               uuid={uuid}
               handleClose={() => {

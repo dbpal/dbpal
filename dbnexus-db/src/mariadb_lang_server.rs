@@ -84,7 +84,7 @@ impl AstCompletionHelper for MariaDB {
     }
 
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::get_query_columns(self, sql).await
+        AstCompletionHelper::get_query_columns(self.db.as_ref(), sql).await
     }
     async fn list_function(
         &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,

@@ -66,6 +66,7 @@ import {
   reloadOK,
   keyNotInTable,
   EscDownEvent,
+  EditorBar,
 } from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -75,6 +76,7 @@ import {
   MenuResetColumnWidths,
   ModalHeader,
   pageSizeOptions,
+  ResizeWrapper,
   SelectPageSize,
 } from './CommonComp';
 import {
@@ -257,9 +259,8 @@ interface MongoBsonEditorCallback {
 function MongoBsonEditor(props: {
   doc: BSON.Document;
   buttons: MongoBsonEditorCallback[];
-  heightName: string;
 }) {
-  let { doc, buttons, heightName } = props;
+  let { doc, buttons } = props;
   let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [docHasChange, setDocHasChange] = useState(false);
@@ -294,30 +295,11 @@ function MongoBsonEditor(props: {
       ...setting.editorOption,
     };
   }, [setting]);
-  const divDom = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const x1 = saveAndSetSize(divDom.current, `mongobsonEditor-${heightName}`);
-    return () => {
-      x1();
-    };
-  }, []);
-
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        resize: 'vertical',
-        overflow: 'auto',
-        minHeight: '150px',
-      }}
-      ref={divDom}
-    >
+    <Stack flex={1}>
       <div
         style={{
-          flexGrow: 1,
-          flexShrink: 1,
-          minHeight: 0,
+          flex: 1,
         }}
       >
         <Editor
@@ -330,57 +312,50 @@ function MongoBsonEditor(props: {
           theme={setting.editorTheme()}
         ></Editor>
       </div>
-
-      <Stack direction="row" justifyContent="space-between">
-        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-          {buttons.map((button) => {
-            return (
-              //@ts-ignore
-              <Button
-                loading={loading}
-                key={button.buttonText}
-                variant={button.variant}
-                color={button.color}
-                onClick={() => {
-                  setLoading(true);
-                  try {
-                    let doc = parseMongoBson(
-                      editor.current.getValue()
-                    ).compile();
-                    button.callBack(doc);
-                  } catch (e) {
+      <EditorBar
+        pos={pos}
+        left={
+          <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+            {buttons.map((button) => {
+              return (
+                //@ts-ignore
+                <Button
+                  loading={loading}
+                  key={button.buttonText}
+                  variant={button.variant}
+                  color={button.color}
+                  onClick={() => {
+                    setLoading(true);
+                    try {
+                      let doc = parseMongoBson(
+                        editor.current.getValue()
+                      ).compile();
+                      button.callBack(doc);
+                    } catch (e) {
+                      setLoading(false);
+                      showNotification('error', 'mongo bson compile failed', e);
+                      console.log('mongo bson compile failed', e);
+                      return;
+                    }
                     setLoading(false);
-                    showNotification('error', 'mongo bson compile failed', e);
-                    console.log('mongo bson compile failed', e);
-                    return;
+                  }}
+                  disabled={
+                    button.disabled ? button.disabled(docHasChange) : false
                   }
-                  setLoading(false);
-                }}
-                disabled={
-                  button.disabled ? button.disabled(docHasChange) : false
-                }
-              >
-                {button.buttonText}
-              </Button>
-            );
-          })}
-
-          {err ? (
-            <Typography color="error">{err.msgWithLoc}</Typography>
-          ) : (
-            <></>
-          )}
-        </Stack>
-        <Stack width="40%" spacing={1} direction="row" alignContent="center">
-          {pos && (
-            <>
-              <span> Ln {pos.lineNumber} </span>
-              <span> Col {pos.column} </span>
-            </>
-          )}
-        </Stack>
-      </Stack>
-    </div>
+                >
+                  {button.buttonText}
+                </Button>
+              );
+            })}
+            {err ? (
+              <Typography color="error">{err.msgWithLoc}</Typography>
+            ) : (
+              <></>
+            )}
+          </Stack>
+        }
+      ></EditorBar>
+    </Stack>
   );
 }
 
@@ -409,10 +384,9 @@ function MongoDBModify(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1}>
       <MongoBsonEditor
         doc={doc}
-        heightName="modify"
         buttons={
           setOP
             ? [
@@ -469,7 +443,13 @@ function MongoTableListToolBar(props: {
   useEffect(() => {
     handleViewModel(viewModel);
   }, [viewModel]);
-
+  const [modalBox, setModalBox] = useState(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'mongo-filter-sort');
+      return c;
+    }
+  }, [modalBox]);
   return (
     <Stack
       direction="row"
@@ -543,7 +523,12 @@ function MongoTableListToolBar(props: {
             setShowModifyFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="65%">
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            width="65%"
+            ref={setModalBox}
+            height="45vh"
+          >
             <ModalHeader title="Modify Filter"></ModalHeader>
             <MongoDBModify
               buttonName="set"
@@ -571,7 +556,12 @@ function MongoTableListToolBar(props: {
             setShowModifySort(false);
           }}
         >
-          <Box sx={modalStyle} width="65%">
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            width="65%"
+            ref={setModalBox}
+            height="45vh"
+          >
             <ModalHeader title="Modify Sort"></ModalHeader>
             <MongoDBModify
               buttonName="set"
@@ -1129,7 +1119,7 @@ function MongoTableObject(props: {
   nonse;
 }) {
   const { filter, sort, realodOPDocs, modifyOP, deleteOP, nonse } = props;
-  const [docs, setDocs] = useState<DocsAndCount | null>(null);
+  const [docs, setDocs] = useState<DocsAndCount>({ docs: [], total: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const { showNotification } = useContext(NotificationContext);
@@ -1163,69 +1153,71 @@ function MongoTableObject(props: {
     handleReload(true);
   }, [nonse]);
   return (
-    <>
-      {docs && (
-        <Stack spacing={1}>
-          {docs.docs.map((doc) => {
-            return (
-              <MongoBsonEditor
-                heightName="object-view"
-                key={doc._id}
-                doc={doc}
-                buttons={
-                  modifyOP && deleteOP
-                    ? [
-                        {
-                          buttonText: 'set',
-                          callBack: (doc) => {
-                            modifyOP(doc)
-                              .then(() => {
-                                showNotification('success', 'Modify OK');
-                              })
-                              .catch((e) => {
-                                showNotification('error', 'Modify failure', e);
-                              });
-                          },
+    <Stack spacing={1}>
+      {docs.docs.map((doc) => {
+        return (
+          <ResizeWrapper
+            key={renderId(doc._id)}
+            style={{ resize: 'vertical', height: '300px', minHeight: '150px' }}
+            sizeKeyKind="height"
+            sizeKey="mongo-view-data"
+          >
+            <MongoBsonEditor
+              doc={doc}
+              buttons={
+                modifyOP
+                  ? [
+                      {
+                        buttonText: 'set',
+                        callBack: (doc) => {
+                          modifyOP(doc)
+                            .then(() => {
+                              showNotification('success', 'Modify OK');
+                            })
+                            .catch((e) => {
+                              showNotification('error', 'Modify failure', e);
+                            });
                         },
-                        {
-                          buttonText: 'delete',
-                          color: 'error',
-                          callBack: (_) => {
-                            handleDetele([doc._id]);
-                          },
+                      },
+                      {
+                        buttonText: 'delete',
+                        color: 'error',
+                        callBack: (_) => {
+                          handleDetele([doc._id]);
                         },
-                      ]
-                    : []
-                }
-              ></MongoBsonEditor>
-            );
-          })}
-          {/* // here is pagination */}
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Pagination
-              page={page}
-              defaultPage={1}
-              count={Math.ceil(docs.total / pageSize)}
-              showFirstButton
-              showLastButton
-              onChange={(_e, page) => {
-                setPage(page);
-              }}
-            />
-            <Typography>
-              result {docs.docs.length} of {docs.total}
-            </Typography>
-            <SelectPageSize
-              options={[10, 20]}
-              pageSize={pageSize}
-              handleChange={(size) => {
-                setPageSize(size);
-              }}
-            ></SelectPageSize>
-          </Stack>
-        </Stack>
-      )}
-    </>
+                      },
+                    ]
+                  : []
+              }
+            ></MongoBsonEditor>
+          </ResizeWrapper>
+        );
+      })}
+
+      {/* // here is pagination */}
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Pagination
+          page={page}
+          defaultPage={1}
+          count={Math.ceil(docs.total / pageSize)}
+          showFirstButton
+          showLastButton
+          onChange={(_e, page) => {
+            setPage(page);
+          }}
+        />
+        <Typography>
+          result {docs.docs.length} of {docs.total}
+        </Typography>
+        <SelectPageSize
+          options={[10, 20]}
+          pageSize={pageSize}
+          handleChange={(size) => {
+            setPageSize(size);
+          }}
+        ></SelectPageSize>
+      </Stack>
+    </Stack>
   );
 }
 
@@ -1322,24 +1314,39 @@ function MongoTableAdd(props: {
         showNotification('error', 'Add failure', e);
       });
   };
-
+  const [dom, setDom] = useState(null);
+  useEffect(() => {
+    if (dom) {
+      let c = saveAndSetSize(dom, 'mongo-table-add', 'height');
+      return c;
+    }
+  }, [dom]);
   return (
-    <MongoBsonEditor
-      doc={{}}
-      heightName="add"
-      buttons={[
-        {
-          buttonText: 'add',
-          variant: 'contained',
-          disabled: (changed) => {
-            return !changed;
+    <Stack
+      style={{
+        resize: 'vertical',
+        overflow: 'auto',
+        minHeight: '20vh',
+        height: '300px',
+      }}
+      ref={setDom}
+    >
+      <MongoBsonEditor
+        doc={{}}
+        buttons={[
+          {
+            buttonText: 'add',
+            variant: 'contained',
+            disabled: (changed) => {
+              return !changed;
+            },
+            callBack: (doc) => {
+              handleAdd(doc);
+            },
           },
-          callBack: (doc) => {
-            handleAdd(doc);
-          },
-        },
-      ]}
-    ></MongoBsonEditor>
+        ]}
+      ></MongoBsonEditor>
+    </Stack>
   );
 }
 

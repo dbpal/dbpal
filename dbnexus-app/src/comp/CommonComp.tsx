@@ -46,6 +46,7 @@ import {
   errToString,
   FavoriteSql,
   handleCopyToClipboard,
+  saveAndSetSize,
   secondConfirm,
 } from './helper';
 import { TbDatabasePlus } from 'react-icons/tb';
@@ -480,6 +481,36 @@ function ModalHeader(props: { title: string }) {
   );
 }
 
+function ResizeWrapper(props: {
+  children;
+  sizeKey: string;
+  sizeKeyKind: 'both' | 'width' | 'height';
+  style: CSSProperties;
+}) {
+  const { children, sizeKey, sizeKeyKind, style } = props;
+  const [dom, setDom] = useState(null);
+
+  useEffect(() => {
+    if (dom) {
+      const c = saveAndSetSize(dom, sizeKey, sizeKeyKind);
+      return c;
+    }
+  }, [dom]);
+  return (
+    <div
+      style={{
+        overflow: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        ...style,
+      }}
+      ref={setDom}
+    >
+      {children}
+    </div>
+  );
+}
+
 export {
   LogLevelSelection,
   MetaValuesView,
@@ -496,4 +527,5 @@ export {
   MenuResetColumnWidths,
   TrueOrFalse,
   ModalHeader,
+  ResizeWrapper,
 };

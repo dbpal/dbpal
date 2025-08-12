@@ -429,31 +429,31 @@ impl ServerMetas for MariaDB {
 }
 
 #[cfg(test)]
+pub(crate) fn make_config() -> MysqlDBConfig {
+    MysqlDBConfig {
+        host: crate::TEST_HOST.to_string(),
+        username: "root".to_string(),
+        password: Some("root".to_string()),
+        port: 3307,
+        db: Some("test".to_string()),
+        read_only: false,
+        save_password: true,
+        ssl: Default::default(),
+    }
+}
+
+#[cfg(test)]
 mod tests {
 
-    use crate::TEST_HOST;
     use crate::datasource_config::MysqlDBConfig;
     use crate::db::{QuerySql, SchemaTrait, monaco_editor_keyword_regexp};
     use crate::language_server::LexerCompletionTrait;
-    use crate::mariadb::MariaDB;
+    use crate::mariadb::{MariaDB, make_config};
     use crate::mysql::test_fns::{self, make_test_object};
 
     pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MariaDB {
         let db: MariaDB = MariaDB::new(config).await.unwrap();
         db
-    }
-
-    pub(crate) fn make_config() -> MysqlDBConfig {
-        MysqlDBConfig {
-            host: TEST_HOST.to_string(),
-            username: "root".to_string(),
-            password: Some("root".to_string()),
-            port: 3307,
-            db: Some("test".to_string()),
-            read_only: false,
-            save_password: true,
-            ssl: Default::default(),
-        }
     }
 
     #[tokio::test]

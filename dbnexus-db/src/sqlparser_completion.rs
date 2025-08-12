@@ -1926,9 +1926,7 @@ mod tests {
     #[ignore = "this is just a test for me"]
     #[test]
     fn test_sql_lexer111() {
-        let sql = r#"
-            "abc"
-        "#;
+        let sql = r#" abc. "#;
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
             .tokenize_with_location()

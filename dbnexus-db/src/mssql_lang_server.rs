@@ -21,6 +21,10 @@ impl LexerCompletionTrait for MsSqlServerDB {
         AstCompletionHelper::list_column(self, None, None, table_name, false).await
     }
 
+    async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_procedure(self, None, None).await
+    }
+
     const TYPES: &'static [&'static str] = TYPES;
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {

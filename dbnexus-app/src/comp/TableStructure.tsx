@@ -257,7 +257,14 @@ function ColumnsStructure(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
+  const [modalBox, setModalBox] = useState(null);
 
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'table-column', 'width');
+      return c;
+    }
+  }, [modalBox]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -312,7 +319,11 @@ function ColumnsStructure(props: {
             setShowAdd(false);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box
+            sx={{ resize: 'horizontal', ...modalStyle }}
+            width="60%"
+            ref={setModalBox}
+          >
             <ModalHeader title="Add Column"></ModalHeader>
             <TableAddColumn
               table={table}
@@ -339,7 +350,11 @@ function ColumnsStructure(props: {
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box
+            sx={{ resize: 'horizontal', ...modalStyle }}
+            width="60%"
+            ref={setModalBox}
+          >
             <ModalHeader title="Modify Column"></ModalHeader>
             <ModifyTableColumn
               table={table}
@@ -564,37 +579,21 @@ function IndexesStructure(props: {
   const getRowId = useCallback((e) => {
     return e['name'];
   }, []);
-  let addIndex;
-  switch (kind) {
-    case DataSourceKind.Mongo:
-      addIndex = (
-        <MongoAddIndex
-          uuid={uuid}
-          table={table}
-          handleClose={() => {
-            setShowAdd(false);
-          }}
-          realod={handleReload}
-        ></MongoAddIndex>
-      );
-      break;
 
-    default:
-      addIndex = (
-        <AddIndex
-          uuid={uuid}
-          table={table}
-          handleClose={() => {
-            setShowAdd(false);
-          }}
-          kind={kind}
-          realod={handleReload}
-        ></AddIndex>
-      );
-  }
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
+  const [modalBox, setModalBox] = useState(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(
+        modalBox,
+        'create-index' + (kind == DataSourceKind.Mongo ? '-mongo' : '-other'),
+        kind == DataSourceKind.Mongo ? 'both' : 'width'
+      );
+      return c;
+    }
+  }, [modalBox]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
@@ -632,7 +631,8 @@ function IndexesStructure(props: {
           ></DataGrid>
         </div>
       )}
-      {showAdd && (
+
+      {showAdd && kind == DataSourceKind.Mongo && (
         <Modal
           open={showAdd}
           onClose={(e: EscDownEvent, reason) => {
@@ -644,12 +644,61 @@ function IndexesStructure(props: {
             setShowAdd(false);
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box
+            sx={{
+              resize: 'both',
+              ...modalStyle,
+            }}
+            width="60%"
+            ref={setModalBox}
+            height={kind == DataSourceKind.Mongo ? '40vh' : 'auto'}
+          >
             <ModalHeader title="create index"></ModalHeader>
-            {addIndex}
+            <MongoAddIndex
+              uuid={uuid}
+              table={table}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+              realod={handleReload}
+            ></MongoAddIndex>
           </Box>
         </Modal>
       )}
+
+      {showAdd && kind != DataSourceKind.Mongo && (
+        <Modal
+          open={showAdd}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            e.preventDefault();
+            setShowAdd(false);
+          }}
+        >
+          <Box
+            sx={{
+              resize: 'horizontal',
+              ...modalStyle,
+            }}
+            width="60%"
+            ref={setModalBox}
+          >
+            <ModalHeader title="create index"></ModalHeader>
+            <AddIndex
+              uuid={uuid}
+              table={table}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+              kind={kind}
+              realod={handleReload}
+            ></AddIndex>
+          </Box>
+        </Modal>
+      )}
+
       {renameIndexName && (
         <Modal
           open={!!renameIndexName}
@@ -661,7 +710,7 @@ function IndexesStructure(props: {
             setRenameIndexName('');
           }}
         >
-          <Box sx={modalStyle} width="60%">
+          <Box sx={modalStyle} width="40%">
             <ModalHeader title={`Rename Index`}></ModalHeader>
             <RenameIndex
               uuid={uuid}
@@ -711,7 +760,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1}>
       <TextField
         value={indexName}
         onChange={(e) => {
@@ -735,7 +784,6 @@ function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
         ))}
       </RadioGroup>
       <MongoBsonEditor
-        heightName="create-index"
         doc={{}}
         buttons={[
           {

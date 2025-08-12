@@ -27,7 +27,6 @@ import { types } from './ApiStruct';
 import { BSON } from 'bson';
 import {
   createContext,
-  CSSProperties,
   ReactNode,
   useCallback,
   useContext,
@@ -54,8 +53,9 @@ const modalStyle: SxProps = {
   borderRadius: '4px',
   p: 1,
   maxHeight: '85vh',
+  minHeight: '10vh',
   overflow: 'auto',
-  minWidth: '33vw',
+  minWidth: '20vw',
   maxWidth: '80vw',
   display: 'flex',
   flexDirection: 'column',
@@ -109,21 +109,12 @@ class DocsAndCount {
   constructor(public docs: BSON.Document[], public total: number) {}
 }
 
-function EditorBar(props: {
-  left?: any;
-  pos: EditorPositon;
-  style?: CSSProperties | undefined;
-}) {
-  let { left, pos, style } = props;
+function EditorBar(props: { left?: any; pos: EditorPositon }) {
+  let { left, pos } = props;
   return (
-    <Stack
-      justifyContent="space-between"
-      direction="row"
-      style={style}
-      alignItems="center"
-    >
+    <Stack justifyContent="space-between" direction="row" alignItems="center">
       <div style={{ width: '40%' }}> {left}</div>
-      <Stack width="40%" direction="row" spacing={1}>
+      <Stack width="30%" direction="row" spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Column {pos ? pos.column : ''}</span>
       </Stack>
@@ -701,7 +692,6 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             },
           });
         }
-
         monaco.languages.registerCompletionItemProvider(uuid, {
           provideCompletionItems: (
             model: editor.ITextModel,
@@ -712,6 +702,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             let text = model.getValue();
             return autoCompletion(text, position);
           },
+          triggerCharacters: ['.'],
         });
       })
       .catch((e) => {

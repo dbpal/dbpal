@@ -17,6 +17,9 @@ impl LexerCompletionTrait for PostGresDB {
 
     const TYPES: &'static [&'static str] = TYPES;
 
+    async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_procedure(self, None, None).await
+    }
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         let mut ret = AstCompletionHelper::list_table(self, None, None).await?;
         ret.extend(
