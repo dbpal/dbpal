@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::task::block_in_place;
 
-use crate::db::DBTrait;
+use crate::db::{DBTrait, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
     LexerCompletionTrait, try_completion_on_syntax,
@@ -56,12 +56,7 @@ impl LexerCompletionTrait for OracleDB {
                 if name.is_empty() {
                     continue;
                 }
-                if !name
-                    .chars()
-                    .next()
-                    .map(|c| c.is_ascii_alphabetic())
-                    .unwrap_or(false)
-                {
+                if !name_start_ascii_alphabetic(&name) {
                     continue;
                 }
                 ret.push(name);

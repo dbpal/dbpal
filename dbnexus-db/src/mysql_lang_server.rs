@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 
-use crate::db::{FormatSqlOpts, GetBackendKind, not_support_feature};
+use crate::db::{FormatSqlOpts, GetBackendKind, name_start_ascii_alphabetic, not_support_feature};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -45,12 +45,7 @@ impl LexerCompletionTrait for MysqlDB {
         for row in rows.iter() {
             let name: Option<String> = row.try_get(0)?;
             if let Some(name) = name {
-                if !name
-                    .chars()
-                    .next()
-                    .map(|c| c.is_ascii_alphabetic())
-                    .unwrap_or(false)
-                {
+                if !name_start_ascii_alphabetic(&name) {
                     continue;
                 }
                 ret.push(CompletionItem {

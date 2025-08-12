@@ -1395,3 +1395,10 @@ pub(crate) fn ty_is_float(x: &sqlparser::ast::DataType) -> bool {
 pub fn escape_sql_str(s: &str) -> String {
     s.replace("'", "''")
 }
+
+pub(crate) fn name_start_ascii_alphabetic(name: &str) -> bool {
+    name.chars()
+        .next()
+        .map(|c| c.is_ascii_alphabetic())
+        .unwrap_or(false)
+}

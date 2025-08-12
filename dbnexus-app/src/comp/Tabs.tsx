@@ -1,5 +1,13 @@
 import React, { useContext } from 'react';
-import { Stack, MenuItem, MenuList, Chip, Tabs, Tab } from '@mui/material';
+import {
+  Stack,
+  MenuItem,
+  MenuList,
+  Chip,
+  Tabs,
+  Tab,
+  Tooltip,
+} from '@mui/material';
 
 import {
   calMenuStyle,
@@ -69,23 +77,24 @@ function TabsMenu(props: {
           close others
         </MenuItem>
       )}
-
-      <MenuItem
-        onClick={async () => {
-          const confirm = await secondConfirm({
-            title: 'close all tab',
-            content: 'are u sure',
-            confirmText: 'Close',
-          });
-          if (!confirm) {
-            return;
-          }
-          setTabs([]);
-          changeTab(0);
-        }}
-      >
-        close all
-      </MenuItem>
+      {tabsLength > 1 && (
+        <MenuItem
+          onClick={async () => {
+            const confirm = await secondConfirm({
+              title: 'close all tab',
+              content: 'are u sure',
+              confirmText: 'Close',
+            });
+            if (!confirm) {
+              return;
+            }
+            setTabs([]);
+            changeTab(0);
+          }}
+        >
+          close all
+        </MenuItem>
+      )}
     </MenuList>
   );
 }
@@ -122,37 +131,38 @@ function TabsWithContent_(props: {
             return (
               <Tab
                 key={tab.id}
-                label=<Chip
-                  label={tab.header}
-                  onDelete={() => {
-                    handleClose(index);
-                  }}
-                  style={{ padding: '0px' }}
-                  icon={tab.icon}
-                  size="small"
-                  color={index == selectIndex ? 'primary' : 'default'}
-                  onContextMenu={(e) => {
-                    setUpMenu({
-                      content: (
-                        <TabsMenu
-                          index={index}
-                          handleClose={handleClose}
-                          setTabs={setTabs}
-                          tabsLength={tabs.length}
-                          changeTab={changeTab}
-                          selectIndex={selectIndex}
-                        ></TabsMenu>
-                      ),
-                      style: calMenuStyle(e, 100),
-                    });
-                  }}
-                ></Chip>
+                label=<Tooltip title={tab.header}>
+                  <Chip
+                    label={tab.header}
+                    onDelete={() => {
+                      handleClose(index);
+                    }}
+                    style={{ padding: '0px', maxWidth: '14rem' }}
+                    icon={tab.icon}
+                    size="small"
+                    color={index == selectIndex ? 'primary' : 'default'}
+                    onContextMenu={(e) => {
+                      setUpMenu({
+                        content: (
+                          <TabsMenu
+                            index={index}
+                            handleClose={handleClose}
+                            setTabs={setTabs}
+                            tabsLength={tabs.length}
+                            changeTab={changeTab}
+                            selectIndex={selectIndex}
+                          ></TabsMenu>
+                        ),
+                        style: calMenuStyle(e, 100),
+                      });
+                    }}
+                  ></Chip>
+                </Tooltip>
               ></Tab>
             );
           })}
         </Tabs>
       </div>
-
       <div style={{ paddingRight: '18px' }}>
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
