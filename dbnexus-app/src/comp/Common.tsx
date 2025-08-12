@@ -51,14 +51,12 @@ const modalStyle: SxProps = {
   border: '2px solid skyblue',
   boxShadow: 24,
   margin: 0,
-  borderRadius: '10px',
+  borderRadius: '4px',
   p: 1,
   maxHeight: '85vh',
-  overflowY: 'auto',
-  resize: 'both',
+  overflow: 'auto',
   minWidth: '33vw',
   maxWidth: '80vw',
-  overflowX: 'auto',
   display: 'flex',
   flexDirection: 'column',
 };
@@ -397,7 +395,7 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
     });
 }
 
-function SimpleResizeEditor(props: {
+function SimpleFlexSizeEditor(props: {
   language: string;
   value?: string;
   onMount?: OnMount;
@@ -442,7 +440,7 @@ function SimpleResizeEditor(props: {
       <div style={{ flex: 1 }}>
         <Editor
           width="99%"
-          height="99%"
+          height="99%" // 不能设置成100%好像会影响父的高度
           onMount={handleDidMount}
           language={language}
           value={value}
@@ -1225,7 +1223,7 @@ export {
   modalStyle,
   DocsAndCount,
   EditorBar,
-  SimpleResizeEditor,
+  SimpleFlexSizeEditor,
   tabsHasId,
   msgTimeout,
   progressBarSize,

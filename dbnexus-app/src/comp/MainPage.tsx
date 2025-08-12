@@ -189,8 +189,11 @@ export default function MainPage() {
   const [leftSize, setLeftSize] = useState(300);
   useEffect(() => {
     let a = async () => {
-      let size = SaveSizesToStore.getSize(leftSizeKey);
-      setLeftSize(size);
+      SaveSizesToStore.getSize(leftSizeKey).then((size) => {
+        if (size && size.width) {
+          setLeftSize(size.width);
+        }
+      });
     };
     a();
   }, []);
@@ -207,7 +210,7 @@ export default function MainPage() {
       }}
       maxSize={800}
       onDragFinished={async (newsize) => {
-        SaveSizesToStore.saveSize(leftSizeKey, newsize);
+        SaveSizesToStore.saveSize(leftSizeKey, { width: newsize });
       }}
     >
       <div
@@ -242,9 +245,7 @@ export default function MainPage() {
             <div id="menu-div" style={menu && menu.style}>
               <Paper elevation={24}> {menu && menu.content}</Paper>
             </div>
-
             <WarnUnCommitTx></WarnUnCommitTx>
-
             {showEditConfig && (
               <Modal
                 open={showEditConfig}
@@ -256,7 +257,11 @@ export default function MainPage() {
                   setShowEditConfig(false);
                 }}
               >
-                <Box sx={modalStyle} width="75%">
+                <Box
+                  sx={{ resize: 'both', ...modalStyle }}
+                  width="75%"
+                  height="70vh"
+                >
                   <ModalHeader title="Edit Config File"></ModalHeader>
                   <EditConfigFile
                     handleClose={() => {

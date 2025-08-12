@@ -487,8 +487,11 @@ function SqlQuery(props: {
   const [size, setSize] = useState(400);
   const sizeKey = 'query-size';
   useEffect(() => {
-    let s = SaveSizesToStore.getSize(sizeKey, 300);
-    setSize(s);
+    SaveSizesToStore.getSize(sizeKey).then((s) => {
+      if (s && s.height) {
+        setSize(s.height);
+      }
+    });
   }, []);
   return (
     //@ts-ignore
@@ -499,7 +502,7 @@ function SqlQuery(props: {
       size={size}
       style={{ position: 'relative' }}
       onChange={(newvalue) => {
-        SaveSizesToStore.saveSize(sizeKey, newvalue);
+        SaveSizesToStore.saveSize(sizeKey, { height: newvalue });
       }}
     >
       <div
@@ -701,7 +704,8 @@ function SqlQuery(props: {
           <Editor
             language={language}
             onMount={handleEditorDidMount}
-            width="99.5%"
+            width="99%"
+            height="99%"
             value={value}
             options={options}
             theme={setting.editorTheme()}

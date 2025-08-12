@@ -18,7 +18,7 @@ import {
   MongoDBQuery,
   BsonExtraDataType,
 } from './MongoQueryBackend';
-import { saveAndSetHeight, generateRandomString } from './helper';
+import { generateRandomString, saveAndSetSize } from './helper';
 import {
   EditorBar,
   EscDownEvent,
@@ -153,8 +153,8 @@ function MongoQuery(props: {
   const editorDom = useRef(null);
   const loggerDom = useRef(null);
   useEffect(() => {
-    const x1 = saveAndSetHeight(editorDom.current, 'mongo-query');
-    const x2 = saveAndSetHeight(loggerDom.current, 'mongo-logger');
+    const x1 = saveAndSetSize(editorDom.current, 'mongo-query', 'height');
+    const x2 = saveAndSetSize(loggerDom.current, 'mongo-logger', 'height');
     return () => {
       x1();
       x2();
@@ -240,7 +240,8 @@ function MongoQuery(props: {
       >
         <div style={{ height: '100px', flexGrow: 1, flexShrink: 1 }}>
           <Editor
-            width="99.5%"
+            width="99%"
+            height="99%"
             onMount={jsCodeMount}
             language="javascript"
             options={options}
@@ -275,6 +276,7 @@ function MongoQuery(props: {
           <Editor
             options={options}
             width="99.5%"
+            height="99%"
             language="log"
             theme={setting.editorTheme()}
             onMount={logEditorOnmount}

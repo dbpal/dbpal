@@ -43,7 +43,7 @@ import {
   modalStyle,
   reloadOK,
   SettingContext,
-  SimpleResizeEditor,
+  SimpleFlexSizeEditor,
 } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -62,7 +62,7 @@ import {
   handleCopyToClipboard,
   isTypeLargeText,
   resetMuiDataRespWidth,
-  saveAndSetWidth,
+  saveAndSetSize,
   secondConfirm,
   TabContent,
   TabsSetContext,
@@ -161,6 +161,13 @@ function WhereSort(props: {
       return list;
     });
   };
+  const [modalBox, setModalBox] = useState(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'where-sort');
+      return c;
+    }
+  }, [modalBox]);
   return (
     <Modal
       open={open}
@@ -172,9 +179,14 @@ function WhereSort(props: {
         onClose();
       }}
     >
-      <Box sx={modalStyle} width="75%" height="30vh">
+      <Box
+        sx={{ resize: 'both', ...modalStyle }}
+        width="75%"
+        height="30vh"
+        ref={setModalBox}
+      >
         <ModalHeader title={`set ${label}`}></ModalHeader>
-        <SimpleResizeEditor
+        <SimpleFlexSizeEditor
           value={newValue}
           onMount={(e) => {
             e.onDidChangeModelContent(() => {
@@ -182,7 +194,7 @@ function WhereSort(props: {
             });
           }}
           language={whereLanguage}
-        ></SimpleResizeEditor>
+        ></SimpleFlexSizeEditor>
 
         <Stack direction="row" spacing={1}>
           <Button
@@ -242,7 +254,7 @@ function EditInModal(props: { content: string; handleModify }) {
   }, [value, language]);
 
   return (
-    <Stack flex={1}>
+    <Stack flex={1} spacing={1}>
       <Stack direction="row" spacing={1}>
         {languages.map((e) => (
           <Chip
@@ -259,7 +271,7 @@ function EditInModal(props: { content: string; handleModify }) {
           ></Chip>
         ))}
       </Stack>
-      <SimpleResizeEditor
+      <SimpleFlexSizeEditor
         value={content}
         language={language}
         onMount={(editor, _) => {
@@ -274,7 +286,7 @@ function EditInModal(props: { content: string; handleModify }) {
             </Typography>
           ) : undefined
         }
-      ></SimpleResizeEditor>
+      ></SimpleFlexSizeEditor>
       <Divider></Divider>
       <Stack spacing={1} direction="row">
         <Button
@@ -666,7 +678,7 @@ function SqlTableView_(props: {
   const [editInModalBox, setEditInMoalBox] = useState(null);
   useEffect(() => {
     if (editInModalBox) {
-      let x1 = saveAndSetWidth(editInModalBox, 'edit-cell');
+      let x1 = saveAndSetSize(editInModalBox, 'edit-cell');
       return () => {
         x1();
       };
@@ -675,7 +687,7 @@ function SqlTableView_(props: {
   const [editRowInModalBox, setEditRowInMoalBox] = useState(null);
   useEffect(() => {
     if (editRowInModalBox) {
-      let x1 = saveAndSetWidth(editRowInModalBox, 'edit-row');
+      let x1 = saveAndSetSize(editRowInModalBox, 'edit-row', 'width');
       return () => {
         x1();
       };
@@ -816,10 +828,8 @@ function SqlTableView_(props: {
           }}
         >
           <Box
-            sx={modalStyle}
-            ref={(dom) => {
-              setEditInMoalBox(dom);
-            }}
+            sx={{ resize: 'both', ...modalStyle }}
+            ref={setEditInMoalBox}
             width="80%"
             height="30vh"
           >
@@ -849,10 +859,8 @@ function SqlTableView_(props: {
           }}
         >
           <Box
-            sx={modalStyle}
-            ref={(dom) => {
-              setEditRowInMoalBox(dom);
-            }}
+            sx={{ resize: 'horizontal', ...modalStyle }}
+            ref={setEditRowInMoalBox}
             width="80%"
           >
             <ModalHeader title="edit row"></ModalHeader>

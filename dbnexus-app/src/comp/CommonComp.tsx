@@ -419,6 +419,7 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
     <div
       style={{
         display: 'grid',
+        backgroundColor: 'green',
       }}
     >
       <DataGrid

@@ -14,7 +14,7 @@ import {
   DocsAndCount,
   SettingContext,
   initMonacoLanague,
-  SimpleResizeEditor,
+  SimpleFlexSizeEditor,
   makeAutoComplete,
   EscDownEvent,
 } from './Common';
@@ -57,6 +57,7 @@ import {
   handleCopyToClipboard,
   MatchPatternContext,
   quoteStyle,
+  saveAndSetSize,
   secondConfirm,
   TabsSetContext,
   UuidContext,
@@ -207,10 +208,22 @@ function StatementStructure(props: {
   useEffect(() => {
     handleReload();
   }, []);
-
   initMonacoLanague(uuid, kind);
+  const [dom, setDom] = useState(null);
+  useEffect(() => {
+    if (dom) {
+      let c = saveAndSetSize(dom, 'statement', 'height');
+      return c;
+    }
+  }, [dom]);
+
   return (
-    <Stack spacing={1} flex={1}>
+    <Stack
+      spacing={1}
+      height="60vh"
+      style={{ resize: 'vertical', overflow: 'auto', minHeight: '20vh' }}
+      ref={setDom}
+    >
       <Stack direction="row">
         <Button
           loading={loading}
@@ -223,11 +236,11 @@ function StatementStructure(props: {
         </Button>
       </Stack>
       {sql && (
-        <SimpleResizeEditor
+        <SimpleFlexSizeEditor
           readOnly={true}
           language={uuid}
           value={sql}
-        ></SimpleResizeEditor>
+        ></SimpleFlexSizeEditor>
       )}
     </Stack>
   );

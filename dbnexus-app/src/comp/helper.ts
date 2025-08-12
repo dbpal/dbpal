@@ -331,23 +331,17 @@ enum AppStoreKey {
 }
 
 
-appStore.get(AppStoreKey.Sizes).then(e => {
-  if (e) {
-    SaveSizesToStore.sizes = e;
-  }
-})
-
-
-
 class SaveSizesToStore {
-  static async saveSize(key: string, size: number) {
+  static async saveSize(key: string, size: UISize) {
     let sizes = await appStore.get<object>(AppStoreKey.Sizes);
+    if (!sizes) {
+      sizes = {};
+    }
     sizes[key] = size;
     await appStore.set(AppStoreKey.Sizes, sizes);
   }
-  static sizes = {};
-  static getSize(key: string, defaultSize = 300): number {
-    return this.sizes[key] || defaultSize
+  static async getSize(key: string): Promise<undefined | UISize> {
+    return appStore.get(AppStoreKey.Sizes).then(s => s && s[key])
   }
 }
 
@@ -518,41 +512,33 @@ function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridDat
   };
 }
 
+type UISize = {
+  width?: number;
+  height?: number;
+};
 
-function saveAndSetHeight(dom: Element, key: string) {
-  key = `height-${key}`;
-  let height = SaveSizesToStore.getSize(key);
-  if (height) {
-    (dom as HTMLDivElement).style.height = height + 'px';
-  }
+function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "both" = "both") {
   let e = new ResizeObserver((en) => {
     const height = en[0].target.clientHeight;
-    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ", height, key);
-    SaveSizesToStore.saveSize(key, height);
-  });
-  e.observe(dom);
-  return () => {
-    e.unobserve(dom);
-  };
-}
-
-function saveAndSetWidth(dom: Element, key: string) {
-  key = `width-${key}`;
-  let width = SaveSizesToStore.getSize(key);
-  if (width) {
-    (dom as HTMLDivElement).style.width = width + 'px';
-  }
-  let e = new ResizeObserver((en) => {
     const width = en[0].target.clientWidth;
-    SaveSizesToStore.saveSize(key, width);
+    SaveSizesToStore.saveSize(key, { width, height });
+  });
+  SaveSizesToStore.getSize(key).then(size => {
+    if (size) {
+      let div = (dom as HTMLDivElement);
+      if (set == "height" || set == "both") {
+        div.style.height = size.height + 'px';
+      }
+      if (set == "width" || set == "both") {
+        div.style.width = size.width + 'px';
+      }
+    }
   });
   e.observe(dom);
-
   return () => {
     e.unobserve(dom);
   };
 }
-
 
 export {
   TabsSetContext,
@@ -589,7 +575,7 @@ export {
   MatchPatternContext,
   resetMuiDataRespWidth,
   quoteStyle,
-  saveAndSetHeight,
+  saveAndSetSize,
   SaveSizesToStore,
-  saveAndSetWidth
 };
+

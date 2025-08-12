@@ -84,7 +84,7 @@ import {
   filterStyle,
   handleCopyToClipboard,
   resetMuiDataRespWidth,
-  saveAndSetHeight,
+  saveAndSetSize,
   VisiableContext,
 } from './helper';
 
@@ -296,10 +296,7 @@ function MongoBsonEditor(props: {
   }, [setting]);
   const divDom = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const x1 = saveAndSetHeight(
-      divDom.current,
-      `mongobsonEditor-${heightName}`
-    );
+    const x1 = saveAndSetSize(divDom.current, `mongobsonEditor-${heightName}`);
     return () => {
       x1();
     };
@@ -324,7 +321,8 @@ function MongoBsonEditor(props: {
         }}
       >
         <Editor
-          width="99.5%"
+          width="99%"
+          height="99%"
           onMount={handleEditorDidMount}
           language="mongoBson"
           value={content.current}

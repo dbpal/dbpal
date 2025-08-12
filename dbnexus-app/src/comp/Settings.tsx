@@ -24,7 +24,7 @@ import {
   EscDownEvent,
   modalStyle,
   SettingContext,
-  SimpleResizeEditor,
+  SimpleFlexSizeEditor,
   UserSettings,
 } from './Common';
 import { ModalHeader, SelectPageSize } from './CommonComp';
@@ -291,7 +291,7 @@ function EditorOptions(props: {
           }}
         ></Chip>
       </Stack>
-      <SimpleResizeEditor
+      <SimpleFlexSizeEditor
         language="json"
         value={value}
         onMount={(editor) => {
@@ -306,7 +306,7 @@ function EditorOptions(props: {
             </Typography>
           ) : null
         }
-      ></SimpleResizeEditor>
+      ></SimpleFlexSizeEditor>
       <Divider></Divider>
       <Stack direction="row" spacing={1}>
         <Button

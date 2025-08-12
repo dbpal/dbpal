@@ -37,6 +37,7 @@ function TriggerDetail(props: {
 
   return (
     <DefAndMetasView
+      heightName="trigger-detail"
       language={language}
       reloadOP={async () => {
         return reloadOP().then((detail) => {

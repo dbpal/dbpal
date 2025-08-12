@@ -7,6 +7,7 @@ import {
   CSSProperties,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -14,11 +15,11 @@ import {
   EscDownEvent,
   modalStyle,
   SettingContext,
-  SimpleResizeEditor,
+  SimpleFlexSizeEditor,
 } from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
-import { VisiableContext } from './helper.ts';
+import { saveAndSetSize, VisiableContext } from './helper.ts';
 import { ModalHeader } from './CommonComp.tsx';
 
 const pageSizeOptions = [10, 15];
@@ -78,6 +79,13 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '50vh' } as CSSProperties;
   }, []);
+  const [modalBox, setModalBox] = useState(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'query-sql');
+      return c;
+    }
+  }, [modalBox]);
   return (
     <Stack>
       {vis && (
@@ -114,12 +122,17 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
             setSelectSql('');
           }}
         >
-          <Box sx={modalStyle} width="60%" height="40vh">
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            ref={setModalBox}
+            width="60%"
+            height="40vh"
+          >
             <ModalHeader title="View SQL"></ModalHeader>
-            <SimpleResizeEditor
+            <SimpleFlexSizeEditor
               language={language}
               value={selectSql}
-            ></SimpleResizeEditor>
+            ></SimpleFlexSizeEditor>
           </Box>
         </Modal>
       )}

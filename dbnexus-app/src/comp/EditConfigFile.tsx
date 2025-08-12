@@ -3,7 +3,7 @@ import { useContext, useEffect, useState } from 'react';
 
 import { appStore, valid_json } from './helper';
 import { NotificationContext } from './Notification';
-import { SimpleResizeEditor } from './Common';
+import { SimpleFlexSizeEditor } from './Common';
 
 function EditConfigFile(props: { handleClose }) {
   const { handleClose } = props;
@@ -51,7 +51,7 @@ function EditConfigFile(props: { handleClose }) {
   };
   return (
     <Stack spacing={1} flex={1}>
-      <SimpleResizeEditor
+      <SimpleFlexSizeEditor
         value={config}
         onMount={(editor) => {
           editor.onDidChangeModelContent(() => {
@@ -64,7 +64,7 @@ function EditConfigFile(props: { handleClose }) {
             <Typography color="error"> {jsonError}</Typography>
           ) : undefined
         }
-      ></SimpleResizeEditor>
+      ></SimpleFlexSizeEditor>
       <Stack direction="row">
         <Button variant="contained" onClick={handleSave}>
           save

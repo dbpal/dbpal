@@ -89,10 +89,13 @@ function RedisQuery(props: {
       });
   };
   const [size, setSize] = useState<string | number>('40vw');
-  const sizeKey = 'reids_query_size';
+  const sizeKey = 'reids-query-size';
   useEffect(() => {
-    let size = SaveSizesToStore.getSize(sizeKey, 300);
-    setSize(size);
+    SaveSizesToStore.getSize(sizeKey).then((e) => {
+      if (e && e.width) {
+        setSize(e.width);
+      }
+    });
   }, []);
 
   return (
@@ -111,7 +114,7 @@ function RedisQuery(props: {
       }} // 拖动结束
       style={{ position: 'relative' }}
       onChange={(newsize) => {
-        SaveSizesToStore.saveSize(sizeKey, newsize);
+        SaveSizesToStore.saveSize(sizeKey, { width: newsize });
       }}
     >
       <SqlQuery

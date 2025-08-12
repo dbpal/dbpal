@@ -29,7 +29,7 @@ import {
   modalStyle,
   SettingContext,
   reloadOK,
-  SimpleResizeEditor,
+  SimpleFlexSizeEditor,
   EscDownEvent,
 } from './Common.tsx';
 
@@ -49,6 +49,7 @@ import {
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
+  saveAndSetSize,
   stringToHex,
   valid_json,
   VisiableContext,
@@ -146,9 +147,24 @@ function RedisStringTable(props: {
         setLoading(false);
       });
   };
-
+  const [dom, setDom] = useState(null);
+  useEffect(() => {
+    if (dom) {
+      let c = saveAndSetSize(dom, 'redis-string-edit', 'height');
+      return c;
+    }
+  }, [dom]);
   return (
-    <Stack spacing={1}>
+    <Stack
+      spacing={1}
+      style={{
+        resize: 'vertical',
+        overflow: 'auto',
+        height: '300px',
+        minHeight: '20vh',
+      }}
+      ref={setDom}
+    >
       <RedisValueEditor
         oldValue={newContent}
         handleValue={(e) => {
@@ -580,7 +596,7 @@ function RedisValueEditor(props: {
         )}
       </Stack>
 
-      <SimpleResizeEditor
+      <SimpleFlexSizeEditor
         language={editModel == RedisEditorMode.Json ? 'json' : 'text'}
         // in some times newvalue is not change as a string
         value={typeof newValue == 'object' ? '' : newValue}
@@ -598,7 +614,7 @@ function RedisValueEditor(props: {
             </Typography>
           ) : undefined
         }
-      ></SimpleResizeEditor>
+      ></SimpleFlexSizeEditor>
     </Stack>
   );
 }
@@ -630,9 +646,8 @@ function RedisEditList(props: {
         setLoading(false);
       });
   };
-
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1}>
       <RedisValueEditor
         oldValue={oldValue}
         handleValue={(e) => {
@@ -834,6 +849,14 @@ function RedisSetTable(props: {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
 
+  const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'redis-edit');
+      return c;
+    }
+  }, [modalBox]);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="center">
@@ -894,7 +917,12 @@ function RedisSetTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            width="80%"
+            ref={setModalBox}
+            height="70vh"
+          >
             <ModalHeader title="Edit Set value"></ModalHeader>
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
@@ -1132,16 +1160,22 @@ function RedisListTable(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
-
+  const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'redis-edit');
+      return c;
+    }
+  }, [modalBox]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
         <Button
-          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
-          color="primary" // 主题颜色
+          variant="contained"
+          color="primary"
           onClick={() => {
             handleReload(true);
-          }} // 点击事件处理
+          }}
           loading={loading}
         >
           reload
@@ -1190,7 +1224,12 @@ function RedisListTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            width="80%"
+            height="70vh"
+            ref={setModalBox}
+          >
             <ModalHeader title="Edit List value"></ModalHeader>
             <RedisEditList
               modifyOP={async (index, newValue) => {
@@ -1360,7 +1399,13 @@ function RedisZsetTable(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
-
+  const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'redis-edit');
+      return c;
+    }
+  }, [modalBox]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -1453,7 +1498,12 @@ function RedisZsetTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            width="80%"
+            height="70vh"
+            ref={setModalBox}
+          >
             <ModalHeader title="Edit Zset Value"></ModalHeader>
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
@@ -1609,7 +1659,13 @@ function RedisHashTable(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
-
+  const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'redis-edit');
+      return c;
+    }
+  }, [modalBox]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="center">
@@ -1672,7 +1728,12 @@ function RedisHashTable(props: {
             setSelectRow(null);
           }}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            width="80%"
+            height="70vh"
+            ref={setModalBox}
+          >
             <ModalHeader title="Edit Hash Value"></ModalHeader>
             <RedisEditHash
               modifyOP={async (req) => {

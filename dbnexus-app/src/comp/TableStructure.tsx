@@ -13,7 +13,7 @@ import {
   initMonacoLanague,
   modalStyle,
   SettingContext,
-  SimpleResizeEditor,
+  SimpleFlexSizeEditor,
 } from './Common';
 import {
   calMenuStyle,
@@ -21,6 +21,7 @@ import {
   ContextMenuContext,
   DataSourceKind,
   handleCopyToClipboard,
+  saveAndSetSize,
   secondConfirm,
   VisiableContext,
 } from './helper';
@@ -1648,8 +1649,24 @@ function StatementStructure(props: {
     return ret;
   };
   initMonacoLanague(uuid, kind);
+  const [dom, setDom] = useState(null);
+  useEffect(() => {
+    if (dom) {
+      let c = saveAndSetSize(dom, 'table-create-sql');
+      return c;
+    }
+  }, [dom]);
   return (
-    <Stack spacing={1}>
+    <Stack
+      spacing={1}
+      style={{
+        height: '60vh',
+        minHeight: '20vh',
+        resize: 'vertical',
+        overflow: 'auto',
+      }}
+      ref={setDom}
+    >
       <Stack direction="row">
         <Button
           loading={loading}
@@ -1662,11 +1679,11 @@ function StatementStructure(props: {
         </Button>
       </Stack>
       {sql && (
-        <SimpleResizeEditor
+        <SimpleFlexSizeEditor
           language={uuid}
           value={getValue()}
           readOnly={true}
-        ></SimpleResizeEditor>
+        ></SimpleFlexSizeEditor>
       )}
     </Stack>
   );
