@@ -1,7 +1,7 @@
 import { Button, Stack, Typography } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 
-import { appStore, valid_json } from './helper';
+import { appStore, validJson } from './helper';
 import { NotificationContext } from './Notification';
 import { SimpleFlexSizeEditor } from './Common';
 
@@ -24,7 +24,7 @@ function EditConfigFile(props: { handleClose }) {
   }, []);
 
   useEffect(() => {
-    valid_json(config)
+    validJson(config)
       .then(() => {
         setJsonError(null);
       })

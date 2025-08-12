@@ -29,7 +29,7 @@ import {
 } from './Common';
 import { ModalHeader, SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { valid_json } from './helper';
+import { validJson } from './helper';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -70,7 +70,7 @@ function ModifySettings({ handleClose }) {
 
   const handleSave = async () => {
     try {
-      await valid_json(editorOptions);
+      await validJson(editorOptions);
     } catch (e) {
       showNotification('error', 'not a valid json', e);
       return;
@@ -269,7 +269,7 @@ function EditorOptions(props: {
   const [value, setValue] = useState(editorOptions);
   const [jsonErr, setJsonErr] = useState<string | null>(null);
   useEffect(() => {
-    valid_json(value)
+    validJson(value)
       .then(() => {
         setJsonErr(null);
       })
@@ -313,7 +313,7 @@ function EditorOptions(props: {
           variant="contained"
           onClick={async () => {
             try {
-              await valid_json(value);
+              await validJson(value);
             } catch (e) {
               showNotification('error', 'not a valid json', e);
               return;

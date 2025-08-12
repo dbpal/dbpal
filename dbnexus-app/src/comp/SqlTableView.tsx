@@ -66,7 +66,7 @@ import {
   secondConfirm,
   TabContent,
   TabsSetContext,
-  valid_json,
+  validJson,
   VisiableContext,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
@@ -244,7 +244,7 @@ function EditInModal(props: { content: string; handleModify }) {
       setJsonErr(null);
       return;
     }
-    valid_json(value)
+    validJson(value)
       .then(() => {
         setJsonErr(null);
       })
@@ -1132,7 +1132,7 @@ function Menu(props: {
             <ListItemIcon>
               <CancelIcon></CancelIcon>
             </ListItemIcon>
-            <ListItemText> Set as Null </ListItemText>
+            <ListItemText> Set As Null </ListItemText>
           </MenuItem>
         )}
 

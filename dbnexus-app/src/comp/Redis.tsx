@@ -51,7 +51,7 @@ import {
   hexTryToString,
   saveAndSetSize,
   stringToHex,
-  valid_json,
+  validJson,
   VisiableContext,
 } from './helper.ts';
 import { ModalHeader, pageSizeOptions } from './CommonComp.tsx';
@@ -548,7 +548,7 @@ function RedisValueEditor(props: {
       setJsonErr(null);
       return;
     }
-    valid_json(newValue)
+    validJson(newValue)
       .then(() => {
         setJsonErr(null);
       })

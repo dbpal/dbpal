@@ -32,22 +32,6 @@ async function secondConfirm({
   });
 }
 
-async function randomTestThrowFunction() {
-  await delayedReturn(undefined, Math.random() * 900);
-  const v = Math.random();
-  if (v > 0.8) {
-    throw new Error(`this is random error of ${v}`);
-  }
-}
-
-
-async function voidTestFunction() {
-  try {
-    await randomTestThrowFunction();
-  } catch (e) {
-    throw e;
-  }
-}
 
 function generateRandomString(length: number = 10): string {
   const characters =
@@ -66,14 +50,6 @@ function generateRandomUint8Array(length: number = 40): Uint8Array {
     result.push(Math.floor(Math.random() * 255));
   }
   return new Uint8Array(result);
-}
-
-function delayedReturn(value: any, delay: number) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(value);
-    }, delay);
-  });
 }
 
 // redis的数据存储的时候都是二进制 有时候包含的是有效的
@@ -158,7 +134,8 @@ function backendCompletionItemToEditor(
       case 'Schema':
         return languages.CompletionItemKind.Folder;
       case 'Table':
-        return languages.CompletionItemKind.File;
+      case "View":
+        return languages.CompletionItemKind.Reference;
       case 'Column':
         return languages.CompletionItemKind.Field;
       case 'Text':
@@ -496,7 +473,7 @@ const filterStyle = {
   } as CSSProperties,
 };
 
-function valid_json(s: string): Promise<void> {
+function validJson(s: string): Promise<void> {
   return invoke<void>("valid_json", { jsonStr: s })
 }
 
@@ -546,10 +523,7 @@ export {
   UuidContext,
   ContextMenuContext,
   TabContent,
-  randomTestThrowFunction,
   generateRandomString,
-  delayedReturn,
-  voidTestFunction,
   generateRandomUint8Array,
   hexTryToString,
   hexToString,
@@ -567,7 +541,7 @@ export {
   AppStoreKey,
   columnWidths,
   handleCopyToClipboard,
-  valid_json,
+  validJson,
   uint8ArrayToUtf8,
   filterStyle,
   VisiableContext,
