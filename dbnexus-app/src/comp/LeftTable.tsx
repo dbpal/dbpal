@@ -130,7 +130,7 @@ function TablesTree(props: { typ: TablesType }) {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center', fontWeight: 'bold' }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -1259,7 +1259,7 @@ function RedisTables(prpos: { schema?: string }) {
         label=<Stack
           spacing={1}
           direction="row"
-          sx={{ alignItems: 'center', fontWeight: 'bold' }}
+          sx={{ alignItems: 'center' }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -1280,7 +1280,6 @@ function RedisTables(prpos: { schema?: string }) {
             itemId={idPrefix + table}
             label=<Stack
               direction="row"
-              style={{ fontWeight: 'bold' }}
               onContextMenu={(e) => {
                 setUpMenu({
                   content: (
@@ -1311,7 +1310,7 @@ function RedisTables(prpos: { schema?: string }) {
         itemId={filterTreeID}
         label=<Stack
           direction="row"
-          style={{ cursor: 'pointer', fontWeight: 'bold' }}
+          style={{ cursor: 'pointer' }}
           onClick={() => {
             setShowEditFilter(true);
           }}

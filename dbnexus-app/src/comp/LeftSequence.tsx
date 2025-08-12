@@ -73,7 +73,7 @@ function SequenceTree() {
       label=<Stack
         direction="row"
         spacing={1}
-        sx={{ alignItems: 'center', fontWeight: 'bold' }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -112,7 +112,7 @@ function SequenceTree() {
                   style: calMenuStyle(e, 100),
                 });
               }}
-              sx={{ alignItems: 'center', fontWeight: 'bold' }}
+              sx={{ alignItems: 'center' }}
             >
               <GiProgression></GiProgression>
               <span>{seq.name}</span>
@@ -153,7 +153,7 @@ function SequenceMenu(props: {
   const handleOpenDetails = () => {
     initMonacoLanague(uuid, kind);
 
-    const id = uuid + '-' + '-sequence-' + seq;
+    const id = uuid + '-' + '-sequence-' + seq.name;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);

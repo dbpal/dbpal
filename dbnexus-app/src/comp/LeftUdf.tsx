@@ -82,7 +82,7 @@ function UdfsTree() {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center', fontWeight: 'bold' }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -112,7 +112,7 @@ function UdfsTree() {
             label=<Stack
               direction="row"
               spacing={1}
-              sx={{ alignItems: 'center', fontWeight: 'bold' }}
+              sx={{ alignItems: 'center' }}
               onContextMenu={(e) => {
                 setUpMenu({
                   content: (
@@ -379,7 +379,7 @@ function CassaandraAggregatesTree() {
       label=<Stack
         spacing={1}
         direction="row"
-        sx={{ alignItems: 'center', fontWeight: 'bold' }}
+        sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -409,7 +409,7 @@ function CassaandraAggregatesTree() {
             label=<Stack
               direction="row"
               spacing={1}
-              sx={{ alignItems: 'center', fontWeight: 'bold' }}
+              sx={{ alignItems: 'center' }}
               onContextMenu={(e) => {
                 setUpMenu({
                   content: (

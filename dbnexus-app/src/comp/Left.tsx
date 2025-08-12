@@ -914,7 +914,6 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         }}
         sx={{
           alignItems: 'center',
-          fontWeight: 'bold',
         }}
       >
         {schema && <LuDatabase></LuDatabase>}
@@ -1395,7 +1394,6 @@ function CatalogTree(_props: {}) {
       label=<Stack
         direction="row"
         spacing={1}
-        style={{ fontWeight: 'bold' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -1500,7 +1498,7 @@ function DatabaseTree(props: {
             style: calMenuStyle(e, 70),
           });
         }}
-        sx={{ alignItems: 'center', fontWeight: 'bold' }}
+        sx={{ alignItems: 'center' }}
       >
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>

@@ -467,21 +467,22 @@ impl SchemaTrait for PostGresDB {
                     r#"
 
                 SELECT format(
-                    'CREATE SEQUENCE %I.%I\n'||
-                    '    START WITH %s\n'||
-                    '    INCREMENT BY %s\n'||
-                    '    MINVALUE %s\n'||
-                    '    MAXVALUE %s\n'||
+                    'CREATE SEQUENCE %I.%I' || chr(10) ||
+                    '    START WITH %s' || chr(10) ||
+                    '    INCREMENT BY %s' || chr(10) ||
+                    '    MINVALUE %s' || chr(10) ||
+                    '    MAXVALUE %s' || chr(10) ||
                     '    CACHE %s%s;',
                     schemaname, sequencename,
                     start_value, increment_by,
                     min_value, max_value,
                     cache_size,
-                    CASE WHEN cycle THEN '\n    CYCLE' ELSE '' END
+                    CASE WHEN cycle THEN chr(10) || '    CYCLE' ELSE '' END
                 ) AS create_sql
                 FROM pg_sequences
                 WHERE schemaname = '{}'
                 AND sequencename = '{}';
+
 
             "#,
                     self.config.schema_str(),
@@ -865,12 +866,10 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let arg = match &arg {
-            Some(arg) => {
-                match arg {
-                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                    _ => return Err(arg.wrong_type()),
-                }
-            }
+            Some(arg) => match arg {
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                _ => return Err(arg.wrong_type()),
+            },
             None => anyhow::bail!(format!("postgres need extra parameter")),
         };
 
@@ -909,15 +908,13 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
-            Some(x) => {
-                match x {
-                    UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                    #[allow(unreachable_patterns)]
-                    _ => {
-                        anyhow::bail!("must be a postgres parameter")
-                    }
+            Some(x) => match x {
+                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
+                #[allow(unreachable_patterns)]
+                _ => {
+                    anyhow::bail!("must be a postgres parameter")
                 }
-            }
+            },
             None => anyhow::bail!("postgres need extra parameters to drop udf."),
         };
 

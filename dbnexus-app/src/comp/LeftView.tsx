@@ -143,7 +143,6 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       label=<Stack
         direction="row"
         spacing={1}
-        style={{ fontWeight: 'bold' }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -451,7 +450,7 @@ function ViewTree(props: {
         <Stack
           direction="row"
           spacing={1}
-          sx={{ justifyContent: 'space-between', fontWeight: 'bold' }}
+          sx={{ justifyContent: 'space-between' }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
