@@ -1020,10 +1020,10 @@ impl CompletionStatement {
                         // I think they are literal.
                     }
                     AlterRoleOperation::Set { .. } => {
-                        // no completion on this.
+                        // fallback to lexer
                     }
                     AlterRoleOperation::Reset { .. } => {
-                        // no completion on this.
+                        // fallback to lexer
                     }
                 }
             }
@@ -1038,7 +1038,6 @@ impl CompletionStatement {
             }
             Statement::AttachDatabase { .. } => {
                 // fallback to lexer
-                // this SQLite-specific
             }
             Statement::AttachDuckDBDatabase { .. } => {
                 // no support on this

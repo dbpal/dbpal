@@ -1,5 +1,6 @@
 import {
   Button,
+  Chip,
   FormControlLabel,
   IconButton,
   ListItemIcon,
@@ -192,6 +193,8 @@ function CreateSchema(props: {
   const [replicationStrategy, setReplicationStrategy] = useState(
     replicationStrateges[0]
   );
+  const [path, setPath] = useState('');
+
   const [replicationFactor, setReplicationFactor] = useState('3');
   const handleCreate = () => {
     if (!schema) {
@@ -212,6 +215,8 @@ function CreateSchema(props: {
           replication_factor: parseInt(replicationFactor),
         };
         break;
+      case DataSourceKind.Sqlite:
+        extra = { extra: 'sqlite', path };
     }
     invoke('create_schema', { name: uuid, schema, extra })
       .then(() => {
@@ -224,6 +229,41 @@ function CreateSchema(props: {
       });
   };
 
+  if (kind == DataSourceKind.Sqlite) {
+    return (
+      <Stack spacing={1}>
+        <TextField
+          value={schema}
+          onChange={(e) => {
+            setSchema(e.target.value);
+          }}
+          size="small"
+          required
+          error={schema === 'main'}
+          helperText="name can't be empty "
+        ></TextField>
+        <Chip
+          label={`path:${path}`}
+          onClick={async () => {
+            let path = await open({});
+            if (path) {
+              setPath(path);
+            }
+          }}
+        ></Chip>
+        <Stack direction="row" alignItems="center">
+          <Button
+            onClick={() => {
+              handleCreate();
+            }}
+            variant="contained"
+          >
+            attach
+          </Button>
+        </Stack>
+      </Stack>
+    );
+  }
   if (kind === DataSourceKind.Cassandra) {
     //
     return (

@@ -12,9 +12,7 @@ import {
   useState,
 } from 'react';
 import { MdError } from 'react-icons/md';
-import { SiWelcometothejungle } from 'react-icons/si';
 import { TabContent, TabsWithContent } from './Tabs';
-import { WelCome } from './WelCome';
 import { EscDownEvent, modalStyle } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
@@ -73,14 +71,7 @@ import { EditConfigFile } from './EditConfigFile.tsx';
 import { ModalHeader } from './CommonComp.tsx';
 
 export default function MainPage() {
-  let [tabs, setTabs] = useState<TabContent[]>([
-    new TabContent(
-      'welcome',
-      'welcome',
-      <WelCome></WelCome>,
-      <SiWelcometothejungle> </SiWelcometothejungle>
-    ),
-  ]);
+  let [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
   const [showSetting, setShowSetting] = useState(false);
   const closeTab = useCallback(

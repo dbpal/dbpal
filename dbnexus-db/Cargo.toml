@@ -85,7 +85,7 @@ clickhouse = { version = "0.13.1", features = ["rustls-tls", "time", "uuid"] }
 duckdb = { version = "=1.2.2", features = ["bundled"], optional = true }
 libduckdb-sys = { version = "=1.2.2", optional = true }
 cql3-parser = { git = "https://github.com/dbpal/rust-cql3-parser", rev = "89aef5f99854449a78dc37a17363823f889374c8" }
-libsql = { version = "0.9.7" }
+libsql = { version = "0.9.7", optional = true }
 rsfbclient = { version = "0.25.1", default-features = false, features = [
     "pure_rust",
 ] }
@@ -95,3 +95,4 @@ rsfbclient-rust = "*"
 
 [features]
 duckdb = ["dep:duckdb", "dep:libduckdb-sys"]
+libsql = ["dep:libsql"]

@@ -731,6 +731,9 @@ pub enum CreateSchemaExtra {
         replication_strategy: String,
         replication_factor: u32,
     },
+    Sqlite {
+        path: String,
+    },
 }
 
 #[derive(Clone, Debug, TypeDef, serde::Serialize)]

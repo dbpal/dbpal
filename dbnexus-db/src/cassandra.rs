@@ -1848,6 +1848,9 @@ impl DBTrait for CassandraDB {
                 replication_strategy,
                 replication_factor,
             } => (replication_strategy, replication_factor),
+            _ => {
+                anyhow::bail!("wrong password for cassandra");
+            }
         };
 
         let sql = format!(

@@ -713,7 +713,7 @@ impl SchemaTrait for LibSqlDB {
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone()).await?;
-        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
+        let sql = gen_show_sql("main", table_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
         let conn = self.get_conn().await?;
         let mut query_rows = conn.query(&sql, params!()).await?;
@@ -732,7 +732,7 @@ impl SchemaTrait for LibSqlDB {
     ) -> anyhow::Result<QueryResp> {
         let conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str.clone()).await?;
-        let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
+        let sql = gen_show_sql("main", view_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
         let mut raw_rows = conn.query(&sql, params!()).await?;
         let mut rows = Vec::new();

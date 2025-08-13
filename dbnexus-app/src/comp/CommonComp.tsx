@@ -197,6 +197,20 @@ function ConnPingTime({ uuid }) {
 
 function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   const { handleCreate, kind } = props;
+  if (kind === DataSourceKind.Sqlite) {
+    return (
+      <MenuItem
+        onClick={() => {
+          handleCreate();
+        }}
+      >
+        <ListItemIcon>
+          <TbDatabasePlus></TbDatabasePlus>
+        </ListItemIcon>
+        <ListItemText> attach database </ListItemText>
+      </MenuItem>
+    );
+  }
   let name = 'database';
   switch (kind) {
     case DataSourceKind.MsSql:
@@ -420,7 +434,6 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
     <div
       style={{
         display: 'grid',
-        backgroundColor: 'green',
       }}
     >
       <DataGrid
