@@ -103,7 +103,7 @@ import { listen } from '@tauri-apps/api/event';
 import { AddConnection } from './AddConnection.tsx';
 import { FaBookmark } from 'react-icons/fa';
 import { SequenceTree } from './LeftSequence.tsx';
-// import { openUrl } from '@tauri-apps/plugin-opener';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 function LeftTop(props: { matchPattern: string; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
@@ -146,14 +146,14 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           direction="row"
           style={{ justifyContent: 'center', flexWrap: 'wrap' }}
         >
-          {/* <img
+          <img
             src="https://dbpal.site/images/icon.png"
-            style={{ width: '3.5rem', cursor: 'pointer' }}
+            style={{ width: '3.3rem', cursor: 'pointer' }}
             onClick={() => {
               openUrl('https://dbpal.site/');
             }}
             alt="logo"
-          ></img> */}
+          ></img>
           <Tooltip title="make a connection">
             <IconButton
               onClick={() => {
