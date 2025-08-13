@@ -56,7 +56,6 @@ custom-protocol = ["tauri/custom-protocol"]
 random-sleep = []
 random-error = []
 duckdb = ["dbnexus-db/duckdb"]
-libsql = ["dbnexus-db/libsql"]
 
 
 [lib]

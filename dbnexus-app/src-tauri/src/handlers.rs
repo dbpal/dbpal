@@ -13,7 +13,6 @@ use dbnexus_db::db::{
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::CompletionItem;
-#[cfg(feature = "libsql")]
 use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::MongoDB;
@@ -2486,7 +2485,6 @@ pub async fn put_value_in_sql(
     if let Ok(e) = xxx::<SqliteDB>(a, &typ, value) {
         return Ok(e);
     }
-    #[cfg(feature = "libsql")]
     if let Ok(e) = xxx::<LibSqlDB>(a, &typ, value) {
         return Ok(e);
     }

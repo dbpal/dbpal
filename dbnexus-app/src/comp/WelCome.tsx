@@ -1,0 +1,127 @@
+import { Chip, Stack, Typography } from '@mui/material';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import InfoIcon from '@mui/icons-material/Info';
+import { CSSProperties } from 'react';
+
+function WelCome() {
+  const databases = [
+    {
+      name: 'mysql',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRK-pSuE46Eo2AAuNQlLg-KAuxpUTkQsCg75A&s',
+    },
+    {
+      name: 'mariadb',
+      img: 'https://img1.baidu.com/it/u=2012462183,3210110809&fm=253&fmt=auto&app=138&f=JPEG?w=600&h=411',
+    },
+    {
+      name: 'tidb',
+      img: 'https://img1.baidu.com/it/u=2784943579,2058069831&fm=253&fmt=auto&app=138&f=PNG?w=1276&h=500',
+    },
+    {
+      name: 'sqlite',
+      img: 'https://img2.baidu.com/it/u=3455858705,150000910&fm=253&fmt=auto&app=138&f=JPEG?w=1055&h=500',
+    },
+    {
+      name: 'oracle',
+      img: 'https://img1.baidu.com/it/u=2116707357,1993137839&fm=253&fmt=auto&app=138&f=PNG?w=500&h=272',
+    },
+    {
+      name: 'sql server',
+      img: 'https://www.techsoupvietnam.vn/sites/default/files/SQL-Server-2012_0.png',
+    },
+    {
+      name: 'redis',
+      img: ' https://banner2.cleanpng.com/20180331/xwe/avh53unx5.webp',
+    },
+    {
+      name: 'mongo',
+      img: 'https://mma.prnewswire.com/media/384058/MongoDB_Logo.jpg?p=facebook',
+    },
+    {
+      name: 'postgres',
+      img: 'https://pic.rmb.bdstatic.com/bjh/events/a04453e1055b0f0bb0014dd2a247ad62.jpeg@h_1280',
+    },
+    {
+      name: 'cassandra',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTYp1cUVJbswwDftaZBUT8_3ttHUSgHENfq7Q&s',
+    },
+    {
+      name: 'clickhouse',
+      img: 'https://pic.rmb.bdstatic.com/bjh/6cd1c89eb632abaffcde8c19ebca83261118.png',
+    },
+    {
+      name: 'libsql',
+      img: 'https://turso.tech/images/blog/the-libsql-glow-up/ugly-old-logo.png',
+    },
+    {
+      name: 'firebird',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQG24A0f2jnl4T9rul7TPM1pELdOB82qJJMmA3le9C3xzfkdZVoQjm3GbGkW2XEfN4mDos&usqp=CAU',
+    },
+    // {
+    //   name: 'duckdb',
+    //   img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/DuckDB_logo.svg/1200px-DuckDB_logo.svg.png',
+    // },
+    {
+      name: 'cockroach',
+      img: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHdzT2jM3iJSR0ku-DfJpUGwG4vA86B5pvLQ&s',
+    },
+  ];
+  let s: CSSProperties = {
+    textShadow: '6px 6px 4px rgba(130, 130, 130, 0.5)',
+    fontStyle: 'italic',
+    fontWeight: 'bold',
+  };
+  return (
+    <Stack spacing={1} style={s}>
+      <Typography variant="h4" fontWeight="bold">
+        dbpal is a database management system that easy to use.
+      </Typography>
+
+      <Typography variant="h6" fontWeight="bold">
+        right now we support:
+      </Typography>
+      <Stack style={{ fontSize: '2rem', flexWrap: 'wrap' }} direction="row">
+        {databases.map((e) => (
+          <Stack
+            style={{
+              padding: '4px',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              borderRadius: '12px',
+              border: '1px solid gray',
+              width: '16rem',
+              height: '9rem',
+            }}
+            key={e.name}
+            className="welcome-image-container"
+          >
+            <img
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '4px',
+                display: 'block',
+              }}
+              src={e.img}
+              width="65rem"
+              alt={e.name}
+            />
+            <span>{e.name}</span>
+          </Stack>
+        ))}
+      </Stack>
+      <Stack direction="row">
+        <Chip
+          icon={<InfoIcon></InfoIcon>}
+          onClick={() => {
+            openUrl('https://dbpal.site');
+          }}
+          style={{ fontStyle: 'normal' }}
+          label="more information"
+          color="info"
+        ></Chip>
+      </Stack>
+    </Stack>
+  );
+}
+
+export { WelCome };

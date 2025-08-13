@@ -15,10 +15,10 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, T
 
 use crate::MemoryLimit;
 use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
-    SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming, escape_sql_str,
+    BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    TriggerDetail, TriggerEvent, TriggerTiming, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -39,7 +39,6 @@ pub struct SqliteDB {
     query_logs: QueryLogMap,
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    db: String,
 }
 
 impl SqliteDB {
@@ -48,11 +47,10 @@ impl SqliteDB {
     ) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
-            "SELECT sql FROM {}.sqlite_master WHERE type = '{kind}' AND name = '{table_name}';",
-            self.db,
+            "SELECT sql FROM sqlite_master WHERE type = '{kind}' AND name = '{table_name}';"
         );
         log::info!("sql:{}", sql);
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_one(conn.deref_mut())
             .await?;
         let sql: String = row.try_get(0)?;
@@ -62,11 +60,10 @@ impl SqliteDB {
     async fn get_table_indexes_sql(&self, table_name: &str) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
-            "SELECT sql FROM {}.sqlite_master WHERE type = 'index' AND tbl_name = '{table_name}';",
-            self.db,
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = '{table_name}';"
         );
         log::info!("sql:{}", sql);
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
 
@@ -92,10 +89,10 @@ impl SqliteDB {
             }
         }
         let mut conn = self.get_conn().await?;
-        let cols: Vec<Field> = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!("SELECT * from \"{}\".\"{}\"", self.db, table_name);
+        let cols = SchemaTrait::show_table_columns(self, table_name).await?;
+        let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let mut stream = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch(conn.deref_mut())
             .try_chunks(100);
         while let Some(rows) = stream.next().await {
@@ -120,7 +117,7 @@ impl SqliteDB {
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
+        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
             let row = row?;
             let value = encode_row_as_json(&row)?;
@@ -137,7 +134,7 @@ impl SqliteDB {
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from \"{}\".\"{}\"", self.db, table_name);
+        let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_json_line(&sql, sender).await
     }
@@ -145,9 +142,9 @@ impl SqliteDB {
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn: PoolConnection<sqlx::Sqlite> = self.get_conn().await?;
+        let mut conn = self.get_conn().await?;
 
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
+        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
 
         sender.send("[".into()).await?;
         let mut first = true;
@@ -179,7 +176,7 @@ impl SqliteDB {
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from \"{}\".\"{}\"", self.db, table_name);
+        let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_json(sql.as_str(), pretty, sender)
             .await
@@ -191,7 +188,7 @@ impl SqliteDB {
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
 
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
+        let mut stream = sqlx::query(AssertSqlSafe(sql))
             .fetch(conn.deref_mut())
             .try_chunks(100);
         let mut first = true;
@@ -225,7 +222,7 @@ impl SqliteDB {
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from "{}"."{}""#, self.db, table_name);
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
             .await
@@ -273,20 +270,96 @@ fn extract_trigger_base_on_lexer(name: &str, sql: String) -> anyhow::Result<Trig
     ))
 }
 
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_base_on_lexer() {
+    {
+        let sql = "after insert".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Insert, sql, None)
+        );
+    }
+    {
+        let sql = "after update".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Update, sql, None)
+        );
+    }
+    {
+        let sql = "after delete".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Delete, sql, None)
+        );
+    }
+    {
+        let sql = "before insert".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Insert, sql, None)
+        );
+    }
+    {
+        let sql = "before update".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Update, sql, None)
+        );
+    }
+    {
+        let sql = "before delete".to_string();
+        assert_eq!(
+            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Delete, sql, None)
+        );
+    }
+
+    // error cases
+    {
+        let sql = "before xxx".to_string();
+        assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
+    }
+    {
+        let sql = "insert xxx".to_string();
+        assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
+    }
+}
+
 pub(crate) fn extract_trigger_detail_from_sql(
     name: &str, sql: String,
 ) -> anyhow::Result<TriggerDetail> {
     extract_trigger_base_on_lexer(name, sql)
 }
 
+#[cfg(test)]
+#[test]
+fn test_extract_trigger_detail_from_sql() {
+    {
+        let x = extract_trigger_detail_from_sql(
+            "after_insert_test_create_trigger",
+            r#"
+            CREATE TRIGGER after_insert_test_create_trigger
+            AFTER INSERT ON test_create_trigger
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO test_create_trigger_update (info)
+                VALUES (NEW.info);
+            END
+        "#
+            .to_owned(),
+        )
+        .unwrap();
+        assert_eq!(x.event, TriggerEvent::Insert);
+    }
+}
+
 async fn query_trigger_detail(
-    db: &str, conn: &mut SqliteConnection, name: &str,
+    conn: &mut SqliteConnection, name: &str,
 ) -> anyhow::Result<TriggerDetail> {
-    let s = format!(
-        "SELECT sql from {}.sqlite_master WHERE type = 'trigger' and name='{name}'",
-        db
-    );
-    let row = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+    let s = format!("SELECT sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
+    let row = sqlx::query(AssertSqlSafe(s.as_str()))
         .fetch_one(conn)
         .await?;
     let sql: String = row.get(0);
@@ -298,9 +371,7 @@ impl CheckConn for SqliteDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let mut conn = self.get_conn().await?;
         let ins = std::time::Instant::now();
-        sqlx::raw_sql("select 1")
-            .fetch_all(conn.deref_mut())
-            .await?;
+        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -311,12 +382,33 @@ impl ServerMetas for SqliteDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let mut conn = self.get_conn().await?;
         let sql = r#"
-            SELECT sqlite_version(); 
+            SELECT sqlite_version(); -- 0 
         "#;
-        let row = sqlx::raw_sql(sql).fetch_one(conn.deref_mut()).await?;
-        let mut metas = Vec::with_capacity(1);
-        let version: String = row.get(0);
-        metas.push(MetaValue::new("version", version));
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
+        let mut metas = Vec::with_capacity(8);
+
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            let row = match item {
+                sqlx::Either::Left(_x) => {
+                    // anyhow::bail!(format!("should be sqlrow but result,result:{:?}", x))
+                    // every select contains an MysqlQueryResult . just ignore them.
+                    continue;
+                }
+
+                sqlx::Either::Right(row) => row,
+            };
+            match metas.len() {
+                0 => {
+                    let version: String = row.try_get(0)?;
+                    metas.push(MetaValue::new("version", version));
+                }
+                _ => {
+                    anyhow::bail!("count the row number");
+                }
+            }
+        }
+
         anyhow::Ok(metas)
     }
 }
@@ -339,30 +431,28 @@ impl SchemaTrait for SqliteDB {
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
-            "CREATE {} INDEX \"{}\".{} ON {}({})",
+            "CREATE {} INDEX {} ON {table}({})",
             match kind {
                 IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
                 IndexKind::Unique => "Unique",
             },
-            self.db,
             name,
-            table,
             fields.join(",")
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
-        let sql = format!(r#"DROP INDEX "{}"."{index}";"#, self.db);
+        let sql = format!(r#"DROP INDEX "{index}";"#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -372,8 +462,7 @@ impl SchemaTrait for SqliteDB {
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
-            r#"ALTER TABLE "{}"."{table}" ADD COLUMN "{name}" {} {} {}"#,
-            self.db,
+            r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
             if let Some(nullness) = col.nullness.as_ref() {
                 nullness.as_str()
@@ -391,7 +480,7 @@ impl SchemaTrait for SqliteDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -400,7 +489,7 @@ impl SchemaTrait for SqliteDB {
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         use sqlx::{Executor, Statement};
         let mut conn = self.get_conn().await?;
-        let sql = format!(r#"select * from "{}"."{view_name}" limit 1"#, self.db);
+        let sql = format!(r#"select * from "{view_name}" limit 1"#);
         log::info!("sql:{}", sql);
         let s = conn
             .deref_mut()
@@ -418,13 +507,10 @@ impl SchemaTrait for SqliteDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let sql = format!(
-            r#"CREATE TABLE "{}"."{dup}" AS SELECT * FROM "{}"."{table}""#,
-            self.db, self.db
-        );
+        let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
 
@@ -433,9 +519,9 @@ impl SchemaTrait for SqliteDB {
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let sql = format!(r#"ALTER TABLE "{}"."{old}" RENAME TO  "{new}""#, self.db);
+        let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -445,14 +531,13 @@ impl SchemaTrait for SqliteDB {
         let sql = format!(
             r#"
             SELECT name 
-            FROM "{}"."sqlite_master" 
-            WHERE type = 'trigger' AND tbl_name = '{}';
-        "#,
-            self.db, table_name
+            FROM sqlite_master 
+            WHERE type = 'trigger' AND tbl_name = '{table_name}';
+        "#
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -465,19 +550,18 @@ impl SchemaTrait for SqliteDB {
 
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
-        query_trigger_detail(&self.db, conn.deref_mut(), &name).await
+        query_trigger_detail(conn.deref_mut(), &name).await
     }
 
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-         DROP TRIGGER "{}"."{}"
-        "#,
-            self.db, name
+         DROP TRIGGER "{name}"
+        "#
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -531,18 +615,15 @@ impl SchemaTrait for SqliteDB {
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
-        let sql = format!(
+        let rows = sqlx::query(
             r#"
             SELECT name
-            FROM "{}".sqlite_master
+            FROM sqlite_master
             WHERE type = 'view';
         "#,
-            self.db,
-        );
-
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        )
+        .fetch_all(conn.deref_mut())
+        .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
@@ -555,9 +636,9 @@ impl SchemaTrait for SqliteDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
 
-        let s = format!(r#"DROP VIEW "{}"."{}""#, self.db, view_name);
+        let s = format!(r#"DROP VIEW "{view_name}""#);
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        sqlx::query(AssertSqlSafe(s.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -566,13 +647,11 @@ impl SchemaTrait for SqliteDB {
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
         let s = format!(
-            r#"DROP TABLE "{}"."{}" {}"#,
-            self.db,
-            table,
+            r#"DROP TABLE "{table}" {}"#,
             if cascade { " CASCADE " } else { "" }
         );
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        sqlx::query(AssertSqlSafe(s.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -583,10 +662,10 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(Some(&self.db), table_name, &fields, &wheres)?;
+        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let r = sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(SqlExecuteRet {
@@ -599,14 +678,12 @@ impl SchemaTrait for SqliteDB {
         self.can_write()?;
         let s = format!(
             r#"
-            DELETE FROM "{}"."{}";
-            DELETE FROM "{}".sqlite_sequence WHERE name = '{}';
-        "#,
-            self.db, table_name, self.db, table_name
+            DELETE FROM "{table_name}";
+            DELETE FROM sqlite_sequence WHERE name = '{table_name}';
+        "#
         );
-
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        sqlx::query(AssertSqlSafe(s.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -620,10 +697,10 @@ impl SchemaTrait for SqliteDB {
         let fields = self.show_table_columns(table_name).await?;
 
         let mut conn = self.get_conn().await?;
-        let sql = self.update_sql(Some(&self.db), table_name, &fields, &values, &wheres)?;
+        let sql = self.update_sql(None, table_name, &fields, &values, &wheres)?;
         log::info!("sql:{}", sql);
 
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let r = sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(SqlExecuteRet {
@@ -637,10 +714,10 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql = self.insert_sql(Some(&self.db), table_name, &fields, &values)?;
+        let sql = self.insert_sql(None, table_name, &fields, &values)?;
         log::trace!("insert sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let r = sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(SqlExecuteRet {
@@ -651,14 +728,8 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let sql = format!(
-            r#"
-            SELECT name FROM "{}".sqlite_master WHERE type='table' AND name not in ('sqlite_sequence' , 'sqlite_stat1' , 'sqlite_stat4') ORDER BY name
-        "#,
-            self.db
-        );
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table' AND name not in ('sqlite_sequence' , 'sqlite_stat1' , 'sqlite_stat4') ORDER BY name ")
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -674,9 +745,9 @@ impl SchemaTrait for SqliteDB {
         let increment_key = self.query_auto_increment_key(table_name).await?;
         let increment_key = increment_key.as_ref().map(|x| x.as_str());
 
-        let s = format!(r#"pragma {}.table_info("{table_name}")"#, self.db);
+        let s = format!(r#"pragma table_info("{table_name}")"#);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        let rows = sqlx::query(AssertSqlSafe(s.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -710,10 +781,10 @@ impl SchemaTrait for SqliteDB {
         log::trace!("begin to show table");
         let total = self.query_count(table_name, where_str.clone()).await?;
         log::trace!("query count ok");
-        let sql = gen_show_sql(&self.db, table_name, where_str, order_by, page, page_size);
+        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
@@ -732,9 +803,9 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str.clone()).await?;
-        let sql = gen_show_sql(&self.db, view_name, where_str, order_by, page, page_size);
+        let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         if rows.len() == 0 {
@@ -747,10 +818,10 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let sql = format!("PRAGMA {}.index_list(\"{}\")", self.db, table_name);
+        let sql = format!("PRAGMA index_list({table_name})");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
 
@@ -765,7 +836,7 @@ impl SchemaTrait for SqliteDB {
             // query create index sql
             let sql = format!("PRAGMA index_info('{name}')");
             log::info!("sql:{}", sql);
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
                 .fetch_all(conn.deref_mut())
                 .await?;
             let mut on = Vec::with_capacity(rows.len());
@@ -791,11 +862,11 @@ impl SchemaTrait for SqliteDB {
 impl SqliteDB {
     async fn query_auto_increment_key(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let s = format!(
-            r#"SELECT sql from "{}".sqlite_master where type='table' and name='{}'"#,
-            self.db, table_name
+            r#"SELECT sql from sqlite_master where type='table' and name='{}'"#,
+            table_name
         );
         let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        let row = sqlx::query(AssertSqlSafe(s.as_str()))
             .fetch_one(conn.deref_mut())
             .await?;
         let sql: String = row.get(0);
@@ -1054,7 +1125,7 @@ impl SqliteDB {
         let pool = opts.connect(path.as_str()).await?;
 
         if read_only {
-            let r = sqlx::raw_sql("PRAGMA query_only = true;")
+            let r = sqlx::query("PRAGMA query_only = true;")
                 .execute(pool.acquire().await?.deref_mut())
                 .await;
             match r {
@@ -1071,17 +1142,16 @@ impl SqliteDB {
             tx_execute_times: Default::default(),
             build_fn_cache: Default::default(),
             keywords_completion: Default::default(),
-            db: "main".to_string(),
         })
     }
 
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
-        let mut conn: PoolConnection<sqlx::Sqlite> = self.get_conn().await?;
-        let mut s = format!(r#"SELECT count(1) from "{}"."{}" "#, self.db, name);
+        let mut conn = self.get_conn().await?;
+        let mut s = format!(r#"SELECT count(1) from "{name}" "#);
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
-        let row = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        let row = sqlx::query(AssertSqlSafe(s.as_str()))
             .fetch_one(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, s)))?;
@@ -1315,6 +1385,7 @@ impl QuerySql for SqliteDB {
                 .collect::<Vec<_>>();
             ret = vec![Ok(QueryResp::new(field, 0, vec![], sql.to_owned())?)];
         }
+
         anyhow::Ok(ret)
     }
 
@@ -1344,6 +1415,108 @@ impl QuerySql for SqliteDB {
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
     }
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn test_auto_completion() {
+    use crate::language_server::LexerCompletionTrait;
+    let s = SqliteDB::new(":memory:".to_string(), false).await.unwrap();
+
+    let mut conn = s.get_conn().await.unwrap();
+    sqlx::query(
+        r#"
+
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY,
+        username TEXT NOT NULL,
+        password TEXT NOT NULL,
+        email TEXT NOT NULL
+    );
+    "#,
+    )
+    .execute(conn.deref_mut())
+    .await
+    .unwrap();
+
+    {
+        let completion = LexerCompletionTrait::do_auto_completion(
+            &s,
+            "sel  * from",
+            &sqlparser::dialect::SQLiteDialect {},
+        )
+        .await
+        .unwrap();
+
+        println!("{:?}", completion)
+    }
+    {
+        let completion = LexerCompletionTrait::do_auto_completion(
+            &s,
+            "cou  xxxx",
+            &sqlparser::dialect::SQLiteDialect {},
+        )
+        .await
+        .unwrap();
+        println!("{:?}", completion)
+    }
+    {
+        let completion = LexerCompletionTrait::do_auto_completion(
+            &s,
+            "nul",
+            &sqlparser::dialect::SQLiteDialect {},
+        )
+        .await
+        .unwrap();
+        println!("{:?}", completion)
+    }
+    {
+        let completion = LexerCompletionTrait::do_auto_completion(
+            &s,
+            "emai  dddd",
+            &sqlparser::dialect::SQLiteDialect {},
+        )
+        .await
+        .unwrap();
+        println!("{:?}", completion)
+    }
+    {
+        let completion = LexerCompletionTrait::do_auto_completion(
+            &s,
+            "use 1111",
+            &sqlparser::dialect::SQLiteDialect {},
+        )
+        .await
+        .unwrap();
+        println!("{:?}", completion)
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_detect_auto_increment() {
+    let x = extract_auto_increment_key(
+        r#"
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY autoincrement,
+        name TEXT,
+        age INTEGER
+      )
+    "#,
+    )
+    .unwrap();
+    assert!(x == Some("id".to_string()));
+    let x = extract_auto_increment_key(
+        r#"
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        age INTEGER
+      )
+    "#,
+    )
+    .unwrap();
+    assert!(x == None);
 }
 
 #[allow(unused)]
@@ -1389,10 +1562,10 @@ fn test_extract_index() {
 }
 
 pub(crate) fn gen_show_sql(
-    db: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+    table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!(r#"SELECT * FROM "{}"."{}""#, db, table_name);
+    let mut sql = format!(r#"SELECT * FROM "{table_name}""#);
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
@@ -1420,78 +1593,6 @@ impl ReadOnlyTrait for SqliteDB {
     }
 }
 
-pub struct SqliteDatabase {
-    name: String,
-}
-impl SqliteDB {
-    async fn query_database_list(&self) -> anyhow::Result<Vec<SqliteDatabase>> {
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql("PRAGMA database_list")
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        println!("start");
-        for r in rows.iter() {
-            let name: String = r.get(1);
-            println!("!!!!!!!!!!!!!!!!!!!1{}", name);
-            ret.push(SqliteDatabase { name });
-        }
-        println!("end");
-        anyhow::Ok(ret)
-    }
-}
-
-impl SqliteDB {
-    const MAIN_DATABASE: &str = "main";
-}
-#[async_trait::async_trait]
-impl DBTrait for SqliteDB {
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        self.query_database_list()
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        let mut x = Clone::clone(self);
-        x.db = name.to_owned();
-        return Ok(Arc::new(x));
-    }
-    async fn create_schema(
-        &self, name: &str, extra: Option<CreateSchemaExtra>,
-    ) -> anyhow::Result<()> {
-        if name == SqliteDB::MAIN_DATABASE {
-            anyhow::bail!("can't attach main database");
-        }
-        let path = match extra {
-            Some(CreateSchemaExtra::Sqlite { path }) => path,
-            _ => {
-                anyhow::bail!("sqlite need pass the extra paramater");
-            }
-        };
-        let mut conn = self.get_conn().await?;
-        let sql = format!("ATTACH DATABASE '{path}' AS {name};");
-        log::error!("sql: {}", sql);
-        conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
-            .await?;
-        anyhow::Ok(())
-    }
-
-    async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        if name == SqliteDB::MAIN_DATABASE {
-            anyhow::bail!("can't drop main database");
-        }
-        let mut conn = self.get_conn().await?;
-        let sql = format!("DETACH DATABASE {};", name);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1508,33 +1609,8 @@ mod tests {
             .await
             .unwrap();
 
+        // println!("{:?}", x);
         println!("time used:{:?}", std::time::Instant::now() - now);
-    }
-
-    #[test]
-    fn test_detect_auto_increment() {
-        let x = extract_auto_increment_key(
-            r#"
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY autoincrement,
-        name TEXT,
-        age INTEGER
-      )
-    "#,
-        )
-        .unwrap();
-        assert!(x == Some("id".to_string()));
-        let x = extract_auto_increment_key(
-            r#"
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY,
-        name TEXT,
-        age INTEGER
-      )
-    "#,
-        )
-        .unwrap();
-        assert!(x == None);
     }
 
     #[tokio::test]
@@ -1688,7 +1764,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicate() {
-        enable_test_log();
         let db = make_test_object().await;
 
         let _ = db.drop_table("test_duplicate", false).await;
@@ -1719,7 +1794,7 @@ mod tests {
         let _ = db.drop_table("test_create_trigger_update", false).await;
         let mut conn = db.get_conn().await.unwrap();
 
-        sqlx::raw_sql(
+        sqlx::query(
             r#"
             CREATE TABLE test_create_trigger (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
@@ -1730,7 +1805,7 @@ mod tests {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        sqlx::raw_sql(
+        sqlx::query(
             r#"
         CREATE TABLE test_create_trigger_update (
             id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
@@ -1742,7 +1817,7 @@ mod tests {
         .await
         .unwrap();
 
-        sqlx::raw_sql(
+        sqlx::query(
             r#"
         CREATE TRIGGER after_insert_test_create_trigger
         AFTER INSERT ON test_create_trigger
@@ -1770,7 +1845,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_index() {
-        enable_test_log();
         let index_name = "name_index";
 
         let db = make_test_object().await;
@@ -1781,7 +1855,7 @@ mod tests {
             println!("drop table failed,err:{}", err.to_string());
         }
         let mut conn = db.get_conn().await.unwrap();
-        sqlx::raw_sql(
+        sqlx::query(
             r#"
                 CREATE TABLE test_index (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键，自动增长
@@ -1928,7 +2002,7 @@ mod tests {
         let table_name = "test_table";
         let _ = db.drop_table(table_name, false).await;
         let mut conn = db.get_conn().await.unwrap();
-        sqlx::raw_sql(
+        sqlx::query(
             r#"
             CREATE table test_table (
                 id INTEGER PRIMARY KEY,
@@ -2003,7 +2077,7 @@ mod tests {
                 println!("result {} r:{:?}", index, x);
             }
         }
-        sqlx::raw_sql(AssertSqlSafe(
+        sqlx::query(AssertSqlSafe(
             format!("create view test_view as SELECT * from {table_name}").as_str(),
         ))
         .execute(conn.deref_mut())
@@ -2018,83 +2092,6 @@ mod tests {
                 .await
                 .unwrap();
             println!("view value:{:?}", list);
-        }
-    }
-
-    #[test]
-    fn test_extract_trigger_base_on_lexer() {
-        {
-            let sql = "after insert".to_string();
-            assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-                TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Insert, sql, None)
-            );
-        }
-        {
-            let sql = "after update".to_string();
-            assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-                TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Update, sql, None)
-            );
-        }
-        {
-            let sql = "after delete".to_string();
-            assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-                TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Delete, sql, None)
-            );
-        }
-        {
-            let sql = "before insert".to_string();
-            assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-                TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Insert, sql, None)
-            );
-        }
-        {
-            let sql = "before update".to_string();
-            assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-                TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Update, sql, None)
-            );
-        }
-        {
-            let sql = "before delete".to_string();
-            assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-                TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Delete, sql, None)
-            );
-        }
-
-        // error cases
-        {
-            let sql = "before xxx".to_string();
-            assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
-        }
-        {
-            let sql = "insert xxx".to_string();
-            assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
-        }
-    }
-
-    #[test]
-    fn test_extract_trigger_detail_from_sql() {
-        {
-            let x = extract_trigger_detail_from_sql(
-                "after_insert_test_create_trigger",
-                r#"
-            CREATE TRIGGER after_insert_test_create_trigger
-            AFTER INSERT ON test_create_trigger
-            FOR EACH ROW
-            BEGIN
-                INSERT INTO test_create_trigger_update (info)
-                VALUES (NEW.info);
-            END
-        "#
-                .to_owned(),
-            )
-            .unwrap();
-            assert_eq!(x.event, TriggerEvent::Insert);
         }
     }
 }

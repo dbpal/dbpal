@@ -134,6 +134,7 @@ function TabsWithContent_(props: {
                 label=<Tooltip
                   title={tab.header}
                   arrow
+                  followCursor
                   slotProps={{
                     tooltip: {
                       sx: {

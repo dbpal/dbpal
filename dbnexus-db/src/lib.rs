@@ -22,9 +22,7 @@ pub mod duckdb_lang_server;
 pub mod firebird;
 pub mod firebird_lang_server;
 pub mod helper;
-#[cfg(feature = "libsql")]
 pub mod libsql;
-#[cfg(feature = "libsql")]
 pub mod libsql_lang_server;
 pub mod mariadb;
 pub mod mariadb_lang_server;
