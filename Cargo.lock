@@ -4097,7 +4097,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -7168,7 +7168,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#24317d5eab40fbc33caf1142946e2f39caad73ea"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -7180,7 +7180,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#24317d5eab40fbc33caf1142946e2f39caad73ea"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
 dependencies = [
  "base64 0.22.1",
  "bigdecimal",
@@ -7220,7 +7220,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#24317d5eab40fbc33caf1142946e2f39caad73ea"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7232,7 +7232,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros-core"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#24317d5eab40fbc33caf1142946e2f39caad73ea"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
 dependencies = [
  "dotenvy",
  "either",
@@ -7255,7 +7255,7 @@ dependencies = [
 [[package]]
 name = "sqlx-mysql"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#24317d5eab40fbc33caf1142946e2f39caad73ea"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -7298,7 +7298,7 @@ dependencies = [
 [[package]]
 name = "sqlx-postgres"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#24317d5eab40fbc33caf1142946e2f39caad73ea"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -7340,7 +7340,7 @@ dependencies = [
 [[package]]
 name = "sqlx-sqlite"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#24317d5eab40fbc33caf1142946e2f39caad73ea"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
 dependencies = [
  "atoi",
  "chrono",

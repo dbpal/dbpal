@@ -243,7 +243,7 @@ function ModifySettings({ handleClose }) {
             setShowEditorOptions(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="75%" height="50vh">
             <ModalHeader title="Editor Options"></ModalHeader>
             <EditorOptions
               handleClose={() => {
@@ -278,7 +278,7 @@ function EditorOptions(props: {
       });
   }, [value]);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} flex={1}>
       <Stack direction="row" spacing={1}>
         <Chip
           color="info"
