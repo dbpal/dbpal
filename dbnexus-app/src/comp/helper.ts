@@ -176,6 +176,9 @@ function backendCompletionItemToEditor(
         return languages.CompletionItemKind.Operator;
       case 'ClickHouseTableProjection':
         return languages.CompletionItemKind.Property;
+      case 'Prepare':
+        return languages.CompletionItemKind.Reference;
+
     }
   }
   return {

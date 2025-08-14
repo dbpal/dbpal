@@ -121,6 +121,7 @@ function RedisQuery(props: {
       onChange={(newsize) => {
         SaveSizesToStore.saveSize(sizeKey, { width: newsize });
       }}
+      style={{ width: '99%' }}
     >
       <SqlQuery
         handelTextAndPositionChange={(text, pos) => {
@@ -154,7 +155,7 @@ function RedisQuery(props: {
         ref={iframeRef} // 绑定 iframe 引用
         src={getURL(command)}
         style={{
-          width: '99%',
+          width: '100%',
           height: '100%',
           border: 'none', // 去掉边框
         }}

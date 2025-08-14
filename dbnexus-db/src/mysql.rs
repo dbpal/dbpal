@@ -384,7 +384,8 @@ impl MysqlDB {
             let rows = rows?;
 
             if first && !rows.is_empty() && include_header {
-                let fs = rows.first()
+                let fs = rows
+                    .first()
                     .unwrap()
                     .columns()
                     .iter()
@@ -928,7 +929,7 @@ impl SchemaTrait for MysqlDB {
             let row = sqlx::query(AssertSqlSafe(sql.as_str()))
                 .fetch_one(conn.deref_mut())
                 .await?;
-            
+
             row.try_get::<String, _>(2)?
         };
 
@@ -1670,7 +1671,6 @@ impl QuerySql for MysqlDB {
         let mut ml = MemoryLimit::new();
         while let Some(item) = stream.next().await {
             ml.exceed_error()?;
-
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {

@@ -26,7 +26,7 @@ use crate::db::{
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
     format_data_time_fix_offset, not_support_feature,
 };
-use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
+use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
@@ -1865,12 +1865,6 @@ impl MsSqlServerDB {
         let conn = conn.deref_mut();
         call_back(conn).await
     }
-}
-
-#[allow(dead_code)]
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<String>> {
-    let dialect = sqlparser::dialect::MsSqlDialect {};
-    sql_cut_by_semicolon(sql, &dialect)
 }
 
 #[async_trait::async_trait]

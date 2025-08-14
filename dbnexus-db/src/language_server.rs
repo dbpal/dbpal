@@ -156,7 +156,13 @@ pub trait LexerCompletionTrait: LangServerCommon {
 
     async fn all_completion_items(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();
-        ret.extend(self.get_key_words_fn().await?.into_iter());
+        ret.extend(
+            self.get_key_words_fn()
+                .await
+                .map_err(|e| log::error!("get keywords failed ,err:{}", e))
+                .unwrap_or_default()
+                .into_iter(),
+        );
         ret.extend(
             Self::TYPES
                 .iter()
@@ -177,10 +183,18 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 })
                 .collect::<Vec<_>>(),
         );
-        ret.extend(self.extra_completion_item().await?.into_iter());
+        ret.extend(
+            self.extra_completion_item()
+                .await
+                .map_err(|e| log::error!("extra_completion_item failed,err:{}", e))
+                .unwrap_or_default()
+                .into_iter(),
+        );
         ret.extend(
             self.list_table_or_view()
-                .await?
+                .await
+                .map_err(|x| log::error!("list table failed,err:{}", x))
+                .unwrap_or_default()
                 .into_iter()
                 .map(|x| CompletionItem {
                     item: x.into(),
@@ -188,11 +202,19 @@ pub trait LexerCompletionTrait: LangServerCommon {
                     desc: None,
                 }),
         );
-        ret.extend(self.list_function().await?.into_iter());
+        ret.extend(
+            self.list_function()
+                .await
+                .map_err(|err| log::error!("list function failed,err:{}", err))
+                .unwrap_or_default()
+                .into_iter(),
+        );
 
         ret.extend(
             self.list_database()
-                .await?
+                .await
+                .map_err(|e| log::error!("list database failed,err:{}", e))
+                .unwrap_or_default()
                 .into_iter()
                 .map(|x| CompletionItem {
                     item: x.into(),
@@ -202,7 +224,9 @@ pub trait LexerCompletionTrait: LangServerCommon {
         );
         ret.extend(
             self.list_schema(None)
-                .await?
+                .await
+                .map_err(|err| log::error!("list schema failed,err:{}", err))
+                .unwrap_or_default()
                 .into_iter()
                 .map(|x| CompletionItem {
                     item: x.into(),
@@ -212,7 +236,9 @@ pub trait LexerCompletionTrait: LangServerCommon {
         );
         ret.extend(
             self.list_procedure()
-                .await?
+                .await
+                .map_err(|err| log::error!("list precedure failed,err:{}", err))
+                .unwrap_or_default()
                 .into_iter()
                 .map(|x| CompletionItem {
                     item: x.into(),
@@ -228,7 +254,6 @@ pub trait LexerCompletionTrait: LangServerCommon {
             .list_table_or_view()
             .await
             .map_err(|e| log::error!("list table or view failed,err:{}", e))
-            .ok()
             .unwrap_or_default()
             .into_iter()
             .map(|x: String| x.to_lowercase())
