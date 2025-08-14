@@ -28,8 +28,8 @@ impl LexerCompletionTrait for MysqlDB {
         AstCompletionHelper::list_procedure(self, None, None).await
     }
 
-    async fn extra_completion_item(&self) -> Vec<CompletionItem> {
-        self.build_fn_completion_items().await.unwrap_or(vec![])
+    async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        self.build_fn_completion_items().await
     }
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -146,7 +146,7 @@ impl LanguageServer for MysqlDB {
 }
 
 impl MysqlDB {
-    pub(crate) fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
+    pub(crate) fn merge_schema<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
     where
         'b: 'a,
     {
@@ -183,14 +183,14 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_table(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         self.list_table_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
     async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(None))?;
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(None))?;
         let sql = format!(
             r#"
             SELECT TRIGGER_NAME 
@@ -220,7 +220,7 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_view(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         self.list_view_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
@@ -259,7 +259,7 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_function(
         &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = self.schema_merge_config(schema);
+        let schema = self.merge_schema(schema);
         let mut conn = self.get_conn().await?;
         let mut ret = if let Some(schema) = schema {
             crate::mysql::FunctionOrProcedure::query_list(
@@ -290,7 +290,7 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_procedure(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         let mut conn = self.get_conn().await?;
         crate::mysql::FunctionOrProcedure::query_list(
             crate::mysql::FunctionOrProcedure::Procedure,
@@ -301,7 +301,7 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         let sql = format!(
             r#"
         SELECT   INDEX_NAME 
@@ -339,7 +339,7 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_partition(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         let sql = format!(
             r#"
         SELECT PARTITION_NAME
@@ -368,7 +368,7 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_constraint(
         &self, _db: Option<&str>, schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         let sql = format!(
             r#"SELECT CONSTRAINT_NAME
                 FROM information_schema.TABLE_CONSTRAINTS
@@ -392,7 +392,7 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_table_trigger(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         let sql = format!(
             r#"SELECT TRIGGER_NAME
                 FROM information_schema.TRIGGERS

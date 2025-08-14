@@ -2506,7 +2506,13 @@ impl CompletionStatement {
         if !self.in_pos(&name.span()) {
             return;
         }
-        self.result = Some(self.helper.sqlite_pragma());
+        self.result = Some(
+            self.helper
+                .sqlite_pragma()
+                .await
+                .map_err(|e| log::error!("get sqlite pragma failed,err:{}", e))
+                .unwrap_or_default(),
+        );
     }
 
     pub(crate) async fn c_on_function_call(&mut self, function: &Function) {

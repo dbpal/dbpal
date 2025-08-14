@@ -146,14 +146,17 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           direction="row"
           style={{ justifyContent: 'center', flexWrap: 'wrap' }}
         >
-          <img
-            src="https://dbpal.site/images/icon.png"
-            style={{ width: '3.3rem', cursor: 'pointer' }}
-            onClick={() => {
-              openUrl('https://dbpal.site/');
-            }}
-            alt="logo"
-          ></img>
+          <Tooltip title="DBPal site">
+            <img
+              src="https://dbpal.site/images/icon.png"
+              style={{ width: '3.3rem', cursor: 'pointer' }}
+              onClick={() => {
+                openUrl('https://dbpal.site/');
+              }}
+              alt="logo"
+            ></img>
+          </Tooltip>
+
           <Tooltip title="make a connection">
             <IconButton
               onClick={() => {

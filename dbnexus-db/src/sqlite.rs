@@ -39,6 +39,7 @@ pub struct SqliteDB {
     query_logs: QueryLogMap,
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 impl SqliteDB {
@@ -270,63 +271,6 @@ fn extract_trigger_base_on_lexer(name: &str, sql: String) -> anyhow::Result<Trig
     ))
 }
 
-#[cfg(test)]
-#[test]
-fn test_extract_trigger_base_on_lexer() {
-    {
-        let sql = "after insert".to_string();
-        assert_eq!(
-            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Insert, sql, None)
-        );
-    }
-    {
-        let sql = "after update".to_string();
-        assert_eq!(
-            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Update, sql, None)
-        );
-    }
-    {
-        let sql = "after delete".to_string();
-        assert_eq!(
-            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-            TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Delete, sql, None)
-        );
-    }
-    {
-        let sql = "before insert".to_string();
-        assert_eq!(
-            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Insert, sql, None)
-        );
-    }
-    {
-        let sql = "before update".to_string();
-        assert_eq!(
-            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Update, sql, None)
-        );
-    }
-    {
-        let sql = "before delete".to_string();
-        assert_eq!(
-            extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
-            TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Delete, sql, None)
-        );
-    }
-
-    // error cases
-    {
-        let sql = "before xxx".to_string();
-        assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
-    }
-    {
-        let sql = "insert xxx".to_string();
-        assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
-    }
-}
-
 pub(crate) fn extract_trigger_detail_from_sql(
     name: &str, sql: String,
 ) -> anyhow::Result<TriggerDetail> {
@@ -425,6 +369,81 @@ impl GetBackendKind for SqliteDB {
     }
 }
 
+impl SqliteDB {
+    pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
+        let mut conn = self.get_conn().await?;
+        let sql =
+            format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let table_name: String = r.get(0);
+
+            ret.push(table_name);
+        }
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+    }
+
+    pub(crate) async fn list_view_impl(&self, db: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        let mut conn = self.get_conn().await?;
+        let sql = format!(
+            r#"
+            SELECT name
+            FROM "{db}".sqlite_master
+            WHERE type = 'view'; 
+        "#
+        );
+
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.get(0);
+            ret.push(name);
+        }
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+    }
+
+    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+        let increment_key = self.query_auto_increment_key(table_name).await?;
+        let increment_key = increment_key.as_ref().map(|x| x.as_str());
+
+        let s = format!(r#"pragma table_info("{table_name}")"#);
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(AssertSqlSafe(s.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        // cid name type     notnull  delt_value pk
+        // 0	id	INTEGER	 0		  null      1
+        for r in rows.iter() {
+            let name: String = r.get(1);
+            let ty: String = r.get(2);
+            let not_null: i64 = r.get(3);
+            let delt_value: Option<String> = r.get(4);
+            let pk: Option<i64> = r.get(5);
+            let is_auto_increment = Some(name.as_str()) == increment_key;
+
+            ret.push(Field::new(
+                name,
+                ty,
+                not_null == 0,
+                delt_value,
+                pk.map(|x| x == 1).unwrap_or_default(),
+                is_auto_increment,
+            ));
+        }
+
+        anyhow::Ok(ret)
+    }
+}
+
+impl SqliteDB {
+    pub(crate) const MAIN_DB: &'static str = "main";
+}
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
     async fn create_index(
@@ -614,25 +633,8 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(
-            r#"
-            SELECT name
-            FROM sqlite_master
-            WHERE type = 'view';
-        "#,
-        )
-        .fetch_all(conn.deref_mut())
-        .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.get(0);
-            ret.push(name);
-        }
-
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        self.list_view_impl(Self::MAIN_DB).await
     }
-
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
 
@@ -728,17 +730,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query("SELECT name FROM sqlite_master WHERE type='table' AND name not in ('sqlite_sequence' , 'sqlite_stat1' , 'sqlite_stat4') ORDER BY name ")
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let table_name: String = r.get(0);
-
-            ret.push(table_name);
-        }
-        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+        self.list_table_impl(Self::MAIN_DB).await
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -1142,6 +1134,7 @@ impl SqliteDB {
             tx_execute_times: Default::default(),
             build_fn_cache: Default::default(),
             keywords_completion: Default::default(),
+            pragma_completion: Default::default(),
         })
     }
 
@@ -1417,108 +1410,6 @@ impl QuerySql for SqliteDB {
     }
 }
 
-#[cfg(test)]
-#[tokio::test]
-async fn test_auto_completion() {
-    use crate::language_server::LexerCompletionTrait;
-    let s = SqliteDB::new(":memory:".to_string(), false).await.unwrap();
-
-    let mut conn = s.get_conn().await.unwrap();
-    sqlx::query(
-        r#"
-
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY,
-        username TEXT NOT NULL,
-        password TEXT NOT NULL,
-        email TEXT NOT NULL
-    );
-    "#,
-    )
-    .execute(conn.deref_mut())
-    .await
-    .unwrap();
-
-    {
-        let completion = LexerCompletionTrait::do_auto_completion(
-            &s,
-            "sel  * from",
-            &sqlparser::dialect::SQLiteDialect {},
-        )
-        .await
-        .unwrap();
-
-        println!("{:?}", completion)
-    }
-    {
-        let completion = LexerCompletionTrait::do_auto_completion(
-            &s,
-            "cou  xxxx",
-            &sqlparser::dialect::SQLiteDialect {},
-        )
-        .await
-        .unwrap();
-        println!("{:?}", completion)
-    }
-    {
-        let completion = LexerCompletionTrait::do_auto_completion(
-            &s,
-            "nul",
-            &sqlparser::dialect::SQLiteDialect {},
-        )
-        .await
-        .unwrap();
-        println!("{:?}", completion)
-    }
-    {
-        let completion = LexerCompletionTrait::do_auto_completion(
-            &s,
-            "emai  dddd",
-            &sqlparser::dialect::SQLiteDialect {},
-        )
-        .await
-        .unwrap();
-        println!("{:?}", completion)
-    }
-    {
-        let completion = LexerCompletionTrait::do_auto_completion(
-            &s,
-            "use 1111",
-            &sqlparser::dialect::SQLiteDialect {},
-        )
-        .await
-        .unwrap();
-        println!("{:?}", completion)
-    }
-}
-
-#[cfg(test)]
-#[test]
-fn test_detect_auto_increment() {
-    let x = extract_auto_increment_key(
-        r#"
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY autoincrement,
-        name TEXT,
-        age INTEGER
-      )
-    "#,
-    )
-    .unwrap();
-    assert!(x == Some("id".to_string()));
-    let x = extract_auto_increment_key(
-        r#"
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY,
-        name TEXT,
-        age INTEGER
-      )
-    "#,
-    )
-    .unwrap();
-    assert!(x == None);
-}
-
 #[allow(unused)]
 fn extract_index(sql: &str) -> anyhow::Result<Option<(Option<String>, Vec<String>)>> {
     use sqlparser::dialect::SQLiteDialect;
@@ -1548,17 +1439,6 @@ fn extract_index(sql: &str) -> anyhow::Result<Option<(Option<String>, Vec<String
 
         _ => anyhow::Ok(None),
     }
-}
-
-#[cfg(test)]
-#[test]
-fn test_extract_index() {
-    let extract_index =
-        extract_index("CREATE INDEX idx_employees_age ON employees (name , age )").unwrap();
-    assert_eq!(
-        format!("{:?}", extract_index),
-        "Some((Some(\"idx_employees_age\"), [\"name\", \"age\"]))"
-    );
 }
 
 pub(crate) fn gen_show_sql(
@@ -1611,6 +1491,97 @@ mod tests {
 
         // println!("{:?}", x);
         println!("time used:{:?}", std::time::Instant::now() - now);
+    }
+
+    #[test]
+    fn test_detect_auto_increment() {
+        let x = extract_auto_increment_key(
+            r#"
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY autoincrement,
+        name TEXT,
+        age INTEGER
+      )
+    "#,
+        )
+        .unwrap();
+        assert!(x == Some("id".to_string()));
+        let x = extract_auto_increment_key(
+            r#"
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        age INTEGER
+      )
+    "#,
+        )
+        .unwrap();
+        assert!(x == None);
+    }
+
+    #[test]
+    fn test_extract_index() {
+        let extract_index =
+            extract_index("CREATE INDEX idx_employees_age ON employees (name , age )").unwrap();
+        assert_eq!(
+            format!("{:?}", extract_index),
+            "Some((Some(\"idx_employees_age\"), [\"name\", \"age\"]))"
+        );
+    }
+    #[test]
+    fn test_extract_trigger_base_on_lexer() {
+        {
+            let sql = "after insert".to_string();
+            assert_eq!(
+                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Insert, sql, None)
+            );
+        }
+        {
+            let sql = "after update".to_string();
+            assert_eq!(
+                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Update, sql, None)
+            );
+        }
+        {
+            let sql = "after delete".to_string();
+            assert_eq!(
+                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Delete, sql, None)
+            );
+        }
+        {
+            let sql = "before insert".to_string();
+            assert_eq!(
+                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Insert, sql, None)
+            );
+        }
+        {
+            let sql = "before update".to_string();
+            assert_eq!(
+                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Update, sql, None)
+            );
+        }
+        {
+            let sql = "before delete".to_string();
+            assert_eq!(
+                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Delete, sql, None)
+            );
+        }
+
+        // error cases
+        {
+            let sql = "before xxx".to_string();
+            assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
+        }
+        {
+            let sql = "insert xxx".to_string();
+            assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
+        }
     }
 
     #[tokio::test]

@@ -56,7 +56,7 @@ impl AstCompletionHelper for MariaDB {
         let mut conn = self.db.get_conn().await?;
         let sql = format!(
             "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",
-            MysqlDB::not_allow_empty_schema(self.db.schema_merge_config(schema))
+            MysqlDB::not_allow_empty_schema(self.db.merge_schema(schema))
                 .map_err(|e| { log::error!("err:{}", e) })
                 .ok()
                 .unwrap_or("")

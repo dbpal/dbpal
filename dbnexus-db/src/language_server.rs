@@ -122,8 +122,8 @@ pub trait LexerCompletionTrait: LangServerCommon {
     const TYPES: &'static [&'static str];
     const TEXTS: &'static [&'static str] = &[];
 
-    async fn extra_completion_item(&self) -> Vec<CompletionItem> {
-        vec![]
+    async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(vec![])
     }
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>>;
@@ -176,7 +176,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 })
                 .collect::<Vec<_>>(),
         );
-        ret.extend(self.extra_completion_item().await.into_iter());
+        ret.extend(self.extra_completion_item().await?.into_iter());
         ret.extend(
             self.list_table_or_view()
                 .await?
@@ -358,8 +358,8 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     async fn list_prepare_name(&self, _query_id: uuid::Uuid) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
-    fn sqlite_pragma(&self) -> Vec<CompletionItem> {
-        vec![]
+    async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(vec![])
     }
 }
 

@@ -37,6 +37,7 @@ pub struct LibSqlDB {
     query_logs: QueryLogMap,
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 impl GetBackendKind for LibSqlDB {
@@ -349,6 +350,7 @@ impl LibSqlDB {
             tx_execute_times: Default::default(),
             build_fn_cache: Default::default(),
             keywords_completion: Default::default(),
+            pragma_completion: Default::default(),
         })
     }
 

@@ -42,6 +42,7 @@ pub mod redis;
 pub mod redis_lang_server;
 pub mod sqlite;
 pub mod sqlite_lang_server;
+pub mod sqlite_lang_server_static;
 pub mod sqlparser_completing;
 pub mod sqlparser_completion;
 pub mod tidb;

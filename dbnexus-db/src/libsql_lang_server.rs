@@ -8,7 +8,7 @@ use crate::language_server::{
     LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::libsql::LibSqlDB;
-use crate::sqlite_lang_server::{SQLITE_KEY_WORDS, SQLITE_TYPES, sqlite_pragma};
+use crate::sqlite_lang_server_static::{SQLITE_KEY_WORDS, SQLITE_TYPES};
 use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
@@ -58,8 +58,8 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
         AstCompletionHelper::list_column(self, None, None, table_name, false).await
     }
 
-    async fn extra_completion_item(&self) -> Vec<CompletionItem> {
-        AstCompletionHelper::sqlite_pragma(self)
+    async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        AstCompletionHelper::sqlite_pragma(self).await
     }
 
     // some backend can use a query to query this.
@@ -185,8 +185,25 @@ impl AstCompletionHelper for LibSqlDB {
         self.list_index_name_impl().await
     }
 
-    fn sqlite_pragma(&self) -> Vec<CompletionItem> {
-        sqlite_pragma()
+    async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.pragma_completion.lock().await;
+        if lock.len() > 0 {
+            return anyhow::Ok(lock.clone());
+        }
+        let sql = r#"
+           PRAGMA pragma_list
+        "#;
+        let conn = self.get_conn().await?;
+        let mut rows = conn.query(sql, params!()).await?;
+        while let Some(row) = rows.next().await? {
+            let name: String = row.get(0)?;
+            lock.push(CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Pragma,
+                desc: None,
+            });
+        }
+        return anyhow::Ok(lock.clone());
     }
 }
 
