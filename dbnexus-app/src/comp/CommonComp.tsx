@@ -15,6 +15,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { types } from './ApiStruct';
@@ -485,26 +486,46 @@ function ResizeWrapper(props: {
   children;
   sizeKey: string;
   sizeKeyKind: 'both' | 'width' | 'height';
-  style: CSSProperties;
+  style?: CSSProperties;
+  height?: string | number;
+  minHeight?: string | number;
 }) {
-  const { children, sizeKey, sizeKeyKind, style } = props;
-  const [dom, setDom] = useState(null);
-
+  let { children, sizeKey, sizeKeyKind, style, height, minHeight } = props;
+  if (!height) {
+    height = '20vh';
+  }
+  if (!minHeight) {
+    minHeight = '20vh';
+  }
+  const dom = useRef(null);
   useEffect(() => {
-    if (dom) {
-      const c = saveAndSetSize(dom, sizeKey, sizeKeyKind);
-      return c;
-    }
-  }, [dom]);
+    const c = saveAndSetSize(dom.current, sizeKey, sizeKeyKind);
+    return c;
+  }, []);
+  let resize;
+  switch (sizeKeyKind) {
+    case 'both':
+      resize = 'both';
+      break;
+    case 'width':
+      resize = 'horizontal';
+      break;
+    case 'height':
+      resize = 'vertical';
+      break;
+  }
   return (
     <div
       style={{
         overflow: 'auto',
         display: 'flex',
         flexDirection: 'column',
+        height,
+        minHeight,
+        resize,
         ...style,
       }}
-      ref={setDom}
+      ref={dom}
     >
       {children}
     </div>

@@ -363,19 +363,16 @@ const components: Components<
   MuiDataGrid: {
     styleOverrides: {
       root: {
-        // '--unstable_DataGrid-headWeight': '700',
         '.MuiDataGrid-columnHeaderTitle': {
           fontWeight: 'bold', // or '600', '700', etc.
         },
       },
-
       cell: {
         fontSize: '1rem',
       },
       columnHeaders: {
         fontSize: '0.9rem', // 调整表头字体大小
         boxShadow: '0 2px 4px',
-        fontWeight: '800',
       },
     },
   },

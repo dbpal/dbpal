@@ -1158,9 +1158,9 @@ function MongoTableObject(props: {
         return (
           <ResizeWrapper
             key={renderId(doc._id)}
-            style={{ resize: 'vertical', height: '300px', minHeight: '150px' }}
             sizeKeyKind="height"
             sizeKey="mongo-view-data"
+            height="300px"
           >
             <MongoBsonEditor
               doc={doc}

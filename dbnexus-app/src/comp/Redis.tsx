@@ -54,7 +54,7 @@ import {
   validJson,
   VisiableContext,
 } from './helper.ts';
-import { ModalHeader, pageSizeOptions } from './CommonComp.tsx';
+import { ModalHeader, pageSizeOptions, ResizeWrapper } from './CommonComp.tsx';
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -94,35 +94,42 @@ function RedisAddList(props: {
       });
   };
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-        <Typography color="info"> direction: </Typography>
-        <RadioGroup
-          row
-          onChange={(_e, value) => {
-            //@ts-ignore
-            setDirection(value);
-          }}
-          value={direction}
-        >
-          <FormControlLabel value="left" control={<Radio />} label="head" />
-          <FormControlLabel value="right" control={<Radio />} label="tail" />
-        </RadioGroup>
-      </Stack>
+    <ResizeWrapper
+      sizeKey="redis-add-list"
+      sizeKeyKind="height"
+      height="70vh"
+      minHeight="50vh"
+    >
+      <Stack spacing={1} flex={1}>
+        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+          <Typography color="info"> direction: </Typography>
+          <RadioGroup
+            row
+            onChange={(_e, value) => {
+              //@ts-ignore
+              setDirection(value);
+            }}
+            value={direction}
+          >
+            <FormControlLabel value="left" control={<Radio />} label="head" />
+            <FormControlLabel value="right" control={<Radio />} label="tail" />
+          </RadioGroup>
+        </Stack>
 
-      <RedisValueEditor handleValue={(e) => setKey(e)}></RedisValueEditor>
+        <RedisValueEditor handleValue={(e) => setKey(e)}></RedisValueEditor>
 
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
-          push
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            loading={loading}
+            color="primary"
+            variant="contained"
+            onClick={handleAdd}
+          >
+            push
+          </Button>
+        </Stack>
       </Stack>
-    </Stack>
+    </ResizeWrapper>
   );
 }
 
@@ -209,24 +216,31 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
   };
 
   return (
-    <Stack spacing={1}>
-      <RedisValueEditor
-        handleValue={(e) => {
-          setKey(e);
-        }}
-      ></RedisValueEditor>
+    <ResizeWrapper
+      sizeKey="redis-add-set"
+      sizeKeyKind="height"
+      height="70vh"
+      minHeight="50vh"
+    >
+      <Stack spacing={1} flex={1}>
+        <RedisValueEditor
+          handleValue={(e) => {
+            setKey(e);
+          }}
+        ></RedisValueEditor>
 
-      <Stack direction="row" spacing={1}>
-        <Button
-          color="primary"
-          variant="contained"
-          loading={loading}
-          onClick={handleAdd}
-        >
-          add
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            color="primary"
+            variant="contained"
+            loading={loading}
+            onClick={handleAdd}
+          >
+            add
+          </Button>
+        </Stack>
       </Stack>
-    </Stack>
+    </ResizeWrapper>
   );
 }
 
@@ -255,34 +269,41 @@ function RedisAddHash(props: {
   };
 
   return (
-    <Stack spacing={1}>
-      <RedisValueEditor
-        oldValue={key}
-        handleValue={(e) => {
-          setKey(e);
-        }}
-        header="key"
-      ></RedisValueEditor>
+    <ResizeWrapper
+      sizeKey="redis-add-hash"
+      sizeKeyKind="height"
+      height="70vh"
+      minHeight="50vh"
+    >
+      <Stack spacing={1} flex={1}>
+        <RedisValueEditor
+          oldValue={key}
+          handleValue={(e) => {
+            setKey(e);
+          }}
+          header="key"
+        ></RedisValueEditor>
 
-      <RedisValueEditor
-        oldValue={value}
-        handleValue={(e) => {
-          setValue(e);
-        }}
-        header="value"
-      ></RedisValueEditor>
+        <RedisValueEditor
+          oldValue={value}
+          handleValue={(e) => {
+            setValue(e);
+          }}
+          header="value"
+        ></RedisValueEditor>
 
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
-          Add
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            loading={loading}
+            color="primary"
+            variant="contained"
+            onClick={handleAdd}
+          >
+            Add
+          </Button>
+        </Stack>
       </Stack>
-    </Stack>
+    </ResizeWrapper>
   );
 }
 function RedisAddZset(props: {
@@ -312,36 +333,43 @@ function RedisAddZset(props: {
   };
 
   return (
-    <Stack spacing={1}>
-      <TextField
-        size="small"
-        value={score}
-        label="score"
-        error={scoreErr}
-        helperText="put a valid float64 value"
-        onChange={(event) => {
-          setScore(event.target.value);
-          setScoreErr(isNaN(parseFloat(event.target.value)));
-        }}
-      ></TextField>
+    <ResizeWrapper
+      sizeKey="redis-add-zset"
+      sizeKeyKind="height"
+      height="70vh"
+      minHeight="50vh"
+    >
+      <Stack spacing={1} flex={1}>
+        <TextField
+          size="small"
+          value={score}
+          label="score"
+          error={scoreErr}
+          helperText="put a valid float64 value"
+          onChange={(event) => {
+            setScore(event.target.value);
+            setScoreErr(isNaN(parseFloat(event.target.value)));
+          }}
+        ></TextField>
 
-      <RedisValueEditor
-        handleValue={(e) => {
-          setKey(e);
-        }}
-      ></RedisValueEditor>
+        <RedisValueEditor
+          handleValue={(e) => {
+            setKey(e);
+          }}
+        ></RedisValueEditor>
 
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
-          Add
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            loading={loading}
+            color="primary"
+            variant="contained"
+            onClick={handleAdd}
+          >
+            Add
+          </Button>
+        </Stack>
       </Stack>
-    </Stack>
+    </ResizeWrapper>
   );
 }
 
