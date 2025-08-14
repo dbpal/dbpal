@@ -22,7 +22,7 @@ impl LangServerCommon for SqliteDB {
             log::error!("query_id is none, should be set before call this function");
             return anyhow::Ok(vec![]);
         }
-        let query_id = self.query_id.clone().unwrap();
+        let query_id = self.query_id.unwrap();
         let sql = "PRAGMA database_list";
         log::info!("sql:{}", sql);
         let conn = self.query_connection.get(&query_id);
@@ -102,16 +102,16 @@ impl LanguageServer for SqliteDB {
     async fn auto_completion(
         &self, query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut c = Clone::clone(self);
-        c.query_id = query_id;
-        let c2 = c.clone();
+        let mut sqlite = Clone::clone(self);
+        sqlite.query_id = query_id;
+        let sqlite = Arc::new(sqlite);
 
         let r = try_completion_on_syntax(
             sql,
             line,
             col,
             sqlparser::dialect::SQLiteDialect {},
-            Arc::new(c),
+            sqlite.clone() as Arc<dyn AstCompletionHelper>,
         )
         .await;
 
@@ -126,7 +126,7 @@ impl LanguageServer for SqliteDB {
             return anyhow::Ok(vec![]);
         }
         return LexerCompletionTrait::do_auto_completion(
-            &c2,
+            sqlite.as_ref(),
             sql,
             &sqlparser::dialect::SQLiteDialect {},
         )
@@ -212,7 +212,7 @@ impl AstCompletionHelper for SqliteDB {
             log::error!("query_id is none, should be set before call this function");
             return anyhow::Ok(vec![]);
         }
-        let query_id = self.query_id.clone().unwrap();
+        let query_id = self.query_id.unwrap();
         let conn = self.query_connection.get(&query_id);
         if conn.is_none() {
             log::error!("should able to get connection");

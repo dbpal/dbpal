@@ -22,9 +22,7 @@ use crate::db::{
     ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_feature,
 };
-use crate::helper::{
-    SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
-};
+use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 pub struct PoolManager {
@@ -69,15 +67,10 @@ impl GetBackendKind for FireBirdDB {
         BackendKind::Firebird
     }
 }
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
+fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<String>> {
     // TODO use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::GenericDialect {};
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        SqlKind::get_from_statement,
-        SqlKind::get_from_sql,
-    )
+    sql_cut_by_semicolon(sql, &dialect)
 }
 
 fn infer_fields(row: &Row) -> Vec<Field> {
@@ -378,53 +371,39 @@ impl QuerySql for FireBirdDB {
         }
 
         let mut query_log = self.query_logs.get_guard(query_id, sql);
-        let ss = match get_sql_seq(sql) {
+        let sqls = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
-                vec![SqlWithKind {
-                    sql: sql.to_string(),
-                    kind: SqlKind::Query,
-                }]
+                vec![sql.to_string()]
             }
         };
-        let mut ret = Vec::with_capacity(ss.len());
+        let mut ret = Vec::with_capacity(sqls.len());
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
         let mut conn = conn.lock().await;
-
         let conn = conn.deref_mut();
-
         let mut ml = MemoryLimit::new();
-        for s in ss.iter() {
+        for sql in sqls.iter() {
             ml.exceed_error()?;
+            let rows: Result<Vec<Row>, _> = block_in_place(|| conn.query(sql, ()));
+            match rows {
+                Ok(rows) => {
+                    ml.exceed_error()?;
 
-            match s.kind {
-                SqlKind::Query => {
-                    let rows: Result<Vec<Row>, _> = block_in_place(|| conn.query(&s.sql, ()));
-                    match rows {
-                        Ok(rows) => {
-                            ml.exceed_error()?;
-
-                            if !rows.is_empty() {
-                                let fields = infer_fields(rows.first().unwrap());
-                                let data = encode_rows(&rows, true, None)?;
-                                ret.push(Ok(QueryResp {
-                                    fields,
-                                    data,
-                                    sql: Some(s.sql.to_owned()),
-                                    total: 0,
-                                }));
-                            }
-                        }
-                        Err(err) => ret.push(Err(err.to_string())),
+                    if !rows.is_empty() {
+                        let fields = infer_fields(rows.first().unwrap());
+                        let data = encode_rows(&rows, true, None)?;
+                        ret.push(Ok(QueryResp {
+                            fields,
+                            data,
+                            sql: Some(sql.to_owned()),
+                            total: 0,
+                        }));
                     }
                 }
-                _ => match block_in_place(|| conn.execute(&s.sql, ())) {
-                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_owned()))),
-                    Err(err) => ret.push(Err(err.to_string())),
-                },
+                Err(err) => ret.push(Err(err.to_string())),
             }
         }
 
@@ -634,7 +613,8 @@ impl SchemaTrait for FireBirdDB {
                 AND RDB$SYSTEM_FLAG = 0  -- 排除系统表
             ORDER BY 
                 RDB$RELATION_NAME
-        ".to_string();
+        "
+        .to_string();
         let mut conn = self.get_conn()?;
         let rows: Vec<(String,)> = block_in_place(|| conn.query(&sql, ()))?;
         anyhow::Ok(

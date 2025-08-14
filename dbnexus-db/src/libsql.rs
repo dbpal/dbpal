@@ -22,21 +22,22 @@ use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 use crate::sqlite::{
-    encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
-    integer_like, numreic_like, real_like, text_like,
+    SqliteDB, encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql,
+    gen_show_sql, integer_like, numreic_like, real_like, text_like,
 };
 
 #[derive(Clone)]
 pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
-    query_connections: Arc<DashMap<uuid::Uuid, Connection>>,
+    pub(crate) query_connections: Arc<DashMap<uuid::Uuid, Connection>>,
     query_connections_transaction: Arc<DashMap<uuid::Uuid, libsql::Transaction>>,
     tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) query_id: Option<uuid::Uuid>,
 }
 
 impl GetBackendKind for LibSqlDB {
@@ -344,6 +345,7 @@ impl LibSqlDB {
             build_fn_cache: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
+            query_id: Default::default(),
         })
     }
 
@@ -373,6 +375,69 @@ impl std::fmt::Debug for LibSqlDB {
 impl ReadOnlyTrait for LibSqlDB {
     fn read_only(&self) -> bool {
         self.config.read_only
+    }
+}
+
+impl LibSqlDB {
+    pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
+        let sql =
+            format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
+        log::info!("sql:{}", sql);
+        let mut rows: libsql::Rows = match self.query_id {
+            Some(x) => {
+                let conn = self.query_connections.get(&x);
+                if conn.is_none() {
+                    anyhow::bail!("query connection not found for id: {}", x);
+                }
+                let conn = conn.unwrap();
+                let conn = conn.deref();
+                conn.query(&sql, params!()).await?
+            }
+            None => {
+                let conn = self.get_conn().await?;
+                conn.query(&sql, params!()).await?
+            }
+        };
+
+        let mut ret = Vec::new();
+        while let Some(r) = rows.next().await? {
+            let table_name: String = r.get(0)?;
+            ret.push(table_name);
+        }
+
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+    }
+
+    pub(crate) async fn list_view_impl(&self, db: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"
+            SELECT name
+            FROM "{db}".sqlite_master
+            WHERE type = 'view'; "#
+        );
+        log::info!("sql:{}", sql);
+        let mut rows = match self.query_id {
+            Some(x) => {
+                let conn = self.query_connections.get(&x);
+                if conn.is_none() {
+                    anyhow::bail!("query connection not found for id: {}", x);
+                }
+                let conn = conn.unwrap();
+                let conn = conn.deref();
+                conn.query(&sql, params!()).await?
+            }
+            None => {
+                let conn = self.get_conn().await?;
+                conn.query(&sql, params!()).await?
+            }
+        };
+        let mut ret = Vec::new();
+        while let Some(r) = rows.next().await? {
+            let name: String = r.get(0)?;
+            ret.push(name);
+        }
+
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 }
 
@@ -557,24 +622,7 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let conn = self.get_conn().await?;
-        let mut rows = conn
-            .query(
-                r#"
-            SELECT name
-            FROM sqlite_master
-            WHERE type = 'view';
-        "#,
-                params!(),
-            )
-            .await?;
-        let mut ret = Vec::new();
-        while let Some(r) = rows.next().await? {
-            let name: String = r.get(0)?;
-            ret.push(name);
-        }
-
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        self.list_view_impl(SqliteDB::MAIN_DB).await
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
@@ -661,15 +709,7 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let conn = self.get_conn().await?;
-        let  mut  rows = conn.query ("SELECT name FROM sqlite_master WHERE type='table' AND name not in ('sqlite_sequence' , 'sqlite_stat1' , 'sqlite_stat4') ORDER BY name " , params!( )).await?;
-        let mut ret = Vec::new();
-        while let Some(r) = rows.next().await? {
-            let table_name: String = r.get(0)?;
-            ret.push(table_name);
-        }
-
-        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+        self.list_table_impl(SqliteDB::MAIN_DB).await
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -1103,6 +1143,8 @@ pub(crate) async fn make_test_object() -> LibSqlDB {
 
 #[cfg(test)]
 mod tests {
+    use crate::enable_test_log;
+
     use super::*;
     #[tokio::test]
 
@@ -1470,6 +1512,22 @@ mod tests {
         assert_eq!(event.len(), 1);
     }
 
+    #[tokio::test]
+    async fn test_list_table() {
+        enable_test_log();
+        let db = make_test_object().await;
+        // db.list_table()
+        //     .await
+        //     .unwrap()
+        //     .into_iter()
+        //     .for_each(|x| println!("{:?}", x));
+
+        db.list_view()
+            .await
+            .unwrap()
+            .into_iter()
+            .for_each(|x| println!("{:?}", x));
+    }
     #[tokio::test]
     async fn test_all_types() {
         // enable_test_log();

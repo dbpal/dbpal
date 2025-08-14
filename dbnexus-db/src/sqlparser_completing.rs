@@ -180,6 +180,38 @@ impl CompletionStatement {
                 .collect(),
         );
     }
+    pub(crate) async fn c_on_prepare(&mut self, name: &ObjectName) {
+        // todo why this is a object name can be`aaa.bbb`???
+        if !self.last_name_in_pos(name) {
+            return;
+        }
+        self.result = Some(
+            self.helper
+                .list_prepares()
+                .await
+                .map_err(|e| log::error!("list prepare failed,err:{}", e))
+                .unwrap_or_default()
+                .into_iter()
+                .map(CompletionItem::from)
+                .collect(),
+        );
+    }
+
+    pub(crate) async fn c_on_prepare_ident(&mut self, ident: &Ident) {
+        if !self.in_pos(&ident.span) {
+            return;
+        }
+        self.result = Some(
+            self.helper
+                .list_prepares()
+                .await
+                .map_err(|e| log::error!("list prepare failed,err:{}", e))
+                .unwrap_or_default()
+                .into_iter()
+                .map(CompletionItem::from)
+                .collect(),
+        );
+    }
 
     pub(crate) async fn c_on_policy(&mut self, table_name: &ObjectName, name: &Ident) {
         if !self.in_pos(&name.span) {
@@ -270,8 +302,7 @@ impl CompletionStatement {
                             cols.extend(cs.into_iter());
                         }
 
-                        self.result =
-                            Some(cols.into_iter().map(CompletionItem::from).collect());
+                        self.result = Some(cols.into_iter().map(CompletionItem::from).collect());
                     }
                 }
             }
@@ -1050,11 +1081,7 @@ impl CompletionStatement {
                         })
                         .ok()
                         .unwrap_or_default();
-                    results.extend(
-                        items
-                            .into_iter()
-                            .map(CompletionItem::from),
-                    );
+                    results.extend(items.into_iter().map(CompletionItem::from));
                 }
                 TableEntered::Temp { table, .. } => {
                     results.extend(
@@ -1304,8 +1331,7 @@ impl CompletionStatement {
             }
             Expr::UnaryOp { expr, .. } => {
                 Box::pin(self.c_on_expr(expr)).await;
-                if self.finished() {
-                }
+                if self.finished() {}
             }
             Expr::Convert { expr, styles, .. } => {
                 Box::pin(self.c_on_expr(expr)).await;
@@ -1624,8 +1650,7 @@ impl CompletionStatement {
             }
             if let Some(step) = full.step.as_ref() {
                 self.c_on_expr(step).await;
-                if self.finished() {
-                }
+                if self.finished() {}
             }
         }
     }
@@ -2232,9 +2257,7 @@ impl CompletionStatement {
                     .list_column(
                         None,
                         table.schema_name.as_deref(),
-                        table
-                            .table_name.as_deref()
-                            .unwrap_or_default(),
+                        table.table_name.as_deref().unwrap_or_default(),
                         false,
                     )
                     .await
@@ -2243,7 +2266,8 @@ impl CompletionStatement {
                     })
                     .ok()
                     .unwrap_or_default()
-                    .into_iter().collect();
+                    .into_iter()
+                    .collect();
                 return anyhow::Ok(cols);
             }
             SetExpr::Delete(statement) => {
@@ -2297,7 +2321,8 @@ impl CompletionStatement {
                             .map_err(|e| log::error!("list column failed,e:{}", e))
                             .ok()
                             .unwrap_or_default()
-                            .into_iter().collect::<Vec<_>>();
+                            .into_iter()
+                            .collect::<Vec<_>>();
 
                         if !columns.is_empty() {
                             Some(columns)
@@ -2534,9 +2559,11 @@ impl CompletionStatement {
                                 self.c_on_expr(expr).await;
                             };
                         }
-                        FunctionArg::Unnamed(function_arg_expr) => if let FunctionArgExpr::Expr(expr) = function_arg_expr {
-                            self.c_on_expr(expr).await;
-                        },
+                        FunctionArg::Unnamed(function_arg_expr) => {
+                            if let FunctionArgExpr::Expr(expr) = function_arg_expr {
+                                self.c_on_expr(expr).await;
+                            }
+                        }
                     }
                 }
             }

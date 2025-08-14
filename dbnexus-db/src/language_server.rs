@@ -58,6 +58,7 @@ pub enum CompletionKind {
     Rule,
     Cluster,
     ClickHouseTableProjection,
+    Prepare,
 }
 
 impl From<CompletionKind> for u32 {
@@ -267,6 +268,23 @@ pub trait LangServerCommon: GetBackendKind {
         anyhow::Ok(vec![])
     }
 }
+
+pub struct DBPrepare {
+    pub(crate) name: String,
+    pub(crate) statement: Option<String>,
+}
+impl From<DBPrepare> for CompletionItem {
+    fn from(value: DBPrepare) -> Self {
+        let DBPrepare { name, statement } = value;
+
+        CompletionItem {
+            item: name.into(),
+            kind: CompletionKind::Prepare,
+            desc: statement.map(|x| x.into()),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServerCommon {
     async fn list_table(
@@ -279,6 +297,9 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>>;
 
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        not_support_feature(self.backend_name())
+    }
     async fn list_function(
         &self, db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
@@ -352,9 +373,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
-    async fn list_prepare_name(&self, _query_id: uuid::Uuid) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
-    }
+
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
     }

@@ -15,7 +15,7 @@ use crate::db::{
     NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
     SqlBuilder, SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
 };
-use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
@@ -100,12 +100,7 @@ impl ClickHouseDB {
                     });
                 m
             };
-            let s = self.insert_sql(
-                self.config.db.as_deref(),
-                table_name,
-                &fs,
-                &values,
-            )?;
+            let s = self.insert_sql(self.config.db.as_deref(), table_name, &fs, &values)?;
             let s = format!("{};\n", s);
             sender.send(Cow::Owned(s)).await?;
         }
@@ -163,11 +158,7 @@ impl ClickHouseDB {
         let conn = self.get_conn()?;
 
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
-        anyhow::Ok(
-            ret.into_iter()
-                .map(ListMaterializedView::from)
-                .collect(),
-        )
+        anyhow::Ok(ret.into_iter().map(ListMaterializedView::from).collect())
     }
 
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
@@ -261,12 +252,7 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self).delete_sql(
-            self.config.db.as_deref(),
-            table_name,
-            &fs,
-            &wheres,
-        )?;
+        let sql = (self).delete_sql(self.config.db.as_deref(), table_name, &fs, &wheres)?;
         log::info!("sql:{}", sql);
 
         let conn = self.get_conn()?;
@@ -490,12 +476,7 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = self.insert_sql(
-            self.config.db.as_deref(),
-            table_name,
-            &fs,
-            &values,
-        )?;
+        let sql = self.insert_sql(self.config.db.as_deref(), table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
@@ -509,13 +490,7 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let sql = self.update_sql(
-            self.config.db.as_deref(),
-            table_name,
-            &fs,
-            &values,
-            &wheres,
-        )?;
+        let sql = self.update_sql(self.config.db.as_deref(), table_name, &fs, &values, &wheres)?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
@@ -705,14 +680,9 @@ impl ServerMetas for ClickHouseDB {
     }
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
+fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<String>> {
     let dialect = sqlparser::dialect::ClickHouseDialect {};
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        SqlKind::get_from_statement,
-        SqlKind::get_from_sql,
-    )
+    sql_cut_by_semicolon(sql, &dialect)
 }
 
 impl ClickHouseDB {
@@ -820,45 +790,29 @@ impl QuerySql for ClickHouseDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let sqls = get_sql_seq(sql).unwrap_or(vec![SqlWithKind {
-            sql: sql.to_string(),
-            kind: SqlKind::Query,
-        }]);
+        let sqls = get_sql_seq(sql).unwrap_or(vec![sql.to_string()]);
         let mut ret = Vec::new();
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let mut ml = MemoryLimit::new();
         for sql in sqls.iter() {
             ml.exceed_error()?;
-
-            log::info!("query sql kind:{:?} sql:{}", sql.kind, sql.sql);
-            match sql.kind {
-                SqlKind::Query => {
-                    let x = self.query_as_json(&sql.sql).await;
-                    ml.exceed_error()?;
-
-                    match x {
-                        Ok(x) => {
-                            let fields = x.infer_fields();
-                            let data = x.encode_json_result()?;
-                            ret.push(Ok(QueryResp {
-                                fields,
-                                data,
-                                sql: Some(sql.sql.clone()),
-                                total: 0,
-                            }));
-                        }
-
-                        Err(err) => {
-                            ret.push(Err(err.to_string()));
-                        }
-                    }
+            log::info!("sql:{}", sql);
+            let x = self.query_as_json(sql).await;
+            ml.exceed_error()?;
+            match x {
+                Ok(x) => {
+                    let fields = x.infer_fields();
+                    let data = x.encode_json_result()?;
+                    ret.push(Ok(QueryResp {
+                        fields,
+                        data,
+                        sql: Some(sql.clone()),
+                        total: 0,
+                    }));
                 }
-                _ => {
-                    let conn = self.get_conn()?;
-                    match conn.query(&sql.sql).execute().await {
-                        Ok(_) => {}
-                        Err(err) => ret.push(Err(err.to_string())),
-                    }
+
+                Err(err) => {
+                    ret.push(Err(err.to_string()));
                 }
             }
         }

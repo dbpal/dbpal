@@ -22,9 +22,7 @@ use crate::db::{
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     escape_sql_str, not_support_feature,
 };
-use crate::helper::{
-    SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
-};
+use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
@@ -89,15 +87,10 @@ impl OracleDB {
     }
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
+fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<String>> {
     // TODO use oracle later when sqlparser supported
     let dialect = sqlparser::dialect::GenericDialect {};
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        SqlKind::get_from_statement,
-        SqlKind::get_from_sql,
-    )
+    sql_cut_by_semicolon(sql, &dialect)
 }
 
 impl OracleDB {
@@ -258,10 +251,7 @@ impl QuerySql for OracleDB {
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,
             Err(_err) => {
-                vec![SqlWithKind {
-                    sql: sql.to_string(),
-                    kind: SqlKind::Query,
-                }]
+                vec![sql.to_string()]
             }
         };
 
@@ -274,38 +264,21 @@ impl QuerySql for OracleDB {
 
         let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
         let mut ml = MemoryLimit::new();
-        for seq in ss.iter() {
+        for sql in ss.iter() {
             ml.exceed_error()?;
-            log::trace!("oracle query sql:{}", seq);
-            match seq.kind {
-                SqlKind::Query => {
-                    match block_in_place(|| conn.query(&seq.sql, &[])) {
-                        Ok(rows) => {
-                            ml.exceed_error()?;
-                            let rows = rows.into_iter().collect::<Vec<_>>();
-                            let cols = infer_schema_by_result(&rows)?;
-                            let data = encode_rows(rows)?;
-                            ret.push(Ok(QueryResp::new(cols, 0, data, seq.sql.to_owned())?));
-                        }
-                        Err(err) => {
-                            ret.push(Err(err.to_string()));
-                        }
-                    };
+            log::trace!("oracle query sql:{}", sql);
+            match block_in_place(|| conn.query(sql, &[])) {
+                Ok(rows) => {
+                    ml.exceed_error()?;
+                    let rows = rows.into_iter().collect::<Vec<_>>();
+                    let cols = infer_schema_by_result(&rows)?;
+                    let data = encode_rows(rows)?;
+                    ret.push(Ok(QueryResp::new(cols, 0, data, sql.to_owned())?));
                 }
-                SqlKind::Execution => {
-                    let stmt = block_in_place(|| conn.execute(&seq.sql, &[]));
-                    match stmt {
-                        Ok(x) => match x.row_count() {
-                            Ok(x) => ret.push(Ok(QueryResp::row_affected(x, seq.sql.to_owned()))),
-                            Err(err) => ret.push(Err(err.to_string())),
-                        },
-                        Err(err) => ret.push(Err(err.to_string())),
-                    }
+                Err(err) => {
+                    ret.push(Err(err.to_string()));
                 }
-                SqlKind::Begin | SqlKind::Commit | SqlKind::Rollback => {
-                    anyhow::bail!("oracle doesn't work this way,this is should be unreachable");
-                }
-            }
+            };
         }
 
         query_log.set_success(ret.iter().all(|x| x.is_ok()));

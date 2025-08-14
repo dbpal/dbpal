@@ -7,107 +7,8 @@ use sqlparser::ast::Statement;
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::{Location, Token};
 
-/// front can execute a sequence of sql.
-/// this represent a single query and a kind.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SqlWithKind {
-    pub sql: String,
-    pub kind: SqlKind,
-}
-impl SqlWithKind {
-    pub fn new(sql: impl Into<String>, kind: SqlKind) -> Self {
-        let sql = sql.into();
-        Self { sql, kind }
-    }
-}
-
-impl std::fmt::Display for SqlWithKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "kind:{:?} sql:{}", self.kind, self.sql)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SqlKind {
-    Query,
-    Execution,
-    /// start transaction.
-    Begin,
-    /// commit
-    Commit,
-    /// rollback
-    Rollback,
-}
-fn is_statement_begin(s: &Statement) -> bool {
-    match s {
-        Statement::StartTransaction { .. } => true,
-        _ => false,
-    }
-}
-
-fn is_statement_commit(s: &Statement) -> bool {
-    match s {
-        Statement::Commit { .. } => true,
-        _ => false,
-    }
-}
-
-fn is_statement_rollback(s: &Statement) -> anyhow::Result<bool> {
-    match s {
-        Statement::Rollback { savepoint, .. } => {
-            if savepoint.is_some() {
-                anyhow::bail!("save point is not supported")
-            } else {
-                anyhow::Ok(true)
-            }
-        }
-        _ => anyhow::Ok(false),
-    }
-}
-
-impl SqlKind {
-    pub(crate) fn get_from_statement(s: &Statement) -> anyhow::Result<Self> {
-        let x = if is_statement_begin(s) {
-            SqlKind::Begin
-        } else if is_statement_commit(s) {
-            SqlKind::Commit
-        } else if is_statement_rollback(s)? {
-            SqlKind::Rollback
-        } else if is_statement_absolute_query(s) {
-            SqlKind::Query
-        } else {
-            SqlKind::Execution
-        };
-        anyhow::Ok(x)
-    }
-
-    pub(crate) fn get_from_sql(sql: &str) -> anyhow::Result<Self> {
-        let t = sql.to_uppercase();
-        if t.starts_with("BEGIN") || (t.starts_with("START") && t.contains("TRANSACTION")) {
-            return anyhow::Ok(SqlKind::Begin);
-        }
-        if t.starts_with("COMMIT") {
-            return anyhow::Ok(SqlKind::Commit);
-        }
-        if t.starts_with("ROLLBACK") {
-            return anyhow::Ok(SqlKind::Rollback);
-        }
-        anyhow::Ok(
-            if t.starts_with("SELECT") || t.starts_with("SHOW") || t.starts_with("EXPLAIN") {
-                SqlKind::Query
-            } else {
-                SqlKind::Execution
-            },
-        )
-    }
-}
-
 /// cut statement into smaller base on statement or semi_colon.
-pub fn sql_to_sql_seq(
-    sql: &str, dialect: &dyn Dialect,
-    statement_kind_stmt: impl Fn(&Statement) -> anyhow::Result<SqlKind>,
-    statement_kind_sql: impl Fn(&str) -> anyhow::Result<SqlKind>,
-) -> anyhow::Result<Vec<SqlWithKind>> {
+pub fn sql_cut_by_semicolon(sql: &str, dialect: &dyn Dialect) -> anyhow::Result<Vec<String>> {
     fn get_sql(
         lineindex: &line_index::LineIndex, sql: &str, start: Location, end: Option<Location>,
     ) -> String {
@@ -117,9 +18,7 @@ pub fn sql_to_sql_seq(
                 col: (start.column - 1) as u32,
             })
             .unwrap();
-
         let start_offset = usize::from(start_offset);
-
         let end_offset = end
             .map(|x| {
                 {
@@ -137,51 +36,10 @@ pub fn sql_to_sql_seq(
         s.trim().to_string()
     }
 
-    /// cut statement into smaller base on statement.
-    fn cut_sql_to_each_statement_ast(
-        sql: &str, dialect: &dyn Dialect,
-        statement_kind: impl Fn(&Statement) -> anyhow::Result<SqlKind>,
-    ) -> anyhow::Result<Vec<SqlWithKind>> {
-        let lines = line_index::LineIndex::new(sql);
-        let parser = sqlparser::parser::Parser::new(dialect);
-        let mut parser = parser.try_with_sql(sql)?;
-        let mut ret = Vec::new();
-        while parser.peek_token().token != Token::EOF {
-            while Token::SemiColon == parser.peek_token()
-                || matches!(parser.peek_token().token, Token::Whitespace(_))
-            {
-                parser.next_token();
-            }
-            if parser.peek_token() == Token::EOF {
-                break;
-            }
-
-            let start = parser.peek_token();
-            let stmt = parser.parse_statement()?;
-            let kind = statement_kind(&stmt)?;
-
-            let sql = get_sql(&lines, sql, start.span.start, {
-                let t = parser.peek_token();
-                if t.token == Token::EOF {
-                    None
-                } else {
-                    Some(t.span.start)
-                }
-            });
-            ret.push(SqlWithKind::new(sql, kind));
-        }
-        anyhow::Ok(ret)
-    }
-    match cut_sql_to_each_statement_ast(sql, dialect, statement_kind_stmt) {
-        Ok(x) => return Ok(x),
-        Err(err) => {
-            log::error!("on ast failedmerr:{}", err);
-        }
-    }
     // cut sql by semicolon
     fn cut_sql_to_each_statement_semi_colon(
-        sql: &str, dialect: &dyn Dialect, statement_kind: impl Fn(&str) -> anyhow::Result<SqlKind>,
-    ) -> anyhow::Result<Vec<SqlWithKind>> {
+        sql: &str, dialect: &dyn Dialect,
+    ) -> anyhow::Result<Vec<String>> {
         let lines = line_index::LineIndex::new(sql);
         let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql).tokenize_with_location()?;
         let tokens: Vec<_> = tokens
@@ -213,9 +71,8 @@ pub fn sql_to_sql_seq(
                         Some(t.span.start)
                     },
                 );
-                let kind = statement_kind(sql.as_str())?;
                 if sql != ";" && !sql.is_empty() {
-                    ret.push(SqlWithKind::new(sql, kind));
+                    ret.push(sql);
                 }
                 if index + 1 < tokens.len() {
                     start = &tokens[index + 1];
@@ -224,24 +81,7 @@ pub fn sql_to_sql_seq(
         }
         anyhow::Ok(ret)
     }
-    cut_sql_to_each_statement_semi_colon(sql, dialect, statement_kind_sql)
-}
-
-fn is_statement_absolute_query(s: &Statement) -> bool {
-    match s {
-        Statement::Query(_) => true,
-        Statement::Fetch { .. } => true,
-        Statement::ShowFunctions { filter: _ } => true,
-        Statement::ShowVariable { variable: _ } => true,
-        Statement::ShowVariables { .. } => true,
-        Statement::ShowCreate { .. } => true,
-        Statement::ShowColumns { .. } => true,
-        Statement::ShowTables { .. } => true,
-        Statement::ShowCollation { filter: _ } => true,
-        Statement::ExplainTable { .. } => true,
-        Statement::Explain { .. } => true,
-        _ => false,
-    }
+    cut_sql_to_each_statement_semi_colon(sql, dialect)
 }
 
 /// create csv file list of string
@@ -293,9 +133,7 @@ pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> an
             Statement::Drop { .. } => true,
             Statement::DropFunction { .. } => true,
             Statement::DropSecret { .. } => true,
-            Statement::Delete(x) => {
-                x.selection.is_none()
-            }
+            Statement::Delete(x) => x.selection.is_none(),
             _ => false,
         };
         if x {

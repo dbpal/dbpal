@@ -26,9 +26,7 @@ use crate::db::{
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
     format_data_time_fix_offset, not_support_feature,
 };
-use crate::helper::{
-    SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
-};
+use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
@@ -955,12 +953,7 @@ impl SchemaTrait for MsSqlServerDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let s = self.insert_sql(
-            self.config.schema.as_deref(),
-            table_name,
-            &fs,
-            &values,
-        )?;
+        let s = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
 
         log::trace!("insert sql:{}", s);
 
@@ -1012,12 +1005,7 @@ impl SchemaTrait for MsSqlServerDB {
         self.can_write()?;
 
         let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(
-            self.config.schema.as_deref(),
-            table_name,
-            &fields,
-            &wheres,
-        )?;
+        let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -1463,12 +1451,8 @@ impl MsSqlServerDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = self.insert_sql(
-                    self.config.schema.as_deref(),
-                    table_name,
-                    &cols,
-                    &m,
-                )?;
+                let insert_sql =
+                    self.insert_sql(self.config.schema.as_deref(), table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send(";\n".into()).await?;
             }
@@ -1884,15 +1868,9 @@ impl MsSqlServerDB {
 }
 
 #[allow(dead_code)]
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
+fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<String>> {
     let dialect = sqlparser::dialect::MsSqlDialect {};
-
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        SqlKind::get_from_statement,
-        SqlKind::get_from_sql,
-    )
+    sql_cut_by_semicolon(sql, &dialect)
 }
 
 #[async_trait::async_trait]

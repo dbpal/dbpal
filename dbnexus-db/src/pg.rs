@@ -24,6 +24,7 @@ use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
+use crate::pg_lang_server_static::TYPES;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 /// postgres version of pg.
@@ -37,6 +38,7 @@ pub struct PostGresDB {
     pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
     tx_execute_times: TXExecuteTimes,
     pub(crate) build_in_fn: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) query_id: Option<uuid::Uuid>,
 }
 
 #[async_trait::async_trait]
@@ -170,12 +172,8 @@ impl PostGresDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = self.insert_sql(
-                    self.config.schema.as_deref(),
-                    table_name,
-                    &cols,
-                    &m,
-                )?;
+                let insert_sql =
+                    self.insert_sql(self.config.schema.as_deref(), table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send(";\n".into()).await?;
             }
@@ -270,7 +268,8 @@ impl PostGresDB {
         while let Some(rows) = stream.next().await {
             let rows = rows?;
             if first && !rows.is_empty() && include_header {
-                let fs = rows.first()
+                let fs = rows
+                    .first()
                     .unwrap()
                     .columns()
                     .iter()
@@ -640,7 +639,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::pg_lang_server::TYPES)
+        anyhow::Ok(TYPES)
     }
 
     async fn modify_table_column(
@@ -1225,12 +1224,7 @@ impl SchemaTrait for PostGresDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(
-            self.config.schema.as_deref(),
-            table_name,
-            &fields,
-            &wheres,
-        )?;
+        let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(AssertSqlSafe(sql.as_str()))
@@ -1286,12 +1280,7 @@ impl SchemaTrait for PostGresDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
-        let sql = self.insert_sql(
-            self.config.schema.as_deref(),
-            table_name,
-            &fs,
-            &values,
-        )?;
+        let sql = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::query(AssertSqlSafe(sql.as_str()))
@@ -1592,6 +1581,7 @@ impl PostGresDB {
             tx_execute_times: Default::default(),
             key_word_completion: Default::default(),
             build_in_fn: Default::default(),
+            query_id: Default::default(),
         })
     }
 

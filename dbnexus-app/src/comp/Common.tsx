@@ -116,7 +116,7 @@ function EditorBar(props: { left?: any; pos: EditorPositon }) {
       <div style={{ width: '40%' }}> {left}</div>
       <Stack width="30%" direction="row" spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
-        <span>Column {pos ? pos.column : ''}</span>
+        <span>Col {pos ? pos.column : ''}</span>
       </Stack>
     </Stack>
   );
@@ -633,7 +633,6 @@ function makeAutoComplete(
     pos: Position
   ): Promise<languages.CompletionList> => {
     try {
-      console.log('makeAutoComplete queryId:', queryId);
       let completionItem = await invoke<types.CompletionItem[]>(
         'auto_completion',
         {

@@ -355,8 +355,7 @@ impl CompletionStatement {
                 }
                 if let Some(on_cluster) = on_cluster.as_ref() {
                     self.c_on_cluster(on_cluster).await;
-                    if self.finished() {
-                    }
+                    if self.finished() {}
                 }
                 // TODO how should I handle partitions
             }
@@ -898,8 +897,7 @@ impl CompletionStatement {
                 }
                 if let Some(expr) = &create_index.predicate {
                     self.c_on_expr(expr).await;
-                    if self.finished() {
-                    }
+                    if self.finished() {}
                 }
             }
             Statement::CreateRole {
@@ -957,8 +955,7 @@ impl CompletionStatement {
                 }
                 if let Some(x) = with_check {
                     self.c_on_expr(x).await;
-                    if self.finished() {
-                    }
+                    if self.finished() {}
                 }
             }
             Statement::AlterTable {
@@ -1151,8 +1148,7 @@ impl CompletionStatement {
                 // 给我的语法结构不好做自动完成
             }
             Statement::ShowCreate { obj_type, obj_name } => {
-                self.c_on_mysql_show_create(*obj_type, obj_name)
-                    .await;
+                self.c_on_mysql_show_create(*obj_type, obj_name).await;
             }
             Statement::ShowColumns { .. } => {}
             Statement::ShowDatabases { .. } => {}
@@ -1464,9 +1460,14 @@ impl CompletionStatement {
                     }
                 }
             }
-            Statement::Deallocate { .. } => {}
+            Statement::Deallocate { name, .. } => {
+                self.c_on_prepare_ident(name).await;
+            }
             Statement::Execute {
-                parameters, using, ..
+                parameters,
+                using,
+                name,
+                ..
             } => {
                 for p in parameters.iter() {
                     self.c_on_expr(p).await;
@@ -1479,6 +1480,9 @@ impl CompletionStatement {
                     if self.finished() {
                         return;
                     }
+                }
+                if let Some(name) = name.as_ref() {
+                    self.c_on_prepare(name).await;
                 }
             }
             Statement::Prepare {

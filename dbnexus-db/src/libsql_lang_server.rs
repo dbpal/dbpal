@@ -1,30 +1,31 @@
-use std::sync::Arc;
-
-use libsql::params;
-
-use crate::db::SchemaTrait;
+use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
     LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::libsql::LibSqlDB;
+use crate::sqlite::SqliteDB;
 use crate::sqlite_lang_server_static::{SQLITE_KEY_WORDS, SQLITE_TYPES};
 use crate::sqlparser_completion::TempTableColumn;
+use libsql::params;
+use std::sync::Arc;
 
 #[async_trait::async_trait]
 impl LanguageServer for LibSqlDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut db = Clone::clone(self);
+        db.query_id = query_id;
+        let db = Arc::new(db);
         let r = try_completion_on_syntax(
             sql,
             line,
             col,
             sqlparser::dialect::SQLiteDialect {},
-            Arc::new(Clone::clone(self)),
+            db.clone() as Arc<dyn AstCompletionHelper>,
         )
         .await;
-
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
@@ -36,7 +37,7 @@ impl LanguageServer for LibSqlDB {
             return anyhow::Ok(vec![]);
         }
         return LexerCompletionTrait::do_auto_completion(
-            self,
+            db.as_ref(),
             sql,
             &sqlparser::dialect::SQLiteDialect {},
         )
@@ -48,8 +49,6 @@ impl LanguageServer for LibSqlDB {
 
 impl crate::language_server::LexerCompletionTrait for LibSqlDB {
     type Dialect = sqlparser::dialect::SQLiteDialect;
-
-    // https://sqlite.org/lang_keywords.html
 
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
@@ -82,11 +81,12 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret: Vec<_> = SchemaTrait::list_table(self)
+        let mut ret: Vec<_> = self
+            .list_table_impl(SqliteDB::MAIN_DB)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())?;
         ret.extend(
-            SchemaTrait::list_view(self)
+            self.list_view_impl(SqliteDB::MAIN_DB)
                 .await
                 .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())?
                 .into_iter(),
@@ -100,22 +100,50 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
 }
 
 #[async_trait::async_trait]
-impl LangServerCommon for LibSqlDB {}
+impl LangServerCommon for LibSqlDB {
+    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let query_id = match self.query_id.as_ref() {
+            Some(x) => *x,
+            None => return anyhow::Ok(vec![]),
+        };
+        let conn = self.query_connections.get(&query_id);
+        if conn.is_none() {
+            anyhow::bail!("query id should have connection")
+        }
+        let conn = conn.unwrap();
+        let sql = "PRAGMA database_list";
+        let mut rows = conn.query(sql, params!()).await?;
+        let mut ret = vec![];
+        while let Some(row) = rows.next().await? {
+            let name: String = row.get(1)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+impl LibSqlDB {
+    fn merge_schema(db: Option<&str>) -> &str {
+        db.unwrap_or(SqliteDB::MAIN_DB)
+    }
+}
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for LibSqlDB {
     async fn list_view(
-        &self, _db: Option<&str>, _schema: Option<&str>,
+        &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        SchemaTrait::list_view(self)
+        let schema = Self::merge_schema(schema);
+        self.list_view_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_table(
-        &self, _db: Option<&str>, _schema: Option<&str>,
+        &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        SchemaTrait::list_table(self)
+        let schema = Self::merge_schema(schema);
+        self.list_table_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
@@ -149,9 +177,12 @@ impl AstCompletionHelper for LibSqlDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, _is_call: bool,
+        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = format!(r#"select * from "{name}" limit 1"#);
+        let sql = format!(
+            r#"select * from "{name}"{} limit 1"#,
+            if is_call { "()" } else { "" }
+        );
         self.get_query_columns(&sql).await
     }
 
@@ -172,10 +203,13 @@ impl AstCompletionHelper for LibSqlDB {
             FROM pragma_function_list()
             ORDER BY name;
         "#;
-        let conn: bb8::PooledConnection<'_, crate::libsql::PoolManager> = self.get_conn().await?;
+        let conn = self.get_conn().await?;
         let mut rows = conn.query(sql, params!()).await?;
         while let Some(row) = rows.next().await? {
             let name: String = row.get(0)?;
+            if !name_start_ascii_alphabetic(&name) {
+                continue;
+            }
             lock.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::Function,
@@ -185,8 +219,9 @@ impl AstCompletionHelper for LibSqlDB {
         return anyhow::Ok(lock.clone());
     }
 
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        self.list_index_name_impl().await
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::merge_schema(schema);
+        self.list_index_name_impl(schema).await
     }
 
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -212,14 +247,16 @@ impl AstCompletionHelper for LibSqlDB {
 }
 
 impl LibSqlDB {
-    pub(crate) async fn list_index_name_impl(&self) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
+    pub(crate) async fn list_index_name_impl(&self, db: &str) -> anyhow::Result<Vec<String>> {
+        let sql = format!(
+            r#"
         SELECT name
-            FROM sqlite_master
-            WHERE type = 'index';"#;
+            FROM "{db}".sqlite_master
+            WHERE type = 'index';"#
+        );
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;
-        let mut rows = conn.query(sql, params!()).await?;
+        let mut rows = conn.query(&sql, params!()).await?;
         let mut ret = Vec::new();
         while let Some(r) = rows.next().await? {
             let name: String = r.get(0)?;
@@ -231,12 +268,11 @@ impl LibSqlDB {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::libsql::make_test_object;
+    use std::path::Path;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
@@ -306,7 +342,7 @@ mod tests {
         let db = make_test_object().await;
         test_file_auto_completion(
             r#"select employees.id  from employees
-13 employees ; 19 name ; 32 departments"#,
+13 employees ; 19 name ; 32 departments ; 32 main"#,
             &db,
             false,
         )

@@ -6,9 +6,10 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use crate::db::{CatalogTrait, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
+    LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
 };
+use crate::mysql_lang_server::TYPES;
 use crate::pg::PostGresDB;
 use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
@@ -90,7 +91,7 @@ impl PostGresDB {
             return anyhow::Ok(lock.clone());
         }
         let sql = r#"SELECT p.proname AS function_name,
-             d.description AS function_description
+            d.description AS function_description
             FROM pg_catalog.pg_proc p
             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             LEFT JOIN pg_catalog.pg_description d ON d.objoid = p.oid
@@ -119,6 +120,36 @@ impl PostGresDB {
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for PostGresDB {
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        let query_id = match self.query_id {
+            Some(x) => x,
+            None => anyhow::bail!("this should not be null"),
+        };
+        let conn = self.query_connection.get(&query_id);
+        if conn.is_none() {
+            anyhow::bail!("query_id should get connection")
+        }
+        let conn = conn.unwrap();
+        let mut conn = conn.lock().await;
+
+        let sql = r#"
+            SELECT name,statement FROM pg_prepared_statements;
+        "#;
+        let rows = sqlx::query(sql)
+            .fetch_all(conn.deref_mut().deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            let statement: String = row.try_get(1)?;
+            ret.push(DBPrepare {
+                name,
+                statement: Some(statement),
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn list_table(
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
@@ -377,6 +408,7 @@ impl AstCompletionHelper for PostGresDB {
         let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -468,30 +500,6 @@ impl AstCompletionHelper for PostGresDB {
         }
         anyhow::Ok(ret)
     }
-
-    async fn list_prepare_name(&self, query_id: uuid::Uuid) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-        SELECT name
-            FROM pg_prepared_statements;
-        "#;
-        log::info!("sql:{}", sql);
-        let conn = match self.query_connection.get(&query_id).map(|x| x.clone()) {
-            Some(x) => x,
-            None => anyhow::bail!(format!("can't find query of {}", query_id)),
-        };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let rows = sqlx::query(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name)
-        }
-        anyhow::Ok(ret)
-    }
-
     async fn list_table_trigger(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -570,14 +578,17 @@ impl LangServerCommon for PostGresDB {
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut pg = Clone::clone(self);
+        pg.query_id = query_id;
+        let pg = Arc::new(pg);
         let r = try_completion_on_syntax(
             sql,
             line,
             col,
             sqlparser::dialect::PostgreSqlDialect {},
-            Arc::new(Clone::clone(self)),
+            pg.clone() as Arc<dyn AstCompletionHelper>,
         )
         .await;
         match r {
@@ -591,7 +602,7 @@ impl LanguageServer for PostGresDB {
             return anyhow::Ok(vec![]);
         }
         return LexerCompletionTrait::do_auto_completion(
-            self,
+            pg.as_ref(),
             sql,
             &sqlparser::dialect::PostgreSqlDialect {},
         )
@@ -697,99 +708,3 @@ mod tests {
         .await;
     }
 }
-
-pub(crate) const TYPES: &[&str] = &[
-    "BOOL",
-    "BYTEA",
-    "NAME",
-    "INT8",
-    "INT2",
-    "INT4",
-    "TEXT",
-    "OID",
-    "JSON",
-    "JSON[]",
-    "POINT",
-    "LSEG",
-    "PATH",
-    "BOX",
-    "POLYGON",
-    "LINE",
-    "LINE[]",
-    "CIDR",
-    "CIDR[]",
-    "FLOAT4",
-    "FLOAT8",
-    "UNKNOWN",
-    "CIRCLE",
-    "CIRCLE[]",
-    "MACADDR8",
-    "MACADDR8[]",
-    "MACADDR",
-    "INET",
-    "BOOL[]",
-    "BYTEA[]",
-    "NAME[]",
-    "INT2[]",
-    "INT4[]",
-    "TEXT[]",
-    "CHAR[]",
-    "VARCHAR[]",
-    "INT8[]",
-    "POINT[]",
-    "LSEG[]",
-    "PATH[]",
-    "BOX[]",
-    "FLOAT4[]",
-    "FLOAT8[]",
-    "POLYGON[]",
-    "OID[]",
-    "MACADDR[]",
-    "INET[]",
-    "CHAR",
-    "VARCHAR",
-    "DATE",
-    "TIME",
-    "TIMESTAMP",
-    "TIMESTAMP[]",
-    "DATE[]",
-    "TIME[]",
-    "TIMESTAMPTZ",
-    "TIMESTAMPTZ[]",
-    "INTERVAL",
-    "INTERVAL[]",
-    "NUMERIC[]",
-    "TIMETZ",
-    "TIMETZ[]",
-    "BIT",
-    "BIT[]",
-    "VARBIT",
-    "VARBIT[]",
-    "NUMERIC",
-    "RECORD",
-    "RECORD[]",
-    "UUID",
-    "UUID[]",
-    "JSONB",
-    "JSONB[]",
-    "INT4RANGE",
-    "INT4RANGE[]",
-    "NUMRANGE",
-    "NUMRANGE[]",
-    "TSRANGE",
-    "TSRANGE[]",
-    "TSTZRANGE",
-    "TSTZRANGE[]",
-    "DATERANGE",
-    "DATERANGE[]",
-    "INT8RANGE",
-    "INT8RANGE[]",
-    "JSONPATH",
-    "JSONPATH[]",
-    "MONEY",
-    "MONEY[]",
-    "VOID",
-    "SERIAL",
-    "BIGSERIAL",
-    "SMALLSERIAL",
-];
