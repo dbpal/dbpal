@@ -19,6 +19,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { FaExclamation } from 'react-icons/fa';
 import {
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -167,6 +168,7 @@ function SqlQuery(props: {
   saveFavoriteSql: (name: string, sql: string) => void;
   favoriteName?: string;
   kind: DataSourceKind;
+  buttons?: ReactNode;
 }) {
   let {
     handelTextAndPositionChange,
@@ -176,6 +178,7 @@ function SqlQuery(props: {
     saveFavoriteSql,
     favoriteName: oldFavoriteName,
     kind,
+    buttons,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
@@ -705,6 +708,7 @@ function SqlQuery(props: {
               <EventNoteIcon></EventNoteIcon>
             </IconButton>
           </Tooltip>
+          {buttons}
         </Stack>
         <div
           style={{

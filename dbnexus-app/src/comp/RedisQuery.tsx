@@ -7,6 +7,10 @@ import { SqlQuery } from './SqlQuery.tsx';
 import { fetch } from '@tauri-apps/plugin-http';
 import { MakeIQueryConn } from './Common.tsx';
 import { DataSourceKind, SaveSizesToStore } from './helper.ts';
+import { Button } from '@mui/material';
+
+let showDocOld = true;
+
 function RedisQuery(props: {
   makeConn: MakeIQueryConn;
   language;
@@ -14,14 +18,7 @@ function RedisQuery(props: {
   favoriteName?: string;
   value?: string;
 }) {
-  const {
-    language,
-    makeConn,
-
-    saveFavoriteSql,
-    favoriteName,
-    value,
-  } = props;
+  const { language, makeConn, saveFavoriteSql, favoriteName, value } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -89,20 +86,30 @@ function RedisQuery(props: {
       });
   };
   const [size, setSize] = useState<string | number>('40vw');
+  const [showDoc, setShowDoc] = useState(showDocOld);
   const sizeKey = 'reids-query-size';
   useEffect(() => {
     SaveSizesToStore.getSize(sizeKey).then((e) => {
-      if (e && e.width) {
-        setSize(e.width);
+      if (e && e.width && showDoc) {
+        setSize(e.width + 'px');
       }
     });
   }, []);
+  useEffect(() => {
+    if (showDoc) {
+      setSize('40vw');
+    } else {
+      setSize('100%');
+    }
+    showDocOld = showDoc;
+  }, [showDoc]);
 
   return (
     //@ts-ignore
     <SplitPane
       split="vertical"
-      minSize={300}
+      minS
+      ize={300}
       defaultSize={size}
       step={5}
       onDragStarted={() => {
@@ -112,7 +119,7 @@ function RedisQuery(props: {
       onDragFinished={(_: number): void => {
         setIsDragging(false);
       }} // 拖动结束
-      style={{ position: 'relative' }}
+      // style={{ position: 'relative' }}
       onChange={(newsize) => {
         SaveSizesToStore.saveSize(sizeKey, { width: newsize });
       }}
@@ -133,6 +140,15 @@ function RedisQuery(props: {
         saveFavoriteSql={saveFavoriteSql}
         value={value}
         kind={DataSourceKind.Redis}
+        buttons={
+          <Button
+            onClick={() => {
+              setShowDoc((e) => !e);
+            }}
+          >
+            {showDoc ? 'hidden' : 'show'} doc
+          </Button>
+        }
       ></SqlQuery>
 
       <div
@@ -142,6 +158,7 @@ function RedisQuery(props: {
         }}
       >
         <iframe
+          hidden={!showDoc}
           ref={iframeRef} // 绑定 iframe 引用
           src={getURL(command)}
           style={{
