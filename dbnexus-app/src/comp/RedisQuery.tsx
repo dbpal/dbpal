@@ -108,9 +108,8 @@ function RedisQuery(props: {
     //@ts-ignore
     <SplitPane
       split="vertical"
-      minS
-      ize={300}
-      defaultSize={size}
+      minSize={200}
+      size={size}
       step={5}
       onDragStarted={() => {
         setIsDragging(true);
@@ -140,15 +139,15 @@ function RedisQuery(props: {
         saveFavoriteSql={saveFavoriteSql}
         value={value}
         kind={DataSourceKind.Redis}
-        buttons={
+        buttons={[
           <Button
             onClick={() => {
               setShowDoc((e) => !e);
             }}
           >
             {showDoc ? 'hidden' : 'show'} doc
-          </Button>
-        }
+          </Button>,
+        ]}
       ></SqlQuery>
 
       <div
